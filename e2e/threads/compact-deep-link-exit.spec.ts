@@ -183,6 +183,7 @@ const measureReverseScroll = (view: Locator) =>
     const startScrollTop = before.scrollTop;
     const mountedAtSeek = new Set(before.cards.keys());
     const newVisibleHeights = new Map<string, number>();
+    const offsets: number[] = [startScrollTop];
     let upFrames = 0;
     let framesWithoutAnchor = 0;
     let missingAnchors = 0;
@@ -197,6 +198,7 @@ const measureReverseScroll = (view: Locator) =>
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const after = read();
       const delta = after.scrollTop - before.scrollTop;
+      offsets.push(after.scrollTop);
       if (delta < 0) upFrames += 1;
       let anchors = 0;
       before.cards.forEach((rect, id) => {
@@ -228,6 +230,7 @@ const measureReverseScroll = (view: Locator) =>
     const heights = [...newVisibleHeights.values()];
     return {
       distance: startScrollTop - before.scrollTop,
+      offsets,
       upFrames,
       framesWithoutAnchor,
       missingAnchors,
@@ -270,7 +273,10 @@ test('reverse scrolling after a deep seek in mixed-height Compact cards (WebKit)
     const result = await measureReverseScroll(view);
     test.info().annotations.push({ type: 'reverse scroll', description: JSON.stringify(result) });
     expect(result.distance, 'actual upward scroll distance').toBeGreaterThan(2_200);
-    expect(result.upFrames, 'frames with upward scrolling').toBeGreaterThan(36);
+    expect(
+      result.upFrames,
+      `frames with upward scrolling: ${result.offsets.join(', ')}`
+    ).toBeGreaterThan(36);
     expect(result.newVisibleCards, 'newly mounted cards read on the way up').toBeGreaterThan(8);
     expect(result.heightSpread, 'short and tall cards in the new rows').toBeGreaterThan(8);
     expect(result.framesWithoutAnchor, 'frames without a shared visible anchor').toBe(0);

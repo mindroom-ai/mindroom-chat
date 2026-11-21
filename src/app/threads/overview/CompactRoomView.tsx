@@ -76,6 +76,7 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   /** The card the address asks to show, when it asks for one. */
   focusRequest?: CompactFocusRequest;
+  focusReady?: boolean;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
@@ -330,6 +331,7 @@ function CompactRoomList({
   onThreadClick,
   compactRoomScrollStateRef,
   focusRequest,
+  focusReady = true,
   filterBarShown = false,
   sectionsNow,
 }: CompactRoomViewProps) {
@@ -435,14 +437,11 @@ function CompactRoomList({
   const mountRequestKey = useRef(requestKey);
   const placedRequestKey = useRef<string>();
   const initialPlace = useRef(memory.get(room.roomId));
-  const [restoreAnchors, setRestoreAnchors] = useState(() => {
-    const saved = memory.get(room.roomId);
-    return saved?.scrollTop && !saved.address ? saved.anchors.map(({ key }) => key) : [];
-  });
-  const releaseAnchors = useCallback(
-    () => setRestoreAnchors((keys) => (keys.length ? [] : keys)),
-    []
+  const saved = initialPlace.current;
+  const [restoreAnchors, setRestoreAnchors] = useState(
+    saved?.scrollTop && !saved.address ? saved.anchors.map(({ key }) => key) : undefined
   );
+  const releaseAnchors = useCallback(() => setRestoreAnchors(undefined), []);
   const seek =
     focusRequest &&
     requestKey !== placedRequestKey.current &&
@@ -451,7 +450,7 @@ function CompactRoomList({
       : focusRequest.pushed && isCompactFocusRequestOpen(memory, focusRequest));
   const { virtualizer, indexes } = useCompactWindow(
     listRows,
-    pinned,
+    pinned.length,
     viewRef,
     listRef,
     memory,
@@ -461,7 +460,7 @@ function CompactRoomList({
       menu?.rootId,
       pendingFocus,
       seek ? focusRequest.eventId : undefined,
-      ...restoreAnchors,
+      ...(restoreAnchors ?? []),
       ...listRows.filter((row) => sectionOfRow(row)),
     ],
     orderWindow
@@ -606,14 +605,20 @@ function CompactRoomList({
     scrollRef: viewRef,
     contentRef,
     ready: shownRootIds.length > 0,
-    rows: restoreAnchors.length ? listRows : undefined,
-    releaseAnchors: restoreAnchors.length ? releaseAnchors : undefined,
+    rows: restoreAnchors?.length ? listRows : undefined,
+    releaseAnchors: restoreAnchors?.length ? releaseAnchors : undefined,
   });
 
   // An explicit address gets one placement. While folded or filtered it has no row to place.
   useLayoutEffect(() => {
     const view = viewRef.current;
-    if (!focusRequest || !view || !shownRootIds.includes(focusRequest.eventId)) return;
+    if (
+      !focusRequest ||
+      !view ||
+      (seek && !focusReady) ||
+      !shownRootIds.includes(focusRequest.eventId)
+    )
+      return;
     const card = cardButton(focusRequest.eventId)?.closest('[data-scroll-anchor]');
     if (!card) return;
     const viewport = view.getBoundingClientRect();

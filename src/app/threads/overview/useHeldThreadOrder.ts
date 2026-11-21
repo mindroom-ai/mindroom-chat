@@ -108,8 +108,13 @@ export const useHeldThreadOrder = (
     [held, liveRootIds]
   );
   const cardsInViewRef = useRef<CardsInView>();
-  // Every commit: a card's thread that loads above the view changes its height without an order
-  // change.
+  const record = useCallback(() => {
+    const view = viewRef?.current;
+    if (!view) return;
+    cardsInViewRef.current = cardsInView(view, shownRef.current);
+    if (windowRef)
+      windowRef.current.keys = cardsInViewRef.current?.cards.map(({ rootId }) => rootId) ?? [];
+  }, [viewRef, windowRef]);
   useLayoutEffect(() => {
     shownRef.current = shown;
     const view = viewRef?.current;
@@ -117,7 +122,8 @@ export const useHeldThreadOrder = (
     const before = cardsInViewRef.current;
     const shift = windowRef?.current.shift;
     const scrollDelta = view.scrollTop - (before?.scrollTop ?? 0);
-    if (before && !browserAnchorsScroll() && view.scrollTop > 0 && (shift || !scrollDelta)) {
+    const needsAnchor = !browserAnchorsScroll() || (held && windowRef && before?.order !== shown);
+    if (before && needsAnchor && view.scrollTop > 0 && (shift || !scrollDelta)) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const anchor = before.cards.find(
         ({ rootId }) =>
@@ -130,22 +136,13 @@ export const useHeldThreadOrder = (
       if (shift) shift(-moved);
       else if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
-    cardsInViewRef.current = cardsInView(view, shown);
-    if (windowRef)
-      windowRef.current.keys = cardsInViewRef.current?.cards.map(({ rootId }) => rootId) ?? [];
+    record();
   });
-  // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef?.current;
-    if (!view) return undefined;
-    const record = () => {
-      cardsInViewRef.current = cardsInView(view, shownRef.current);
-      if (windowRef)
-        windowRef.current.keys = cardsInViewRef.current?.cards.map(({ rootId }) => rootId) ?? [];
-    };
-    view.addEventListener('scroll', record, { passive: true });
-    return () => view.removeEventListener('scroll', record);
-  }, [viewRef, windowRef]);
+    view?.addEventListener('scroll', record, { passive: true });
+    return () => view?.removeEventListener('scroll', record);
+  }, [record, viewRef]);
   return shown;
 };
 

@@ -24,7 +24,7 @@ const windows = new WeakMap<ScrollAnchorMemory, Map<string, WindowSnapshot>>();
 
 export function useCompactWindow(
   rows: string[],
-  pinned: string[],
+  pinnedCount: number,
   viewRef: RefObject<HTMLDivElement>,
   listRef: RefObject<HTMLDivElement>,
   memory: ScrollAnchorMemory,
@@ -43,7 +43,7 @@ export function useCompactWindow(
   const estimateSize = (index: number) => (rows[index]?.startsWith('section:') ? 44 : 84);
   const initialOffset = () => {
     const place = saved.current;
-    if (!place || place.scrollTop <= 0) return 0;
+    if (!place || place.address || place.scrollTop <= 0) return 0;
     const offsets = new Map(place.anchors.map(({ key, offset }) => [key, offset]));
     const sizes = new Map(cached.current?.measurements.map(({ key, size }) => [key, size]));
     let start = scrollMargin;
@@ -60,23 +60,17 @@ export function useCompactWindow(
       }
       start += sizes.get(key) ?? estimateSize(index);
     });
-    if (place.anchors.some(({ key }) => pinned.includes(key))) return place.scrollTop;
     return Math.max(0, nearest ?? place.scrollTop);
   };
-  const kept = [
+  const keepKey = [
     ...retained,
     gestureId,
     ...(previousRows.current === rows ? [] : windowRef.current.keys),
-  ];
-  const keepKey = kept.join('\n');
+  ].join('\n');
   const rangeExtractor = useCallback(
     (range: Range) => {
-      const indexesInRange = new Set(defaultRangeExtractor(range));
-      keepKey.split('\n').forEach((key) => {
-        const index = indexes.get(key);
-        if (index !== undefined) indexesInRange.add(index);
-      });
-      return [...indexesInRange].sort((a, b) => a - b);
+      const keep = keepKey.split('\n').flatMap((key) => indexes.get(key) ?? []);
+      return [...new Set([...defaultRangeExtractor(range), ...keep])].sort((a, b) => a - b);
     },
     [indexes, keepKey]
   );
@@ -106,7 +100,6 @@ export function useCompactWindow(
       }
     : undefined;
   useLayoutEffect(() => {
-    previousRows.current = rows;
     const view = viewRef.current;
     if (!virtualizer.isScrolling && bias && view) {
       // Fold the temporary layout offset back into the scroll position only at rest.
@@ -114,6 +107,9 @@ export function useCompactWindow(
       listRef.current?.style.removeProperty('--compact-scroll-bias');
       setBias(0);
     }
+    if (view && !virtualizer.isScrolling && (bias || previousRows.current !== rows))
+      virtualizer.scrollOffset = view.scrollTop;
+    previousRows.current = rows;
   });
 
   const hasRows = rows.length > 0;
@@ -132,7 +128,7 @@ export function useCompactWindow(
     observer.observe(view);
     if (content) observer.observe(content);
     return () => observer.disconnect();
-  }, [hasRows, listRef, pinned.length, viewRef]);
+  }, [hasRows, listRef, pinnedCount, viewRef]);
   useLayoutEffect(() => {
     saved.current = undefined;
     cached.current = undefined;

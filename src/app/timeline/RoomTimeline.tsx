@@ -1922,6 +1922,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           focusRequest={focusRequest}
+          focusReady={threadIndex.threadListSettled}
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
