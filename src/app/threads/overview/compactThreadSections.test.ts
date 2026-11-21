@@ -8,7 +8,7 @@ import { matchesThreadRecordFilterState } from '../../event-store/threads/thread
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
-import { buildCompactThreadSections } from './compactThreadSections';
+import { buildCompactThreadSections, holdCompactThreadSections } from './compactThreadSections';
 
 const NOW = 1_000;
 
@@ -63,6 +63,46 @@ const everyKind = recordsOf(
 const everyKindIds = [...everyKind.keys()];
 
 describe('buildCompactThreadSections', () => {
+  it('exposes the effective keys and retains held inputs through a join', () => {
+    const sort = (...items: ThreadRecord[]) =>
+      buildCompactThreadSections({
+        threadRootIds: items.map((item) => item.threadRootId),
+        recordMap: recordsOf(...items),
+        entryOf: (rootId) =>
+          rootId === '$working' ? ({ rootTs: 11 } as CrossRoomThreadIndexEntry) : undefined,
+        signalsOf: () => undefined,
+        pinnedRootIds: ['$pin'],
+        now: NOW,
+      });
+    const a = record('$a', { lastActivityTs: 10 });
+    const b = record('$b', { lastActivityTs: 20 });
+    const before = sort(a, b);
+    const live = sort(
+      record('$a', { lastActivityTs: 30 }),
+      b,
+      record('$pin'),
+      record('$working', { isStreaming: true, lastActivityTs: 99 }),
+      record('$later', { snoozedUntilTs: NOW + 42 }),
+      record('$done', { isResolved: true, lastActivityTs: 21 })
+    );
+    const values = (sections: ReturnType<typeof sort>) =>
+      new Map(sections.flatMap(({ sortInputs }) => [...sortInputs]));
+    expect(values(live)).toEqual(
+      new Map([
+        ['$a', 'needsYou:30'],
+        ['$b', 'needsYou:20'],
+        ['$pin', 'needsYou:pin'],
+        ['$working', 'working:11'],
+        ['$later', 'later:-1042'],
+        ['$done', 'done:21'],
+      ])
+    );
+    const held = values(holdCompactThreadSections(live, before));
+    expect(held.get('$a')).toBe('needsYou:10');
+    expect(held.get('$pin')).toBe('needsYou:pin');
+    expect(values(live).get('$a')).toBe('needsYou:30');
+  });
+
   it('puts the cards in Working, Needs you, Later and Done, as the workflow tabs count them', () => {
     expect(build({ threadRootIds: everyKindIds, records: everyKind })).toEqual([
       ['working', ['$streaming', '$job']],

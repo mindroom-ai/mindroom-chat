@@ -474,27 +474,26 @@ export function CompactRoomView({
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   const scope = `${room.roomId}|${sortMode}|${!!heldSections}`;
-  const applied = useRef<{ scope: string; inputs: ReadonlyMap<string, string> }>();
+  const applied = useRef<{ scope: string; ties: ReadonlyMap<string, string> }>();
+  const previous = applied.current?.scope === scope ? applied.current.ties : undefined;
+  const ties = new Map<string, string>();
   const inputs = new Map(heldSections?.flatMap(({ sortInputs }) => [...sortInputs]));
-  const previous = applied.current?.scope === scope ? applied.current.inputs : undefined;
   for (const id of shownRootIds) {
     const record = threadRecordMap.get(id);
-    const tie =
+    const live =
       record &&
       sortMode &&
-      (sortMode.startsWith('lastReply')
-        ? `${threadLastReplySortValue(record)}:${record.absoluteIndex}`
-        : `${record.absoluteIndex}`);
+      `${sortMode.startsWith('lastReply') ? threadLastReplySortValue(record) : ''}:${
+        record.absoluteIndex
+      }`;
+    const tie = ((sortFrozen || orderHeld) && previous?.get(id)) || live;
+    if (tie) ties.set(id, tie);
     const sectionInput = inputs.get(id);
-    const retainsInput = sortFrozen || orderHeld;
-    const value = retainsInput ? previous?.get(id) : undefined;
-    if (value && (!heldSections || value.split(':')[0] === sectionInput?.split(':')[0]))
-      inputs.set(id, value);
-    else if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie}`);
-    else if (tie && !heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
+    if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie ?? 'unknown'}`);
+    else if (tie) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
   }
   useLayoutEffect(() => {
-    applied.current = { scope, inputs };
+    applied.current = { scope, ties };
   });
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
