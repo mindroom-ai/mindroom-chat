@@ -2,11 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import { isIOS } from '../lib/user-agent';
 
 /**
- * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
- * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
- * compositor still owns can be discarded (see the offset ledger's discard watch). The area takes
- * `overflow-y: hidden` for the write and gets its own value back two frames later, so one frame
- * renders it hidden. iOS only; the timeline's own pins never call it.
+ * Stops an iOS flick before a floating pill jumps. The compositor can discard scroll writes during
+ * momentum. Hide overflow for the write and restore it two frames later so one frame renders hidden.
  */
 export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
   const stoppedRef = useRef<{ element: HTMLElement; overflowY: string; frame: number }>();

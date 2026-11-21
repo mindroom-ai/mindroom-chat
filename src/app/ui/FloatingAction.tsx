@@ -1,7 +1,7 @@
 import { Chip, Icon, Text, type IconSrc } from 'folds';
 import { FloatingActionStyle } from './FloatingAction.css';
 
-/** A pill over the timeline that takes the reader somewhere or settles the unread state. */
+/** A floating pill that takes the reader somewhere or settles the unread state. */
 export function FloatingAction({
   icon,
   label,
