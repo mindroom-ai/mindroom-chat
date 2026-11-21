@@ -366,7 +366,8 @@ export const showThread = async (page: Page, stack: AgentStack, rootId: string):
   await expectThreadShown(page, rootId);
 };
 
-export const composer = (page: Page): Locator => page.getByRole('textbox', { name: COMPOSER_NAME });
+export const composer = (page: Page): Locator =>
+  page.getByRole('textbox', { name: COMPOSER_NAME });
 
 /** Types into the composer (a rich-text editor, so keystrokes rather than fill) and sends with Enter. */
 export const sendFromComposer = async (page: Page, text: string): Promise<void> => {

@@ -240,8 +240,10 @@ Two tests pin formats to what the backend actually sends: `src/app/messages/back
 The answering agent can post a voice transcript before its reply. The transcript carries
 `com.mindroom.visible_router_voice_echo: true` (the historical key) and
 `com.mindroom.voice_source_event_id`, which names the recording. The client can fold the echo
-under the loaded recording and credits the sender. The recorder can see a local transcribing
-indicator while waiting, for up to 60 seconds from the recording's timestamp.
+under the loaded recording and credits the sender. Until a reply arrives, the recorder can see
+an animated transcribing skeleton while the recording is under 60 seconds old, provided the
+room has a responder and no other people. A trusted legacy placeholder can fold into the same
+skeleton under the player.
 
 For both voice echoes and model acknowledgements, the client trusts the account named by
 `io.mindroom.router` (state key `""`) only if it wrote the binding about itself and still has the
