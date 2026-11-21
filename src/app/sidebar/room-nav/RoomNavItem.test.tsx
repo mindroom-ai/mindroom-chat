@@ -2,6 +2,8 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { JoinRule, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { activeCallAtom, type ActiveCall } from '../../calls/callStore';
+import type { CallState } from '../../calls/RoomCall';
 import { RoomNavItem } from './RoomNavItem';
 import { RoomNotificationMode } from '../../matrix/hooks/useRoomsNotificationPreferences';
 
@@ -10,6 +12,7 @@ const testState = vi.hoisted(() => ({
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
   backgroundJobs: [] as { jobId: string }[],
+  activeCall: undefined as ActiveCall | undefined,
   setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
@@ -35,6 +38,7 @@ vi.mock('folds', async () => {
       Clock: 'Clock',
       Link: 'Link',
       Message: 'Message',
+      Phone: 'Phone',
       Setting: 'Setting',
       UserPlus: 'UserPlus',
       VerticalDots: 'VerticalDots',
@@ -72,7 +76,7 @@ vi.mock('jotai', async (importOriginal) => {
   return {
     ...actual,
     useAtom: () => [false, vi.fn()],
-    useAtomValue: () => ({}),
+    useAtomValue: (atom: unknown) => (atom === activeCallAtom ? testState.activeCall : {}),
   };
 });
 
@@ -217,6 +221,54 @@ const renderRoomNavItem = (
 
 const findByTestId = (renderer: ReactTestRenderer, testId: string) =>
   renderer.root.findAll((node) => node.props['data-testid'] === testId);
+
+describe('RoomNavItem call badge', () => {
+  afterEach(() => {
+    testState.activeCall = undefined;
+  });
+
+  const markCall = (
+    callRoomId: string,
+    originRoomId?: string,
+    phase: CallState['phase'] = 'connected'
+  ) => {
+    testState.activeCall = {
+      kind: originRoomId ? 'agent' : 'room',
+      origin: originRoomId ? { roomId: originRoomId } : undefined,
+      call: {
+        room: { roomId: callRoomId },
+        subscribe: () => () => undefined,
+        getState: () => ({ phase }),
+      },
+    } as unknown as ActiveCall;
+  };
+  const badge = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll((node) => node.type === 'i' && node.props.src === 'Phone');
+
+  it('marks a live call in this room and describes it without renaming the link', () => {
+    markCall(room.roomId);
+    const renderer = renderRoomNavItem();
+    expect(badge(renderer)).toHaveLength(1);
+    expect(badge(renderer)[0]?.props['aria-hidden']).toBe('true');
+    const id = renderer.root.findByType('a').props['aria-describedby'];
+    expect(renderer.root.findByProps({ id }).children).toEqual(['In the call']);
+  });
+
+  it('marks the originating room of an agent call, not its internal call room', () => {
+    markCall('!agent:example.org', room.roomId);
+    expect(badge(renderRoomNavItem())).toHaveLength(1);
+    markCall(room.roomId, '!origin:example.org');
+    expect(badge(renderRoomNavItem())).toHaveLength(0);
+  });
+
+  it('does not mark other rooms or calls that are not live', () => {
+    expect(badge(renderRoomNavItem())).toHaveLength(0);
+    markCall('!elsewhere:example.org');
+    expect(badge(renderRoomNavItem())).toHaveLength(0);
+    markCall(room.roomId, undefined, 'failed');
+    expect(badge(renderRoomNavItem())).toHaveLength(0);
+  });
+});
 
 describe('RoomNavItem avatar', () => {
   afterEach(() => {

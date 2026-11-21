@@ -1,10 +1,20 @@
 import { useId, useState } from 'react';
 import classNames from 'classnames';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Icon, IconButton, Icons, type IconSrc } from 'folds';
+import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
+import { useSelectedRoom } from '../navigation/useSelectedRoom';
+import {
+  callPanelRoomAtom,
+  isActiveCallShownIn,
+  useActiveCall,
+  useInCall,
+  type ActiveCall,
+} from '../calls/callStore';
+import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
+import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { CommandPaletteSearchField } from '../command-palette/CommandPaletteSearchField';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
@@ -97,18 +107,79 @@ function ActivityBell() {
   );
 }
 
+function ReturnToCallButton({ active, drawerOpen }: { active: ActiveCall; drawerOpen: boolean }) {
+  const { t } = useTranslation();
+  const { label, icon, microphone, speaking, openHome } = useActiveCallShortcut(active);
+  const setDrawerOpen = useSetAtom(phoneNavDrawerOpenAtom);
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
+  const mutedId = useId();
+
+  return (
+    <div className={css.ReturnToCallRow}>
+      <Button
+        type="button"
+        variant="Success"
+        fill="Soft"
+        radii="Pill"
+        size="400"
+        className={css.ReturnToCallButton}
+        data-speaking={speaking || undefined}
+        aria-describedby={microphone ? undefined : mutedId}
+        onClick={(event) => {
+          if (event.currentTarget.ownerDocument.activeElement === event.currentTarget) {
+            setFocusHandOff({ to: 'panel', from: event.currentTarget });
+          }
+          if (drawerOpen) movePhoneNavDrawer(false, setDrawerOpen);
+          openHome();
+        }}
+      >
+        <Icon src={icon} size="100" filled aria-hidden="true" />
+        <Text as="span" size="T300" truncate>
+          {label}
+        </Text>
+      </Button>
+      {!microphone && (
+        <span id={mutedId} hidden>
+          {t('featureUi.calls.panel.microphoneOff')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PhoneReturnToCall() {
+  const active = useActiveCall();
+  const inCall = useInCall();
+  const currentRoomId = useSelectedRoom();
+  const panelRoomId = useAtomValue(callPanelRoomAtom);
+  const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
+  if (!active || !inCall) return null;
+  if (
+    !drawerOpen &&
+    currentRoomId &&
+    currentRoomId === panelRoomId &&
+    isActiveCallShownIn(active, currentRoomId)
+  ) {
+    return null;
+  }
+  return <ReturnToCallButton active={active} drawerOpen={drawerOpen} />;
+}
+
 /**
  * A phone's top bar, above every page: the menu button that slides the navigation drawer in, a
  * search field that opens the command palette (and names its keyboard shortcut), the Activity
- * bell, and the account.
+ * bell, the account and the way back to a call running out of view.
  */
 export function PhoneTopBar() {
   return (
-    <div className={css.PhoneTopBar} data-phone-top-bar>
-      <MenuButton />
-      <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
-      <ActivityBell />
-      <SettingsTab inTopBar className={css.BarControl} />
+    <div className={css.PhoneChrome} data-phone-top-bar>
+      <div className={css.PhoneTopBar}>
+        <MenuButton />
+        <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
+        <ActivityBell />
+        <SettingsTab inTopBar className={css.BarControl} />
+      </div>
+      <PhoneReturnToCall />
     </div>
   );
 }

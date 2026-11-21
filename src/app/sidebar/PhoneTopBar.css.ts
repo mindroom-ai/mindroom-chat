@@ -3,8 +3,26 @@ import { DefaultReset, color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
 import { railWidth } from '../ui/sidebar/SidebarItem.css';
 
-/** The bar's height; the drawer starts right below it. */
+/** The top row's height; the drawer starts below it and the call shortcut, if present. */
 export const phoneTopBarHeight = toRem(52);
+const callButtonHeight = `max(44px, ${toRem(44)})`;
+export const returnToCallRowHeight = `calc(${callButtonHeight} + ${config.space.S200})`;
+
+export const PhoneChrome = style({ flexShrink: 0 });
+
+export const ReturnToCallRow = style({
+  paddingInline: `max(${config.space.S200}, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))`,
+  paddingBlockEnd: config.space.S200,
+  backgroundColor: color.Background.Container,
+});
+
+export const ReturnToCallButton = style({
+  inlineSize: '100%',
+  minBlockSize: callButtonHeight,
+  selectors: {
+    '&[data-speaking]': { boxShadow: `inset 0 0 0 2px ${color.Success.Main}` },
+  },
+});
 
 // A phone's top bar: menu, search and account in one row on the rail's colour. No line rules it off:
 // the page below starts on its own surface colour, and the drawer, in the bar's colour, meets it.

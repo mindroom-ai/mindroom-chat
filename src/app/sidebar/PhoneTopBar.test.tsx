@@ -2,6 +2,8 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../calls/callStore';
+import type { CallState } from '../calls/RoomCall';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { PhoneTopBar } from './PhoneTopBar';
@@ -10,6 +12,15 @@ const unread = vi.hoisted(() => ({
   value: undefined as undefined | { total: number; highlight: number },
 }));
 const activity = vi.hoisted(() => ({ badge: { count: 0, needsYou: false } }));
+const navigation = vi.hoisted(() => ({
+  selected: undefined as string | undefined,
+  navigateRoom: vi.fn(),
+  navigateRoomThread: vi.fn(),
+}));
+
+vi.mock('../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => navigation.selected }));
+vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
+vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Studio' }));
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
@@ -30,6 +41,9 @@ vi.mock('./rail/ActivityTab', () => ({
 }));
 vi.mock('./PhoneTopBar.css', () => ({
   PhoneTopBar: 'bar',
+  PhoneChrome: 'chrome',
+  ReturnToCallRow: 'call-row',
+  ReturnToCallButton: 'call-button',
   MenuButtonFrame: 'menu',
   UnreadDot: 'dot',
   SearchField: 'search',
@@ -50,9 +64,10 @@ vi.mock('folds', async () => {
       reactModule.createElement(as ?? tag, rest, children);
   return {
     Badge: element('span'),
-    Icon: () => reactModule.createElement('i'),
+    Button: element('button'),
+    Icon: element('i'),
     IconButton: element('button'),
-    Icons: { Search: 'Search', Bell: 'Bell' },
+    Icons: { Search: 'Search', Bell: 'Bell', Phone: 'Phone', MicMute: 'MicMute' },
     Text: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
   };
@@ -61,22 +76,26 @@ vi.mock('folds', async () => {
 const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
-const renderBar = () => {
-  const store = createStore();
+const renderBar = (store = createStore()) => {
   const renderer = create(
     <Provider store={store}>
       <PhoneTopBar />
     </Provider>
   );
   // By its label, or by its text, as the search field is named.
-  const button = (name: string) =>
-    renderer.root.find(
+  const buttons = (name: string) =>
+    renderer.root.findAll(
       (node) =>
         node.type === 'button' &&
         (node.props['aria-label'] === name ||
           (!node.props['aria-label'] && textOf(node).startsWith(name)))
     );
-  return { store, renderer, button };
+  const button = (name: string) => {
+    const matches = buttons(name);
+    expect(matches).toHaveLength(1);
+    return matches[0]!;
+  };
+  return { store, renderer, button, buttons };
 };
 
 describe('PhoneTopBar', () => {
@@ -148,5 +167,76 @@ describe('PhoneTopBar', () => {
   it('puts the account at the end of the bar', () => {
     const { renderer } = renderBar();
     expect(renderer.root.find((node) => node.props['data-account'] === true)).toBeTruthy();
+  });
+});
+
+const HOME = '!studio:example.org';
+const ELSEWHERE = '!workshop:example.org';
+const RETURN = 'Return to the call in Studio';
+
+const callStore = ({
+  selected = ELSEWHERE,
+  panel = HOME,
+  phase = 'connected',
+  agent = false,
+}: {
+  selected?: string;
+  panel?: string | null;
+  phase?: CallState['phase'];
+  agent?: boolean;
+} = {}) => {
+  navigation.selected = selected;
+  vi.clearAllMocks();
+  const state = { phase, microphone: false, participants: [] };
+  const active = {
+    kind: agent ? 'agent' : 'room',
+    origin: agent ? { roomId: HOME, threadId: '$planning' } : undefined,
+    call: {
+      room: { roomId: agent ? '!agent:example.org' : HOME },
+      subscribe: () => () => undefined,
+      getState: () => state,
+    },
+  } as unknown as ActiveCall;
+  const store = createStore();
+  store.set(activeCallAtom, active);
+  store.set(callPanelRoomAtom, panel ?? undefined);
+  return store;
+};
+
+describe('PhoneTopBar return to call', () => {
+  it('shows the return button and muted microphone when elsewhere', () => {
+    const { renderer, button } = renderBar(callStore());
+    const pill = button(RETURN);
+    expect(pill.findByType('i').props.src).toBe('MicMute');
+    const muted = renderer.root.findByProps({ id: pill.props['aria-describedby'] });
+    expect(textOf(muted)).toBe('Microphone off');
+    expect(muted.props.hidden).toBe(true);
+  });
+
+  it('hides the button only while the live call panel is shown in the room', () => {
+    const visible = renderBar(callStore({ selected: HOME }));
+    expect(visible.buttons(RETURN)).toHaveLength(0);
+    visible.renderer.unmount();
+    expect(renderBar(callStore({ selected: HOME, panel: null })).button(RETURN)).toBeTruthy();
+  });
+
+  it('hides the button without a live call, including a failure awaiting dismissal', () => {
+    expect(renderBar().buttons(RETURN)).toHaveLength(0);
+    expect(renderBar(callStore({ phase: 'failed' })).buttons(RETURN)).toHaveLength(0);
+  });
+
+  it.each([false, true])('opens the panel and returns to its conversation (agent: %s)', (agent) => {
+    const { store, button } = renderBar(callStore({ agent, panel: null }));
+    act(() => {
+      button(RETURN).props.onClick({ currentTarget: { ownerDocument: {} } });
+    });
+    expect(store.get(callPanelRoomAtom)).toBe(HOME);
+    if (agent) {
+      expect(navigation.navigateRoomThread).toHaveBeenCalledWith(HOME, '$planning');
+      expect(navigation.navigateRoom).not.toHaveBeenCalled();
+    } else {
+      expect(navigation.navigateRoom).toHaveBeenCalledWith(HOME);
+      expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+    }
   });
 });

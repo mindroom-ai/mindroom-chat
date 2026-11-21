@@ -189,10 +189,15 @@ const LIVE_PHASES: ReadonlySet<CallPhase> = new Set(['connecting', 'connected', 
 
 /**
  * Whether this device is in a call now: starting, connected or reconnecting (not one that failed
- * and waits to be closed). Re-renders only when that answer changes, not on every call update.
+ * and waits to be closed). Optionally scoped to the call's home room, so other rooms do not
+ * subscribe to call updates. Re-renders only when the answer changes, not on every call update.
  */
-export const useInCall = (): boolean => {
-  const call = useActiveCall()?.call;
+export const useInCall = (homeRoomId?: string): boolean => {
+  const active = useActiveCall();
+  const call =
+    active && (homeRoomId === undefined || homeRoomId === callHomeRoomId(active))
+      ? active.call
+      : undefined;
   return useSyncExternalStore(
     call?.subscribe ?? noSubscription,
     () => !!call && LIVE_PHASES.has(call.getState().phase)

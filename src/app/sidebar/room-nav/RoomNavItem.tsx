@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
@@ -21,6 +21,7 @@ import { nameInitials } from '../../lib/common';
 import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
+import { useInCall } from '../../calls/callStore';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import type { RoomActionDialog } from '../../room/roomActions';
 
@@ -283,8 +284,12 @@ function RoomNavLink({
   pointerProps,
   subRoom,
 }: RoomNavLinkProps) {
+  const { t } = useTranslation();
+  const inCall = useInCall(room.roomId);
+  const callStatusId = useId();
+  const callStatus = inCall ? t('featureUi.calls.transcription.inCall') : undefined;
   return (
-    <NavLink to={to} {...pointerProps}>
+    <NavLink to={to} {...pointerProps} aria-describedby={inCall ? callStatusId : undefined}>
       <NavItemContent>
         <Box as="span" grow="Yes" alignItems="Center" gap="200">
           <RoomNavItemAvatar
@@ -308,6 +313,14 @@ function RoomNavLink({
             </Text>
           </Box>
           <BackgroundJobsMark room={room} />
+          {callStatus && (
+            <>
+              <Icon size="50" src={Icons.Phone} aria-hidden="true" />
+              <span id={callStatusId} hidden>
+                {callStatus}
+              </span>
+            </>
+          )}
           {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
         </Box>
       </NavItemContent>
@@ -333,7 +346,7 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
 
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
- * while agents run background jobs in it, and a menu on hover or focus, by right-click or by a
+ * for a call or agent background jobs, and a menu on hover or focus, by right-click or by a
  * long press, which phones need: they show no options button and iOS fires no contextmenu.
  */
 export function RoomNavItem(props: RoomNavItemProps) {

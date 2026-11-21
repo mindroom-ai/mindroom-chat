@@ -1,6 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color } from 'folds';
-import { phoneTopBarHeight } from './PhoneTopBar.css';
+import {
+  PhoneChrome,
+  ReturnToCallRow,
+  phoneTopBarHeight,
+  returnToCallRowHeight,
+} from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 import { cardRadius } from '../ui/page/floatingCards.css';
 
@@ -22,6 +27,11 @@ const belowTopBar = {
   insetBlockStart: phoneTopBarHeight,
   insetBlockEnd: 0,
   insetInlineStart: 0,
+  selectors: {
+    [`.${PhoneChrome}:has(> .${ReturnToCallRow}) ~ &`]: {
+      insetBlockStart: `calc(${phoneTopBarHeight} + ${returnToCallRowHeight})`,
+    },
+  },
 } as const;
 
 /**
