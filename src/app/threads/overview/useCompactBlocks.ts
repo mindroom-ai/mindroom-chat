@@ -68,11 +68,14 @@ export function useCompactBlocks(options: Options) {
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
   // Card data refreshes do not relocate a measurement probe into the occupied scroll range.
   // Live shells are remeasured on layout; only layout-context changes invalidate evicted heights.
-  const probe = blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
+  const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id)));
+  const probe =
+    missing >= 0 ? missing : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const order = JSON.stringify(groups);
   const small = index.size <= 2 * BLOCK_CARDS;
   let firstScreen = heights.size === 0 ? 2 * BLOCK_CARDS : 0;
-  const extentComplete = probe < 0 || small;
+  // A dirty height still occupies space. Only undiscovered space delays placement.
+  const extentComplete = missing < 0 || small;
   const band = (ids: string[]) => {
     const slots = ids.flatMap((id) => index.get(id) ?? []);
     return slots.length ? ([Math.min(...slots), Math.max(...slots)] as const) : ([0, 0] as const);
@@ -81,7 +84,7 @@ export function useCompactBlocks(options: Options) {
   const savedSlots = savedKeys.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
   const backSlot = savedSlots[Math.floor(savedSlots.length / 2)];
   const prefixReady = (slot: number | undefined) =>
-    slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < probe);
+    slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
   const back = !state.placed && !!saved && saved.scrollTop > 0;
   const awaitingAnchors =
     indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
@@ -194,7 +197,7 @@ export function useCompactBlocks(options: Options) {
     const schedule = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (update() || measured || !extentComplete) render();
+        if (update() || measured || (!small && probe >= 0)) render();
       });
     };
     schedule();

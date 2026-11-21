@@ -38,7 +38,12 @@ function List({
     protectedId,
   });
   return (
-    <div ref={scrollRef} data-view="" data-complete={window.extentComplete}>
+    <div
+      ref={scrollRef}
+      data-view=""
+      data-complete={window.extentComplete}
+      data-ready={window.placeReady}
+    >
       <div ref={contentRef} style={{ rowGap: gap, fontSize }}>
         {window.rows[0]?.map((row) =>
           typeof row === 'string' ? (
@@ -171,6 +176,18 @@ it('remeasures evicted cards after a font-size change without shrinking the old 
   expect(space()).toBe(7168.75);
   tick(12);
   expect(space()).toBe(10602.25);
+});
+
+it('can place a warm Back while occupied spacer heights await a font refresh', () => {
+  const memory: ScrollAnchorMemory = new Map();
+  const { unmount } = render(<List memory={memory} />);
+  tick(12);
+  unmount();
+  memory.set('!room', { scrollTop: 30 * 199.25, anchors: [{ key: '$row60', offset: 0 }] });
+  fontSize = 24;
+  const { container } = render(<List memory={memory} />);
+  expect(container.querySelector('[data-view]')?.getAttribute('data-ready')).toBe('true');
+  expect(container.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
 });
 
 it('does not probe already measured offscreen rows on an index-only refresh', () => {
