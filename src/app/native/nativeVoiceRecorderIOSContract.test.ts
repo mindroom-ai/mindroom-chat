@@ -17,12 +17,14 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('is the plugin the web side registers, with its methods', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
     expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
-    ['start', 'level', 'pause', 'resume', 'stop', 'cancel'].forEach((method) => {
-      expect(pluginSource).toContain(
-        `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
-      );
-      expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
-    });
+    ['start', 'level', 'pause', 'resume', 'stop', 'cancel', 'listLeftovers', 'clear'].forEach(
+      (method) => {
+        expect(pluginSource).toContain(
+          `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
+        );
+        expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
+      }
+    );
     expect(body('level')).toContain(
       'call.resolve(["level": pow(10, live.recorder.averagePower(forChannel: 0) / 20)])'
     );
@@ -34,7 +36,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('keeps each recording in a file of its own ID, a UUID, and acts only on the ID it is given', () => {
     expect(pluginSource).toContain('"\\(id).m4a"');
-    expect(pluginSource).toContain('UUID(uuidString: id)');
+    expect(body('start')).toContain('let id = UUID().uuidString');
+    expect(pluginSource).toContain('guard owners[id] != nil else { return }');
     ['level', 'pause', 'resume', 'stop'].forEach((method) =>
       expect(body(method), method).toMatch(
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
@@ -43,11 +46,17 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
   });
 
-  it('cancels the recording of its ID and no other', () => {
+  it('cancels only a known ID, including unreadable files, and rejects removal errors', () => {
     expect(body('cancel')).toMatch(
-      /let id = call\.getString\("id"\) \?\? ""\s*if live\?\.id == id \{\s*discardLive\(\)\s*\} else if let url = Self\.file\(of: id\) \{\s*try\? FileManager\.default\.removeItem\(at: url\)\s*\}\s*call\.resolve\(\)/
+      /try removeFile\(id\)[\s\S]*?call\.reject\("Could not remove recording"[\s\S]*?call\.resolve\(\)/
     );
-    expect(body('cancel')).not.toMatch(/clearFolder|closed/);
+    const remove = pluginSource.match(/private func removeFile\([\s\S]*?\n {4}\}/)?.[0];
+    expect(remove).toMatch(/if live\?\.id == id \{\s*finishLive\(\)/);
+    expect(remove).toMatch(
+      /removeItem\(at: Self\.file\(of: id\)\) \}\s*catch CocoaError\.fileNoSuchFile/
+    );
+    expect(remove).not.toMatch(/AVAudioPlayer|listLeftovers|try\?|recoverable/);
+    expect(body('cancel')).not.toContain('recoverable');
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -55,7 +64,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     // page loaded after the prompt: an older start of this page (its answer may come last), a
     // start of a page since replaced or being replaced, and one of a closed window end here.
     expect(wrapperSource).toMatch(
-      /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce \}\)/
+      /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce, userId \}\)/
     );
     const [before, after] = body('start').split(
       /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard generation == self\.generation, !self\.closed, !webView\.isLoading,\s*let newest = newest as\? String, newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
@@ -64,29 +73,26 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     // read before the prompt: a page load begun under it, also one that fails and leaves the old
     // page with its name, ends the start.
     expect(before).toMatch(
-      /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}\s*let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
+      /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading,\s*let userId = call\.getString\("userId"\), !userId\.isEmpty else \{\s*return call\.reject\("Could not start recording", "START_FAILED"\)\s*\}[\s\S]*?let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
-    expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
+    expect(before).not.toMatch(/live|setActive|AVAudioRecorder|pendingOwner = nil/);
+    expect(after).toMatch(/^\s*self\.pendingOwner = nil\s*guard granted else/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
-    expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*discardLive\(\)\s*Self\.clearFolder\(\)\s*\}/
+    const finish = pluginSource.match(/private func finishLive\(\) \{[\s\S]*?\n {4}\}/)?.[0];
+    expect(finish).toContain('live.recorder.stop()');
+    expect(finish).not.toMatch(/deleteRecording|discardLive|clearFolder/);
+    expect(pluginSource).toContain(
+      '[.capacitorWebViewNavigationStarted, .capacitorWebViewTerminated]'
     );
-    expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
-      'generation = ',
-      'generation = ',
-      'generation += ',
-    ]);
-    ['capacitorWebViewNavigationStarted', 'capacitorWebViewTerminated'].forEach((name) =>
-      expect(pluginSource).toMatch(
-        new RegExp(
-          `selector: #selector\\(pageWillLoad\\), name: \\.${name},\\s*object: bridge\\?\\.webView`
-        )
-      )
+    expect(pluginSource).toMatch(
+      /for name in pageEvents \{\s*NotificationCenter\.default\.addObserver\(self, selector: #selector\(pageWillLoad\), name: name, object: bridge\?\.webView\)/
     );
   });
 
   it('records nothing more once its window has closed', () => {
-    expect(pluginSource).toMatch(/func close\(\) \{\s*closed = true\s*pageWillLoad\(\)\s*\}/);
+    expect(pluginSource).toMatch(
+      /func close\(\) \{[\s\S]*?closed = true\s*finishLive\(\)\s*try\? FileManager\.default\.removeItem\(at: Self\.folder\)\s*owners\.removeAll\(\)/
+    );
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
@@ -102,7 +108,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource.match(/setCategory\(/g)).toHaveLength(1);
     expect(
       pluginSource.match(/setActive\(false, options: \.notifyOthersOnDeactivation\)/g)
-    ).toHaveLength(3);
+    ).toHaveLength(2);
   });
 
   it('rejects with the codes the web side names', () => {
@@ -128,8 +134,38 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     ).toHaveLength(2);
   });
 
-  it('releases the microphone when its page goes away and forgets a recording left behind', () => {
-    expect(pluginSource).toMatch(/override public func load\(\) \{[\s\S]*?clearFolder\(\)/);
+  it('recovers only files finalized for page reload, not ordinary stops or discards', () => {
+    const leftover = body('listLeftovers');
+    expect(leftover).toMatch(/guard owner\.recoverable, id != live\?\.id,/);
+    expect(body('start')).toContain('self.owners[id] = (userId, false)');
+    expect(body('stop')).toMatch(/finishLive\(\)\s*call\.resolve\(\["path":/);
+    const reload = pluginSource.match(/private func pageWillLoad\(\) \{[\s\S]*?\n {4}\}/)?.[0];
+    expect(reload).toMatch(
+      /generation \+= 1\s*if let live \{ owners\[live\.id\]\?\.recoverable = true \}\s*finishLive\(\)\s*for \(id, owner\) in owners where !owner\.recoverable \{\s*try\? removeFile\(id\)/
+    );
+    // In particular a successful Send followed by failed cancel must never reappear on reload.
+    expect(pluginSource.match(/\.recoverable = true/g)).toHaveLength(1);
+    expect(leftover).toContain('creationDate');
+    expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
+    expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
+    expect(leftover).toContain('"userId": owner.userId');
+    expect(leftover).toContain('"duration":');
+  });
+
+  it('best-effort clears only matching owned recordings, including stopped ones', () => {
+    const clear = body('clear');
+    expect(clear).toMatch(/guard let userId = call\.getString\("userId"\)/);
+    expect(clear).toMatch(/if pendingOwner == userId \{ generation \+= 1 \}/);
+    expect(clear).toMatch(
+      /for \(id, owner\) in owners where owner\.userId == userId \{\s*owners\[id\]\?\.recoverable = false\s*try\? removeFile\(id\)/
+    );
+    expect(clear).not.toMatch(/call\.reject|removeItem|clearFolder|finishLive|discardLive/);
+  });
+
+  it('clears leftovers on plugin load and closes with its window', () => {
+    expect(pluginSource).toMatch(
+      /override public func load\(\) \{\s*\/\/[^\n]*\n\s*try\? FileManager\.default\.removeItem\(at: Self\.folder\)/
+    );
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
     );
