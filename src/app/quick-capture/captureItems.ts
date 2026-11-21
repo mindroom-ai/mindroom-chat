@@ -33,7 +33,7 @@ const cutReplyText = (text: string): string => {
 };
 
 const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
-  // The signals keep only what a resolved thread asked after the resolve.
+  // A resolved thread can still be waiting on an approval asked after the resolve.
   if (thread.resolved) return thread.needsYou ? 'needs-you' : undefined;
   if (thread.streaming) return 'working';
   if (thread.needsYou) return 'needs-you';
@@ -63,7 +63,7 @@ const toItem = (thread: CaptureThread): CaptureItem => {
 
 /**
  * The widget's list: the 30 newest unresolved threads, then threads resolved in the last 24 hours.
- * A resolved thread asked something after the resolve (`needsYou`) waits again: it is open.
+ * A resolved thread with a pending approval (`needsYou`) counts as open.
  */
 export const buildCaptureItems = (threads: CaptureThread[], now: number): CaptureItem[] => {
   const seen = new Set<string>();

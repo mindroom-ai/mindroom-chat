@@ -181,7 +181,9 @@ describe('MindRoomCallPlugin native contract', () => {
   });
 
   it('the voice recorder leaves the audio session alone during a call', () => {
-    expect(recorderSource.match(/MindRoomCallPlugin\.liveSessions == 0/g)).toHaveLength(4);
+    // Start, failed start, and `finishLive` (every other exit goes through it).
+    expect(recorderSource.match(/MindRoomCallPlugin\.liveSessions == 0/g)).toHaveLength(3);
+    expect(recorderSource.match(/setActive\(/g)).toHaveLength(3);
     expect(
       recorderSource.match(/try session\.setCategory\(\.playAndRecord, mode: \.default\)/g)
     ).toHaveLength(1);

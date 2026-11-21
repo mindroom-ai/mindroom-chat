@@ -102,7 +102,7 @@ export type RoomViewThreadState = {
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSummaryInfo?: ThreadSummaryInfo;
-  /** Compact shows its cards in sections: Working, Needs you, Later and Done. */
+  /** Compact shows its cards in sections: Needs you, Working, Later and Done. */
   threadSections: boolean;
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;

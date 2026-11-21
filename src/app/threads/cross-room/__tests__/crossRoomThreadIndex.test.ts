@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
-import type { MatrixEvent } from 'matrix-js-sdk';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { createClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
   applyCrossRoomThreadIndexBatch,
@@ -12,6 +11,7 @@ import {
   emptyCrossRoomThreadIndexSnapshot,
   getCrossRoomThreadIndexKey,
   getCrossRoomThreadRootsForEvent,
+  hasAgentPostForUser,
   isUserInvolvedInThread,
   MAX_CROSS_ROOM_INDEX_ENTRIES,
   removeCrossRoomThreadIndexEntry,
@@ -21,6 +21,12 @@ import {
 } from '../crossRoomThreadIndex';
 import type { ThreadTagSnapshot } from '../../tags/threadTagSnapshots';
 import { matchesEnum } from '../../../lib/matchesEnum';
+import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
+import { ORIGINAL_SENDER_KEY } from '../../../matrix/protocol/originalSender';
+import { groupThreads } from '../../page/threadGroups';
+import { readThreadSignals } from '../threadSignals';
+import { getBundledThreadPreviews } from '../../../event-store/threads/threadBundledPreviews';
+import { hasLoadedEveryThreadReply } from '../../../event-store/threads/threadUtils';
 
 const upsert = (snapshot: CrossRoomThreadIndexSnapshot, entry: CrossRoomThreadIndexEntry) =>
   applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
@@ -111,6 +117,311 @@ const makeRoom = ({
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
   } as unknown as Room;
 };
+
+describe('thread involvement and agent attribution with SDK events', () => {
+  const roomId = '!room:example.org';
+  const userId = '@me:example.org';
+  const otherId = '@someone:example.org';
+  const agentId = '@mindroom_helper:example.org';
+  const attribution = { [ORIGINAL_SENDER_KEY]: userId };
+  const message = (eventId: string, content: Record<string, unknown> = {}, sender = otherId) => ({
+    event_id: eventId,
+    room_id: roomId,
+    type: 'm.room.message',
+    sender,
+    origin_server_ts: 1,
+    unsigned: {},
+    content: { msgtype: 'm.text', body: 'Example message', ...content },
+  });
+  const reply = (content: Record<string, unknown> = {}, sender = otherId) =>
+    message(
+      '$reply',
+      { ...content, 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } },
+      sender
+    );
+  const createThread = (root: MatrixEvent, events: MatrixEvent[] = []) => {
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    const room = new Room(roomId, client, userId, { timelineSupport: true });
+    return room.createThread('$root', root, events, false);
+  };
+  const title = {
+    ...reply(
+      {
+        msgtype: 'm.notice',
+        body: 'Example title',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Example title' },
+      },
+      agentId
+    ),
+    event_id: '$title',
+    origin_server_ts: 2,
+  };
+  const bundledRoot = (
+    count: number,
+    participated = true,
+    latest: IEvent = reply(),
+    latestReply?: ReturnType<typeof reply>
+  ) =>
+    new MatrixEvent({
+      ...message('$root'),
+      unsigned: {
+        'm.relations': {
+          'm.thread': {
+            count,
+            current_user_participated: participated,
+            latest_event: latest,
+            ...(latestReply && { 'io.mindroom.latest_reply': latestReply }),
+          },
+        },
+      },
+    } satisfies IEvent);
+
+  it('keeps an attributed agent-only thread in Automations, not Following', () => {
+    const root = new MatrixEvent(message('$root', attribution, agentId));
+    const thread = createThread(root, [root, new MatrixEvent(reply({}, agentId))]);
+    const { room } = thread;
+    const entry = buildCrossRoomThreadIndexEntry({
+      room,
+      threadRootId: thread.id,
+      currentUserId: userId,
+    })!;
+    const signals = readThreadSignals(room, thread.id, userId, 10_000);
+    const items = [{ entry, signals }];
+
+    expect(signals.automation).toBe(true);
+    expect(entry.isInvolved).toBe(false);
+    expect(groupThreads(items, 'all', userId, '', 10_000)).toEqual([{ id: 'automations', items }]);
+    expect(groupThreads(items, 'following', userId, '', 10_000)).toEqual([]);
+    expect(entry.isForUser).toBe(true);
+  });
+
+  it('counts a visible agent reply posted on behalf of the user', () => {
+    const rootEvent = new MatrixEvent(message('$root'));
+    const thread = createThread(rootEvent, [new MatrixEvent(reply(attribution, agentId))]);
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
+  });
+
+  it('does not count attribution to a different user', () => {
+    const forSomeoneElse = { [ORIGINAL_SENDER_KEY]: '@requester:example.org' };
+    const rootEvent = new MatrixEvent(message('$root', forSomeoneElse, agentId));
+    const thread = createThread(rootEvent, [new MatrixEvent(reply(forSomeoneElse, agentId))]);
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(false);
+  });
+
+  it.each([otherId, '@mindroom_helper:elsewhere.example'])(
+    'ignores attribution from %s',
+    (sender) => {
+      const rootEvent = new MatrixEvent(message('$root', attribution, sender));
+      const thread = createThread(rootEvent, [new MatrixEvent(reply(attribution, sender))]);
+      expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(false);
+    }
+  );
+
+  it('keeps attribution through an edit but loses it on redaction', () => {
+    const rootEvent = new MatrixEvent(message('$root'));
+    const agentReply = new MatrixEvent(reply(attribution, agentId));
+    const thread = createThread(rootEvent, [agentReply]);
+    agentReply.makeReplaced(
+      new MatrixEvent(
+        message(
+          '$edit',
+          {
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+            'm.new_content': { msgtype: 'm.text', body: 'Edited example reply' },
+          },
+          agentId
+        )
+      )
+    );
+    expect(agentReply.getContent().body).toBe('Edited example reply');
+    expect(agentReply.getContent()[ORIGINAL_SENDER_KEY]).toBeUndefined();
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
+
+    agentReply.makeRedacted(
+      new MatrixEvent({
+        ...message('$redact', {}, agentId),
+        type: 'm.room.redaction',
+        redacts: '$reply',
+      }),
+      thread.room
+    );
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(false);
+  });
+
+  it('counts a bundled latest agent reply before opening a thread', () => {
+    const rootEvent = bundledRoot(1, false, reply(attribution, agentId));
+    const thread = createThread(rootEvent);
+    expect(thread.events).toHaveLength(0);
+    expect(thread.hasCurrentUserParticipated).toBe(false);
+    expect(thread.replyToEvent?.getId()).toBe('$reply');
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
+  });
+
+  it('keeps bundled attribution when the latest event is the title', () => {
+    const rootEvent = bundledRoot(2, false, title, reply(attribution, agentId));
+    const thread = createThread(rootEvent);
+    expect(thread.events).toHaveLength(0);
+    expect(thread.replyToEvent?.getId()).toBe('$title');
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
+    expect(
+      buildCrossRoomThreadIndexEntry({
+        room: thread.room,
+        threadRootId: thread.id,
+        currentUserId: userId,
+      })?.isForUser
+    ).toBe(true);
+  });
+
+  it.each(['latest event', 'reply behind the title'])(
+    'uses the loaded @room-only copy instead of a direct mention in the bundled %s',
+    (source) => {
+      const mentioned = reply({ 'm.mentions': { user_ids: [userId] } });
+      const rootEvent =
+        source === 'latest event'
+          ? bundledRoot(1, false, mentioned)
+          : bundledRoot(2, false, title, mentioned);
+      const thread = createThread(rootEvent, [
+        new MatrixEvent(reply({ 'm.mentions': { room: true } })),
+      ]);
+      expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(false);
+    }
+  );
+
+  it.each([true, false])(
+    'does not resurrect a live-redacted reply (all replies loaded: %s)',
+    async (complete) => {
+      const content = { ...attribution, 'm.mentions': { user_ids: [userId] } };
+      const rootEvent = bundledRoot(2, false, title, reply(content, agentId));
+      const thread = createThread(rootEvent, complete ? [rootEvent] : []);
+      const { room, client } = thread;
+      client.store.storeRoom(room);
+      const mapEvent = client.getEventMapper();
+      thread.addEvents([mapEvent(reply(content, agentId)), mapEvent(title)], false);
+      const index = () =>
+        buildCrossRoomThreadIndexEntry({ room, threadRootId: thread.id, currentUserId: userId });
+      expect(hasLoadedEveryThreadReply(thread)).toBe(complete);
+      expect(index()).toMatchObject({ isInvolved: true, isForUser: true });
+
+      await room.addLiveEvents(
+        [
+          new MatrixEvent({
+            ...message('$redact', { redacts: '$reply' }, agentId),
+            type: 'm.room.redaction',
+            redacts: '$reply',
+            origin_server_ts: 3,
+          }),
+        ],
+        { addToState: false }
+      );
+      expect(room.findEventById('$reply')?.isRedacted()).toBe(true);
+      expect(hasLoadedEveryThreadReply(thread)).toBe(complete);
+      expect(getBundledThreadPreviews(room, rootEvent).reply?.getId()).toBe('$reply');
+      expect(index()).toMatchObject({ isInvolved: false, isForUser: false });
+    }
+  );
+
+  it('counts bundled attribution even when the SDK names a newer, unrelated reply', () => {
+    const content = { ...attribution, 'm.mentions': { user_ids: [userId] } };
+    const latest = { ...reply(), event_id: '$newer', origin_server_ts: 2 };
+    const rootEvent = bundledRoot(2, false, latest, reply(content, agentId));
+    const thread = createThread(rootEvent);
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: thread.room,
+      threadRootId: thread.id,
+      currentUserId: userId,
+    });
+    expect(thread.events).toHaveLength(0);
+    expect(entry).toMatchObject({ isInvolved: false, isForUser: true });
+  });
+
+  it('publishes a new generation when only agent attribution changes', () => {
+    const build = (content: Record<string, unknown>) => {
+      const thread = createThread(bundledRoot(1, false, reply(content, agentId)));
+      return buildCrossRoomThreadIndexEntry({
+        room: thread.room,
+        threadRootId: thread.id,
+        currentUserId: userId,
+      })!;
+    };
+    const previous = build({});
+    const next = build(attribution);
+    expect(areCrossRoomThreadIndexEntriesEquivalent(previous, { ...next, isForUser: false })).toBe(
+      true
+    );
+
+    const first = upsert(emptyCrossRoomThreadIndexSnapshot(), previous);
+    const second = upsert(first, next);
+    expect(second.entries.get(next.key)?.generation).toBe(previous.generation + 1);
+  });
+
+  it('keeps a job cancellation in For me without changing shared involvement', () => {
+    const agentReply = reply({}, agentId);
+    const cancel = {
+      event_id: '$cancel',
+      room_id: roomId,
+      sender: userId,
+      type: MINDROOM_BACKGROUND_JOB_CANCEL_EVENT,
+      origin_server_ts: 2,
+      unsigned: {},
+      content: {
+        job_id: 'example-job',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      },
+    };
+    const root = new MatrixEvent({ ...bundledRoot(2, true, cancel).event, sender: agentId });
+    const thread = createThread(root);
+    const { room } = thread;
+    const index = () =>
+      buildCrossRoomThreadIndexEntry({ room, threadRootId: thread.id, currentUserId: userId })!;
+
+    expect(thread.hasCurrentUserParticipated).toBe(true);
+    expect(hasLoadedEveryThreadReply(thread)).toBe(false);
+    const before = index();
+
+    thread.addEventsAsHistory([root, new MatrixEvent(agentReply), new MatrixEvent(cancel)]);
+    expect(hasLoadedEveryThreadReply(thread)).toBe(true);
+    expect(thread.findEventById('$cancel')?.getType()).toBe(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT);
+    expect(thread.hasCurrentUserParticipated).toBe(true);
+    const after = index();
+
+    expect([before.isInvolved, after.isInvolved]).toEqual([false, false]);
+    expect([before.isForUser, after.isForUser]).toEqual([true, true]);
+  });
+
+  it('ignores an attributed title notice before and after loading', () => {
+    const attributedTitle = { ...title, content: { ...title.content, ...attribution } };
+    const rootEvent = bundledRoot(1, false, attributedTitle);
+    const thread = createThread(rootEvent);
+    const { room } = thread;
+    const index = () =>
+      buildCrossRoomThreadIndexEntry({ room, threadRootId: thread.id, currentUserId: userId })!;
+    const hasAttribution = () => hasAgentPostForUser({ rootEvent, thread, userId });
+
+    expect(thread.replyToEvent?.getId()).toBe('$title');
+    expect(hasLoadedEveryThreadReply(thread)).toBe(false);
+    const before = index();
+    expect(hasAttribution()).toBe(false);
+
+    thread.addEventsAsHistory([rootEvent, new MatrixEvent(attributedTitle)]);
+    expect(hasLoadedEveryThreadReply(thread)).toBe(true);
+    expect(hasAttribution()).toBe(false);
+    expect([before.isForUser, index().isForUser]).toEqual([false, false]);
+  });
+
+  it('counts bundled participation for the SDK account only in For me', () => {
+    const rootEvent = bundledRoot(3);
+    const thread = createThread(rootEvent);
+    const index = (currentUserId?: string) =>
+      buildCrossRoomThreadIndexEntry({ room: thread.room, threadRootId: thread.id, currentUserId });
+
+    expect(thread.hasCurrentUserParticipated).toBe(true);
+    expect(thread.events).toHaveLength(0);
+    expect(index(userId)).toMatchObject({ isInvolved: false, isForUser: true });
+    expect(index('@different:example.org')).toMatchObject({ isInvolved: false, isForUser: false });
+    expect(index()).toMatchObject({ isInvolved: false, isForUser: false });
+  });
+});
 
 describe('crossRoomThreadIndex', () => {
   it('builds entries from root preview and summary text only', () => {

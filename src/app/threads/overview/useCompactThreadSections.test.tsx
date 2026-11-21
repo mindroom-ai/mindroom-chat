@@ -85,8 +85,8 @@ describe('useCompactThreadSections', () => {
       { wrapper: wrapperOf(createStore()), initialProps: { threadRecordMap: running } }
     );
     expect(result.current).toEqual([
-      { id: 'working', rootIds: ['$b'] },
       { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'working', rootIds: ['$b'] },
       { id: 'done', rootIds: ['$c'] },
     ]);
 

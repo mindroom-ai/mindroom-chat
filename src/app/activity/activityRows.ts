@@ -61,7 +61,7 @@ export const unreadCount = (rows: ActivityRow[]): number =>
 
 const threadKind = (signals: ThreadSignals, waits: boolean): ActivityThreadRow['kind'] => {
   if (signals.pendingApproval) return 'approval';
-  if (signals.pendingQuestion) return 'question';
+  if (waits && signals.pendingQuestion) return 'question';
   if (waits) return 'approval';
   if (signals.mentionedMe) return 'mention';
   const { outcome, lastReply } = signals;
