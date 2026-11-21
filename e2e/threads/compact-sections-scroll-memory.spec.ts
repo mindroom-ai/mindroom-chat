@@ -23,7 +23,7 @@ import {
 // set to a directory, it saves the phone screen right after the Back from a Needs you card there.
 const PASSWORD = 'sections-scroll-spec-password';
 const RUN = Date.now().toString(36);
-const COMPACT_VIEW = '[data-compact-room-view="true"]';
+const COMPACT_VIEW = '[data-compact-room-view="true"]:not([inert] *)';
 const WORKING = 14;
 const NEEDS_YOU = 10;
 const FAKE_IOS_KEY = 'sections-scroll-fake-ios';
@@ -80,7 +80,10 @@ const settledCards = (
 const scrollTo = (page: Page, scrollTop: number) =>
   page.evaluate(
     ([selector, value]) => {
-      document.querySelector<HTMLElement>(selector)!.scrollTop = value;
+      const view = document.querySelector<HTMLElement>(selector)!;
+      // Model the reader taking control before advancing to an exact pixel offset.
+      view.dispatchEvent(new WheelEvent('wheel', { deltaY: value - view.scrollTop }));
+      view.scrollTop = value;
     },
     [COMPACT_VIEW, scrollTop] as const
   );
@@ -190,6 +193,7 @@ for (const ios of [false, true]) {
     await clickThreadExitButton(page);
     await expect(page).toHaveURL(/focusEvent=1/);
     await expect(card(linked!)).toBeInViewport();
+    await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
 
     const visitAndReturn = async (
       scrollTop: number,
@@ -227,6 +231,7 @@ for (const ios of [false, true]) {
       await leave();
       await expect(page).not.toHaveURL(/threadId=/);
       await expect(card(opened)).toBeAttached();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
       const after = await settledCards(page);
       if (shot && process.env.SHOTS)
         await page.screenshot({ path: `${process.env.SHOTS}/${shot}` });
