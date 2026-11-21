@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
+import { createStore, Provider } from 'jotai';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import type { LoginResponse } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,8 @@ import { followRouterSignalsInNode } from '../../../test/utils/nodeSignalRequest
 import { getLoginPath } from '../../routes/pathUtils';
 import { LOGIN_PATH } from '../../routes/paths';
 import { AuthLayout } from './AuthLayout';
+import { liveVoiceRecordingAtom } from '../../composer/voice/liveVoiceRecording';
+import type { VoiceCaptureSession } from '../../composer/voice/voiceCaptureSession';
 import { useLoginComplete } from './login/loginUtil';
 
 vi.mock('../../ui/styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
@@ -101,6 +104,27 @@ describe('the server a sign-in page names', () => {
     expect(router.state.location.pathname).toBe(getLoginPath(server));
     router.dispose();
   });
+});
+
+// Add account opens the sign-in pages from the signed-in ones, without a change of session.
+it('ends a live voice recording, which no sign-in page shows', async () => {
+  const store = createStore();
+  const reset = vi.fn();
+  store.set(liveVoiceRecordingAtom, { reset } as unknown as VoiceCaptureSession);
+  window.history.replaceState(null, '', getLoginPath('example.org'));
+  const router = createBrowserRouter([
+    { element: <AuthLayout />, children: [{ path: LOGIN_PATH, element: <p>login page</p> }] },
+  ]);
+  render(
+    <Provider store={store}>
+      <RouterProvider router={router} />
+    </Provider>
+  );
+  await act(async () => undefined);
+  // The microphone is released; reset keeps the disk copy for the account.
+  expect(reset).toHaveBeenCalledOnce();
+  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  router.dispose();
 });
 
 describe('signing in on the sign-in pages', () => {

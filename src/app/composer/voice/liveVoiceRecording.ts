@@ -108,6 +108,14 @@ export const discardLiveVoiceRecording = async (store: JotaiStore): Promise<void
 };
 
 /**
+ * Ends the recording where nothing shows it: the sign-in pages, which Add account opens over the
+ * signed-in ones. The microphone is released at once; the disk copy stays for the account.
+ */
+export const stopLiveVoiceRecording = (store: JotaiStore): void => {
+  takeLiveVoiceRecording(store)?.reset();
+};
+
+/**
  * Leaving the account ends its recordings now: the live one, and those a Send claimed that are
  * still stopping. The microphone is released at once, without waiting for the recorder to say it
  * stopped, and nothing begun under the account writes after this (`voiceAccountGuard`). Their
@@ -115,7 +123,7 @@ export const discardLiveVoiceRecording = async (store: JotaiStore): Promise<void
  */
 export const endVoiceRecordingsOfAccount = (store: JotaiStore): void => {
   accountsLeft.set(store, (accountsLeft.get(store) ?? 0) + 1);
-  takeLiveVoiceRecording(store)?.reset();
+  stopLiveVoiceRecording(store);
   claimedRecordings.get(store)?.forEach((session) => session.reset());
   claimedRecordings.delete(store);
   store.set(liveVoiceRecordingErrorAtom, undefined);

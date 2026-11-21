@@ -16,6 +16,7 @@ import {
 } from '../../ui/particle-background/PersistentParticleBackground';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import classNames from 'classnames';
 import { AutoDiscoveryAction, autoDiscovery, type AutoDiscoveryInfo } from '../../matrix/cs-api';
 import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryInfo';
@@ -33,6 +34,7 @@ import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
 import { UnlistedServerCheck } from './UnlistedServerCheck';
 import { openAfterSignIn } from './completeSession';
+import { stopLiveVoiceRecording } from '../../composer/voice/liveVoiceRecording';
 import * as css from './styles.css';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
@@ -240,6 +242,9 @@ export function AuthLayout() {
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const [discovery, retryDiscovery] = useServerDiscovery(server);
   const activeSession = useActiveSession();
+  // Add account opens these pages over a live voice recording, and nothing here shows one.
+  const store = useStore();
+  useEffect(() => stopLiveVoiceRecording(store), [store]);
   // Adding an account can be abandoned: back to where the signed-in account was.
   const returnPath = resolveAddAccountReturnPath(search, activeSession);
 
