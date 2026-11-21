@@ -1,21 +1,9 @@
-import {
-  ConnectionState,
-  isBrowserSupported,
-  isE2EESupported,
-  Room as MediaRoom,
-  RoomEvent,
-  Track,
-  TrackEvent,
-  type LocalTrackPublication,
-  type LocalVideoTrack,
-  type Participant,
-  type RemoteTrack,
-  type RemoteVideoTrack,
-} from 'livekit-client';
-import E2EEWorker from 'livekit-client/e2ee-worker?worker';
+import type { LocalVideoTrack, RemoteVideoTrack } from 'livekit-client';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { MatrixRtcKeyProvider, sendCallKey } from './callKeyProvider';
+import { sendCallKey } from './callKeyProvider';
+import type { CallMedia, CallMediaHost } from './callMedia';
+import { WebCallMedia, webCallMediaSupported } from './webCallMedia';
 import {
   chooseCallService,
   firstLivekitServiceUrl,
@@ -153,13 +141,7 @@ export class RoomCall {
 
   private readonly listeners = new Set<() => void>();
 
-  private media?: MediaRoom;
-
-  private keyProvider?: MatrixRtcKeyProvider;
-
-  private worker?: Worker;
-
-  private audioHost?: HTMLElement;
+  private media?: CallMedia;
 
   private leaving?: Promise<void>;
 
@@ -183,6 +165,23 @@ export class RoomCall {
 
   /** Failed sends of the own key, by the same keys as `keysResent`. */
   private readonly keyResendFailures = new Map<string, number>();
+
+  private readonly mediaHost: CallMediaHost = {
+    isMember: (identity) => this.memberIdentities().has(identity),
+    onChange: () => this.refresh(),
+    onParticipantConnected: (identity) => {
+      this.keyPeers.add(identity);
+      this.resendOwnKey();
+      this.refresh();
+    },
+    onPhase: (phase) => this.update({ phase }),
+    onDisconnected: () => this.fail('connection'),
+    onDevice: (kind, deviceId) => {
+      this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
+      // A switched microphone is a new media track.
+      this.refresh();
+    },
+  };
 
   constructor(options: RoomCallOptions) {
     this.options = options;
@@ -224,12 +223,9 @@ export class RoomCall {
 
   private refresh = () => {
     const participants = this.readParticipants();
-    const media = this.media;
-    const audioBlocked =
-      !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
-    // Sharing also ends from the browser's own "Stop sharing" control.
-    const screenShare = !!media?.localParticipant.isScreenShareEnabled;
-    const microphoneTrack = this.readMicrophoneTrack();
+    const audioBlocked = !!this.media?.audioBlocked();
+    const screenShare = !!this.media?.screenShare();
+    const microphoneTrack = this.media?.microphoneTrack();
     if (
       sameParticipants(participants, this.state.participants) &&
       audioBlocked === this.state.audioBlocked &&
@@ -241,51 +237,21 @@ export class RoomCall {
     this.update({ participants, audioBlocked, screenShare, microphoneTrack });
   };
 
-  /** The media track of the microphone this device publishes, unless it is muted. */
-  private readMicrophoneTrack(): MediaStreamTrack | undefined {
-    const publication = this.media?.localParticipant.getTrackPublication(Track.Source.Microphone);
-    return publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
-  }
-
-  /** LiveKit opens a microphone again in the same track when it ended, with a new media track. */
-  private onLocalTrackPublished = (publication: LocalTrackPublication) => {
-    publication.track?.on(TrackEvent.Restarted, this.refresh);
-    this.refresh();
-  };
-
-  private onLocalTrackUnpublished = (publication: LocalTrackPublication) => {
-    publication.track?.off(TrackEvent.Restarted, this.refresh);
-    this.refresh();
-  };
-
-  private mediaParticipant(identity: string): Participant | undefined {
-    const media = this.media;
-    if (!media) return undefined;
-    if (identity === this.identity) return media.localParticipant;
-    return media.remoteParticipants.get(identity);
-  }
-
   /** This device first, then the call's other devices by the time they joined. */
   private readParticipants(): CallParticipant[] {
     const describe = (userId: string, deviceId: string, key: string): CallParticipant => {
       const local = key === this.identity;
-      const participant = this.mediaParticipant(key);
-      const shown = (source: Track.Source) => {
-        const publication = participant?.getTrackPublication(source);
-        return publication && !publication.isMuted
-          ? (publication.track as CallVideoTrack | undefined)
-          : undefined;
-      };
+      const participant = this.media?.participant(key, local);
       return {
         key,
         userId,
         deviceId,
         local,
-        connected: local ? this.media?.state === ConnectionState.Connected : !!participant,
-        speaking: !!participant?.isSpeaking,
-        microphone: local ? this.state.microphone : !!participant?.isMicrophoneEnabled,
-        video: shown(Track.Source.Camera),
-        screen: shown(Track.Source.ScreenShare),
+        connected: local ? !!this.media?.connected() : !!participant,
+        speaking: !!participant?.speaking,
+        microphone: local ? this.state.microphone : !!participant?.microphone,
+        video: participant?.video,
+        screen: participant?.screen,
       };
     };
     const others = activeMemberships(this.session)
@@ -294,25 +260,6 @@ export class RoomCall {
       .map(({ userId, deviceId, key }) => describe(userId, deviceId, key));
     const deviceId = this.mx.getDeviceId() ?? '';
     return [describe(this.mx.getSafeUserId(), deviceId, this.identity), ...others];
-  }
-
-  private attachAudio(track: RemoteTrack) {
-    // Once: a membership change can find a track before LiveKit reports its subscription.
-    if (track.kind !== Track.Kind.Audio || track.attachedElements.length > 0) return;
-    if (!this.audioHost) {
-      const host = document.createElement('div');
-      host.hidden = true;
-      host.dataset.callAudio = this.room.roomId;
-      document.body.append(host);
-      this.audioHost = host;
-    }
-    const element = track.attach();
-    element.muted = !this.state.sound;
-    this.audioHost.append(element);
-  }
-
-  private detachAudio(track: RemoteTrack) {
-    track.detach().forEach((element) => element.remove());
   }
 
   /** The media identities of the call's members, as their tiles show them. */
@@ -326,56 +273,7 @@ export class RoomCall {
    * nor sent anything.
    */
   private followMembers() {
-    const media = this.media;
-    if (!media) return;
-    const members = this.memberIdentities();
-    // Kept by LiveKit and sent again after a reconnect.
-    media.localParticipant.setTrackSubscriptionPermissions(
-      false,
-      [...members].map((participantIdentity) => ({ participantIdentity, allowAll: true }))
-    );
-    media.remoteParticipants.forEach((participant) => {
-      const member = members.has(participant.identity);
-      participant.audioTrackPublications.forEach(({ track }) => {
-        if (!track) return;
-        if (member) this.attachAudio(track);
-        else this.detachAudio(track);
-      });
-    });
-  }
-
-  private watchMedia(media: MediaRoom) {
-    media
-      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.TrackUnsubscribed, (track) => {
-        this.detachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantConnected, (participant) => {
-        this.keyPeers.add(participant.identity);
-        this.resendOwnKey();
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantDisconnected, this.refresh)
-      .on(RoomEvent.TrackMuted, this.refresh)
-      .on(RoomEvent.TrackUnmuted, this.refresh)
-      .on(RoomEvent.LocalTrackPublished, this.onLocalTrackPublished)
-      .on(RoomEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-      .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
-      .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
-      .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
-      .on(RoomEvent.Reconnected, () => this.update({ phase: 'connected' }))
-      // The media server dropped this device for good (LiveKit retries before giving up); after
-      // a leave or another failure this is the teardown's own disconnect.
-      .on(RoomEvent.Disconnected, () => this.fail('connection'))
-      .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
-        this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-        // A switched microphone is a new media track.
-        this.refresh();
-      });
+    this.media?.setMembers(this.memberIdentities());
   }
 
   private onMemberships = () => {
@@ -398,7 +296,9 @@ export class RoomCall {
     } else {
       this.keyPeers.add(participantIdentity);
     }
-    this.keyProvider?.setParticipantKey(key, keyIndex, participantIdentity).catch(() => undefined);
+    this.media
+      ?.setKey(key, keyIndex, participantIdentity, participantIdentity === this.identity)
+      .catch(() => undefined);
     this.resendOwnKey();
   };
 
@@ -504,7 +404,7 @@ export class RoomCall {
   async join(): Promise<void> {
     const { mx, room } = this;
     const deviceId = mx.getDeviceId();
-    if (!isBrowserSupported() || (this.encrypted && !isE2EESupported()) || !deviceId) {
+    if (!webCallMediaSupported(this.encrypted) || !deviceId) {
       this.fail('browser');
       return;
     }
@@ -539,7 +439,12 @@ export class RoomCall {
 
     // The session hands over the media keys from the moment it joins; LiveKit takes the ones that
     // came before its connection when it connects.
-    if (this.encrypted) this.keyProvider = new MatrixRtcKeyProvider();
+    const media: CallMedia = new WebCallMedia({
+      encrypted: this.encrypted,
+      roomId: room.roomId,
+      host: this.mediaHost,
+    });
+    this.media = media;
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
@@ -559,35 +464,20 @@ export class RoomCall {
       return;
     }
 
-    let media: MediaRoom;
     try {
-      if (this.keyProvider) this.worker = new E2EEWorker();
-      media = new MediaRoom({
-        adaptiveStream: true,
-        dynacast: true,
-        // The call's lifetime leaves on `pagehide` after remembering the call for a reload; left to
-        // itself, LiveKit drops the call already on `beforeunload`, and the reload finds it failed.
-        disconnectOnPageLeave: false,
-        audioCaptureDefaults: { deviceId: this.state.devices.audioinput },
-        videoCaptureDefaults: { deviceId: this.state.devices.videoinput },
-        audioOutput: { deviceId: this.state.devices.audiooutput },
-        ...(this.keyProvider && this.worker
-          ? { encryption: { keyProvider: this.keyProvider, worker: this.worker } }
-          : {}),
+      const connected = await media.connect(grant, {
+        devices: this.state.devices,
+        stopped: () => this.stopped,
       });
-      this.media = media;
-      this.watchMedia(media);
-      if (this.encrypted) await media.setE2EEEnabled(true);
-      // The teardown of a call left meanwhile disconnected this room already; it stays so.
-      if (this.stopped) return;
-      await media.connect(grant.url, grant.jwt);
+      // The teardown of a call left meanwhile disconnected this media already; it stays so.
+      if (!connected) return;
     } catch {
       this.fail('service');
       return;
     }
     if (this.stopped) {
       // Left or dropped while connecting: a connect that still went through is closed again.
-      await media.disconnect(true).catch(() => undefined);
+      await media.disconnect().catch(() => undefined);
       return;
     }
     this.update({ phase: 'connected' });
@@ -597,16 +487,16 @@ export class RoomCall {
     // current; this device's own key is set again so its media goes out with that one.
     const own = this.ownKey;
     if (own) {
-      this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
+      media.setKey(own.key, own.index, this.identity, true).catch(() => undefined);
     }
 
     let problem: CallProblem | undefined;
-    await media.localParticipant.setMicrophoneEnabled(this.state.microphone).catch(() => {
+    await media.setMicrophone(this.state.microphone).catch(() => {
       problem = 'device';
       this.update({ microphone: false });
     });
     if (this.state.camera) {
-      await media.localParticipant.setCameraEnabled(true).catch(() => {
+      await media.setCamera(true).catch(() => {
         problem = 'device';
         this.update({ camera: false });
       });
@@ -618,9 +508,9 @@ export class RoomCall {
 
   async setMicrophone(on: boolean) {
     this.update({ microphone: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant.setMicrophoneEnabled(on).catch(() => {
+    const media = this.media;
+    if (!media || this.state.phase === 'connecting') return;
+    await media.setMicrophone(on).catch(() => {
       this.update({ microphone: false, problem: 'device' });
     });
     this.refresh();
@@ -628,9 +518,9 @@ export class RoomCall {
 
   async setCamera(on: boolean) {
     this.update({ camera: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant.setCameraEnabled(on).catch(() => {
+    const media = this.media;
+    if (!media || this.state.phase === 'connecting') return;
+    await media.setCamera(on).catch(() => {
       this.update({ camera: false, problem: 'device' });
     });
     this.refresh();
@@ -641,32 +531,20 @@ export class RoomCall {
    * the browser offers it). Closing the browser's picker leaves sharing off without a problem.
    */
   async setScreenShare(on: boolean) {
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant
-      .setScreenShareEnabled(on, {
-        audio: true,
-        // The system's sound would carry the call back to the others, and this tab its own panel.
-        systemAudio: 'exclude',
-        selfBrowserSurface: 'exclude',
-        surfaceSwitching: 'include',
-        contentHint: 'detail',
-      })
-      .catch(() => undefined);
+    const media = this.media;
+    if (!media || this.state.phase === 'connecting') return;
+    await media.setScreenShare(on).catch(() => undefined);
     this.refresh();
   }
 
   setSound(on: boolean) {
-    this.audioHost?.querySelectorAll('audio').forEach((element) => {
-      // eslint-disable-next-line no-param-reassign
-      element.muted = !on;
-    });
+    this.media?.setSound(on);
     this.update({ sound: on });
   }
 
   async setDevice(kind: CallDeviceKind, deviceId: string) {
     this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-    await this.media?.switchActiveDevice(kind, deviceId).catch(() => {
+    await this.media?.setDevice(kind, deviceId).catch(() => {
       this.update({ problem: 'device' });
     });
     this.refresh();
@@ -674,7 +552,7 @@ export class RoomCall {
 
   /** Plays the others after the browser blocked autoplay; must run inside a click. */
   async resumeAudio() {
-    await this.media?.startAudio().catch(() => undefined);
+    await this.media?.resumeAudio().catch(() => undefined);
     this.refresh();
   }
 
@@ -684,23 +562,18 @@ export class RoomCall {
     this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
     const media = this.media;
     this.media = undefined;
-    media?.localParticipant.trackPublications.forEach((publication) => {
-      publication.track?.off(TrackEvent.Restarted, this.refresh);
-    });
+    media?.silence();
     if (this.state.microphoneTrack) this.update({ microphoneTrack: undefined });
-    this.audioHost?.remove();
-    this.audioHost = undefined;
     try {
       const membership = this.session.isJoined()
         ? this.session.leaveRoomSession(LEAVE_TIMEOUT_MS)
         : undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
-      await Promise.allSettled([media?.disconnect(true), membership]);
+      await Promise.allSettled([media?.disconnect(), membership]);
     } finally {
+      media?.dispose();
       // Kept past a failed disconnect: a lock left held would tell this device's other tabs for
       // the rest of the page's life that it is still in a call.
-      this.worker?.terminate();
-      this.worker = undefined;
       this.releaseDeviceLock?.();
       this.releaseDeviceLock = undefined;
     }
