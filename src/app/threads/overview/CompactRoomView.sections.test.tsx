@@ -121,6 +121,23 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
+  it('mounts only a screen plus overscan in a room with 730 threads', () => {
+    const working = Array.from({ length: 730 }, (_unused, index) => `$card${index}`);
+    state.sections = [{ id: 'working', rootIds: working }];
+    vi.useFakeTimers();
+    try {
+      render(view(working));
+      for (let task = 0; task < 24; task += 1) act(() => vi.runOnlyPendingTimers());
+
+      expect(rows()).toContain('#working 730');
+      expect(rows()).toContain('$card0');
+      expect(rows().length).toBeLessThan(35);
+      expect(rows()).not.toContain('$card729');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
