@@ -132,10 +132,7 @@ export const parseModelCatalogPayload = (agents: unknown, entries: unknown, sele
     !agents.every((v) => str(v)) ||
     !Array.isArray(entries) ||
     entries.length > 256 ||
-    !record(selection)
-  )
-    return undefined;
-  if (
+    !record(selection) ||
     !(selection.override === null || str(selection.override)) ||
     !Array.isArray(selection.inherited) ||
     !selection.inherited.every((v) => record(v) && str(v.entity) && str(v.model))

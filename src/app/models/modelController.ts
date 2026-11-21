@@ -173,7 +173,8 @@ export class ModelController {
       this.mx.getUserId() !== this.userId
     )
       return;
-    if (this.disposed) this.roomCatalogs = loadRoomCatalogs(this.userId);
+    const restarting = this.disposed;
+    if (restarting) this.roomCatalogs = loadRoomCatalogs(this.userId);
     this.started = true;
     this.disposed = false;
     const mx = this.mx;
@@ -186,6 +187,7 @@ export class ModelController {
     if (typeof document !== 'undefined')
       document.addEventListener('visibilitychange', this.onVisibility);
     this.scopes.forEach((scope) => {
+      if (restarting) this.reseed(scope);
       if (scope.listeners.size) this.refresh(scope.room, scope.threadId);
     });
   }
@@ -195,11 +197,10 @@ export class ModelController {
   }
 
   private roomSeed(room: Room, threadId?: string) {
-    const kept = threadId
-      ? (this.roomCatalogs.rooms.get(room.roomId) ?? []).filter((catalog) =>
-          hasJoinedModelAgent(this.mx, room, catalog.runtime, catalog.agentUserIds)
-        )
-      : [];
+    const cached = threadId ? this.roomCatalogs.rooms.get(room.roomId) : undefined;
+    const kept = (cached ?? []).filter(({ runtime, agentUserIds }) =>
+      hasJoinedModelAgent(this.mx, room, runtime, agentUserIds)
+    );
     const single = kept.length === 1 ? kept[0] : undefined;
     return {
       kept,
@@ -209,6 +210,12 @@ export class ModelController {
       models: single?.models ?? [],
       inherited: single && everyAgentJoined(this.mx, room, single) ? single.inherited : [],
     };
+  }
+
+  private reseed(scope: Scope): void {
+    const { kept, ...seed } = this.roomSeed(scope.room, scope.threadId);
+    scope.kept = kept;
+    if (seed.eligible || scope.snapshot.eligible) this.publish(scope, seed);
   }
 
   private scope(room: Room, threadId?: string): Scope {
@@ -363,9 +370,7 @@ export class ModelController {
       query.hydrating = false;
       // Recheck the display seed once the whole roster is available, not on intermediate joins.
       if (hydrating && scope.kept && !scope.catalogs.size && !scope.snapshot.runtime) {
-        const { kept, ...snapshot } = this.roomSeed(scope.room, scope.threadId);
-        scope.kept = kept;
-        if (snapshot.eligible || scope.snapshot.eligible) this.publish(scope, snapshot);
+        this.reseed(scope);
         if (!this.currentQuery(query)) return;
       }
       const candidates = joinedModelCandidates(this.mx, query.scope.room);

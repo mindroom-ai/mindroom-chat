@@ -6,6 +6,7 @@ import { ClientEvent, createClient, Device, MatrixEvent, Room, SyncState } from 
 import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { modelCatalogStorageKey } from '../preferences/accountStorageKeys';
 import { disposeModelController, getModelController } from './modelController';
 import { ModelPickerState, useModelControllerLifetime, useModelPicker } from './useModelPicker';
 
@@ -16,6 +17,7 @@ const flush = async () => {
 const cleanups: (() => void)[] = [];
 afterEach(() => {
   cleanups.splice(0).forEach((cleanup) => cleanup());
+  localStorage.removeItem(modelCatalogStorageKey('@viewer:test'));
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -148,6 +150,20 @@ const setup = () => {
 };
 
 describe('model controller lifecycle ownership', () => {
+  it('keeps a display-only disk seed through StrictMode effect replay', async () => {
+    const original = setup();
+    await original.mount();
+    await original.discover();
+    const { models } = original.state();
+    original.unmount();
+
+    const reloaded = setup();
+    await reloaded.mount(true);
+    expect(reloaded.node.textContent).toBe('available');
+    expect(reloaded.state()).toMatchObject({ models, loading: true, canMutate: false });
+    expect(reloaded.state().runtime).toBeUndefined();
+  });
+
   it('keeps snapshot reads inert before a client lifetime or subscription starts', () => {
     const h = setup();
     const controller = getModelController(h.mx);
