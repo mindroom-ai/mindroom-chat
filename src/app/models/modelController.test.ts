@@ -1526,6 +1526,28 @@ describe('model mutation acknowledgement', () => {
     expect(h.queued.length).toBe(asked + 1);
   });
 
+  it('reprobes once for each overlapping typed model command', async () => {
+    const h = setup();
+    await h.discover();
+    const asked = h.queued.length;
+    h.message(viewer, '!model fast', '$first');
+    h.message(viewer, '/model reset', '$second');
+
+    h.ack({ command_event_id: '$first' });
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    h.ack({ command_event_id: '$first' }, { event_id: '$duplicateAnswer' });
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+
+    h.message(helper, 'This thread now uses reset.', '$secondAnswer', {
+      eventId: '$second',
+      isFallback: false,
+    });
+    await flush();
+    expect(h.queued.length).toBe(asked + 2);
+  });
+
   it('reprobes on a genuine legacy reply to /model, not a thread fallback', async () => {
     const h = setup();
     await h.discover();

@@ -74,8 +74,8 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
-  /** Event ID of a model command typed in the thread and awaiting an answer. */
-  typedCommand?: string;
+  /** Recent event IDs of model commands typed in the thread and awaiting answers. */
+  typedCommands: Set<string>;
   query?: Query;
   command?: Command;
   send?: Command;
@@ -228,6 +228,7 @@ export class ModelController {
         },
         listeners: new Set(),
         watchers: new Set(),
+        typedCommands: new Set(),
         catalogs: new Map(),
         generation: 0,
         needsRefresh: false,
@@ -669,25 +670,30 @@ export class ModelController {
     const content = event.getContent<Record<string, unknown>>();
     const { body } = content;
     const eventId = event.getId();
+    const { typedCommands } = scope;
     if (eventId && typeof body === 'string' && /^[!/]model(\s|$)/i.test(body.trim())) {
-      scope.typedCommand = eventId;
+      typedCommands.add(eventId);
+      if (typedCommands.size > 4) typedCommands.delete(typedCommands.values().next().value!);
       return;
     }
-    const { typedCommand } = scope;
+    if (!typedCommands.size) return;
     const sender = event.getSender();
-    if (!typedCommand || !sender || !joinedModelCandidates(this.mx, scope.room).includes(sender))
-      return;
+    if (!sender || !joinedModelCandidates(this.mx, scope.room).includes(sender)) return;
+    let commandId: string | undefined;
     if (MODEL_RESULT in content) {
       const result = parseModelSelectionResult(content[MODEL_RESULT]);
       if (
-        result?.command_event_id !== typedCommand ||
+        !result ||
         result.room_id !== scope.room.roomId ||
         result.thread_id !== relation.event_id ||
         result.runtime_user_id !== sender
       )
         return;
-    } else if (relation.is_falling_back || event.replyEventId !== typedCommand) return;
-    scope.typedCommand = undefined;
+      commandId = result.command_event_id;
+    } else if (!relation.is_falling_back) {
+      commandId = event.replyEventId;
+    }
+    if (!commandId || !typedCommands.delete(commandId)) return;
     this.cancelQuery(scope);
     this.refresh(scope.room, scope.threadId);
   }
