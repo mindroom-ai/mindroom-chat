@@ -657,21 +657,6 @@ export function CompactRoomView({
     const model = modelByRootId.get(row);
     return model ? renderCard(model) : null;
   };
-  const endIntent = useRef(false);
-  const cancelEnd = () => {
-    endIntent.current = false;
-  };
-  useLayoutEffect(() => {
-    const view = viewRef.current;
-    if (blocks.extentComplete && endIntent.current && view) {
-      endIntent.current = false;
-      view.scrollTop = view.scrollHeight;
-    }
-  }, [blocks.extentComplete]);
-  useLayoutEffect(() => {
-    endIntent.current = false;
-  }, [room.roomId]);
-
   return (
     <Box
       ref={viewRef}
@@ -680,24 +665,6 @@ export function CompactRoomView({
       data-page-slide-clip=""
       data-compact-card-count={shownRows.filter((id) => !sectionOfRow(id)).length}
       data-cards-pending={!blocks.extentComplete || undefined}
-      onKeyDownCapture={(event: React.KeyboardEvent<HTMLDivElement>) => {
-        const { key, target, currentTarget } = event;
-        endIntent.current =
-          !blocks.extentComplete &&
-          key === 'End' &&
-          !event.altKey &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          (target === currentTarget ||
-            (target instanceof HTMLElement && target.getAttribute('role') === 'scrollbar'));
-        if (endIntent.current) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }}
-      onPointerDownCapture={cancelEnd}
-      onWheelCapture={cancelEnd}
-      onBlurCapture={cancelEnd}
       tabIndex={-1}
     >
       <Box

@@ -8,7 +8,14 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { COMPACT_VIEW } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import {
+  createDefaultThreadFilterState,
+  joinRoom,
+  registerAgentAccount,
+  seedRoomOverviewState,
+  sendRoomMessage,
+} from '../helpers/matrix';
+import { toggleRoomView } from '../helpers/roomViewSwitch';
 import { launchWebKit, onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -327,17 +334,22 @@ test('reverse scrolling reaches native zero through its first idle paint (WebKit
   await checkReverseScroll(baseURL, 'no-preference', true);
 });
 
-test('scrollbar End during discovery reaches the last logical card (WebKit)', async ({
-  baseURL,
-}) => {
+test('scrollbar End during discovery reaches the available end (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  const { reader, roomId, rootIds } = await seed('immediate_end', true);
+  const { reader, roomId } = await seed('immediate_end', true);
   await onWebKitPage({ ...PHONE, baseURL }, async (page) => {
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: reader.username,
       password: PASSWORD,
+    });
+    await seedRoomOverviewState({
+      page,
+      userId: reader.userId,
+      roomId,
+      viewMode: 'threaded',
+      filterState: createDefaultThreadFilterState(),
     });
     await page.addInitScript(
       ({ selector, total }) => {
@@ -347,15 +359,18 @@ test('scrollbar End during discovery reaches the last logical card (WebKit)', as
           if (
             !bar ||
             view?.dataset.compactCardCount !== total ||
-            view.dataset.cardsPending !== 'true'
+            view.dataset.cardsPending !== 'true' ||
+            bar.dataset.overflow !== 'true' ||
+            Number(bar.getAttribute('aria-valuemax')) <= 0
           )
             return;
           observer.disconnect();
-          bar.dataset.endSent = 'true';
           bar.focus({ preventScroll: true });
+          bar.dataset.endAt = String(view.scrollHeight - view.clientHeight);
           bar.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
           );
+          bar.dataset.endReadback = String(view.scrollTop);
         });
         observer.observe(document, { childList: true, subtree: true, attributes: true });
       },
@@ -363,13 +378,37 @@ test('scrollbar End during discovery reaches the last logical card (WebKit)', as
     );
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveCount(0);
+    // Warm the index in Threads first, then mount Compact with all 120 roots already listed.
+    const overview = page.locator('[data-room-thread-overview]');
+    const openMenu = () =>
+      page.getByRole('button', { name: 'More Options', exact: true }).last().tap();
+    const filters = page.getByRole('menuitemcheckbox', { name: 'Thread filters', exact: true });
+    await page.getByRole('heading', { name: 'Engineering triage' }).waitFor({ timeout: 30_000 });
+    if (!(await overview.isVisible())) {
+      await openMenu();
+      await filters.tap();
+    }
+    await expect(overview.locator('[data-thread-count]')).toHaveText(String(ROOTS), {
+      timeout: 30_000,
+    });
+    await openMenu();
+    await filters.tap();
+    await expect(overview).toBeHidden();
+    await toggleRoomView(page);
     const bar = view.getByRole('scrollbar');
-    await expect(bar).toHaveAttribute('data-end-sent', 'true', { timeout: 30_000 });
+    await expect(bar).toHaveAttribute('data-end-readback', /^\d/, { timeout: 15_000 });
+    const availableEnd = Number(await bar.getAttribute('data-end-at'));
+    const readback = Number(await bar.getAttribute('data-end-readback'));
+    expect(
+      Math.abs(readback - availableEnd),
+      'End acts during the key event, even while pending'
+    ).toBeLessThanOrEqual(1);
     await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
-    await expect(view.locator(`button[data-thread-root-id="${rootIds[0]!}"]`)).toBeInViewport();
-    await expect
-      .poll(() => view.evaluate((el) => Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight)))
-      .toBeLessThan(1);
+    // Main stays at the end available when End was pressed, not at the newly grown tail.
+    // The aabc4e009 control reached 1682 CSS px with this fixture/viewport.
+    const settledTop = await view.evaluate((el) => el.scrollTop);
+    expect(settledTop).toBeGreaterThanOrEqual(Math.max(1682, availableEnd) - 1);
     await expect(bar).toBeFocused();
   });
 });
