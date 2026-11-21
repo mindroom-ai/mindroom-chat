@@ -64,8 +64,9 @@ The start-time destination machinery is deleted, not wrapped:
   action.
 - `RoomView`: the hold that kept the thread beside the room while recording, which existed only
   because the recording died with its composer.
-- `voiceCaptureSession.releaseOwner`, `clearError` and `discard`: Discard and account exit use
-  `reset()`, which releases the microphone at once, and a capture error leaves the session for
+- `voiceCaptureSession.releaseOwner`, `clearError` and the awaited `discard`: account exit uses
+  `reset()` and a confirmed Discard `discard()`. Both release the microphone at once; only
+  `discard()` deletes the journal's disk copy (#714). A capture error leaves the session for
   `liveVoiceRecordingErrorAtom`, which the indicator shows.
 - The capsule's `processing` state: a recording stops only once a Send claimed it, and that
   shows as sending.
