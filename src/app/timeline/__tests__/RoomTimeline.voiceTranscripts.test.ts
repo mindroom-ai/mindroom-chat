@@ -22,6 +22,7 @@ const threadId = '$root';
 const AGENT = '@mindroom_helper:example.org';
 const ROUTER = '@mindroom_router:example.org';
 const CUSTOM_AGENT = '@helper:example.org';
+const VIEWER = '@alice:example.org';
 
 const setRoster = (accounts: string[]) =>
   stateEventsByTypeMock.set('io.mindroom.accounts', [
@@ -51,7 +52,7 @@ const openThread = async (
     voiceTs = 2_000,
     voiceAge = 0,
     echoBody = '🎤 Invented words',
-    joinedMembers = [AGENT],
+    joinedMembers = [VIEWER, AGENT],
   } = {}
 ) => {
   if (router) {
@@ -165,9 +166,21 @@ describe('a voice echo in an open thread', () => {
     ['a roster-backed responder with a custom ID', [CUSTOM_AGENT], true],
   ] as const)('shows pending with %s only if somebody answers', async (_case, joined, pending) => {
     setRoster([CUSTOM_AGENT]);
-    const renderer = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [...joined] });
+    const renderer = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [VIEWER, ...joined] });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(pending ? 1 : 0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('does not show pending in a room with another person', async () => {
+    const renderer = await openThread(undefined, AGENT, {
+      showEcho: false,
+      joinedMembers: [VIEWER, '@alex:example.org', AGENT],
+    });
+    try {
+      expect(transcribingStatuses(renderer)).toHaveLength(0);
     } finally {
       act(() => renderer.unmount());
     }

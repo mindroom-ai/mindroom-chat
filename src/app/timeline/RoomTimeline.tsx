@@ -144,7 +144,10 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
+import {
+  isMindroomOwnerUserId,
+  isMindroomResponderForViewer,
+} from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
@@ -922,6 +925,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   }
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const viewerId = mx.getUserId() ?? undefined;
+  const isResponder = (id: string) =>
+    isMindroomResponderForViewer(id, viewerId, trustedAccountsRef.current);
+  // In a room with other people the backend needs a mention, which a voice message has not sent.
+  const viewerIsOnlyPerson =
+    !!viewerId &&
+    joinedAccountIds.has(viewerId) &&
+    [...joinedAccountIds].every((id) => id === viewerId || isMindroomOwnerUserId(id) || isResponder(id));
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
@@ -929,9 +939,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    hasJoinedAgent: [...joinedAccountIds].some((id) =>
-      isMindroomResponderForViewer(id, viewerId, trustedAccountsRef.current)
-    ),
+    hasJoinedAgent: viewerIsOnlyPerson && [...joinedAccountIds].some(isResponder),
     hasThreadReplies: (id) =>
       (threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 || (room.getThread(id)?.length ?? 0) > 0,
   });
