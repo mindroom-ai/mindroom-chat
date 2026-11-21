@@ -1718,6 +1718,9 @@
     "layout": "Disposition des fils",
     "layoutRecent": "Récents",
     "layoutSections": "Sections",
+    "forMe": "Pour moi",
+    "forMeHint": "Uniquement les fils auxquels vous participez ou dans lesquels un agent a publié pour vous",
+    "emptyForMe": "Pas encore de fils pour vous",
     "group": "Grouper",
     "groupHint": "Grouper par statut",
     "sections": {

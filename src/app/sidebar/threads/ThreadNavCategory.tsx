@@ -11,6 +11,7 @@ import { archivedRoomsAtom, isRoomVisible } from '../../matrix/state/archivedRoo
 import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
+  matchesSidebarThreadInvolvement,
   MAX_SIDEBAR_THREADS,
   type SidebarThreadSectionId,
 } from './threadNavCategoryUtils';
@@ -88,48 +89,40 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
     )
   );
   const now = Math.max(minuteNow, snoozeNow);
-  const { layout } = preferences;
+  const { layout, involvedOnly, pinnedThreadKeys } = preferences;
+  const pinned = useMemo(() => new Set(pinnedThreadKeys), [pinnedThreadKeys]);
   const visible = useMemo(
     () =>
       Array.from(index.entries.values()).filter(
         (entry) =>
           isRoomVisible(entry.roomId, archivedRooms) &&
-          (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId))
+          (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId)) &&
+          matchesSidebarThreadInvolvement(entry, involvedOnly, pinned)
       ),
-    [archivedRooms, index.entries, roomToParents, spaceId]
+    [archivedRooms, index.entries, involvedOnly, pinned, roomToParents, spaceId]
   );
   const entries = useMemo(
     () =>
       layout === 'recent'
         ? buildSidebarThreadEntries(
             visible,
-            preferences.pinnedThreadKeys,
+            pinnedThreadKeys,
             directRoomIds,
             MAX_SIDEBAR_THREADS,
             now
           )
         : [],
-    [directRoomIds, layout, now, preferences.pinnedThreadKeys, visible]
+    [directRoomIds, layout, now, pinnedThreadKeys, visible]
   );
   const sections = useMemo(() => {
     if (layout !== 'sections') return [];
     // The client's shared signals cache, which Activity keeps filled for every thread.
     const reader = getThreadSignalsReader(mx);
-    return buildSidebarThreadSections(
-      visible,
-      preferences.pinnedThreadKeys,
-      directRoomIds,
-      now,
-      (entry) => {
-        const room = mx.getRoom(entry.roomId);
-        return room ? reader.read(room, entry, userId, now) : undefined;
-      }
-    );
-  }, [directRoomIds, layout, mx, now, preferences.pinnedThreadKeys, userId, visible]);
-  const pinned = useMemo(
-    () => new Set(preferences.pinnedThreadKeys),
-    [preferences.pinnedThreadKeys]
-  );
+    return buildSidebarThreadSections(visible, pinnedThreadKeys, directRoomIds, now, (entry) => {
+      const room = mx.getRoom(entry.roomId);
+      return room ? reader.read(room, entry, userId, now) : undefined;
+    });
+  }, [directRoomIds, layout, mx, now, pinnedThreadKeys, userId, visible]);
   const togglePin = useCallback(
     (threadKey: string) => updatePreferences({ type: 'TOGGLE_PIN', threadKey }),
     [updatePreferences]
@@ -144,6 +137,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
       data-category-id={THREAD_NAV_CATEGORY_ID}
       closed={closed}
       onClick={handleCategoryClick}
+      style={{ flexShrink: 0 }}
     >
       {t('threadNav.title')}
     </RoomNavCategoryButton>
@@ -153,22 +147,41 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader>
+      <NavCategoryHeader style={{ flexWrap: 'wrap' }}>
         {toggle}
         {!closed && (
-          <div className={segmented.Segments} role="radiogroup" aria-label={t('threadNav.layout')}>
-            {LAYOUTS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={layout === id}
-                className={segmented.Segment}
-                onClick={() => updatePreferences({ type: 'SET_LAYOUT', layout: id })}
-              >
-                {t(LAYOUT_LABEL_KEYS[id])}
-              </button>
-            ))}
+          <div className={segmented.Segments} style={{ maxInlineSize: '100%' }}>
+            <div
+              className={css.LayoutSegments}
+              role="radiogroup"
+              aria-label={t('threadNav.layout')}
+            >
+              {LAYOUTS.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={layout === id}
+                  className={segmented.Segment}
+                  onClick={() => updatePreferences({ type: 'SET_LAYOUT', layout: id })}
+                >
+                  {t(LAYOUT_LABEL_KEYS[id])}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className={segmented.Segment}
+              style={{ display: 'grid', placeItems: 'center', flexShrink: 0 }}
+              aria-label={t('threadNav.forMe')}
+              aria-pressed={involvedOnly}
+              title={t('threadNav.forMeHint')}
+              onClick={() =>
+                updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
+              }
+            >
+              <Icon size="50" src={Icons.User} aria-hidden />
+            </button>
           </div>
         )}
       </NavCategoryHeader>
@@ -176,7 +189,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
         <div data-testid="thread-nav-list">
           {entries.length === 0 && sections.length === 0 && (
             <Text className={css.CategoryState} as="p" priority="300" size="T200">
-              {t('threadNav.empty')}
+              {t(involvedOnly ? 'threadNav.emptyForMe' : 'threadNav.empty')}
             </Text>
           )}
           <ThreadNavRows entries={entries} {...rowsProps} />

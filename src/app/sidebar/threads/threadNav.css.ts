@@ -2,6 +2,13 @@ import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
 
+export const LayoutSegments = style({
+  display: 'flex',
+  columnGap: toRem(2),
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
+});
+
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,
   color: color.Background.OnContainer,

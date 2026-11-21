@@ -1678,6 +1678,9 @@
     "layout": "Indeling van threads",
     "layoutRecent": "Recent",
     "layoutSections": "Secties",
+    "forMe": "Voor mij",
+    "forMeHint": "Alleen threads waaraan je deelneemt of waarin een agent namens jou een bericht plaatste",
+    "emptyForMe": "Nog geen threads voor jou",
     "group": "Groeperen",
     "groupHint": "Groeperen op status",
     "sections": {

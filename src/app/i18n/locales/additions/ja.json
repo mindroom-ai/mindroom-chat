@@ -1638,6 +1638,9 @@
     "layout": "スレッドの表示方法",
     "layoutRecent": "最近",
     "layoutSections": "セクション",
+    "forMe": "自分向け",
+    "forMeHint": "自分が参加しているスレッド、またはエージェントが自分の代わりに投稿したスレッドのみ",
+    "emptyForMe": "自分向けのスレッドはまだありません",
     "group": "グループ",
     "groupHint": "状態ごとにグループ化",
     "sections": {

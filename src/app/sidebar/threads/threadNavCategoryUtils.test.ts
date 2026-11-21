@@ -4,6 +4,7 @@ import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
 import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
+  matchesSidebarThreadInvolvement,
   MAX_SIDEBAR_RESOLVED_THREADS,
   MAX_SIDEBAR_LATER_THREADS,
   MAX_SIDEBAR_THREADS,
@@ -34,6 +35,27 @@ const makeEntry = ({
     roomName: key,
     threadRootId: key,
   } as CrossRoomThreadIndexEntry);
+
+describe('matchesSidebarThreadInvolvement', () => {
+  const entries = [
+    makeEntry({ key: 'involved', lastActivityTs: 1 }),
+    makeEntry({ key: 'unrelated', lastActivityTs: 2, isInvolved: false }),
+    makeEntry({ key: 'pinned', lastActivityTs: 3, isInvolved: false }),
+  ];
+  const pinned = new Set(['pinned']);
+
+  it('keeps involved threads and pins only when For me is on', () => {
+    expect(entries.filter((entry) => matchesSidebarThreadInvolvement(entry, true, pinned))).toEqual(
+      [entries[0], entries[2]]
+    );
+  });
+
+  it('leaves all threads unchanged when For me is off', () => {
+    expect(
+      entries.filter((entry) => matchesSidebarThreadInvolvement(entry, false, pinned))
+    ).toEqual(entries);
+  });
+});
 
 describe('buildSidebarThreadEntries', () => {
   it('keeps pins first in saved order and sorts the rest by last activity', () => {

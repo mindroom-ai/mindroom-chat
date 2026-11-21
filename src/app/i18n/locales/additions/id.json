@@ -1638,6 +1638,9 @@
     "layout": "Tata letak utas",
     "layoutRecent": "Terbaru",
     "layoutSections": "Bagian",
+    "forMe": "Untuk saya",
+    "forMeHint": "Hanya utas yang Anda ikuti atau tempat agen mengirim pesan atas nama Anda",
+    "emptyForMe": "Belum ada utas untuk Anda",
     "group": "Kelompokkan",
     "groupHint": "Kelompokkan menurut status",
     "sections": {

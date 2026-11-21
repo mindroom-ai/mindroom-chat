@@ -87,7 +87,10 @@ vi.mock('./ThreadNavItem', () => ({
       React.createElement('button', { 'aria-label': `pin-${entry.key}`, onClick: onTogglePin })
     ),
 }));
-vi.mock('./threadNav.css', () => ({ CategoryState: 'CategoryState' }));
+vi.mock('./threadNav.css', () => ({
+  CategoryState: 'CategoryState',
+  LayoutSegments: 'LayoutSegments',
+}));
 vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
   getThreadSignalsReader: () => ({ read: readSignals }),
 }));
@@ -192,6 +195,7 @@ describe('ThreadNavCategory', () => {
 
     expect(store.get(closedCategoriesAtom)).toContain(THREAD_NAV_CATEGORY_ID);
     expect(renderer!.root.findAllByProps({ 'data-testid': 'thread-nav-list' })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'For me' })).toHaveLength(0);
   });
 
   it('moves a pinned thread above newer activity', async () => {
@@ -301,6 +305,61 @@ describe('ThreadNavCategory', () => {
     expect(store.get(closedCategoriesAtom)).toContain(resolvedId);
     expect(heading(resolvedId).props['aria-expanded']).toBe(false);
     expect(threadKeys()).toEqual([newer.key, older.key]);
+  });
+
+  it.each(['Recent', 'Sections'])('filters the %s layout with For me', (layout) => {
+    store.set(crossRoomThreadIndexAtom, {
+      ...store.get(crossRoomThreadIndexAtom),
+      entries: new Map([
+        [older.key, older],
+        [newer.key, { ...newer, isInvolved: false }],
+      ]),
+    });
+    renderCategory();
+    if (layout === 'Sections') {
+      act(() => {
+        renderer!.root
+          .find((node) => node.props.role === 'radio' && node.children.includes(layout))
+          .props.onClick();
+      });
+    }
+    const forMe = () => renderer!.root.findByProps({ 'aria-label': 'For me' });
+    const threadKeys = () =>
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key']);
+
+    expect(forMe().props['aria-pressed']).toBe(false);
+    expect(threadKeys()).toEqual([newer.key, older.key]);
+    act(() => {
+      forMe().props.onClick();
+    });
+    expect(forMe().props['aria-pressed']).toBe(true);
+    expect(threadKeys()).toEqual([older.key]);
+    if (layout === 'Sections') {
+      expect(renderer!.root.findAll((node) => node.children.includes('Idle · 1'))).not.toHaveLength(
+        0
+      );
+    }
+    act(() => {
+      forMe().props.onClick();
+    });
+    expect(threadKeys()).toEqual([newer.key, older.key]);
+  });
+
+  it('shows a distinct empty state when For me hides every thread', () => {
+    store.set(crossRoomThreadIndexAtom, {
+      ...store.get(crossRoomThreadIndexAtom),
+      entries: new Map([[newer.key, { ...newer, isInvolved: false }]]),
+    });
+    renderCategory();
+
+    act(() => {
+      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
+    });
+    expect(
+      renderer!.root.findAll((node) => node.children.includes('No threads for you yet'))
+    ).not.toHaveLength(0);
   });
 
   it('labels scheduled threads Later with the later section id', () => {
