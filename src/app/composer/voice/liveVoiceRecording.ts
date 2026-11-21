@@ -47,7 +47,8 @@ const takeLiveVoiceRecording = (store: JotaiStore): VoiceCaptureSession | undefi
 /**
  * Starts the account's one recording in a session from `createSession`; false when one runs
  * already or the microphone did not start. A recording that ends on its own (no microphone, a
- * recorder that stops) leaves the atom with its reason in `liveVoiceRecordingErrorAtom`.
+ * recorder that stops) leaves the atom, with its reason in `liveVoiceRecordingErrorAtom` when
+ * its audio was lost; kept, the audio is parked by then (`startLiveVoiceRecording.ts`).
  * Only `startLiveVoiceRecording.ts` calls this, with the capture module's session.
  */
 export const beginLiveVoiceRecording = async (

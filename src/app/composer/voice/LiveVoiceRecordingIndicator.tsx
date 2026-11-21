@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAtom, useAtomValue, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -22,17 +23,20 @@ import {
   liveVoiceRecordingAtom,
   liveVoiceRecordingErrorAtom,
 } from './liveVoiceRecording';
+import { DiscardVoiceRecordingDialog } from './DiscardVoiceRecordingDialog';
 import { useVoiceCaptureSnapshot } from './useVoiceRecorder';
+import type { VoiceCaptureSession } from './voiceCaptureSession';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import * as css from './LiveVoiceRecordingIndicator.css';
 
 /**
  * The account's live recording where no composer shows it (the Threads page, settings, a phone's
- * room list): a pill with its time and Discard. It has no Send, because a recording has no
- * destination until Send is pressed in a composer. It shows in the app's notice places
- * (ui/noticeSlots.tsx): the one inside what covers the page (a large dialog, a phone's members
- * sheet or drawer), where the keyboard still reaches it, else the page's. Mounted once in the
- * signed-in shell, it also shows why a recording could not be captured, once for every composer.
+ * room list): a pill with its time and Discard, which asks first as a composer's does. It has no
+ * Send, because a recording has no destination until Send is pressed in a composer. It shows in
+ * the app's notice places (ui/noticeSlots.tsx): the one inside what covers the page (a large
+ * dialog, a phone's members sheet or drawer), where the keyboard still reaches it, else the
+ * page's. Mounted once in the signed-in shell, it also shows why a recording could not be
+ * captured, once for every composer.
  */
 export function LiveVoiceRecordingIndicator() {
   const { t } = useTranslation();
@@ -41,6 +45,8 @@ export function LiveVoiceRecordingIndicator() {
   const { phase, elapsedMs } = useVoiceCaptureSnapshot(recording);
   const capsulesShown = useAtomValue(liveVoiceCapsulesShownAtom);
   const [error, setError] = useAtom(liveVoiceRecordingErrorAtom);
+  // The recording whose Discard was pressed here, until the person confirms or cancels.
+  const [discarding, setDiscarding] = useState<VoiceCaptureSession>();
   const paused = phase === 'paused';
   const requesting = phase === 'requesting';
   const discardLabel = t('mindroomUi.voice.discardRecording');
@@ -80,6 +86,11 @@ export function LiveVoiceRecordingIndicator() {
           </Dialog>
         </OverlayCenter>
       </Overlay>
+      <DiscardVoiceRecordingDialog
+        open={recording !== undefined && discarding === recording}
+        onCancel={() => setDiscarding(undefined)}
+        onDiscard={() => discardLiveVoiceRecording(store)}
+      />
       {/* Announce state once even when several capsules show it. Timers are never live. */}
       <span className={css.Announcement} role="status">
         {recording !== undefined && status}
@@ -98,7 +109,7 @@ export function LiveVoiceRecordingIndicator() {
                   variant="SurfaceVariant"
                   size="300"
                   radii="Pill"
-                  onClick={() => discardLiveVoiceRecording(store)}
+                  onClick={() => setDiscarding(recording)}
                   aria-label={discardLabel}
                 >
                   <Icon src={Icons.Delete} size="50" />

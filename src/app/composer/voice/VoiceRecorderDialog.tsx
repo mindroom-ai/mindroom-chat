@@ -12,8 +12,8 @@ import { Box, Button, Line, Overlay, OverlayBackdrop, OverlayCenter, Text, confi
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
-import { ModalLayer } from '../../ui/ModalLayer';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
+import { DiscardVoiceRecordingDialog } from './DiscardVoiceRecordingDialog';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
@@ -64,7 +64,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   ref
 ) => {
   const { t } = useTranslation();
-  const discardTitle = t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording');
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
   // capsule + parked draft remain visible; the user can re-open the overlay
@@ -232,32 +231,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         </OverlayCenter>
       </Overlay>
 
-      <ModalLayer open={discardConfirmationOpen} onClose={() => setDiscardConfirmationOpen(false)}>
-        <Dialog variant="Surface" role="dialog" aria-modal="true" aria-label={discardTitle}>
-          <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-            <Text size="H5">{discardTitle}</Text>
-            <Text size="T300">
-              {t(
-                'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
-              )}
-            </Text>
-            <Box justifyContent="End" gap="200">
-              <Button
-                variant="Secondary"
-                onClick={() => setDiscardConfirmationOpen(false)}
-                fill="Soft"
-                outlined
-                radii="300"
-              >
-                {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
-              </Button>
-              <Button variant="Critical" onClick={confirmDiscard} fill="Soft" outlined radii="300">
-                {t('mindroomUi.voice.voiceRecorderDialog.discard')}
-              </Button>
-            </Box>
-          </Box>
-        </Dialog>
-      </ModalLayer>
+      <DiscardVoiceRecordingDialog
+        open={discardConfirmationOpen}
+        onCancel={() => setDiscardConfirmationOpen(false)}
+        onDiscard={confirmDiscard}
+      />
 
       <div>
         <Line variant="SurfaceVariant" size="300" />

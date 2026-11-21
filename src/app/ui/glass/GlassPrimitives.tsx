@@ -133,10 +133,7 @@ type MenuProps = Pick<ComponentProps<typeof FoldsMenu>, 'variant'> & AppearanceP
 // content; a menu that can outgrow its space scrolls its rows in an element inside it instead
 // (the menu a column flex box with the max height, the element `min-height: 0; overflow-y: auto`).
 export const Menu = as<'div', MenuProps>(
-  (
-    { className, variant = 'Surface', appearance = 'glass', role = 'menu', ...props },
-    ref
-  ) => {
+  ({ className, variant = 'Surface', appearance = 'glass', role = 'menu', ...props }, ref) => {
     const menu = useMenuBehaviour(role, ref, props.onKeyDown);
     const surface = useSurface(menu.ref, appearance, 'overlay', variant);
     return (
@@ -190,9 +187,16 @@ export const Modal = as<'div', ModalProps>(
   }
 );
 
-type DialogProps = Pick<ComponentProps<typeof FoldsDialog>, 'variant'> & AppearanceProps;
+type DialogProps = Pick<ComponentProps<typeof FoldsDialog>, 'variant'> &
+  AppearanceProps & {
+    /** False for a question about a notice itself, which must not move into the dialog. */
+    noticeSlot?: boolean;
+  };
 export const Dialog = as<'div', DialogProps>(
-  ({ className, children, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+  (
+    { className, children, variant = 'Surface', appearance = 'glass', noticeSlot = true, ...props },
+    ref
+  ) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
       <ScrollHeaderProvider value={false}>
@@ -208,7 +212,7 @@ export const Dialog = as<'div', DialogProps>(
             )}
           >
             {children}
-            <DialogNoticeSlot />
+            {noticeSlot && <DialogNoticeSlot />}
           </FoldsDialog>
         </SurfaceProvider>
       </ScrollHeaderProvider>

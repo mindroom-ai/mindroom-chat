@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
@@ -85,6 +85,32 @@ const composer = () => (
   />
 );
 const pill = () => screen.queryByTestId('live-voice-recording-indicator');
+/** The question every Discard asks first. */
+const question = () => screen.queryByRole('dialog', { name: 'Discard voice recording?' });
+/** A whole press, as a pointer makes it: a dialog under it must not take it for a press outside. */
+const press = (element: HTMLElement) => {
+  fireEvent.pointerDown(element, { button: 0, pointerId: 1, pointerType: 'mouse' });
+  fireEvent.mouseDown(element, { button: 0 });
+  fireEvent.pointerUp(element, { button: 0, pointerId: 1, pointerType: 'mouse' });
+  fireEvent.mouseUp(element, { button: 0 });
+  fireEvent.click(element);
+};
+/** The question, once its focus trap has moved the focus in, shortly after it opens. */
+const openedQuestion = async () => {
+  await waitFor(() => expect(question()?.contains(document.activeElement)).toBe(true));
+  return question()!;
+};
+const expectFocusOnCancel = async () =>
+  expect(within(await openedQuestion()).getByRole('button', { name: 'Cancel' })).toBe(
+    document.activeElement
+  );
+/** Treats attached elements as laid out, so the real focus trap finds its controls in jsdom. */
+const layOut = () =>
+  vi
+    .spyOn(HTMLElement.prototype, 'getClientRects')
+    .mockImplementation(function rects(this: HTMLElement) {
+      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+    });
 
 // As in Settings: the shared large dialog opens a separate, focus-trapped log-out prompt.
 function SettingsWithLogout() {
@@ -117,7 +143,8 @@ describe('LiveVoiceRecordingIndicator', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows the recording and its time where no composer shows it, with Discard and no Send', () => {
+  it('shows the recording and its time where no composer shows it, with Discard and no Send', async () => {
+    layOut();
     const store = createStore();
     const { session, discard } = recordingSession();
     render(
@@ -133,11 +160,24 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(pill()?.textContent).toBe('Recording 0:32');
     expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Discard voice recording' }));
+    // Discard asks first, with the focus on Cancel; Escape and Cancel keep the recording.
+    const discardButton = screen.getByRole('button', { name: 'Discard voice recording' });
+    fireEvent.click(discardButton);
+    await expectFocusOnCancel();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
+    expect(question()).toBeNull();
+    fireEvent.click(discardButton);
+    fireEvent.click(within(question()!).getByRole('button', { name: 'Cancel' }));
+    expect(question()).toBeNull();
+    expect(discard).not.toHaveBeenCalled();
+    expect(pill()?.textContent).toBe('Recording 0:32');
 
+    fireEvent.click(discardButton);
+    fireEvent.click(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     expect(pill()).toBeNull();
+    expect(question()).toBeNull();
   });
 
   it('says the recording is starting while the microphone is requested', () => {
@@ -208,12 +248,7 @@ describe('LiveVoiceRecordingIndicator', () => {
   });
 
   it('moves Discard into the log-out confirmation and back to Settings when it closes', async () => {
-    // Treat attached elements as laid out so the real focus trap can find its controls in jsdom.
-    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
-      this: HTMLElement
-    ) {
-      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
-    });
+    layOut();
     const store = createStore();
     const { session, discard } = recordingSession();
     store.set(liveVoiceRecordingAtom, session);
@@ -244,8 +279,21 @@ describe('LiveVoiceRecordingIndicator', () => {
     await openLogout();
     const reopened = screen.getByRole('dialog', { name: 'Logout' });
     fireEvent.click(within(reopened).getByRole('button', { name: discardLabel }));
+    // The question stays out of the dialogs under it: the pill keeps its place, and Escape
+    // closes the question alone.
+    await expectFocusOnCancel();
+    expect(reopened.contains(pill())).toBe(true);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
+    expect(question()).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Logout' })).toBe(reopened);
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBe(settings);
+    expect(discard).not.toHaveBeenCalled();
+
+    fireEvent.click(within(reopened).getByRole('button', { name: discardLabel }));
+    press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
     expect(pill()).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Logout' })).toBe(reopened);
   });
 
   it('shows inside what covers the page, where the focus held there reaches it', () => {
@@ -278,7 +326,9 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(pill()).toBeNull();
   });
 
-  it('lets you discard a live recording from a bottom sheet covering its composer', () => {
+  it('lets you discard a live recording from a bottom sheet covering its composer', async () => {
+    layOut();
+    const requestClose = vi.fn();
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -295,7 +345,7 @@ describe('LiveVoiceRecordingIndicator', () => {
           <NoticeSlot place="page" />
           {composer()}
         </main>
-        <BottomSheet title="Activity" closeLabel="Close" requestClose={vi.fn()}>
+        <BottomSheet title="Activity" closeLabel="Close" requestClose={requestClose}>
           <p>Example activity</p>
         </BottomSheet>
         <LiveVoiceRecordingIndicator />
@@ -304,8 +354,17 @@ describe('LiveVoiceRecordingIndicator', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Activity' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
+    expect(discard).not.toHaveBeenCalled();
+    // The question is over the sheet, not outside it: it is not hidden as the page is, and
+    // neither Escape nor a press in it closes the sheet.
+    await expectFocusOnCancel();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
+    expect(question()).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
+    press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(requestClose).not.toHaveBeenCalled();
   });
 
   it('reaches Discard by Tab from the command palette search field', () => {
@@ -333,7 +392,8 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(store.get(commandPaletteOpenAtom)).toBe('all');
   });
 
-  it('discards a live recording without closing the command palette', () => {
+  it('discards a live recording without closing the command palette', async () => {
+    layOut();
     const store = createStore();
     const { session, discard } = recordingSession();
     store.set(liveVoiceRecordingAtom, session);
@@ -351,12 +411,21 @@ describe('LiveVoiceRecordingIndicator', () => {
     const button = within(dialog.parentElement!).getByRole('button', {
       name: 'Discard voice recording',
     });
-    // A whole press, as a pointer makes it: the palette must not take it for a press outside.
-    fireEvent.pointerDown(button, { button: 0, pointerId: 1, pointerType: 'mouse' });
-    fireEvent.mouseDown(button, { button: 0 });
-    fireEvent.pointerUp(button, { button: 0, pointerId: 1, pointerType: 'mouse' });
-    fireEvent.mouseUp(button, { button: 0 });
-    fireEvent.click(button);
+    press(button);
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
+    expect(discard).not.toHaveBeenCalled();
+    // Escape closes the question alone, and so does Cancel.
+    await expectFocusOnCancel();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
+    expect(question()).toBeNull();
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
+    press(button);
+    press(within(question()!).getByRole('button', { name: 'Cancel' }));
+    expect(question()).toBeNull();
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
+
+    press(button);
+    press(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(store.get(commandPaletteOpenAtom)).toBe('all');
     expect(discard).toHaveBeenCalledOnce();
     expect(pill()).toBeNull();

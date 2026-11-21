@@ -211,9 +211,39 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   const dialogDiscard = settings.locator(indicator(page)).locator(capsule(page));
   await dialogDiscard.focus();
   await expect(dialogDiscard).toBeFocused();
+  // Its Discard asks first, with the focus on Cancel. Escape closes the question alone: the
+  // dialog under it stays, and the recording goes on.
+  const question = page.getByRole('dialog', { name: 'Discard voice recording?' });
+  const cancel = question.getByRole('button', { name: 'Cancel', exact: true });
+  await page.keyboard.press('Enter');
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(question).toHaveCount(0);
+  await expect(settings.locator(indicator(page))).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(settings).toHaveCount(0);
   await expect(indicator(page)).toHaveCount(0);
+  await expect(thread.locator(capsule(page))).toBeVisible();
+
+  // The same over the command palette, which takes a press or the focus outside it as leaving:
+  // neither Cancel nor Escape in the question closes the palette.
+  await page.keyboard.press('ControlOrMeta+k');
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+  await expect(palette).toBeVisible({ timeout: 30_000 });
+  await indicator(page).locator(capsule(page)).click();
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(question).toHaveCount(0);
+  await expect(palette).toBeVisible();
+  await indicator(page).locator(capsule(page)).click();
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(question).toHaveCount(0);
+  await expect(palette).toBeVisible();
+  await expect(indicator(page)).toHaveText(/^Recording \d+:\d\d$/);
+  await palette.getByRole('combobox').focus();
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
   await expect(thread.locator(capsule(page))).toBeVisible();
 
   // Send is pressed here, so here is where it goes.
