@@ -219,8 +219,9 @@ const expectDragKeptPlace = (drag: Drag, errors: string[], what: string) => {
   expect(drag.widths[1] - drag.widths[0], 'how far the room narrowed').toBeGreaterThan(150);
   expect(drag.places.length, 'frames read').toBeGreaterThan(STEPS / 2);
   const start = drag.places[0] ?? Number.NaN;
-  const moved = drag.places.map((place) => Math.round((place - start) * 10) / 10);
-  const places = `${what}: px from its place, per frame: ${moved.join(' ')}`;
+  const moved = drag.places.map((place) => place - start);
+  const rounded = moved.map((px) => Math.round(px * 10) / 10);
+  const places = `${what}: px from its place, per frame: ${rounded.join(' ')}`;
   // A frame without the message reads NaN, which is no place either.
   expect(
     moved.filter((px) => !(Math.abs(px) <= TOLERANCE)),
