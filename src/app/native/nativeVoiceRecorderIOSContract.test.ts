@@ -43,7 +43,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
       )
     );
-    expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*finishLive\(\)/);
+    expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
   });
 
   it('cancels only a known ID, including unreadable files, and rejects removal errors', () => {
@@ -96,7 +96,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('leaves no file and no active audio session behind a start that fails', () => {
     expect(body('start')).toMatch(
-      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?Self\.deactivateAudio\(\)[\s\S]*?"START_FAILED"/
+      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?setActive\(false[\s\S]*?"START_FAILED"/
     );
   });
 
@@ -106,7 +106,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource.match(/setCategory\(/g)).toHaveLength(1);
     expect(
       pluginSource.match(/setActive\(false, options: \.notifyOthersOnDeactivation\)/g)
-    ).toHaveLength(1);
+    ).toHaveLength(2);
   });
 
   it('rejects with the codes the web side names', () => {
@@ -139,7 +139,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(body('stop')).toMatch(/finishLive\(\)\s*call\.resolve\(\["path":/);
     const reload = pluginSource.match(/private func pageWillLoad\(\) \{[\s\S]*?\n {4}\}/)?.[0];
     expect(reload).toMatch(
-      /generation \+= 1[\s\S]*?let id = live\?\.id\s*finishLive\(\)\s*if let id \{ owners\[id\]\?\.recoverable = true \}/
+      /generation \+= 1\s*if let live \{ owners\[live\.id\]\?\.recoverable = true \}\s*finishLive\(\)/
     );
     // In particular a successful Send followed by failed cancel must never reappear on reload.
     expect(pluginSource.match(/\.recoverable = true/g)).toHaveLength(1);

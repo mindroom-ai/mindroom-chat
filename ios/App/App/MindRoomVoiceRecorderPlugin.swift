@@ -100,7 +100,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
-                            Self.deactivateAudio()
+                            try? session.setActive(false, options: .notifyOthersOnDeactivation)
                             return call.reject("Could not start recording", "START_FAILED")
                         }
                         call.resolve(["id": id])
@@ -138,7 +138,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
             guard live.recorder.record() else {
-                finishLive()
+                discardLive()
                 return call.reject("Could not resume", "NOT_RECORDING")
             }
             call.resolve()
@@ -192,15 +192,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private static func deactivateAudio() {
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-
     private func finishLive() {
         guard let live else { return }
         live.recorder.stop()
         self.live = nil
-        Self.deactivateAudio()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func discardLive() {
@@ -211,14 +207,12 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     /// waiting for permission belongs to the old page and must not record.
     @objc private func pageWillLoad() {
         generation += 1
-        let id = live?.id
+        if let live { owners[live.id]?.recoverable = true }
         finishLive()
-        if let id { owners[id]?.recoverable = true }
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
     func close() {
-        guard !closed else { return }
         closed = true
         finishLive()
         try? FileManager.default.removeItem(at: Self.folder)
