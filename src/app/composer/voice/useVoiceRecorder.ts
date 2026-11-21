@@ -129,7 +129,7 @@ export function useVoiceRecorder({
       sendRecording: latestOnSendRecordingRef.current,
       context: latestGetSendContextRef.current(),
     };
-    return capture.start();
+    return capture.start(sendBindingAtStartRef.current.context.ownerSessionId);
   }, [capture, hasPendingSend, phase]);
 
   const send = useCallback(async (): Promise<boolean> => {
