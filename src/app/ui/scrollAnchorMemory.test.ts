@@ -187,6 +187,20 @@ describe('useScrollAnchorMemory', () => {
     expect(layout.view.scrollTop).toBe(expected);
   });
 
+  it('places a linked card that arrives after the first fallback write', () => {
+    const memory: ScrollAnchorMemory = new Map([
+      ['list', { scrollTop: 1, anchors: [{ key: 'target', offset: 160 }] }],
+    ]);
+    const keys = rowKeys(15);
+    const layout = createLayout(keys);
+    mount(memory, layout, true, 'list', (view) => view.scrollTop <= 100);
+    expect(layout.view.scrollTop).toBe(1);
+
+    layout.setRows([...keys, 'target']);
+    resize(layout.content);
+    expect(layout.offsetOf('target')).toBe(160);
+  });
+
   it('keeps the rows in place when the opened row moved to the top', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);

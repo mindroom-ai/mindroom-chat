@@ -194,7 +194,12 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
-      if (state.fromMemory && Math.abs(state.lastAppliedScrollTop - placement.scrollTop) < 1) {
+      // A fallback offset does not place a linked card that has yet to render.
+      if (
+        state.fromMemory &&
+        (!snapshot.anchors.length || placement.rows.length > 0) &&
+        Math.abs(state.lastAppliedScrollTop - placement.scrollTop) < 1
+      ) {
         state.fromMemory = false;
         state.followJoins = !stopFollowingOnJoinAt?.(view);
       }
