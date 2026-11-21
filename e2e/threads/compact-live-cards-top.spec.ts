@@ -298,7 +298,8 @@ type LeadPlaces = {
   row: number;
   /** The unanimated shell of the first card in view that does not move. */
   card: number;
-  /** The same card as drawn, including any glide of its inner element. */
+  /** The row and card as drawn, including any glide. */
+  visibleRow: number;
   visibleCard: number;
   scrollTop: number;
   order: string[];
@@ -315,7 +316,7 @@ type LeadWatch = {
   first?: LeadPlaces;
   /** The furthest the leading row or card layout moved in any frame since. */
   furthest: number;
-  /** The furthest the visible card moved in any frame since, including its motion. */
+  /** The furthest the visible row or card moved in any frame since, including motion. */
   visibleFurthest: number;
   read: () => LeadPlaces;
 };
@@ -352,14 +353,15 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
     const leadCard = inView.find((row) => row.hasAttribute('data-scroll-anchor') && stays(row));
     const moving = cardOf(mover);
     if (!leadRow || !leadCard || !moving) throw new Error('no row leads the view');
-    const leadMotionRow = leadCard.querySelector<HTMLElement>('[data-motion-row]');
-    if (!leadMotionRow) throw new Error('no moving element inside the leading card');
+    const leadMotionCard = leadCard.querySelector<HTMLElement>('[data-motion-row]');
+    if (!leadMotionCard) throw new Error('no moving element inside the leading card');
+    const leadMotionRow = leadRow.querySelector<HTMLElement>('[data-motion-row]') ?? leadRow;
     // A card that leads the view itself moves up past the row before it, and one that trades
     // places past the card it trades with, which is another card in the page afterwards.
     const before = inView[0] === moving ? rows[rows.indexOf(moving) - 1] ?? leadRow : leadRow;
     const passed = () => (traded && cardOf(traded)) || before;
-    // A header glides to its place (`translate`), a card's shell never does: a row's place in the
-    // list is where it shows without the glide, which a frame mid-glide still tells apart.
+    // Card shells and wrapped headers are not translated. On main, the unwrapped header
+    // itself translates, so subtract that glide to recover its layout position.
     const placeOf = (row: HTMLElement) => {
       const glide = parseFloat(getComputedStyle(row).translate.split(' ')[1] ?? '');
       return row.getBoundingClientRect().top - edge - (glide || 0);
@@ -369,7 +371,8 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
       return {
         row: placeOf(leadRow),
         card: placeOf(leadCard),
-        visibleCard: leadMotionRow.getBoundingClientRect().top - edge,
+        visibleRow: leadMotionRow.getBoundingClientRect().top - edge,
+        visibleCard: leadMotionCard.getBoundingClientRect().top - edge,
         scrollTop: view.scrollTop,
         order: [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
           (row) => row.dataset.scrollAnchor ?? ''
@@ -397,6 +400,7 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
         );
         watch.visibleFurthest = Math.max(
           watch.visibleFurthest,
+          Math.abs(now.visibleRow - watch.before.visibleRow),
           Math.abs(now.visibleCard - watch.before.visibleCard)
         );
       }
@@ -694,9 +698,14 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     }; the card that moved is ${start.moverHeight} px high`,
   });
   const visibleMoved = (places: LeadPlaces | undefined) =>
-    places ? Math.abs(places.visibleCard - before.visibleCard) : NaN;
+    places
+      ? Math.max(
+          Math.abs(places.visibleRow - before.visibleRow),
+          Math.abs(places.visibleCard - before.visibleCard)
+        )
+      : NaN;
   test.info().annotations.push({
-    type: 'visible leading card',
+    type: 'visible leading row or card',
     description: `${move}: moved ${visibleMoved(first)} px in the first frame, ${visibleMoved(
       now
     )} px at rest, ${visibleFurthest} px at most`,
@@ -712,10 +721,10 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   expect(moved(first), `${move}: what leads the view moved, in the first frame`).toBeLessThan(1);
   expect(furthest, `${move}: what leads the view moved, in some frame`).toBeLessThan(1);
   expect(moved(now), `${move}: what leads the view moved, at rest`).toBeLessThan(1);
-  // The shell can stay in place while the card glides. Check the visible position separately.
-  expect(visibleMoved(first), `${move}: visible card moved, first frame`).toBeLessThan(1);
-  expect(visibleFurthest, `${move}: visible card moved, in some frame`).toBeLessThan(1);
-  expect(visibleMoved(now), `${move}: visible card moved, at rest`).toBeLessThan(1);
+  // A shell can stay in place while its contents glide. Check the visible positions separately.
+  expect(visibleMoved(first), `${move}: visible row or card moved, first frame`).toBeLessThan(1);
+  expect(visibleFurthest, `${move}: visible row or card moved, in some frame`).toBeLessThan(1);
+  expect(visibleMoved(now), `${move}: visible row or card moved, at rest`).toBeLessThan(1);
 };
 
 test.beforeEach(async () => {

@@ -694,9 +694,9 @@ export function CompactRoomView({
           }
         }}
       >
-        {/* Do not carry a landmark across rooms or an explicit sort change. */}
+        {/* Do not carry a landmark across rooms, sort changes, or a switch to or from Sections. */}
         <CompactRowKeeper
-          key={`${room.roomId}|${landmarkSortKey ?? ''}`}
+          key={`${room.roomId}|${landmarkSortKey ?? ''}|${!!heldSections}`}
           viewRef={viewRef}
           order={
             heldSections

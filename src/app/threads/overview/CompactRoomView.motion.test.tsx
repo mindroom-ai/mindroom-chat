@@ -208,6 +208,32 @@ describe('the Compact reading landmark', () => {
     expect(view.scrollTop).toBe(100);
   });
 
+  it('leaves native scrolling alone when Sections changes the rendered order', () => {
+    const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
+    const props = { landmarkSortKey: 'lastReply:asc' };
+    const { container, rerender } = render(list(ids, false, props));
+    const view = scrollView(container, 100, 200);
+    state.sections = [{ id: 'needsYou', rootIds: [...ids].reverse() }];
+    rerender(list(ids, false, props));
+
+    expect(container.querySelector('[data-compact-room-view]')).toBe(view);
+    expect(view.querySelector('[data-compact-section="needsYou"]')).not.toBeNull();
+    expect(view.querySelector('[data-scroll-anchor]')?.getAttribute('data-scroll-anchor')).toBe(
+      ids.at(-1)
+    );
+    expect(view.scrollTop).toBe(100);
+  });
+
+  it.each(['the view', 'an ancestor'])('keeps its landmark with %s inert', (inertTarget) => {
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f', '$g'];
+    const { container, rerender } = render(list(ids));
+    const view = scrollView(container, 130, 450);
+    (inertTarget === 'the view' ? view : container).setAttribute('inert', '');
+    rerender(list(['$new', ...ids]));
+
+    expect(view.scrollTop).toBe(230);
+  });
+
   it('keeps the partly visible Pinned heading still when a new pin leads the group', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     state.pinned = ['$b', '$c'];

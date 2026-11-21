@@ -48,7 +48,11 @@ export const medianResidual = (values: number[]): number => {
 const rowsOf = (view: HTMLElement) =>
   new Map(
     [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor], [data-row-landmark]')]
-      .filter((row) => !row.closest('[inert]'))
+      .filter((row) => {
+        const inert = row.closest('[inert]');
+        // Skip fading copies within the list, not the list itself behind a drawer.
+        return !inert || inert === view || !view.contains(inert);
+      })
       .map((row) => [row.dataset.scrollAnchor ?? row.dataset.rowLandmark ?? '', row] as const)
   );
 const innerTop = (view: HTMLElement) => view.getBoundingClientRect().top + view.clientTop;
