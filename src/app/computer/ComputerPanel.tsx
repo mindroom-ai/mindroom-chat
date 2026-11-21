@@ -37,6 +37,8 @@ type PanelPhase =
   | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
+const HELD_FRAME_TIMEOUT_MS = 3_000;
+
 // After a connected stream closes unexpectedly, retry for about 15 seconds before offering Reconnect.
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000];
 // A stream that stayed connected this long earns a full set of attempts again. It outlasts the
@@ -185,6 +187,23 @@ export function ComputerPanel({
   // A server found from the agent itself must be trusted afresh before it gets a token.
   const agentServerUrl = selectedAgent?.serverUrl;
   const sessionApiUrl = agentServerUrl ?? apiUrl;
+
+  const attachHeldFrame = useCallback(
+    (layer: HTMLDivElement | null) => {
+      if (layer && heldFrame) layer.replaceChildren(heldFrame);
+    },
+    [heldFrame]
+  );
+
+  useEffect(() => {
+    if (!heldFrame) return undefined;
+    const timeout = setTimeout(() => setHeldFrame(undefined), HELD_FRAME_TIMEOUT_MS);
+    return () => {
+      clearTimeout(timeout);
+      // Release the bitmap even if React still holds a previous prop or state value.
+      heldFrame.width = 0;
+    };
+  }, [heldFrame]);
 
   useEffect(() => {
     onInteractionChange?.({
@@ -442,6 +461,7 @@ export function ComputerPanel({
     if (!session || operation) return;
     const lifecycle = lifecycleRef.current;
     setOperation('stop');
+    setHeldFrame(undefined);
     setError(undefined);
     try {
       const nextStatus = await session.control('stop');
@@ -647,21 +667,21 @@ export function ComputerPanel({
           {stream && (
             <div className={css.ScreenFrame}>
               {heldFrame && (
-                <div
-                  aria-hidden="true"
-                  className={css.HeldFrame}
-                  ref={(layer) => layer?.replaceChildren(heldFrame)}
-                />
+                <div aria-hidden="true" className={css.HeldFrame} ref={attachHeldFrame} />
               )}
               <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
                 <ScreenComponent
                   key={`${stream.url}:${stream.protocols[1]}`}
                   ref={screenRef}
                   mode={status?.mode ?? 'view'}
+                  initialFrame={
+                    releasingStreamTicketRef.current === stream.protocols[1] ? undefined : heldFrame
+                  }
                   onKeyboardChange={setKeyboardOpen}
                   onConnected={() => {
                     if (activeStreamTicketRef.current !== stream.protocols[1]) return;
                     connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
+                    setHeldFrame(undefined);
                     setConnected(true);
                     setPhase('ready');
                     setError(undefined);

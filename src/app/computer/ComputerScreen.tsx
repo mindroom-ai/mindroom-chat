@@ -28,6 +28,7 @@ export type ComputerScreenProps = {
   url: string;
   protocols: [string, string];
   mode: 'view' | 'control';
+  initialFrame?: HTMLCanvasElement;
   onConnected: () => void;
   onDisconnected: (message?: string) => void;
   onPaste?: (result: PasteResult) => void;
@@ -53,6 +54,7 @@ function ComputerScreenWithHandle(
     url,
     protocols,
     mode,
+    initialFrame,
     onConnected,
     onDisconnected,
     onPaste,
@@ -64,6 +66,7 @@ function ComputerScreenWithHandle(
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>();
+  const initialFrameRef = useRef(initialFrame);
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
@@ -71,6 +74,7 @@ function ComputerScreenWithHandle(
   const modeRef = useRef(mode);
   const showTouchpadPointerRef = useRef<() => void>();
 
+  initialFrameRef.current = initialFrame;
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
   pasteCallbackRef.current = onPaste;
@@ -89,15 +93,20 @@ function ComputerScreenWithHandle(
     ref,
     () => ({
       captureFrame: () => {
-        const canvas = targetRef.current?.querySelector('canvas');
-        if (!canvas?.width || !canvas.height) return undefined;
-        const frame = canvas.ownerDocument.createElement('canvas');
-        frame.width = canvas.width;
-        frame.height = canvas.height;
-        const context = frame.getContext('2d');
-        if (!context) return undefined;
-        context.drawImage(canvas, 0, 0);
-        return frame;
+        try {
+          const canvas = targetRef.current?.querySelector('canvas');
+          if (!canvas?.width || !canvas.height) return undefined;
+          const frame = canvas.ownerDocument.createElement('canvas');
+          frame.width = canvas.width;
+          frame.height = canvas.height;
+          const context = frame.getContext('2d');
+          if (!context) return undefined;
+          context.drawImage(canvas, 0, 0);
+          return frame;
+        } catch {
+          // A failed snapshot must not stop the release.
+          return undefined;
+        }
       },
       openKeyboard: () => {
         if (modeRef.current !== 'control') return;
@@ -123,7 +132,8 @@ function ComputerScreenWithHandle(
     // which a dropped stream does before the screen unmounts.
     const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
-    // Let the panel's held frame show through until the new stream paints its canvas.
+    // Let the panel's held frame show through until the new stream connects.
+    const background = rfb.background;
     rfb.background = 'transparent';
     rfbRef.current = rfb;
 
@@ -133,8 +143,18 @@ function ComputerScreenWithHandle(
     showTouchpadPointerRef.current = touchpad.showPointer;
 
     const handleConnect = () => {
+      // noVNC sizes its canvas before connect and paints the first update later. Seed the
+      // canvas now so the panel can drop its held layer without waiting for the first paint.
+      const frame = initialFrameRef.current;
+      if (frame && canvas?.width === frame.width && canvas.height === frame.height) {
+        try {
+          canvas.getContext('2d')?.drawImage(frame, 0, 0);
+        } catch {
+          // The live stream still connects if copying the frame fails.
+        }
+      }
+      rfb.background = background;
       connectedCallbackRef.current();
-      // In control already: the screen has its first frame now.
       touchpad.showPointer();
     };
     const handleDisconnect = (event: Event) => {

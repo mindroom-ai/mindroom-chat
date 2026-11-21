@@ -28,6 +28,7 @@ vi.mock('./ComputerPanel.css.ts', () => ({
 
 const CONTROL_L_KEYSYM = 0xffe3;
 
+const defaultBackground = 'rgb(40, 40, 40)';
 const listeners = new Map<string, EventListener>();
 const rfb: RfbClient = {
   addEventListener: vi.fn((name: string, listener: EventListener) => listeners.set(name, listener)),
@@ -37,7 +38,7 @@ const rfb: RfbClient = {
   clipboardPasteFrom: vi.fn(),
   sendKey: vi.fn(),
   scaleViewport: false,
-  background: '',
+  background: defaultBackground,
   viewOnly: true,
   focusOnClick: true,
 };
@@ -146,6 +147,7 @@ describe('ComputerScreen', () => {
 
   beforeEach(() => {
     listeners.clear();
+    rfb.background = defaultBackground;
     vi.clearAllMocks();
     container = document.createElement('div');
     document.body.append(container);
@@ -207,6 +209,7 @@ describe('ComputerScreen', () => {
     expect(rfb.viewOnly).toBe(true);
 
     act(() => listeners.get('connect')?.(new Event('connect')));
+    expect(rfb.background).toBe(defaultBackground);
     expect(onConnected).toHaveBeenCalledOnce();
 
     act(() => {
@@ -248,12 +251,49 @@ describe('ComputerScreen', () => {
       expect(frame).toMatchObject({ width: 640, height: 400 });
       expect(drawImage).toHaveBeenCalledExactlyOnceWith(canvas, 0, 0);
 
+      drawImage.mockImplementationOnce(() => {
+        throw new Error('Canvas copy failed');
+      });
+      expect(ref.current!.captureFrame()).toBeUndefined();
+
       canvas.remove();
       expect(ref.current!.captureFrame()).toBeUndefined();
     } finally {
       getContext.mockRestore();
     }
   });
+
+  it.each([
+    ['matching', 640, 400, true],
+    ['different width', 800, 400, false],
+    ['different height', 640, 480, false],
+  ] as const)(
+    'seeds a connecting canvas only at matching dimensions (%s)',
+    (_label, width, height, matches) => {
+      const initialFrame = document.createElement('canvas');
+      initialFrame.width = 640;
+      initialFrame.height = 400;
+      const drawImage = vi.fn();
+      const onConnected = vi.fn(() => {
+        if (matches) {
+          expect(drawImage).toHaveBeenCalledExactlyOnceWith(initialFrame, 0, 0);
+        } else {
+          expect(drawImage).not.toHaveBeenCalled();
+        }
+      });
+      renderScreen({ createRfb: createRfbWithCanvas(), initialFrame, onConnected });
+      const { canvas } = screenElements();
+      const getContext = vi
+        .spyOn(canvas, 'getContext')
+        .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+      // noVNC sizes the replacement canvas just before dispatching connect.
+      canvas.width = width;
+      canvas.height = height;
+      act(() => listeners.get('connect')?.(new Event('connect')));
+      expect(onConnected).toHaveBeenCalledOnce();
+      expect(getContext).toHaveBeenCalledTimes(matches ? 1 : 0);
+    }
+  );
 
   it('keeps keyboard and paste events inside the computer surface', () => {
     const windowKeyDown = vi.fn();
