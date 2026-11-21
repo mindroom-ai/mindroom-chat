@@ -11,7 +11,7 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearUnsentMessages, keepUnsentMessages } from './unsentMessages';
+import { clearUnsentMessages, keepUnsentMessages, unsentVoiceCopy } from './unsentMessages';
 
 const userId = '@alice:example.org';
 const roomId = '!room:example.org';
@@ -67,6 +67,92 @@ describe('keepUnsentMessages', () => {
     });
     room.updatePendingEvent(voice, EventStatus.NOT_SENT);
     expect(stored()).toEqual([]);
+    stop();
+  });
+
+  /** A voice message as an older version kept it here while it was unsent. */
+  const voiceRow = (txnId: string, size: number, inRoom = roomId) => ({
+    roomId: inRoom,
+    txnId,
+    ts: 500,
+    content: {
+      msgtype: 'm.audio',
+      body: 'Voice message',
+      url: 'mxc://example.org/voice',
+      info: { size, mimetype: 'audio/ogg' },
+      'org.matrix.msc3245.voice': {},
+    },
+  });
+
+  it('brings back a voice message an older version kept, and forgets it for good once it is deleted', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([voiceRow('txn-old-voice', 4_096)]));
+    const first = setup();
+    first.mx.emit(ClientEvent.Sync, SyncState.Prepared, null);
+    // It is the only copy of that send: back as "Not sent", with Retry and Delete.
+    const restored = first.room.getEventForTxnId('txn-old-voice');
+    expect(restored?.status).toBe(EventStatus.NOT_SENT);
+    expect(stored().map((message) => message.txnId)).toEqual(['txn-old-voice']);
+
+    first.room.updatePendingEvent(restored!, EventStatus.CANCELLED);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    first.stop();
+
+    // The next page does not bring it back.
+    const next = setup();
+    next.mx.emit(ClientEvent.Sync, SyncState.Prepared, null);
+    expect(next.room.getEventForTxnId('txn-old-voice')).toBeUndefined();
+    next.stop();
+  });
+
+  it('forgets a voice message an older version kept once the server has it', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([voiceRow('txn-old-voice', 4_096)]));
+    const { mx, room, stop } = setup();
+    mx.emit(ClientEvent.Sync, SyncState.Prepared, null);
+    // Retry: on its way again it stays, the only copy still.
+    const echo = room.getEventForTxnId('txn-old-voice')!;
+    room.updatePendingEvent(echo, EventStatus.SENDING);
+    expect(stored()).toHaveLength(1);
+    room.updatePendingEvent(echo, EventStatus.SENT, '$voice');
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    stop();
+  });
+
+  it('gives the recording of the same send the transaction ID of its unsent copy, and forgets the copy', () => {
+    const others = [
+      { roomId, txnId: 'txn-text', content: text('typed'), ts: 400 },
+      voiceRow('txn-other-size', 9_999),
+      voiceRow('txn-other-room', 4_096, '!elsewhere:example.org'),
+    ];
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([...others, voiceRow('txn-old-retry', 4_096)])
+    );
+    const { mx, room, stop } = setup();
+    // Nothing of that size in that room: the recording is not that send.
+    expect(unsentVoiceCopy(mx, roomId, 1_234)).toBeUndefined();
+
+    mx.emit(ClientEvent.Sync, SyncState.Prepared, null);
+    const copy = unsentVoiceCopy(mx, roomId, 4_096);
+    expect(copy?.txnId).toBe('txn-old-retry');
+    // Not forgotten before the recording holds the ID.
+    expect(room.getEventForTxnId('txn-old-retry')?.status).toBe(EventStatus.NOT_SENT);
+    expect(stored()).toHaveLength(4);
+
+    copy!.forget();
+    // One copy to send again is left, the recording: its unsent row and echo are gone, and the
+    // room gave the ID back for the recording's Retry.
+    expect(room.getEventForTxnId('txn-old-retry')).toBeUndefined();
+    expect(stored().map((message) => message.txnId)).toEqual(others.map((other) => other.txnId));
+    stop();
+  });
+
+  it('forgets the unsent copy of a recording before its row came back as an echo', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([voiceRow('txn-old-retry', 4_096)]));
+    const { mx, room, stop } = setup();
+    unsentVoiceCopy(mx, roomId, 4_096)!.forget();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    mx.emit(ClientEvent.Sync, SyncState.Prepared, null);
+    expect(room.getEventForTxnId('txn-old-retry')).toBeUndefined();
     stop();
   });
 

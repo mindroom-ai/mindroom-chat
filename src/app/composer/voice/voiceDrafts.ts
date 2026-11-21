@@ -1,34 +1,31 @@
 import type { createStore } from 'jotai';
-import { RelationType, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, RelationType, type MatrixClient } from 'matrix-js-sdk';
+import { randomUuid } from '../../lib/randomUuid';
+import { unsentVoiceCopy } from '../../matrix/client/unsentMessages';
+import { isJoined } from '../../matrix/state/roomList';
 import {
-  discardedVoiceDraftsAtom,
+  hasVoiceDestination,
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
+import { adoptVoiceOrphans, transitionVoiceRecording } from './voiceRecordingJournal';
 import {
-  adoptVoiceOrphans,
-  transitionVoiceRecording,
-  type JournaledVoiceRecording,
-} from './voiceRecordingJournal';
-import {
-  VOICE_NOT_SAVED_MESSAGE,
+  destinationAtRest,
+  VOICE_NOT_DELETED_MESSAGE,
   VOICE_SEND_INTERRUPTED_MESSAGE,
 } from './voiceSendDraftController';
 
 /**
  * Voice recordings that are neither recording nor sending, around the single slot the composers
- * show (`pendingVoiceSendDraftAtom`): those that wait for it (`queuedVoiceDraftsAtom`), and those
- * whose Discard can still be undone (`discardedVoiceDraftsAtom`). The journal
- * (voiceRecordingJournal.ts) keeps each on disk until it is sent or its discard stands, and what
- * shows here follows what the journal took: a change it could not write is not shown as made.
+ * show (`pendingVoiceSendDraftAtom`), and those that wait for it (`queuedVoiceDraftsAtom`). The
+ * journal (voiceRecordingJournal.ts) keeps each on disk until it is sent or its Discard is
+ * confirmed, and what shows here follows what the journal took: a change it could not write is
+ * not shown as made.
  */
 
 type Store = ReturnType<typeof createStore>;
-
-/** How long a Discard can be undone. */
-export const VOICE_DISCARD_UNDO_MS = 10_000;
 
 /** Puts a recording first in line for the slot. */
 export const parkVoiceDraft = (store: Store, draft: PendingVoiceSendDraft): void =>
@@ -44,26 +41,11 @@ export const keepVoiceDraft = async (store: Store, draft: PendingVoiceSendDraft)
 };
 
 /**
- * Shows the account's next waiting recording, once the slot is free and nothing records: the
- * slot's recording takes the composer's place, also of one that is recording.
- */
-export const offerQueuedVoiceDraft = (store: Store, userId: string | undefined): void => {
-  if (store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom)) return;
-  const queued = store.get(queuedVoiceDraftsAtom);
-  const next = queued.find((draft) => draft.context.ownerSessionId === userId);
-  if (!next) return;
-  store.set(
-    queuedVoiceDraftsAtom,
-    queued.filter((draft) => draft !== next)
-  );
-  store.set(pendingVoiceSendDraftAtom, next);
-};
-
-/**
- * Ends the send attempt `token` of a recording wherever its draft is by now, in the slot or
- * waiting for it: gone when sent, kept as `failed` otherwise. Another recording in the slot is
- * never touched. The draft of a first attempt (no token) is in neither yet: failed, it takes the
- * slot for its recorder to show, or waits for it. False when the draft is no longer there.
+ * Ends the attempt `token` on a recording, a send or a delete, wherever its draft is by now, in
+ * the slot or waiting for it: gone when done, kept as `failed` otherwise. Another recording in
+ * the slot is never touched. The draft of a first attempt (no token) is in neither yet: failed,
+ * it takes the slot for its recorder to show, or waits for it. False when the draft is no longer
+ * there.
  */
 export const settleVoiceDraft = (
   store: Store,
@@ -89,139 +71,150 @@ export const settleVoiceDraft = (
 };
 
 /**
- * Offers Undo for a recording the disk says is discarded until `until`. Then the recording is
- * deleted, if the disk still says so by then: an Undo calls this off first.
- */
-const offerVoiceUndo = (store: Store, draft: PendingVoiceSendDraft, until: number): void => {
-  const timer = setTimeout(() => {
-    void transitionVoiceRecording(draft.recordingId, (record) =>
-      (record.discardUntil ?? Infinity) <= Date.now() ? undefined : record
-    ).then(() =>
-      store.set(discardedVoiceDraftsAtom, (all) => all.filter((entry) => entry.timer !== timer))
-    );
-  }, until - Date.now());
-  store.set(discardedVoiceDraftsAtom, (all) => [...all, { draft, until, timer }]);
-};
-
-/**
- * Discards a recording, the slot's or one not shown yet. Once the disk says it is discarded it
- * leaves the slot and offers Undo, and it is deleted when that ran out, also when the page goes
- * first. If the disk could not be told, it stays, and says so.
+ * Deletes a recording whose Discard the person confirmed: the slot's, or one its recorder just
+ * stopped for it. The slot's is taken before anything is awaited, so nothing sends it and no
+ * second Discard starts meanwhile. One the disk would not delete stays, and says so.
  */
 export const discardVoiceDraft = async (
   store: Store,
   draft: PendingVoiceSendDraft
 ): Promise<void> => {
-  const until = Date.now() + VOICE_DISCARD_UNDO_MS;
-  const outcome = await transitionVoiceRecording(draft.recordingId, (record) => ({
-    ...record,
-    discardUntil: until,
-  }));
-  const shown = store.get(pendingVoiceSendDraftAtom)?.recordingId === draft.recordingId;
-  const kept = { ...draft, errorMessage: VOICE_NOT_SAVED_MESSAGE };
-  if (outcome !== 'failed') {
-    if (shown) store.set(pendingVoiceSendDraftAtom, undefined);
-    offerVoiceUndo(store, draft, until);
-  } else if (shown) store.set(pendingVoiceSendDraftAtom, kept);
-  else parkVoiceDraft(store, kept);
+  if (draft.inFlight) return;
+  const token = store.get(pendingVoiceSendDraftAtom) === draft ? randomUuid() : undefined;
+  if (token) store.set(pendingVoiceSendDraftAtom, { ...draft, inFlight: { token, discard: true } });
+  const outcome = await transitionVoiceRecording(draft.recordingId, () => undefined);
+  const kept =
+    outcome === 'failed' ? { ...draft, errorMessage: VOICE_NOT_DELETED_MESSAGE } : undefined;
+  settleVoiceDraft(store, draft.recordingId, token, kept);
 };
 
 /**
- * Takes a discard back. Its expiry is called off first, and the recording waits for the slot
- * again once the disk no longer says it is discarded. Until then its offer stays, and says that
- * the Undo failed.
+ * A recording as its destination stands now: in its room, with Retry, while this account can
+ * send there what it sent before; otherwise in every composer, where one that was attempted is
+ * sent as a copy. Undefined while that cannot be told: only the server says that a room is gone,
+ * and before it was heard the room may not be loaded yet.
  */
-export const undoVoiceDiscard = async (store: Store, recordingId: string): Promise<void> => {
-  const offer = store
-    .get(discardedVoiceDraftsAtom)
-    .find((entry) => entry.draft.recordingId === recordingId);
-  if (!offer) return;
-  clearTimeout(offer.timer);
-  const outcome = await transitionVoiceRecording(recordingId, (record) => ({
-    ...record,
-    discardUntil: undefined,
-  }));
-  // Pressed twice: the first one brought it back.
-  if (!store.get(discardedVoiceDraftsAtom).includes(offer)) return;
-  store.set(discardedVoiceDraftsAtom, (all) =>
-    all.flatMap((entry) => {
-      if (entry !== offer) return entry;
-      return outcome === 'failed' ? { ...offer, failed: true } : [];
-    })
-  );
-  if (outcome !== 'failed') {
-    parkVoiceDraft(store, { ...offer.draft, unprotected: outcome === 'absent' });
-  }
-};
-
-const toDraft = (
+const resolveVoiceDraft = (
   mx: MatrixClient,
-  ownerSessionId: string,
-  { record, file, duration }: JournaledVoiceRecording
-): PendingVoiceSendDraft => {
-  const { recordingId, destination, txnId } = record;
-  const recording = { recordingId, file, duration, txnId };
-  const room = destination && mx.getRoom(destination.roomId);
-  // Never sent: every composer offers it, to send where Send is pressed. Sent to a room that is
-  // not there: every composer offers a copy of it, as its transaction ID says.
-  if (!destination || !room) return { ...recording, context: { ownerSessionId } };
-  const { replyEventId, replyThreadId } = destination;
-  // Its send failed, or was cut short by what ended the page: it waits there, with Retry.
-  return {
-    ...recording,
-    errorMessage: VOICE_SEND_INTERRUPTED_MESSAGE,
-    context: {
-      ownerSessionId,
-      roomId: destination.roomId,
-      room,
-      threadId: destination.threadId,
-      // A voice message needs only the IDs of what it replies to.
-      replyDraft: replyEventId
-        ? {
-            userId: '',
-            eventId: replyEventId,
-            body: '',
-            relation: replyThreadId
-              ? { rel_type: RelationType.Thread, event_id: replyThreadId }
-              : undefined,
-          }
-        : undefined,
-      threadingEnabled: destination.threadingEnabled,
-      // Read from the room again when it is sent.
-      signalBridgedRoom: false,
-      ...(destination.threadView && { threadView: true }),
-    },
-  };
+  draft: PendingVoiceSendDraft
+): PendingVoiceSendDraft | undefined => {
+  const { context } = draft;
+  const { ownerSessionId } = context;
+  const placed = hasVoiceDestination(context);
+  const to = placed ? destinationAtRest(context) : context.attempted;
+  if (!to || draft.inFlight) return draft;
+  const room = mx.getRoom(to.roomId);
+  const { replyEventId, replyThreadId } = to;
+  // Under its send's ID an event of the other type would be another event.
+  if (
+    room &&
+    isJoined(room) &&
+    [undefined, room.hasEncryptionStateEvent()].includes(to.encrypted)
+  ) {
+    if (placed) return draft;
+    // Its send failed, or was cut short by what ended the page: it waits there, with Retry.
+    return {
+      ...draft,
+      errorMessage: VOICE_SEND_INTERRUPTED_MESSAGE,
+      context: {
+        ownerSessionId,
+        roomId: to.roomId,
+        room,
+        threadId: to.threadId,
+        // A voice message needs only the IDs of what it replies to.
+        replyDraft: replyEventId
+          ? {
+              userId: '',
+              eventId: replyEventId,
+              body: '',
+              relation: replyThreadId
+                ? { rel_type: RelationType.Thread, event_id: replyThreadId }
+                : undefined,
+            }
+          : undefined,
+        threadingEnabled: to.threadingEnabled,
+        // Read from the room again when it is sent.
+        signalBridgedRoom: false,
+        encrypted: to.encrypted,
+        ...(to.threadView && { threadView: true }),
+      },
+    };
+  }
+  if (!mx.isInitialSyncComplete()) return placed ? draft : undefined;
+  const roomName = room?.name;
+  // Without `encrypted` its send never began: it is only a recording.
+  const attempted = to.encrypted === undefined ? undefined : { ...to, roomName };
+  if (!placed && attempted && context.attempted?.roomName === roomName) return draft;
+  return { ...draft, errorMessage: undefined, context: { ownerSessionId, attempted } };
 };
 
 /**
- * Brings back the recordings a crash, a reload or an app update left on disk for the account:
- * those to send queue for the slot, oldest first, and a discard with time left offers its Undo
- * again. Each call takes what no tab owns by then.
+ * Brings the slot in line with the account and its rooms, in one step that reads what the store
+ * holds now, so several composers calling it move each recording once. Another account's
+ * recording (the slot outlives a switch of accounts) waits for its account; this account's goes
+ * where its destination stands now; and into a free slot comes the account's next recording
+ * that waits, unless one is being recorded.
+ */
+export const reconcileVoiceDrafts = (mx: MatrixClient, store: Store): void => {
+  const userId = mx.getUserId();
+  const shown = store.get(pendingVoiceSendDraftAtom);
+  if (shown && shown.context.ownerSessionId === userId) {
+    const now = resolveVoiceDraft(mx, shown) ?? shown;
+    if (now !== shown) store.set(pendingVoiceSendDraftAtom, now);
+    return;
+  }
+  if (shown) {
+    store.set(pendingVoiceSendDraftAtom, undefined);
+    parkVoiceDraft(store, shown);
+  }
+  if (store.get(openVoiceRecorderAtom)) return;
+  const queued = store.get(queuedVoiceDraftsAtom);
+  const resolved = queued.map((draft) =>
+    draft.context.ownerSessionId === userId ? resolveVoiceDraft(mx, draft) : undefined
+  );
+  const next = resolved.findIndex(Boolean);
+  if (next < 0) return;
+  store.set(
+    queuedVoiceDraftsAtom,
+    queued.filter((_, at) => at !== next)
+  );
+  store.set(pendingVoiceSendDraftAtom, resolved[next]);
+};
+
+/**
+ * Brings back the recordings a crash, a reload or an app update left on disk for the account,
+ * oldest first, to wait for the slot. Each call takes what no tab owns by then.
  */
 export const recoverVoiceDrafts = async (mx: MatrixClient, store: Store): Promise<void> => {
   const userId = mx.getUserId();
   if (!userId) return;
-  const orphans = await adoptVoiceOrphans(userId);
-  const waiting: PendingVoiceSendDraft[] = [];
-  orphans.forEach((orphan) => {
-    const draft = toDraft(mx, userId, orphan);
-    const { discardUntil } = orphan.record;
-    if (discardUntil === undefined) waiting.push(draft);
-    else offerVoiceUndo(store, draft, discardUntil);
-  });
+  const orphans = await adoptVoiceOrphans(userId, (roomId, size) =>
+    unsentVoiceCopy(mx, roomId, size)
+  );
+  const waiting = orphans.map(({ record, file, duration }) => ({
+    recordingId: record.recordingId,
+    file,
+    duration,
+    txnId: record.txnId,
+    context: { ownerSessionId: userId, attempted: record.destination },
+  }));
   if (waiting.length > 0) store.set(queuedVoiceDraftsAtom, (queued) => [...queued, ...waiting]);
 };
 
 /**
- * Recovers now, when the account's rooms are there to send into, and again whenever the page
- * comes back to the front: a recording another tab held may have lost its tab since. Returns
- * what stops it.
+ * Recovers now, and again whenever the page comes back to the front: a recording another tab
+ * held may have lost its tab since. And with every answer of the server, which is what tells
+ * that a room is there, left or encrypted, the slot is brought in line. Returns what stops it.
  */
 export const keepRecoveringVoiceDrafts = (mx: MatrixClient, store: Store): (() => void) => {
   const recover = () => void recoverVoiceDrafts(mx, store);
+  const reconcile = () => reconcileVoiceDrafts(mx, store);
   recover();
   const events = ['focus', 'visibilitychange'];
   events.forEach((event) => globalThis.addEventListener?.(event, recover));
-  return () => events.forEach((event) => globalThis.removeEventListener?.(event, recover));
+  mx.on(ClientEvent.Sync, reconcile);
+  return () => {
+    events.forEach((event) => globalThis.removeEventListener?.(event, recover));
+    mx.removeListener(ClientEvent.Sync, reconcile);
+  };
 };

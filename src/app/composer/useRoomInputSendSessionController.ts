@@ -70,6 +70,8 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
+  /** With the relation the file's event gets, before it is sent; a rejection keeps it unsent. */
+  onUploadPlaced?: (file: TUploadContent, relation: IContent['m.relates_to']) => Promise<void>;
   /** With the ID of the file's event, when the server gave one. */
   onUploadSent?: (file: TUploadContent, eventId: string | undefined) => void;
   /** What the session uses of the composer that started it, taken at Send. */
@@ -199,6 +201,7 @@ export type StartRoomInputSendSessionOptions = {
   composerFallback?: Descendant[];
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
+  onUploadPlaced?: SendSession['onUploadPlaced'];
   onUploadSent?: (file: TUploadContent, eventId: string | undefined) => void;
 };
 
@@ -276,6 +279,7 @@ const createSendSession = (
     | 'composerContext'
     | 'failFast'
     | 'uploads'
+    | 'onUploadPlaced'
     | 'onUploadSent'
     | 'composer'
   >
@@ -587,11 +591,13 @@ export const useRoomInputSendSessionController = ({
       }
       // A voice message goes under the ID its recording keeps.
       const txnId = fileItem.metadata.voiceMessage?.txnId ?? mx.makeTxnId();
-      const response = await mx
-        .sendMessage(
-          session.roomId,
-          withSubmissionMarker(session, contentWithRelation, file) as any,
-          txnId
+      const response = await (session.onUploadPlaced?.(file, relation) ?? Promise.resolve())
+        .then(() =>
+          mx.sendMessage(
+            session.roomId,
+            withSubmissionMarker(session, contentWithRelation, file) as any,
+            txnId
+          )
         )
         .catch((error: unknown) => {
           settleFork?.();
@@ -703,6 +709,7 @@ export const useRoomInputSendSessionController = ({
       composerFallback,
       composerContext,
       composerAlreadyReset = false,
+      onUploadPlaced,
       onUploadSent,
     }: StartRoomInputSendSessionOptions = {}, sendSlot: SendSlot = slotRef.current) => {
       // The session takes what it needs of this composer now: it may outlive it.
@@ -780,6 +787,7 @@ export const useRoomInputSendSessionController = ({
               composerFallback: nextFallback,
               composerContext: nextComposerContext,
               composerAlreadyReset: true,
+              onUploadPlaced,
               onUploadSent,
             }, sendSlot)
             .catch((error: unknown) => {
@@ -822,6 +830,7 @@ export const useRoomInputSendSessionController = ({
           composerContext: composerContext ?? { roomId, threadId: composerThreadId },
           failFast: completeWithinCall,
           uploads: batch?.uploads,
+          onUploadPlaced,
           onUploadSent,
           composer,
         }

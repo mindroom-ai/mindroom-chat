@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
+import { IDBDatabase, IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -343,30 +343,46 @@ describe('voice recording journal', () => {
     expect(orphan!.record).toMatchObject({ destination, txnId: 'txn-1' });
   });
 
-  it('deletes a discard that stood, returns one with time left, and expires only what the disk says', async () => {
+  it('asks for every write to be on the disk before it counts', async () => {
     const tab = await openTab();
-    await record(tab.journal, 'rec-expired', ['a']);
-    await record(tab.journal, 'rec-pending', ['b']);
-    await record(tab.journal, 'rec-undone', ['c']);
-    const until = (discardUntil?: number) => (entry: VoiceJournalRecord) => ({
-      ...entry,
-      discardUntil,
-    });
-    await tab.journal.transitionVoiceRecording('rec-expired', until(5_000));
-    await tab.journal.transitionVoiceRecording('rec-pending', until(9_000));
-    await tab.journal.transitionVoiceRecording('rec-undone', until(5_000));
-    await tab.journal.transitionVoiceRecording('rec-undone', until());
-    tab.close();
+    const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    await record(tab.journal, 'rec-1', ['a']);
+    await tab.journal.transitionVoiceRecording('rec-1', (entry) => ({ ...entry, txnId: 'txn-1' }));
+    await tab.journal.transitionVoiceRecording('rec-1', gone);
+    const writes = transaction.mock.calls.filter(([, mode]) => mode === 'readwrite');
+    expect(writes.length).toBeGreaterThanOrEqual(3);
+    writes.forEach(([, , options]) => expect(options).toEqual({ durability: 'strict' }));
+  });
 
-    const next = await openTab();
-    const orphans = await next.journal.adoptVoiceOrphans(ALICE, 6_000);
-    expect(
-      orphans.map(({ record: { recordingId, discardUntil } }) => [recordingId, discardUntil])
-    ).toEqual([
-      ['rec-pending', 9_000],
-      ['rec-undone', undefined],
+  it('opens the database again after the browser closed it', async () => {
+    const terminate: (() => void)[] = [];
+    const listen = IDBDatabase.prototype.addEventListener;
+    vi.spyOn(IDBDatabase.prototype, 'addEventListener').mockImplementation(function spy(
+      this: IDBDatabase,
+      ...args
+    ) {
+      const [type, heard] = args;
+      if (type === 'close') {
+        terminate.push(() => {
+          this.close();
+          (heard as () => void)();
+        });
+      }
+      return listen.apply(this, args);
+    });
+    const tab = await openTab();
+    await record(tab.journal, 'rec-1', ['a']);
+    expect(terminate).toHaveLength(1);
+    terminate[0]!();
+    // Not the closed connection again, on which every write would fail from here on.
+    const next = tab.journal
+      .voiceCaptureJournal(() => ALICE)
+      .append('rec-1', 1, { data: blob('b'), elapsedMs: 2_000 });
+    expect(await next).toBe(true);
+    expect((await journalKeys())[1]).toEqual([
+      ['rec-1', 0],
+      ['rec-1', 1],
     ]);
-    expect((await journalKeys())[0]).toEqual(['rec-pending', 'rec-undone']);
   });
 
   it('deletes a recording that stopped without audio', async () => {
@@ -395,8 +411,8 @@ describe('voice recording journal', () => {
   });
 
   describe('the copy an older version kept', () => {
-    const legacyDraft = async (audio: string) => ({
-      userId: ALICE,
+    const legacyDraft = async (audio: string, userId: string) => ({
+      userId,
       audio: await blob(audio).arrayBuffer(),
       fileName: 'voice.ogg',
       fileType: 'audio/ogg',
@@ -423,76 +439,21 @@ describe('voice recording journal', () => {
           db.createObjectStore('drafts', { keyPath: 'userId' });
         },
       });
-    const putLegacy = async (audio: string) => {
+    const putLegacy = async (audio: string, userId = ALICE) => {
       const legacy = await openLegacy();
-      await legacy.put('drafts', await legacyDraft(audio));
+      await legacy.put('drafts', await legacyDraft(audio, userId));
       legacy.close();
     };
-    const legacyKeys = async () => {
+
+    const legacyRows = async () => {
       const legacy = await openLegacy();
-      const keys = await legacy.getAllKeys('drafts');
+      const rows = await legacy.getAll('drafts');
       legacy.close();
-      return keys;
+      return rows;
     };
-
-    it('is copied once under the name of its audio, IDs only, and goes when its copy does', async () => {
-      await putLegacy('old voice bytes');
-      const tab = await openTab();
-      const [orphan, ...rest] = await tab.journal.adoptVoiceOrphans(ALICE);
-      expect(rest).toEqual([]);
-      const { recordingId } = orphan!.record;
-      expect(recordingId).toMatch(/^legacy-[0-9a-f]{64}$/);
-      expect(await text(orphan!.file)).toBe('old voice bytes');
-      expect(orphan!.file.type).toBe('audio/ogg');
-      expect(orphan!.duration).toBe(4_200);
-      expect(orphan!.record.userId).toBe(ALICE);
-      expect(orphan!.record.destination).toEqual({
-        roomId: '!room:example.org',
-        threadId: '$thread',
-        replyEventId: '$reply',
-        replyThreadId: '$thread',
-        threadingEnabled: true,
-        threadView: true,
-      });
-      const db = await openDB('mindroom-voice-journal');
-      expect(JSON.stringify(await db.getAll('recordings'))).not.toContain('secret');
-      db.close();
-      // Copying is not what deletes it: it is there, and is not copied a second time.
-      expect(await legacyKeys()).toEqual([ALICE]);
-      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
-      expect((await journalKeys())[0]).toEqual([recordingId]);
-
-      // Sent, or discarded for good: both go, and nothing brings it back.
-      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
-      expect(await legacyKeys()).toEqual([]);
-      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
-      expect(await journalKeys()).toEqual([[], []]);
-    });
-
-    it('keeps two recordings of the same length and duration apart', async () => {
-      await putLegacy('AAA');
-      const tab = await openTab();
-      const [first] = await tab.journal.adoptVoiceOrphans(ALICE);
-      // A tab of the older version saves another failed send over the first.
-      await putLegacy('BBB');
-      const [second, ...rest] = await tab.journal.adoptVoiceOrphans(ALICE);
-      expect(rest).toEqual([]);
-      expect(await text(first!.file)).toBe('AAA');
-      expect(await text(second!.file)).toBe('BBB');
-      expect((await journalKeys())[0]).toHaveLength(2);
-
-      // The first one sent, the entry that is the second one's by now stays for it.
-      await tab.journal.transitionVoiceRecording(first!.record.recordingId, gone);
-      expect(await legacyKeys()).toEqual([ALICE]);
-      await tab.journal.transitionVoiceRecording(second!.record.recordingId, gone);
-      expect(await legacyKeys()).toEqual([]);
-    });
-
-    it('is not made again by a page that read it before its copy was sent', async () => {
-      await putLegacy('old voice bytes');
-      const slow = await openTab();
-      // This page has read the old entry, and waits before it copies it.
-      let go!: () => void;
+    /** Holds the next hash until the returned function is called, once it was asked for. */
+    const holdNextDigest = async (work: () => void) => {
+      let go: (() => void) | undefined;
       const digest = crypto.subtle.digest.bind(crypto.subtle);
       vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(async (...args) => {
         await new Promise<void>((resolve) => {
@@ -500,55 +461,156 @@ describe('voice recording journal', () => {
         });
         return digest(...args);
       });
-      const slowAdopts = slow.journal.adoptVoiceOrphans(ALICE);
+      work();
       await vi.waitFor(() => expect(go).toBeDefined());
+      return go!;
+    };
 
-      // Another page cannot copy, send and delete it meanwhile: it waits for the first.
-      const quick = await openTab();
-      const quickDone = vi.fn();
-      const quickAdopts = quick.journal.adoptVoiceOrphans(ALICE).then((orphans) => {
-        quickDone();
-        return orphans;
+    it('is moved once: copied under its account and audio, IDs only, and its old row deleted', async () => {
+      await putLegacy('old voice bytes');
+      const tab = await openTab();
+      const [orphan, ...rest] = await tab.journal.adoptVoiceOrphans(ALICE);
+      expect(rest).toEqual([]);
+      const { recordingId } = orphan!.record;
+      expect(recordingId).toMatch(/^legacy-@alice:example\.org-[0-9a-f]{64}$/);
+      expect(await text(orphan!.file)).toBe('old voice bytes');
+      expect(orphan!.file.type).toBe('audio/ogg');
+      expect(orphan!.duration).toBe(4_200);
+      expect(orphan!.record.userId).toBe(ALICE);
+      expect(orphan!.record.txnId).toBeUndefined();
+      expect(orphan!.record.destination).toEqual({
+        roomId: '!room:example.org',
+        threadId: '$thread',
+        replyEventId: '$reply',
+        replyThreadId: '$thread',
+        threadingEnabled: true,
+        threadView: true,
+        encrypted: undefined,
       });
-      await new Promise((resolve) => {
-        setTimeout(resolve, 20);
-      });
-      expect(quickDone).not.toHaveBeenCalled();
-      go();
-      const [[orphan], others] = await Promise.all([slowAdopts, quickAdopts]);
-      expect(others).toEqual([]);
+      // The quote of an encrypted room is on neither disk from here on.
+      const db = await openDB('mindroom-voice-journal');
+      expect(JSON.stringify(await db.getAll('recordings'))).not.toContain('secret');
+      db.close();
+      expect(await legacyRows()).toEqual([]);
+      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      expect((await journalKeys())[0]).toEqual([recordingId]);
 
-      await slow.journal.transitionVoiceRecording(orphan!.record.recordingId, gone);
-      expect(await quick.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      // Sent, or discarded: nothing brings it back.
+      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
+      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
       expect(await journalKeys()).toEqual([[], []]);
     });
 
-    it('keeps its copy, with its transaction ID, while the old entry cannot be deleted', async () => {
+    it('leaves the row an older version’s tab wrote meanwhile, and moves that one next', async () => {
+      await putLegacy('AAA');
+      const tab = await openTab();
+      let adopting!: ReturnType<typeof tab.journal.adoptVoiceOrphans>;
+      // This page has read the old row, and is hashing it.
+      const go = await holdNextDigest(() => {
+        adopting = tab.journal.adoptVoiceOrphans(ALICE);
+      });
+      // A tab of the older version saves another failed send over it: other audio, as long.
+      await putLegacy('BBB');
+      go();
+      const [first, ...rest] = await adopting;
+      expect(rest).toEqual([]);
+      expect(await text(first!.file)).toBe('AAA');
+      // Not deleted for the copy of the first: it is the only copy of the second.
+      expect(await legacyRows()).toHaveLength(1);
+
+      const [second, ...others] = await tab.journal.adoptVoiceOrphans(ALICE);
+      expect(others).toEqual([]);
+      expect(await text(second!.file)).toBe('BBB');
+      expect(await legacyRows()).toEqual([]);
+      expect((await journalKeys())[0]).toHaveLength(2);
+    });
+
+    it('keeps the copies of two accounts apart, also of the same audio', async () => {
+      await putLegacy('same voice bytes');
+      await putLegacy('same voice bytes', BOB);
+      const tab = await openTab();
+      const [hers] = await tab.journal.adoptVoiceOrphans(ALICE);
+      const [his] = await tab.journal.adoptVoiceOrphans(BOB);
+      expect(hers!.record.recordingId).not.toBe(his!.record.recordingId);
+      expect([hers!.record.userId, his!.record.userId]).toEqual([ALICE, BOB]);
+      // Hers is sent: his stays, his own.
+      await tab.journal.transitionVoiceRecording(hers!.record.recordingId, (entry) => ({
+        ...entry,
+        txnId: 'txn-hers',
+      }));
+      await tab.journal.transitionVoiceRecording(hers!.record.recordingId, gone);
+      const db = await openDB('mindroom-voice-journal');
+      expect(await db.getAll('recordings')).toMatchObject([{ userId: BOB, txnId: undefined }]);
+      db.close();
+    });
+
+    it('is copied once by two pages that read it at the same time', async () => {
+      await putLegacy('old voice bytes');
+      const slow = await openTab();
+      let slowAdopts!: ReturnType<typeof slow.journal.adoptVoiceOrphans>;
+      const go = await holdNextDigest(() => {
+        slowAdopts = slow.journal.adoptVoiceOrphans(ALICE);
+      });
+      // Another page copies it, and the person sets it on its way there.
+      const quick = await openTab();
+      const [orphan] = await quick.journal.adoptVoiceOrphans(ALICE);
+      await quick.journal.transitionVoiceRecording(orphan!.record.recordingId, (entry) => ({
+        ...entry,
+        txnId: 'txn-quick',
+      }));
+      go();
+      // The first page finds the copy there: it neither takes it nor writes over it.
+      expect(await slowAdopts).toEqual([]);
+      const db = await openDB('mindroom-voice-journal');
+      expect(await db.getAll('recordings')).toMatchObject([{ txnId: 'txn-quick' }]);
+      db.close();
+      expect(await legacyRows()).toEqual([]);
+    });
+
+    it('takes the transaction ID of the unsent message that is the same send, and has it forgotten once the copy is on disk', async () => {
       await putLegacy('old voice bytes');
       const tab = await openTab();
-      const [orphan] = await tab.journal.adoptVoiceOrphans(ALICE);
-      const { recordingId } = orphan!.record;
-      await tab.journal.transitionVoiceRecording(recordingId, (entry) => ({
-        ...entry,
-        txnId: 'txn-kept',
-      }));
+      const forget = vi.fn();
+      const unsentCopy = vi.fn(() => ({ txnId: 'txn-old-retry', forget }));
+
+      // The copy cannot be written: the unsent message stays, it is the one with the ID.
+      const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+        throw new DOMException('The write failed.', 'UnknownError');
+      });
+      expect(await tab.journal.adoptVoiceOrphans(ALICE, unsentCopy)).toEqual([]);
+      expect(forget).not.toHaveBeenCalled();
+      expect(await legacyRows()).toHaveLength(1);
+      put.mockRestore();
+
+      const [orphan] = await tab.journal.adoptVoiceOrphans(ALICE, unsentCopy);
+      expect(unsentCopy).toHaveBeenLastCalledWith('!room:example.org', 'old voice bytes'.length);
+      // Sent again, it is the event that retry may have posted: not encrypted, as only such a
+      // message was kept among the unsent ones.
+      expect(orphan!.record).toMatchObject({
+        txnId: 'txn-old-retry',
+        destination: { roomId: '!room:example.org', encrypted: false },
+      });
+      expect(forget).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps one copy while its old row cannot be deleted, and deletes the row the next time', async () => {
+      await putLegacy('old voice bytes');
+      const tab = await openTab();
       const remove = IDBObjectStore.prototype.delete;
-      let refuse = true;
-      vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementation(function old(
+      vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(function old(
         this: IDBObjectStore,
         ...args
       ) {
-        if (this.name !== 'drafts' || !refuse) return remove.apply(this, args);
+        if (this.name !== 'drafts') return remove.apply(this, args);
         throw new DOMException('The delete failed.', 'UnknownError');
       });
-      // Its copy must not go first: the old entry would be copied again, without the ID.
-      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('failed');
-      const db = await openDB('mindroom-voice-journal');
-      expect(await db.getAll('recordings')).toMatchObject([{ recordingId, txnId: 'txn-kept' }]);
-      db.close();
-      refuse = false;
-      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
-      expect(await legacyKeys()).toEqual([]);
+      const [orphan] = await tab.journal.adoptVoiceOrphans(ALICE);
+      expect(await text(orphan!.file)).toBe('old voice bytes');
+      expect(await legacyRows()).toHaveLength(1);
+
+      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      expect(await legacyRows()).toEqual([]);
+      expect((await journalKeys())[0]).toEqual([orphan!.record.recordingId]);
     });
 
     it('is tried again by the next call when it could not be read', async () => {

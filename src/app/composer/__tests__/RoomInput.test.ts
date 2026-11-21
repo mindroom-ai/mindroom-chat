@@ -93,6 +93,8 @@ const {
   },
   mxState: {
     cancelUpload: vi.fn(),
+    // The server was heard: a room that is not there is gone, not still loading.
+    isInitialSyncComplete: () => true,
     getUserId: vi.fn(() => '@me:example.org'),
     // Default: every roomId resolves to a Joined room so the parked-draft
     // orphan-room cleanup useEffect treats drafts as live and the retry-time
@@ -1768,6 +1770,38 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it.each([
+    ['clears the reply a recovered recording was sent as', '$quoted', undefined],
+    ['keeps a reply to another message that was chosen since', '$chosen-since', '$chosen-since'],
+  ])('%s', async (_case, shownReplyTo, left) => {
+    const store = createStore();
+    // The composer's reply as the person made it, with its sender and text.
+    store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), createReplyDraft(shownReplyTo));
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+    // The recording came back from disk, which keeps only the ID of what it replies to.
+    const recovered = {
+      ...voiceRecorderState.props!.getSendContext(),
+      replyDraft: { userId: '', eventId: '$quoted', body: '' },
+    };
+
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(
+        new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        900,
+        undefined,
+        recovered
+      );
+    });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      'm.relates_to': { 'm.in_reply_to': { event_id: '$quoted' } },
+    });
+    // The next message is not a reply to it again.
+    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))?.eventId).toBe(left);
+
+    renderer.unmount();
+  });
+
   it('does not use a reply cleared after recording starts when primary Send is pressed', async () => {
     const store = createStore();
     const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
@@ -2965,6 +2999,44 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it.each([
+    ['takes it', true],
+    ['does not take it', false],
+  ])(
+    'has the thread its bundle opened kept for the recording before its event goes there: the disk %s',
+    async (_case, diskTakesIt) => {
+      const store = createStore();
+      const companion = new File(['first'], 'first.txt', { type: 'text/plain' });
+      const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+      stageUploadItems(store, [createUploadItem(companion)], [companion]);
+      const { renderer } = await renderRoomInput(store);
+      await openVoiceRecorder(renderer);
+      const order: unknown[] = [];
+      voiceRecorderState.commit.mockImplementation(async (destination) => {
+        order.push(['kept', (destination as { threadId?: string }).threadId]);
+        if (order.length > 2 && !diskTakesIt) throw new Error('The disk is full.');
+      });
+      type Sent = { body: string; 'm.relates_to'?: { event_id?: string } };
+      mxState.sendMessage.mockImplementation((async (_roomId: string, content: Sent) => {
+        order.push(['sent', content.body, content['m.relates_to']?.event_id]);
+        return { event_id: '$opened-by-first' };
+      }) as never);
+      queuePrimaryVoiceSend(voice, 1200);
+      await submitComposer();
+      await act(async () => undefined);
+      // Its first file opened a thread, which is where the voice event goes: that is on disk
+      // before the event leaves, since a crash would retry it where the disk says.
+      expect(order).toEqual([
+        ['kept', undefined],
+        ['sent', 'first.txt', undefined],
+        ['kept', '$opened-by-first'],
+        ...(diskTakesIt ? [['sent', 'voice.m4a', '$opened-by-first']] : []),
+      ]);
+
+      renderer.unmount();
+    }
+  );
+
   it('sends nothing of a recording when where it goes could not be kept', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store);
@@ -3654,6 +3726,8 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
+        // Its send went out, as an event that was not encrypted.
+        encrypted: false,
       },
     });
 
@@ -3685,13 +3759,20 @@ describe('RoomInput', () => {
 
     expect(store.get(pendingVoiceSendDraftAtom)?.context).toEqual({
       ownerSessionId: '@me:example.org',
+      attempted: {
+        roomId: LEFT_ROOM_ID,
+        roomName: LEFT_ROOM_ID,
+        threadId: undefined,
+        replyEventId: undefined,
+        replyThreadId: undefined,
+        threadingEnabled: true,
+        threadView: undefined,
+        encrypted: false,
+      },
     });
     // Its send may have arrived there: it keeps that transaction ID, which says so, and the
     // room's name, and goes anywhere else only as a copy.
-    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
-      txnId: 'txn-left',
-      attemptedRoomName: LEFT_ROOM_ID,
-    });
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({ txnId: 'txn-left' });
     // This composer, of another room, mounted the recorder that offers it.
     expect(voiceRecorderState.props).toBeDefined();
 

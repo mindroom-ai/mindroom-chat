@@ -18,7 +18,6 @@ import {
 } from './useVoiceRecorder';
 import type { SendRecordingCallback } from './voiceSendDraftController';
 import {
-  discardedVoiceDraftsAtom,
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendContext,
@@ -34,13 +33,22 @@ vi.mock('../../diagnostics/flightRecorder', () => ({
 }));
 
 // The disk takes every write: what the journal itself does is in voiceRecordingJournal.test.ts.
+// The recordings the journal was told to delete, and what it answers a delete with.
+const journalDisk = vi.hoisted(() => ({ deleted: [] as string[], deletes: 'committed' }));
 vi.mock('./voiceRecordingJournal', () => ({
   voiceCaptureJournal: () => ({
     begin: async () => true,
     append: async () => true,
     abandon: () => undefined,
   }),
-  transitionVoiceRecording: async () => 'committed',
+  transitionVoiceRecording: async (
+    recordingId: string,
+    change: (record: object) => object | undefined = (record) => record
+  ) => {
+    if (change({})) return 'committed';
+    if (journalDisk.deletes === 'committed') journalDisk.deleted.push(recordingId);
+    return journalDisk.deletes;
+  },
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -250,6 +258,7 @@ describe('useVoiceRecorder', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    Object.assign(journalDisk, { deleted: [], deletes: 'committed' });
     stream = new MockMediaStream();
     getUserMedia = vi.fn(async () => stream);
     MockMediaRecorder.instances = [];
@@ -1273,13 +1282,9 @@ describe('useVoiceRecorder', () => {
     secondRenderer.unmount();
   });
 
-  it('does not resurrect a discarded draft when an in-flight retry fails (production discard path)', async () => {
-    // rev-H Issue 1 / Issue 7: if the user discards mid-retry, the catch path
-    // must not write the failure-state draft back over the discard. This
-    // exercises the production discard path (discardPending → atom set), and
-    // would FAIL if the catch read pendingDraftRef (post-commit synced) instead
-    // of the live atom: the ref still holds the optimistic-cleared draft when
-    // the await resumes inside the same microtask.
+  it('leaves a recording that is being sent alone when a discard reaches it', async () => {
+    // A send and a discard never run on one recording at once: the server may be taking the
+    // event while the disk deletes its audio, or the other way round.
     const onSendStopFailure = vi.fn();
     const store = createStore();
     const onSendRecording = vi.fn(async () => {
@@ -1308,9 +1313,11 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(result).toBe(false);
-    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    // onSendStopFailure must not fire when the discard already happened.
-    expect(onSendStopFailure).toHaveBeenCalledTimes(1); // only the original send
+    expect(journalDisk.deleted).toEqual([]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
+      errorMessage: 'upload failed twice',
+      inFlight: undefined,
+    });
 
     renderer.unmount();
   });
@@ -1641,7 +1648,7 @@ describe('useVoiceRecorder', () => {
     expect(await parked!.file.text()).toBe('first second and the rest');
   });
 
-  it('offers Undo for a discarded recording instead of deleting it at once', async () => {
+  it('deletes a discarded recording at once, with its last audio', async () => {
     const { renderer, store } = await renderHarness();
 
     await act(async () => {
@@ -1652,20 +1659,37 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.discard();
     });
 
-    const [discarded] = store.get(discardedVoiceDraftsAtom);
-    expect(discarded?.draft).toMatchObject({
-      duration: 300,
-      context: { ownerSessionId: TEST_USER_ID },
-    });
-    expect(await discarded!.draft.file.text()).toBe('voice');
-    expect(discarded!.until - Date.now()).toBe(10_000);
+    expect(journalDisk.deleted).toHaveLength(1);
     expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
 
     renderer.unmount();
   });
 
-  it('offers Undo for a discarded parked recording, with where it was going', async () => {
+  it('keeps a discarded recording the disk would not delete, to show why', async () => {
+    journalDisk.deletes = 'failed';
+    const { renderer, store } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await recorderState.current?.discard();
+    });
+
+    const kept = store.get(pendingVoiceSendDraftAtom);
+    expect(kept).toMatchObject({
+      duration: 300,
+      context: { ownerSessionId: TEST_USER_ID },
+      errorMessage: "Couldn't delete the recording.",
+    });
+    expect(await kept!.file.text()).toBe('voice');
+
+    renderer.unmount();
+  });
+
+  it('takes a parked recording for its discard at once, shows it busy, and deletes it', async () => {
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
     const { renderer, store } = await renderHarness({ onSendRecording });
 
@@ -1679,9 +1703,18 @@ describe('useVoiceRecorder', () => {
     const parked = store.get(pendingVoiceSendDraftAtom);
     expect(parked?.errorMessage).toBe('upload failed');
 
-    await act(async () => recorderState.current?.discardPending());
+    act(() => recorderState.current?.discardPending());
+    expect(store.get(pendingVoiceSendDraftAtom)?.inFlight).toMatchObject({ discard: true });
+    // Not "sending": nothing of it goes anywhere.
+    expect(recorderState.current?.phase).toBe('processing');
+    // Send finds it taken.
+    await act(async () => {
+      expect(await recorderState.current?.retry()).toBe(false);
+    });
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    await act(async () => undefined);
+    expect(journalDisk.deleted).toEqual([parked!.recordingId]);
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    expect(store.get(discardedVoiceDraftsAtom)[0]?.draft).toBe(parked);
 
     renderer.unmount();
   });

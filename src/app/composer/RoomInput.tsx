@@ -341,7 +341,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       createUploadItems,
     });
     const { settlePastes, dismissLostPastes } = attachments;
-    const transport = useRoomInputUploadTransport(mx, store, room);
+    const transport = useRoomInputUploadTransport(mx, store);
 
     const clearReplyDraft = useCallback(
       ({

@@ -1,42 +1,43 @@
 import { createStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PendingVoiceSendDraft } from '../roomInputDrafts';
+import type { PendingVoiceSendContext, PendingVoiceSendDraft } from '../roomInputDrafts';
 import type {
   JournaledVoiceRecording,
+  VoiceJournalDestination,
   VoiceJournalRecord,
   VoiceTransitionOutcome,
 } from './voiceRecordingJournal';
 
-type Entry = Partial<VoiceJournalRecord>;
-/** The disk as the journal keeps it: a record changes only by a write that commits. */
+/** The disk as the journal keeps it: a recording goes only by a delete that commits. */
 const disk = vi.hoisted(() => {
   const state: {
-    records: Map<string, Entry>;
     deleted: string[];
     /** What every write comes to, until a test says otherwise. */
     outcome: VoiceTransitionOutcome;
     /** Set to hold the next write until it is called. */
     hold?: Promise<void>;
-  } = { records: new Map(), deleted: [], outcome: 'committed' };
+  } = { deleted: [], outcome: 'committed' };
   return state;
 });
 const journal = vi.hoisted(() => ({
   adoptVoiceOrphans: vi.fn(),
   transitionVoiceRecording: vi.fn(
-    async (recordingId: string, change: (record: Entry) => Entry | undefined = (kept) => kept) => {
+    async (
+      recordingId: string,
+      change: (record: object) => object | undefined = (kept) => kept
+    ) => {
       const { outcome, hold } = disk;
       disk.hold = undefined;
       await hold;
-      if (outcome !== 'committed') return outcome;
-      const after = change(disk.records.get(recordingId) ?? { recordingId });
-      if (after) disk.records.set(recordingId, after);
-      else disk.deleted.push(recordingId);
+      if (outcome === 'committed' && !change({ recordingId })) disk.deleted.push(recordingId);
       return outcome;
     }
   ),
 }));
 vi.mock('./voiceRecordingJournal', () => journal);
+const unsent = vi.hoisted(() => ({ unsentVoiceCopy: vi.fn() }));
+vi.mock('../../matrix/client/unsentMessages', () => unsent);
 /** Holds the next write to the disk; the returned function lets it go on. */
 const holdNextWrite = () => {
   let release!: () => void;
@@ -50,13 +51,37 @@ type Drafts = typeof import('./voiceDrafts');
 
 const ALICE = '@alice:example.org';
 const BOB = '@bob:example.org';
-const NOW = 50_000;
-const room = { roomId: '!harbour:example.org', name: 'Harbour desk' } as Room;
-const client = (userId = ALICE) =>
-  ({
+const HARBOUR = '!harbour:example.org';
+
+/** An account as the page knows it: its rooms, and whether the server was heard yet. */
+const account = (userId = ALICE) => {
+  const state = { synced: true, membership: 'join', encrypted: false, loaded: true };
+  const room = {
+    roomId: HARBOUR,
+    name: 'Harbour desk',
+    getMyMembership: () => state.membership,
+    hasEncryptionStateEvent: () => state.encrypted,
+  } as unknown as Room;
+  const listeners = new Map<string, () => void>();
+  const mx = {
     getUserId: () => userId,
-    getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
-  } as unknown as MatrixClient);
+    getRoom: (roomId: string) => (state.loaded && roomId === HARBOUR ? room : null),
+    isInitialSyncComplete: () => state.synced,
+    on: (event: string, listener: () => void) => listeners.set(event, listener),
+    removeListener: (event: string) => listeners.delete(event),
+  } as unknown as MatrixClient;
+  return { mx, room, state, sync: () => listeners.get('sync')?.() };
+};
+
+const destination: VoiceJournalDestination = {
+  roomId: HARBOUR,
+  threadId: '$thread',
+  replyEventId: '$reply',
+  replyThreadId: '$thread',
+  threadingEnabled: true,
+  threadView: true,
+  encrypted: false,
+};
 
 const orphan = (
   recordingId: string,
@@ -85,42 +110,38 @@ const openPage = async () => {
   const drafts: Drafts = await import('./voiceDrafts');
   const atoms = await import('../roomInputDrafts');
   const store = createStore();
-  const ids = (list: { recordingId: string }[]) => list.map((entry) => entry.recordingId);
   return {
     drafts,
     store,
     ...atoms,
     slot: () => store.get(atoms.pendingVoiceSendDraftAtom),
-    queued: () => ids(store.get(atoms.queuedVoiceDraftsAtom)),
-    discarded: () => ids(store.get(atoms.discardedVoiceDraftsAtom).map((entry) => entry.draft)),
+    queued: () => store.get(atoms.queuedVoiceDraftsAtom).map((entry) => entry.recordingId),
   };
 };
 
 beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(NOW);
   journal.adoptVoiceOrphans.mockReset().mockResolvedValue([]);
   journal.transitionVoiceRecording.mockClear();
-  disk.records.clear();
+  unsent.unsentVoiceCopy.mockReset();
   disk.deleted = [];
   disk.outcome = 'committed';
   disk.hold = undefined;
 });
 
 afterEach(() => {
-  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe('recovered voice recordings', () => {
   it('shows orphans one at a time, oldest first, and erases none while the slot is taken', async () => {
     const { drafts, store, pendingVoiceSendDraftAtom, slot, queued } = await openPage();
+    const { mx } = account();
     journal.adoptVoiceOrphans.mockResolvedValue([orphan('rec-older'), orphan('rec-newer')]);
-    await drafts.recoverVoiceDrafts(client(), store);
-    expect(journal.adoptVoiceOrphans).toHaveBeenCalledExactlyOnceWith(ALICE);
+    await drafts.recoverVoiceDrafts(mx, store);
+    expect(journal.adoptVoiceOrphans).toHaveBeenCalledExactlyOnceWith(ALICE, expect.any(Function));
     expect(slot()).toBeUndefined();
 
-    drafts.offerQueuedVoiceDraft(store, ALICE);
+    drafts.reconcileVoiceDrafts(mx, store);
     const shown = slot();
     // No destination and no error: "Recovered recording", with Send and Discard.
     expect(shown).toEqual({
@@ -128,26 +149,38 @@ describe('recovered voice recordings', () => {
       file: expect.any(File),
       duration: 4_200,
       txnId: undefined,
-      context: { ownerSessionId: ALICE },
+      context: { ownerSessionId: ALICE, attempted: undefined },
     });
-    drafts.offerQueuedVoiceDraft(store, ALICE);
+    drafts.reconcileVoiceDrafts(mx, store);
     expect(slot()).toBe(shown);
     expect(queued()).toEqual(['rec-newer']);
 
     // The first is sent or discarded: the next takes the slot.
     store.set(pendingVoiceSendDraftAtom, undefined);
-    drafts.offerQueuedVoiceDraft(store, ALICE);
+    drafts.reconcileVoiceDrafts(mx, store);
     expect(slot()?.recordingId).toBe('rec-newer');
     expect(queued()).toEqual([]);
     expect(disk.deleted).toEqual([]);
   });
 
-  it('looks again whenever the page comes back to the front, for what lost its tab since', async () => {
+  it('asks the unsent messages for a copy an older version kept of the same send', async () => {
+    const { drafts, store } = await openPage();
+    const { mx } = account();
+    await drafts.recoverVoiceDrafts(mx, store);
+    const copy = { txnId: 'txn-old', forget: () => undefined };
+    unsent.unsentVoiceCopy.mockReturnValue(copy);
+    const lookUp = journal.adoptVoiceOrphans.mock.calls[0]![1];
+    expect(lookUp(HARBOUR, 4_096)).toBe(copy);
+    expect(unsent.unsentVoiceCopy).toHaveBeenCalledExactlyOnceWith(mx, HARBOUR, 4_096);
+  });
+
+  it('looks again whenever the page comes back to the front, and brings the slot in line with every sync', async () => {
     const page = new EventTarget();
     vi.stubGlobal('addEventListener', page.addEventListener.bind(page));
     vi.stubGlobal('removeEventListener', page.removeEventListener.bind(page));
-    const { drafts, store, queued } = await openPage();
-    const stop = drafts.keepRecoveringVoiceDrafts(client(), store);
+    const { drafts, store, slot, queued } = await openPage();
+    const { mx, sync } = account();
+    const stop = drafts.keepRecoveringVoiceDrafts(mx, store);
     await vi.waitFor(() => expect(journal.adoptVoiceOrphans).toHaveBeenCalledTimes(1));
     expect(queued()).toEqual([]);
 
@@ -158,98 +191,203 @@ describe('recovered voice recordings', () => {
     page.dispatchEvent(new Event('visibilitychange'));
     await vi.waitFor(() => expect(journal.adoptVoiceOrphans).toHaveBeenCalledTimes(3));
     expect(queued()).toEqual(['rec-other-tab']);
+    sync();
+    expect(slot()?.recordingId).toBe('rec-other-tab');
 
     stop();
     page.dispatchEvent(new Event('focus'));
     expect(journal.adoptVoiceOrphans).toHaveBeenCalledTimes(3);
+    store.set((await import('../roomInputDrafts')).pendingVoiceSendDraftAtom, undefined);
+    expect(sync()).toBeUndefined();
   });
 
   it('waits while a recorder is open, and offers a recording only to its account', async () => {
     const { drafts, store, openVoiceRecorderAtom, queuedVoiceDraftsAtom, slot, queued } =
       await openPage();
+    const { mx } = account();
     store.set(queuedVoiceDraftsAtom, [draft('rec-bob', BOB), draft('rec-alice')]);
     store.set(openVoiceRecorderAtom, Symbol('recorder'));
-    drafts.offerQueuedVoiceDraft(store, ALICE);
+    drafts.reconcileVoiceDrafts(mx, store);
     expect(slot()).toBeUndefined();
     store.set(openVoiceRecorderAtom, undefined);
-    drafts.offerQueuedVoiceDraft(store, ALICE);
+    drafts.reconcileVoiceDrafts(mx, store);
     expect(slot()?.recordingId).toBe('rec-alice');
     expect(queued()).toEqual(['rec-bob']);
   });
 
-  it('parks a mid-send orphan at its destination with Retry, under its txnId', async () => {
-    const { drafts, store, queuedVoiceDraftsAtom } = await openPage();
-    const destination = {
-      roomId: room.roomId,
-      threadId: '$thread',
-      replyEventId: '$reply',
-      replyThreadId: '$thread',
-      threadingEnabled: true,
-      threadView: true,
-    };
-    journal.adoptVoiceOrphans.mockResolvedValue([
-      orphan('rec-crashed', { destination, txnId: 'txn-before-crash' }),
-    ]);
-    await drafts.recoverVoiceDrafts(client(), store);
-    expect(store.get(queuedVoiceDraftsAtom)).toEqual([
-      {
-        recordingId: 'rec-crashed',
-        file: expect.any(File),
-        duration: 4_200,
-        txnId: 'txn-before-crash',
-        errorMessage: 'Sending this voice message was interrupted.',
-        context: {
-          ownerSessionId: ALICE,
-          roomId: room.roomId,
-          room,
-          threadId: '$thread',
-          // The IDs of what it replies to are all the journal kept, and all its send needs.
-          replyDraft: {
-            userId: '',
-            eventId: '$reply',
-            body: '',
-            relation: { rel_type: 'm.thread', event_id: '$thread' },
-          },
-          threadingEnabled: true,
-          signalBridgedRoom: false,
-          threadView: true,
-        },
-      },
-    ]);
+  it('moves another account’s recording out of the slot once, however many composers ask', async () => {
+    const { drafts, store, pendingVoiceSendDraftAtom, queuedVoiceDraftsAtom, slot, queued } =
+      await openPage();
+    // Alice's recording shows, Bob's waits, and Bob becomes the account.
+    const hers = draft('rec-alice');
+    const his = draft('rec-bob', BOB);
+    store.set(pendingVoiceSendDraftAtom, hers);
+    store.set(queuedVoiceDraftsAtom, [his]);
+    const { mx } = account(BOB);
+    // Two composers are mounted, and both saw Alice's recording in the slot.
+    drafts.reconcileVoiceDrafts(mx, store);
+    drafts.reconcileVoiceDrafts(mx, store);
+    expect(slot()).toBe(his);
+    expect(queued()).toEqual(['rec-alice']);
+    // Back to Alice: hers again, and his waits.
+    const alice = account(ALICE);
+    drafts.reconcileVoiceDrafts(alice.mx, store);
+    drafts.reconcileVoiceDrafts(alice.mx, store);
+    expect(slot()).toBe(hers);
+    expect(queued()).toEqual(['rec-bob']);
+  });
+});
+
+describe('a recording whose send was attempted', () => {
+  const recovered = async (changes: Partial<VoiceJournalRecord>, of = account()) => {
+    const page = await openPage();
+    journal.adoptVoiceOrphans.mockResolvedValue([orphan('rec-crashed', changes)]);
+    await page.drafts.recoverVoiceDrafts(of.mx, page.store);
+    const reconcile = () => page.drafts.reconcileVoiceDrafts(of.mx, page.store);
+    reconcile();
+    return { ...page, ...of, reconcile };
+  };
+  const placed = (room: Room): PendingVoiceSendContext => ({
+    ownerSessionId: ALICE,
+    roomId: HARBOUR,
+    room,
+    threadId: '$thread',
+    // The IDs of what it replies to are all the journal kept, and all its send needs.
+    replyDraft: {
+      userId: '',
+      eventId: '$reply',
+      body: '',
+      relation: { rel_type: 'm.thread', event_id: '$thread' },
+    },
+    threadingEnabled: true,
+    signalBridgedRoom: false,
+    encrypted: false,
+    threadView: true,
   });
 
-  it('shows an orphan whose room is gone in every composer, with the transaction ID that says it may be sent', async () => {
-    const { drafts, store, queuedVoiceDraftsAtom } = await openPage();
-    journal.adoptVoiceOrphans.mockResolvedValue([
-      orphan('rec-left', {
-        destination: { roomId: '!left:example.org', threadingEnabled: true },
-        txnId: 'txn-left',
-      }),
-    ]);
-    await drafts.recoverVoiceDrafts(client(), store);
-    const [recovered] = store.get(queuedVoiceDraftsAtom);
-    expect(recovered).toMatchObject({ recordingId: 'rec-left', txnId: 'txn-left' });
-    expect(recovered!.context).toEqual({ ownerSessionId: ALICE });
-    expect(recovered!.errorMessage).toBeUndefined();
+  it('waits at its destination with Retry, under its txnId', async () => {
+    const { slot, room } = await recovered({ destination, txnId: 'txn-before-crash' });
+    expect(slot()).toEqual({
+      recordingId: 'rec-crashed',
+      file: expect.any(File),
+      duration: 4_200,
+      txnId: 'txn-before-crash',
+      errorMessage: 'Sending this voice message was interrupted.',
+      context: placed(room),
+    });
   });
 
-  it('offers Undo again for a discard that still has time, and lets it stand when that is up', async () => {
-    const { drafts, store, slot, queued, discarded } = await openPage();
-    journal.adoptVoiceOrphans.mockResolvedValue([
-      orphan('rec-discarded', { discardUntil: NOW + 4_000 }),
-    ]);
-    await drafts.recoverVoiceDrafts(client(), store);
-    drafts.offerQueuedVoiceDraft(store, ALICE);
-    // Not back as a recording to send: back as a discard to undo.
-    expect([slot(), queued(), discarded()]).toEqual([undefined, [], ['rec-discarded']]);
+  it('keeps its destination while its room is not loaded yet, and goes there once the server was heard', async () => {
+    const before = account();
+    before.state.synced = false;
+    before.state.loaded = false;
+    const { slot, queued, state, room, reconcile, store, queuedVoiceDraftsAtom } = await recovered(
+      { destination, txnId: 'txn-before-crash' },
+      before
+    );
+    // Not shown yet: nothing can say that its room is gone, so no copy is offered.
+    expect([slot(), queued()]).toEqual([undefined, ['rec-crashed']]);
+    expect(store.get(queuedVoiceDraftsAtom)[0]!.context).toEqual({
+      ownerSessionId: ALICE,
+      attempted: destination,
+    });
 
-    disk.records.set('rec-discarded', { discardUntil: NOW + 4_000 });
-    await vi.advanceTimersByTimeAsync(3_999);
-    expect(discarded()).toEqual(['rec-discarded']);
-    expect(disk.deleted).toEqual([]);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(discarded()).toEqual([]);
-    expect(disk.deleted).toEqual(['rec-discarded']);
+    state.synced = true;
+    state.loaded = true;
+    reconcile();
+    expect(slot()).toMatchObject({ txnId: 'txn-before-crash', context: placed(room) });
+    expect(queued()).toEqual([]);
+  });
+
+  it('offers a copy only once the server was heard and its room is still not there', async () => {
+    const before = account();
+    before.state.synced = false;
+    before.state.loaded = false;
+    const { slot, state, reconcile } = await recovered({ destination, txnId: 'txn-1' }, before);
+    expect(slot()).toBeUndefined();
+    state.synced = true;
+    reconcile();
+    // "May already be sent to another room", with "Send a copy here".
+    expect(slot()).toMatchObject({
+      txnId: 'txn-1',
+      context: { ownerSessionId: ALICE, attempted: destination },
+    });
+    expect(slot()!.errorMessage).toBeUndefined();
+  });
+
+  it('goes back to its room when the account joins it again, under the same txnId', async () => {
+    const { slot, state, room, reconcile } = await recovered({ destination, txnId: 'txn-1' });
+    const there = slot();
+    reconcile();
+    // Nothing changed: the same draft, so nothing renders again.
+    expect(slot()).toBe(there);
+
+    state.membership = 'leave';
+    reconcile();
+    const left = slot();
+    expect(left).toMatchObject({
+      txnId: 'txn-1',
+      errorMessage: undefined,
+      context: { ownerSessionId: ALICE, attempted: { ...destination, roomName: 'Harbour desk' } },
+    });
+    reconcile();
+    expect(slot()).toBe(left);
+    // Offline, nothing says otherwise: it stays as it is.
+    state.synced = false;
+    reconcile();
+    expect(slot()).toBe(left);
+
+    state.synced = true;
+    state.membership = 'join';
+    reconcile();
+    expect(slot()).toMatchObject({
+      txnId: 'txn-1',
+      errorMessage: 'Sending this voice message was interrupted.',
+      context: placed(room),
+    });
+  });
+
+  it('is not retried under its txnId in a room that was encrypted since: it may be sent, and a copy is offered', async () => {
+    const { slot, state, reconcile } = await recovered({ destination, txnId: 'txn-plain' });
+    expect(slot()!.context.roomId).toBe(HARBOUR);
+    state.encrypted = true;
+    reconcile();
+    expect(slot()!.context).toEqual({
+      ownerSessionId: ALICE,
+      attempted: { ...destination, roomName: 'Harbour desk' },
+    });
+  });
+
+  it('leaves a recording that is being sent or deleted where it is', async () => {
+    const { slot, state, reconcile, store, pendingVoiceSendDraftAtom } = await recovered({
+      destination,
+      txnId: 'txn-1',
+    });
+    const sending = { ...slot()!, inFlight: { token: 'try-1' } };
+    store.set(pendingVoiceSendDraftAtom, sending);
+    state.membership = 'leave';
+    reconcile();
+    expect(slot()).toBe(sending);
+  });
+
+  it('is only a recording when its send never began: one an older version kept, or one that failed before', async () => {
+    // An older version's: a destination, and nothing that says how it went out.
+    const { encrypted, ...legacy } = destination;
+    const gone = account();
+    gone.state.loaded = false;
+    const old = await recovered({ destination: legacy }, gone);
+    expect(old.slot()!.context).toEqual({ ownerSessionId: ALICE, attempted: undefined });
+
+    // Its room is there: Retry there, as that version offered.
+    const there = await recovered({ destination: legacy });
+    expect(there.slot()).toMatchObject({
+      errorMessage: 'Sending this voice message was interrupted.',
+      context: { roomId: HARBOUR, encrypted: undefined },
+    });
+    // This page's, whose send stopped before its destination was written: its room is left.
+    there.state.membership = 'leave';
+    there.reconcile();
+    expect(there.slot()!.context).toEqual({ ownerSessionId: ALICE, attempted: undefined });
   });
 });
 
@@ -333,26 +471,58 @@ describe('unsent and discarded voice recordings', () => {
     }
   );
 
-  it('takes a discard out of the slot and offers Undo only once the disk says it is discarded', async () => {
-    const { drafts, store, pendingVoiceSendDraftAtom, slot, discarded } = await openPage();
+  it('deletes a confirmed discard at once, and takes the slot’s recording until that is done', async () => {
+    const { drafts, store, pendingVoiceSendDraftAtom, slot, queued } = await openPage();
     const recording = draft('rec-1');
     store.set(pendingVoiceSendDraftAtom, recording);
     const release = holdNextWrite();
     const discarding = drafts.discardVoiceDraft(store, recording);
-    await Promise.resolve();
-    expect([slot(), discarded()]).toEqual([recording, []]);
+    // Taken before anything was awaited: nothing sends it, and it shows as busy.
+    const taken = slot()!;
+    expect(taken).toEqual({ ...recording, inFlight: { token: expect.any(String), discard: true } });
+    // Discard pressed again, on what the slot holds now: once is enough.
+    await drafts.discardVoiceDraft(store, taken);
+    expect(journal.transitionVoiceRecording).toHaveBeenCalledTimes(1);
+    expect(disk.deleted).toEqual([]);
+
     release();
     await discarding;
-    expect([slot(), discarded()]).toEqual([undefined, ['rec-1']]);
-    expect(disk.records.get('rec-1')).toMatchObject({ discardUntil: NOW + 10_000 });
+    expect([slot(), queued(), disk.deleted]).toEqual([undefined, [], ['rec-1']]);
   });
 
-  it('keeps a recording whose discard the disk could not be told about, and says so', async () => {
-    const { drafts, store, pendingVoiceSendDraftAtom, queuedVoiceDraftsAtom, slot, discarded } =
+  it('never deletes a recording that is being sent', async () => {
+    const { drafts, store, pendingVoiceSendDraftAtom, slot } = await openPage();
+    const sending = draft('rec-1', ALICE, 'try-1');
+    store.set(pendingVoiceSendDraftAtom, sending);
+    await drafts.discardVoiceDraft(store, sending);
+    expect(journal.transitionVoiceRecording).not.toHaveBeenCalled();
+    expect(slot()).toBe(sending);
+  });
+
+  it('deletes what a recorder stopped for a discard without showing it', async () => {
+    const { drafts, store, slot, queued } = await openPage();
+    await drafts.discardVoiceDraft(store, draft('rec-live'));
+    expect([slot(), queued(), disk.deleted]).toEqual([undefined, [], ['rec-live']]);
+  });
+
+  it.each(['absent', 'committed'] as const)(
+    'lets a recording go that the disk no longer holds, or never did: %s',
+    async (outcome) => {
+      const { drafts, store, pendingVoiceSendDraftAtom, slot } = await openPage();
+      disk.outcome = outcome;
+      const recording = draft('rec-1');
+      store.set(pendingVoiceSendDraftAtom, recording);
+      await drafts.discardVoiceDraft(store, recording);
+      expect(slot()).toBeUndefined();
+    }
+  );
+
+  it('keeps a recording the disk would not delete, and says so', async () => {
+    const { drafts, store, pendingVoiceSendDraftAtom, queuedVoiceDraftsAtom, slot } =
       await openPage();
     disk.outcome = 'failed';
-    const error = { errorMessage: 'Could not save this change to your recording. Try again.' };
-    // The slot's recording stays in it.
+    const error = { errorMessage: "Couldn't delete the recording." };
+    // The slot's recording stays in it, free again to discard or to send.
     const shown = draft('rec-shown');
     store.set(pendingVoiceSendDraftAtom, shown);
     await drafts.discardVoiceDraft(store, shown);
@@ -361,101 +531,12 @@ describe('unsent and discarded voice recordings', () => {
     const live = draft('rec-live');
     await drafts.discardVoiceDraft(store, live);
     expect(store.get(queuedVoiceDraftsAtom)).toEqual([{ ...live, ...error }]);
-    // Nothing is offered to undo, and nothing is deleted later.
-    expect(discarded()).toEqual([]);
-    await vi.advanceTimersByTimeAsync(20_000);
     expect(disk.deleted).toEqual([]);
-  });
 
-  it('brings a discard back only once the disk no longer says it is discarded', async () => {
-    const { drafts, store, slot, queued, discarded } = await openPage();
-    const recording = draft('rec-1');
-    await drafts.discardVoiceDraft(store, recording);
-    expect(discarded()).toEqual(['rec-1']);
-
-    const release = holdNextWrite();
-    const undone = drafts.undoVoiceDiscard(store, 'rec-1');
-    // Pressed again meanwhile: once is enough.
-    const again = drafts.undoVoiceDiscard(store, 'rec-1');
-    await Promise.resolve();
-    // Not back yet: its offer stays until the disk agrees.
-    expect([discarded(), queued()]).toEqual([['rec-1'], []]);
-    release();
-    await Promise.all([undone, again]);
-    expect([discarded(), queued()]).toEqual([[], ['rec-1']]);
-    expect(disk.records.get('rec-1')?.discardUntil).toBeUndefined();
-    drafts.offerQueuedVoiceDraft(store, ALICE);
-    expect(slot()).toEqual({ ...recording, unprotected: false });
-
-    // Its ten seconds end: nothing is deleted.
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(disk.deleted).toEqual([]);
-  });
-
-  it('deletes nothing after an Undo the disk could not be told about, and keeps offering it', async () => {
-    const { drafts, store, discardedVoiceDraftsAtom, queued, discarded } = await openPage();
-    await drafts.discardVoiceDraft(store, draft('rec-1'));
-    disk.outcome = 'failed';
-    await drafts.undoVoiceDiscard(store, 'rec-1');
-    // Not brought back from memory as if it were saved: the offer says the Undo failed.
-    expect(queued()).toEqual([]);
-    expect(store.get(discardedVoiceDraftsAtom)).toMatchObject([{ failed: true }]);
-
-    // The disk works again, still says discarded, and its time is up: the Undo called the
-    // deletion off.
+    // The next Discard reaches the disk.
     disk.outcome = 'committed';
-    await vi.advanceTimersByTimeAsync(20_000);
-    expect(disk.deleted).toEqual([]);
-    expect(discarded()).toEqual(['rec-1']);
-
-    // The next press reaches the disk.
-    await drafts.undoVoiceDiscard(store, 'rec-1');
-    expect([discarded(), queued()]).toEqual([[], ['rec-1']]);
-    expect(disk.records.get('rec-1')?.discardUntil).toBeUndefined();
-  });
-
-  it('deletes at the end of the ten seconds only what the disk still says is discarded', async () => {
-    const { drafts, store, discarded } = await openPage();
-    await drafts.discardVoiceDraft(store, draft('rec-1'));
-    await drafts.discardVoiceDraft(store, draft('rec-2'));
-    // The disk no longer says so of the first.
-    disk.records.set('rec-1', { recordingId: 'rec-1' });
-    await vi.advanceTimersByTimeAsync(10_000);
-    expect(disk.deleted).toEqual(['rec-2']);
-    expect(discarded()).toEqual([]);
-  });
-
-  it('gives each discard its own ten seconds', async () => {
-    const { drafts, store, discarded } = await openPage();
-    await drafts.discardVoiceDraft(store, draft('rec-1'));
-    await vi.advanceTimersByTimeAsync(1_000);
-    await drafts.discardVoiceDraft(store, draft('rec-2'));
-    // The second does not end the first one's Undo early.
-    expect(discarded()).toEqual(['rec-1', 'rec-2']);
-    expect(disk.deleted).toEqual([]);
-
-    await vi.advanceTimersByTimeAsync(9_000);
-    expect(discarded()).toEqual(['rec-2']);
-    expect(disk.deleted).toEqual(['rec-1']);
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(discarded()).toEqual([]);
-    expect(disk.deleted).toEqual(['rec-1', 'rec-2']);
-  });
-
-  it('keeps a recording that was undone and discarded again until its second time is up', async () => {
-    const { drafts, store, discarded } = await openPage();
-    const recording = draft('rec-1');
-    await drafts.discardVoiceDraft(store, recording);
-    await drafts.undoVoiceDiscard(store, 'rec-1');
-    await vi.advanceTimersByTimeAsync(5_000);
-    await drafts.discardVoiceDraft(store, recording);
-
-    // The first discard's time: Undo is still offered.
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(discarded()).toEqual(['rec-1']);
-    expect(disk.deleted).toEqual([]);
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(discarded()).toEqual([]);
-    expect(disk.deleted).toEqual(['rec-1']);
+    await drafts.discardVoiceDraft(store, slot()!);
+    expect(slot()).toBeUndefined();
+    expect(disk.deleted).toEqual(['rec-shown']);
   });
 });

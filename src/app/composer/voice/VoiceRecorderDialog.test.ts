@@ -4,9 +4,9 @@ import { Room } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
+import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import type { SendRecordingCallback } from './voiceSendDraftController';
 import {
-  discardedVoiceDraftsAtom,
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendContext,
@@ -14,14 +14,33 @@ import {
 
 // Whether the disk takes the recorder's writes: what the journal does with them is in
 // voiceRecordingJournal.test.ts.
-const disk = vi.hoisted(() => ({ writes: true }));
+const disk = vi.hoisted(() => {
+  const state: {
+    writes: boolean;
+    /** Whether it deletes a recording it holds, and those it deleted. */
+    deletes: boolean;
+    deleted: string[];
+    /** Set to hold the next delete until it resolves. */
+    hold?: Promise<void>;
+  } = { writes: true, deletes: true, deleted: [] };
+  return state;
+});
 vi.mock('./voiceRecordingJournal', () => ({
   voiceCaptureJournal: () => ({
     begin: async () => disk.writes,
     append: async () => disk.writes,
     abandon: () => undefined,
   }),
-  transitionVoiceRecording: async () => (disk.writes ? 'committed' : 'absent'),
+  transitionVoiceRecording: async (
+    recordingId: string,
+    change: (record: object) => object | undefined = (record) => record
+  ) => {
+    if (!disk.writes) return 'absent';
+    if (change({})) return 'committed';
+    await disk.hold;
+    if (disk.deletes) disk.deleted.push(recordingId);
+    return disk.deletes ? 'committed' : 'failed';
+  },
 }));
 
 const TEST_ROOM_ID = '!room:example.org';
@@ -31,7 +50,11 @@ const acknowledged = () => vi.fn<SendRecordingCallback>(async () => '$voice');
 const createTestSendContext = (): PendingVoiceSendContext => ({
   ownerSessionId: '@me:example.org',
   roomId: TEST_ROOM_ID,
-  room: { roomId: TEST_ROOM_ID, name: TEST_ROOM_ID } as unknown as Room,
+  room: {
+    roomId: TEST_ROOM_ID,
+    name: TEST_ROOM_ID,
+    hasEncryptionStateEvent: () => false,
+  } as unknown as Room,
   threadId: undefined,
   replyDraft: undefined,
   threadingEnabled: true,
@@ -237,7 +260,7 @@ function OverviewHarness({ onClose }: { onClose: () => void }) {
 
 describe('VoiceRecorderComposer', () => {
   beforeEach(() => {
-    disk.writes = true;
+    Object.assign(disk, { writes: true, deletes: true, deleted: [], hold: undefined });
     vi.stubGlobal('window', {
       isSecureContext: true,
     });
@@ -366,14 +389,15 @@ describe('VoiceRecorderComposer', () => {
     renderer.unmount();
   });
 
-  it('discards a pending failed recording at once, and offers Undo for it', async () => {
+  /** A recorder whose first send fails with "upload failed", with the store its drafts are in. */
+  const renderFailedSend = async () => {
     setupSupportedRecorder();
     const store = createStore();
     const onClose = vi.fn();
+    const onRetryRequest = vi.fn();
     const onSendRecording = acknowledged().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
-
     await act(async () => {
       renderer = create(
         React.createElement(
@@ -383,32 +407,175 @@ describe('VoiceRecorderComposer', () => {
             ref: recorderRef,
             active: true,
             onClose,
-            onRetryRequest: vi.fn(),
+            onRetryRequest,
             onSendRecording,
             getSendContext: createTestSendContext,
           })
         )
       );
     });
-
     await act(async () => {
       await recorderRef.current?.send();
     });
+    const press = async (label: string) => {
+      const button = renderer.root
+        .findAllByType('button')
+        .filter((candidate) => candidate.props.children === label)
+        .at(-1);
+      expect(button).toBeDefined();
+      await act(async () => {
+        button!.props.onClick();
+      });
+    };
+    const shown = () => JSON.stringify(renderer.toJSON());
+    return { store, onClose, onRetryRequest, onSendRecording, recorderRef, renderer, press, shown };
+  };
+
+  it('confirms before discarding a pending failed recording, and deletes it only then', async () => {
+    const { store, onClose, renderer, press, shown } = await renderFailedSend();
     const parked = store.get(pendingVoiceSendDraftAtom);
     expect(parked?.errorMessage).toBe('upload failed');
 
-    const discard = renderer.root
-      .findAllByType('button')
-      .find((button) => button.props.children === 'Discard');
-    await act(async () => {
-      discard?.props.onClick();
-    });
+    await press('Discard');
+    expect(onClose).not.toHaveBeenCalled();
+    // The retry overlay must hide while the discard confirmation is open so
+    // the dialogs do not visually stack.
+    expect(shown()).not.toContain('Voice send failed');
+    expect(shown()).toContain('Discard voice recording?');
+    expect(shown()).toContain('This recording has not been sent. Discard it permanently?');
+    expect(disk.deleted).toEqual([]);
 
-    // Nothing asks whether it is sure: the discard can be undone.
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Discard voice recording?');
+    // Cancel: the recording is as it was, and the retry overlay is back.
+    await press('Cancel');
+    expect(shown()).toContain('Voice send failed');
+    expect(store.get(pendingVoiceSendDraftAtom)).toBe(parked);
+
+    await press('Discard');
+    await press('Discard');
     expect(onClose).toHaveBeenCalledOnce();
+    expect(disk.deleted).toEqual([parked!.recordingId]);
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    expect(store.get(discardedVoiceDraftsAtom).map((entry) => entry.draft)).toEqual([parked]);
+
+    renderer.unmount();
+  });
+
+  it('asks again with Retry after a discard the disk refused, and that Retry never sends', async () => {
+    const { store, onRetryRequest, onSendRecording, recorderRef, renderer, press, shown } =
+      await renderFailedSend();
+    const { recordingId } = store.get(pendingVoiceSendDraftAtom)!;
+    disk.deletes = false;
+    await press('Discard');
+    await press('Discard');
+
+    // Still there, and it says why. No send dialog, whose Retry would post it.
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
+      recordingId,
+      errorMessage: "Couldn't delete the recording.",
+    });
+    expect(shown()).toContain('Discard voice recording?');
+    expect(shown()).toContain("Couldn't delete the recording.");
+    expect(shown()).not.toContain('Voice send failed');
+    expect(shown()).not.toContain('This recording has not been sent.');
+
+    // Retry repeats the discard.
+    await press('Retry');
+    expect(onRetryRequest).not.toHaveBeenCalled();
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(store.get(pendingVoiceSendDraftAtom)?.recordingId).toBe(recordingId);
+    expect(shown()).toContain("Couldn't delete the recording.");
+
+    // Cancel keeps the recording, to send or to discard later.
+    await press('Cancel');
+    expect(shown()).not.toContain('Discard voice recording?');
+    expect(shown()).not.toContain('Voice send failed');
+    expect(store.get(pendingVoiceSendDraftAtom)?.recordingId).toBe(recordingId);
+
+    // The disk works again: the capsule's Discard offers that Retry again, and it deletes.
+    disk.deletes = true;
+    await act(async () => {
+      renderer.root.findByType(VoiceRecordingCapsule).props.onDiscard();
+    });
+    expect(shown()).toContain("Couldn't delete the recording.");
+    await press('Retry');
+    expect(disk.deleted).toEqual([recordingId]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(recorderRef.current).toBeDefined();
+
+    renderer.unmount();
+  });
+
+  it('neither sends nor discards again a recording whose discard is on its way', async () => {
+    const { store, onSendRecording, recorderRef, renderer, press } = await renderFailedSend();
+    const { recordingId } = store.get(pendingVoiceSendDraftAtom)!;
+    let finish!: () => void;
+    disk.hold = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await press('Discard');
+    await press('Discard');
+    // Taken at the press, before the disk answered.
+    expect(store.get(pendingVoiceSendDraftAtom)?.inFlight).toMatchObject({ discard: true });
+    // Its capsule shows it busy, which disables its Discard.
+    expect(renderer.root.findByType(VoiceRecordingCapsule).props.phase).toBe('processing');
+    await act(async () => {
+      expect(await recorderRef.current?.send()).toBe(false);
+    });
+    expect(onSendRecording).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      finish();
+    });
+    expect(disk.deleted).toEqual([recordingId]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('asks before discarding a recording that is still running, and goes on recording until then', async () => {
+    setupSupportedRecorder();
+    const store = createStore();
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(VoiceRecorderComposer, {
+            active: true,
+            onClose,
+            onRetryRequest: vi.fn(),
+            onSendRecording: acknowledged(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    const press = async (label?: string) => {
+      const capsule = renderer.root.findByType(VoiceRecordingCapsule);
+      const button = renderer.root
+        .findAllByType('button')
+        .find((candidate) => candidate.props.children === label);
+      await act(async () => {
+        if (label) button!.props.onClick();
+        else capsule.props.onDiscard();
+      });
+    };
+    await press();
+    expect(JSON.stringify(renderer.toJSON())).toContain('Discard voice recording?');
+    expect(MockMediaRecorder.latest!.state).toBe('recording');
+
+    await press('Cancel');
+    expect(MockMediaRecorder.latest!.state).toBe('recording');
+    expect(onClose).not.toHaveBeenCalled();
+
+    await press();
+    await press('Discard');
+    expect(MockMediaRecorder.latest!.state).toBe('inactive');
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(disk.deleted).toHaveLength(1);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
 
     renderer.unmount();
   });
@@ -577,9 +744,15 @@ describe('VoiceRecorderComposer', () => {
       recordingId: 'rec-attempted',
       file: new File(['voice'], 'voice.webm', { type: 'audio/webm' }),
       duration: 5_000,
-      context: { ownerSessionId: '@me:example.org' },
+      context: {
+        ownerSessionId: '@me:example.org',
+        attempted: {
+          roomId: '!gone:example.org',
+          threadingEnabled: true,
+          roomName: 'Harbour office',
+        },
+      },
       txnId: 'txn-attempted',
-      attemptedRoomName: 'Harbour office',
     });
     const onClose = vi.fn();
     const onSendRecording = acknowledged();
@@ -630,7 +803,10 @@ describe('VoiceRecorderComposer', () => {
       recordingId: 'rec-unknown',
       file: new File(['voice'], 'voice.webm', { type: 'audio/webm' }),
       duration: 5_000,
-      context: { ownerSessionId: '@me:example.org' },
+      context: {
+        ownerSessionId: '@me:example.org',
+        attempted: { roomId: '!gone:example.org', threadingEnabled: true },
+      },
       txnId: 'txn-unknown',
     });
     await act(async () => undefined);

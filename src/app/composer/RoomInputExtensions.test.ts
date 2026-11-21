@@ -227,4 +227,29 @@ describe('RoomInputMindroomExtensions', () => {
     room.updatePendingEvent(root, EventStatus.SENT, '$root');
     expect(refreshRoomInputVoiceSendContext(mx, context)?.threadId).toBe('$root');
   });
+
+  it('does not send a recording again under its ID as an event of the other type', () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
+    const room = new Room('!room:example.org', mx, '@me:example.org');
+    vi.spyOn(room, 'getMyMembership').mockReturnValue('join');
+    vi.spyOn(mx, 'getRoom').mockReturnValue(room);
+    const encryptedNow = vi.spyOn(room, 'hasEncryptionStateEvent').mockReturnValue(false);
+    const context = getRoomInputVoiceSendContext({
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: undefined,
+      replyDraft: undefined,
+    });
+    // A first send, and a retry in the room as it was: both go.
+    expect(refreshRoomInputVoiceSendContext(mx, context)).not.toBeNull();
+    expect(refreshRoomInputVoiceSendContext(mx, { ...context, encrypted: false })).not.toBeNull();
+    // The room was encrypted since. To the server the same ID as an encrypted event is another
+    // event, so the first may have arrived and this would be a second message.
+    encryptedNow.mockReturnValue(true);
+    expect(refreshRoomInputVoiceSendContext(mx, { ...context, encrypted: false })).toBeNull();
+    // A first send there goes, encrypted.
+    expect(refreshRoomInputVoiceSendContext(mx, context)).not.toBeNull();
+    expect(refreshRoomInputVoiceSendContext(mx, { ...context, encrypted: true })).not.toBeNull();
+  });
 });

@@ -26,25 +26,25 @@ export const getVoiceMessageContentOptions = (
  * message. A send that fails drops its unsent local echo; the recorder keeps the recording.
  */
 
-export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room: Room) => {
+export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store) => {
   // A recording that cannot be prepared (encrypted) fails at once; the recorder keeps it to retry.
   const createVoiceUploadItems = useCallback(
     async (
       file: File,
       duration: number,
       waveform: number[] | undefined,
-      targetRoom: Room = room,
-      txnId?: string
+      targetRoom: Room,
+      txnId: string
     ): Promise<TUploadItem[]> => {
       const items = await createRoomUploadItems([file], targetRoom, () => ({
         markedAsSpoiler: false,
-        voiceMessage: { duration, waveform, ...(txnId && { txnId }) },
+        voiceMessage: { duration, waveform, txnId },
       }));
       const failed = items.find((item) => item.prepError);
       if (failed?.prepError) throw failed.prepError;
       return items;
     },
-    [room]
+    []
   );
 
   /** Uploads `item.file`, or reuses a finished upload of it; resolves with its `mxc://` URI. */
@@ -126,7 +126,8 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
       // The one ID its recording keeps: to the server every attempt is the same event.
-      const txnId = item.metadata.voiceMessage?.txnId ?? mx.makeTxnId();
+      const txnId = item.metadata.voiceMessage?.txnId;
+      if (!txnId) throw new Error('Failed to send voice message.');
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);
         // The SDK resolves without one when the echo was cancelled before it went.

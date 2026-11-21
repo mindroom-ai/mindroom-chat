@@ -5,15 +5,20 @@ import {
   hasVoiceDestination,
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
-  type PendingVoiceSendInFlight,
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
-import type { transitionVoiceRecording, VoiceJournalDestination } from './voiceRecordingJournal';
+import type {
+  transitionVoiceRecording,
+  VoiceJournalDestination,
+  VoiceTransitionOutcome,
+} from './voiceRecordingJournal';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 const SEND_FAILED_MESSAGE = 'Failed to send voice message.';
 /** What a recording says when a change to it did not reach the disk: the state before stands. */
 export const VOICE_NOT_SAVED_MESSAGE = 'Could not save this change to your recording. Try again.';
+/** What a recording says that a confirmed Discard could not delete: it is still there. */
+export const VOICE_NOT_DELETED_MESSAGE = "Couldn't delete the recording.";
 /** What a recording says whose send a crash, a reload or an app update cut short. */
 export const VOICE_SEND_INTERRUPTED_MESSAGE = 'Sending this voice message was interrupted.';
 
@@ -22,9 +27,9 @@ export type VoiceSendAttemptKeys = {
   /** The Matrix transaction ID of the voice event, the same on every attempt. */
   txnId: string;
   /**
-   * Keeps where the event really goes, once that is known and before anything is sent: after a
-   * crash the recording is retried there, under the same ID. Rejects when the disk holds the
-   * recording and that could not be written to it: nothing is sent then.
+   * Keeps where the event really goes, each time that is known and before the event is sent:
+   * after a crash the recording is retried there, under the same ID. Rejects when the disk holds
+   * the recording and that could not be written to it: nothing is sent then.
    */
   commit: (destination: PendingVoiceSendContext) => Promise<void>;
 };
@@ -78,16 +83,16 @@ const getVoiceSendErrorMessage = (error: unknown): string => {
   return SEND_FAILED_MESSAGE;
 };
 
-const createRetryToken = (): PendingVoiceSendInFlight => ({ token: randomUuid() });
 const newTxnId = () => `mindroom-voice-${randomUuid()}`;
 
 /** Where a recording goes as the journal keeps it: the IDs of what it relates to, no text. */
-const destinationAtRest = ({
+export const destinationAtRest = ({
   roomId,
   threadId,
   replyDraft,
   threadingEnabled,
   threadView,
+  encrypted,
 }: PendingVoiceSendContext): VoiceJournalDestination => ({
   roomId,
   threadId,
@@ -98,6 +103,7 @@ const destinationAtRest = ({
       : undefined,
   threadingEnabled,
   threadView,
+  encrypted,
 });
 
 type PlacedVoiceDraft = PendingVoiceSendDraft & { context: PendingVoiceSendContext; txnId: string };
@@ -123,20 +129,21 @@ export const createVoiceSendDraftController = (
     before: PendingVoiceSendDraft = draft
   ): Promise<PendingVoiceSendDraft | undefined> => {
     const { recordingId, file, duration, waveform, context, txnId } = draft;
-    let { unprotected } = draft;
+    let outcome: VoiceTransitionOutcome | undefined;
     let kept = before;
     try {
       const eventId = await sendRecording(file, duration, waveform, context, {
         txnId,
         commit: async (destination) => {
-          const outcome = await transition(recordingId, (record) => ({
+          // As what the event goes out, which a retry under this ID has to go out as again.
+          const to = { ...destination, encrypted: destination.room.hasEncryptionStateEvent() };
+          outcome = await transition(recordingId, (record) => ({
             ...record,
-            destination: destinationAtRest(destination),
+            destination: destinationAtRest(to),
             txnId,
           }));
-          unprotected = outcome !== 'committed';
           if (outcome === 'failed') throw new Error(VOICE_NOT_SAVED_MESSAGE);
-          kept = draft;
+          kept = { ...draft, context: to };
         },
       });
       if (!eventId) throw new Error(SEND_FAILED_MESSAGE);
@@ -146,9 +153,12 @@ export const createVoiceSendDraftController = (
       }
       return undefined;
     } catch (error) {
+      // Stopped before its destination was known: all of its audio goes to the disk first, and
+      // it says it is saved only if that took it.
+      outcome ??= await transition(recordingId);
       return {
         ...kept,
-        unprotected,
+        unprotected: outcome !== 'committed',
         inFlight: undefined,
         errorMessage: getVoiceSendErrorMessage(error),
       };
@@ -187,12 +197,12 @@ export const createVoiceSendDraftController = (
         return false;
       }
 
-      const inFlight = createRetryToken();
+      const inFlight = { token: randomUuid() };
       // A recording goes on where its send was attempted, under that transaction ID. Anywhere
       // else it is another event: a first send, or a copy of one that may have arrived.
       const placed = hasVoiceDestination(draft.context)
         ? { ...draft, context: draft.context, txnId: draft.txnId ?? newTxnId() }
-        : { ...draft, context: attempt.context(), txnId: newTxnId(), attemptedRoomName: undefined };
+        : { ...draft, context: attempt.context(), txnId: newTxnId() };
       drafts.write({ ...placed, errorMessage: undefined, inFlight });
       if (drafts.read()?.inFlight?.token !== inFlight.token) {
         attempt.onFailure();

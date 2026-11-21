@@ -83,7 +83,9 @@ export const confirmedVoiceThreadId = (room: Room, threadId: string | undefined)
 /**
  * Re-resolve a captured voice send context against the live Matrix client
  * just before sending. Returns null if the source room is no longer
- * available (missing or non-Joined). This is the boundary that closes the
+ * available (missing or non-Joined), or was encrypted since the send it
+ * retries: under that send's ID the event would be another one, and the
+ * first may have arrived. This is the boundary that closes the
  * stale-snapshot window: encryption upgrades, membership changes, or
  * signal-bridge roster changes between original failure and retry are all
  * picked up here. handleVoiceSend in the parent uses this so the bridge-
@@ -95,6 +97,8 @@ export const refreshRoomInputVoiceSendContext = (
 ): PendingVoiceSendContext | null => {
   const liveRoom = mx.getRoom(context.roomId);
   if (!liveRoom || !isJoined(liveRoom)) return null;
+  const { encrypted } = context;
+  if (encrypted !== undefined && encrypted !== liveRoom.hasEncryptionStateEvent()) return null;
   return {
     ...context,
     room: liveRoom,

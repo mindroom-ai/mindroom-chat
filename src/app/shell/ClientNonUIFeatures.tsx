@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useStore } from 'jotai';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
 import { ActivityRowsFeature } from '../activity/ActivityRowsFeature';
@@ -20,6 +21,7 @@ import { keepEncryptedRoomTextOffDisk } from '../matrix/client/encryptedRoomText
 import { forgetEncryptedRecentThreadText } from '../event-store/threads/recentThreads';
 import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
 import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
+import { keepRecoveringVoiceDrafts } from '../composer/voice/voiceDrafts';
 import { QuickCaptureHost } from '../quick-capture/QuickCaptureHost';
 import { WatchHandoffFeature } from '../account/watch/WatchHandoffFeature';
 
@@ -42,10 +44,14 @@ function EncryptedRoomTextOffDiskFeature() {
  * sync, decryption and send failures when the deployment collects them, no text of the
  * encrypted rooms in the account's stores on disk, and the quick capture widget's host
  * (`QuickCaptureHost`), which serves the widget from this client, and the threads the Apple Watch
- * hands off (`WatchHandoffFeature`). The account's MindRoom
+ * hands off (`WatchHandoffFeature`), and the voice recordings a crash, a reload or an app update
+ * left on disk, which come back from here. The account's MindRoom
  * settings are seeded behind the `ClientBindAtoms` gate instead, since the first render reads them.
  */
 export function ClientNonUIFeatures() {
+  const mx = useMatrixClient();
+  const store = useStore();
+  useEffect(() => keepRecoveringVoiceDrafts(mx, store), [mx, store]);
   return (
     <>
       <CrossRoomThreadIndexFeature />

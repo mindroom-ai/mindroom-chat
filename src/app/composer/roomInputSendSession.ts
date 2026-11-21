@@ -1,4 +1,4 @@
-import { IEventRelation, RelationType } from 'matrix-js-sdk';
+import { RelationType } from 'matrix-js-sdk';
 import { IReplyDraft } from './roomInputDrafts';
 import { Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent } from '../matrix/matrix';
@@ -31,34 +31,13 @@ export type RoomInputSendStep =
   | { kind: 'wait' }
   | { kind: 'complete' };
 
-const hasMatchingReplyRelation = (
-  expected?: IEventRelation,
-  current?: IEventRelation
-): boolean => {
-  if (!expected && !current) return true;
-  if (!expected || !current) return false;
-
-  return (
-    expected.rel_type === current.rel_type &&
-    expected.event_id === current.event_id &&
-    expected.is_falling_back === current.is_falling_back &&
-    expected['m.in_reply_to']?.event_id === current['m.in_reply_to']?.event_id
-  );
-};
-
-export const hasMatchingReplyDraft = (
-  expected?: IReplyDraft,
-  current?: IReplyDraft
-): boolean => {
-  if (!expected && !current) return true;
-  if (!expected || !current) return false;
-
-  return (
-    expected.userId === current.userId &&
-    expected.eventId === current.eventId &&
-    hasMatchingReplyRelation(expected.relation, current.relation)
-  );
-};
+/**
+ * Whether `current` is the reply a send consumed: a reply to the same event. Its sender and its
+ * relation are that event's, so they say nothing more, and a recording that came back from disk
+ * knows only the ID.
+ */
+export const hasMatchingReplyDraft = (expected?: IReplyDraft, current?: IReplyDraft): boolean =>
+  expected?.eventId === current?.eventId;
 
 export const hasExplicitThreadContext = (
   threadId?: string,

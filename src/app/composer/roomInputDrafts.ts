@@ -8,6 +8,7 @@ import { atomFamily } from 'jotai/utils';
 import type { Descendant } from 'slate';
 import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
+import type { VoiceJournalDestination } from './voice/voiceRecordingJournal';
 import { isRecord } from '../lib/isRecord';
 import {
   getSafeLocalStorage,
@@ -49,16 +50,24 @@ export type PendingVoiceSendContext = {
    * send it comes back in a view of that thread, or on the room's page while it shows that thread.
    */
   threadView?: boolean;
+  /** Set once its send intent is on disk: whether that send went out as an encrypted event. */
+  encrypted?: boolean;
 };
 
-export type PendingVoiceSendInFlight = { token: string };
+/** A send in flight, or the delete of a confirmed Discard: nothing else acts on the recording. */
+export type PendingVoiceSendInFlight = { token: string; discard?: true };
 
 /**
- * All that is known of a recording without a destination, its account: one that was never sent
- * (its recorder stopped by itself, or a crash or a reload ended it), or whose room is gone.
- * Every composer shows it.
+ * A recording without a destination here, which every composer shows. One that was never sent
+ * (its recorder stopped by itself, or a crash or a reload ended it) is only its account's. One
+ * that was `attempted` may have arrived where it was going, a room this account cannot send it
+ * to now, under that send's ID: not loaded yet, gone, left, or encrypted since.
  */
-export type UnplacedVoiceContext = { ownerSessionId: string; roomId?: undefined };
+export type UnplacedVoiceContext = {
+  ownerSessionId: string;
+  roomId?: undefined;
+  attempted?: VoiceJournalDestination & { roomName?: string };
+};
 
 /**
  * A recorded voice message that waits to be sent: its send failed, or it has no destination yet.
@@ -71,13 +80,10 @@ export type PendingVoiceSendDraft = {
   waveform?: number[];
   context: PendingVoiceSendContext | UnplacedVoiceContext;
   /**
-   * The Matrix transaction ID of its send, written to the journal before the first attempt. A
-   * recording that has one and no destination may already be sent where it was going, a room
-   * this account cannot send into now: sent anywhere else, it is a copy, under a new ID.
+   * The Matrix transaction ID of its send, written to the journal before the first attempt.
+   * Sent anywhere but where that was, the recording is a copy, under a new ID.
    */
   txnId?: string;
-  /** The name of that room, if it is known. */
-  attemptedRoomName?: string;
   /** The disk does not hold all of it: a crash would lose it. */
   unprotected?: boolean;
   errorMessage?: string;
@@ -397,17 +403,6 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 
 /** Recordings that wait for that slot, the next one first (voice/voiceDrafts.ts). */
 export const queuedVoiceDraftsAtom = atom<PendingVoiceSendDraft[]>([]);
-
-/** Recordings that were discarded, each while its Undo is offered, and until when. */
-export const discardedVoiceDraftsAtom = atom<
-  // `timer` deletes it at `until`; `failed` once its Undo could not be written to disk.
-  {
-    draft: PendingVoiceSendDraft;
-    until: number;
-    timer: ReturnType<typeof setTimeout>;
-    failed?: boolean;
-  }[]
->([]);
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);

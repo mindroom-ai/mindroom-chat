@@ -201,6 +201,8 @@ describe('text read out of encrypted rooms stays off disk', () => {
         replyThreadId: `$root-${roomId}`,
         threadingEnabled: true,
         threadView: undefined,
+        // As what the event went out, which is no text of the room.
+        encrypted: roomId === SECRET,
       });
       const { body, formattedBody, previewText } = quoted(roomId);
       [body, formattedBody, previewText].forEach((text) => {

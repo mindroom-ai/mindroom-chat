@@ -17,7 +17,7 @@ const createUploadItem = (file: File, duration?: number, waveform?: number[]): T
     markedAsSpoiler: false,
     // A voice message is the only kind that carries a duration and a waveform.
     ...(typeof duration === 'number'
-      ? { voiceMessage: { duration, ...(waveform ? { waveform } : {}) } }
+      ? { voiceMessage: { duration, txnId: 'txn-voice', ...(waveform ? { waveform } : {}) } }
       : {}),
   },
 });

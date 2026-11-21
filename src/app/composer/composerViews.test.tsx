@@ -68,7 +68,7 @@ const renderTwoComposers = () => {
         fileDropContainerRef: createRef<HTMLElement>(),
         createUploadItems: async () => [],
       }),
-      transport: useRoomInputUploadTransport(mx as never, store, room),
+      transport: useRoomInputUploadTransport(mx as never, store),
     };
     return null;
   };

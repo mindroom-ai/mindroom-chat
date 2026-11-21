@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { IContent, MatrixClient } from 'matrix-js-sdk';
+import { IContent, MatrixClient, RelationType } from 'matrix-js-sdk';
 import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
@@ -51,10 +51,9 @@ import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
-import { isJoined } from '../matrix/state/roomList';
 import { eventIdOfTransaction } from '../matrix/protocol/pendingLocalEcho';
 import type { VoiceSendAttemptKeys } from './voice/voiceSendDraftController';
-import { offerQueuedVoiceDraft, parkVoiceDraft } from './voice/voiceDrafts';
+import { reconcileVoiceDrafts } from './voice/voiceDrafts';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
@@ -125,7 +124,6 @@ export const useRoomInputVoice = ({
   const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
   const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
-  const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
   // Drafts are stamped with the matrix userId of the session that captured
   // them. The global atom is one slot for the whole router, so an account
   // switch in the sidebar leaves yesterday's draft visible to a new
@@ -212,41 +210,12 @@ export const useRoomInputVoice = ({
     if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
   }, [openRecorder, recorderToken]);
 
-  // A draft no composer of this account can offer. Another account's (the slot outlives a
-  // switch of accounts) leaves the slot and waits for its account. One whose room is gone, or
-  // no longer joined, loses its destination: every composer shows it, to discard or to send a
-  // copy of, since its send may have arrived there.
-  useEffect(() => {
-    if (!pendingVoiceSendDraft) return;
-    if (!draftBelongsToCurrentSession) {
-      setPendingVoiceSendDraft(undefined);
-      parkVoiceDraft(store, pendingVoiceSendDraft);
-      return;
-    }
-    if (!draftContext) return;
-    const sourceRoom = mx.getRoom(draftContext.roomId);
-    if (!sourceRoom || !isJoined(sourceRoom)) {
-      setPendingVoiceSendDraft({
-        ...pendingVoiceSendDraft,
-        context: { ownerSessionId: draftContext.ownerSessionId },
-        errorMessage: undefined,
-        attemptedRoomName: sourceRoom?.name,
-      });
-    }
-  }, [
-    draftBelongsToCurrentSession,
-    draftContext,
-    mx,
-    pendingVoiceSendDraft,
-    setPendingVoiceSendDraft,
-    store,
-  ]);
-
-  // The recordings that wait take the slot one at a time (voice/voiceDrafts.ts).
+  // The slot follows the account and its rooms, and the recordings that wait take it one at a
+  // time (voice/voiceDrafts.ts).
   const queuedVoiceDrafts = useAtomValue(queuedVoiceDraftsAtom);
   useEffect(() => {
-    offerQueuedVoiceDraft(store, currentSessionId);
-  }, [currentSessionId, openRecorder, pendingVoiceSendDraft, queuedVoiceDrafts, store]);
+    reconcileVoiceDrafts(mx, store);
+  }, [mx, openRecorder, pendingVoiceSendDraft, queuedVoiceDrafts, store]);
 
   // Provide the recording room at start and the latest relation again when Send is claimed.
   // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
@@ -456,6 +425,7 @@ export const useRoomInputVoice = ({
             if (composerBundle) {
               composerBundle.handedOff = true;
             }
+            const voiceContext = liveContext;
             await startSendSession({
               textContent: composerBundle?.textContent,
               batch: {
@@ -469,6 +439,12 @@ export const useRoomInputVoice = ({
                 ? { roomId: composerBundle.roomId, threadId: composerBundle.composerThreadId }
                 : undefined,
               composerAlreadyReset: composerBundle?.composerReset,
+              // A file sent before it may have opened a thread, which the recording goes to:
+              // that is where a retry has to go too.
+              onUploadPlaced: async (placed, relation) => {
+                if (placed !== fileItem.file || relation?.rel_type !== RelationType.Thread) return;
+                await commit({ ...voiceContext, threadId: relation.event_id });
+              },
               onUploadSent: (sentFile, eventId) => {
                 if (sentFile === fileItem.file) voiceEventId = eventId;
               },

@@ -73,16 +73,13 @@ export function useVoiceRecorder({
     return createVoiceCaptureSession({
       // Every chunk goes to disk as it arrives, so a crash loses at most the last second.
       journal: voiceCaptureJournal(owner),
-      // Audio that was not sent is never dropped: a discard offers Undo, and what a recorder had
-      // when it stopped by itself, or lost its composer, waits to be sent or discarded.
+      // Audio that was not sent is never dropped: only a Discard the person confirmed deletes
+      // it, and what a recorder had when it stopped by itself, or lost its composer, waits to be
+      // sent or discarded.
       keep: (recording, discarded) => {
         const draft = { ...recording, context: { ownerSessionId: owner() } };
-        if (discarded) {
-          void discardVoiceDraft(store, draft);
-          return;
-        }
-        void keepVoiceDraft(store, draft);
-        latestOnRecordingParkedRef.current?.();
+        void (discarded ? discardVoiceDraft : keepVoiceDraft)(store, draft);
+        if (!discarded) latestOnRecordingParkedRef.current?.();
       },
     });
   });
@@ -93,16 +90,18 @@ export function useVoiceRecorder({
   );
   const [sending, setSending] = useState(false);
   const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
-  const phase: VoiceRecorderPhase =
-    pendingDraft?.inFlight || sending ? 'sending' : captureSnapshot.phase;
+  let phase: VoiceRecorderPhase = captureSnapshot.phase;
+  if (pendingDraft?.inFlight?.discard) phase = 'processing';
+  else if (pendingDraft?.inFlight || sending) phase = 'sending';
   const { elapsedMs, waveform, sampleCount, canPause } = captureSnapshot;
   const hasPendingSend = !!pendingDraft;
   // Of the parked recording, or of the one being recorded.
   const unprotected = pendingDraft ? !!pendingDraft.unprotected : captureSnapshot.unprotected;
-  const pendingUnplaced = !!pendingDraft && !hasVoiceDestination(pendingDraft.context);
-  // It may already be sent where this account cannot send now: here it is sent as a copy.
-  const pendingAttempted = pendingUnplaced && pendingDraft.txnId !== undefined;
-  const pendingAttemptedRoom = pendingDraft?.attemptedRoomName;
+  const unplaced =
+    pendingDraft && !hasVoiceDestination(pendingDraft.context) ? pendingDraft.context : undefined;
+  const pendingUnplaced = !!unplaced;
+  // It may already be sent where this account cannot send it now: here it is sent as a copy.
+  const pendingAttempted = unplaced?.attempted;
   const pendingDuration = pendingDraft?.duration ?? 0;
   const pendingWaveform = pendingDraft?.waveform ?? createFallbackWaveform();
   const errorMessage = pendingDraft?.errorMessage ?? captureSnapshot.errorMessage;
@@ -227,7 +226,7 @@ export function useVoiceRecorder({
   const discardPending = useCallback(() => {
     sendBindingAtStartRef.current = undefined;
     const draft = store.get(pendingVoiceSendDraftAtom);
-    // Out of the slot once the disk says it is discarded, and deleted once its Undo ran out.
+    // Out of the slot once it is deleted.
     if (draft) void discardVoiceDraft(store, draft);
     capture.reset();
     safeSetPhase('idle');
@@ -252,7 +251,6 @@ export function useVoiceRecorder({
     hasPendingSend,
     pendingUnplaced,
     pendingAttempted,
-    pendingAttemptedRoom,
     pendingDuration,
     pendingWaveform,
     start,

@@ -35,7 +35,7 @@ describe('useRoomInputUploadTransport voice sends', () => {
     };
     let transport!: ReturnType<typeof useRoomInputUploadTransport>;
     const Harness = () => {
-      transport = useRoomInputUploadTransport(mx as never, createStore(), room as never);
+      transport = useRoomInputUploadTransport(mx as never, createStore());
       return null;
     };
     act(() => {
@@ -54,13 +54,50 @@ describe('useRoomInputUploadTransport voice sends', () => {
           threadingEnabled: true,
           signalBridgedRoom: false,
         },
-        { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+        {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false, voiceMessage: { duration: 900, txnId: 'txn-voice' } },
+        },
         'mxc://example.org/voice'
       )
     ).rejects.toBe(failure);
 
     expect(mx.sendMessage.mock.calls[0]![2]).toBe('txn-voice');
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-voice'));
+  });
+
+  it('sends nothing for a recording that has no transaction ID of its own', async () => {
+    const mx = { makeTxnId: vi.fn(), sendMessage: vi.fn(), cancelPendingEvent: vi.fn() };
+    const room = { roomId: '!room:example.org', getEventForTxnId: vi.fn() };
+    let transport!: ReturnType<typeof useRoomInputUploadTransport>;
+    const Harness = () => {
+      transport = useRoomInputUploadTransport(mx as never, createStore());
+      return null;
+    };
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
+    const file = new File(['voice'], 'voice.ogg', { type: 'audio/ogg' });
+    await expect(
+      transport.sendVoiceItem(
+        {
+          ownerSessionId: '@alice:example.org',
+          roomId: room.roomId,
+          room: room as never,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+        'mxc://example.org/voice'
+      )
+    ).rejects.toThrow('Failed to send voice message.');
+    // Not under an ID made up here, which no retry could send it under again.
+    expect(mx.makeTxnId).not.toHaveBeenCalled();
+    expect(mx.sendMessage).not.toHaveBeenCalled();
   });
 
   it("sends every attempt under the recording's transaction ID, and takes only an event ID for sent", async () => {
@@ -92,7 +129,7 @@ describe('useRoomInputUploadTransport voice sends', () => {
     };
     let transport!: ReturnType<typeof useRoomInputUploadTransport>;
     const Harness = () => {
-      transport = useRoomInputUploadTransport(mx as never, createStore(), room as never);
+      transport = useRoomInputUploadTransport(mx as never, createStore());
       return null;
     };
     act(() => {

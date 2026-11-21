@@ -24,7 +24,7 @@ const sendVoice = async (signalBridgedRoom: boolean) => {
   const room = { roomId: '!room:example.org' };
   let transport!: ReturnType<typeof useRoomInputUploadTransport>;
   const Harness = () => {
-    transport = useRoomInputUploadTransport(mx as never, createStore(), room as never);
+    transport = useRoomInputUploadTransport(mx as never, createStore());
     return null;
   };
   act(() => {
@@ -45,7 +45,7 @@ const sendVoice = async (signalBridgedRoom: boolean) => {
       file,
       originalFile: file,
       encInfo: undefined,
-      metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1200 } },
+      metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1200, txnId: 'txn-voice' } },
     },
     'mxc://example.org/voice'
   );

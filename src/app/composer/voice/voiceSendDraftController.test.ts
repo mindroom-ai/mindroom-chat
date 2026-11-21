@@ -47,6 +47,8 @@ const createVoiceSendDraftController = (store: VoiceDraftStore, journal = create
   createController(store, journal.transition);
 /** Lets a journal write, or a send that waits for one, finish. */
 const journalWritten = () => Promise.resolve();
+/** A first attempt with `sendRecording`. */
+const attempt = (sendRecording: SendRecordingCallback) => ({ sendRecording, onFailure: vi.fn() });
 /** A send the server acknowledged. */
 const sent = () => vi.fn<SendRecordingCallback>(async () => '$voice');
 /** A send as the composer does it: where it really goes is committed, then it is dispatched. */
@@ -62,7 +64,7 @@ const committedSend = (resolve = (context: PendingVoiceSendContext) => context) 
 const createContext = (roomId = '!voice:example.org'): PendingVoiceSendContext => ({
   ownerSessionId: '@voice:example.org',
   roomId,
-  room: { roomId } as PendingVoiceSendContext['room'],
+  room: { roomId, hasEncryptionStateEvent: () => false } as PendingVoiceSendContext['room'],
   threadId: '$thread',
   replyDraft: undefined,
   threadingEnabled: true,
@@ -154,6 +156,8 @@ describe('voiceSendDraftController', () => {
       context,
       txnId: expect.any(String),
       errorMessage: 'voice upload failed',
+      inFlight: undefined,
+      unprotected: false,
     });
     expect(store.read()?.file).toBe(recording.file);
     expect(store.read()?.waveform).toBe(recording.waveform);
@@ -238,7 +242,12 @@ describe('voiceSendDraftController', () => {
       })
     ).toBe(false);
     // Nothing of this attempt was written or sent: it is the draft it was, with the new error.
-    expect(store.read()).toEqual({ ...draft, errorMessage: 'retry failed', inFlight: undefined });
+    expect(store.read()).toEqual({
+      ...draft,
+      errorMessage: 'retry failed',
+      inFlight: undefined,
+      unprotected: false,
+    });
     expect(onFailure).toHaveBeenCalledOnce();
   });
 
@@ -415,6 +424,8 @@ describe('voiceSendDraftController and the journal', () => {
     replyThreadId: undefined,
     threadingEnabled: true,
     threadView: undefined,
+    // As what the event went out: a retry under the same ID has to go out as that again.
+    encrypted: false,
   };
 
   it('writes where it really goes, in IDs, and its txnId before anything is sent', async () => {
@@ -504,6 +515,58 @@ describe('voiceSendDraftController and the journal', () => {
       new Set([txnId])
     );
   });
+
+  it('keeps as what the event went out, and where it went last, for the retry', async () => {
+    const journal = createJournal();
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store, journal);
+    const context = createContext();
+    const encryptedRoom = { ...context.room, hasEncryptionStateEvent: () => true };
+    const final = { ...context, room: encryptedRoom as never, threadId: '$opened-by-attachment' };
+    // A file sent before it opened a thread: the composer commits once more, where it goes now.
+    const sendRecording = vi.fn<SendRecordingCallback>(async (_f, _d, _w, to, attempt) => {
+      await attempt.commit({ ...to, room: encryptedRoom as never });
+      await attempt.commit(final);
+      throw new Error('offline');
+    });
+    expect(await controller.sendInitial(createRecording(), context, attempt(sendRecording))).toBe(
+      false
+    );
+    expect(journal.record()?.destination).toEqual({
+      ...destination,
+      threadId: '$opened-by-attachment',
+      encrypted: true,
+    });
+    // The draft is retried there, not where it was first aimed.
+    expect(store.read()?.context).toEqual({ ...final, encrypted: true });
+  });
+
+  it.each([
+    ['committed', false],
+    ['failed', true],
+    ['absent', true],
+  ] as const)(
+    'asks the disk for all of a recording whose send stopped before its destination was known: %s',
+    async (outcome, unprotected) => {
+      const journal = createJournal();
+      journal.outcome = outcome;
+      const store = createDraftStore();
+      const controller = createVoiceSendDraftController(store, journal);
+      // The room is gone, or the thread's root is unsent: the composer throws before `commit`.
+      const sendRecording = vi.fn<SendRecordingCallback>(async () => {
+        throw new Error('This room is no longer available.');
+      });
+      await controller.sendInitial(createRecording(), createContext(), attempt(sendRecording));
+      // The audio only, no destination: nothing was attempted.
+      expect(journal.transition).toHaveBeenCalledExactlyOnceWith('rec-voice');
+      expect(journal.record()).toBe(journal.fresh);
+      // It says it is saved only if the disk took it.
+      expect(store.read()).toMatchObject({
+        errorMessage: 'This room is no longer available.',
+        unprotected,
+      });
+    }
+  );
 
   it('sends a recording the disk never held from memory, and says it is not protected', async () => {
     const journal = createJournal();
@@ -653,9 +716,11 @@ describe('voiceSendDraftController and the journal', () => {
     const journal = createJournal();
     const store = createDraftStore({
       ...createRecording(),
-      context: { ownerSessionId: '@voice:example.org' },
+      context: {
+        ownerSessionId: '@voice:example.org',
+        attempted: { ...destination, roomId: '!gone:example.org', roomName: 'Harbour office' },
+      },
       txnId: 'txn-attempted',
-      attemptedRoomName: 'Harbour office',
     });
     const controller = createVoiceSendDraftController(store, journal);
     const pressed = createContext('!pressed:example.org');
@@ -692,8 +757,8 @@ describe('voiceSendDraftController and the journal', () => {
       txnId: copyTxnId,
     });
     // From here on it is that room's, to retry there under the copy's ID.
-    expect(store.read()).toMatchObject({ context: pressed, txnId: copyTxnId });
-    expect(store.read()?.attemptedRoomName).toBeUndefined();
+    expect(store.read()).toMatchObject({ txnId: copyTxnId });
+    expect(store.read()?.context).toEqual({ ...pressed, encrypted: false });
     expect(await controller.retry(attempt)).toBe(true);
     expect(sendRecording.mock.calls[1]![4].txnId).toBe(copyTxnId);
   });

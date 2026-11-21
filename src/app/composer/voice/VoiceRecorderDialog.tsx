@@ -16,7 +16,7 @@ import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
-import type { SendRecordingCallback } from './voiceSendDraftController';
+import { VOICE_NOT_DELETED_MESSAGE, type SendRecordingCallback } from './voiceSendDraftController';
 
 type VoiceRecorderComposerProps = {
   active: boolean;
@@ -55,6 +55,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 ) => {
   const { t } = useTranslation();
   const autoStartTriggeredRef = useRef(false);
+  const [discardAsked, setDiscardAsked] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
   // capsule + parked draft remain visible; the user can re-open the overlay
   // by retrying through primary composer Send. A fresh failure surfaces a fresh
@@ -77,8 +78,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     unprotected,
     hasPendingSend,
     pendingUnplaced,
-    pendingAttempted,
-    pendingAttemptedRoom,
+    pendingAttempted: attempted,
     pendingDuration,
     pendingWaveform,
     start,
@@ -100,14 +100,19 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     getSendContext,
   });
   const displayErrorMessage = localizeVoiceErrorMessage(t, errorMessage);
+  const pendingAttempted = !!attempted;
 
   const errorMessageRef = useRef(errorMessage);
   useEffect(() => {
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
-  // A discard asks nothing: it can be undone, of a parked recording as of one being recorded.
-  const discardAndClose = () => {
+  // A Discard deletes the recording for good, so it asks first, of one being recorded too.
+  const askDiscard = () => setDiscardAsked(true);
+  const confirmDiscard = () => {
+    setDiscardAsked(false);
+    // One that fails as the one before did shows again.
+    setDeferredErrorMessage(undefined);
     void (async () => {
       if (hasPendingSend) discardPending();
       else await discard();
@@ -160,6 +165,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         // recording that fails with the same canonical message still
         // surfaces the failure overlay.
         setDeferredErrorMessage(undefined);
+        setDiscardAsked(false);
       }
       return;
     }
@@ -173,8 +179,12 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     return null;
   }
 
-  const showPendingSendError =
+  const showPendingError =
     !!errorMessage && hasPendingSend && errorMessage !== deferredErrorMessage;
+  // A Discard the disk refused asks again, with Retry: its recording is never sent from here.
+  const discardFailed = hasPendingSend && errorMessage === VOICE_NOT_DELETED_MESSAGE;
+  const showDiscard = discardAsked || (discardFailed && showPendingError);
+  const showPendingSendError = showPendingError && !showDiscard;
   const showNoBlobError = !!errorMessage && !hasPendingSend;
 
   // captureDeferDismiss reads errorMessage via errorMessageRef declared
@@ -242,7 +252,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                   <Box justifyContent="End" gap="200">
                     <Button
                       variant="Secondary"
-                      onClick={discardAndClose}
+                      onClick={askDiscard}
                       fill="Soft"
                       outlined
                       radii="300"
@@ -265,6 +275,51 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               </Dialog>
             </div>
           </FocusTrap>
+        </OverlayCenter>
+      </Overlay>
+
+      <Overlay open={showDiscard} backdrop={<OverlayBackdrop />}>
+        <OverlayCenter>
+          <Dialog variant="Surface">
+            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
+              <Text size="H5">
+                {t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')}
+              </Text>
+              <Text size="T300">
+                {discardFailed
+                  ? displayErrorMessage
+                  : t(
+                      'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
+                    )}
+              </Text>
+              <Box justifyContent="End" gap="200">
+                <Button
+                  variant="Secondary"
+                  onClick={() => {
+                    setDiscardAsked(false);
+                    // The recording stays, to send or to discard later.
+                    if (discardFailed) setDeferredErrorMessage(errorMessage);
+                  }}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
+                  {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
+                </Button>
+                <Button
+                  variant="Critical"
+                  onClick={confirmDiscard}
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                >
+                  {discardFailed
+                    ? t('mindroomUi.voice.voiceRecorderDialog.retry')
+                    : t('mindroomUi.voice.voiceRecorderDialog.discard')}
+                </Button>
+              </Box>
+            </Box>
+          </Dialog>
         </OverlayCenter>
       </Overlay>
 
@@ -295,7 +350,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
             {pendingAttempted && (
               <Text size="T200">
                 {t('composer.voiceMayBeSent', {
-                  room: pendingAttemptedRoom ?? t('composer.voiceAnotherRoom'),
+                  room: attempted?.roomName ?? t('composer.voiceAnotherRoom'),
                 })}
               </Text>
             )}
@@ -309,7 +364,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               sendCopyLabel={pendingAttempted ? t('composer.voiceSendCopy') : undefined}
               onSendCopy={() => void submit(true)}
               hasPendingSend={hasPendingSend}
-              onDiscard={discardAndClose}
+              onDiscard={askDiscard}
               onPause={pause}
               onResume={resume}
             />

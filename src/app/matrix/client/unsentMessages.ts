@@ -79,7 +79,8 @@ export const clearUnsentMessages = (userId: string): void => {
  * A message worth keeping: text, a long text sent as its file, or an attachment already uploaded.
  * Not an edit, and not an encrypted attachment, whose content holds the key to its file (a long
  * text's file holds only the text, which the drafts keep in the clear too). Not a voice message
- * either: its recording is kept until it is sent, and comes back as a recording.
+ * either: its recording is kept until it is sent, and comes back as a recording. One an older
+ * version kept here stays until it is sent or deleted.
  */
 const isKeptMessage = (event: MatrixEvent): boolean => {
   if (event.getType() !== 'm.room.message') return false;
@@ -87,6 +88,36 @@ const isKeptMessage = (event: MatrixEvent): boolean => {
   if (content['m.relates_to']?.rel_type === RelationType.Replace) return false;
   if (content[MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME]) return false;
   return content.file === undefined || isRecord(content['io.mindroom.long_text']);
+};
+
+/**
+ * The unsent voice message of `size` bytes in a room that an older version kept here, beside the
+ * recording it kept of the same send when a retry was cut short: that send's transaction ID, and
+ * what forgets the message here, row and unsent echo, once the recording holds the ID. Sent
+ * again under it, the recording is the same event to the server.
+ */
+export const unsentVoiceCopy = (mx: MatrixClient, roomId: string, size: number) => {
+  const userId = mx.getUserId();
+  const copy = readUnsent(userId ?? '').find(
+    ({ content, ...message }) =>
+      message.roomId === roomId &&
+      content[MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME] &&
+      isRecord(content.info) &&
+      content.info.size === size
+  );
+  if (!userId || !copy) return undefined;
+  const { txnId } = copy;
+  return {
+    txnId,
+    forget: () => {
+      writeUnsent(
+        userId,
+        readUnsent(userId).filter((message) => message.txnId !== txnId)
+      );
+      const echo = mx.getRoom(roomId)?.getEventForTxnId(txnId);
+      if (echo) mx.cancelPendingEvent(echo);
+    },
+  };
 };
 
 /** Puts an unsent message back as an unsent local echo, the way the SDK adds one when sending. */
@@ -132,7 +163,7 @@ export const keepUnsentMessages = (mx: MatrixClient): (() => void) => {
     if (SENDING_STATUSES.has(event.status)) sending.add(event);
     else sending.delete(event);
     const txnId = event.getTxnId() ?? txnIds.get(event);
-    if (!txnId || !isKeptMessage(event)) return;
+    if (!txnId) return;
     txnIds.set(event, txnId);
     const messages = readUnsent(userId);
     const index = messages.findIndex((message) => message.txnId === txnId);
@@ -144,7 +175,8 @@ export const keepUnsentMessages = (mx: MatrixClient): (() => void) => {
         );
       return;
     }
-    if (index >= 0) return;
+    // Only what is kept is added; whatever is here goes once it is sent or deleted.
+    if (index >= 0 || !isKeptMessage(event)) return;
     // In the order they were sent, which is the order they come back in.
     writeUnsent(userId, [
       ...messages,
