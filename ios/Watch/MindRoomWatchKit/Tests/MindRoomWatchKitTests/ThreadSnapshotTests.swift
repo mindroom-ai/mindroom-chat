@@ -429,10 +429,15 @@ final class ThreadSnapshotTests: XCTestCase {
         // A version-2 trace counts nothing: its calls are the lines of its text.
         XCTAssertEqual(reply(agent, ["msgtype": "m.text", "body": "Done.", "io.mindroom.tool_trace": [
             "version": 2, "events": placed] as JSON], nil)?.tools, 0)
-        // Only an agent of this person's homeserver has a tool trace.
-        for sender in ["@anna:x", "@mindroom_mind:elsewhere.example"] {
-            XCTAssertEqual(reply(sender, held, nil)?.tools, 0)
+        // An agent of another homeserver counts the same in its text or out of it: a count trusts nothing.
+        let elsewhere = "@mindroom_mind:elsewhere.example"
+        XCTAssertEqual(reply(elsewhere, built, nil)?.tools, 2)
+        for asHeld in [reply(elsewhere, held, nil), reply(elsewhere, ["msgtype": "m.text", "body": "…"], held)] {
+            XCTAssertEqual(asHeld?.tools, 2)
+            XCTAssertEqual(asHeld?.text, asBuilt?.text)
         }
+        // A person has no tool trace.
+        XCTAssertEqual(reply("@anna:x", held, nil)?.tools, 0)
     }
 
     func testUndecryptableEventsAreSkipped() {

@@ -131,8 +131,9 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let sender = event["sender"] as? String ?? ""
             let content = effectiveContent(event, latestEdit: edit(event))
             var plain = PlainText.withToolCount(content["body"] as? String ?? "")
-            // An agent's calls whose lines MindRoom left out of the text.
-            if isAgent(sender) { plain.tools += toolCallsOutOfText(content) }
+            // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
+            // those lines whoever sent them, and a count shows no call and trusts no one.
+            if MindRoomAgent.hasAgentName(sender) { plain.tools += toolCallsOutOfText(content) }
             let audio = isAudio(event)
             if audio { plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0) }
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
