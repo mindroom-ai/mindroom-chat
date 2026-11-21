@@ -144,8 +144,8 @@ class NativeRecorder extends EventTarget {
   });
   async deliver(body = 'voice') {
     const data = new Blob([body]);
-    if (!this.persist || (await this.persist(data)))
-      this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
+    await this.persist?.(data).catch(() => undefined);
+    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
     this.dispatchEvent(new Event('stop'));
   }
 }
@@ -635,7 +635,6 @@ describe('voice capture session', () => {
     const append = vi.fn(async (_seq: number, _data: Blob, _duration: number) => true);
     const begin = vi.fn(() => ({
       id: recorder.id,
-      ready: Promise.resolve(true),
       append,
       remove: vi.fn(),
       release: vi.fn(),

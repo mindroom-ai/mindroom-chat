@@ -1797,9 +1797,7 @@ describe('logoutClient', () => {
       logout,
       stopClient,
     } as never);
-    await vi.waitFor(() =>
-      expect(clearNativeVoiceRecordings).toHaveBeenCalledExactlyOnceWith(userId)
-    );
+    await vi.waitFor(() => expect(clearNativeVoiceRecordings).toHaveBeenCalledExactlyOnceWith());
     expect(reload).not.toHaveBeenCalled();
     finishNativeClear();
     await signingOut;

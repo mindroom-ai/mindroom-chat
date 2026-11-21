@@ -244,6 +244,7 @@ describe('native recording recovery on composer mount', () => {
 
   beforeEach(() => {
     native.available = true;
+    native.stop.mockReset();
     let present = true;
     native.listLeftovers.mockReset().mockImplementation(async () => ({
       recordings: present ? [leftover] : [],
@@ -347,6 +348,39 @@ describe('native recording recovery on composer mount', () => {
     }
   );
 
+  it('stops immediately and lets capture.finish deliver audio when the journal append fails', async () => {
+    native.start.mockResolvedValue({ id: leftover.id });
+    native.stop.mockResolvedValue({ path: leftover.path });
+    native.level.mockResolvedValue({ level: 0 });
+    const put = IDBObjectStore.prototype.put;
+    const failAppend = vi.fn(() => {
+      throw new DOMException('Full disk', 'QuotaExceededError');
+    });
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey
+    ) {
+      if (this.name === 'chunks') return failAppend();
+      return put.call(this, value, key);
+    });
+    const { createVoiceCaptureSession } = await import('./voiceCaptureSession');
+    const { beginVoiceRecording } = await import('./voiceRecordingJournal');
+    const capture = createVoiceCaptureSession((at, mime, id) =>
+      beginVoiceRecording(userId, at, mime, id)
+    );
+    expect(await capture.start(userId)).toBe(true);
+    const finished = capture.finish();
+    const stoppedImmediately = native.stop.mock.calls.length === 1;
+    const result = await finished;
+    expect(failAppend).toHaveBeenCalledOnce();
+    expect(result.status).toBe('captured');
+    if (result.status !== 'captured') throw new Error('missing native recording');
+    expect(await result.recording.file.text()).toBe('native voice');
+    expect(stoppedImmediately).toBe(true);
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+  });
+
   it('keeps the native file if the journal write fails', async () => {
     const put = IDBObjectStore.prototype.put;
     const failWrite = vi
@@ -379,25 +413,24 @@ describe('native recording recovery on composer mount', () => {
     expect(native.cancel.mock.calls).toEqual([[{ id: leftover.id }], [{ id: leftover.id }]]);
   });
 
-  it.each([true, false])('does not read a stale path or a busy UUID (busy: %s)', async (busy) => {
-    vi.stubGlobal('navigator', {
-      locks: {
-        request: async (name: string, options: LockOptions, callback: LockGrantedCallback) => {
-          expect(name).toBe(`mindroom-voice-recording:${leftover.id}`);
-          expect(options.ifAvailable).toBe(true);
-          return callback(busy ? null : { name, mode: 'exclusive' });
-        },
-      },
-    });
-    if (!busy)
-      native.listLeftovers
-        .mockResolvedValueOnce({ recordings: [leftover] })
-        .mockResolvedValue({ recordings: [] });
+  it('does not read a file while its UUID lock is busy', async () => {
+    held.add(`mindroom-voice-recording:${leftover.id}`);
     const store = await reloadPage(getContext);
     expect(store.get(reloadedAtom())).toBeUndefined();
-    expect(native.listLeftovers).toHaveBeenCalledTimes(busy ? 1 : 2);
     expect(fetchAudio).not.toHaveBeenCalled();
     expect(native.cancel).not.toHaveBeenCalled();
+  });
+
+  it('reads a leftover from one listing and requires cancel to succeed before offering it', async () => {
+    native.listLeftovers
+      .mockResolvedValueOnce({ recordings: [leftover] })
+      .mockResolvedValue({ recordings: [] });
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.listLeftovers).toHaveBeenCalledOnce();
+    expect(fetchAudio).toHaveBeenCalledOnce();
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
   });
 
   it('does not offer a saved failed-send draft while its native copy cannot be deleted', async () => {
@@ -437,7 +470,7 @@ describe('native recording recovery on composer mount', () => {
     )!;
     await recording.append(0, new Blob(['journal audio']), leftover.duration);
     recording.release();
-    native.listLeftovers.mockResolvedValueOnce({ recordings: [] });
+    native.listLeftovers.mockResolvedValue({ recordings: [] });
     native.cancel.mockRejectedValueOnce(new Error('File is busy'));
 
     const first = await reloadPage(getContext);

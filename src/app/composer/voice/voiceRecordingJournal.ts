@@ -146,20 +146,15 @@ export const importNativeVoiceRecordings = async (userId: string) => {
   const { recordings } = await listNativeVoiceLeftovers().catch(() => ({ recordings: [] }));
   const transferred = new Map<string, boolean>();
   /* eslint-disable no-await-in-loop, no-continue */
-  for (const { id, startedAt, duration, userId: owner } of recordings) {
+  for (const { id, path, startedAt, duration, userId: owner } of recordings) {
     if (owner !== userId) continue;
     transferred.set(id, false);
     const journal = beginVoiceRecording(userId, startedAt, 'audio/mp4', id);
     if (!journal || !(await journal.ready)) continue;
     try {
-      // The first list may predate a send or discard in another window.
-      const current = await listNativeVoiceLeftovers();
-      const file = current.recordings.find((item) => item.id === id && item.userId === userId);
-      if (file) {
-        const data = await readNativeVoiceFile(file.path);
-        if (!data || !(await journal.append(0, data, duration))) continue;
-      }
-      transferred.set(id, !file || (await nativeDeleted(id)));
+      const data = await readNativeVoiceFile(path);
+      if (data && (await journal.append(0, data, duration)))
+        transferred.set(id, await nativeDeleted(id));
     } catch {
       // A failed handoff stays off this page.
     } finally {

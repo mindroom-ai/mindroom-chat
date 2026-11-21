@@ -37,21 +37,25 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('keeps each recording in a file of its own ID, a UUID, and acts only on the ID it is given', () => {
     expect(pluginSource).toContain('"\\(id).m4a"');
     expect(body('start')).toContain('let id = UUID().uuidString');
-    expect(pluginSource).toContain('guard let recording = recordings[id] else { return }');
+    expect(pluginSource).toContain('guard owners[id] != nil else { return }');
     ['level', 'pause', 'resume', 'stop'].forEach((method) =>
       expect(body(method), method).toMatch(
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
       )
     );
-    expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
+    expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*finishLive\(\)/);
   });
 
-  it('does not cancel another window’s live recording and rejects removal errors', () => {
+  it('cancels only a known ID, including unreadable files, and rejects removal errors', () => {
     expect(body('cancel')).toMatch(
-      /let plugin = Self\.recordings\[id\]\?\.plugin\s*guard plugin == nil \|\| plugin === self[\s\S]*?call\.reject[\s\S]*?try Self\.removeFile\(id\)[\s\S]*?catch \{ return call\.reject\("Could not remove recording"/
+      /try removeFile\(id\)[\s\S]*?call\.reject\("Could not remove recording"[\s\S]*?call\.resolve\(\)/
     );
-    expect(body('cancel')).not.toMatch(/clearFolder|closed/);
-    expect(pluginSource).toContain('catch CocoaError.fileNoSuchFile');
+    const remove = pluginSource.match(/private func removeFile\([\s\S]*?\n {4}\}/)?.[0];
+    expect(remove).toMatch(/if live\?\.id == id \{\s*finishLive\(\)/);
+    expect(remove).toMatch(
+      /removeItem\(at: Self\.file\(of: id\)\) \}\s*catch CocoaError\.fileNoSuchFile/
+    );
+    expect(remove).not.toMatch(/AVAudioPlayer|listLeftovers|try\?/);
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -62,7 +66,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
       /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce, userId \}\)/
     );
     const [before, after] = body('start').split(
-      /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard generation == self\.generation, !self\.closed, !webView\.isLoading,\s*ownerGeneration == Self\.ownerGenerations\[userId, default: 0\],\s*let newest = newest as\? String, newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
+      /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard generation == self\.generation, !self\.closed, !webView\.isLoading,\s*let newest = newest as\? String, newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
     );
     // A closed or loading page is not asked for the microphone, and the navigation generation is
     // read before the prompt: a page load begun under it, also one that fails and leaves the old
@@ -78,11 +82,6 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     const finish = pluginSource.match(/private func finishLive\(\) \{[\s\S]*?\n {4}\}/)?.[0];
     expect(finish).toContain('live.recorder.stop()');
     expect(finish).not.toMatch(/deleteRecording|discardLive|clearFolder/);
-    expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
-      'generation = ',
-      'generation = ',
-      'generation += ',
-    ]);
     expect(pluginSource).toContain(
       '[.capacitorWebViewNavigationStarted, .capacitorWebViewTerminated]'
     );
@@ -92,15 +91,13 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   });
 
   it('records nothing more once its window has closed', () => {
-    expect(pluginSource).toMatch(
-      /func close\(\) \{[\s\S]*?closed = true\s*discardLive\(\)\s*Self\.instances -= 1\s*if Self\.instances == 0 \{ Self\.clearFolder\(\)/
-    );
+    expect(pluginSource).toMatch(/func close\(\) \{[\s\S]*?closed = true\s*clearRecordings\(\)/);
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
   it('leaves no file and no active audio session behind a start that fails', () => {
     expect(body('start')).toMatch(
-      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?Self\.deactivateIfIdle\(\)[\s\S]*?"START_FAILED"/
+      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?Self\.deactivateAudio\(\)[\s\S]*?"START_FAILED"/
     );
   });
 
@@ -139,24 +136,26 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('lists only finished UUID audio files and their recovery metadata', () => {
     const leftover = body('listLeftovers');
     expect(leftover).toMatch(
-      /Self\.recordings\.compactMap \{ id, recording in\s*let url = Self\.file\(of: id\)\s*guard recording\.plugin == nil,/
+      /owners\.compactMap \{ id, owner in\s*let url = Self\.file\(of: id\)\s*guard id != live\?\.id,/
     );
     expect(leftover).toContain('creationDate');
     expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
     expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
-    expect(leftover).toContain('"userId": recording.owner');
+    expect(leftover).toContain('"userId": owner');
     expect(leftover).toContain('"duration":');
   });
 
-  it('invalidates pending permission and clears that account’s recordings on sign-out', () => {
-    expect(body('clear')).toMatch(
-      /Self\.ownerGenerations\[userId, default: 0\] \+= 1[\s\S]*?for \(id, recording\) in Self\.recordings where recording\.owner == userId \{\s*try\? Self\.removeFile\(id, discard: true\)/
+  it('invalidates pending permission and clears the live recording and folder on sign-out', () => {
+    expect(body('clear')).toContain('clearRecordings()');
+    expect(body('clear')).not.toContain('getString');
+    expect(pluginSource).toMatch(
+      /private func clearRecordings\(\) \{\s*pageWillLoad\(\)\s*Self\.clearFolder\(\)\s*owners\.removeAll\(\)/
     );
   });
 
   it('clears leftovers on plugin load and closes with its window', () => {
     expect(pluginSource).toMatch(
-      /override public func load\(\) \{[\s\S]*?if Self\.instances == 0 \{ Self\.clearFolder\(\) \}/
+      /override public func load\(\) \{\s*\/\/[^\n]*\n\s*Self\.clearFolder\(\)/
     );
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/

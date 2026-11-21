@@ -96,7 +96,6 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 
 type CaptureJournal = {
   id: string;
-  ready?: Promise<boolean>;
   append: (seq: number, data: Blob, elapsedMs: number) => Promise<boolean | void>;
   remove: () => Promise<void>;
   release: () => void;
@@ -213,15 +212,10 @@ export const createVoiceCaptureSession = (
   const stopRecorder = (generation: Generation, discard: boolean) => {
     const { recorder, journal, elapsedMs } = generation;
     if (!recorder || recorder.state === 'inactive') return;
-    if (!recorder.id) recorder.stop();
-    else if (discard) recorder.stop('discard');
-    else {
-      const persist = async (data: Blob) =>
-        generation.acceptsEvents &&
-        (await journal?.append(0, data, elapsedMs)) === true &&
-        generation.acceptsEvents;
-      recorder.stop(beginJournal && persist, journal?.ready);
-    }
+    if (recorder.id && discard) recorder.stop('discard');
+    else if (recorder.id && journal)
+      recorder.stop(async (data) => (await journal.append(0, data, elapsedMs)) === true);
+    else recorder.stop();
   };
   const retire = (generation: Generation) => {
     generation.acceptsEvents = false;
@@ -450,7 +444,7 @@ export const createVoiceCaptureSession = (
           recorder.id
         );
       } catch {
-        // Web capture can still send from memory; native can still recover its file.
+        // Storage is best effort; capture still works from memory.
       }
       webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       startTimers(generation);

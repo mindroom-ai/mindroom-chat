@@ -151,15 +151,15 @@ describe('native voice recorder', () => {
   });
 
   it.each(['pause', 'resume'] as const)(
-    'ends the recording when a native %s fails',
+    'ends JS without deleting the finalized file when native %s reports NOT_RECORDING',
     async (method) => {
       plugin[method].mockRejectedValue({ code: 'NOT_RECORDING' });
       const recorder = await startNativeVoiceRecorder(USER);
       const { seen } = watch(recorder);
       recorder[method]();
-      await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
+      await vi.waitFor(() => expect(seen).toEqual(['stop']));
       expect(recorder.state).toBe('inactive');
-      expect(plugin.cancel).toHaveBeenCalledWith({ id: 'a' });
+      expect(plugin.cancel).not.toHaveBeenCalled();
       expect(plugin.stop).not.toHaveBeenCalled();
     }
   );
@@ -172,12 +172,12 @@ describe('native voice recorder', () => {
     const { seen } = watch(recorder);
     recorder.pause();
     recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop']));
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
     pausing.reject({ code: 'NOT_RECORDING' });
     await vi.waitFor(() => expect(plugin.pause).toHaveBeenCalledOnce());
     await Promise.resolve();
     expect(seen).toHaveLength(2);
-    expect(plugin.cancel).not.toHaveBeenCalled();
+    expect(plugin.cancel).toHaveBeenCalledExactlyOnceWith({ id: 'a' });
   });
 
   it('deletes a normal stopped recording only after its copy commits', async () => {
@@ -185,14 +185,20 @@ describe('native voice recorder', () => {
     const recorder = await startNativeVoiceRecorder(USER);
     const { seen, chunks } = watch(recorder);
     const commit = deferred<boolean>();
+    const canceled = deferred<void>();
+    plugin.cancel.mockReturnValueOnce(canceled.promise);
     const persist = vi.fn(() => commit.promise);
     recorder.stop(persist);
+    expect(plugin.stop).toHaveBeenCalledExactlyOnceWith({ id: 'a' });
     expect(recorder.state).toBe('inactive');
     recorder.stop(persist);
     await vi.waitFor(() => expect(persist).toHaveBeenCalledOnce());
     expect(plugin.cancel).not.toHaveBeenCalled();
     expect(seen).toEqual([]);
     commit.resolve(true);
+    await vi.waitFor(() => expect(plugin.cancel).toHaveBeenCalledOnce());
+    expect(seen).toEqual([]);
+    canceled.resolve();
     await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
     expect(plugin.stop.mock.calls).toEqual([[{ id: 'a' }]]);
     expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
@@ -216,9 +222,36 @@ describe('native voice recorder', () => {
     const recorder = await startNativeVoiceRecorder(USER);
     const { seen, chunks } = watch(recorder);
     recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop']));
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
     expect(await chunks[0]!.text()).toBe('voice');
   });
+
+  it.each(['no journal', 'failed append', 'rejected append'] as const)(
+    'delivers memory audio before best-effort cancel with %s',
+    async (failure) => {
+      stubFetch(audio());
+      const recorder = await startNativeVoiceRecorder(USER);
+      const { seen, chunks } = watch(recorder);
+      const canceled = deferred<void>();
+      let seenAtCancel: string[] | undefined;
+      plugin.cancel.mockImplementationOnce(() => {
+        seenAtCancel = [...seen];
+        return canceled.promise;
+      });
+      recorder.stop(
+        failure === 'no journal'
+          ? undefined
+          : async () => {
+              if (failure === 'rejected append') throw new Error('Storage is unavailable');
+              return false;
+            }
+      );
+      await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
+      expect(seenAtCancel).toEqual(['dataavailable']);
+      expect(await chunks[0]!.text()).toBe('voice');
+      canceled.reject(new Error('File is busy'));
+    }
+  );
 
   it('leaves the next recording alone when a slow stop settles late', async () => {
     const reading = deferred<Response>();

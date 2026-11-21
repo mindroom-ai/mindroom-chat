@@ -135,7 +135,7 @@ export const clearUserUiState = (userId: string): Promise<void> => {
     .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
     .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
-  return clearNativeVoiceRecordings(userId);
+  return clearNativeVoiceRecordings();
 };
 
 export const clearSessionUiState = (sessionId: string): void => {
