@@ -63,7 +63,7 @@ describe('RoomTimeline layout', () => {
     expect(findTimelineContentBox(renderer!)!.props.justifyContent).toBe('End');
   });
 
-  it('shows the minimap only inside a thread with a fine pointer', async () => {
+  it('shows the minimap only inside a thread', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
     const root = makeEvent('$root', { isThreadRoot: true });

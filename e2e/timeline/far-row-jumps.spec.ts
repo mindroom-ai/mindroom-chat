@@ -198,9 +198,14 @@ const minimapJump = async (page: Page, engine: string, form: Form, testInfo: Tes
   const slider = minimapSlider(page);
   await expect(slider).toBeVisible({ timeout: 30_000 });
   // The root is the first stripe, followed by the notes and final reply.
-  await expect(slider).toHaveAttribute('aria-valuemax', String(NOTE_COUNT + 1));
+  await expect(slider).toHaveAttribute('aria-valuemax', String(NOTE_COUNT + 1), {
+    timeout: 30_000,
+  });
   await expect(row(page, seeded.old)).toHaveCount(0);
   await slider.focus();
+  // Focus selects the first stripe, so move to the last one first: Home must move it back.
+  await page.keyboard.press('End');
+  await expect(slider).toHaveAttribute('aria-valuenow', String(NOTE_COUNT + 1));
   await page.keyboard.press('Home');
   await page.keyboard.press('Enter');
   await expectLanded(page, seeded.old, `${engine}, ${form}, minimap`);
@@ -210,6 +215,7 @@ const minimapJump = async (page: Page, engine: string, form: Form, testInfo: Tes
 const unloadedQuoteJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
   const seeded = await seed(`u_${engine}_${form}`);
   await openTimeline(page, seeded, 'classic');
+  await expect(minimapSlider(page)).toHaveCount(0);
   const quote = row(page, seeded.reply).locator(`[data-event-id="${seeded.old}"]`).first();
   await expect(quote).toBeVisible({ timeout: 30_000 });
   await watchHighlight(page, seeded.old);
