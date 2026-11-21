@@ -257,6 +257,32 @@ describe('the Compact room in sections', () => {
     expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
   });
 
+  it('keeps the departing section header focused while scrolled', () => {
+    const needsYou = {
+      id: 'needsYou' as const,
+      rootIds: Array.from({ length: 24 }, (_, i) => `$need${i}`),
+    };
+    state.sections = [needsYou, { id: 'later', rootIds: ['$later'] }];
+    const { container, rerender } = render(view([...needsYou.rootIds, '$later']));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const laterHeader = header('later');
+    act(() => laterHeader.focus());
+    expect(document.activeElement).toBe(laterHeader);
+
+    state.sections = [needsYou];
+    rerender(view(needsYou.rootIds));
+    expect(document.activeElement).toBe(laterHeader);
+    expect(header('later').textContent).toBe('thread.workflow.later · 0');
+    expect(rows()).not.toContain('$later');
+    expect(scroller.scrollTop).toBe(30);
+
+    act(() => scroller.focus());
+    expect(document.querySelector('[data-compact-section="later"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
   it.each([true, false])(
     'preserves focus when a section above leaves (header focused: %s)',
     (focused) => {
@@ -282,14 +308,13 @@ describe('the Compact room in sections', () => {
 
       state.sections = [needsYou];
       rerender(withOutside(needsYou.rootIds));
-      expect(document.querySelector('[data-compact-section="working"]')).toBeNull();
       expect(document.activeElement).toBe(target);
       expect(scroller.scrollTop).toBe(30);
       if (focused) {
         expect(header('needsYou')).toBe(needsHeader);
-        expect(needsHeader.getAttribute('aria-disabled')).toBe('true');
-        expect(needsHeader.tabIndex).toBe(-1);
+        expect(header('working').textContent).toBe('thread.workflow.working · 0');
       } else {
+        expect(document.querySelector('[data-compact-section="working"]')).toBeNull();
         expect(document.querySelector('[data-compact-section="needsYou"] button')).toBeNull();
       }
     }

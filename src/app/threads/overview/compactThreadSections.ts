@@ -114,16 +114,14 @@ export const buildCompactThreadSections = ({
 };
 
 /**
- * The sections while the cards' order is held, the one hold of a list in sections: each card in
- * the sections shown before (`shown`) stays in the section it showed in, at its place there
- * (`holdOrder`). A thread new to the list takes its section in `live`, whose header comes with it.
- * While away, empty sections leave with their cards. An interaction-only hold keeps empty headers
- * under the pointer and lets a thread move to Working when its agent starts.
+ * Held sections keep surviving cards in their displayed bucket and order. New cards join their
+ * live bucket. Interaction holds keep empty headers; only at the top can a card move to Working.
  */
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
   shown: readonly CompactThreadSection[],
-  interactionOnly = true
+  interactionOnly: boolean,
+  keepEmptyHeaders: boolean
 ): CompactThreadSection[] => {
   const shownIn = new Map(
     shown.flatMap(({ id, rootIds }) => rootIds.map((rootId) => [rootId, id] as const))
@@ -138,7 +136,7 @@ export const holdCompactThreadSections = (
       )
     );
     const shownIds = shown.find((section) => section.id === id)?.rootIds;
-    if (!members.length && (!shownIds || !interactionOnly)) return [];
+    if (!members.length && (!shownIds || !keepEmptyHeaders)) return [];
     const anchors = new Set(live.find((section) => section.id === id)?.rootIds);
     const canAnchor = (rootId: string) => interactionOnly || anchors.has(rootId);
     const rootIds = holdOrder(shownIds ?? [], members, canAnchor);

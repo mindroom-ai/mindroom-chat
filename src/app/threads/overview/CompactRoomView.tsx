@@ -374,7 +374,8 @@ export function CompactRoomView({
   const away = useScrolledAway(viewRef);
   const [catchUpRequested, setCatchUpRequested] = useState(false);
   const catchUp = catchUpRequested && !away;
-  const orderHeld = !!previous && !catchUp && (away || pointerInside || focusHeld || !!menu);
+  const interactionHeld = pointerInside || focusHeld || !!menu;
+  const orderHeld = !!previous && !catchUp && (away || interactionHeld);
   const pinning = useThreadPinning(room);
   const pinnedRootIds = useMemo(
     () => threadRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId)),
@@ -393,9 +394,9 @@ export function CompactRoomView({
   const heldSections = useMemo(() => {
     const shown = committed.current?.scope === scope ? committed.current.sections : undefined;
     return orderHeld && threadSections && shown
-      ? holdCompactThreadSections(threadSections, shown, !away)
+      ? holdCompactThreadSections(threadSections, shown, !away, interactionHeld)
       : threadSections;
-  }, [away, orderHeld, scope, threadSections]);
+  }, [away, interactionHeld, orderHeld, scope, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
   // other sections to come back. While the order is held, that section stays open when a card
   // moving to Working brings a second one, so the cards under the pointer stay in view, until the
