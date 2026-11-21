@@ -56,7 +56,10 @@ export const isMindroomAgentUserIdForViewer = (
   return !!targetServer && targetServer === viewerServer;
 };
 
-/** Accounts that can answer, for local timeline hints, not for trusting message content. */
+/**
+ * Accounts that can answer, for local timeline hints, not for trusting message content.
+ * `mindroom_router_<ns>` can be a real agent named `router_<ns>`: MindRoom reserves only `router`.
+ */
 export const isMindroomResponderForViewer = (
   userId: string | undefined,
   viewerId: string | undefined,
