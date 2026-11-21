@@ -400,15 +400,28 @@ describe('opt-in deep diagnostic trace', () => {
     const panel = document.createElement('section');
     panel.dataset.testid = 'resizable-plugin-panel';
     panel.setAttribute('data-plugin-panel-open', '');
-    panel.setAttribute('inert', '');
+    const wrapper = document.createElement('div');
+    wrapper.append(panel);
+    const conversation = document.createElement('div');
+    conversation.dataset.conversationBehindPanel = 'true';
+    conversation.setAttribute('inert', '');
+    const copy = document.createElement('div');
+    copy.setAttribute('data-page-slide-copy', '');
+    copy.append(panel.cloneNode(), document.createElement('div'));
+    copy.lastElementChild?.setAttribute('data-conversation-behind-panel', 'false');
     const hit = panel.appendChild(document.createElement('span'));
     hit.textContent = 'invented private message';
     const release = holdModalSheet();
-    document.body.append(panel);
+    document.body.append(copy, wrapper, conversation);
     try {
-      hit.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       hit.dataset.testid = 'unknown-private-id';
+      document.documentElement.dataset.pageSlide = '';
       hit.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      delete document.documentElement.dataset.pageSlide;
+      wrapper.setAttribute('inert', '');
+      // The browser cannot target the now-inert panel. Tap outside it to sample its state.
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      wrapper.removeAttribute('inert');
       const button = panel.appendChild(document.createElement('button'));
       button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       const { events } = await readDeepTraceSnapshot();
@@ -416,18 +429,25 @@ describe('opt-in deep diagnostic trace', () => {
       expect(surfaces[0]?.data).toMatchObject({
         hit_tag: 'span',
         hit_test_id: 'resizable-plugin-panel',
-        hit_inert: true,
+        plugin_panel_inert: false,
+        conversation_inert: true,
+        conversation_behind_panel: true,
+        phone_slide_waiting: true,
         blocking_portal: true,
         plugin_panel_open: true,
       });
-      expect(surfaces[1]?.data).not.toHaveProperty('hit_test_id');
+      expect(surfaces[1]?.data).toMatchObject({ hit_test_id: null, plugin_panel_inert: true });
+      expect(surfaces[1]?.data).not.toHaveProperty('phone_slide_waiting');
       expect(
         events.find(({ name }) => name === 'interaction.pointer.button.app')?.data
       ).not.toHaveProperty('hit_tag');
       expect(JSON.stringify(events)).not.toMatch(/invented private message|unknown-private-id/);
     } finally {
       release();
-      panel.remove();
+      delete document.documentElement.dataset.pageSlide;
+      copy.remove();
+      wrapper.remove();
+      conversation.remove();
     }
   });
 

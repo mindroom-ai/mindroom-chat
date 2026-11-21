@@ -263,12 +263,28 @@ const STATIC_EVENT_NAMES = new Set([
 ]);
 
 // Exact values only: DOM attributes, including test IDs, can come from message or plugin HTML.
-const SURFACE_HIT_STRINGS: Record<string, RegExp> = {
-  hit_tag:
-    /^(a|article|aside|body|button|canvas|div|em|footer|g|header|html|i|iframe|img|input|label|li|main|nav|ol|p|path|pre|section|small|span|strong|svg|table|tbody|td|tr|ul|video)$/,
-  hit_test_id:
-    /^(resizable-(plugin|call|computer|transcript|subagents|canvas|members)-panel|resizable-page-nav|second-thread-panel|thread-column|room-virtual-inner|phone-members-sheet|timeline-minimap|call-panel|call-window|subagents-panel)$/,
-};
+const SURFACE_HIT_TAG =
+  /^(a|article|aside|body|button|canvas|div|em|footer|g|header|html|i|iframe|img|input|label|li|main|nav|ol|p|path|pre|section|small|span|strong|svg|table|tbody|td|tr|ul|video)$/;
+const SURFACE_HIT_TEST_IDS = new Set([
+  ...['plugin', 'call', 'computer', 'transcript', 'subagents', 'canvas', 'members'].map(
+    (panel) => `resizable-${panel}-panel`
+  ),
+  'resizable-page-nav',
+  'second-thread-panel',
+  'thread-column',
+  'room-virtual-inner',
+  'phone-members-sheet',
+  'timeline-minimap',
+  'call-panel',
+  'call-window',
+  'subagents-panel',
+]);
+const SURFACE_HIT_TEST_SELECTOR = Array.from(
+  SURFACE_HIT_TEST_IDS,
+  (id) => `[data-testid="${id}"]`
+).join(',');
+const liveElement = (selector: string): Element | null =>
+  document.querySelector(`${selector}:not([data-page-slide-copy], [data-page-slide-copy] *)`);
 
 const SAFE_EVENT_PATTERNS = [
   /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
@@ -297,8 +313,8 @@ const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData
       if (typeof item === 'string') {
         return (
           name.startsWith('interaction.pointer.surface.') &&
-          Object.hasOwn(SURFACE_HIT_STRINGS, key) &&
-          !!SURFACE_HIT_STRINGS[key]?.test(item)
+          ((key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
+            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item)))
         );
       }
       if (item === null || typeof item === 'boolean') return true;
@@ -707,17 +723,24 @@ const startGlobalCapture = (target: Runtime): void => {
               event.target instanceof Element && event.target.hasAttribute('data-phone-stage'),
           }
         : undefined;
+    const surface =
+      action.kind === 'surface' && event.target instanceof Element ? event.target : undefined;
+    const conversation = surface && liveElement('[data-conversation-behind-panel]');
+    const panel = surface && liveElement('[data-testid="resizable-plugin-panel"]');
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
       ...slideDetails,
-      ...(action.kind === 'surface' && event.target instanceof Element
+      ...(surface
         ? {
-            hit_tag: event.target.localName,
-            hit_test_id: event.target.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
-            hit_inert: !!event.target.closest('[inert]'),
+            hit_tag: surface.localName,
+            hit_test_id:
+              surface.closest(SURFACE_HIT_TEST_SELECTOR)?.getAttribute('data-testid') ?? null,
+            ...(slide === '' ? { phone_slide_waiting: true } : undefined),
             blocking_portal: hasBlockingPortalOverlay(),
-            plugin_panel_open: !!document.querySelector(
-              '[data-plugin-panel-open]:not([data-page-slide-copy] *)'
-            ),
+            plugin_panel_open: !!liveElement('[data-plugin-panel-open]'),
+            plugin_panel_inert: panel ? !!panel.closest('[inert]') : null,
+            conversation_inert: conversation ? !!conversation.closest('[inert]') : null,
+            conversation_behind_panel:
+              conversation?.getAttribute('data-conversation-behind-panel') === 'true',
           }
         : undefined),
       primary: event.isPrimary,

@@ -1,4 +1,4 @@
-import { recordDeepTraceEvent } from '../diagnostics/deepTrace';
+import { isDeepTraceRecording, recordDeepTraceEvent } from '../diagnostics/deepTrace';
 import { flushSync } from 'react-dom';
 import { NavigationType, type createBrowserRouter } from 'react-router-dom';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
@@ -269,8 +269,15 @@ export const slidePhonePage = (change: Change): void => {
     }
     const direction = to > from ? 'forward' : 'back';
     root.dataset.pageSlide = direction;
-    trace = { direction, startedAt: performance.now() };
-    recordDeepTraceEvent(`navigation.phone_slide.${direction}.start`);
+    if (isDeepTraceRecording()) {
+      try {
+        trace = { direction, startedAt: performance.now() };
+        recordDeepTraceEvent(`navigation.phone_slide.${direction}.start`);
+      } catch {
+        // Diagnostics must not strand the input shield before its cleanup is armed.
+        trace = undefined;
+      }
+    }
     copy = show(stage);
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.
