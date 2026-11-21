@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -119,6 +119,12 @@ const voiceMessages = async (token: string, roomId: string): Promise<RoomEvent[]
 const composer = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
 const capsule = (page: Page) => page.getByRole('button', { name: 'Discard voice recording' });
 const indicator = (page: Page) => page.getByTestId('live-voice-recording-indicator');
+/**
+ * The running time of the recording shown in `scope`, read in the capsule that holds its Discard:
+ * a voice message already sent shows its own length in the timeline beside it.
+ */
+const recordingTime = (scope: Locator, page: Page, time: RegExp) =>
+  scope.locator(capsule(page)).locator('xpath=..').getByText(time);
 const captureStarts = (page: Page) =>
   page.evaluate(() => (window as unknown as { voiceCaptureStarts: number }).voiceCaptureStarts);
 
@@ -192,7 +198,7 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 30_000 });
   // The same recording all along: its time has run on since room A.
   await expect(
-    thread.getByText(/^(?:0:(?:0[3-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
+    recordingTime(thread, page, /^(?:0:(?:0[3-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
   ).toBeVisible({ timeout: 30_000 });
 
   // Settings cover the composers: the pill shows inside the dialog, where the focus the dialog
@@ -234,7 +240,7 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await page.keyboard.press('Control+Shift+Space');
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 15_000 });
   await expect(
-    thread.getByText(/^(?:0:(?:0[1-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
+    recordingTime(thread, page, /^(?:0:(?:0[2-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
   ).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('Control+Shift+Space');
   await expect
