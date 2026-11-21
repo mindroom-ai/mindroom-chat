@@ -680,7 +680,7 @@ export function CompactRoomView({
       data-page-slide-clip=""
       data-compact-card-count={shownRows.filter((id) => !sectionOfRow(id)).length}
       data-cards-pending={!blocks.extentComplete || undefined}
-      onKeyDownCapture={(event) => {
+      onKeyDownCapture={(event: React.KeyboardEvent<HTMLDivElement>) => {
         const { key, target, currentTarget } = event;
         endIntent.current =
           !blocks.extentComplete &&
