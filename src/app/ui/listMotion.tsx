@@ -210,6 +210,7 @@ type BeforeChangeProps = {
   order: string;
   read: () => Before | undefined;
   keep: (before: Before | undefined) => void;
+  captureOffset: (() => (() => void) | undefined) | undefined;
 };
 
 /**
@@ -217,18 +218,17 @@ type BeforeChangeProps = {
  * runs after the change, when the rows that left are gone and the others have moved.
  */
 class BeforeChange extends PureComponent<BeforeChangeProps> {
-  override getSnapshotBeforeUpdate(): Before | null {
-    const { read } = this.props;
-    return read() ?? null;
+  override getSnapshotBeforeUpdate() {
+    return { before: this.props.read(), restoreOffset: this.props.captureOffset?.() };
   }
 
   override componentDidUpdate(
     _props: BeforeChangeProps,
     _state: unknown,
-    before: Before | null
+    { before, restoreOffset }: ReturnType<BeforeChange['getSnapshotBeforeUpdate']>
   ): void {
-    const { keep } = this.props;
-    keep(before ?? undefined);
+    restoreOffset?.();
+    this.props.keep(before);
   }
 
   override render(): null {
@@ -272,7 +272,11 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * plays held until `LONGEST_PLAY_MS` ends them. A row that comes in, and the copy of one that
  * left, always fade on.
  */
-export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
+export const useListMotion = (
+  listRef: RefObject<HTMLElement>,
+  order: string,
+  captureOffset?: BeforeChangeProps['captureOffset']
+): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
@@ -376,5 +380,5 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     };
   }, [letGo, listRef]);
 
-  return <BeforeChange order={order} read={read} keep={keep} />;
+  return <BeforeChange order={order} read={read} keep={keep} captureOffset={captureOffset} />;
 };

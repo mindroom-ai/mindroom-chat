@@ -144,20 +144,19 @@ const browserAnchorsScroll = (): boolean =>
   typeof CSS.supports === 'function' &&
   CSS.supports('overflow-anchor', 'auto');
 
+/** Keep the exact offset if WebKit resets it during React's row re-inserts. */
+export const captureLiveBandOffset = (view: HTMLElement | null) => {
+  if (!view || !nearTop(view) || browserAnchorsScroll()) return undefined;
+  const { scrollTop } = view;
+  return () => {
+    if (scrollTop > 0 && view.scrollTop === 0) view.scrollTop = scrollTop;
+  };
+};
+
 /**
- * The overview's thread order, held while `held` (the reader points at, focuses or has a menu
- * open on a card) so no card moves under the pointer: the threads keep the order they were shown
- * in, threads that leave the list go, and new ones join at their place in the live order, so a
- * newest-first list still shows them at the top. Once released, the live order applies.
- *
- * The top band lets cards arrive and reflow without scroll compensation. Further down, cards
- * that join or grow above the ones in view would push them down, so the list scrolls by as much.
- * The cards
- * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
- * the list scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost
- * card in view from the rows that kept their relative order, even if other cards moved down.
- * It acts only on a render that finds the scroll offset where it recorded the cards. If the
- * reader or another script scrolled since then, it records the cards again without moving them.
+ * Hold surviving rows in their shown order, applying joins and leaves. The live band reflows
+ * without anchoring. Below it, WebKit keeps the first visible stationary card in place unless
+ * the reader or a script has scrolled since the last measurement.
  */
 export const useHeldThreadOrder = (
   liveRootIds: string[],

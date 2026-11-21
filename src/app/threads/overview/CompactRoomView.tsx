@@ -34,6 +34,7 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import {
+  captureLiveBandOffset,
   holdOrder,
   useHeldThreadOrder,
   usePointerOverCards,
@@ -570,11 +571,13 @@ export function CompactRoomView({
   // where the browser does not anchor it.
   const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
     models.map((model) => model.id.threadRootId).join(',');
+  const captureOffset = useCallback(() => captureLiveBandOffset(viewRef.current), []);
   const listMotion = useListMotion(
     contentRef,
     threadSections
       ? `${filterBarShown}|${sectionRows.join(',')}`
-      : `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
+      : `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`,
+    captureOffset
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
