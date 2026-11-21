@@ -551,6 +551,24 @@ describe('the Compact room in sections', () => {
     ).toBe(40);
   });
 
+  it('retains a text drag through pointercancel, then releases it on dragend', () => {
+    flowGeometry();
+    const cards = Array.from({ length: 730 }, (_, index) => `$card${index}`);
+    render(view(cards, false));
+    const viewport = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    const card = viewport.querySelector<HTMLElement>('[data-scroll-anchor="$card0"]')!;
+    const text = document.createTextNode('drag from text');
+    card.append(text);
+    fireEvent(text, new Event('dragstart', { bubbles: true }));
+    fireEvent.pointerCancel(card);
+    viewport.scrollTop = 500 * 84;
+    fireEvent.scroll(viewport);
+    expect(viewport.contains(card)).toBe(true);
+    expect(rows()).toContain('$card500');
+    fireEvent.dragEnd(card);
+    expect(viewport.contains(card)).toBe(false);
+  });
+
   it('places an address after a pointer press expands the folded section', () => {
     flowGeometry();
     const done = Array.from({ length: 730 }, (_, index) => `$done${index}`);

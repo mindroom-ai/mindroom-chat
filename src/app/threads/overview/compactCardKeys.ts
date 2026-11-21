@@ -4,6 +4,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 const VIEW_SELECTOR = '[data-compact-room-view]';
 const CARD_SELECTOR = `${VIEW_SELECTOR} [data-thread-root-id]`;
 
+/** The full keyboard order and focus command for each mounted Compact scroller. */
 export const compactCardNavigation = new WeakMap<
   Element,
   { ids: readonly string[]; focus: (id: string | undefined) => boolean }
@@ -74,6 +75,7 @@ export const cardBeside = (
   return cards[index + step] ?? cards[index];
 };
 
+/** Focuses a logical neighbour, including one outside the mounted window. */
 export const focusCardBeside = (
   root: HTMLElement | null,
   id: string | undefined,

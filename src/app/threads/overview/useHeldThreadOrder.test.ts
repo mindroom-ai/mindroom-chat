@@ -177,6 +177,23 @@ describe('useHeldThreadOrder scrolling', () => {
     expect(view.scrollTop).toBe(250);
   });
 
+  it('compensates a live window through layout without writing scrollTop', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes, scrollBy } = list(ids, 250);
+    const shift = vi.fn();
+    const windowRef = { current: { keys: [], shift } };
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, true, { current: view }, windowRef),
+      { initialProps: { live: ids } }
+    );
+    scrollBy(-30);
+    show(['$new', ...ids]);
+    rerender({ live: ['$new', ...ids] });
+    expect(shift).toHaveBeenCalledWith(-100);
+    expect(writes).toEqual([]);
+  });
+
   it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];

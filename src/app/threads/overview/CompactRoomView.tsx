@@ -33,7 +33,11 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { MOST_ROWS_IN_MOTION, useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import {
+  useHeldThreadOrder,
+  usePointerOverCards,
+  type CompactOrderWindow,
+} from './useHeldThreadOrder';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -362,34 +366,31 @@ function CompactRoomList({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While the order is held, the cards keep the sections they showed in and their places there,
-  // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
-  // this room's: the view stays mounted when the next room opens under the pointer.
-  const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
+  const shownSectionsRef = useRef<CompactThreadSection[]>();
   const heldSections = useMemo(() => {
     const shown = shownSectionsRef.current;
-    return orderHeld && threadSections && shown?.roomId === room.roomId && shown.sections
-      ? holdCompactThreadSections(threadSections, shown.sections)
+    return orderHeld && threadSections && shown
+      ? holdCompactThreadSections(threadSections, shown)
       : threadSections;
-  }, [orderHeld, room.roomId, threadSections]);
+  }, [orderHeld, threadSections]);
   useLayoutEffect(() => {
-    shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
-  }, [heldSections, room.roomId]);
+    shownSectionsRef.current = heldSections;
+  }, [heldSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
   // other sections to come back. While the order is held, that section stays open when a card
   // moving to Working brings a second one, so the cards under the pointer stay in view, until the
   // hold lets go or the reader folds it from its header.
   const soleSection = heldSections?.length === 1;
-  const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
+  const heldOpenRef = useRef<ThreadWorkflowBucket>();
   const [, showFolds] = useReducer((count: number) => count + 1, 0);
   const heldOpen = soleSection
     ? heldSections?.[0]?.id
-    : orderHeld && heldOpenRef.current?.roomId === room.roomId
-    ? heldOpenRef.current.id
+    : orderHeld
+    ? heldOpenRef.current
     : undefined;
   useLayoutEffect(() => {
-    heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
-  }, [heldOpen, room.roomId]);
+    heldOpenRef.current = heldOpen;
+  }, [heldOpen]);
   const folded = useMemo(
     () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
     [heldOpen, sectionsChoice.folded, soleSection]
@@ -414,7 +415,13 @@ function CompactRoomList({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  const orderWindow = useRef<CompactOrderWindow>({ keys: [] });
+  const shownRows = useHeldThreadOrder(
+    listedRows,
+    orderHeld && !heldSections,
+    viewRef,
+    orderWindow
+  );
   const pinned = useMemo(
     () => (threadSections ? [] : shownRows.filter((id) => pinnedRootIds.includes(id))),
     [pinnedRootIds, shownRows, threadSections]
@@ -459,7 +466,9 @@ function CompactRoomList({
       pendingFocus,
       seek ? focusRequest.eventId : undefined,
       ...restoreAnchors,
-    ]
+      ...listRows.filter((row) => sectionOfRow(row)),
+    ],
+    orderWindow
   );
   const items = virtualizer.getVirtualItems();
   const mountedRootIds = useMemo(
@@ -484,8 +493,10 @@ function CompactRoomList({
     if (!id || !shownRootIds.includes(id)) return false;
     if (!focusCompactCard(cardButton(id))) {
       const index = indexes.get(id);
-      if (index === undefined) return false;
-      virtualizer.scrollToIndex(index, { align: 'center' });
+      const offset =
+        index === undefined ? undefined : virtualizer.getOffsetForIndex(index, 'center');
+      if (!offset || !viewRef.current) return false;
+      viewRef.current.scrollTop = offset[0];
       setPendingFocus(id);
     }
     return true;
@@ -501,7 +512,9 @@ function CompactRoomList({
   useLayoutEffect(() => {
     if (
       pendingFocus &&
-      (focusCompactCard(cardButton(pendingFocus), true) || !shownRootIds.includes(pendingFocus))
+      (focusCompactCard(cardButton(pendingFocus), true) ||
+        items.some(({ key }) => key === pendingFocus) ||
+        !shownRootIds.includes(pendingFocus))
     ) {
       setPendingFocus(undefined);
     }
@@ -521,10 +534,7 @@ function CompactRoomList({
       : cardButton(selectedMenu.rootId) ?? viewRef.current;
     trigger?.focus();
   };
-  const menuModel =
-    menu?.roomId === room.roomId
-      ? cardViewModels.find((model) => model.id.threadRootId === menu.rootId) ?? menu.viewModel
-      : undefined;
+  const menuModel = menu && (modelByRootId.get(menu.rootId) ?? menu.viewModel);
   // Each header counts its section's threads now: one that a held order still shows after it
   // emptied counts none until the order is let go.
   const sectionCounts = new Map(
@@ -710,6 +720,10 @@ function CompactRoomList({
     return model ? renderCard(model) : null;
   };
 
+  const margin = virtualizer.options.scrollMargin;
+  const spacer = (height: number, key: string, marginBlockStart?: string) => (
+    <div key={key} aria-hidden style={{ height, marginBlockStart, overflowAnchor: 'none' }} />
+  );
   return (
     <Box
       ref={viewRef}
@@ -775,49 +789,41 @@ function CompactRoomList({
             </Text>
           </Box>
         ) : (
-          <div ref={listRef}>
-            {/* WebKit clamps scrollTop if a window swap removes its leading space. */}
-            <div
-              aria-hidden
-              style={{
-                height:
-                  (items[0]?.start ?? virtualizer.options.scrollMargin) -
-                  virtualizer.options.scrollMargin,
-                overflowAnchor: 'none',
-              }}
-            />
-            {items.map(({ index, start }, itemIndex) => {
-              const precedingEnd = items[itemIndex - 1]?.end ?? start;
-              return (
-                <React.Fragment key={listRows[index]}>
-                  {start > precedingEnd && (
-                    <div
-                      aria-hidden
-                      style={{ height: start - precedingEnd, overflowAnchor: 'none' }}
-                    />
-                  )}
-                  <div
-                    ref={virtualizer.measureElement}
-                    data-index={index}
-                    className={index < listRows.length - 1 ? css.RowWithGap : undefined}
-                  >
-                    {renderRow(listRows[index]!)}
-                  </div>
-                </React.Fragment>
-              );
+          <div
+            ref={listRef}
+            style={{ display: 'flow-root', minHeight: virtualizer.getTotalSize() }}
+          >
+            {/* Reserve the full extent while React swaps keyed rows and gaps on WebKit. */}
+            {spacer(
+              (items[0]?.start ?? margin) - margin,
+              'head',
+              'var(--compact-scroll-bias, 0px)'
+            )}
+            {items.flatMap(({ index, start }, i) => {
+              const preceding = items[i - 1];
+              const key = listRows[index]!;
+              const row = renderRow(key);
+              const gap = start - (preceding?.end ?? start);
+              const gapKey =
+                index > (virtualizer.range?.endIndex ?? index)
+                  ? `before:${key}`
+                  : `after:${preceding?.key}`;
+              return [
+                gap > 0 ? spacer(gap, gapKey) : null,
+                <div
+                  key={key}
+                  ref={virtualizer.measureElement}
+                  data-index={index}
+                  className={row && index < listRows.length - 1 ? css.RowWithGap : undefined}
+                >
+                  {row}
+                </div>,
+              ];
             })}
-            <div
-              aria-hidden
-              style={{
-                height: Math.max(
-                  0,
-                  virtualizer.getTotalSize() +
-                    virtualizer.options.scrollMargin -
-                    (items.at(-1)?.end ?? virtualizer.options.scrollMargin)
-                ),
-                overflowAnchor: 'none',
-              }}
-            />
+            {spacer(
+              Math.max(0, virtualizer.getTotalSize() + margin - (items.at(-1)?.end ?? margin)),
+              'tail'
+            )}
           </div>
         )}
       </Box>

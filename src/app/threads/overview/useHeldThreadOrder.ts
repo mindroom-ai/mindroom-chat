@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type PointerEvent,
   type RefObject,
   type TouchEvent,
@@ -40,9 +41,6 @@ type CardsInView = {
   order: readonly string[];
 };
 
-/** How many cards in view are tried, from the top, for one that kept its place. */
-const ANCHOR_CANDIDATES = 8;
-
 /** The topmost cards in view (cards carry `data-scroll-anchor`). */
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
   const { top: viewTop, bottom: viewBottom } = view.getBoundingClientRect();
@@ -57,7 +55,7 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
     else low = middle + 1;
   }
   const cards: CardsInView['cards'] = [];
-  for (let index = low; index < elements.length && cards.length < ANCHOR_CANDIDATES; index += 1) {
+  for (let index = low; index < elements.length; index += 1) {
     const card = elements[index];
     const rootId = card?.getAttribute('data-scroll-anchor');
     if (card && rootId) {
@@ -81,6 +79,8 @@ const keptPlace = (rootId: string, before: readonly string[], after: readonly st
   return true;
 };
 
+export type CompactOrderWindow = { keys: string[]; shift?: (px: number) => void };
+
 /** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
 const browserAnchorsScroll = (): boolean =>
   typeof CSS !== 'undefined' &&
@@ -93,20 +93,14 @@ const browserAnchorsScroll = (): boolean =>
  * in, threads that leave the list go, and new ones join at their place in the live order, so a
  * newest-first list still shows them at the top. Once released, the live order applies.
  *
- * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
- * grow above the ones in view would push them down, so the list scrolls by as much and the cards
- * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
- * the list scrolls only in browsers without it (WebKit, so iOS too). It keeps the topmost card in
- * view that kept its place; a card that moved up past others (it got a reply, in the live order)
- * leaves its place to the next. It acts only on a render that finds the scroll offset where it
- * recorded the cards: a scroll since then, the reader's (whose scroll event comes at the next
- * frame) or another script's (the list reopening on a card it left from), is not a move, and the
- * cards are recorded again.
+ * At depth, anchor the first visible card that kept its place. Chromium anchors natively.
+ * Where it cannot, compensate at rest by scrolling, and in a live window by adjusting its spacer.
  */
 export const useHeldThreadOrder = (
   liveRootIds: string[],
   held: boolean,
-  viewRef?: RefObject<HTMLElement>
+  viewRef?: RefObject<HTMLElement>,
+  windowRef?: MutableRefObject<CompactOrderWindow>
 ): string[] => {
   const shownRef = useRef(liveRootIds);
   const shown = useMemo(
@@ -119,33 +113,39 @@ export const useHeldThreadOrder = (
   useLayoutEffect(() => {
     shownRef.current = shown;
     const view = viewRef?.current;
-    // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
-    if (!view || browserAnchorsScroll()) return;
+    if (!view) return;
     const before = cardsInViewRef.current;
-    if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
+    const shift = windowRef?.current.shift;
+    const scrollDelta = view.scrollTop - (before?.scrollTop ?? 0);
+    if (before && !browserAnchorsScroll() && view.scrollTop > 0 && (shift || !scrollDelta)) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
-      const anchor = before.cards
-        .filter(({ rootId }) => keptPlace(rootId, before.order, shown))
-        .map(({ rootId, top }) => ({
-          top,
-          card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
-        }))
-        .find(({ card }) => card);
-      const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
-      if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
+      const anchor = before.cards.find(
+        ({ rootId }) =>
+          cards.some((card) => card.dataset.scrollAnchor === rootId) &&
+          keptPlace(rootId, before.order, shown)
+      );
+      const card =
+        anchor && cards.find((element) => element.dataset.scrollAnchor === anchor.rootId);
+      const moved = card ? card.getBoundingClientRect().top - anchor.top + scrollDelta : 0;
+      if (shift) shift(-moved);
+      else if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
     cardsInViewRef.current = cardsInView(view, shown);
+    if (windowRef)
+      windowRef.current.keys = cardsInViewRef.current?.cards.map(({ rootId }) => rootId) ?? [];
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef?.current;
-    if (!view || browserAnchorsScroll()) return undefined;
+    if (!view) return undefined;
     const record = () => {
       cardsInViewRef.current = cardsInView(view, shownRef.current);
+      if (windowRef)
+        windowRef.current.keys = cardsInViewRef.current?.cards.map(({ rootId }) => rootId) ?? [];
     };
     view.addEventListener('scroll', record, { passive: true });
     return () => view.removeEventListener('scroll', record);
-  }, [viewRef]);
+  }, [viewRef, windowRef]);
   return shown;
 };
 
