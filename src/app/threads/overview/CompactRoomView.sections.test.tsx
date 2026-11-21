@@ -199,6 +199,44 @@ describe('the Compact room in sections', () => {
     expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
   });
 
+  it.each([true, false])(
+    'preserves focus when a section above leaves (header focused: %s)',
+    (focused) => {
+      const needsYou = {
+        id: 'needsYou' as const,
+        rootIds: Array.from({ length: 24 }, (_, i) => `$need${i}`),
+      };
+      state.sections = [{ id: 'working', rootIds: ['$working'] }, needsYou];
+      const withOutside = (ids: string[]) => (
+        <>
+          <button type="button">Outside focus</button>
+          {view(ids)}
+        </>
+      );
+      const { container, rerender } = render(withOutside(['$working', ...needsYou.rootIds]));
+      const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+      scroller.scrollTop = 30;
+      fireEvent.scroll(scroller);
+      const needsHeader = header('needsYou');
+      const target = focused ? needsHeader : screen.getByRole('button', { name: 'Outside focus' });
+      act(() => target.focus());
+      expect(document.activeElement).toBe(target);
+
+      state.sections = [needsYou];
+      rerender(withOutside(needsYou.rootIds));
+      expect(document.querySelector('[data-compact-section="working"]')).toBeNull();
+      expect(document.activeElement).toBe(target);
+      expect(scroller.scrollTop).toBe(30);
+      if (focused) {
+        expect(header('needsYou')).toBe(needsHeader);
+        expect(needsHeader.getAttribute('aria-disabled')).toBe('true');
+        expect(needsHeader.tabIndex).toBe(-1);
+      } else {
+        expect(document.querySelector('[data-compact-section="needsYou"] button')).toBeNull();
+      }
+    }
+  );
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 

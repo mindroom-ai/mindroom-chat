@@ -715,31 +715,32 @@ export function CompactRoomView({
     const closed = folded.includes(id);
     const count = sectionCounts.get(id) ?? 0;
     const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
+    const keepButton =
+      focusHeld && document.activeElement?.matches(`[data-compact-section="${id}"] > button`);
     return (
       <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {soleSection ? (
-          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
-            {label}
-          </Button>
-        ) : (
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-expanded={!closed}
-            onClick={() => toggleFold(id)}
-            before={
+        <Button
+          as={soleSection && !keepButton ? 'div' : 'button'}
+          size="300"
+          variant="Secondary"
+          fill="None"
+          radii="300"
+          aria-expanded={soleSection ? undefined : !closed}
+          aria-disabled={soleSection && keepButton ? true : undefined}
+          tabIndex={soleSection && keepButton ? -1 : undefined}
+          onClick={soleSection ? undefined : () => toggleFold(id)}
+          before={
+            !soleSection && (
               <Icon
                 size="100"
                 src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
                 data-directional={closed || undefined}
               />
-            }
-          >
-            {label}
-          </Button>
-        )}
+            )
+          }
+        >
+          {label}
+        </Button>
       </div>
     );
   };
