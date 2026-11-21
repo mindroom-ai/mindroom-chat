@@ -3,6 +3,7 @@ import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachm
 import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
 import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
+import { clearVoiceRecordings } from '../../composer/voice/voiceRecordingJournal';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentRoomsStore } from '../../navigation/recentRooms';
@@ -103,6 +104,7 @@ export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
   void clearSavedVoiceDraft(userId);
+  void clearVoiceRecordings(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);

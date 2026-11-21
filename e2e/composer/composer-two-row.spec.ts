@@ -344,6 +344,8 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     await expect(discard, 'the tap reached the microphone').toBeVisible();
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
     await tap(discard);
+    await expect(page.getByText('Discard voice recording?', { exact: true })).toBeVisible();
+    await tap(button(page, 'Discard'));
     await expect(discard).toBeHidden();
     // The discard button had focus and is gone: no stale focus keeps the composer expanded.
     console.log(`after discard: ${JSON.stringify(await expectExpandedWithFocus('after discard'))}`);
