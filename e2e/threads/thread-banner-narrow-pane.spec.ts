@@ -139,44 +139,54 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   ]);
   expect(Math.abs(moreBox!.y - resolveBox!.y)).toBeLessThan(1);
 
-  // Pin with the focus leaves as the window narrows past the threshold: More takes the focus.
+  // The banner changes its layout only while nothing in it is in use.
+  const addTag = threadBanner.getByRole('button', { name: 'Add tag', exact: true });
+  const options = threadBanner.getByRole('button', { name: 'Thread options', exact: true });
+  const field = page.getByRole('textbox', { name: 'Filter or create tag' });
   const pin = threadBanner.getByRole('button', { name: 'Pin thread', exact: true });
+
+  // Pin with the focus: the window narrows past the threshold and the banner stays wide; once
+  // the focus leaves, it turns compact.
   await pin.focus();
+  await page.setViewportSize({ width: 900, height: 900 });
   await expect(pin).toBeFocused();
-  await page.setViewportSize({ width: 900, height: 900 });
+  await expect(addTag).toBeVisible();
+  await pin.evaluate((button) => button.blur());
   await expect(pin).toHaveCount(0);
-  await expect(
-    threadBanner.getByRole('button', { name: 'Thread options', exact: true })
-  ).toBeFocused();
+  await expect(addTag).toHaveCount(0);
 
-  // A tag typed in the banner's own picker survives the window narrowing while it is open: the
-  // banner keeps its wide layout until the picker closes.
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await threadBanner.getByRole('button', { name: 'Add tag', exact: true }).click();
-  const draft = page.getByRole('textbox', { name: 'Filter or create tag' });
-  await expect(draft).toBeFocused();
-  await draft.pressSequentially('delta');
-  await page.setViewportSize({ width: 900, height: 900 });
-  await expect(draft).toBeFocused();
-  await expect(draft).toHaveValue('delta');
-  await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(draft).toHaveCount(0);
-  await expect(threadBanner.getByRole('button', { name: 'Add tag', exact: true })).toHaveCount(0);
-  await page.setViewportSize({ width: 1400, height: 900 });
+  // A tag typed in the banner's own picker survives the window narrowing.
+  const typeThenResize = async (to: { width: number; height: number }, tag: string) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await addTag.click();
+    await expect(field).toBeFocused();
+    await field.pressSequentially(tag);
+    await page.setViewportSize(to);
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue(tag);
+    await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
+    // Escape gives the focus back to "+ tag", which keeps the layout; once it goes, the banner
+    // turns compact.
+    await page.keyboard.press('Escape');
+    await expect(field).toHaveCount(0);
+    await expect(addTag).toBeFocused();
+    await addTag.evaluate((button) => button.blur());
+    await expect(addTag).toHaveCount(0);
+  };
+  await typeThenResize({ width: 900, height: 900 }, 'delta');
+  // Past the phone breakpoint too.
+  await typeThenResize({ width: 750, height: 900 }, 'delta');
 
-  // A tag typed at the top of More, in a narrow banner, survives the banner widening past the
+  // A tag typed at the top of More, in a narrow banner, survives the window widening past the
   // threshold while the menu is open; the next menu follows the wide layout.
   await page.setViewportSize({ width: 900, height: 900 });
-  await expect(threadBanner.getByRole('button', { name: 'Add tag', exact: true })).toHaveCount(0);
-  await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
+  await expect(addTag).toHaveCount(0);
+  await options.click();
   const tagSection = menu.locator('[data-thread-menu-tags]');
   await tagSection.getByRole('button', { name: 'Add tag', exact: true }).click();
-  const field = page.getByRole('textbox', { name: 'Filter or create tag' });
   await expect(field).toBeFocused();
   await field.pressSequentially('gamma');
   await page.setViewportSize({ width: 1400, height: 900 });
-  await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
   await expect(tagSection).toBeVisible();
   await expect(field).toBeFocused();
   await expect(field).toHaveValue('gamma');
@@ -184,7 +194,12 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(field).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
-  await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
+  // Closed, the menu hands the focus back to More, which holds the layout until it goes.
+  await expect(options).toBeFocused();
+  await expect(threadBanner.getByText('alpha', { exact: true })).toHaveCount(0);
+  await options.evaluate((button) => button.blur());
+  await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
+  await options.click();
   await expect(menu).toBeVisible();
   await expect(menu.locator('[data-thread-menu-tags]')).toHaveCount(0);
 });

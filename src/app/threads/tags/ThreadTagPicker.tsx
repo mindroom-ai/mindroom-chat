@@ -1,11 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import React, { useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Text, config, type RectCords } from 'folds';
@@ -14,15 +7,12 @@ import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { isValidTagName, normalizeTagName } from '../../event-store/threads/threadTags';
 import * as css from '../ThreadContextBanner.css';
 import * as tagCss from './ThreadTagPicker.css';
-import { useLatestRef } from '../../lib/hooks/useLatestRef';
 
 type ThreadTagPickerProps = {
   /** Tags used elsewhere in the room, offered as suggestions. */
   availableTags: string[];
   onAddTag: (tagName: string) => void;
   disabled?: boolean;
-  /** Called with true as the list opens and false as it closes, also by unmounting while open. */
-  onOpenChange?: (open: boolean) => void;
 };
 
 // A dashed outline of the tag pills beside it: the same type size, an empty slot to fill. Text
@@ -45,25 +35,11 @@ const addButtonStyle: React.CSSProperties = {
 };
 
 /** The "+ tag" control: a filterable list of the room's tags that also creates new ones. */
-export function ThreadTagPicker({
-  availableTags,
-  onAddTag,
-  disabled,
-  onOpenChange,
-}: ThreadTagPickerProps) {
+export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTagPickerProps) {
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const onOpenChangeRef = useLatestRef(onOpenChange);
-  const open = !!anchor;
-  useEffect(() => {
-    if (!open) return undefined;
-    // The newest callback, also when it changed while the list was open.
-    const latest = onOpenChangeRef;
-    latest.current?.(true);
-    return () => latest.current?.(false);
-  }, [open, onOpenChangeRef]);
 
   const close = () => {
     setAnchor(undefined);

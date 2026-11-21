@@ -24,13 +24,10 @@ import { runShortcut } from '../shortcuts/useShortcut';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const menuProps = vi.hoisted(() => vi.fn());
-// Each time a menu mounts: a menu that mounts again loses what was typed in it.
-const menuMounts = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
 vi.mock('./ThreadActionsMenu', () => ({
   ThreadActionsMenu: (props: unknown) => {
     menuProps(props);
-    React.useEffect(() => menuMounts(), []);
     return React.createElement('div', { role: 'menu' });
   },
 }));
@@ -171,15 +168,8 @@ vi.mock('./tags/ThreadTagPill', () => ({
   ThreadTagPill: ({ name }: { name: string }) => React.createElement('span', null, name),
 }));
 
-const pickerProps = vi.hoisted(() => vi.fn());
-// Each time a picker mounts: one that mounts again loses the tag typed in it.
-const pickerMounts = vi.hoisted(() => vi.fn());
 vi.mock('./tags/ThreadTagPicker', () => ({
-  ThreadTagPicker: (props: unknown) => {
-    pickerProps(props);
-    React.useEffect(() => pickerMounts(), []);
-    return React.createElement('button', null, '+ tag');
-  },
+  ThreadTagPicker: () => React.createElement('button', null, '+ tag'),
 }));
 
 vi.mock('./ThreadContextBanner.css', () => ({
@@ -1107,24 +1097,24 @@ describe('ThreadContextBanner rendering', () => {
       }));
       return { turn: () => act(() => listeners.forEach((listener) => listener())), listeners };
     };
-    // Resize observers whose callbacks `resizeAll()` runs, in one update.
-    const observeResizes = () => {
-      const resized: (() => void)[] = [];
+    // Stubs the observer class `name`: `run()` calls back every one observing, in one update.
+    const stubObserver = (name: 'ResizeObserver' | 'MutationObserver') => {
+      const callbacks: (() => void)[] = [];
       vi.stubGlobal(
-        'ResizeObserver',
+        name,
         class {
           constructor(private readonly callback: () => void) {}
 
           observe() {
-            resized.push(this.callback);
+            callbacks.push(this.callback);
           }
 
           disconnect() {
-            resized.splice(resized.indexOf(this.callback), 1);
+            callbacks.splice(callbacks.indexOf(this.callback), 1);
           }
         }
       );
-      return () => act(() => resized.forEach((measure) => measure()));
+      return { run: () => act(() => callbacks.forEach((callback) => callback())), callbacks };
     };
     // Focus moves to `element` in the banner: the page says so, and React's focus event reaches
     // the banner.
@@ -1202,41 +1192,27 @@ describe('ThreadContextBanner rendering', () => {
       let width = 646;
       let fontSize = '16px';
       vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
-      const resized: (() => void)[] = [];
-      const rootStyleChanged: (() => void)[] = [];
-      const observer = (callbacks: (() => void)[]) =>
-        class {
-          constructor(private readonly callback: () => void) {}
-
-          observe() {
-            callbacks.push(this.callback);
-          }
-
-          disconnect() {
-            callbacks.splice(callbacks.indexOf(this.callback), 1);
-          }
-        };
-      vi.stubGlobal('ResizeObserver', observer(resized));
-      vi.stubGlobal('MutationObserver', observer(rootStyleChanged));
+      const resized = stubObserver('ResizeObserver');
+      const rootStyleChanged = stubObserver('MutationObserver');
       const banner = renderBanner(
         TITLE,
         bannerOf(() => width)
       );
       expect(tagPills(banner)).toHaveLength(2);
       width = 330;
-      act(() => resized.forEach((measure) => measure()));
+      resized.run();
       expect(tagPills(banner)).toHaveLength(0);
       expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
       width = 646;
-      act(() => resized.forEach((measure) => measure()));
+      resized.run();
       expect(tagPills(banner)).toHaveLength(2);
       // At 125% 36rem is 720 px, more than the banner has.
       fontSize = '20px';
-      act(() => rootStyleChanged.forEach((changed) => changed()));
+      rootStyleChanged.run();
       expect(tagPills(banner)).toHaveLength(0);
       banner.unmount();
-      expect(resized).toHaveLength(0);
-      expect(rootStyleChanged).toHaveLength(0);
+      expect(resized.callbacks).toHaveLength(0);
+      expect(rootStyleChanged.callbacks).toHaveLength(0);
     });
 
     it('keeps a phone compact where its banner is wider than 36rem', () => {
@@ -1310,55 +1286,6 @@ describe('ThreadContextBanner rendering', () => {
       wide.unmount();
     });
 
-    it('keeps an open menu as it opened when the banner widens, and the next one follows', async () => {
-      let width = 330;
-      const resizeAll = observeResizes();
-      const banner = renderBanner(
-        TITLE,
-        bannerOf(() => width)
-      );
-      menuMounts.mockClear();
-      expect((await menuOf(banner)).tagsAtTop).toBe(true);
-      expect(menuMounts).toHaveBeenCalledTimes(1);
-      // Widened past 36rem with the menu open (a tag being typed at its top): the same menu, its
-      // tags still at the top.
-      width = 646;
-      resizeAll();
-      expect(tagPills(banner)).toHaveLength(2);
-      expect(menuMounts).toHaveBeenCalledTimes(1);
-      expect(menuProps.mock.calls.at(-1)![0].tagsAtTop).toBe(true);
-      act(() => {
-        (menuProps.mock.calls.at(-1)![0] as { onClose: () => void }).onClose();
-      });
-      // Opened again, it follows the banner's new layout.
-      expect((await menuOf(banner)).tagsAtTop).toBe(false);
-      banner.unmount();
-    });
-
-    it('keeps the wide layout while its tag picker is open, and turns compact once it closes', () => {
-      let width = 646;
-      const resizeAll = observeResizes();
-      const banner = renderBanner(
-        TITLE,
-        bannerOf(() => width)
-      );
-      const picker = () =>
-        pickerProps.mock.calls.at(-1)![0] as { onOpenChange: (open: boolean) => void };
-      act(() => picker().onOpenChange(true));
-      pickerMounts.mockClear();
-      // Narrowed past 36rem while a tag is typed: the same picker, with its row.
-      width = 330;
-      resizeAll();
-      expect(buttons(banner)).toContain('+ tag');
-      expect(tagPills(banner)).toHaveLength(2);
-      expect(pickerMounts).not.toHaveBeenCalled();
-      // Closed, the banner takes the narrow layout.
-      act(() => picker().onOpenChange(false));
-      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
-      expect(title(banner).props.className).toBe('PhoneTitle');
-      banner.unmount();
-    });
-
     it('follows the short screen query at the same width', () => {
       let short = false;
       const screen = shortScreen(() => short);
@@ -1380,108 +1307,54 @@ describe('ThreadContextBanner rendering', () => {
       expect(screen.listeners.size).toBe(0);
     });
 
-    // A control of a banner's, in the page while `shown()` says the banner renders it.
-    const control = (shown: () => boolean = () => true) => ({
-      get isConnected() {
-        return shown();
-      },
-      focus: vi.fn(),
-      disabled: false,
-    });
-    // While the banner `renderer()` returns shows its Pin button.
-    const showsPin = (renderer: () => ReturnType<typeof renderBanner> | undefined) => () => {
-      const shown = renderer();
-      return !!shown && buttons(shown).includes('Pin thread');
-    };
-    const nodesOf =
-      (pin: ReturnType<typeof control>, more: ReturnType<typeof control>) =>
-      (element: React.ReactElement) => {
-        const props = element.props as Record<string, unknown>;
-        if (props['aria-label'] === 'Pin thread') return pin;
-        if (props['aria-haspopup'] === 'menu') return more;
-        return null;
+    it('changes its layout only while nothing in it has the focus or an open menu', async () => {
+      let width = 646;
+      const resized = stubObserver('ResizeObserver');
+      const focusOut = new Set<() => void>();
+      const page = {
+        documentElement: {},
+        activeElement: null as unknown,
+        addEventListener: (type: string, listener: () => void) =>
+          type === 'focusout' && focusOut.add(listener),
+        removeEventListener: (type: string, listener: () => void) =>
+          type === 'focusout' && focusOut.delete(listener),
       };
-
-    it('hands the focus to More when the control that had it leaves as the banner narrows', () => {
-      let width = 646;
-      const resizeAll = observeResizes();
-      const shown: ReturnType<typeof renderBanner>[] = [];
-      const [pin, more] = [control(showsPin(() => shown[0])), control()];
-      const page = { documentElement: {}, activeElement: null as unknown };
       vi.stubGlobal('document', page);
+      // The focus moved: the page's focusout, then the banner sees where it went.
+      const settle = () =>
+        act(async () => {
+          focusOut.forEach((listener) => listener());
+          await new Promise((resolve) => setTimeout(resolve));
+        });
       const banner = renderBanner(
         TITLE,
-        bannerOf(() => width, nodesOf(pin, more))
+        bannerOf(() => width)
       );
-      shown.push(banner);
+      // Pin has the focus while the pane narrows: the banner stays as it is.
+      focusIn(banner, page, { isConnected: true });
+      width = 330;
+      resized.run();
       expect(buttons(banner)).toContain('Pin thread');
-      // Pin has the focus and leaves the row.
-      focusIn(banner, page, pin);
-      width = 330;
-      resizeAll();
-      expect(buttons(banner)).not.toContain('Pin thread');
-      expect(more.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(tagPills(banner)).toHaveLength(2);
+      // The focus moves on to another of its controls: still as it is.
+      focusIn(banner, page, { isConnected: true });
+      await settle();
+      expect(tagPills(banner)).toHaveLength(2);
+      // The focus leaves the banner: it takes the narrow layout.
+      page.activeElement = null;
+      await settle();
+      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(focusOut.size).toBe(0);
 
-      // Focus on a control that stays (More itself) stays where it is.
-      more.focus.mockClear();
+      // An open menu holds the layout too, until it closes.
+      expect((await menuOf(banner)).tagsAtTop).toBe(true);
       width = 646;
-      resizeAll();
-      focusIn(banner, page, more);
-      width = 330;
-      resizeAll();
-      expect(more.focus).not.toHaveBeenCalled();
-      banner.unmount();
-    });
-
-    it('moves the focus only in the banner that had it when two narrow at once', () => {
-      let width = 646;
-      const resizeAll = observeResizes();
-      const shown: ReturnType<typeof renderBanner>[] = [];
-      const [firstPin, firstMore, secondPin, secondMore] = [
-        control(showsPin(() => shown[0])),
-        control(),
-        control(showsPin(() => shown[1])),
-        control(),
-      ];
-      const page = { documentElement: {}, activeElement: null as unknown };
-      vi.stubGlobal('document', page);
-      const first = renderBanner(
-        TITLE,
-        bannerOf(() => width, nodesOf(firstPin, firstMore))
-      );
-      const second = renderBanner(
-        TITLE,
-        bannerOf(() => width, nodesOf(secondPin, secondMore))
-      );
-      shown.push(first, second);
-      focusIn(first, page, firstPin);
-      // Page Zoom or a resize narrows both in one update; the first's Pin leaves with the focus.
-      width = 330;
-      resizeAll();
-      expect(buttons(first)).not.toContain('Pin thread');
-      expect(buttons(second)).not.toContain('Pin thread');
-      expect(firstMore.focus).toHaveBeenCalledWith({ preventScroll: true });
-      expect(secondMore.focus).not.toHaveBeenCalled();
-      first.unmount();
-      second.unmount();
-    });
-
-    it('leaves the focus alone when it is outside the banner', () => {
-      let width = 646;
-      const resizeAll = observeResizes();
-      const [pin, more] = [control(), control()];
-      const outside = { isConnected: true };
-      const page = { documentElement: {}, activeElement: outside as unknown };
-      vi.stubGlobal('document', page);
-      const banner = renderBanner(
-        TITLE,
-        bannerOf(() => width, nodesOf(pin, more))
-      );
-      // A control elsewhere on the page with the focus goes in the same update.
-      width = 330;
-      outside.isConnected = false;
-      resizeAll();
-      expect(more.focus).not.toHaveBeenCalled();
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(0);
+      act(() => {
+        (menuProps.mock.calls.at(-1)![0] as { onClose: () => void }).onClose();
+      });
+      expect(tagPills(banner)).toHaveLength(2);
       banner.unmount();
     });
   });

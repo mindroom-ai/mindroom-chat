@@ -63,9 +63,6 @@ type BannerMenuState = {
   rootId: string;
   anchor: RectCords;
   trigger: HTMLElement;
-  // The layout's at the opening: a banner that crosses COMPACT_BANNER_REM while the menu is open
-  // keeps its tag section, and a tag being typed there.
-  tagsAtTop: boolean;
 };
 
 export interface ThreadContextBannerProps {
@@ -244,14 +241,15 @@ export function ThreadContextBanner({
   // A phone always gets the phone layout, so it looks as before whatever its width or zoom. Other
   // screens get it when the banner is narrow: the tags and the pin move to More, and, unless the
   // screen is short and keeps one row, the title shows whole and the buttons can stack.
-  const measuredNarrow = useNarrowBanner(bannerRef, phone);
-  // The tags row's picker, open, keeps the banner wide until it closes, so the tag being typed
-  // stays (a phone shows no picker).
-  const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  const narrow = measuredNarrow && !tagPickerOpen;
+  const narrow = useNarrowBanner(bannerRef, phone);
   const short = useShortViewport();
-  const compact = phone || narrow;
-  const wholeTitle = phone || (narrow && !short);
+  const wanted = { compact: phone || narrow, wholeTitle: phone || (narrow && !short) };
+  // The layout changes only while nothing in the banner is in use, so the control in use (a tag
+  // being typed, Pin with the focus, an open menu) stays where it is; it follows once the focus
+  // leaves the banner and its popouts, whose focus events reach it through React.
+  const focused = useRef<Element | null>(null);
+  const [focusInside, setFocusInside] = useState(false);
+  const shown = useRef(wanted);
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -262,31 +260,30 @@ export function ThreadContextBanner({
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  // Turning compact removes the tags and Pin; the one of them that had the focus hands it to More.
-  // Only focus this banner holds counts: React's focus events reach the banner from the tag
-  // picker's popout too, which renders outside it.
-  const focusInBanner = useRef<Element | null>(null);
-  const [compactFocus, setCompactFocus] = useState({ compact, focused: null as Element | null });
-  if (compactFocus.compact !== compact) {
-    const active = typeof document === 'undefined' ? null : document.activeElement;
-    const focused = compact && active && active === focusInBanner.current ? active : null;
-    setCompactFocus({ compact, focused });
-  }
-  useLayoutEffect(() => {
-    if (compactFocus.focused?.isConnected === false) {
-      moreButtonRef.current?.focus({ preventScroll: true });
-    }
-  }, [compactFocus]);
+  if (!focusInside && !menu) shown.current = wanted;
+  const { compact, wholeTitle } = shown.current;
+  useEffect(() => {
+    if (!focusInside) return undefined;
+    // Once the focus has moved (in the same task, to another control of the banner or out),
+    // see whether the control the banner last saw focused still has it.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (focused.current?.isConnected && focused.current === document.activeElement) return;
+        focused.current = null;
+        setFocusInside(false);
+      });
+    };
+    document.addEventListener('focusout', settle);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('focusout', settle);
+    };
+  }, [focusInside]);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
-    const nextMenu = {
-      roomId: room.roomId,
-      threadId,
-      rootId: threadRootId,
-      anchor,
-      trigger,
-      tagsAtTop: compact,
-    };
+    const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
     menuRef.current = nextMenu;
     setMenu(nextMenu);
   };
@@ -517,10 +514,8 @@ export function ThreadContextBanner({
         data-thread-context-banner="true"
         tabIndex={-1}
         onFocus={(event) => {
-          focusInBanner.current = event.target;
-        }}
-        onBlur={() => {
-          focusInBanner.current = null;
+          focused.current = event.target;
+          setFocusInside(true);
         }}
         onContextMenu={(event) => {
           if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
@@ -602,7 +597,6 @@ export function ThreadContextBanner({
                           availableTags={headerModel.availableTags}
                           onAddTag={handleAddTag}
                           disabled={headerModel.pickerDisabled}
-                          onOpenChange={setTagPickerOpen}
                         />
                       )}
                     </div>
@@ -883,7 +877,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
-            tagsAtTop={activeMenu.tagsAtTop}
+            tagsAtTop={compact}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />
