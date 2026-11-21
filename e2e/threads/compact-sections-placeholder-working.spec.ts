@@ -154,21 +154,40 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
   await expect.poll(() => sectionOf(page, rootB)).toBe('working');
   expect(await orderHeld()).toBe(0);
 
-  // (c) A finish likewise waits while the pointer holds the list, then applies on mouse rest.
-  await card(oldRoot).hover();
+  // (c) Keep the mouse moving within the same card until the finish syncs, then let it rest.
+  const finishBox = await card(oldRoot).boundingBox();
+  if (!finishBox) throw new Error('no card to point at');
+  let nudge = 0;
+  const moveWithinCard = () => {
+    nudge = 1 - nudge;
+    return page.mouse.move(
+      finishBox.x + finishBox.width / 2 + nudge,
+      finishBox.y + finishBox.height / 2
+    );
+  };
+  await moveWithinCard();
   await expect.poll(orderHeld).toBe(1);
-  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
-    msgtype: 'm.text',
-    body: '* Here are the fixes.',
-    'm.new_content': {
+  await Promise.all([
+    sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
       msgtype: 'm.text',
-      body: 'Here are the fixes.',
-      'io.mindroom.stream_status': 'completed',
-    },
-    'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
-  });
-  // Live counts change before the card is allowed to move.
-  await expect(workingHeader).toHaveText(/· 1$/);
+      body: '* Here are the fixes.',
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'Here are the fixes.',
+        'io.mindroom.stream_status': 'completed',
+      },
+      'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
+    }),
+    expect
+      .poll(
+        async () => {
+          await moveWithinCard();
+          return workingHeader.textContent();
+        },
+        { timeout: 15_000 }
+      )
+      .toMatch(/· 1$/),
+  ]);
   expect(await sectionOf(page, rootB)).toBe('working');
   expect(await orderHeld()).toBe(1);
   await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
