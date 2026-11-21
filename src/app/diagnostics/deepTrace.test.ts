@@ -246,11 +246,15 @@ describe('opt-in deep diagnostic trace', () => {
     await setDeepTraceEnabled(true, storage);
 
     recordSyncStoreFailure('failed', new DOMException('private detail', 'UnknownError'));
+    recordSyncStoreFailure('stopped', new TypeError('private detail'));
     recordSyncStoreFailure('degraded', new DOMException('private detail', 'QuotaExceededError'));
 
     const snapshot = await readDeepTraceSnapshot();
     expect(snapshot.events).toContainEqual(
       expect.objectContaining({ name: 'storage.sync_store.failed', data: { error_code: 13 } })
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({ name: 'storage.sync_store.stopped', data: { error_code: 7 } })
     );
     expect(snapshot.events).toContainEqual(
       expect.objectContaining({ name: 'storage.sync_store.degraded', data: { error_code: 12 } })

@@ -273,9 +273,9 @@ export const initClient = async (
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
-  // A save that failed, or a store that stopped saving, shows in the next diagnostics export.
-  (['failed', 'degraded'] as const).forEach((outcome) =>
-    store.on?.(outcome, (error: unknown) => recordSyncStoreFailure(outcome, error))
+  // What happened to the saved sync shows in the next diagnostics export.
+  (['failed', 'stopped', 'degraded'] as const).forEach((outcome) =>
+    store.on(outcome, (error: unknown) => recordSyncStoreFailure(outcome, error))
   );
   if (markStartup) {
     const readSavedSync = store.getSavedSync.bind(store);
