@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -125,7 +125,7 @@ function ReturnToCallButton({ active, drawerOpen }: { active: ActiveCall; drawer
         className={css.ReturnToCallButton}
         data-speaking={speaking || undefined}
         aria-describedby={microphone ? undefined : mutedId}
-        onClick={(event) => {
+        onClick={(event: MouseEvent<HTMLButtonElement>) => {
           if (event.currentTarget.ownerDocument.activeElement === event.currentTarget) {
             setFocusHandOff({ to: 'panel', from: event.currentTarget });
           }
