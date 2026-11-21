@@ -574,8 +574,13 @@ const watchGlide = async (page: Page, rootId: string) => {
   };
 };
 
-const checkLiveInBand = async (page: Page, seeded: Seeded) => {
+const checkLiveInBand = async (page: Page, seeded: Seeded, atEdge = false) => {
   await openScrolled(page, seeded, { top: IN_BAND });
+  const offset = atEdge
+    ? await listView(page).evaluate((view) => Math.floor(view.clientHeight / 2))
+    : IN_BAND;
+  if (atEdge) await scrollList(page, offset);
+  await expect.poll(() => listScrollTop(page)).toBe(offset);
   await page.mouse.move(5, 795);
   await expect(orderHeld(page)).toHaveCount(0);
   const before = await cardOrder(page);
@@ -619,11 +624,12 @@ const checkLiveInBand = async (page: Page, seeded: Seeded) => {
   );
   await watch.dispose();
   await glided();
-  await expect.poll(() => listScrollTop(page)).toBe(IN_BAND);
+  await expect.poll(() => listScrollTop(page)).toBe(offset);
 
   // Leaving the band holds the order that was applied live there, not its earlier order.
   const liveOrder = await cardOrder(page);
-  await scrollPastBand(page);
+  if (atEdge) await scrollList(page, offset + 1);
+  else await scrollPastBand(page);
   await expect(orderHeld(page)).toHaveCount(1);
   const still = await watchVisibleRows(page);
   const next = seeded.rootIds[1] ?? '';
@@ -795,6 +801,11 @@ test.describe('Compact order stays calm while scrolled', () => {
   test('reflows live at a nonzero offset inside the band (Chromium)', async ({ page }) => {
     test.setTimeout(180_000);
     await checkLiveInBand(page, await seed('cband'));
+  });
+
+  test('reflows at the half-height boundary and holds one pixel beyond it', async ({ page }) => {
+    test.setTimeout(180_000);
+    await checkLiveInBand(page, await seed('boundary'), true);
   });
 
   test('reflows live at a nonzero offset inside the band (WebKit)', async ({ baseURL }) => {
