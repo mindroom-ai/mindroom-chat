@@ -1,7 +1,6 @@
 import type { ListFrame, ListInput } from './listRecorder';
-
 export type Invariant = 'I1' | 'I2' | 'I3' | 'I4' | 'I5' | 'I6' | 'I7';
-export const away = (frame: ListFrame) => frame.y > frame.height / 2;
+const away = (frame: ListFrame) => frame.y > frame.height / 2;
 const changed = (a: number, b: number) => Math.abs(a - b) > 1;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const rows = (frame: ListFrame) => frame.visible.filter((r) => !r.key.startsWith('header:'));
@@ -15,21 +14,20 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
   let stable = 0;
   let scope = false;
   let direction: ListInput | undefined;
-  let scrolled = false;
   let active = false;
+  let control = false;
   let enteredCalm = false;
   const baseline = new Map<string, number>();
   let nav:
     | { from: ListFrame; target?: string; moved?: string; placements: number; done?: number }
     | undefined;
-  const start = (from: ListFrame, target?: string, moved?: string) => {
-    nav = { from, target, moved, placements: 0 };
-  };
   return {
     scope: () => {
       scope = true;
     },
-    start,
+    start(from: ListFrame, target?: string, moved?: string) {
+      nav = { from, target, moved, placements: 0 };
+    },
     settle(frame: ListFrame, winner?: string) {
       if (nav && nav.done === undefined) {
         const { target, from, moved } = nav;
@@ -54,9 +52,11 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       const fresh = a.view !== b.view;
       const keys = new Set(b.order.map(([key]) => key));
       const motion = b.writes.filter((w) => w.before !== w.after);
-      const explicit = b.writes.filter((w) => w.method !== 'focus' && w.method !== 'scrollTop');
+      const calls = b.writes.filter(
+        ({ method }) => method.startsWith('scroll') && method !== 'scrollTop'
+      );
       if (keys.size !== b.order.length) report('I4', 'duplicate displayed key');
-      if (new Set([...motion, ...explicit]).size > 1)
+      if (new Set([...motion, ...calls]).size > 1)
         report('I3', 'multiple scroll writes or calls in one frame');
       const unchanged = same(a.order, b.order);
       const old = rows(a);
@@ -67,7 +67,7 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       const stationary = unchanged && Math.abs(worldDelta) <= 1;
       if (fresh || scope) {
         direction = undefined;
-        active = false;
+        control = active = false;
         enteredCalm = false;
         rest = Infinity;
       }
@@ -76,19 +76,22 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
         if ('type' in event) {
           if (event.direction && event.inside) {
             direction = event;
-            scrolled = false;
             active = true;
             stable = 0;
           } else if (['keydown', 'pointerdown', 'touchstart'].includes(event.type))
             direction = undefined;
           if (nav && nav.done === undefined && !fresh && event.type !== 'pointermove')
             nav.done = a.y;
+          if (event.type === 'click' || event.type === 'keydown') {
+            control = true;
+            stable = 0;
+          }
           if (event.mouse) rest = event.inside ? b.time + 3000 : Infinity;
         } else if (
           direction &&
           !fresh &&
           stationary &&
-          (scrolled || (event.before - direction.y) * direction.direction > 1) &&
+          (event.before - direction.y) * direction.direction > 1 &&
           (event.after - event.before) * direction.direction < -1
         ) {
           undo = true;
@@ -114,8 +117,8 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       const nativeDelta = fresh
         ? 0
         : b.y - a.y - motion.reduce((sum, w) => sum + w.after - w.before, 0);
-      if (direction && nativeDelta * direction.direction > 0.1) scrolled = true;
-      stable = Math.abs(nativeDelta) < 0.1 ? stable + 1 : 0;
+      stable = Math.abs(nativeDelta) < 0.1 && unchanged && !b.moving && !b.pending ? stable + 1 : 0;
+      control &&= stable < 5;
       // Keep direction for I3 after settling, but don't treat a later passive correction as a gesture.
       active &&= !!direction && stable < 5;
       const gesture = active;
@@ -126,7 +129,7 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       const calmBefore = calm;
       if (fresh || scope || readerScroll || jump || (acted && Math.abs(nativeDelta) >= 0.1))
         calm = away(b);
-      if (!fresh && a.held !== b.held && b.time - lastAct > 150 && !gesture) {
+      if (!fresh && a.held !== b.held && b.time - lastAct > 150 && !gesture && !control && !jump) {
         if (!a.held || b.time < rest - 50 || b.time > rest + 200)
           report('I5', 'hold changed without reader action or mouse-rest expiry');
         else rest = Infinity;
@@ -137,8 +140,8 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
         enteredCalm = false;
       }
       scope = false;
-      if (acted || gesture || jump || !calm) baseline.clear();
-      if (fresh || acted || gesture || jump) return;
+      if (acted || control || gesture || jump || !calm) baseline.clear();
+      if (acted || control || gesture || jump) return;
       if (calm) {
         const survivors = a.order.filter(([key]) => keys.has(key));
         const oldKeys = new Set(survivors.map(([key]) => key));

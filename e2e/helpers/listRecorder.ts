@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test';
-
 export const COMPACT = '[data-compact-room-view]';
 export const BOARD = '[data-thread-board-column="open"]';
 export const LIVE = ':not([data-page-slide-copy] *, [inert] *)';

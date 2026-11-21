@@ -157,8 +157,7 @@ for (const phone of [false, true]) {
         id: Invariant;
         op: number;
         reason: string;
-        before?: ListFrame;
-        after?: ListFrame;
+        pair: (ListFrame | undefined)[];
         dy?: number;
       }[] = [];
       const started = Date.now();
@@ -178,8 +177,7 @@ for (const phone of [false, true]) {
           id,
           op: sequence,
           reason,
-          before,
-          after: frame,
+          pair: [before, frame],
           dy: frame && before ? frame.y - before.y : undefined,
         });
         console.log(`${id}: ${reason}; ${replay()}`);
@@ -338,7 +336,7 @@ for (const phone of [false, true]) {
               previous.order
                 .filter(([key]) => roots.includes(key) && !resolved.has(key))
                 .at(-5)?.[0] ?? target;
-          if (op === 'pin' && pinned.size && board) target = pinned.values().next().value!;
+          if (op === 'pin' && board) target = pinned.values().next().value ?? target;
           if (op === 'finish') target = runs.keys().next().value ?? target;
           let delta = op === 'wheel' ? roll - 900 || 400 : 0;
           if (sequence === 0) delta = Math.floor(previous.height / 4);
@@ -477,7 +475,6 @@ for (const phone of [false, true]) {
               await ready();
               break;
             case 'resize':
-              oracle.scope();
               await page.setViewportSize({ ...size, height: size.height - (roll % 200) });
               break;
             case 'pill': {
@@ -507,6 +504,7 @@ for (const phone of [false, true]) {
           sampleCount += samples.length;
           for (const next of samples) {
             before = frame;
+            if (op === 'resize' && before?.height !== next.height) oracle.scope();
             frame = next;
             oracle.sample(before!, frame);
           }
