@@ -626,7 +626,15 @@ export const useTimelineScrollLedgerController = ({
   // most of these on scrollend-capable WebKit; this watchdog restores the
   // fold to the ledger when a write is reverted anyway.
   const settleDiscardWatchRef = useRef<
-    { px: number; preSettleScrollTop: number; settledScrollTop: number; at: number } | undefined
+    | {
+        px: number;
+        /** The part of `px` that rows brought with their own height (`rowFoldPxRef`). */
+        rowFoldPx: number;
+        preSettleScrollTop: number;
+        settledScrollTop: number;
+        at: number;
+      }
+    | undefined
   >(undefined);
 
   // The banner above the rows changes height mostly without a timeline
@@ -714,6 +722,7 @@ export const useTimelineScrollLedgerController = ({
       if (Math.abs(px) >= SETTLE_DISCARD_MIN_LEDGER_PX) {
         settleDiscardWatchRef.current = {
           px,
+          rowFoldPx,
           preSettleScrollTop,
           settledScrollTop,
           at: Date.now(),
@@ -872,6 +881,9 @@ export const useTimelineScrollLedgerController = ({
           // event — its geometry is mid-restoration.
           settleDiscardWatchRef.current = undefined;
           countCacheProbe('ledgerSettleWriteDiscarded');
+          // The rows' part comes back with the margin, in the render that paints it: without
+          // it the end clamp read that part of the restored margin as rows that shrank.
+          droppedRowFoldPxRef.current += watch.rowFoldPx;
           handleDroppedCorrection(watch.px);
           return;
         } else if (
