@@ -16,8 +16,15 @@ const rimShade = createVar();
 const rimReflection = createVar();
 export const glassShadow = createVar();
 
-const maskedRimSupport =
-  '((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and ((mask-composite: exclude) or (-webkit-mask-composite: xor))';
+const backdropSupport = '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))';
+const maskedRimSupport = `(${backdropSupport}) and ((mask-composite: exclude) or (-webkit-mask-composite: xor))`;
+const opaqueGlassMedia =
+  '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)';
+const backdropTint = `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`;
+const backdropBlur = {
+  backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+  WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+};
 
 const variantStyle = (variant: ContainerColor): StyleRule => ({
   vars: {
@@ -108,14 +115,13 @@ const material = (
         },
       },
     },
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+    [backdropSupport]: {
       vars: { [glassShadow]: shadow },
       selectors: {
         '&&': {
-          backgroundColor: `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`,
+          backgroundColor: backdropTint,
           backgroundImage: `radial-gradient(circle 90px at var(--liquid-glass-light-x, 0%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
-          backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
-          WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+          ...backdropBlur,
         },
         '&&[data-liquid-glass="active"]': {
           backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
@@ -133,7 +139,7 @@ const material = (
         },
       },
     },
-    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
+    [opaqueGlassMedia]: {
       selectors: {
         '&&::before': { display: 'none' },
         '&&&': {
@@ -158,7 +164,7 @@ export const glassExpanded = style({
     [expanded]: { vars: { [surfaceContainer]: surfaceActive }, backgroundColor: surfaceActive },
   },
   '@supports': {
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+    [backdropSupport]: {
       selectors: {
         [expanded]: {
           backgroundColor: `color-mix(in srgb, ${surfaceActive} ${surfaceTint}, transparent)`,
@@ -166,18 +172,18 @@ export const glassExpanded = style({
       },
       // Nested: vanilla-extract emits a top-level media query before this one, where it would lose.
       '@media': {
-        '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)':
-          { selectors: { [expanded]: { backgroundColor: surfaceActive } } },
+        [opaqueGlassMedia]: { selectors: { [expanded]: { backgroundColor: surfaceActive } } },
       },
     },
   },
 });
 
 // Keep floating chrome as lightly blurred as the Chromium optical filter.
+const floatingBlur = '3px';
 export const glassFloating = style({
   selectors: {
     '&&&': {
-      vars: { [surfaceBlur]: '3px' },
+      vars: { [surfaceBlur]: floatingBlur },
     },
   },
 });
@@ -205,6 +211,39 @@ export const glassFlat = style({
   },
 });
 
+const fadeMask = 'linear-gradient(to bottom, #000, transparent)';
+const maskedFadeSupport = `(${backdropSupport}) and ((mask-image: ${fadeMask}) or (-webkit-mask-image: ${fadeMask}))`;
+const tintSupport = '(background-color: color-mix(in srgb, #000, transparent))';
+const fadeSupport = `${maskedFadeSupport} and ${tintSupport}`;
+
+// Continue the flat chrome behind the controls without making their slot a backdrop root.
+export const glassFadeDown = style({
+  '@supports': {
+    [fadeSupport]: {
+      selectors: {
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          zIndex: -1,
+          pointerEvents: 'none',
+          vars: {
+            [surfaceContainer]: color.Surface.Container,
+            [surfaceTint]: denseTint.light,
+            [surfaceBlur]: floatingBlur,
+          },
+          backgroundColor: backdropTint,
+          ...backdropBlur,
+          WebkitMaskImage: fadeMask,
+          maskImage: fadeMask,
+        },
+        [`${DARK_THEMES} &::before`]: { vars: { [surfaceTint]: denseTint.dark } },
+      },
+    },
+  },
+  '@media': { [opaqueGlassMedia]: { selectors: { '&::before': { display: 'none' } } } },
+});
+
 // Nested chrome (a settings page's title) takes its panel's own color. At rest the panel's tint
 // lies behind it and it adds none, so it shows as no band across the panel; once its list scrolls,
 // content passes beneath it and it takes the dense tint (useScrolledBeneath marks it).
@@ -230,9 +269,8 @@ export const glassOverBackdrop = style({
   },
 });
 
-// Approval review, large dialogs and floating chrome over the timeline (the thread banner, the
-// thread filter bar) hold dense text: keep the rim and blur, but tint them nearly opaque so the
-// page behind does not compete with what they say.
+// Approval review, large dialogs and the thread banner hold dense text: keep the rim and blur,
+// but tint them nearly opaque so the page behind does not compete with what they say.
 export const glassDenseOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: denseTint.light } },
@@ -241,6 +279,21 @@ export const glassDenseOverBackdrop = style({
     },
   },
 });
+
+// A lighter tint over the fade lets as much through at the bar's middle as through the header.
+export const glassOverFadingBackdrop = style([
+  glassDenseOverBackdrop,
+  {
+    '@supports': {
+      [fadeSupport]: {
+        selectors: {
+          [`${glassFadeDown} > &&&`]: { vars: { [surfaceTint]: '89%' } },
+          [`${DARK_THEMES} ${glassFadeDown} > &&&`]: { vars: { [surfaceTint]: '82%' } },
+        },
+      },
+    },
+  },
+]);
 
 export const glassSurface = recipe({
   base: {
@@ -307,7 +360,7 @@ export const glassSurface = recipe({
 const layeredContent = ':has([data-glass-flat="true"], iframe)';
 export const glassScrollPanel = style({
   '@supports': {
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+    [backdropSupport]: {
       selectors: {
         [`&&&${layeredContent}`]: {
           position: 'relative',
@@ -325,8 +378,7 @@ export const glassScrollPanel = style({
           borderRadius: 'inherit',
           pointerEvents: 'none',
           zIndex: -1,
-          backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
-          WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+          ...backdropBlur,
         },
         [`&[data-liquid-glass="active"]${layeredContent}::after`]: {
           backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
@@ -336,7 +388,7 @@ export const glassScrollPanel = style({
     },
   },
   '@media': {
-    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
+    [opaqueGlassMedia]: {
       selectors: { '&&&::after': { display: 'none' } },
     },
   },

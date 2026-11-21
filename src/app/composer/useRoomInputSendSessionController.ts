@@ -447,6 +447,8 @@ export const useRoomInputSendSessionController = ({
   joinedSendPending: boolean;
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
+  /** Puts text that was not sent back: into the editor while it shows `context`, else its draft. */
+  restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
 } => {
   const store = useStore();
   const threadView = useInConversationView();
@@ -1045,5 +1047,6 @@ export const useRoomInputSendSessionController = ({
     joinedSendPending,
     processSendSession,
     startSendSession,
+    restoreText,
   };
 };

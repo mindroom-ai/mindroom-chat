@@ -6,12 +6,14 @@ import { act, create } from 'react-test-renderer';
 import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  PHONE_SLIDE_OUT_MS,
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
 } from '../navigation/phoneNavDrawer';
 import { PHONE_STAGE, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { NoticeSlot } from '../ui/noticeSlots';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
@@ -24,6 +26,7 @@ vi.mock('./PhoneNavDrawer.css', () => ({
   SheetSlot: 'sheet-slot',
   Scrim: 'scrim',
   Panel: 'panel',
+  ListColumn: 'list-column',
   Slot: 'slot',
 }));
 
@@ -64,6 +67,34 @@ describe('PhoneNavDrawer', () => {
     act(() => store.set(phoneNavDrawerOpenAtom, true));
     act(() => renderer?.unmount());
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+  });
+
+  it('offers a notice place of its own from when it comes out until it has slid away', () => {
+    vi.useFakeTimers();
+    const store = createStore();
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+            <PhoneNavDrawer nav={null} />
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    const places = () => renderer?.root.findAllByType(NoticeSlot).map((slot) => slot.props.place);
+    expect(places()).toEqual([]);
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    expect(places()).toEqual(['drawer']);
+    // Put away, it keeps the place while it slides: a notice there does not jump to the page.
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    expect(places()).toEqual(['drawer']);
+    act(() => {
+      vi.advanceTimersByTime(PHONE_SLIDE_OUT_MS);
+    });
+    expect(places()).toEqual([]);
+    act(() => renderer?.unmount());
+    vi.useRealTimers();
   });
 
   it('comes out over the page with no page slide, not even a moment of one', () => {

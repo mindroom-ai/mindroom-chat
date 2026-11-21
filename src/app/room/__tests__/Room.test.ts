@@ -158,8 +158,26 @@ vi.mock('../../members/PhoneMembersSheet.css', () => ({
   Layer: 'layer',
   Scrim: 'scrim',
   Panel: 'panel',
+  Members: 'sheet-members',
 }));
+// The sheet's notice place brings its styles; it is tested in ui/noticeSlots.test.tsx.
+vi.mock('../../ui/noticeSlots', async () => {
+  const { createElement, forwardRef } = await import('react');
+  return {
+    NoticeSlot: () => null,
+    DialogFrame: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>((props, ref) =>
+      createElement('div', { ref, role: 'dialog', ...props })
+    ),
+  };
+});
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
+// Its module reads `document` when it loads, which these tests stub.
+vi.mock('../../lib/portalOverlay', () => ({
+  holdModalSheet: () => () => undefined,
+  modalSheetOpen: () => false,
+  portalContainer: undefined,
+  hasBlockingPortalOverlay: () => false,
+}));
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
 vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));

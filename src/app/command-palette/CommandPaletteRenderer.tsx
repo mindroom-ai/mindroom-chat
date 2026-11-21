@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import { FocusScope, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { Overlay, OverlayBackdrop, OverlayCenter, config } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';
 import { LogoutDialog } from '../account/LogoutDialog';
@@ -74,18 +74,27 @@ type PaletteDialogProps = {
 function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDialogProps) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
+  // A press anywhere in the glass shell is inside the palette, also on its notice slot's Discard.
+  const shellRef = useRef<HTMLDivElement>(null);
   const source = useCommandPaletteSource({ onLogout });
   const { overlayProps } = useOverlay(
     { isOpen: true, onClose: requestClose, isDismissable: true, isKeyboardDismissDisabled: false },
-    ref
+    shellRef
   );
   const { dialogProps } = useDialog({ 'aria-label': t('commandPalette.inputAria') }, ref);
   usePreventScroll();
 
   // The glass shell holds the dialog, so the dialog's parent carries the palette's corners.
   const shell = (
-    <Modal size="500" flexHeight variant="Surface" style={mobile ? mobileSheetStyle : undefined}>
-      <div ref={ref} style={dialogStyle} {...mergeProps(overlayProps, dialogProps)}>
+    <Modal
+      {...overlayProps}
+      ref={shellRef}
+      size="500"
+      flexHeight
+      variant="Surface"
+      style={mobile ? mobileSheetStyle : undefined}
+    >
+      <div ref={ref} style={dialogStyle} {...dialogProps}>
         <CommandPalette
           requestClose={requestClose}
           source={source}

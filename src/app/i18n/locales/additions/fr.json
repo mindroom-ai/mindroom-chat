@@ -1250,6 +1250,10 @@
   "composer": {
     "voicePausedInThisRoom": "L'enregistrement vocal est en pause — terminez ou supprimez l'enregistrement non envoyé ailleurs dans ce salon",
     "voiceThreadRootUnsent": "Le fil de ce message vocal n'a pas de premier message envoyé. Réessayez une fois ce message envoyé, ou supprimez l'enregistrement.",
+    "voiceIndicator": {
+      "recording": "Enregistrement {{time}}",
+      "paused": "En pause {{time}}"
+    },
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",

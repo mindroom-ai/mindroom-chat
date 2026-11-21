@@ -1,11 +1,4 @@
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -23,7 +16,7 @@ import { editableActiveElement } from '../lib/dom';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
-import { moveMessageDraft, openVoiceRecorderAtom } from '../composer/roomInputDrafts';
+import { moveMessageDraft } from '../composer/roomInputDrafts';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
@@ -177,16 +170,11 @@ export function RoomView({
   // Every open thread shows in the column: beside the room's messages while the person chose that
   // (or a second thread shows) and the page has room, else filling the page, over the room's
   // conversation, which goes. A second thread changes no stored layout: closed, it holds again.
-  // A voice message recorded as the second thread closes keeps the thread beside until it is sent
-  // or discarded: filling the page would take the messages' composer, and its recording, away.
-  const recording = useAtomValue(openVoiceRecorderAtom) !== undefined;
-  // The room the hold was taken in: the view outlives a room switch, the hold must not.
-  const [heldIn, setHeldIn] = useState<string>();
-  const besideForSecond = besideWhileSecond || (heldIn === roomId && recording);
-  const holdIn = besideForSecond ? roomId : undefined;
-  if (heldIn !== holdIn) setHeldIn(holdIn);
+  // A voice message being recorded holds nothing here: it belongs to no composer, and the
+  // thread's composer shows it once the messages' one is gone.
   const columnFills =
-    !!openThreadId && ((threadLayout.layout === 'full' && !besideForSecond) || !threadLayout.roomy);
+    !!openThreadId &&
+    ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>();
   useLocalEchoRoot(room, openThreadId, () => {
@@ -299,7 +287,7 @@ export function RoomView({
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread}
       onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-      onShowFull={columnFills || besideForSecond ? undefined : showFull}
+      onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
     />
   );
   const timelineProps: RoomTimelineProps = {
@@ -385,7 +373,7 @@ export function RoomView({
           fullWidth={columnFills}
           resizeLabel={t('thread.resize')}
           // While a second thread keeps it beside the messages, filling the page would not take.
-          onExpand={besideForSecond ? undefined : showFull}
+          onExpand={besideWhileSecond ? undefined : showFull}
           expandLabel={t('thread.showFull')}
           testId="thread-column"
           onKeyDown={noteThreadColumnKey}

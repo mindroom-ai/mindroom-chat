@@ -389,7 +389,7 @@ const press = async (
     altKey: false,
     ctrlKey: false,
     metaKey: false,
-    currentTarget: { value, selectionStart: at, selectionEnd: at },
+    currentTarget: { value, selectionStart: at, selectionEnd: at, closest: () => null },
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
   };
