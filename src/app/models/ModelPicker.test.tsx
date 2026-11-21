@@ -644,33 +644,42 @@ describe('composer model picker', () => {
     }
   });
 
-  it('keeps the verified runtime chooser usable while refreshing', async () => {
-    const secondRuntime = {
-      ...runtime,
-      id: 'runtime-two',
-      userId: '@second-runtime:example.org',
-      deviceId: 'MOBILE',
-    };
-    const state = createState({
-      runtimes: [runtime, secondRuntime],
-      runtime: undefined,
-      loading: true,
-      canMutate: false,
-      models: [],
-    });
-    await open(state);
+  it.each([true, false])(
+    'keeps the verified runtime chooser usable (loading=%s)',
+    async (loading) => {
+      const secondRuntime = {
+        ...runtime,
+        id: 'runtime-two',
+        userId: '@second-runtime:example.org',
+        deviceId: 'MOBILE',
+      };
+      const state = createState({
+        runtimes: [runtime, secondRuntime],
+        runtime: undefined,
+        loading,
+        canMutate: false,
+        models: [],
+        inherited: [],
+      });
+      await open(state);
 
-    const chooser = container.querySelector('select[aria-label="Runtime"]') as HTMLSelectElement;
-    expect(chooser.textContent).toContain('@runtime:example.org on DESKTOP');
-    expect(chooser.textContent).toContain('@second-runtime:example.org on MOBILE');
-    expect(container.textContent).not.toContain('No matching models');
+      const chooser = container.querySelector('select[aria-label="Runtime"]') as HTMLSelectElement;
+      expect(chooser.textContent).toContain('@runtime:example.org on DESKTOP');
+      expect(chooser.textContent).toContain('@second-runtime:example.org on MOBILE');
+      if (loading) {
+        expect(container.textContent).not.toContain('No matching models');
+      } else {
+        expect(optionNamed('Default').getAttribute('aria-selected')).toBe('false');
+        expect(trigger().hasAttribute('aria-labelledby')).toBe(false);
+      }
 
-    act(() => {
-      chooser.value = 'runtime-two';
-      chooser.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    expect(state.chooseRuntime).toHaveBeenCalledWith('runtime-two');
-  });
+      act(() => {
+        chooser.value = 'runtime-two';
+        chooser.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      expect(state.chooseRuntime).toHaveBeenCalledWith('runtime-two');
+    }
+  );
 
   it('shows only loading status while discovery has no models to list', async () => {
     const state = createState({
