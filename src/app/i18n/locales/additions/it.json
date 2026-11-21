@@ -506,7 +506,8 @@
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
         "connection": "La connessione della chiamata si è interrotta.",
         "device": "Impossibile usare il microfono o la fotocamera.",
-        "untrustedService": "Questa chiamata usa un servizio di chiamata che il tuo homeserver non offre, quindi non puoi partecipare da qui."
+        "untrustedService": "Questa chiamata usa un servizio di chiamata che il tuo homeserver non offre, quindi non puoi partecipare da qui.",
+        "macApp": "Le chiamate non sono disponibili qui nell'app per Mac. Aggiorna l'app o chiama da un browser."
       },
       "devices": {
         "title": "Dispositivi",

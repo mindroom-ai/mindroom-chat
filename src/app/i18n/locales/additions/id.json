@@ -486,7 +486,8 @@
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
         "connection": "Koneksi panggilan terputus.",
         "device": "Mikrofon atau kamera Anda tidak dapat digunakan.",
-        "untrustedService": "Panggilan ini berjalan di layanan panggilan yang tidak disediakan homeserver Anda, jadi Anda tidak dapat bergabung dari sini."
+        "untrustedService": "Panggilan ini berjalan di layanan panggilan yang tidak disediakan homeserver Anda, jadi Anda tidak dapat bergabung dari sini.",
+        "macApp": "Panggilan tidak tersedia di sini di aplikasi Mac. Perbarui aplikasi, atau lakukan panggilan dari browser."
       },
       "devices": {
         "title": "Perangkat",

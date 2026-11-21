@@ -69,9 +69,17 @@ vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => fai
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined }),
 }));
+const media = vi.hoisted(
+  (): { kind: 'web' | 'native' | undefined; problem: 'browser' | 'macApp' } => ({
+    kind: 'web',
+    problem: 'browser',
+  })
+);
 vi.mock('./callSupport', () => ({
   browserSharesScreens: () => true,
-  browserSupportsCalls: () => true,
+  browserSupportsCalls: () => media.kind === 'web',
+  callMediaKind: () => media.kind,
+  callUnsupportedProblem: () => media.problem,
   useCallSupport: () => 'supported',
 }));
 vi.mock('./callAccess', () => ({
@@ -249,6 +257,8 @@ const tilesShown = () =>
   });
 
 beforeEach(() => {
+  media.kind = 'web';
+  media.problem = 'browser';
   localStorage.clear();
   store = createStore();
   vi.stubGlobal(
@@ -1205,5 +1215,44 @@ describe('the live transcript in the window', () => {
     expect(
       screen.getByRole('button', { name: 'Live transcript' }).hasAttribute('aria-pressed')
     ).toBe(false);
+  });
+});
+
+describe('CallPanel in the Mac app', () => {
+  it('shows no camera or device control in a native call', () => {
+    media.kind = 'native';
+    roomCall([me, person('@ana:panel.test')]);
+    renderPanel();
+    expect(button('Start Camera')).toBeNull();
+    expect(button('Stop Camera')).toBeNull();
+    expect(button('Settings')).toBeNull();
+    expect(button('Turn Off Microphone')).not.toBeNull();
+    expect(button('Turn Off Sound')).not.toBeNull();
+    expect(button('End')).not.toBeNull();
+  });
+
+  it('offers no camera or devices before joining in the Mac app', () => {
+    media.kind = 'native';
+    calls.active = undefined;
+    calls.state = undefined;
+    renderPanel();
+    expect(button('Start Camera')).toBeNull();
+    expect(button('Stop Camera')).toBeNull();
+    expect(button('Settings')).toBeNull();
+    expect(button('Join')).not.toBeNull();
+  });
+
+  it('says calls are not available in the Mac app', () => {
+    media.kind = undefined;
+    media.problem = 'macApp';
+    calls.active = undefined;
+    calls.state = undefined;
+    renderPanel();
+    expect(
+      screen.getByText(
+        'Calls are not available here in the Mac app. Update the app, or call from a browser.'
+      )
+    ).toBeTruthy();
+    expect(button('Join')).toBeNull();
   });
 });

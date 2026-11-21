@@ -3,7 +3,7 @@ import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { sendCallKey } from './callKeyProvider';
 import type { CallMedia, CallMediaHost } from './callMedia';
-import { callMediaKind } from './callSupport';
+import { callMediaKind, callUnsupportedProblem } from './callSupport';
 import { NativeCallMedia } from './nativeCallMedia';
 import { WebCallMedia, webCallMediaSupported } from './webCallMedia';
 import {
@@ -23,6 +23,8 @@ export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 
 export type CallProblem =
   /** No WebRTC, or no frame encryption for an encrypted room. */
   | 'browser'
+  /** The Mac app without its call plugin (a window that has none, a failed start). */
+  | 'macApp'
   /** The deployment announces no LiveKit backend. */
   | 'homeserver'
   /** The call runs on a LiveKit backend the deployment does not announce. */
@@ -408,7 +410,7 @@ export class RoomCall {
     const deviceId = mx.getDeviceId();
     const native = callMediaKind() === 'native';
     if (!deviceId || (!native && !webCallMediaSupported(this.encrypted))) {
-      this.fail('browser');
+      this.fail(callUnsupportedProblem());
       return;
     }
     this.session.on(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);

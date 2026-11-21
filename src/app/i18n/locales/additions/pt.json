@@ -506,7 +506,8 @@
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
         "connection": "A ligação da chamada perdeu-se.",
         "device": "Não foi possível usar o seu microfone ou a sua câmara.",
-        "untrustedService": "Esta chamada usa um serviço de chamadas que o seu servidor não oferece, por isso não pode participar a partir daqui."
+        "untrustedService": "Esta chamada usa um serviço de chamadas que o seu servidor não oferece, por isso não pode participar a partir daqui.",
+        "macApp": "As chamadas não estão disponíveis aqui no app para Mac. Atualize o app ou ligue por um navegador."
       },
       "devices": {
         "title": "Dispositivos",

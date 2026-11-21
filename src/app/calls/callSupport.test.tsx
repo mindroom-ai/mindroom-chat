@@ -2,8 +2,13 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getLivekitServiceUrl } from './rtcFocus';
-import { isNativeCallAvailable } from '../native/nativeCall';
-import { callMediaKind, useCallSupport, type CallSupport } from './callSupport';
+import { isMacApp, isNativeCallAvailable } from '../native/nativeCall';
+import {
+  callMediaKind,
+  callUnsupportedProblem,
+  useCallSupport,
+  type CallSupport,
+} from './callSupport';
 
 vi.mock('./rtcFocus', () => ({ getLivekitServiceUrl: vi.fn() }));
 vi.mock('../native/nativeCall', () => ({
@@ -117,5 +122,12 @@ describe('callMediaKind', () => {
     setWebRtc(false);
     vi.mocked(isNativeCallAvailable).mockReturnValue(false);
     expect(callMediaKind()).toBeUndefined();
+  });
+
+  it('tells the Mac app its own problem, and a browser the WebRTC one', () => {
+    vi.mocked(isMacApp).mockReturnValue(true);
+    expect(callUnsupportedProblem()).toBe('macApp');
+    vi.mocked(isMacApp).mockReturnValue(false);
+    expect(callUnsupportedProblem()).toBe('browser');
   });
 });

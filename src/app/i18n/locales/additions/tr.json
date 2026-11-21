@@ -496,7 +496,8 @@
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
         "connection": "Aramanın bağlantısı koptu.",
         "device": "Mikrofonunuz veya kameranız kullanılamadı.",
-        "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız."
+        "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız.",
+        "macApp": "Aramalar Mac uygulamasında burada kullanılamıyor. Uygulamayı güncelleyin veya bir tarayıcıdan arayın."
       },
       "devices": {
         "title": "Cihazlar",

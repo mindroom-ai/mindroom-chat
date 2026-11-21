@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { isNativeCallAvailable } from '../native/nativeCall';
+import { isMacApp, isNativeCallAvailable } from '../native/nativeCall';
 import { getLivekitServiceUrl } from './rtcFocus';
 
 /** Whether this browser can place calls at all. */
@@ -16,6 +16,10 @@ export const callMediaKind = (): CallMediaKind | undefined => {
   if (browserSupportsCalls()) return 'web';
   return isNativeCallAvailable() ? 'native' : undefined;
 };
+
+/** The problem a device that cannot call is told. */
+export const callUnsupportedProblem = (): 'macApp' | 'browser' =>
+  isMacApp() ? 'macApp' : 'browser';
 
 /** Whether this browser can share a screen; phone browsers cannot. */
 export const browserSharesScreens = (): boolean =>

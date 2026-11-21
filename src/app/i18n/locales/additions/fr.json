@@ -506,7 +506,8 @@
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
         "connection": "La connexion de l’appel a été perdue.",
         "device": "Impossible d’utiliser votre micro ou votre caméra.",
-        "untrustedService": "Cet appel passe par un service d’appel que votre serveur d’accueil ne propose pas, vous ne pouvez donc pas le rejoindre ici."
+        "untrustedService": "Cet appel passe par un service d’appel que votre serveur d’accueil ne propose pas, vous ne pouvez donc pas le rejoindre ici.",
+        "macApp": "Les appels ne sont pas disponibles ici dans l'app Mac. Mettez l'app à jour ou appelez depuis un navigateur."
       },
       "devices": {
         "title": "Appareils",

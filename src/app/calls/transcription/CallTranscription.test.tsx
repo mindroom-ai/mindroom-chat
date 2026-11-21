@@ -35,6 +35,8 @@ const room = vi.hoisted(() => ({
 }));
 
 const mx = vi.hoisted(() => ({ getSafeUserId: () => '@ann:example.org', getRoom: () => null }));
+const kind = vi.hoisted((): { value: 'web' | 'native' | undefined } => ({ value: 'web' }));
+vi.mock('../callSupport', () => ({ callMediaKind: () => kind.value }));
 
 /** Each transcriber made, with what it was told. */
 const made = vi.hoisted(
@@ -152,6 +154,7 @@ const only = () => {
 };
 
 beforeEach(() => {
+  kind.value = 'web';
   made.length = 0;
   room.members = [{ userId: '@mindroom_router:example.org', membership: 'join' }];
   room.servers = [
@@ -449,5 +452,14 @@ describe('CallTranscription', () => {
     set({ phase: 'ended' });
     await loaded();
     expect(made).toHaveLength(0);
+  });
+
+  it('stays out of a native call, which has no microphone track for it', async () => {
+    kind.value = 'native';
+    const { store, set } = mount();
+    set({ phase: 'connected' });
+    await loaded();
+    expect(made).toHaveLength(0);
+    expect(store.get(callTranscriptionAtom)).toBeUndefined();
   });
 });

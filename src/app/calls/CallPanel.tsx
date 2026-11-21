@@ -27,7 +27,12 @@ import {
   type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
-import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
+import {
+  browserSharesScreens,
+  callMediaKind,
+  callUnsupportedProblem,
+  useCallSupport,
+} from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar } from './CallTile';
@@ -133,6 +138,7 @@ function MembersCannotCallNotice({ room }: { room: Room }) {
 
 const PROBLEM_KEYS = {
   browser: 'featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich',
+  macApp: 'featureUi.calls.problems.macApp',
   homeserver: 'featureUi.call.callView.yourHomeserverDoesNotSupportCalling',
   untrustedService: 'featureUi.calls.problems.untrustedService',
   service: 'featureUi.calls.problems.service',
@@ -232,6 +238,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   };
 
   const dismissLabel = t('featureUi.calls.panel.dismiss');
+  const audioOnly = callMediaKind() === 'native';
   const controls = finished ? (
     <div className={css.ControlBar}>
       <div className={css.Controls}>
@@ -251,15 +258,17 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           off={!state.microphone}
           onClick={toggleMicrophone}
         />
-        <CallControl
-          label={
-            state.camera
-              ? t('featureUi.call.controls.stopCamera')
-              : t('featureUi.call.controls.startCamera')
-          }
-          icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-          onClick={() => void call.setCamera(!state.camera)}
-        />
+        {!audioOnly && (
+          <CallControl
+            label={
+              state.camera
+                ? t('featureUi.call.controls.stopCamera')
+                : t('featureUi.call.controls.startCamera')
+            }
+            icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+            onClick={() => void call.setCamera(!state.camera)}
+          />
+        )}
         {browserSharesScreens() && (
           <CallControl
             label={
@@ -283,10 +292,12 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           onClick={() => call.setSound(!state.sound)}
         />
         <TranscriptionControls room={call.room} />
-        <DeviceControl
-          chosen={state.devices}
-          onChoose={(kind, id) => void call.setDevice(kind, id)}
-        />
+        {!audioOnly && (
+          <DeviceControl
+            chosen={state.devices}
+            onChoose={(kind, id) => void call.setDevice(kind, id)}
+          />
+        )}
         <CallControl label={leaveLabel} icon={Icons.PhoneDown} critical onClick={leave} />
       </div>
     </div>
@@ -447,9 +458,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
     [room.roomId, setLastStart, store]
   );
 
+  const audioOnly = callMediaKind() === 'native';
   let blocker: string | undefined;
-  if (!browserSupportsCalls())
-    blocker = t('featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich');
+  if (!callMediaKind()) blocker = t(PROBLEM_KEYS[callUnsupportedProblem()]);
   // Calls run only on this deployment's own backend, also one someone else started there
   // (RoomCall.join refuses a backend a room member named).
   else if (support === 'unsupported') {
@@ -529,22 +540,26 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                 pressed={microphone}
                 onClick={() => choose((last) => ({ microphone: !last.microphone }))}
               />
-              <CallControl
-                label={
-                  camera
-                    ? t('featureUi.call.controls.stopCamera')
-                    : t('featureUi.call.controls.startCamera')
-                }
-                icon={camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-                pressed={camera}
-                onClick={() => choose((last) => ({ camera: !last.camera }))}
-              />
-              <DeviceControl
-                chosen={devices}
-                onChoose={(kind, id) =>
-                  choose((last) => ({ devices: { ...last.devices, [kind]: id } }))
-                }
-              />
+              {!audioOnly && (
+                <CallControl
+                  label={
+                    camera
+                      ? t('featureUi.call.controls.stopCamera')
+                      : t('featureUi.call.controls.startCamera')
+                  }
+                  icon={camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+                  pressed={camera}
+                  onClick={() => choose((last) => ({ camera: !last.camera }))}
+                />
+              )}
+              {!audioOnly && (
+                <DeviceControl
+                  chosen={devices}
+                  onChoose={(kind, id) =>
+                    choose((last) => ({ devices: { ...last.devices, [kind]: id } }))
+                  }
+                />
+              )}
             </Box>
             <Button
               size="400"

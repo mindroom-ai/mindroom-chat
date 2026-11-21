@@ -10,7 +10,7 @@ import {
   type StartCallResult,
 } from '../callStore';
 import type { CallDevices } from '../RoomCall';
-import { browserSupportsCalls } from '../callSupport';
+import { callMediaKind, callUnsupportedProblem } from '../callSupport';
 import { getLivekitServiceUrl } from '../rtcFocus';
 import { createRoomEncryptionState } from '../../matrix/createRoom';
 import {
@@ -66,11 +66,12 @@ export type AgentCallTarget = {
   threadId?: string;
 };
 
-export type AgentCallError = 'browser' | 'homeserver' | 'busy' | 'failed';
+export type AgentCallError = 'browser' | 'macApp' | 'homeserver' | 'busy' | 'failed';
 
 /** What each error tells the person, in their language. */
 export const AGENT_CALL_ERROR_KEYS = {
   browser: 'mindroomUi.calls.agentCallButton.browserUnsupported',
+  macApp: 'featureUi.calls.problems.macApp',
   homeserver: 'mindroomUi.calls.agentCallButton.homeserverUnsupported',
   busy: 'mindroomUi.calls.agentCallButton.endCurrentCall',
   failed: 'mindroomUi.calls.agentCallButton.failedToStart',
@@ -173,8 +174,8 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
         setError('busy');
         return false;
       }
-      if (!browserSupportsCalls()) {
-        setError('browser');
+      if (!callMediaKind()) {
+        setError(callUnsupportedProblem());
         return false;
       }
       setPending(true);

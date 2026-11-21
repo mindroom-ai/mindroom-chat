@@ -1077,4 +1077,14 @@ describe('RoomCall in the Mac app', () => {
     expect(call.getState().problem).toBe('device');
     await call.leave();
   });
+
+  it('fails with the Mac problem where the Mac app has no plugin', async () => {
+    nativeFakes.kind = undefined;
+    fakes.browserSupported = false;
+    nativeFakes.mac = true;
+    const { call } = setup();
+    await call.join();
+    expect(call.getState().phase).toBe('failed');
+    expect(call.getState().problem).toBe('macApp');
+  });
 });

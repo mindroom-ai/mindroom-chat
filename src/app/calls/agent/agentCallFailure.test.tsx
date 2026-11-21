@@ -4,11 +4,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { activeCallAtom } from '../callStore';
-import { agentCallFailureAtom, useAgentCaller } from './agentCaller';
+import { AGENT_CALL_ERROR_KEYS, agentCallFailureAtom, useAgentCaller } from './agentCaller';
 import { AgentCallFailureNotice } from './AgentCallFailureNotice';
 
 const support = vi.hoisted(() => ({
   browser: true,
+  mac: false,
   /** The call service lookup; a test can hold it to switch accounts meanwhile. */
   service: async (): Promise<string | undefined> => undefined,
 }));
@@ -17,6 +18,8 @@ const client = vi.hoisted(() => ({ clientRunning: true, getRoom: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../callSupport', () => ({
   browserSupportsCalls: () => support.browser,
+  callMediaKind: () => (support.browser ? 'web' : undefined),
+  callUnsupportedProblem: () => (support.mac ? 'macApp' : 'browser'),
 }));
 vi.mock('../rtcFocus', () => ({
   getLivekitServiceUrl: () => support.service(),
@@ -66,6 +69,7 @@ const target = { agentUserId: '@mindroom_helper:example.org', roomId: '!room:exa
 
 beforeEach(() => {
   support.browser = true;
+  support.mac = false;
   support.service = async () => undefined;
   client.clientRunning = true;
 });
@@ -132,6 +136,18 @@ describe('agent calls started from the header or the command palette', () => {
     });
     expect(caller.current?.error).toBe('browser');
     expect(store.get(agentCallFailureAtom)).toBeUndefined();
+  });
+
+  it('names the Mac app when it cannot call', async () => {
+    const store = createStore();
+    const { caller } = mountCaller(store, false);
+    support.browser = false;
+    support.mac = true;
+    await act(async () => {
+      await caller.current?.call(target);
+    });
+    expect(caller.current?.error).toBe('macApp');
+    expect(AGENT_CALL_ERROR_KEYS.macApp).toBe('featureUi.calls.problems.macApp');
   });
 });
 

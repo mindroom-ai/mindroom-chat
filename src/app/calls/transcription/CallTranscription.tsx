@@ -4,6 +4,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { clientSessions } from '../../computer/clientSessions';
 import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import { useActiveCall, useCallState } from '../callStore';
+import { callMediaKind } from '../callSupport';
 import type { RoomCall } from '../RoomCall';
 import type { CallTranscriber } from './callTranscriber';
 import {
@@ -108,6 +109,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
  */
 export function CallTranscription() {
   const active = useActiveCall();
-  if (active?.kind !== 'room') return null;
+  // The Mac app's native call has no browser microphone track to transcribe.
+  if (active?.kind !== 'room' || callMediaKind() === 'native') return null;
   return <RoomCallTranscription call={active.call} />;
 }
