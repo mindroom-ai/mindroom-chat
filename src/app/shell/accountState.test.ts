@@ -33,6 +33,8 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's MindRoom settings, saved in localStorage",
   'src/app/preferences/voiceMessageSettings.ts':
     "this device's voice message speed and volume, saved in localStorage",
+  'src/app/composer/voice/savedVoiceDraft.ts':
+    'tracks restore state by user ID, so a different user never uses the previous restore',
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
   'src/app/room/threadLayout.ts':

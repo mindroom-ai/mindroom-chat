@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAtomValue, useStore } from 'jotai';
+import { atom, useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
@@ -88,9 +88,9 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
   );
 };
 
-// One restore per account and page; saving waits for it, so an empty composer does not erase the
-// recording before it is back.
-const restores = new Map<string, Promise<void>>();
+// One restore per account and store. Missing means not started, and null means settled. Saving
+// waits for the promise so an empty composer does not erase the recording before it is back.
+export const voiceDraftRestoresAtom = atom<ReadonlyMap<string, Promise<void> | null>>(new Map());
 
 export const useSavedVoiceDraft = (mx: MatrixClient): void => {
   const store = useStore();
@@ -98,10 +98,9 @@ export const useSavedVoiceDraft = (mx: MatrixClient): void => {
   const userId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
-    if (!userId || restores.has(userId)) return;
-    restores.set(
-      userId,
-      withDraftDb((db) => db.get('drafts', userId)).then((saved) => {
+    if (!userId || store.get(voiceDraftRestoresAtom).has(userId)) return;
+    const pending = withDraftDb((db) => db.get('drafts', userId))
+      .then((saved) => {
         if (!saved || store.get(pendingVoiceSendDraftAtom)) return;
         const room = mx.getRoom(saved.roomId);
         if (!room) return;
@@ -122,12 +121,15 @@ export const useSavedVoiceDraft = (mx: MatrixClient): void => {
           },
         });
       })
-    );
+      .finally(() => {
+        store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, null));
+      });
+    store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, pending));
   }, [mx, store, userId]);
 
   useEffect(() => {
     if (!userId) return;
-    void (restores.get(userId) ?? Promise.resolve()).then(() => {
+    void Promise.resolve(store.get(voiceDraftRestoresAtom).get(userId)).then(() => {
       const current = store.get(pendingVoiceSendDraftAtom);
       if (!current) return clearSavedVoiceDraft(userId);
       if (current.context.ownerSessionId !== userId) return undefined;

@@ -4,6 +4,7 @@ import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
+import * as idb from 'idb';
 import { RoomInput } from '../RoomInput';
 import { useCommands } from '../commands/useCommands';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
@@ -35,6 +36,11 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../matrix/matrix';
+
+vi.mock('idb', async (importOriginal) => {
+  const actual = await importOriginal<typeof idb>();
+  return { ...actual, openDB: vi.fn(actual.openDB) };
+});
 
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
@@ -2877,6 +2883,62 @@ describe('RoomInput', () => {
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     renderer.unmount();
   });
+
+  it.each(['empty', 'failed', 'parked'] as const)(
+    'blocks the mic and voice key until draft restore settles (%s)',
+    async (outcome) => {
+      const read = createDeferred<unknown>();
+      const db = {
+        get: () => read.promise,
+        close: () => undefined,
+        delete: async () => undefined,
+        put: async () => undefined,
+      } as unknown as idb.IDBPDatabase;
+      const { openDB } = await vi.importActual<typeof idb>('idb');
+      const open = vi.mocked(idb.openDB).mockImplementation((name, version, callbacks) =>
+        name === 'mindroom-voice-drafts' ? Promise.resolve(db) : openDB(name, version, callbacks)
+      );
+      const { renderer, store } = await renderRoomInput(createStore(), undefined, shownComposer);
+      const mic = () =>
+        renderer.root.find(
+          (node) => node.type === 'button' && node.props['aria-label'] === 'Record voice message'
+        );
+      const target = resolveVoiceComposer();
+      try {
+        expect(mic().props.disabled).toBe(true);
+        expect(target?.start()).toBe(false);
+        await act(async () => mic().props.onClick());
+        expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+
+        await act(async () => {
+          if (outcome === 'failed') read.reject(new Error('IndexedDB read failed'));
+          else if (outcome === 'parked') {
+            read.resolve({
+              roomId: ROOM_ID,
+              audio: new Uint8Array([1, 2, 3]).buffer,
+              fileName: 'example.ogg',
+              fileType: 'audio/ogg',
+              duration: 1500,
+              threadingEnabled: true,
+              signalBridgedRoom: false,
+            });
+          } else read.resolve(undefined);
+        });
+        const parked = outcome === 'parked';
+        expect(mic().props.disabled).toBe(parked);
+        expect(store.get(pendingVoiceSendDraftAtom)?.file.name).toBe(
+          parked ? 'example.ogg' : undefined
+        );
+        await act(async () => {
+          expect(target?.start()).toBe(!parked);
+        });
+      } finally {
+        read.resolve(undefined);
+        await act(async () => renderer.unmount());
+        open.mockReset();
+      }
+    }
+  );
 
   it('gives the voice key a target that reads the composer as it is now', async () => {
     const { renderer } = await renderRoomInput(createStore(), undefined, shownComposer);

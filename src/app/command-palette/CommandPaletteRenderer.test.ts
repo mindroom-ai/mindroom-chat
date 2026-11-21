@@ -210,6 +210,9 @@ vi.mock('react-aria', async () => {
   };
 });
 
+// The indicator integration tests exercise the real notice slot and its portal.
+vi.mock('../ui/noticeSlots', () => ({ DialogNoticeSlot: () => null }));
+
 vi.mock('./CommandPalette.css', () => ({
   Shell: 'Shell',
   Backdrop: 'Backdrop',

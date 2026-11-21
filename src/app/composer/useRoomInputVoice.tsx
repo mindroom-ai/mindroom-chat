@@ -45,6 +45,7 @@ import {
   startLiveVoiceRecording,
   voiceAccountGuard,
 } from './voice/liveVoiceRecording';
+import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -137,6 +138,7 @@ export const useRoomInputVoice = ({
   // recording itself for the same time, and is what the capsule draws.
   const [sendingHere, setSendingHere] = useState(false);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
+  const voiceDraftRestores = useAtomValue(voiceDraftRestoresAtom);
   const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
   // Drafts are stamped with the matrix userId of the session that captured
@@ -481,7 +483,8 @@ export const useRoomInputVoice = ({
   const blocksSubmit = useCallback(() => store.get(voiceAutoSendPendingAtom), [store]);
   // A Send takes the recording at the press: it leaves the account's hands, capture stops and
   // no more audio is recorded. This composer's destination and bundle are taken in that task too
-  // (the voice key sends audio only). A send that fails parks its audio at the attempted destination.
+  // (the voice key sends audio only). A send that fails parks its audio at the attempted
+  // destination.
   const sendAtPress = useCallback(
     (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
       if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
@@ -551,16 +554,16 @@ export const useRoomInputVoice = ({
             roomName: revealDirectionControls(draftRoom.name ?? draftRoomId),
           });
   }
-  // One recording at a time, for the whole account: none starts while one runs, is being sent,
-  // or waits parked for a retry, in this composer or another. Read from the store, since the
-  // voice key asks after a delay; the render above follows all three.
-  const microphoneBlocked = (): boolean =>
+  // The mic waits for restore, then no recording starts while one runs, sends or waits to retry.
+  // Read from the store at start too: the voice key may have pinned this composer before restore.
+  const microphoneBlocked = (restores = voiceDraftRestores): boolean =>
+    (currentSessionId !== undefined && restores.get(currentSessionId) !== null) ||
     store.get(liveVoiceRecordingAtom) !== undefined ||
     store.get(voiceAutoSendPendingAtom) ||
     store.get(pendingVoiceSendDraftAtom)?.context.ownerSessionId === currentSessionId;
   const microphoneDisabled = microphoneBlocked();
   const startRecording = (): boolean => {
-    if (microphoneBlocked()) return false;
+    if (microphoneBlocked(store.get(voiceDraftRestoresAtom))) return false;
     pauseAllMediaElements();
     void startLiveVoiceRecording(store);
     return true;

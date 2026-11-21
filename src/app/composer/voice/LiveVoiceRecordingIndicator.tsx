@@ -42,13 +42,20 @@ export function LiveVoiceRecordingIndicator() {
   const capsulesShown = useAtomValue(liveVoiceCapsulesShownAtom);
   const [error, setError] = useAtom(liveVoiceRecordingErrorAtom);
   const paused = phase === 'paused';
-  const time = millisecondsToMinutesAndSeconds(elapsedMs);
+  const requesting = phase === 'requesting';
   const discardLabel = t('mindroomUi.voice.discardRecording');
   const coverSlot = useAtomValue(coverNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const slot = coverSlot ?? pageSlot;
   const shown = recording !== undefined && capsulesShown === 0 && slot !== null;
-  const status = paused ? t('mindroomUi.voice.statusPaused') : t('mindroomUi.voice.statusActive');
+  const status = requesting
+    ? t('mindroomUi.voice.statusStarting')
+    : t(paused ? 'mindroomUi.voice.statusPaused' : 'mindroomUi.voice.statusActive');
+  const label = requesting
+    ? status
+    : t(paused ? 'composer.voiceIndicator.paused' : 'composer.voiceIndicator.recording', {
+        time: millisecondsToMinutesAndSeconds(elapsedMs),
+      });
 
   return (
     <>
@@ -83,9 +90,7 @@ export function LiveVoiceRecordingIndicator() {
           <div className={css.Pill} aria-live="off" data-testid="live-voice-recording-indicator">
             <span className={css.Dot({ paused })} aria-hidden />
             <Text className={css.Label} size="B300">
-              {paused
-                ? t('composer.voiceIndicator.paused', { time })
-                : t('composer.voiceIndicator.recording', { time })}
+              {label}
             </Text>
             <IconTooltip label={discardLabel} position="Bottom">
               {(triggerRef) => (

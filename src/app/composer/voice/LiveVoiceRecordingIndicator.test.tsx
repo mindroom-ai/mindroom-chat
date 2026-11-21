@@ -6,11 +6,29 @@ import type { Room } from 'matrix-js-sdk';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
 import { DialogNoticeSlot, NoticeSlot } from '../../ui/noticeSlots';
 import { BottomSheet } from '../../ui/BottomSheet';
+import { CommandPaletteRenderer } from '../../command-palette/CommandPaletteRenderer';
+import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
 import { LiveVoiceRecordingIndicator } from './LiveVoiceRecordingIndicator';
 import { liveVoiceRecordingAtom, liveVoiceRecordingErrorAtom } from './liveVoiceRecording';
 import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voiceCaptureSession';
+
+vi.mock('../../command-palette/commandPaletteItems', () => ({
+  useCommandPaletteSource: () => ({
+    actions: [],
+    commands: [],
+    rooms: [],
+    threads: [],
+    getUsers: () => [],
+  }),
+}));
+vi.mock('../../command-palette/useCommandPaletteMessages', () => ({
+  useCommandPaletteMessages: () => ({ status: 'idle', items: [] }),
+}));
+vi.mock('../../command-palette/useCommandPalettePeople', () => ({
+  useCommandPalettePeople: () => ({ status: 'idle', items: [] }),
+}));
 
 /** A recording that is running, as the capture session reports it. */
 const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
@@ -91,6 +109,19 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(discard).toHaveBeenCalledOnce();
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     expect(pill()).toBeNull();
+  });
+
+  it('says the recording is starting while the microphone is requested', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'requesting', elapsedMs: 0 }).session);
+    render(
+      <Provider store={store}>
+        <NoticeSlot place="page" />
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    expect(pill()?.textContent).toBe('Starting voice recording');
+    expect(screen.getByRole('status').textContent).toBe('Starting voice recording');
   });
 
   it('says so while the recording is paused', () => {
@@ -210,6 +241,27 @@ describe('LiveVoiceRecordingIndicator', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
     expect(discard).toHaveBeenCalledOnce();
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  });
+
+  it('discards a live recording without closing the command palette', () => {
+    const store = createStore();
+    const { session, discard } = recordingSession();
+    store.set(liveVoiceRecordingAtom, session);
+    store.set(commandPaletteOpenAtom, 'all');
+    render(
+      <Provider store={store}>
+        <NoticeSlot place="page" />
+        {composer()}
+        <CommandPaletteRenderer />
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
+    expect(discard).toHaveBeenCalledOnce();
+    expect(pill()).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Command palette' })).toBe(dialog);
   });
 
   it('stands down while a composer shows the capsule, and back up when it goes or is covered', () => {

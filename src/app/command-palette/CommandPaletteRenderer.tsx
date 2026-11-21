@@ -5,6 +5,7 @@ import FocusTrap from 'focus-trap-react';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { Overlay, OverlayBackdrop, OverlayCenter, config } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';
+import { DialogNoticeSlot } from '../ui/noticeSlots';
 import { LogoutDialog } from '../account/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CommandPalette } from './CommandPalette';
@@ -94,6 +95,7 @@ function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDi
           initialTab={initialTab}
           mobileSheet={mobile}
         />
+        <DialogNoticeSlot />
       </div>
     </Modal>
   );
