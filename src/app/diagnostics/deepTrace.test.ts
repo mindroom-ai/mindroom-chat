@@ -2,6 +2,7 @@
 
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { holdModalSheet } from '../lib/portalOverlay';
 import { logTimelineDebug } from './timelineDebug';
 import { registerMemoryGauge, sampleMemory } from './memorySampler';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
@@ -364,6 +365,123 @@ describe('opt-in deep diagnostic trace', () => {
     );
     expect(JSON.stringify(snapshot)).not.toContain('private.test');
     expect(JSON.stringify(snapshot)).not.toContain('fake.js');
+  });
+
+  it('records whether a surface tap hit the phone stage during a slide', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const stage = document.createElement('div');
+    stage.setAttribute('data-phone-stage', '');
+    const child = stage.appendChild(document.createElement('div'));
+    document.body.append(stage);
+    try {
+      document.documentElement.dataset.pageSlide = 'back';
+      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      child.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      delete document.documentElement.dataset.pageSlide;
+      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const { events } = await readDeepTraceSnapshot();
+      expect(
+        events
+          .filter(({ name }) => name === 'interaction.pointer.surface.app')
+          .map(({ data }) => [data?.phone_slide_back, data?.phone_slide_stage_hit])
+      ).toEqual([
+        [true, true],
+        [true, false],
+        [undefined, undefined],
+      ]);
+    } finally {
+      delete document.documentElement.dataset.pageSlide;
+      stage.remove();
+    }
+  });
+
+  it('records only allowlisted surface hit strings and reports blockers', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const panel = document.createElement('section');
+    panel.dataset.testid = 'resizable-plugin-panel';
+    panel.setAttribute('data-plugin-panel-open', '');
+    const wrapper = document.createElement('div');
+    wrapper.append(panel);
+    const conversation = document.createElement('div');
+    conversation.dataset.conversationBehindPanel = 'true';
+    conversation.setAttribute('inert', '');
+    const copy = document.createElement('div');
+    copy.setAttribute('data-page-slide-copy', '');
+    copy.append(panel.cloneNode(), document.createElement('div'));
+    copy.lastElementChild?.setAttribute('data-conversation-behind-panel', 'false');
+    const hit = panel.appendChild(document.createElement('span'));
+    hit.textContent = 'invented private message';
+    const release = holdModalSheet();
+    document.body.append(copy, wrapper, conversation);
+    try {
+      hit.dataset.testid = 'unknown-private-id';
+      document.documentElement.dataset.pageSlide = '';
+      hit.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      delete document.documentElement.dataset.pageSlide;
+      wrapper.setAttribute('inert', '');
+      // The browser cannot target the now-inert panel. Tap outside it to sample its state.
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      wrapper.removeAttribute('inert');
+      const button = panel.appendChild(document.createElement('button'));
+      button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const { events } = await readDeepTraceSnapshot();
+      const surfaces = events.filter(({ name }) => name === 'interaction.pointer.surface.app');
+      expect(surfaces[0]?.data).toMatchObject({
+        hit_tag: 'span',
+        hit_test_id: 'resizable-plugin-panel',
+        plugin_panel_inert: false,
+        conversation_inert: true,
+        conversation_behind_panel: true,
+        phone_slide_waiting: true,
+        blocking_portal: true,
+        plugin_panel_open: true,
+      });
+      expect(surfaces[1]?.data).toMatchObject({ hit_test_id: null, plugin_panel_inert: true });
+      expect(surfaces[1]?.data).not.toHaveProperty('phone_slide_waiting');
+      expect(
+        events.find(({ name }) => name === 'interaction.pointer.button.app')?.data
+      ).not.toHaveProperty('hit_tag');
+      expect(JSON.stringify(events)).not.toMatch(/invented private message|unknown-private-id/);
+    } finally {
+      release();
+      delete document.documentElement.dataset.pageSlide;
+      copy.remove();
+      wrapper.remove();
+      conversation.remove();
+    }
+  });
+
+  it('distinguishes a body-portaled menu backdrop from an app surface', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const root = document.createElement('div');
+    root.id = 'root';
+    const layer = document.createElement('div');
+    const backdrop = layer.appendChild(document.createElement('div'));
+    const menu = layer.appendChild(document.createElement('div'));
+    menu.setAttribute('role', 'menu');
+    document.body.append(root, layer);
+    try {
+      backdrop.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      layer.remove();
+      root.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const { events } = await readDeepTraceSnapshot();
+      expect(events.filter(({ name }) => name === 'interaction.pointer.surface.app')).toMatchObject(
+        [
+          { data: { blocking_portal: false, open_overlay: true, hit_outside_app_root: true } },
+          {
+            data: {
+              blocking_portal: false,
+              open_overlay: false,
+              hit_outside_app_root: false,
+              conversation_behind_panel: null,
+            },
+          },
+        ]
+      );
+    } finally {
+      layer.remove();
+      root.remove();
+    }
   });
 
   it('captures range-control interactions through the categorical allowlist', async () => {
