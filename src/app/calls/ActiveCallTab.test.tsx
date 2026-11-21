@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { ActiveCallTab } from './ActiveCallTab';
-import { callPanelRoomAtom, type ActiveCall } from './callStore';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallState } from './RoomCall';
 import {
   clearCallWindowStore,
@@ -19,9 +20,15 @@ const USER = '@me:tab.test';
 const navigation = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:tab.test', getRoom: () => null }),
+  useMatrixClient: () => ({
+    getSafeUserId: () => '@me:tab.test',
+    getRoom: (roomId: string) => (roomId === ORIGIN ? { roomId } : null),
+  }),
 }));
-vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Call with Helper' }));
+vi.mock('../matrix/hooks/useRoomMeta', () => ({
+  useRoomName: ({ roomId }: { roomId: string }) =>
+    roomId === ORIGIN ? 'Planning Room' : 'Call with Helper',
+}));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
@@ -50,12 +57,14 @@ const renderTab = (size: ScreenSize = 'Desktop', route = '/home/') =>
     </Provider>
   );
 const settings = (): CallWindowSettings => store.get(getCallWindowSettingsAtom(USER));
-const openCall = () =>
-  fireEvent.click(screen.getByRole('button', { name: 'Return to the call in Call with Helper' }));
+const returnButton = () =>
+  screen.getByRole('button', { name: 'Return to the call in Planning Room' });
+const openCall = () => fireEvent.click(returnButton());
 
 beforeEach(() => {
   localStorage.clear();
   store = createStore();
+  store.set(activeCallAtom, active);
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 900 });
 });
@@ -64,6 +73,7 @@ afterEach(() => {
   cleanup();
   clearCallWindowStore(USER);
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("the rail's call button", () => {
@@ -95,35 +105,46 @@ describe("the rail's call button", () => {
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
   });
 
-  it("hands its focus to the floating window's handle, and only there", () => {
+  it("hands its focus to the floating window's handle when floating", () => {
     store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
     renderTab();
-    const button = screen.getByRole('button', { name: 'Return to the call in Call with Helper' });
+    const button = returnButton();
     button.focus();
     openCall();
     expect(store.get(focusHandOffAtom)).toEqual({ to: 'window', from: button });
-    cleanup();
-
-    for (const [mode, size] of [
-      ['docked', 'Desktop'],
-      ['floating', 'Mobile'],
-    ] as const) {
-      store = createStore();
-      store.set(getCallWindowSettingsAtom(USER), { mode, rect: bar });
-      renderTab(size);
-      openCall();
-      expect(store.get(focusHandOffAtom)).toBeUndefined();
-      cleanup();
-    }
   });
 
   it('closes the phone drawer even when the call is already in the shown thread', () => {
     store.set(phoneNavDrawerOpenAtom, true);
     renderTab('Mobile', `/home/${encodeURIComponent(ORIGIN)}/?threadId=%24plan`);
+    const button = returnButton();
     openCall();
+    expect(store.get(focusHandOffAtom)).toEqual({ to: 'panel', roomId: ORIGIN, from: button });
     expect(store.get(callPanelRoomAtom)).toBe(ORIGIN);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+  });
+
+  it('does not return to a call cleared before the drawer closes on the next frame', () => {
+    vi.useFakeTimers();
+    const clearImperativeStore = setImperativeJotaiStore(store);
+    const { container } = renderTab('Mobile');
+    container.setAttribute('data-phone-stage', '');
+    store.set(phoneNavDrawerOpenAtom, true);
+    try {
+      openCall();
+      expect(store.get(callPanelRoomAtom)).toBeUndefined();
+      act(() => {
+        store.set(activeCallAtom, undefined);
+        vi.runOnlyPendingTimers();
+      });
+      expect(store.get(callPanelRoomAtom)).toBeUndefined();
+      expect(store.get(focusHandOffAtom)).toBeUndefined();
+      expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+      expect(navigation.navigateRoom).not.toHaveBeenCalled();
+    } finally {
+      clearImperativeStore();
+    }
   });
 
   it('goes back to the conversation while docked, and on phones', () => {
@@ -137,6 +158,7 @@ describe("the rail's call button", () => {
     vi.clearAllMocks();
 
     store = createStore();
+    store.set(activeCallAtom, active);
     store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
     renderTab('Mobile');
     openCall();

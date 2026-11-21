@@ -1,4 +1,5 @@
 import { useSetAtom } from 'jotai';
+import type { MouseEvent } from 'react';
 import { Icon } from 'folds';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/SidebarItem';
 import { callHomeRoomId, callPanelRoomAtom, type ActiveCall } from './callStore';
@@ -18,12 +19,12 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const floats = useCallViewFloats();
   const expandWindow = useExpandCallWindow();
 
-  const open = () => {
+  const open = (event: MouseEvent<HTMLButtonElement>) => {
     if (floats) {
       setPanelRoom(callHomeRoomId(active));
       setFocusHandOff({ to: 'window', from: document.activeElement });
       expandWindow();
-    } else openHome();
+    } else openHome(event.currentTarget);
   };
 
   return (

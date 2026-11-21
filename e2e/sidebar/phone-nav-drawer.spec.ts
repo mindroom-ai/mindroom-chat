@@ -657,3 +657,89 @@ test('chromium: Skip to content puts the drawer away and lands in the page', asy
     await context.close();
   }
 });
+
+test('chromium: the open drawer leaves the return-to-call pill tappable', async ({
+  browser,
+}, testInfo) => {
+  test.skip(
+    Boolean(process.env.E2E_SERVER_COMMAND?.includes('vite preview')),
+    'The stand-in uses Vite source modules.'
+  );
+  const seeded = await seed('chromium', 'call');
+  const { garden, harbor } = seeded;
+  const { context, page } = await signIn(browser, seeded);
+  try {
+    // Exercise the real call store and panel without relying on a media connection.
+    await context.route('**/_matrix/client/unstable/org.matrix.msc4143/rtc/transports', (route) =>
+      route.fulfill({
+        json: {
+          rtc_transports: [{ type: 'livekit', livekit_service_url: 'http://127.0.0.1:9/livekit' }],
+        },
+      })
+    );
+    await context.route(/\/src\/app\/calls\/RoomCall\.ts(?:\?|$)/, (route) =>
+      route.fulfill({
+        contentType: 'application/javascript',
+        body: `export class RoomCall {
+        constructor({ room }) { this.room = room; }
+        state = { phase: 'connected', microphone: true, camera: false, screenShare: false,
+          sound: true, audioBlocked: false, devices: {}, participants: [] };
+        getState = () => this.state;
+        subscribe = () => () => {};
+        join = async () => {};
+      }`,
+      })
+    );
+
+    await pickRoom(page, 'Garden Club', garden);
+    await roomBanner(page).getByRole('button', { name: 'Start a call', exact: true }).tap();
+    const panel = page.getByTestId('call-panel');
+    await panel.getByRole('button', { name: 'Join', exact: true }).tap();
+    await expect(panel.getByRole('button', { name: 'End', exact: true })).toBeVisible();
+    await openDrawer(page);
+    await pickRoom(page, 'Harbor Plans', harbor);
+    await roomBanner(page).getByRole('button', { name: 'Start a call', exact: true }).tap();
+    await expect(panel.getByRole('heading', { name: 'Harbor Plans' })).toBeVisible();
+
+    const chrome = page.locator('[data-phone-top-bar]');
+    const pill = chrome.getByRole('button', { name: 'Return to the call in Garden Club' });
+    await openDrawer(page);
+    await expect
+      .poll(async () => {
+        const [nav, shortcut] = await Promise.all([drawer(page).boundingBox(), pill.boundingBox()]);
+        return nav && shortcut ? nav.y - shortcut.y - shortcut.height : -1;
+      })
+      .toBeGreaterThanOrEqual(0);
+    await pill.tap();
+    await expectDrawer(page, false, 'returning to the call closes the drawer');
+    await expect(panel.getByRole('heading', { name: 'Garden Club' })).toBeFocused();
+
+    await openDrawer(page);
+    await pickRoom(page, 'Harbor Plans', harbor);
+    await page.setViewportSize({ width: 700, height: 390 });
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { left: 44, right: 32 } });
+    await expect
+      .poll(() =>
+        chrome.locator(':scope > div').evaluateAll((rows) =>
+          rows.map((row) => {
+            const { paddingLeft, paddingRight } = getComputedStyle(row);
+            return [paddingLeft, paddingRight];
+          })
+        )
+      )
+      .toEqual([
+        ['44px', '32px'],
+        ['44px', '32px'],
+      ]);
+    if (SHOTS) await shoot(page, testInfo, 'call-return-landscape-safe-area');
+
+    await openDrawer(page);
+    await rail(page).getByRole('button', { name: 'Return to the call in Garden Club' }).tap();
+    await expectDrawer(page, false, 'the call button in the rail closes the drawer');
+    await expect(panel.getByRole('heading', { name: 'Garden Club' })).toBeFocused();
+  } finally {
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+  }
+});

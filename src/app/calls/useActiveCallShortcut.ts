@@ -5,11 +5,18 @@ import { Icons } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { afterWaitingSlide, movePhoneNavDrawer } from '../navigation/phonePageSlide';
+import { afterWaitingSlide, slidePhonePage } from '../navigation/phonePageSlide';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { revealDirectionControls } from '../ui/directional';
-import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';
+import {
+  activeCallAtom,
+  callHomeRoomId,
+  callPanelRoomAtom,
+  useCallState,
+  type ActiveCall,
+} from './callStore';
+import { focusHandOffAtom } from './window/callWindowState';
 
 /** What the rail and phone shortcuts show, and how they return to the call panel. */
 export function useActiveCallShortcut(active: ActiveCall) {
@@ -23,12 +30,17 @@ export function useActiveCallShortcut(active: ActiveCall) {
   const homeRoomId = callHomeRoomId(active);
   const name = revealDirectionControls(useRoomName(mx.getRoom(homeRoomId) ?? active.call.room));
 
-  const openHome = () => {
-    // The rail and the pill can both be used with the drawer open, even without a navigation.
-    if (store.get(phoneNavDrawerOpenAtom)) {
-      movePhoneNavDrawer(false, (open) => store.set(phoneNavDrawerOpenAtom, open));
-    }
-    afterWaitingSlide(() => {
+  const openHome = (button: HTMLButtonElement) => {
+    const doc = button.ownerDocument;
+    const focused = doc.activeElement;
+    const open = () => {
+      if (store.get(activeCallAtom) !== active) return;
+      // Establish the source for touch and assistive clicks too, unless focus moved while waiting.
+      if (doc.activeElement === focused || doc.activeElement === doc.body) {
+        button.focus({ preventScroll: true });
+        store.set(focusHandOffAtom, { to: 'panel', roomId: homeRoomId, from: doc.activeElement });
+      }
+      store.set(phoneNavDrawerOpenAtom, false);
       store.set(callPanelRoomAtom, homeRoomId);
       const threadId = active.origin?.threadId;
       if (
@@ -38,7 +50,10 @@ export function useActiveCallShortcut(active: ActiveCall) {
         return;
       if (threadId) navigateRoomThread(homeRoomId, threadId);
       else navigateRoom(homeRoomId);
-    });
+    };
+    // Close the drawer and open the panel in one change, even without a navigation.
+    if (store.get(phoneNavDrawerOpenAtom)) slidePhonePage(open);
+    else afterWaitingSlide(open);
   };
 
   return {

@@ -4,6 +4,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../calls/callStore';
 import type { CallState } from '../calls/RoomCall';
+import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { PhoneTopBar } from './PhoneTopBar';
@@ -87,6 +88,7 @@ const renders: ReactTestRenderer[] = [];
 afterEach(() => {
   act(() => renders.splice(0).forEach((renderer) => renderer.unmount()));
   navigation.selected = undefined;
+  documentButton.ownerDocument.activeElement = null;
   navigation.search = '';
   unread.value = undefined;
   activity.badge = { count: 0, needsYou: false };
@@ -229,7 +231,12 @@ const callStore = ({
   return store;
 };
 
-const documentButton = { ownerDocument: { activeElement: null }, focus: () => undefined };
+const documentButton = {
+  ownerDocument: { activeElement: null as unknown },
+  focus: () => {
+    documentButton.ownerDocument.activeElement = documentButton;
+  },
+};
 
 describe('PhoneTopBar return to call', () => {
   it('shows the return button and muted microphone when elsewhere', () => {
@@ -290,6 +297,11 @@ describe('PhoneTopBar return to call', () => {
     });
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     expect(store.get(callPanelRoomAtom)).toBe(HOME);
+    expect(store.get(focusHandOffAtom)).toEqual({
+      to: 'panel',
+      roomId: HOME,
+      from: documentButton,
+    });
     if (agent) {
       expect(navigation.navigateRoomThread).toHaveBeenCalledWith(HOME, '$planning');
       expect(navigation.navigateRoom).not.toHaveBeenCalled();

@@ -155,7 +155,15 @@ const usePhaseLabel = (state: CallState): string | undefined => {
 };
 
 /** The call this device is in: notices, the stage, and the controls. */
-function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => void }) {
+function JoinedCall({
+  active,
+  roomId,
+  onClose,
+}: {
+  active: ActiveCall;
+  roomId: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const { call } = active;
@@ -356,6 +364,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
 
   return (
     <CallViewChrome
+      roomId={roomId}
       title={title}
       subtitle={phaseLabel}
       onClose={onClose}
@@ -477,6 +486,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 
   return (
     <CallViewChrome
+      roomId={room.roomId}
       title={title}
       subtitle={
         people.length > 0 ? t('featureUi.calls.panel.inCall', { count: people.length }) : undefined
@@ -577,7 +587,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 export function CallPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const active = useActiveCall();
   if (active && isActiveCallShownIn(active, room.roomId)) {
-    return <JoinedCall active={active} onClose={onClose} />;
+    return <JoinedCall active={active} roomId={room.roomId} onClose={onClose} />;
   }
   return <CallPrescreen room={room} onClose={onClose} />;
 }

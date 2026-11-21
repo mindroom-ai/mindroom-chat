@@ -752,7 +752,7 @@ describe('the focus after Dock and Float', () => {
   });
 });
 
-it('waits for the phone page to become interactive before focusing the call title', () => {
+it('only hands focus to the destination panel, once its phone page is interactive', () => {
   function CoveredPage({ children }: { children: ReactNode }) {
     const ref = useRef<HTMLDivElement>(null);
     useInert(ref, useAtomValue(phoneLayerOpenAtom));
@@ -761,6 +761,8 @@ it('waits for the phone page to become interactive before focusing the call titl
 
   roomCall([me]);
   store.set(phoneNavDrawerOpenAtom, true);
+  store.set(callPanelRoomAtom, room.roomId);
+  const other = renderPanel({ panelRoom: callRoom, size: 'Mobile' });
   render(
     <Provider store={store}>
       <button type="button">Return</button>
@@ -769,11 +771,12 @@ it('waits for the phone page to become interactive before focusing the call titl
   );
   const source = screen.getByRole('button', { name: 'Return' });
   source.focus();
-  act(() => store.set(focusHandOffAtom, { to: 'panel', from: source }));
+  act(() => store.set(focusHandOffAtom, { to: 'panel', roomId: room.roomId, from: source }));
   expect(document.activeElement).toBe(source);
 
   act(() => store.set(phoneNavDrawerOpenAtom, false));
-  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Standup' }));
+  expect(document.activeElement).toBe(screen.getAllByRole('heading', { name: 'Standup' })[1]);
+  expect(other.container.contains(document.activeElement)).toBe(false);
 });
 
 describe("the focus after the rail's call button", () => {

@@ -84,7 +84,7 @@ function DockButton({ home }: { home: CallOrigin }) {
   const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const dock = () => {
-    setFocusHandOff({ to: 'panel', from: document.activeElement });
+    setFocusHandOff({ to: 'panel', roomId: home.roomId, from: document.activeElement });
     setMode('docked');
     // The docked panel shows in the room whose call view is open.
     setPanelRoom(home.roomId);
@@ -157,6 +157,7 @@ export type BarContent = {
  * others' faces, the title and status, `bar.controls`, Expand and Close.
  */
 type CallViewChromeProps = {
+  roomId: string;
   title: string;
   subtitle?: string;
   footer?: ReactNode;
@@ -170,7 +171,7 @@ type CallViewChromeProps = {
 };
 
 export function CallViewChrome(props: CallViewChromeProps) {
-  const { title, subtitle, footer, children, onClose, home, actions, bar } = props;
+  const { roomId, title, subtitle, footer, children, onClose, home, actions, bar } = props;
   const { t } = useTranslation();
   const frame = useCallWindowFrame();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -218,9 +219,13 @@ export function CallViewChrome(props: CallViewChromeProps) {
   // title. A panel folded to its tab shows nothing to focus, so the key stays the browser's.
   const focusTarget = frame ? handleRef : titleRef;
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
-  // The page clears inert in a layout effect when the covering phone layer closes.
-  useFocusHandOff(frame ? 'window' : phone && layerOpen ? undefined : 'panel', () =>
-    focusTarget.current?.focus()
+  const panelRoomId = useAtomValue(callPanelRoomAtom);
+  // Ignore a panel still moving out. The page clears inert when the phone layer closes.
+  const panelReady = roomId === panelRoomId && !(phone && layerOpen);
+  useFocusHandOff(
+    frame ? 'window' : panelReady ? 'panel' : undefined,
+    () => focusTarget.current?.focus(),
+    roomId
   );
   useShortcut('callView', () => {
     const target = focusTarget.current;

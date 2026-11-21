@@ -1,6 +1,6 @@
 import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
@@ -14,7 +14,6 @@ import {
   type ActiveCall,
 } from '../calls/callStore';
 import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
-import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { CommandPaletteSearchField } from '../command-palette/CommandPaletteSearchField';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
@@ -110,7 +109,6 @@ function ActivityBell() {
 function ReturnToCallButton({ active }: { active: ActiveCall }) {
   const { t } = useTranslation();
   const { label, icon, microphone, speaking, openHome } = useActiveCallShortcut(active);
-  const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const mutedId = useId();
 
   return (
@@ -124,14 +122,7 @@ function ReturnToCallButton({ active }: { active: ActiveCall }) {
         className={css.ReturnToCallButton}
         data-speaking={speaking || undefined}
         aria-describedby={microphone ? undefined : mutedId}
-        onClick={(event: MouseEvent<HTMLButtonElement>) => {
-          const button = event.currentTarget;
-          // A touch or assistive click need not focus the button. Move focus out of the drawer
-          // before it closes so it doesn't restore focus to the menu instead of the call.
-          button.focus({ preventScroll: true });
-          setFocusHandOff({ to: 'panel', from: button.ownerDocument.activeElement });
-          openHome();
-        }}
+        onClick={(event: MouseEvent<HTMLButtonElement>) => openHome(event.currentTarget)}
       >
         <Icon src={icon} size="100" filled aria-hidden />
         <Text as="span" size="T300" truncate>
