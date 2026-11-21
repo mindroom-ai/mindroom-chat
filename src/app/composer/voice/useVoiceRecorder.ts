@@ -7,7 +7,7 @@ import {
   type PendingVoiceSendContext,
 } from '../roomInputDrafts';
 import { createVoiceCaptureSession, type VoiceCapturePhase } from './voiceCaptureSession';
-import { beginVoiceRecording, releaseVoiceRecording } from './voiceRecordingJournal';
+import { loadVoiceRecordingJournal, releaseVoiceRecording } from './loadVoiceRecordingJournal';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -53,9 +53,11 @@ export function useVoiceRecorder({
   }, [recorderToken, store]);
   const [capture] = useState(() =>
     createVoiceCaptureSession(
-      (startedAt, mimeType) => {
+      async (startedAt, mimeType) => {
         const userId = sendBindingAtStartRef.current?.context.ownerSessionId;
-        return userId ? beginVoiceRecording(userId, startedAt, mimeType) : undefined;
+        if (!userId) return undefined;
+        const journal = await loadVoiceRecordingJournal();
+        return journal?.beginVoiceRecording(userId, startedAt, mimeType);
       },
       (recording) => {
         const context = sendBindingAtStartRef.current?.context;
@@ -161,7 +163,7 @@ export function useVoiceRecorder({
     const result = await capture.finish();
     if (result.status !== 'captured' || !sendRecording || !sendContext) {
       if (result.status === 'captured') {
-        if (result.recording.recordingId) releaseVoiceRecording(result.recording.recordingId);
+        releaseVoiceRecording(result.recording.recordingId);
         capture.reset();
       }
       notifySendStopFailure();
