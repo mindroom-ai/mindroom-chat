@@ -1,7 +1,18 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 /** The button of a Compact room's card that opens its thread. */
-const CARD_SELECTOR = '[data-compact-room-view] [data-thread-root-id]';
+const VIEW_SELECTOR = '[data-compact-room-view]';
+const CARD_SELECTOR = `${VIEW_SELECTOR} [data-thread-root-id]`;
+
+export const compactCardNavigation = new WeakMap<
+  Element,
+  { ids: readonly string[]; focus: (id: string | undefined) => boolean }
+>();
+
+const navigationIn = (root: HTMLElement | null) => {
+  const view = root?.closest(VIEW_SELECTOR) ?? root?.querySelector(VIEW_SELECTOR);
+  return view ? compactCardNavigation.get(view) : undefined;
+};
 
 /**
  * Marks a card the keys focused. A browser shows `:focus-visible` on a script's focus only after
@@ -63,6 +74,23 @@ export const cardBeside = (
   return cards[index + step] ?? cards[index];
 };
 
+export const focusCardBeside = (
+  root: HTMLElement | null,
+  id: string | undefined,
+  step: -1 | 0 | 1,
+  exact = false
+): boolean => {
+  const navigation = navigationIn(root);
+  const index = id === undefined ? -1 : navigation?.ids.indexOf(id) ?? -1;
+  if (navigation && index >= 0) {
+    return navigation.focus(navigation.ids[index + step] ?? navigation.ids[index]);
+  }
+  const cards = compactCardsIn(root);
+  return focusCompactCard(
+    exact ? cards.find((card) => card.dataset.threadRootId === id) : cardBeside(cards, id, step)
+  );
+};
+
 /**
  * On a focused card, the up and down arrows, Home and End move the focus between the cards. A
  * card's own buttons and every chord keep their keys.
@@ -75,6 +103,22 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
   const index = cards.indexOf(target as HTMLElement);
   if (index < 0) return;
   event.preventDefault();
+  const navigation = navigationIn(event.currentTarget);
+  const id = cards[index]?.dataset.threadRootId;
+  if (navigation && id) {
+    const at = navigation.ids.indexOf(id);
+    navigation.focus(
+      navigation.ids[
+        {
+          ArrowUp: at - 1,
+          ArrowDown: at + 1,
+          Home: 0,
+          End: navigation.ids.length - 1,
+        }[key]
+      ]
+    );
+    return;
+  }
   const next = {
     ArrowUp: cards[index - 1],
     ArrowDown: cards[index + 1],

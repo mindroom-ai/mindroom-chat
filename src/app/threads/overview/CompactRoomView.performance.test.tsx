@@ -68,6 +68,7 @@ vi.mock('./CompactRoomView.css', () => ({
   CardShell: 'CardShell',
   CardMotion: 'CardMotion',
   Cards: 'Cards',
+  RowWithGap: 'RowWithGap',
   PinnedSection: 'PinnedSection',
 }));
 

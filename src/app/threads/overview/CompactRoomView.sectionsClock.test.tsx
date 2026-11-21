@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './__tests__/compactWindowStandIn';
 import type { Room } from 'matrix-js-sdk';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

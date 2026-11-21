@@ -166,6 +166,20 @@ vi.mock('./CompactThreadCard', () => ({
   },
 }));
 
+// The node renderer supplies partial scroller nodes for scroll-anchor tests, not DOM geometry.
+vi.mock('@tanstack/react-virtual', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-virtual')>();
+  return {
+    ...actual,
+    useVirtualizer: (
+      options: Parameters<typeof actual.useVirtualizer<HTMLDivElement, HTMLDivElement>>[0]
+    ) => {
+      const virtualizer = actual.useVirtualizer({ ...options, getScrollElement: () => null });
+      return Object.assign(virtualizer, { measureElement: () => undefined });
+    },
+  };
+});
+
 vi.mock('./CompactRoomView.css', () => ({
   View: 'View',
   EmptyState: 'EmptyState',
@@ -175,6 +189,7 @@ vi.mock('./CompactRoomView.css', () => ({
   CardShell: 'CardShell',
   CardMotion: 'CardMotion',
   Cards: 'Cards',
+  RowWithGap: 'RowWithGap',
   PinnedSection: 'PinnedSection',
 }));
 
@@ -661,6 +676,8 @@ describe('CompactRoomView', () => {
       set scrollTop(value: number) {
         scrollTop = Math.min(value, maxScrollTop);
       },
+      offsetTop: 0,
+      ownerDocument: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
       setMaxScrollTop: (value: number) => {
         maxScrollTop = value;
       },
@@ -700,7 +717,12 @@ describe('CompactRoomView', () => {
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
         : // The cards' container listens for touchmove; a card's track comes to rest as it goes.
-          { addEventListener: () => undefined, removeEventListener: () => undefined, style: {} };
+          {
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            style: {},
+            offsetTop: 0,
+          };
 
   it('gives the cards one touch-action and one touchmove listener, on their container', () => {
     // One on every card costs WebKit on iOS a touch region a card (CompactCardSwipe.css.ts).
@@ -720,6 +742,7 @@ describe('CompactRoomView', () => {
                     listening.push(String(element.props.className));
                   },
                   removeEventListener: () => undefined,
+                  offsetTop: 0,
                   style: {},
                 },
         }

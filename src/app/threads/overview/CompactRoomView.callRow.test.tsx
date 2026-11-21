@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './__tests__/compactWindowStandIn';
 import { MatrixEvent, type IContent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';

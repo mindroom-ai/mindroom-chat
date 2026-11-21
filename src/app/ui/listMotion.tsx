@@ -207,7 +207,7 @@ const holdsRow = ({ effect, playState }: Animation): boolean =>
   !('opacity' in ((effect as KeyframeEffect | null)?.getKeyframes()[0] ?? {}));
 
 type BeforeChangeProps = {
-  order: string;
+  order: string | undefined;
   read: () => Before | undefined;
   keep: (before: Before | undefined) => void;
 };
@@ -217,9 +217,9 @@ type BeforeChangeProps = {
  * runs after the change, when the rows that left are gone and the others have moved.
  */
 class BeforeChange extends PureComponent<BeforeChangeProps> {
-  override getSnapshotBeforeUpdate(): Before | null {
-    const { read } = this.props;
-    return read() ?? null;
+  override getSnapshotBeforeUpdate(previous: BeforeChangeProps): Before | null {
+    const { order, read } = this.props;
+    return order === undefined || previous.order === undefined ? null : read() ?? null;
   }
 
   override componentDidUpdate(
@@ -272,7 +272,10 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * plays held until `LONGEST_PLAY_MS` ends them. A row that comes in, and the copy of one that
  * left, always fade on.
  */
-export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
+export const useListMotion = (
+  listRef: RefObject<HTMLElement>,
+  order: string | undefined
+): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
@@ -296,6 +299,10 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     const before = beforeRef.current;
     beforeRef.current = undefined;
     const list = listRef.current;
+    if (order === undefined) {
+      runningRef.current.forEach((animation) => animation.cancel());
+      runningRef.current = [];
+    }
     if (!before || !list) return;
     // A row that still shows where it did keeps its play. Started again, a glide the browser has
     // not begun shows its first frame: a Compact room's cards jumped back to where the last

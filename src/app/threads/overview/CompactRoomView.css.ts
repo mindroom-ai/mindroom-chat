@@ -8,6 +8,7 @@ const touchActions = '(max-width: 480px), (hover: none)';
 export const View = style([
   Scroll,
   {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     flex: '1 1 auto',
@@ -64,6 +65,9 @@ export const SectionHeader = style({
   display: 'flex',
   paddingBlockStart: config.space.S200,
 });
+
+// The measured wrapper includes the gap, even when the next row is a spacer.
+export const RowWithGap = style({ paddingBlockEnd: config.space.S100 });
 
 export const PinnedSection = style({
   paddingBlockEnd: config.space.S300,

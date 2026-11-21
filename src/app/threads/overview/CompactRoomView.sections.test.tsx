@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import './__tests__/compactWindowStandIn';
 import type { Room } from 'matrix-js-sdk';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +9,6 @@ import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocu
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
-import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -482,51 +482,42 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('shows the header of the section a mounted card moves to while cards still mount', () => {
-    const working = Array.from({ length: 100 }, (_unused, index) => `$w${index}`);
-    state.sections = [{ id: 'working', rootIds: ['$a', ...working] }];
-    const { rerender } = render(view(['$a', ...working]));
-    expect(rows()).toContain('$a');
-
-    // $a finishes before the rest of the cards have mounted: it opens a Needs you section.
-    state.sections = [
-      { id: 'working', rootIds: working },
-      { id: 'needsYou', rootIds: ['$a'] },
-    ];
-    rerender(view(['$a', ...working]));
-
-    expect(rows().slice(-2)).toEqual(['#needsYou 1', '$a']);
-  });
-
-  it('mounts the first screenful on the way back from a card in folded Done', () => {
-    const waiting = Array.from({ length: 60 }, (_unused, index) => `$waiting${index}`);
-    state.sections = [
-      { id: 'needsYou', rootIds: waiting },
-      { id: 'done', rootIds: ['$done'] },
-    ];
-    const place = { scrollTop: 9000, anchors: [{ key: '$done', offset: 0 }] };
-    // jsdom has none; the list follows the place the reader left while its cards mount.
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe = vi.fn();
-        disconnect = vi.fn();
+  it('restores a deep anchor without mounting the preceding cards', () => {
+    const working = Array.from({ length: 730 }, (_unused, index) => `$card${index}`);
+    state.sections = [{ id: 'working', rootIds: working }];
+    const memory = new Map([
+      [ROOM_ID, { scrollTop: 500 * 84 + 44 - 40, anchors: [{ key: '$card500', offset: 40 }] }],
+    ]);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
+      this: HTMLElement
+    ) {
+      if (this.hasAttribute('data-compact-room-view')) return new DOMRect(0, 0, 300, 800);
+      const wrapper = this.closest<HTMLElement>('[data-index]');
+      const viewport = this.closest<HTMLElement>('[data-compact-room-view]');
+      if (!wrapper || !viewport) return new DOMRect();
+      let top = -viewport.scrollTop;
+      let prior = wrapper.previousElementSibling as HTMLElement | null;
+      while (prior) {
+        top += prior.offsetHeight || Number.parseFloat(prior.style.height) || 0;
+        prior = prior.previousElementSibling as HTMLElement | null;
       }
-    );
+      return new DOMRect(0, top, 300, wrapper.offsetHeight);
+    });
     render(
       <CompactRoomView
         room={room}
-        threadRootIds={[...waiting, '$done']}
+        threadRootIds={working}
         threadRecordMap={new Map()}
         onThreadClick={vi.fn()}
-        compactRoomScrollStateRef={{ current: new Map([[ROOM_ID, place]]) }}
+        compactRoomScrollStateRef={{ current: memory }}
         sectionsNow={NOW}
       />
     );
 
-    // The first screenful of cards, under their headers, and Done stays folded.
-    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
-    expect(rows()).not.toContain('$done');
+    const anchor = document.querySelector('[data-scroll-anchor="$card500"]');
+    expect(anchor?.getBoundingClientRect().top).toBe(40);
+    expect(rows()).not.toContain('$card0');
+    expect(rows().length).toBeLessThan(35);
   });
 
   it("meets the address's request for a card once the card shows, not while its section is folded", () => {
@@ -578,13 +569,6 @@ describe('a focus request on the mounted Compact room', () => {
   // VIEW_HEIGHT tall that scrolls.
   beforeEach(() => {
     scrollTop = 0;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe = vi.fn();
-        disconnect = vi.fn();
-      }
-    );
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
       this: HTMLElement
     ) {
