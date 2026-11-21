@@ -58,7 +58,8 @@ const depth = (): number => {
  */
 const copyOf = (stage: Element) => {
   const bounds = stage.getBoundingClientRect();
-  let pruned = false;
+  // Keep a screen of rows on either side: the keyboard can go away or text can shrink mid-slide.
+  const buffer = Math.max(window.screen.height, window.innerHeight);
   // Read live geometry while writing only into a detached document. No write there can dirty
   // the live layout, and nothing loads before the copy loses its media sources.
   const still = document.implementation.createHTMLDocument('');
@@ -111,26 +112,23 @@ const copyOf = (stage: Element) => {
     drawn.push([picture, element]);
     return picture;
   };
+  const shellOf = (element: Element, box: DOMRect) => {
+    const shell = still.importNode(element, false) as HTMLElement;
+    sizeBox(shell, box);
+    return shell;
+  };
   const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
     if (element.matches(CLIP)) {
       const view = element.getBoundingClientRect();
       const top = Math.max(clip?.top ?? bounds.top, view.top);
       const bottom = Math.min(clip?.bottom ?? bounds.bottom, view.bottom);
-      if (!view.width || !view.height || bottom <= top) {
-        pruned = true;
-        return still.importNode(element, false);
-      }
+      if (!view.width || !view.height || bottom <= top) return shellOf(element, view);
       clip = { top, bottom };
     }
     if (clip && element.matches(ROW)) {
       const box = element.getBoundingClientRect();
-      // Leave a gutter for the row's outlines and other nearby adornments.
-      if (box.bottom <= clip.top - 32 || box.top >= clip.bottom + 32) {
-        pruned = true;
-        const shell = still.importNode(element, false) as HTMLElement;
-        sizeBox(shell, box);
-        return shell;
-      }
+      if (box.bottom < clip.top - buffer || box.top > clip.bottom + buffer)
+        return shellOf(element, box);
     }
     const split = !!element.querySelector(clip ? `${CLIP}, ${ROW}` : CLIP);
     const twin = still.importNode(element, !split);
@@ -176,15 +174,12 @@ const copyOf = (stage: Element) => {
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  return {
-    bounds: pruned ? bounds : undefined,
-    append: (over: Element) => {
-      over.append(copy);
-      scrolled.forEach(([element, scrollTop, scrollLeft]) =>
-        Object.assign(element, { scrollTop, scrollLeft })
-      );
-      return copy;
-    },
+  return (over: Element) => {
+    over.append(copy);
+    scrolled.forEach(([element, scrollTop, scrollLeft]) =>
+      Object.assign(element, { scrollTop, scrollLeft })
+    );
+    return copy;
   };
 };
 
@@ -247,7 +242,6 @@ export const slidePhonePage = (change: Change): void => {
   let timer = 0;
   let copy: HTMLElement | undefined;
   let watch: MutationObserver | undefined;
-  let resize: ResizeObserver | undefined;
   let ended = false;
   let finish: () => void = () => undefined;
   const finished = new Promise<void>((resolve) => {
@@ -259,7 +253,6 @@ export const slidePhonePage = (change: Change): void => {
     window.cancelAnimationFrame(frame);
     window.clearTimeout(timer);
     watch?.disconnect();
-    resize?.disconnect();
     page.removeEventListener('visibilitychange', end);
     copy?.remove();
     playing = false;
@@ -300,17 +293,7 @@ export const slidePhonePage = (change: Change): void => {
       return;
     }
     root.dataset.pageSlide = to > from ? 'forward' : 'back';
-    copy = show.append(stage);
-    const { bounds } = show;
-    if (bounds && typeof ResizeObserver !== 'undefined') {
-      // The copy fills the stage. If it changes size (e.g. the keyboard goes away), don't
-      // paint rows that were outside the old clip as empty boxes in the new one.
-      resize = new ResizeObserver(() => {
-        const { width, height } = stage.getBoundingClientRect();
-        if (width !== bounds.width || height !== bounds.height) end();
-      });
-      resize.observe(stage, { box: 'border-box' });
-    }
+    copy = show(stage);
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.
     watch = new MutationObserver(() => {

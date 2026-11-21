@@ -168,15 +168,16 @@ describe('slidePhonePage', () => {
       '<div class="card" data-page-slide-row="below"><span>Below the clip</span></div></div>' +
       '<div data-page-slide-row="other"><span>Outside the clip container</span></div>';
     const view = stage.querySelector('[data-page-slide-clip]')!;
+    vi.stubGlobal('innerHeight', 844);
     const rect = vi
       .spyOn(Element.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: Element) {
         if (this === stage) return new DOMRect(0, 0, 390, 844);
         if (this === view) return new DOMRect(0, 180, 390, 470);
-        const y = { above: 40, visible: 300, gutter: 660, below: 720 }[
+        const y = { above: -800, visible: 300, gutter: 1200, below: 1550 }[
           this.getAttribute('data-page-slide-row') ?? ''
         ];
-        return new DOMRect(0, y ?? 990, 380.5, 42.25);
+        return new DOMRect(0, y ?? 2000, 380.5, 42.25);
       });
     try {
       slidePhonePage(() => showThread(true));
@@ -214,49 +215,48 @@ describe('slidePhonePage', () => {
       '<div data-page-slide-row><span>Hidden</span></div></div>';
     slidePhonePage(() => showThread(true));
     page.frame();
-    expect(copy()?.querySelector('[data-page-slide-clip]')?.childElementCount).toBe(0);
+    const shell = copy()?.querySelector<HTMLElement>('[data-page-slide-clip]');
+    expect(shell?.childElementCount).toBe(0);
+    expect(shell?.style.height).toBe('0px');
   });
 
-  it('drops a pruned copy if its stage grows while held', () => {
+  it('plays a back slide to the end when hiding the keyboard grows the stage', async () => {
     const page = browser();
+    showThread(true);
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
     stage.innerHTML =
-      '<div data-page-slide-clip>' +
-      '<div data-page-slide-row><span>Revealed by a larger stage</span></div></div>';
+      '<div data-page-slide-clip style="display:none"><div>Covered room</div></div>';
     let height = 450;
     const rect = vi
-      .spyOn(Element.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: Element) {
-        if (this === stage) return new DOMRect(0, 0, 390, height);
-        if (this.hasAttribute('data-page-slide-clip')) return new DOMRect(0, 0, 390, 844);
-        return new DOMRect(0, 570, 390, 50);
-      });
+      .spyOn(stage, 'getBoundingClientRect')
+      .mockImplementation(() => new DOMRect(0, 0, 390, height));
     let notify: (() => void) | undefined;
-    const observe = vi.fn();
-    const disconnect = vi.fn();
     vi.stubGlobal(
       'ResizeObserver',
       class {
         constructor(callback: () => void) {
           notify = callback;
         }
-        observe = observe;
-        disconnect = disconnect;
+        observe() {
+          /* The test delivers the next observation. */
+        }
+        disconnect() {
+          /* No real observation to stop. */
+        }
       }
     );
     try {
-      slidePhonePage(() => showThread(true));
+      slidePhonePage(() => showThread(false));
       page.frame();
-      expect(copy()?.querySelector('[data-page-slide-row]')?.childElementCount).toBe(0);
-      notify?.();
-      expect(copy()).not.toBeNull();
-
+      expect(page.plays).toEqual(['back']);
+      expect(copy()?.querySelector('[data-page-slide-clip]')?.childElementCount).toBe(0);
       height = 844;
       notify?.();
+      page.frame();
+      page.frame();
+      expect(copy()).not.toBeNull();
+      await page.finish();
       expect(copy()).toBeNull();
-      expect(root.dataset.pageSlideHeld).toBeUndefined();
-      expect(observe).toHaveBeenCalledWith(stage, { box: 'border-box' });
-      expect(disconnect).toHaveBeenCalledOnce();
     } finally {
       rect.mockRestore();
     }
