@@ -3,7 +3,6 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -145,12 +144,14 @@ import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import {
+  isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
   isMindroomResponderForViewer,
 } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
+  boundRoomRoster,
   trustedRoomAccountIds,
   trustedRouterUserId,
 } from '../matrix/protocol/routerBinding';
@@ -898,49 +899,75 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const boundUserId = trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels);
+  const boundUserId = useMemo(
+    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
+    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
+  );
   const roster = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
-  const [, refreshMembership] = useForceUpdate();
-  useEffect(() => {
-    const onMembership = (_event: MatrixEvent, member: RoomMember) => {
-      if (member.roomId === room.roomId) refreshMembership();
+  const rosterAccountIds = useMemo(() => boundRoomRoster(boundUserId, roster), [boundUserId, roster]);
+  const [membershipRevision, refreshMembership] = useForceUpdate();
+  const joinedAccountIds = useMemo(() => {
+    void membershipRevision;
+    // A new roster can list someone whose membership changes we were not following before.
+    void rosterAccountIds;
+    return new Set(room.getJoinedMembers().map((member) => member.userId));
+  }, [room, membershipRevision, rosterAccountIds]);
+  const trustedAccountsRef = useRef<ReadonlySet<string>>(new Set());
+  const trustedAccountIds = useMemo(() => {
+    const next = trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet);
+    const previous = trustedAccountsRef.current;
+    if (next.size === previous.size && [...next].every((id) => previous.has(id))) return previous;
+    trustedAccountsRef.current = next;
+    return next;
+  }, [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]);
+  const viewerId = mx.getUserId() ?? undefined;
+  const isResponder = useCallback(
+    (id: string) => isMindroomResponderForViewer(id, viewerId, trustedAccountIds),
+    [viewerId, trustedAccountIds]
+  );
+  const hasJoinedResponder = useMemo(
+    () => [...joinedAccountIds].some(isResponder),
+    [joinedAccountIds, isResponder]
+  );
+  const [viewerIsOnlyPerson, setViewerIsOnlyPerson] = useState(false);
+  useLayoutEffect(() => {
+    // People joining or leaving can change the hint, but not the trusted set.
+    const updateOnlyPerson = () => {
+      const people = room.getJoinedMembers().filter(({ userId }) =>
+        userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
+      );
+      setViewerIsOnlyPerson(people.length === 1 && people[0]?.userId === viewerId);
+    };
+    updateOnlyPerson();
+    const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
+      if (member.roomId !== room.roomId || (member.membership === 'join') === (previous === 'join')) {
+        return;
+      }
+      const { userId } = member;
+      if (
+        userId === boundUserId ||
+        rosterAccountIds.has(userId) ||
+        isMindroomAgentUserIdForViewer(userId, viewerId)
+      ) {
+        refreshMembership();
+      }
+      updateOnlyPerson();
     };
     mx.on(RoomMemberEvent.Membership, onMembership);
     return () => {
       mx.removeListener(RoomMemberEvent.Membership, onMembership);
     };
-  }, [mx, room.roomId, refreshMembership]);
-  const joinedAccountIds = new Set(room.getJoinedMembers().map((member) => member.userId));
-  const trustedAccountIds = trustedRoomAccountIds(
-    boundUserId,
-    roster,
-    joinedAccountIds,
-    ignoredUsersSet
-  );
-  const trustedAccountsRef = useRef(trustedAccountIds);
-  if (
-    trustedAccountIds.size !== trustedAccountsRef.current.size ||
-    [...trustedAccountIds].some((id) => !trustedAccountsRef.current.has(id))
-  ) {
-    trustedAccountsRef.current = trustedAccountIds;
-  }
+  }, [mx, room, boundUserId, rosterAccountIds, viewerId, isResponder, refreshMembership]);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
-  const viewerId = mx.getUserId() ?? undefined;
-  const isResponder = (id: string) =>
-    isMindroomResponderForViewer(id, viewerId, trustedAccountsRef.current);
-  // In a room with other people the backend needs a mention, which a voice message has not sent.
-  const viewerIsOnlyPerson =
-    !!viewerId &&
-    joinedAccountIds.has(viewerId) &&
-    [...joinedAccountIds].every((id) => id === viewerId || isMindroomOwnerUserId(id) || isResponder(id));
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
-    trustedAccountIds: trustedAccountsRef.current,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    hasJoinedAgent: viewerIsOnlyPerson && [...joinedAccountIds].some(isResponder),
+    // A room with other people needs a mention, which a voice message has not sent.
+    hasJoinedAgent: viewerIsOnlyPerson && hasJoinedResponder,
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (
@@ -960,7 +987,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
-    trustedAccountIds: trustedAccountsRef.current,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     keeps: (id) =>
       pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),

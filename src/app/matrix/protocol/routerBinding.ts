@@ -44,21 +44,28 @@ export const trustedRouterUserId = (
     : undefined;
 };
 
-/** Only the bound account can vouch for other joined senders, using its own roster key. */
+/** Only a roster the bound account writes at its own state key can vouch for senders. */
+export const boundRoomRoster = (
+  boundUserId: string | undefined,
+  roster: MatrixEvent | undefined
+): ReadonlySet<string> => {
+  if (!boundUserId || roster?.getSender() !== boundUserId || roster.getStateKey() !== boundUserId) {
+    return new Set();
+  }
+  const accounts: unknown = roster.getContent().accounts;
+  return new Set(Array.isArray(accounts) ? accounts.filter((id) => typeof id === 'string') : []);
+};
+
 export const trustedRoomAccountIds = (
   boundUserId: string | undefined,
-  roster: MatrixEvent | undefined,
+  roster: ReadonlySet<string>,
   joined: ReadonlySet<string>,
   ignored: ReadonlySet<string>
 ): ReadonlySet<string> => {
   if (!boundUserId || ignored.has(boundUserId)) return new Set();
   const trusted = new Set([boundUserId]);
-  if (roster?.getSender() !== boundUserId || roster.getStateKey() !== boundUserId) return trusted;
-  const accounts: unknown = roster.getContent().accounts;
-  if (Array.isArray(accounts)) {
-    for (const id of accounts) {
-      if (typeof id === 'string' && joined.has(id) && !ignored.has(id)) trusted.add(id);
-    }
+  for (const id of roster) {
+    if (joined.has(id) && !ignored.has(id)) trusted.add(id);
   }
   return trusted;
 };

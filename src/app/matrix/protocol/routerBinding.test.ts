@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { trustedRoomAccountIds, trustedRouterUserId } from './routerBinding';
+import { boundRoomRoster, trustedRoomAccountIds, trustedRouterUserId } from './routerBinding';
 
 const ROUTER = '@mindroom_router:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -96,7 +96,7 @@ describe('trustedRoomAccountIds', () => {
   const trusted = (
     event?: MatrixEvent,
     { joined = new Set([AGENT]), ignored = new Set<string>() } = {}
-  ) => trustedRoomAccountIds(ROUTER, event, joined, ignored);
+  ) => trustedRoomAccountIds(ROUTER, boundRoomRoster(ROUTER, event), joined, ignored);
 
   it('trusts the legacy binding without a roster', () => {
     expect(trusted()).toEqual(new Set([ROUTER]));
@@ -124,7 +124,7 @@ describe('trustedRoomAccountIds', () => {
     'trusts no one without a binding that ordinary members cannot write',
     (event) => {
       const bound = trustedRouterUserId(event, { state_default: 0, users_default: 0 });
-      expect(trustedRoomAccountIds(bound, roster(), new Set([AGENT]), new Set())).toEqual(
+      expect(trustedRoomAccountIds(bound, boundRoomRoster(bound, roster()), new Set([AGENT]), new Set())).toEqual(
         new Set()
       );
     }

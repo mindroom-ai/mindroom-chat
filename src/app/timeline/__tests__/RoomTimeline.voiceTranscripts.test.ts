@@ -1,4 +1,5 @@
 import React from 'react';
+import { MatrixEvent, RoomMember, RoomMemberEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
@@ -10,6 +11,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
+  matrixClientMock,
   roomTimelineVirtualizerState,
   powerLevelsContextMock,
   stateEventsByTypeMock,
@@ -106,11 +108,31 @@ const openThread = async (
   roomTimelineVirtualizerState.virtualIndexes = events.map((_event, index) => index);
   const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
+  const element = () => React.createElement(Harness, { room, threadId });
   await act(async () => {
-    renderer = create(React.createElement(Harness, { room, threadId }));
+    renderer = create(element());
     await flushAsyncWork();
   });
-  return renderer!;
+  return { renderer: renderer!, room, update: () => renderer!.update(element()) };
+};
+
+const changeMembership = (joined: string[], userId: string, membership: 'join' | 'leave') => {
+  const oldMembership = joined.includes(userId) ? 'join' : 'leave';
+  if (membership === 'join') joined.push(userId);
+  else joined.splice(joined.indexOf(userId), 1);
+  const member = new RoomMember('!room:example.org', userId);
+  const event = new MatrixEvent({
+    type: 'm.room.member',
+    room_id: member.roomId,
+    state_key: userId,
+    content: { membership },
+  });
+  member.setMembershipEvent(event);
+  const listener = matrixClientMock.on.mock.calls.findLast(
+    ([name]) => name === RoomMemberEvent.Membership
+  )?.[1] as ((event: MatrixEvent, member: RoomMember, oldMembership: string) => void) | undefined;
+  if (!listener) throw new Error('No membership listener');
+  act(() => listener(event, member, oldMembership));
 };
 
 const transcripts = (renderer: ReturnType<typeof create>) =>
@@ -128,7 +150,7 @@ describe('a voice echo in an open thread', () => {
   });
 
   it('folds under its voice message when the room names its sender as the router', async () => {
-    const renderer = await openThread(ROUTER);
+    const { renderer } = await openThread(ROUTER);
     try {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$voice']);
       expect(transcripts(renderer)).toEqual(['🎤 Invented words']);
@@ -139,7 +161,7 @@ describe('a voice echo in an open thread', () => {
 
   it('folds a source-linked legacy placeholder into the voice row', async () => {
     const echoBody = 'Router agent is transcribing…';
-    const renderer = await openThread(ROUTER, ROUTER, { echoBody });
+    const { renderer } = await openThread(ROUTER, ROUTER, { echoBody });
     try {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$voice']);
       expect(transcripts(renderer)).toEqual([echoBody]);
@@ -150,7 +172,7 @@ describe('a voice echo in an open thread', () => {
 
   it.each([true, false])('folds a joined agent echo only when listed (%s)', async (listed) => {
     if (listed) setRoster([AGENT]);
-    const renderer = await openThread(ROUTER, AGENT);
+    const { renderer } = await openThread(ROUTER, AGENT);
     try {
       expect(getRenderedEventIds(renderer)).toEqual(
         listed ? [threadId, '$voice'] : [threadId, '$voice', '$echo']
@@ -161,12 +183,56 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
+  it('folds a loaded echo when its roster sender joins and shows the row again on leave', async () => {
+    const joinedMembers = [VIEWER];
+    setRoster([CUSTOM_AGENT]);
+    const { renderer } = await openThread(ROUTER, CUSTOM_AGENT, { joinedMembers });
+    try {
+      expect(getRenderedEventIds(renderer)).toContain('$echo');
+      changeMembership(joinedMembers, CUSTOM_AGENT, 'join');
+      expect(getRenderedEventIds(renderer)).not.toContain('$echo');
+      expect(transcripts(renderer)).toEqual(['🎤 Invented words']);
+      changeMembership(joinedMembers, CUSTOM_AGENT, 'leave');
+      expect(getRenderedEventIds(renderer)).toContain('$echo');
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('does not rescan joined members on an unrelated render', async () => {
+    const { renderer, room, update } = await openThread(ROUTER);
+    try {
+      const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
+      act(update);
+      expect(getJoinedMembers).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('updates the fold when the bound roster changes without a membership change', async () => {
+    const { renderer, update } = await openThread(ROUTER, CUSTOM_AGENT, {
+      joinedMembers: [VIEWER, CUSTOM_AGENT],
+    });
+    try {
+      expect(getRenderedEventIds(renderer)).toContain('$echo');
+      setRoster([CUSTOM_AGENT]);
+      act(update);
+      expect(getRenderedEventIds(renderer)).not.toContain('$echo');
+      setRoster([]);
+      act(update);
+      expect(getRenderedEventIds(renderer)).toContain('$echo');
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it.each([
     ['only the owner', [ROUTER], false],
     ['a roster-backed responder with a custom ID', [CUSTOM_AGENT], true],
   ] as const)('shows pending with %s only if somebody answers', async (_case, joined, pending) => {
     setRoster([CUSTOM_AGENT]);
-    const renderer = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [VIEWER, ...joined] });
+    const { renderer } = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [VIEWER, ...joined] });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(pending ? 1 : 0);
     } finally {
@@ -175,7 +241,7 @@ describe('a voice echo in an open thread', () => {
   });
 
   it('does not show pending in a room with another person', async () => {
-    const renderer = await openThread(undefined, AGENT, {
+    const { renderer } = await openThread(undefined, AGENT, {
       showEcho: false,
       joinedMembers: [VIEWER, '@alex:example.org', AGENT],
     });
@@ -186,11 +252,26 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
+  it('updates the pending hint when another person joins or leaves', async () => {
+    const joinedMembers = [VIEWER, AGENT];
+    const person = '@alex:example.org';
+    const { renderer } = await openThread(undefined, AGENT, { showEcho: false, joinedMembers });
+    try {
+      expect(transcribingStatuses(renderer)).toHaveLength(1);
+      changeMembership(joinedMembers, person, 'join');
+      expect(transcribingStatuses(renderer)).toHaveLength(0);
+      changeMembership(joinedMembers, person, 'leave');
+      expect(transcribingStatuses(renderer)).toHaveLength(1);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it.each([
     ['names no router', undefined],
     ['names another account', '@mindroom_router_lab1:example.org'],
   ])('keeps its own row when the room %s', async (_case, router) => {
-    const renderer = await openThread(router);
+    const { renderer } = await openThread(router);
     try {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$voice', '$echo']);
       expect(transcripts(renderer)).toEqual([]);
@@ -203,7 +284,7 @@ describe('a voice echo in an open thread', () => {
 it('hides the transcribing skeleton 60 seconds after the voice message was sent', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(100_000);
-  const renderer = await openThread(undefined, AGENT, {
+  const { renderer } = await openThread(undefined, AGENT, {
     showEcho: false,
     voiceTs: 3_700_000,
     voiceAge: 40_000,
