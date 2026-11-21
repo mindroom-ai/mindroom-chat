@@ -397,7 +397,10 @@ export function SubagentRunView({
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding), or a box
   // that shrinks (the Usage above it opening).
   const getThread = useCallback(
-    () => [box.current, box.current?.firstElementChild].filter((element): element is Element => !!element),
+    () =>
+      [box.current, box.current?.firstElementChild].filter(
+        (element): element is Element => !!element
+      ),
     []
   );
   useResizeObserver(keepEnd, getThread);

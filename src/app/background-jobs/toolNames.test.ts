@@ -18,9 +18,9 @@ describe('plainToolName', () => {
     );
     expect(name('read_url')).toBe('Open a web page');
     expect(name('web_search')).toBe('Search the web');
-    expect(name('run_subagent')).toBe('Ask a helper');
     expect(name('search_memories')).toBe('Check memory');
     expect(name('add_memory')).toBe('Update memory');
+    expect(name('delete_memory')).toBe('Delete a memory');
     expect(name('matrix_message')).toBe('Use Matrix messages');
     expect(name('schedule')).toBe('Schedule a task');
     expect(name('list_schedules')).toBe('Check the schedule');

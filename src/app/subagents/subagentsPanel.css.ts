@@ -408,10 +408,8 @@ export const UsageSummary = style({
   fontSize: toRem(12),
   cursor: 'pointer',
   listStyle: 'none',
-  opacity: config.opacity.P300,
   selectors: {
     '&::-webkit-details-marker': { display: 'none' },
-    '&:hover': { opacity: 1 },
     '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
   },
 });
