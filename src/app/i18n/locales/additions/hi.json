@@ -1038,7 +1038,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "सभी लंबे संदेश खोलें",
-        "collapseAllLong": "सभी लंबे संदेश समेटें"
+        "collapseAllLong": "सभी लंबे संदेश समेटें",
+        "showFullMessage": "पूरा संदेश दिखाएँ"
       }
     },
     "computer": {

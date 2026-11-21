@@ -1017,7 +1017,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展開所有長訊息",
-        "collapseAllLong": "收合所有長訊息"
+        "collapseAllLong": "收合所有長訊息",
+        "showFullMessage": "顯示完整訊息"
       }
     },
     "computer": {

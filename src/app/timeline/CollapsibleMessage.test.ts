@@ -1,6 +1,9 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import i18next from 'i18next';
+import nl from '../i18n/locales/nl.json';
+import nlAdditions from '../i18n/locales/additions/nl.json';
 
 vi.mock('./CollapsibleMessage.css', () => ({
   CollapsibleContainer: 'collapsible-container',
@@ -1140,5 +1143,23 @@ describe('CollapsibleMessage', () => {
     expect(state.get('$oldest')).toBeUndefined();
     expect(state.get('$middle')).toBe(false);
     expect(state.get('$newest')).toBe(true);
+  });
+
+  it('labels its toggle in the app language', async () => {
+    i18next.addResourceBundle('nl', 'translation', nl, true, true);
+    i18next.addResourceBundle('nl', 'translation', nlAdditions, true, false);
+    await i18next.changeLanguage('nl');
+    try {
+      const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+      const toggle = () => renderer.root.find((node) => node.type === 'button');
+      expect(toggle().props['aria-label']).toBe('Volledig bericht tonen');
+      act(() => {
+        toggle().props.onClick({ stopPropagation: () => {} });
+      });
+      expect(toggle().props['aria-label']).toBe('Minder tonen');
+      act(() => renderer.unmount());
+    } finally {
+      await i18next.changeLanguage('en');
+    }
   });
 });

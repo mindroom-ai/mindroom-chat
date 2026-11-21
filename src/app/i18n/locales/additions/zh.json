@@ -1017,7 +1017,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展开所有长消息",
-        "collapseAllLong": "折叠所有长消息"
+        "collapseAllLong": "折叠所有长消息",
+        "showFullMessage": "显示完整消息"
       }
     },
     "computer": {

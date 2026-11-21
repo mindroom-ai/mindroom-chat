@@ -1038,7 +1038,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Alle lange berichten uitklappen",
-        "collapseAllLong": "Alle lange berichten inklappen"
+        "collapseAllLong": "Alle lange berichten inklappen",
+        "showFullMessage": "Volledig bericht tonen"
       }
     },
     "computer": {

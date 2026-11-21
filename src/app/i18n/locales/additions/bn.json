@@ -1038,7 +1038,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
-        "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন"
+        "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন",
+        "showFullMessage": "পুরো বার্তা দেখুন"
       }
     },
     "computer": {

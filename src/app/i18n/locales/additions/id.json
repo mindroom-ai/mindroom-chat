@@ -1017,7 +1017,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Bentangkan semua pesan panjang",
-        "collapseAllLong": "Ciutkan semua pesan panjang"
+        "collapseAllLong": "Ciutkan semua pesan panjang",
+        "showFullMessage": "Tampilkan pesan lengkap"
       }
     },
     "computer": {

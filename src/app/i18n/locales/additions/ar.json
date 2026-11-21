@@ -1122,7 +1122,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "توسيع كل الرسائل الطويلة",
-        "collapseAllLong": "طي كل الرسائل الطويلة"
+        "collapseAllLong": "طي كل الرسائل الطويلة",
+        "showFullMessage": "عرض الرسالة كاملة"
       }
     },
     "computer": {
