@@ -12,9 +12,9 @@ import {
 // Dragging the splitter of the members panel wraps every message of the room beside it anew. A
 // reader at the newest message keeps it where it is, above the composer, in every frame the
 // browser paints: the timeline used to pin it again a frame late, so the text jumped by the lines
-// the message gained or lost and back. A reader up in the history sees the rows in view wrap in
-// place: no frame shows the message at the top of their view anywhere but where the frames around
-// it do, and it is back in its place when the room has its width back. The drag raises no
+// the message gained or lost and back. A reader up in the history, with a one-line message's row
+// at the top of their view, keeps it there in every frame while the rows above it wrap out of
+// sight. The drag raises no
 // "ResizeObserver loop completed with undelivered notifications." error. Runs in Chromium and,
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
@@ -49,6 +49,8 @@ const seedRoom = async (name: string) => {
   });
   await joinRoom(HOMESERVER, writer.accessToken, roomId);
   let newest = '';
+  /** The messages of one line, whose rows keep their height at any width. */
+  const oneLine: string[] = [];
   for (let index = 1; index <= MESSAGES; index += 1) {
     const who = index % 3 === 0 ? reader : writer;
     const lines = index === MESSAGES ? 5 : index % 6;
@@ -58,8 +60,9 @@ const seedRoom = async (name: string) => {
       msgtype: 'm.text',
       body,
     });
+    if (lines === 0) oneLine.push(newest);
   }
-  return { reader, roomId, newest };
+  return { reader, roomId, newest, oneLine };
 };
 
 type Drag = {
@@ -69,15 +72,47 @@ type Drag = {
   widths: [number, number];
   loops: string[];
 };
-type ProbeWindow = Window & { splitterDragProbe?: { stop: () => Drag } };
+type ProbeWindow = Window & {
+  /** Runs after each callback of a ResizeObserver, and after the microtasks that callback queued. */
+  afterResizeObserver?: () => void;
+  splitterDragProbe?: { stop: () => Drag };
+};
+
+/**
+ * Lets the probe read after every ResizeObserver of the page, the timeline's row observer too.
+ * The browser calls them after layout, last before it paints, and the timeline renders before the
+ * paint in a microtask of its callbacks: what is read after the last of them is what the frame
+ * paints. Runs before the app's scripts, which create their observers from this class.
+ */
+const installProbe = (page: Page) =>
+  page.addInitScript(() => {
+    const read = () => (window as ProbeWindow).afterResizeObserver?.();
+    const Native = window.ResizeObserver;
+    window.ResizeObserver = class extends Native {
+      constructor(callback: ResizeObserverCallback) {
+        super((entries, observer) => {
+          try {
+            callback(entries, observer);
+          } finally {
+            read();
+            queueMicrotask(() => {
+              read();
+              queueMicrotask(read);
+            });
+          }
+        });
+      }
+    };
+  });
 
 /**
  * Starts reading where a message sits in each frame: its bottom edge above the scroll area's
- * (`bottom`), or its top edge below the scroll area's (`top`). A frame's place is its last
- * reading: the one of a ResizeObserver created after the timeline's own, which runs after them
- * in each pass of the frame and so reads what the frame paints, or, in a frame that resizes
- * nothing, the one of its animation frame callback (in a frame with a new width, that callback
- * reads the rows wrapped anew before the timeline has seen them).
+ * (`bottom`), or its row's top edge below the scroll area's (`top`). A frame's place is its last
+ * reading: the one after the last ResizeObserver callback of the frame (`installProbe`), or, in a
+ * frame that resizes nothing, the one of its animation frame callback (in a frame with a new
+ * width, that callback reads the rows wrapped anew before the timeline has seen them). An
+ * observer of the scroll area, the list and the message's row reads in every pass that resizes
+ * one of them.
  */
 const startProbe = (page: Page, eventId: string, edge: 'bottom' | 'top') =>
   page.evaluate(
@@ -87,7 +122,8 @@ const startProbe = (page: Page, eventId: string, edge: 'bottom' | 'top') =>
       while (area && !/auto|scroll/.test(getComputedStyle(area).overflowY)) {
         area = area.parentElement;
       }
-      if (!list || !area) throw new Error('Timeline scroll area missing');
+      const row = document.querySelector(`[data-message-id="${id}"]`)?.closest('[data-index]');
+      if (!list || !area || !row) throw new Error('Timeline scroll area or row missing');
       const scrollArea = area;
       const places: number[] = [];
       const widths: [number, number] = [scrollArea.clientWidth, scrollArea.clientWidth];
@@ -97,25 +133,29 @@ const startProbe = (page: Page, eventId: string, edge: 'bottom' | 'top') =>
       };
       const read = () => {
         const message = document.querySelector(`[data-message-id="${id}"]`);
-        if (!message) return Number.NaN;
+        const box = (
+          readEdge === 'top' ? message?.closest('[data-index]') : message
+        )?.getBoundingClientRect();
+        if (!box) return Number.NaN;
         const view = scrollArea.getBoundingClientRect();
-        const box = message.getBoundingClientRect();
         widths[0] = Math.min(widths[0], scrollArea.clientWidth);
         widths[1] = Math.max(widths[1], scrollArea.clientWidth);
         return readEdge === 'bottom' ? view.bottom - box.bottom : box.top - view.top;
       };
-      const observer = new ResizeObserver(() => {
+      const probe = window as ProbeWindow;
+      probe.afterResizeObserver = () => {
         places[Math.max(0, places.length - 1)] = read();
-      });
-      observer.observe(scrollArea);
-      observer.observe(list);
+      };
+      const observer = new ResizeObserver(() => {});
+      [scrollArea, list, row].forEach((element) => observer.observe(element));
       let frame = requestAnimationFrame(function tick() {
         places.push(read());
         frame = requestAnimationFrame(tick);
       });
       window.addEventListener('error', onError);
-      (window as ProbeWindow).splitterDragProbe = {
+      probe.splitterDragProbe = {
         stop: () => {
+          probe.afterResizeObserver = undefined;
           observer.disconnect();
           cancelAnimationFrame(frame);
           window.removeEventListener('error', onError);
@@ -155,7 +195,8 @@ const dragSplitter = async (page: Page, eventId: string, edge: 'bottom' | 'top')
 const openRoom = async (page: Page, name: string) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  const { reader, roomId, newest } = await seedRoom(name);
+  const { reader, roomId, newest, oneLine } = await seedRoom(name);
+  await installProbe(page);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: reader.username,
@@ -169,35 +210,22 @@ const openRoom = async (page: Page, name: string) => {
   await expect(page.locator(`[data-message-id="${newest}"]`)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('resizable-members-panel')).toBeVisible();
   await page.waitForTimeout(2_000);
-  return { errors, newest };
+  return { errors, newest, oneLine };
 };
 
-/**
- * The frames that show the message away from where the frames before and after show it, to the
- * same side: a place it took for one frame only.
- */
-const framesOutOfPlace = (places: number[]): number[] =>
-  places.flatMap((place, frame) => {
-    const before = place - (places[frame - 1] ?? place);
-    const after = place - (places[frame + 1] ?? place);
-    return Math.abs(before) > TOLERANCE && Math.abs(after) > TOLERANCE && before * after > 0
-      ? [frame]
-      : [];
-  });
-
-const expectDragKeptPlace = (drag: Drag, errors: string[], what: string, still: boolean) => {
+/** The message was in its place, within `TOLERANCE`, in every frame the browser painted. */
+const expectDragKeptPlace = (drag: Drag, errors: string[], what: string) => {
   // The room narrowed enough to wrap its messages anew.
   expect(drag.widths[1] - drag.widths[0], 'how far the room narrowed').toBeGreaterThan(150);
   expect(drag.places.length, 'frames read').toBeGreaterThan(STEPS / 2);
   const start = drag.places[0] ?? Number.NaN;
   const moved = drag.places.map((place) => Math.round((place - start) * 10) / 10);
   const places = `${what}: px from its place, per frame: ${moved.join(' ')}`;
-  if (still) {
-    expect(Math.max(...moved.map(Math.abs)), places).toBeLessThanOrEqual(TOLERANCE);
-  } else {
-    expect(framesOutOfPlace(drag.places), `frames out of place; ${places}`).toEqual([]);
-    expect(Math.abs(moved[moved.length - 1] ?? Number.NaN), places).toBeLessThanOrEqual(TOLERANCE);
-  }
+  // A frame without the message reads NaN, which is no place either.
+  expect(
+    moved.filter((px) => !(Math.abs(px) <= TOLERANCE)),
+    places
+  ).toEqual([]);
   expect([
     ...drag.loops,
     ...errors.filter((message) => /ResizeObserver loop/.test(message)),
@@ -208,15 +236,36 @@ const expectDragKeptPlace = (drag: Drag, errors: string[], what: string, still: 
 const dragAtNewest = async (page: Page, name: string) => {
   const { errors, newest } = await openRoom(page, name);
   const drag = await dragSplitter(page, newest, 'bottom');
-  expectDragKeptPlace(drag, errors, 'the newest message', true);
+  expectDragKeptPlace(drag, errors, 'the newest message');
 };
 
 /**
- * Up in the history: the message across the top of the view moves only when a row in view above
- * it wraps, stays where that puts it, and is back in its place once the room has its width back.
+ * The row of each message with its top edge at or below the reader's line, in px below it. The
+ * timeline takes a row that ends above that line as out of sight: the line is as far below the
+ * scroll area's top edge as the room's first row starts in the scroll content (the room header's
+ * inset and the content before the rows lie above it).
+ */
+const rowsBelowLine = (page: Page, ids: string[]) =>
+  page.evaluate((messages) => {
+    const list = document.querySelector<HTMLElement>('[data-testid="room-virtual-inner"]');
+    let area = list?.parentElement;
+    while (area && !/auto|scroll/.test(getComputedStyle(area).overflowY)) area = area.parentElement;
+    if (!list || !area) throw new Error('Timeline scroll area missing');
+    const line = list.getBoundingClientRect().top + area.scrollTop;
+    return messages.flatMap((id) => {
+      const row = document.querySelector(`[data-message-id="${id}"]`)?.closest('[data-index]');
+      const below = row ? row.getBoundingClientRect().top - line : Number.NaN;
+      return below >= -2 ? [{ id, below }] : [];
+    });
+  }, ids);
+
+/**
+ * Up in the history, with the row of a one-line message at the top of the view: every row above
+ * it is out of sight, so the rows that wrap anew move nothing the reader sees, and that row, which
+ * keeps its height, stays where it is in every frame.
  */
 const dragInHistory = async (page: Page, name: string) => {
-  const { errors, newest } = await openRoom(page, name);
+  const { errors, newest, oneLine } = await openRoom(page, name);
   const newestRow = page.locator(`[data-message-id="${newest}"]`);
   const place = await newestRow.boundingBox();
   if (!place) throw new Error('Newest message missing');
@@ -224,24 +273,22 @@ const dragInHistory = async (page: Page, name: string) => {
   await page.mouse.move(place.x + 40, place.y - 200);
   await page.mouse.wheel(0, -1_400);
   await expect(page.getByRole('button', { name: 'Jump to Latest' })).toBeVisible();
+  await page.waitForTimeout(1_000);
+  const [anchor] = (await rowsBelowLine(page, oneLine)).sort((a, b) => a.below - b.below);
+  if (!anchor) throw new Error('No one-line message below the top of the view');
+  // The wheel brings the row's top edge to the line, at most 1.5 px above it: the row before it
+  // must end out of sight, or it would wrap in view and move the rows after it.
+  await expect(async () => {
+    const [row] = await rowsBelowLine(page, [anchor.id]);
+    expect(row, 'the row left the view').toBeDefined();
+    const below = row?.below ?? 0;
+    if (below > -0.25) await page.mouse.wheel(0, Math.ceil(below + 0.25));
+    expect(below).toBeLessThanOrEqual(-0.25);
+    expect(below).toBeGreaterThan(-1.5);
+  }).toPass({ timeout: 15_000, intervals: [500] });
   await page.waitForTimeout(1_500);
-  const anchor = await page.evaluate(() => {
-    const list = document.querySelector<HTMLElement>('[data-testid="room-virtual-inner"]');
-    let area = list?.parentElement;
-    while (area && !/auto|scroll/.test(getComputedStyle(area).overflowY)) area = area.parentElement;
-    if (!area) throw new Error('Timeline scroll area missing');
-    // Below the bars over the top of the rows, which the scroll padding keeps clear.
-    const line =
-      area.getBoundingClientRect().top + (parseFloat(getComputedStyle(area).scrollPaddingTop) || 0);
-    const across = Array.from(document.querySelectorAll('[data-room-row-index]')).find((row) => {
-      const { top, bottom } = row.getBoundingClientRect();
-      return top <= line && bottom > line + 1;
-    });
-    return across?.querySelector('[data-message-id]')?.getAttribute('data-message-id') ?? null;
-  });
-  if (!anchor) throw new Error('No message across the top of the view');
-  const drag = await dragSplitter(page, anchor, 'top');
-  expectDragKeptPlace(drag, errors, 'the message at the top of the view', false);
+  const drag = await dragSplitter(page, anchor.id, 'top');
+  expectDragKeptPlace(drag, errors, 'the row at the top of the view');
 };
 
 test.beforeEach(async () => {
