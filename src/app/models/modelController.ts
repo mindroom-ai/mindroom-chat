@@ -68,6 +68,7 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
+  seedDeferred: boolean;
   /** Recent event IDs of model commands typed in the thread and awaiting answers. */
   typedCommands: Set<string>;
   query?: Query;
@@ -245,6 +246,7 @@ export class ModelController {
         needsRefresh: false,
         failures: 0,
         kept,
+        seedDeferred: !room.membersLoaded(),
       };
       this.scopes.set(key, scope);
     }
@@ -365,12 +367,14 @@ export class ModelController {
   private async probe(query: Query): Promise<void> {
     try {
       const { scope, hydrating } = query;
+      scope.seedDeferred ||= hydrating;
       if (hydrating) await scope.room.loadMembersIfNeeded();
       if (!this.currentQuery(query)) return;
       query.hydrating = false;
-      const { failures, catalogs, snapshot } = scope;
-      // Recheck the display seed once the whole roster is available, not on intermediate joins.
-      if (hydrating && failures < STALE_ATTEMPTS && !catalogs.size && !snapshot.runtime) {
+      const { failures, catalogs, snapshot, seedDeferred } = scope;
+      scope.seedDeferred = false;
+      // A cancelled probe leaves this seed check for the next probe with the full roster.
+      if (seedDeferred && failures < STALE_ATTEMPTS && !catalogs.size && !snapshot.runtime) {
         this.reseed(scope);
         if (!this.currentQuery(query)) return;
       }

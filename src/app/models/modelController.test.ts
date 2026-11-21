@@ -297,6 +297,45 @@ describe('persisted room catalogs', () => {
     }
   );
 
+  it('shows the saved catalog when returning after a cancelled hydration probe', async () => {
+    const first = setup();
+    await first.discover();
+    const h = setup(true);
+    let finishLoading!: () => void;
+    const loading = new Promise<void>((resolve) => {
+      finishLoading = resolve;
+    });
+    vi.spyOn(h.mx, 'members').mockImplementation(async () => {
+      await loading;
+      return {
+        chunk: [router, helper].map((id) => ({
+          type: 'm.room.member',
+          room_id: h.room.roomId,
+          sender: id,
+          state_key: id,
+          content: { membership: 'join' },
+        })) as IStateEventWithRoomId[],
+      };
+    });
+
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    expect(h.snapshot().eligible).toBe(false);
+    leave();
+    finishLoading();
+    await flush();
+    expect(h.room.membersLoaded()).toBe(true);
+    expect(h.queue).not.toHaveBeenCalled();
+
+    h.controller.subscribe(h.room, '$root', () => {});
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      models: first.snapshot().models,
+      loading: true,
+      canMutate: false,
+    });
+    expect(h.snapshot().runtime).toBeUndefined();
+  });
+
   it('removes a visible seed when its agent leaves during hydration', async () => {
     await setup().discover();
     const h = setup(true);
