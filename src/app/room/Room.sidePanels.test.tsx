@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useContext, useEffect, useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
-import { callPanelRequestAtom, callPanelRoomAtom } from '../calls/callStore';
+import {
+  activeCallAtom,
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  type ActiveCall,
+} from '../calls/callStore';
+import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
 import {
   closeTranscriptPanel,
   openTranscriptPanel,
@@ -12,6 +18,7 @@ import {
 } from '../calls/transcription/transcriptPanel';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowMode,
 } from '../calls/window/callWindowState';
@@ -73,6 +80,7 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     mx: {
       getSafeUserId: () => state.userId,
+      getRoom: () => null,
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
       on: (name: string, handler: (...args: unknown[]) => void) => listeners.set(name, handler),
@@ -80,6 +88,7 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     room: {
       roomId: '!room:example.org',
+      name: 'Planning Room',
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: (eventId: string) =>
@@ -420,8 +429,10 @@ describe('the side panels of a room', () => {
 
   afterEach(() => {
     cleanup();
+    store.set(activeCallAtom, undefined);
     store.set(callPanelRoomAtom, undefined);
     store.set(callPanelRequestAtom, undefined);
+    store.set(focusHandOffAtom, undefined);
     store.set(transcriptPanelAtom, undefined);
     store.set(subagentsPanelAtom, undefined);
     store.set(membersOpenAtom, false);
@@ -492,7 +503,7 @@ describe('the side panels of a room', () => {
     expect(shown()).toEqual(['call']);
   });
 
-  it('unfolds a call request sent before its room is shown and consumes it once', async () => {
+  it('unfolds a call request once even if the composer takes focus before the room shows', async () => {
     const showRoom = await renderRoom();
     await open('call');
     const fold = () =>
@@ -502,9 +513,32 @@ describe('the side panels of a room', () => {
     expect(unfold()).not.toBeNull();
 
     await showRoom('!other:example.org');
-    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
-    expect(store.get(callPanelRequestAtom)).toEqual({ roomId: room.roomId });
+    const callState = { phase: 'connected', microphone: true, participants: [] };
+    const call = {
+      kind: 'agent',
+      origin: { roomId: room.roomId, threadId: '$thread' },
+      call: {
+        room,
+        subscribe: () => () => undefined,
+        getState: () => callState,
+      },
+    } as unknown as ActiveCall;
+    function ReturnShortcut() {
+      const { openHome } = useActiveCallShortcut(call);
+      return (
+        <button type="button" onClick={(event) => openHome(event.currentTarget)}>
+          Return
+        </button>
+      );
+    }
+    act(() => store.set(activeCallAtom, call));
+    render(<ReturnShortcut />);
+    fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+    // The destination composer can take focus before the room consumes the unfold request.
+    screen.getByRole('textbox', { name: 'Message' }).focus();
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
     await showRoom(room.roomId);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
     expect(shown()).toEqual(['call']);
     expect(unfold()).toBeNull();
     expect(store.get(callPanelRequestAtom)).toBeUndefined();

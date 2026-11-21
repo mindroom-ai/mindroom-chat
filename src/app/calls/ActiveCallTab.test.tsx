@@ -65,7 +65,7 @@ let store = createStore();
 const renderTab = (size: ScreenSize = 'Desktop', route = '/home/') => {
   const router = createMemoryRouter(
     [{ path: '/home/:roomIdOrAlias?', element: <ActiveCallTab active={active} /> }],
-    { initialEntries: [route] }
+    { initialEntries: ['/home/', route] }
   );
   return {
     ...render(
@@ -189,6 +189,7 @@ describe("the rail's call button", () => {
     'waits',
     'gets a canonical address',
     'moves focus',
+    'goes back then forward',
     'reopens the drawer',
     'times out',
     'starts a newer hand-off',
@@ -221,6 +222,14 @@ describe("the rail's call button", () => {
       menu.focus();
     } else if (action === 'gets a canonical address') {
       await act(async () => router.navigate(target, { replace: true }));
+    } else if (action === 'goes back then forward') {
+      // MemoryRouter moves the route but does not emit the browser's traversal event.
+      for (const delta of [-1, 1]) {
+        await act(async () => {
+          window.dispatchEvent(new PopStateEvent('popstate'));
+          await router.navigate(delta);
+        });
+      }
     } else if (action === 'reopens the drawer') {
       act(() => store.set(phoneNavDrawerOpenAtom, true));
     } else if (action === 'times out') {
@@ -233,7 +242,7 @@ describe("the rail's call button", () => {
     const shouldFocus = action === 'waits' || action === 'gets a canonical address';
     if (!shouldFocus && action !== 'starts a newer hand-off') {
       expect(store.get(focusHandOffAtom)).toBeUndefined();
-      expect(store.get(callPanelRequestAtom)).toBeUndefined();
+      expect(store.get(callPanelRequestAtom)).toEqual({ roomId: ORIGIN });
     }
     render(
       <Provider store={store}>

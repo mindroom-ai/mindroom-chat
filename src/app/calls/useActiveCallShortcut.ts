@@ -51,7 +51,6 @@ export function useActiveCallShortcut(active: ActiveCall) {
         (wasLive && !isLiveCallPhase(active.call.getState().phase))
       )
         return;
-      const request = { roomId: homeRoomId };
       // Establish the source for touch and assistive clicks too. Leave a new focus alone,
       // unless it fell back to the body while the return waited.
       if (doc.activeElement === focused || doc.activeElement === doc.body) {
@@ -59,8 +58,6 @@ export function useActiveCallShortcut(active: ActiveCall) {
         let pending: FocusHandOff = { to: 'panel', roomId: homeRoomId, from: doc.activeElement };
         const cancel = () => {
           if (store.get(focusHandOffAtom) !== pending) return;
-          if (store.get(callPanelRequestAtom) === request)
-            store.set(callPanelRequestAtom, undefined);
           store.set(focusHandOffAtom, undefined);
         };
         const focusChanged = () => {
@@ -68,6 +65,7 @@ export function useActiveCallShortcut(active: ActiveCall) {
         };
         const timeout = doc.defaultView?.setTimeout(cancel, FOCUS_HAND_OFF_TIMEOUT_MS);
         doc.addEventListener('focusin', focusChanged);
+        doc.defaultView?.addEventListener('popstate', cancel);
         const stopDrawer = store.sub(phoneNavDrawerOpenAtom, () => {
           if (store.get(phoneNavDrawerOpenAtom)) cancel();
         });
@@ -76,6 +74,7 @@ export function useActiveCallShortcut(active: ActiveCall) {
           if (store.get(focusHandOffAtom) === pending) return;
           doc.defaultView?.clearTimeout(timeout);
           doc.removeEventListener('focusin', focusChanged);
+          doc.defaultView?.removeEventListener('popstate', cancel);
           stopDrawer();
           stop();
         });
@@ -98,7 +97,7 @@ export function useActiveCallShortcut(active: ActiveCall) {
       }
       store.set(phoneNavDrawerOpenAtom, false);
       store.set(callPanelRoomAtom, homeRoomId);
-      store.set(callPanelRequestAtom, request);
+      store.set(callPanelRequestAtom, { roomId: homeRoomId });
       if (alreadyThere) return;
       if (threadId) navigateRoomThread(homeRoomId, threadId);
       else navigateRoom(homeRoomId);
