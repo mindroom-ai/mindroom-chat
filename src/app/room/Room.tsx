@@ -20,6 +20,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { usePowerLevels, PowerLevelsContextProvider } from '../matrix/hooks/usePowerLevels';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
+import { canvasesEnabled } from '../config/canvases';
 import { useClientConfig } from '../config/useClientConfig';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
@@ -277,7 +278,7 @@ function RoomContent() {
   const computerOpen = computer.open && !!computerTarget.apiUrl;
   const computerShown = useComputerShown(client, roomId, threadId);
 
-  const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
+  const canvasEnabled = canvasesEnabled(clientConfig);
   const conversationCanvases = useConversationCanvases(client, roomId, threadId);
   const [shownCanvas, setShownCanvas] = useState<ShownCanvas>();
   // A canvas belongs to the conversation it opened in; another route shows none.

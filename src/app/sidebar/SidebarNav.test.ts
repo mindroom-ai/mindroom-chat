@@ -114,7 +114,7 @@ describe('SidebarNav', () => {
   });
 
   it('shows Activity after Direct Messages, then Threads, before spaces', () => {
-    const renderer = renderSidebarNav();
+    const renderer = renderSidebarNav({ mindroom: { canvas: { enabled: false } } });
 
     expect(
       renderer.root
@@ -138,9 +138,8 @@ describe('SidebarNav', () => {
     renderer.unmount();
   });
 
-  it('shows Canvases after Threads where canvases are on', () => {
-    const canvases = { mindroom: { canvas: { enabled: true } } };
-    const renderer = renderSidebarNav(canvases);
+  it('shows Canvases after Threads unless the deployment turns canvases off', () => {
+    const renderer = renderSidebarNav();
     expect(
       renderer.root
         .findAll((node) => typeof node.props['data-tab'] === 'string')
@@ -149,13 +148,13 @@ describe('SidebarNav', () => {
     ).toEqual(['home', 'direct', 'activity', 'threads', 'canvases', 'spaces']);
     renderer.unmount();
 
-    const off = renderSidebarNav();
+    const off = renderSidebarNav({ mindroom: { canvas: { enabled: false } } });
     expect(hasTab(off, 'canvases')).toBe(false);
     off.unmount();
 
     // The user can turn the button off in Settings → General → Interface.
     mocks.showCanvases = false;
-    const turnedOff = renderSidebarNav(canvases);
+    const turnedOff = renderSidebarNav();
     expect(hasTab(turnedOff, 'canvases')).toBe(false);
     turnedOff.unmount();
   });

@@ -404,9 +404,11 @@ describe('CanvasIndexFeature', () => {
   });
 
   it('records where an agent showed its computer when only a computer service is configured', async () => {
-    expect(await recordNoticeWith({ computers: { apiUrl: 'https://computers.example.org' } })).toBe(
-      true
-    );
+    const mindroom = {
+      canvas: { enabled: false },
+      computers: { apiUrl: 'https://computers.example.org' },
+    };
+    expect(await recordNoticeWith(mindroom)).toBe(true);
     expect(await listCanvases(SESSION)).toEqual([]);
   });
 

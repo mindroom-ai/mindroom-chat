@@ -1038,7 +1038,8 @@ describe('Room', { timeout: 30_000 }, () => {
       });
     });
 
-    it('lists no canvases when the deployment has not enabled them', async () => {
+    it('lists no canvases when the deployment turns them off', async () => {
+      roomState.clientConfig = { mindroom: { canvas: { enabled: false } } };
       roomState.conversationCanvases = [entry('$listed')];
       const { Room } = await import('../Room');
       let renderer: ReturnType<typeof create>;
@@ -1113,10 +1114,13 @@ describe('Room', { timeout: 30_000 }, () => {
     await room.unmount();
   });
 
-  it('keeps canvas requests passive when the deployment has not enabled canvases', async () => {
+  it('keeps canvas requests passive when the deployment turns canvases off', async () => {
     vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
     roomState.clientConfig = {
-      mindroom: { uiActions: { autoOpenFromHomeservers: ['example.org'] } },
+      mindroom: {
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+        canvas: { enabled: false },
+      },
     };
     roomState.members = [
       { membership: 'join', userId: '@mindroom_helper:example.org' },

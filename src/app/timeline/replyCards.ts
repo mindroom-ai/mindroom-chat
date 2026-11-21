@@ -8,6 +8,7 @@ import { genuineReplyEventId } from './timelineRowFold';
 import { useScheduledTaskEvents } from '../schedules/useScheduledTaskEvents';
 import { getPendingRoomSchedules } from '../schedules/roomSchedules';
 import { ChatUiActionContext } from '../ui-actions/ChatUiActionProvider';
+import { canvasesEnabled } from '../config/canvases';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 
 /** What a thread's agent replies left behind, as cards under each reply; the notices' rows hide. */
@@ -92,7 +93,7 @@ export const useReplyCardPlan = (
   const taskEvents = useScheduledTaskEvents(room);
   const tasks = useMemo(() => getPendingRoomSchedules(taskEvents), [taskEvents]);
   const actions = useContext(ChatUiActionContext);
-  const canvasEnabled = useOptionalClientConfig()?.mindroom?.canvas?.enabled === true;
+  const canvasEnabled = canvasesEnabled(useOptionalClientConfig());
   const last = useRef({ plan: NO_REPLY_CARDS, key: '' });
   const readCanvas = canvasEnabled ? actions?.read : undefined;
   const plan = planReplyCards({ ...input, tasks, readCanvas });

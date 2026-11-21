@@ -1,3 +1,4 @@
+import { canvasesEnabled } from '../config/canvases';
 import { useClientConfig } from '../config/useClientConfig';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import type { AccountSettings } from '../preferences/accountSettings';
@@ -29,12 +30,13 @@ export const RAIL_BUTTON_SETTING: Record<RailButton, keyof AccountSettings> = {
  * `mindroom.canvas` settings come first: a button it leaves out has no switch in Settings either.
  */
 export function useOfferedRailButtons(): RailButtons {
-  const { sidebar, mindroom } = useClientConfig();
+  const config = useClientConfig();
+  const { sidebar } = config;
   const localMindroom = useShowLocalMindroom();
   const communities = sidebar?.showExploreCommunity ?? true;
   return {
     threads: sidebar?.showThreads ?? true,
-    canvases: mindroom?.canvas?.enabled === true,
+    canvases: canvasesEnabled(config),
     explore: communities,
     createSpace: communities,
     search: true,
