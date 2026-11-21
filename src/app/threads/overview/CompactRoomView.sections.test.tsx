@@ -183,6 +183,22 @@ describe('the Compact room in sections', () => {
     expect(pill()).not.toBeNull();
   });
 
+  it('removes an empty section while scrolled without offering a new order', () => {
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a', '$b'] },
+      { id: 'later', rootIds: ['$c'] },
+    ];
+    const { container, rerender } = render(view(['$a', '$b', '$c']));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$a', '$b'] }];
+    rerender(view(['$a', '$b']));
+    expect(rows()).toEqual(['#needsYou 2', '$a', '$b']);
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
