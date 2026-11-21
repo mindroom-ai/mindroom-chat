@@ -214,11 +214,12 @@ export const glassFlat = style({
 const fadeMask = 'linear-gradient(to bottom, #000, transparent)';
 const maskedFadeSupport = `(${backdropSupport}) and ((mask-image: ${fadeMask}) or (-webkit-mask-image: ${fadeMask}))`;
 const tintSupport = '(background-color: color-mix(in srgb, #000, transparent))';
+const fadeSupport = `${maskedFadeSupport} and ${tintSupport}`;
 
 // Continue the flat chrome behind the controls without making their slot a backdrop root.
 export const glassFadeDown = style({
   '@supports': {
-    [`${maskedFadeSupport} and ${tintSupport}`]: {
+    [fadeSupport]: {
       selectors: {
         '&::before': {
           content: '""',
@@ -268,9 +269,8 @@ export const glassOverBackdrop = style({
   },
 });
 
-// Approval review, large dialogs and floating chrome over the timeline (the thread banner, the
-// thread filter bar) hold dense text: keep the rim and blur, but tint them nearly opaque so the
-// page behind does not compete with what they say.
+// Approval review, large dialogs and the thread banner hold dense text: keep the rim and blur,
+// but tint them nearly opaque so the page behind does not compete with what they say.
 export const glassDenseOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: denseTint.light } },
@@ -279,6 +279,21 @@ export const glassDenseOverBackdrop = style({
     },
   },
 });
+
+// A lighter tint over the fade lets as much through at the bar's middle as through the header.
+export const glassOverFadingBackdrop = style([
+  glassDenseOverBackdrop,
+  {
+    '@supports': {
+      [fadeSupport]: {
+        selectors: {
+          [`${glassFadeDown} > &&&`]: { vars: { [surfaceTint]: '89%' } },
+          [`${DARK_THEMES} ${glassFadeDown} > &&&`]: { vars: { [surfaceTint]: '82%' } },
+        },
+      },
+    },
+  },
+]);
 
 export const glassSurface = recipe({
   base: {
