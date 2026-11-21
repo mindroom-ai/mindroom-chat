@@ -760,6 +760,28 @@ test.describe('Compact order stays calm while scrolled', () => {
     await expect(updatePill(page)).toHaveCount(0);
   });
 
+  test('Back restores a live-band offset without anchoring the next prepend', async ({ page }) => {
+    test.setTimeout(180_000);
+    const seeded = await seed('bandback');
+    await openScrolled(page, seeded, { top: 160 });
+    await page.locator(CARDS).nth(3).click();
+    await expect(page).toHaveURL(/threadId=/);
+    await expect(listView(page)).toHaveCount(0);
+    await page.mouse.move(5, 795);
+    await page.goBack();
+    await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+    await expect.poll(() => listScrollTop(page)).toBe(160);
+
+    const body = 'A new ticket arrived while the reader watched the list.';
+    const joined = await agentPosts(seeded, body);
+    await expectFirst(page, joined, body, 'after Back into the band');
+    await page.evaluate(
+      () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+    );
+    expect(await listScrollTop(page)).toBe(160);
+    await expect(orderHeld(page)).toHaveCount(0);
+  });
+
   test('reflows live at a nonzero offset inside the band (Chromium)', async ({ page }) => {
     test.setTimeout(180_000);
     await checkLiveInBand(page, await seed('cband'));

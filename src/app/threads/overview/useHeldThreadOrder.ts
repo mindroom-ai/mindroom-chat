@@ -11,7 +11,8 @@ import {
   type TouchEvent,
 } from 'react';
 
-const nearTop = (view: HTMLElement | null) => !view || view.scrollTop <= view.clientHeight / 2;
+export const nearTop = (view: HTMLElement | null) =>
+  !view || view.scrollTop <= view.clientHeight / 2;
 
 /** Only crossing the live band invalidates the view, not each pixel scrolled. */
 export const useScrolledAway = (viewRef: RefObject<HTMLElement>): boolean => {

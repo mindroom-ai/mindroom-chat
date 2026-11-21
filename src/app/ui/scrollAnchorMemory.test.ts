@@ -19,7 +19,8 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
   const content = document.createElement('div');
   view.append(content);
   let scrollTop = 0;
-  const rowTop = (row: Element) => Array.from(content.children).indexOf(row) * ROW_HEIGHT;
+  let inset = 0;
+  const rowTop = (row: Element) => inset + Array.from(content.children).indexOf(row) * ROW_HEIGHT;
   const maxScrollTop = () => Math.max(0, content.children.length * ROW_HEIGHT - viewportHeight);
   Object.defineProperty(view, 'scrollTop', {
     get: () => scrollTop,
@@ -41,7 +42,10 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
   setRows(keys);
   const offsetOf = (key: string) =>
     view.querySelector(`[data-scroll-anchor="${key}"]`)!.getBoundingClientRect().top;
-  return { view, content, setRows, offsetOf };
+  const setInset = (value: number) => {
+    inset = value;
+  };
+  return { view, content, setRows, offsetOf, setInset };
 };
 
 type Layout = ReturnType<typeof createLayout>;
@@ -51,11 +55,13 @@ function AnchoredList({
   memoryKey,
   layout,
   ready,
+  stopFollowingOnJoinAt,
 }: {
   memory: ScrollAnchorMemory;
   memoryKey: string;
   layout: { scrollRef: { current: HTMLElement }; contentRef: { current: HTMLElement } };
   ready: boolean;
+  stopFollowingOnJoinAt?: (view: HTMLElement) => boolean;
 }) {
   useScrollAnchorMemory({
     memory,
@@ -63,6 +69,7 @@ function AnchoredList({
     scrollRef: layout.scrollRef,
     contentRef: layout.contentRef,
     ready,
+    stopFollowingOnJoinAt,
   });
   return null;
 }
@@ -101,10 +108,22 @@ describe('useScrollAnchorMemory', () => {
     contentRef: { current: layout.content },
   });
 
-  const mount = (memory: ScrollAnchorMemory, layout: Layout, ready = true, memoryKey = 'list') => {
+  const mount = (
+    memory: ScrollAnchorMemory,
+    layout: Layout,
+    ready = true,
+    memoryKey = 'list',
+    stopFollowingOnJoinAt?: (view: HTMLElement) => boolean
+  ) => {
     const refs = refsOf(layout);
     const render = (nextReady: boolean) =>
-      React.createElement(AnchoredList, { memory, memoryKey, layout: refs, ready: nextReady });
+      React.createElement(AnchoredList, {
+        memory,
+        memoryKey,
+        layout: refs,
+        ready: nextReady,
+        stopFollowingOnJoinAt,
+      });
     act(() => {
       renderer = create(render(ready));
     });
@@ -146,6 +165,26 @@ describe('useScrollAnchorMemory', () => {
     mount(memory, layout);
 
     expect(layout.view.scrollTop).toBe(300);
+  });
+
+  it.each([
+    [80, 90],
+    [120, 170],
+  ])('reopens at %i before a prepend, then leaves the offset at %i', (saved, expected) => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    leaveAt(memory, keys, saved);
+
+    const layout = createLayout(keys);
+    mount(memory, layout, true, 'list', (view) => view.scrollTop <= 100);
+    expect(layout.view.scrollTop).toBe(saved);
+    layout.setInset(10);
+    resize(layout.content);
+    expect(layout.view.scrollTop).toBe(saved + 10);
+
+    layout.setRows(['new-row', ...keys]);
+    resize(layout.content);
+    expect(layout.view.scrollTop).toBe(expected);
   });
 
   it('keeps the rows in place when the opened row moved to the top', () => {

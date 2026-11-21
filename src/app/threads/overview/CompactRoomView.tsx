@@ -36,6 +36,7 @@ import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import {
   captureLiveBandOffset,
   holdOrder,
+  nearTop,
   useHeldThreadOrder,
   usePointerOverCards,
   useScrolledAway,
@@ -643,6 +644,7 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
+    stopFollowingOnJoinAt: nearTop,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount

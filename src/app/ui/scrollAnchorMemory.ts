@@ -87,10 +87,11 @@ const getRowKeys = (view: HTMLElement): string[] =>
 
 // Rows rendering late or added and removed around the others keep the others'
 // order; a row sorting past them changes it.
-const keepsRowOrder = (before: string[], after: string[]): boolean => {
+const keepsRowOrder = (before: string[], after: string[], followJoins = true): boolean => {
   const beforeKeys = new Set(before);
   const afterKeys = new Set(after);
   const kept = after.filter((key) => beforeKeys.has(key));
+  if (!followJoins && kept.length !== after.length) return false;
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
@@ -98,6 +99,8 @@ type RestoreState = {
   memoryKey: string;
   /** Cleared once the restore is done following late layout. */
   snapshot?: ScrollAnchorSnapshot;
+  fromMemory?: boolean;
+  followJoins?: boolean;
   /** The rows the last write put back in place. */
   placedRows: string[];
   /** Every row's key, in order, at the last write. */
@@ -115,6 +118,8 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
+  /** Stop following on a join after the first unclamped saved placement at this offset. */
+  stopFollowingOnJoinAt?: (view: HTMLElement) => boolean;
 };
 
 /**
@@ -132,6 +137,7 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
+  stopFollowingOnJoinAt,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -147,6 +153,7 @@ export function useScrollAnchorMemory({
       restoreRef.current = {
         memoryKey,
         snapshot: memory.get(memoryKey),
+        fromMemory: true,
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
@@ -178,7 +185,7 @@ export function useScrollAnchorMemory({
         snapshot.scrollTop <= 0 ||
         view.scrollTop !== state.lastAppliedScrollTop ||
         !placement ||
-        !keepsRowOrder(state.rowOrder, rowOrder)
+        !keepsRowOrder(state.rowOrder, rowOrder, state.followJoins)
       ) {
         stopFollowing();
         return;
@@ -187,6 +194,10 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
+      if (state.fromMemory && Math.abs(state.lastAppliedScrollTop - placement.scrollTop) < 1) {
+        state.fromMemory = false;
+        state.followJoins = !stopFollowingOnJoinAt?.(view);
+      }
     };
     restore();
     if (!state.snapshot) return undefined;
@@ -199,7 +210,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [contentRef, stopFollowingOnJoinAt, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
