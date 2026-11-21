@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { markPageStartup } from '../lib/startupTimeline';
 
 const mocks = vi.hoisted(() => ({
   buildFlightRecorderPayload: vi.fn(),
@@ -112,10 +113,6 @@ describe('combined diagnostics export', () => {
     expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
     expect(payload.currentOrPreservedSession).toEqual({ sessionId: 'current' });
     expect(payload.flightRecorderStatus).toBe('available');
-    expect(payload.startupTimeline).toEqual({
-      timeOrigin: performance.timeOrigin,
-      marks: [],
-    });
     expect(payload.deepTrace).toMatchObject({
       enabled: true,
       status: 'recording',
@@ -133,6 +130,33 @@ describe('combined diagnostics export', () => {
       events: [{ name: 'app.launch' }],
     });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('serializes only owned startup marks with deep trace disabled', async () => {
+    mocks.readDeepTraceSnapshot.mockResolvedValueOnce({
+      schemaVersion: 1,
+      enabled: false,
+      status: 'disabled',
+      stats: { eventCount: 0, byteCount: 0, droppedEventCount: 0, oldestAt: null, newestAt: null },
+      events: [],
+    });
+    markPageStartup('js.entry');
+    const owned = 'mindroom.startup.js.entry';
+    const foreign = 'mindroom.startup.x';
+    performance.mark(foreign);
+    try {
+      const payload = JSON.parse(await (await buildDiagnosticsExport()).blob.text());
+
+      expect(payload.deepTrace).toMatchObject({ enabled: false, status: 'disabled' });
+      expect(payload.startupTimeline).toEqual({
+        timeOrigin: performance.timeOrigin,
+        navigation: null,
+        marks: [{ name: owned, atMs: expect.any(Number), detail: null }],
+      });
+    } finally {
+      performance.clearMarks(foreign);
+      performance.clearMarks(owned);
+    }
   });
 
   it('still exports the flight record when deep trace storage is unavailable', async () => {

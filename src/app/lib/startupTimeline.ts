@@ -1,18 +1,19 @@
 // App phase names live in lib/ because it is the lowest layer every caller can import.
 const PREFIX = 'mindroom.startup.';
-type PagePhase = 'js.entry' | 'config.ready' | 'splash.shown';
+type PagePhase = 'js.entry' | 'config.ready' | 'splash.shown' | 'pages.loaded';
 type ClientPhase =
   | `client.init.${'start' | 'parallel.start' | 'done'}`
-  | `crypto.store.${'probe' | 'preflight.done'}`
+  | 'crypto.store.probe'
   | 'store.startup.done'
   | 'streaming.restore.done'
   | 'crypto.init.done'
   | 'identity.check.done'
   | 'saved_sync.read.done'
   | `sync.${'prepared.cache' | 'first_live'}`
+  | 'atoms.seeding'
   | `shell.${'committed' | 'frame'}`;
 
-const ENUMS = ['unavailable', 'present', 'missing', 'recorded', 'recorded_now', 'unrecorded'];
+const ENUMS = ['unavailable', 'present', 'missing'];
 type Detail = Readonly<Record<string, number | boolean | string>>;
 const isSafeDetail = ([, v]: [string, Detail[string]]): boolean =>
   typeof v === 'string' ? ENUMS.includes(v) : typeof v === 'boolean' || Number.isFinite(v);
@@ -51,13 +52,24 @@ export const claimClientStartup = (isActive: () => boolean): MarkClientStartup |
 
 /**
  * The first startup attempt only. Add atMs to timeOrigin (epoch ms) to align with native logs.
+ * navigation gives document responseEnd and domInteractive relative to timeOrigin, or null.
  * js.entry follows static module evaluation; config.ready records acceptance, not a render.
+ * Between crypto.store.probe (missing) and client.init.parallel.start, startup can check server keys.
  * Measure store.startup.done and crypto.init.done each from client.init.parallel.start; they overlap.
- * saved_sync.read.done times getSavedSync. Its rooms, timelineEvents and stateEvents count what
- * the replay will process (array lengths, including both state arrays, not distinct events).
- * cacheHit distinguishes no saved sync from a saved sync with no rooms. identity.check.done times
- * the identity check and tells whether the key was recorded before, recorded now, or still absent.
- * splash.shown and shell.committed record React commits. shell.frame is a frame opportunity,
- * not proof of paint.
+ * saved_sync.read.done times getSavedSync and counts the rooms and event array lengths it returns,
+ * including both joined state arrays. cacheHit distinguishes no saved sync from zero rooms.
+ * identity.check.done times the post-open identity check; about 10 s can mean a /keys/query timeout.
+ * pages.loaded marks the signed-in route import resolving, possibly before sync.prepared.cache;
+ * atoms.seeding marks the layout effect before atom bindings seed the signed-in pages. A version
+ * cache miss can also wait for /versions before the shell. splash.shown and shell.committed are
+ * React commits; shell.frame is a frame opportunity, not proof of paint.
  */
-export const readStartupTimeline = () => ({ timeOrigin, marks: marks.slice() });
+export const readStartupTimeline = () => {
+  const entry = globalThis.performance?.getEntriesByType?.('navigation')[0] as
+    | PerformanceNavigationTiming
+    | undefined;
+  const navigation = entry
+    ? { responseEnd: entry.responseEnd, domInteractive: entry.domInteractive }
+    : null;
+  return { timeOrigin, navigation, marks: marks.slice() };
+};

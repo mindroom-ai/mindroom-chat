@@ -825,6 +825,39 @@ describe('ClientRoot', () => {
     expect(hasCachedClientShell(client as never)).toBe(false);
   });
 
+  it('renders cached UI after the first sync event arrives', async () => {
+    const client = createMockClient();
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    vi.mocked(startClient).mockResolvedValue(undefined);
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
+
+    await act(async () => {
+      client.emitSync();
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(true);
+  });
+
   it('renders after cache Prepared and marks it separately from live Prepared', async () => {
     const markStartup = vi.fn();
     vi.mocked(claimClientStartup).mockReturnValueOnce(markStartup);

@@ -279,22 +279,21 @@ export const initClient = async (
       return onCompletion(readSavedSync(), (savedSync) => {
         const durationMs = performance.now() - started;
         const { join = {}, invite = {}, knock = {} } = savedSync?.roomsData ?? {};
-        const joined = Object.values(join);
-        const invited = Object.values(invite);
-        const knocked = Object.values(knock);
-        let timelineEvents = 0;
-        let stateEvents = 0;
-        for (const room of joined) {
-          timelineEvents += room.timeline?.events.length ?? 0;
-          stateEvents += room.state?.events.length ?? 0;
-          stateEvents += room['org.matrix.msc4222.state_after']?.events.length ?? 0;
-        }
-        for (const room of invited) stateEvents += room.invite_state?.events.length ?? 0;
-        for (const room of knocked) stateEvents += room.knock_state?.events.length ?? 0;
-        const rooms = joined.length + invited.length + knocked.length;
-        const cacheHit = Boolean(savedSync);
-        const detail = { cacheHit, durationMs, rooms, timelineEvents, stateEvents };
-        markStartup('saved_sync.read.done', detail);
+        const rooms = [Object.values(join), Object.values(invite), Object.values(knock)].flat();
+        const counts = rooms.reduce(
+          (total, room) => {
+            total.rooms += 1;
+            if ('timeline' in room) total.timelineEvents += room.timeline?.events.length ?? 0;
+            if ('state' in room) total.stateEvents += room.state?.events.length ?? 0;
+            if ('org.matrix.msc4222.state_after' in room)
+              total.stateEvents += room['org.matrix.msc4222.state_after']?.events.length ?? 0;
+            if ('invite_state' in room) total.stateEvents += room.invite_state?.events.length ?? 0;
+            if ('knock_state' in room) total.stateEvents += room.knock_state?.events.length ?? 0;
+            return total;
+          },
+          { cacheHit: !!savedSync, durationMs, rooms: 0, timelineEvents: 0, stateEvents: 0 }
+        );
+        markStartup('saved_sync.read.done', counts);
       });
     };
   }
@@ -325,7 +324,6 @@ export const initClient = async (
   if (!continuity && (await serverHasDeviceIdentity(mx, session))) {
     throw new MissingCryptoStoreError(session.userId);
   }
-  markStartup?.('crypto.store.preflight.done');
 
   raiseSyncArchiveTimelineLimit(store);
 
@@ -357,14 +355,10 @@ export const initClient = async (
 
   let ownStore: boolean;
   try {
-    const hadKey = markStartup && safeRecordedDeviceIdentityKey(session.sessionId) !== undefined;
     const started = markStartup ? performance.now() : 0;
     ownStore = await openedOwnStore(mx, session, continuity);
     if (ownStore && markStartup) {
-      const durationMs = performance.now() - started;
-      const hasKey = safeRecordedDeviceIdentityKey(session.sessionId) !== undefined;
-      const branch = hadKey ? 'recorded' : hasKey ? 'recorded_now' : 'unrecorded';
-      markStartup('identity.check.done', { durationMs, branch });
+      markStartup('identity.check.done', { durationMs: performance.now() - started });
     }
   } catch (error) {
     await abandonClient(mx, store);

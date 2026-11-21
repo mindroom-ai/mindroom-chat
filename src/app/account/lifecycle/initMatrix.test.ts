@@ -5,6 +5,7 @@ import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import type { ISavedSync } from 'matrix-js-sdk/lib/store';
+import type { MarkClientStartup } from '../../lib/startupTimeline';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -308,6 +309,9 @@ describe('initClient', () => {
     expect(read).toBe(sdkRead);
     expect(await read).toBe(savedSync);
     expect(markStartup).toHaveBeenCalledWith('store.startup.done');
+    expect(markStartup).toHaveBeenCalledWith('identity.check.done', {
+      durationMs: expect.any(Number),
+    });
     expect(markStartup).toHaveBeenCalledWith('saved_sync.read.done', {
       cacheHit: true,
       durationMs: 25,
@@ -736,6 +740,7 @@ describe('initClient', () => {
   ])('$name', async ({ failedInitializer }) => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     const initializationFailure = new Error(`${failedInitializer} initialization failed`);
+    const markStartup = vi.fn<MarkClientStartup>();
     let resolveSibling: (() => void) | undefined;
     const pendingInitializer = vi.fn(
       () =>
@@ -756,6 +761,7 @@ describe('initClient', () => {
       return {
         startup,
         destroy,
+        getSavedSync: vi.fn().mockResolvedValue(null),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -772,13 +778,16 @@ describe('initClient', () => {
     } as never);
 
     let rejected = false;
-    const initPromise = initClient({
-      sessionId,
-      baseUrl: 'https://example.com',
-      accessToken: 'token',
-      userId: '@user:example.com',
-      deviceId: 'DEVICE',
-    }).catch((error) => {
+    const initPromise = initClient(
+      {
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      },
+      markStartup
+    ).catch((error) => {
       rejected = true;
       throw error;
     });
@@ -796,6 +805,9 @@ describe('initClient', () => {
     expect(stopClient).toHaveBeenCalledTimes(1);
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(setMaxListeners).not.toHaveBeenCalled();
+    expect(markStartup.mock.calls.some(([phase]) => phase === 'crypto.init.done')).toBe(
+      failedInitializer === 'sync'
+    );
   });
 
   it('does not lower a larger existing sync archive limit', async () => {

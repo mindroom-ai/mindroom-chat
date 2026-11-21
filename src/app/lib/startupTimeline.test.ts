@@ -27,8 +27,9 @@ it('exports only our marks, with relative times for the first client attempt', (
     mark('sync.first_live');
     expect(claimClientStartup(() => true)).toBeUndefined();
 
-    const { timeOrigin, marks } = readStartupTimeline();
+    const { timeOrigin, navigation, marks } = readStartupTimeline();
     expect(timeOrigin).toBe(performance.timeOrigin);
+    expect(navigation).toBeNull();
     expect(marks.map(({ name, detail }) => [name, detail])).toEqual([
       ['mindroom.startup.js.entry', null],
       ['mindroom.startup.config.ready', null],
@@ -43,5 +44,21 @@ it('exports only our marks, with relative times for the first client attempt', (
     devToolsMark.mockRestore();
     performance.clearMarks(foreign);
     for (const { name } of readStartupTimeline().marks) performance.clearMarks(name);
+  }
+});
+
+it('includes only the two numeric navigation timing fields', () => {
+  const entry = {
+    name: 'https://example.org/private',
+    entryType: 'navigation',
+    responseEnd: 12,
+    domInteractive: 34,
+  } as PerformanceNavigationTiming;
+  const getEntries = vi.spyOn(performance, 'getEntriesByType').mockReturnValueOnce([entry]);
+  try {
+    expect(readStartupTimeline().navigation).toEqual({ responseEnd: 12, domInteractive: 34 });
+    expect(getEntries).toHaveBeenCalledWith('navigation');
+  } finally {
+    getEntries.mockRestore();
   }
 });

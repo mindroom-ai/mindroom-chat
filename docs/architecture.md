@@ -17,9 +17,9 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 ### Startup in the diagnostics export
 
 Settings → About → Export diagnostics includes `startupTimeline` for the first startup attempt, even
-without deep tracing. Add a mark's `atMs` to `timeOrigin` for epoch milliseconds. The splash and shell
-marks record commits, not paints. The gap from `sync.prepared.cache` to `shell.committed` can include
-waiting for `/versions` on a version-cache miss, loading the signed-in route chunk and seeding atoms.
+without deep tracing. Add a mark's `atMs` to `timeOrigin` for epoch milliseconds. See the
+[`readStartupTimeline` documentation](../src/app/lib/startupTimeline.ts) for navigation timing
+and the meaning of individual marks.
 
 ## Layout
 
