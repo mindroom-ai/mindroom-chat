@@ -36,10 +36,12 @@ import {
 // A card that moves up past the cards in view (its thread got a reply, or its agent started and it
 // went to Working) leaves them where they are too, on the desktop in Chromium: from below the
 // view, with and without motion, in sections under the Needs you header, from the view itself,
-// when it only swaps with the card that leads the view, when it leads the view itself, and when
+// when it leads the view itself, and when
 // several move at once as a resting pointer lets their order go: three from below the view, the
 // three under the first two cards, which then stand above those two, the two under the card that
-// leads the view, or that card and the next.
+// leads the view, or that card and the next. A card that only trades places with the one before
+// it, the card that leads the view, flat or in sections under the header that leads it, leaves
+// the rows under the two where they are: the two trade places.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
@@ -316,10 +318,12 @@ type LeadWatch = {
 /**
  * Watches the row and the card that lead the view, of those that stay, frame by frame, while the
  * cards of `moverIds` move; returns where they show now, and where the first of those cards shows
- * and how high it is.
+ * and how high it is. The card of `tradedId` does not stay either: the card that moves trades
+ * places with it.
  */
-const watchLead = (page: Page, moverIds: string[]) =>
-  page.evaluate((movers) => {
+const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
+  const watched = [tradedId, ...moverIds];
+  return page.evaluate(([traded, ...movers]) => {
     const mover = movers[0] ?? '';
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
     if (!view) throw new Error('no Compact list');
@@ -338,13 +342,15 @@ const watchLead = (page: Page, moverIds: string[]) =>
     ];
     const inView = rows.filter((row) => row.getBoundingClientRect().bottom > edge + 1);
     const stays = (row: HTMLElement) =>
-      !movers.includes(row.getAttribute('data-scroll-anchor') ?? '');
+      ![...movers, traded].includes(row.getAttribute('data-scroll-anchor') ?? '');
     const leadRow = inView.find(stays);
     const leadCard = inView.find((row) => row.hasAttribute('data-scroll-anchor') && stays(row));
     const moving = cardOf(mover);
     if (!leadRow || !leadCard || !moving) throw new Error('no row leads the view');
-    // A card that leads the view itself moves up past the row before it.
-    const passed = inView[0] === moving ? rows[rows.indexOf(moving) - 1] ?? leadRow : leadRow;
+    // A card that leads the view itself moves up past the row before it, and one that trades
+    // places past the card it trades with, which is another card in the page afterwards.
+    const before = inView[0] === moving ? rows[rows.indexOf(moving) - 1] ?? leadRow : leadRow;
+    const passed = () => (traded && cardOf(traded)) || before;
     // A header glides to its place (`translate`), a card's shell never does: a row's place in the
     // list is where it shows without the glide, which a frame mid-glide still tells apart.
     const placeOf = (row: HTMLElement) => {
@@ -359,7 +365,7 @@ const watchLead = (page: Page, moverIds: string[]) =>
         scrollTop: view.scrollTop,
         // eslint-disable-next-line no-bitwise
         crossed:
-          !!now && !!(passed.compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
+          !!now && !!(passed().compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
       };
     };
     const watch: LeadWatch = { before: read(), furthest: 0, read };
@@ -385,7 +391,8 @@ const watchLead = (page: Page, moverIds: string[]) =>
       moverHeight: rect.height,
       viewHeight: view.clientHeight,
     };
-  }, moverIds);
+  }, watched);
+};
 
 const leadWatch = (page: Page) =>
   page.evaluate(() => {
@@ -403,7 +410,8 @@ type Move =
   | 'rotate'
   | 'lead'
   | 'under'
-  | 'lead-two';
+  | 'lead-two'
+  | 'sections-swap';
 
 /**
  * A reader scrolled down the list, the pointer away from it: a card moves up past the cards in
@@ -412,7 +420,7 @@ type Move =
  */
 const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   const { reader, roomId, rootIds } = seeded;
-  const sections = move === 'sections';
+  const sections = move === 'sections' || move === 'sections-swap';
   if (move === 'below-reduced') await page.emulateMedia({ reducedMotion: 'reduce' });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -509,10 +517,13 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
-  const inView = move === 'in-view' || move === 'swap' || move === 'rotate' || move === 'under';
+  // The second card in view trades places with the first: flat, at the list's top, and in
+  // sections, at the top of Needs you, whose cards the newest reply leads.
+  const trades = move === 'swap' || move === 'sections-swap';
+  const inView = trades || move === 'in-view' || move === 'rotate' || move === 'under';
   // The cards that move, the first reply first. One: the oldest thread's, far below the view, or
-  // one in view, the card after the one that leads it (a swap), three cards below that one, or
-  // the one that leads it. Several, as a held order is let go: the three oldest threads', the
+  // one in view, the card after the one that leads it, three cards below that one, or the one
+  // that leads it. Several, as a held order is let go: the three oldest threads', the
   // third to fifth card in view, the fifth first, so they keep their order above the first two,
   // the two cards under the one that leads the view, or that one and the next.
   const moversOf: Record<Move, (string | undefined)[]> = {
@@ -526,11 +537,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     lead: [shown[0]],
     under: [shown[1], shown[2]],
     'lead-two': [shown[0], shown[1]],
+    'sections-swap': [shown[1]],
   };
   const movers = moversOf[move].map((rootId) => rootId ?? '');
   const held = movers.length > 1;
   const mover = movers[0] ?? '';
-  const start = await watchLead(page, movers);
+  const start = await watchLead(page, movers, trades ? shown[0] : undefined);
   const { before } = start;
   expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
   expect(before.crossed, `${move}: the card that moves shows after the row it passes`).toBe(false);
@@ -538,6 +550,11 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   if (leads) {
     expect(start.moverTop, `${move}: the card that moves leads the view, cut`).toBeCloseTo(-30, 0);
     expect(before.card, `${move}: the cards that stay show under it`).toBeGreaterThan(30);
+  } else if (trades) {
+    expect(start.moverTop, `${move}: the card that moves shows in view`).toBeGreaterThan(0);
+    expect(before.card, `${move}: the cards that stay show under it`).toBeGreaterThan(
+      start.moverTop + start.moverHeight
+    );
   } else if (inView) {
     expect(start.moverTop, `${move}: the card that moves shows in view`).toBeGreaterThan(
       before.card + 1
@@ -551,7 +568,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   if (sections) expect(Math.abs(before.row), `${move}: the header leads the view`).toBeLessThan(1);
   await shot(page, `move-${move}-1-before`);
 
-  if (sections) {
+  if (move === 'sections') {
     await agentStartsOn(seeded, mover);
     await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${WORKING + 1}$`), {
       timeout: 30_000,
@@ -676,7 +693,7 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       ['in-view', 'a reply in a thread whose card is in view leaves the cards above it in place'],
       [
         'swap',
-        'a reply in the thread of the second card leaves the first, which leads the view, in place',
+        'a reply in the thread of the second card trades its place with the first, which leads the view, and leaves the cards under the two in place',
       ],
       [
         'release',
@@ -697,6 +714,10 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       [
         'lead-two',
         'replies at once in the threads of the card that leads the view and the next leave the cards under them in place',
+      ],
+      [
+        'sections-swap',
+        'in sections, a reply in the second card under the Needs you header, which leads the view, trades its place with the first and leaves the header and the cards under the two in place',
       ],
     ] as const
   ).entries()) {
