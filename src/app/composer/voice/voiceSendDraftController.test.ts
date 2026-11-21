@@ -119,6 +119,54 @@ describe('voiceSendDraftController', () => {
     expect(store.read()?.errorMessage).toBe(expectedMessage);
   });
 
+  it('forgets the native source of a recording only once the server has it', async () => {
+    // The Mac app's file: a kill during the upload must still find it on disk.
+    const forgetSource = vi.fn(async () => undefined);
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store);
+    const upload = deferred();
+    const sending = controller.sendInitial(
+      { ...createRecording(), forgetSource },
+      createContext(),
+      {
+        sendRecording: () => upload.promise,
+        onFailure: vi.fn(),
+      }
+    );
+    await Promise.resolve();
+    expect(forgetSource).not.toHaveBeenCalled();
+    upload.resolve();
+    await expect(sending).resolves.toBe(true);
+    expect(forgetSource).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the native source of a failed send with its draft, until that is saved or sent', async () => {
+    const forgetSource = vi.fn(async () => undefined);
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store);
+    await expect(
+      controller.sendInitial({ ...createRecording(), forgetSource }, createContext(), {
+        sendRecording: vi.fn().mockRejectedValue(new Error('offline')),
+        onFailure: vi.fn(),
+      })
+    ).resolves.toBe(false);
+    // `savedVoiceDraft` forgets it once its copy is stored.
+    expect(forgetSource).not.toHaveBeenCalled();
+    expect(store.read()?.forgetSource).toBe(forgetSource);
+
+    const upload = deferred();
+    const retrying = controller.retry({
+      claim: vi.fn(),
+      sendRecording: () => upload.promise,
+      onFailure: vi.fn(),
+    });
+    await Promise.resolve();
+    expect(forgetSource).not.toHaveBeenCalled();
+    upload.resolve();
+    await expect(retrying).resolves.toBe(true);
+    expect(forgetSource).toHaveBeenCalledOnce();
+  });
+
   it('stamps retry ownership synchronously and blocks a controller created after remount', async () => {
     const draft = createDraft();
     const store = createDraftStore(draft);

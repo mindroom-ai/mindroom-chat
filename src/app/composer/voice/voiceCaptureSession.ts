@@ -59,6 +59,9 @@ export type CapturedVoiceRecording = {
   file: File;
   duration: number;
   waveform: number[] | undefined;
+  /** Deletes the Mac app's recording that `file` was read from, once: call it when the audio is
+   *  safe elsewhere (sent, or saved for a retry). Until then a killed app still has it on disk. */
+  forgetSource?: () => Promise<void>;
 };
 export type VoiceCaptureResult =
   | { status: 'captured'; recording: CapturedVoiceRecording }
@@ -76,7 +79,8 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: () => Promise<boolean>;
+  /** `owner`: the account that records, which the Mac app keeps beside its file. */
+  start: (owner?: string) => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
@@ -90,7 +94,10 @@ export type VoiceCaptureSession = {
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder, whose audio stays
  *  on disk until `forget`. */
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
-  Pick<EventTarget, 'addEventListener' | 'removeEventListener'> & { forget?: () => Promise<void> };
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'> & {
+    forget?: () => Promise<void>;
+    incomplete?: boolean;
+  };
 
 type Generation = {
   acceptsEvents: boolean;
@@ -306,17 +313,33 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       'voice-message-' + timestamp + '.' + getAudioFileExtension(outputMimeType),
       { type: outputMimeType }
     );
-    // The audio is in `file` now.
-    void recorder.forget?.().catch(() => undefined);
+    let forgotten: Promise<void> | undefined;
+    // A file that delivered less than was recorded stays: it may hold more than was sent.
+    const forget = recorder.incomplete ? undefined : recorder.forget?.bind(recorder);
+    const forgetSource =
+      forget &&
+      (() => {
+        forgotten ??= forget().catch(() => recordDeepTraceEvent('voice.capture.forget_failed'));
+        return forgotten;
+      });
     const waveform =
       generation.samples.length > 0 ? normalizeMatrixWaveform(generation.samples) : undefined;
     generation.chunks = [];
     generation.samples = [];
     // The facade retains processing until delivery begins; capture diagnostics end here.
     if (isCurrent && !released) releaseVoiceCaptureState(source);
-    resolve?.({ status: 'captured', recording: { file, duration, waveform } });
+    resolve?.({
+      status: 'captured',
+      recording: { file, duration, waveform, ...(forgetSource && { forgetSource }) },
+    });
   };
-  const start = async () => {
+  const markPaused = (generation: Generation) => {
+    generation.elapsedMs = elapsed(generation);
+    generation.startedAt = undefined;
+    clearTimers(generation);
+    publish({ phase: 'paused', elapsedMs: Math.max(0, Math.round(generation.elapsedMs)) });
+  };
+  const start = async (owner = '') => {
     if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
     released = false;
     if (current) retire(current);
@@ -347,7 +370,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       let webRecorder: MediaRecorder | undefined;
       let mimeType: string | undefined;
       if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder();
+        const nativeRecorder = await startNativeVoiceRecorder(owner);
         if (!owns(generation)) {
           // Its file stays, unless this start was discarded.
           if (generation.action === 'discard') void nativeRecorder.forget().catch(() => undefined);
@@ -393,12 +416,19 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         if (generation.acceptsEvents && data.size > 0) generation.chunks.push(data);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
+      // The Mac app's recorder pauses by itself once it records no more: what it has can be sent.
+      const onPause = () => {
+        if (owns(generation) && !generation.action && snapshot.phase === 'recording')
+          markPaused(generation);
+      };
       generation.finishStop = onStop;
       recorder.addEventListener('dataavailable', onData);
       recorder.addEventListener('stop', onStop);
+      recorder.addEventListener('pause', onPause);
       generation.detach = () => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
+        recorder.removeEventListener?.('pause', onPause);
       };
       webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
@@ -492,10 +522,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         publish({ canPause: false });
         return false;
       }
-      generation.elapsedMs = elapsed(generation);
-      generation.startedAt = undefined;
-      clearTimers(generation);
-      publish({ phase: 'paused', elapsedMs: Math.max(0, Math.round(generation.elapsedMs)) });
+      markPaused(generation);
       return true;
     },
     resume: () => {

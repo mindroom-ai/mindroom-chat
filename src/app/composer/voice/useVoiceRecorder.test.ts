@@ -1299,6 +1299,36 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
+  it('forgets the native source of a parked recording when the person discards it', async () => {
+    // The Mac app's file, when the failed send's copy could not be stored and it is still there.
+    const store = createStore();
+    const onSendRecording = vi.fn(async () => {
+      throw new Error('upload failed');
+    });
+    const { renderer } = await renderHarness({ onSendRecording }, store);
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+    const forgetSource = vi.fn(async () => undefined);
+    act(() =>
+      store.set(pendingVoiceSendDraftAtom, {
+        ...store.get(pendingVoiceSendDraftAtom)!,
+        forgetSource,
+      })
+    );
+    expect(forgetSource).not.toHaveBeenCalled();
+
+    act(() => recorderState.current?.discardPending());
+
+    expect(forgetSource).toHaveBeenCalledOnce();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    renderer.unmount();
+  });
+
   it('also defends discard-mid-retry when discard happens via a direct atom write (forward-looking guarantee)', async () => {
     // rev-H Issue 1: the catch must read the live atom (store.get), not the
     // useEffect-synced pendingDraftRef. A future global discard surface that

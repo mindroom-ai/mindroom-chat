@@ -62,14 +62,18 @@ export const createVoiceSendDraftController = (
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
       drafts.write(undefined);
+      // The server has it: the Mac app's file can go.
+      void recording.forgetSource?.();
       return true;
     } catch (error) {
+      // The Mac app's file stays until this draft is saved (`savedVoiceDraft`), sent or discarded.
       drafts.write({
         file: recording.file,
         duration: recording.duration,
         waveform: recording.waveform,
         context,
         errorMessage: getVoiceSendErrorMessage(error),
+        ...(recording.forgetSource && { forgetSource: recording.forgetSource }),
       });
       attempt.onFailure();
       return false;
@@ -103,6 +107,7 @@ export const createVoiceSendDraftController = (
       }
       try {
         await attempt.sendRecording(draft.file, draft.duration, draft.waveform, draft.context);
+        void draft.forgetSource?.();
         const current = drafts.read();
         if (current?.inFlight?.token === inFlight.token) {
           drafts.write(undefined);

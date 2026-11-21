@@ -681,7 +681,9 @@ describe('voice capture session on the native recorder', () => {
   it('records, pauses and sends through the native recorder', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
-    expect(await session.start()).toBe(true);
+    expect(await session.start('@sample:example.org')).toBe(true);
+    // The account that records, for the Mac app to keep beside its file.
+    expect(native.start.mock.calls).toEqual([['@sample:example.org']]);
     expect(getUserMedia).not.toHaveBeenCalled();
     expect(session.getSnapshot()).toMatchObject({ phase: 'recording', canPause: true });
     vi.advanceTimersByTime(250);
@@ -690,11 +692,14 @@ describe('voice capture session on the native recorder', () => {
     vi.advanceTimersByTime(5000);
     const finished = session.finish();
     expect(recorder.stop).toHaveBeenCalledOnce();
-    // Its file stays on disk until the audio is in the file to send.
-    expect(recorder.forget).not.toHaveBeenCalled();
     recorder.deliver();
     const result = await finished;
     if (result.status !== 'captured') throw new Error('missing recording');
+    // The file on disk outlives the capture: whoever makes the audio safe elsewhere (sent, or
+    // saved for a retry) forgets it then, once.
+    expect(recorder.forget).not.toHaveBeenCalled();
+    await result.recording.forgetSource?.();
+    await result.recording.forgetSource?.();
     expect(recorder.forget).toHaveBeenCalledOnce();
     expect(result.recording.duration).toBe(250);
     expect(result.recording.file.type).toBe('audio/mp4');
@@ -878,7 +883,88 @@ describe('voice capture session on the native recorder', () => {
     expect(await result.recording.file.text()).toBe('new');
   });
 
-  it('reports a native recording that ended by itself', async () => {
+  it('traces a native file that could not be forgotten after its audio was made safe', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    const finished = session.finish();
+    recorder.deliver();
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    recorder.forget.mockRejectedValue({ code: 'BUSY' });
+    await expect(result.recording.forgetSource?.()).resolves.toBeUndefined();
+    expect(diagnostics.trace).toHaveBeenCalledWith('voice.capture.forget_failed');
+  });
+
+  it('keeps a native file that delivered less than was recorded, also after the send', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    const finished = session.finish();
+    Object.assign(recorder, { incomplete: true });
+    recorder.deliver();
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(await result.recording.file.text()).toBe('voice');
+    expect(result.recording).not.toHaveProperty('forgetSource');
+    expect(recorder.forget).not.toHaveBeenCalled();
+  });
+
+  it('has no source to forget for a web recording', async () => {
+    const session = capture();
+    await session.start();
+    const result = await finish(session);
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording).not.toHaveProperty('forgetSource');
+  });
+
+  it('shows a native recording that ended by itself as paused, and still sends it', async () => {
+    // The Mac app's recorder raises `pause` once it records no more (an interruption, a file it
+    // cannot write on); its stop still delivers what it has.
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(400);
+    recorder.state = 'paused';
+    recorder.dispatchEvent(new Event('pause'));
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      elapsedMs: 400,
+      errorMessage: undefined,
+    });
+    vi.advanceTimersByTime(3000);
+    expect(session.canStop()).toBe(true);
+    const finished = session.finish();
+    recorder.deliver();
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.duration).toBe(400);
+    expect(await result.recording.file.text()).toBe('voice');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('falls back to paused when a resumed native recording cannot record', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(300);
+    expect(session.pause()).toBe(true);
+    // An echo of its own pause changes nothing.
+    recorder.dispatchEvent(new Event('pause'));
+    expect(session.getSnapshot()).toMatchObject({ phase: 'paused', elapsedMs: 300 });
+    expect(session.resume()).toBe(true);
+    vi.advanceTimersByTime(100);
+    recorder.state = 'paused';
+    recorder.dispatchEvent(new Event('pause'));
+    expect(session.getSnapshot()).toMatchObject({ phase: 'paused', elapsedMs: 400 });
+    // And nothing during a stop that was asked for.
+    const discarded = session.discard();
+    recorder.dispatchEvent(new Event('pause'));
+    expect(session.getSnapshot().phase).toBe('processing');
+    expect(await discarded).toBe(false);
+  });
+
+  it('reports a native recording whose recorder stopped unasked', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
     await session.start();

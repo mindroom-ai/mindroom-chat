@@ -3,6 +3,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { openDB } from 'idb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendDraft } from '../roomInputDrafts';
 import { clearSavedVoiceDraft, useSavedVoiceDraft } from './savedVoiceDraft';
@@ -126,6 +127,38 @@ describe('useSavedVoiceDraft', () => {
       threadId: '$thread',
       threadView: true,
     });
+  });
+
+  it('forgets the native source of a failed send only once its copy is stored', async () => {
+    // The Mac app's file: until then a reload would lose the audio.
+    const page = openPage();
+    await settle();
+    let storedWhenForgotten: boolean | undefined;
+    const forgetSource = vi.fn(async () => {
+      const db = await openDB('mindroom-voice-drafts', 1);
+      storedWhenForgotten = (await db.get('drafts', userId)) !== undefined;
+      db.close();
+    });
+    act(() => page.store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), forgetSource }));
+    expect(forgetSource).not.toHaveBeenCalled();
+    await settle();
+    expect(forgetSource).toHaveBeenCalled();
+    expect(storedWhenForgotten).toBe(true);
+    act(() => page.renderer.unmount());
+  });
+
+  it('keeps the native source while the copy cannot be stored', async () => {
+    const page = openPage();
+    await settle();
+    const forgetSource = vi.fn(async () => undefined);
+    const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+      throw new DOMException('storage is off', 'SecurityError');
+    });
+    act(() => page.store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), forgetSource }));
+    await settle();
+    open.mockRestore();
+    expect(forgetSource).not.toHaveBeenCalled();
+    act(() => page.renderer.unmount());
   });
 
   it('forgets the recording once it is sent or discarded', async () => {

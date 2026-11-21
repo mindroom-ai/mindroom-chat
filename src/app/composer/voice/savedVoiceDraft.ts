@@ -69,7 +69,7 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
   const { context, file } = draft;
   const audio = await file.arrayBuffer().catch(() => undefined);
   if (!audio) return;
-  await withDraftDb((db) =>
+  const saved = await withDraftDb((db) =>
     db.put('drafts', {
       userId,
       audio,
@@ -86,6 +86,8 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
       threadView: context.threadView,
     })
   );
+  // Only a copy that is stored replaces the Mac app's file.
+  if (saved !== undefined) await draft.forgetSource?.();
 };
 
 // One restore per account and page; saving waits for it, so an empty composer does not erase the

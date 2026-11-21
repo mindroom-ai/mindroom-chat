@@ -258,6 +258,7 @@ const STATIC_EVENT_NAMES = new Set([
   'trace.build.unknown',
   'trace.session.start',
   'trace.session.stop',
+  'voice.capture.forget_failed',
   'voice.capture.stop_timeout',
 ]);
 

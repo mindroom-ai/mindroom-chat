@@ -113,7 +113,7 @@ export function useVoiceRecorder({
       sendRecording: latestOnSendRecordingRef.current,
       context: latestGetSendContextRef.current(),
     };
-    return capture.start();
+    return capture.start(sendBindingAtStartRef.current.context.ownerSessionId);
   }, [capture, hasPendingSend, phase]);
 
   const send = useCallback(async (): Promise<boolean> => {
@@ -196,10 +196,12 @@ export function useVoiceRecorder({
 
   const discardPending = useCallback(() => {
     sendBindingAtStartRef.current = undefined;
+    // The person discarded it: the Mac app's file, when it is still there, goes too.
+    void store.get(pendingVoiceSendDraftAtom)?.forgetSource?.();
     draftController.discardPending();
     capture.reset();
     safeSetPhase('idle');
-  }, [capture, draftController, safeSetPhase]);
+  }, [capture, draftController, safeSetPhase, store]);
 
   useEffect(() => {
     mountedRef.current = true;

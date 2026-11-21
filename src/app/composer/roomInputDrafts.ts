@@ -64,6 +64,9 @@ export type PendingVoiceSendDraft = {
   context: PendingVoiceSendContext;
   errorMessage?: string;
   inFlight?: PendingVoiceSendInFlight;
+  /** Deletes the Mac app's recording `file` was read from: called once the draft is saved, sent
+   *  or discarded. */
+  forgetSource?: () => Promise<void>;
 };
 
 type JotaiStore = ReturnType<typeof createStore>;
