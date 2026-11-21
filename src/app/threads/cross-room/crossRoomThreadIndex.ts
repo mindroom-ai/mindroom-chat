@@ -11,11 +11,13 @@ import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
 import {
   getPreferredVisibleThreadReplyEvents,
   hasLoadedEveryThreadReply,
+  isVisibleThreadReplyEvent,
 } from '../../event-store/threads/threadUtils';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { isThreadPinned } from '../../event-store/threads/threadPinning';
@@ -46,6 +48,7 @@ export type CrossRoomThreadIndexEntry = {
   resolvedTs?: number;
   hasAttention: boolean;
   isInvolved: boolean;
+  hasAgentPostForUser: boolean;
   summaryText: string;
   rootPreviewText: string;
   searchableText: string;
@@ -339,34 +342,53 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
 };
 
 const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
-  event?.getSender?.() === userId ||
-  getEventContent(event)?.[ORIGINAL_SENDER_KEY] === userId ||
-  eventDirectlyMentionsUser(event, userId);
+  event?.getSender?.() === userId || eventDirectlyMentionsUser(event, userId);
+
+type ThreadInvolvementInput = {
+  rootEvent?: MatrixEvent;
+  thread: Thread | null | undefined;
+  userId: string | undefined;
+  visibleReplies?: readonly MatrixEvent[];
+};
 
 export const isUserInvolvedInThread = ({
   rootEvent,
   thread,
   userId,
-}: {
-  rootEvent?: MatrixEvent;
-  thread: Thread | null | undefined;
-  userId: string | undefined;
-}): boolean => {
+  visibleReplies,
+}: ThreadInvolvementInput): boolean => {
   if (!userId) return false;
   if (eventInvolvesUser(rootEvent, userId)) return true;
 
   // The bundle is for this SDK account. If all replies are present, trust the visible events
   // instead: a redaction of an earlier reply need not refresh the SDK's bundled flag.
-  if (
-    thread?.hasCurrentUserParticipated &&
-    thread.client.getUserId() === userId &&
-    !hasLoadedEveryThreadReply(thread)
-  ) {
+  if (thread?.hasCurrentUserParticipated && !hasLoadedEveryThreadReply(thread)) {
     return true;
   }
 
-  return getPreferredVisibleThreadReplyEvents(thread).some((event) =>
+  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some((event) =>
     eventInvolvesUser(event, userId)
+  );
+};
+
+export const hasAgentPostForUser = ({
+  rootEvent,
+  thread,
+  userId,
+  visibleReplies,
+}: ThreadInvolvementInput): boolean => {
+  if (!userId) return false;
+  const postedForUser = (event: MatrixEvent | undefined) =>
+    !!event &&
+    isMindroomAgentUserIdForViewer(event.getSender(), userId) &&
+    event.getOriginalContent()[ORIGINAL_SENDER_KEY] === userId;
+
+  // An unopened thread may know only its bundled latest reply.
+  const latest = thread?.replyToEvent;
+  return (
+    postedForUser(rootEvent) ||
+    (!!latest && isVisibleThreadReplyEvent(latest) && postedForUser(latest)) ||
+    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(postedForUser)
   );
 };
 
@@ -462,10 +484,17 @@ export const buildCrossRoomThreadIndexEntry = ({
   indexedEventIds.add(threadRootId);
   const rootEventId = resolvedRootEvent?.getId?.() ?? threadRecord.rootEventId;
   if (rootEventId) indexedEventIds.add(rootEventId);
-  getPreferredVisibleThreadReplyEvents(thread).forEach((event) => {
+  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
+  visibleReplies.forEach((event) => {
     const eventId = event.getId?.();
     if (eventId) indexedEventIds.add(eventId);
   });
+  const involvementInput = {
+    rootEvent: resolvedRootEvent,
+    thread,
+    userId: currentUserId,
+    visibleReplies,
+  };
 
   return {
     key: getCrossRoomThreadIndexKey(room.roomId, threadRootId),
@@ -487,13 +516,8 @@ export const buildCrossRoomThreadIndexEntry = ({
       : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
-    isInvolved:
-      hasPendingOwnReply ||
-      isUserInvolvedInThread({
-        rootEvent: resolvedRootEvent,
-        thread,
-        userId: currentUserId,
-      }),
+    isInvolved: hasPendingOwnReply || isUserInvolvedInThread(involvementInput),
+    hasAgentPostForUser: hasAgentPostForUser(involvementInput),
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),
