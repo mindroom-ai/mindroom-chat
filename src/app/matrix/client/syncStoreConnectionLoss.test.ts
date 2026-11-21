@@ -424,17 +424,13 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await (await startStore()).getOutOfBandMembers(roomId)).toBeNull();
   });
 
-  // After a read that failed, the members come from the server and are stored anew.
-  it('stores the members of a room in place of those stored before', async () => {
-    const former = { room_id: roomId, state_key: '@former:example', type: 'm.room.member' };
-    await (
-      await startStore()
-    ).setOutOfBandMembers(roomId, [former] as Parameters<IndexedDBStore['setOutOfBandMembers']>[1]);
+  // Two tabs: each stores the members that its own sync did not bring, not all of the room's.
+  it('keeps the members that another store on the database stored for the room', async () => {
     const store = await startStore();
-
-    abortNextMembersRead();
-    expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+    const other = await startStore();
     await storeMembers(store);
+
+    await other.setOutOfBandMembers(roomId, []);
 
     expect(await (await startStore()).getOutOfBandMembers(roomId)).toEqual(members);
   });
@@ -724,6 +720,31 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     await other.save(true);
     await store.deleteAllData();
     expect(await persistedToken()).toBeUndefined();
+  });
+
+  // The database stays when it could not be deleted, and the store is told so before it tries.
+  it('writes nothing to the database from a store that is degrading', async () => {
+    const store = await savedStore();
+    vi.spyOn(store.backend, 'clearDatabase').mockRejectedValue(new Error('could not delete'));
+    const writes: Promise<void>[] = [];
+    store.on('degraded', () => {
+      writes.push(storeMembers(store), store.storeClientOptions({ lazyLoadMembers: true }));
+    });
+
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+      throw new DOMException('Storage is full.', 'QuotaExceededError');
+    });
+    await accumulate(store, 'failed');
+    await store.save(true);
+    await Promise.all(writes);
+
+    expect(writes).toHaveLength(2);
+    expect(await store.getOutOfBandMembers(roomId)).toEqual(members);
+    expect(await store.getClientOptions()).toEqual({ lazyLoadMembers: true });
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('saved');
+    expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
+    expect(await reader.getClientOptions()).toBeUndefined();
   });
 
   it('degrades once when two operations in flight both find the storage full', async () => {

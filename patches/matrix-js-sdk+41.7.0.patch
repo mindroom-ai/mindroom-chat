@@ -4172,7 +4172,7 @@ index 7b41057..2a51149 100644
      isNewlyCreated(): Promise<boolean>;
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..8c6c449 100644
+index 6ce0bac..9d170c2 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 @@ -96,8 +96,16 @@ function txnAsPromise(txn) {
@@ -4233,7 +4233,7 @@ index 6ce0bac..8c6c449 100644
    /** @returns whether or not the database was newly created in this session. */
    isNewlyCreated() {
      return Promise.resolve(this._isNewlyCreated);
-@@ -283,20 +309,30 @@ export class LocalIndexedDBStoreBackend {
+@@ -283,20 +309,28 @@ export class LocalIndexedDBStoreBackend {
        logger.log("LL: backend about to store ".concat(membershipEvents.length) + " members for ".concat(roomId));
        var tx = _this2.db.transaction(["oob_membership_events"], "readwrite");
        var store = tx.objectStore("oob_membership_events");
@@ -4252,8 +4252,6 @@ index 6ce0bac..8c6c449 100644
 -      };
 -      store.put(markerObject);
 +      try {
-+        // The members of the room that are not in the new list must not stay stored.
-+        store.delete(IDBKeyRange.bound([roomId], [roomId, []]));
 +        membershipEvents.forEach(e => {
 +          store.put(e);
 +        });
@@ -4278,7 +4276,7 @@ index 6ce0bac..8c6c449 100644
        yield txnAsPromise(tx);
        logger.log("LL: backend done storing for ".concat(roomId, "!"));
      })();
-@@ -314,17 +350,21 @@ export class LocalIndexedDBStoreBackend {
+@@ -314,17 +348,21 @@ export class LocalIndexedDBStoreBackend {
        var store = readTx.objectStore("oob_membership_events");
        var roomIndex = store.index("room");
        var roomRange = IDBKeyRange.only(roomId);
@@ -4303,7 +4301,7 @@ index 6ce0bac..8c6c449 100644
      })();
    }
  
-@@ -405,60 +445,66 @@ export class LocalIndexedDBStoreBackend {
+@@ -405,60 +443,66 @@ export class LocalIndexedDBStoreBackend {
          return _this4.syncToDatabasePromise;
        }
        userTuples.unshift(..._this4.pendingUserPresenceData);
@@ -4400,7 +4398,7 @@ index 6ce0bac..8c6c449 100644
    }
  
    /**
-@@ -466,21 +512,17 @@ export class LocalIndexedDBStoreBackend {
+@@ -466,21 +510,17 @@ export class LocalIndexedDBStoreBackend {
     * Users with the same 'userId' will be replaced.
     * Presence events should be the event in its raw form (not the Event
     * object)
@@ -4467,7 +4465,7 @@ index 26f6aa9..793e861 100644
       */
      private degradable;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..cd0955b 100644
+index 8320c66..64be84d 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -35,6 +35,9 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
@@ -4562,15 +4560,17 @@ index 8320c66..cd0955b 100644
      /**
       * Stores the out-of-band membership events for this room. Note that
       * it still makes sense to store an empty array as the OOB status for the room is
-@@ -157,18 +187,22 @@ export class IndexedDBStore extends MemoryStore {
+@@ -156,19 +186,25 @@ export class IndexedDBStore extends MemoryStore {
+      */
      _defineProperty(this, "setOutOfBandMembers", this.degradable((roomId, membershipEvents) => {
        super.setOutOfBandMembers(roomId, membershipEvents);
++      // A degraded store works from memory only.
++      if (this.degraded) return Promise.resolve();
        return this.backend.setOutOfBandMembers(roomId, membershipEvents);
 -    }, "setOutOfBandMembers"));
 +    },
 +    // No fallback: memory is written above, and writing it again once the write has
-+    // failed would undo a clear that came meanwhile. On a degraded store the database
-+    // is closed, so only memory is written.
++    // failed would undo a clear that came meanwhile.
 +    null, "keep"));
      _defineProperty(this, "clearOutOfBandMembers", this.degradable(roomId => {
        super.clearOutOfBandMembers(roomId);
@@ -4582,13 +4582,14 @@ index 8320c66..cd0955b 100644
 +    }, "getClientOptions", "keep"));
      _defineProperty(this, "storeClientOptions", this.degradable(options => {
        super.storeClientOptions(options);
++      if (this.degraded) return Promise.resolve();
        return this.backend.storeClientOptions(options);
 -    }, "storeClientOptions"));
 +    }, null, "keep"));
      if (!opts.indexedDB) {
        throw new Error("Missing required option: indexedDB");
      }
-@@ -233,7 +267,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -233,7 +269,7 @@ export class IndexedDBStore extends MemoryStore {
     */
    wantsSave() {
      var now = Date.now();
@@ -4597,7 +4598,7 @@ index 8320c66..cd0955b 100644
    }
  
    /**
-@@ -245,10 +279,16 @@ export class IndexedDBStore extends MemoryStore {
+@@ -245,10 +281,16 @@ export class IndexedDBStore extends MemoryStore {
     */
    save() {
      var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
@@ -4618,7 +4619,7 @@ index 8320c66..cd0955b 100644
    }
    /**
     * All member functions of `IndexedDBStore` that access the backend use this wrapper to
-@@ -260,18 +300,40 @@ export class IndexedDBStore extends MemoryStore {
+@@ -260,18 +302,40 @@ export class IndexedDBStore extends MemoryStore {
     *
     * @param func - The degradable work to do.
     * @param fallback - The method name for fallback.
@@ -4673,7 +4674,7 @@ index 4cd5e8c..1b058f8 100644
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..44821a0 100644
+index 5f58e7c..fbeba0c 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 @@ -95,8 +95,14 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
@@ -4731,7 +4732,7 @@ index 5f58e7c..44821a0 100644
      /** @returns whether or not the database was newly created in this session. */
      public isNewlyCreated(): Promise<boolean> {
          return Promise.resolve(this._isNewlyCreated);
-@@ -292,20 +315,30 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -292,20 +315,28 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
          logger.log(`LL: backend about to store ${membershipEvents.length}` + ` members for ${roomId}`);
          const tx = this.db!.transaction(["oob_membership_events"], "readwrite");
          const store = tx.objectStore("oob_membership_events");
@@ -4750,8 +4751,6 @@ index 5f58e7c..44821a0 100644
 -        };
 -        store.put(markerObject);
 +        try {
-+            // The members of the room that are not in the new list must not stay stored.
-+            store.delete(IDBKeyRange.bound([roomId], [roomId, []]));
 +            membershipEvents.forEach((e) => {
 +                store.put(e);
 +            });
@@ -4776,7 +4775,7 @@ index 5f58e7c..44821a0 100644
          await txnAsPromise(tx);
          logger.log(`LL: backend done storing for ${roomId}!`);
      }
-@@ -323,12 +356,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -323,12 +354,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
          const roomRange = IDBKeyRange.only(roomId);
  
          const minStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "next")).then(
@@ -4793,7 +4792,7 @@ index 5f58e7c..44821a0 100644
  
          const writeTx = this.db!.transaction(["oob_membership_events"], "readwrite");
          const writeStore = writeTx.objectStore("oob_membership_events");
-@@ -339,7 +374,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -339,7 +372,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              [roomId, minStateKey],
              [roomId, maxStateKey],
          );
@@ -4804,7 +4803,7 @@ index 5f58e7c..44821a0 100644
      }
  
      /**
-@@ -420,60 +457,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -420,60 +455,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              return this.syncToDatabasePromise;
          }
          userTuples.unshift(...this.pendingUserPresenceData);
@@ -4900,7 +4899,7 @@ index 5f58e7c..44821a0 100644
      }
  
      /**
-@@ -481,21 +520,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -481,21 +518,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
       * Users with the same 'userId' will be replaced.
       * Presence events should be the event in its raw form (not the Event
       * object)
@@ -4932,7 +4931,7 @@ index 5f58e7c..44821a0 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..527184f 100644
+index 25be506..64b9b8a 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -40,6 +40,9 @@ import { type SyncUserProfile } from "../models/user.ts";
@@ -5083,20 +5082,23 @@ index 25be506..527184f 100644
  
      /**
       * Stores the out-of-band membership events for this room. Note that
-@@ -282,7 +330,11 @@ export class IndexedDBStore extends MemoryStore {
+@@ -280,9 +328,14 @@ export class IndexedDBStore extends MemoryStore {
+     public setOutOfBandMembers = this.degradable(
+         (roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void> => {
              super.setOutOfBandMembers(roomId, membershipEvents);
++            // A degraded store works from memory only.
++            if (this.degraded) return Promise.resolve();
              return this.backend.setOutOfBandMembers(roomId, membershipEvents);
          },
 -        "setOutOfBandMembers",
 +        // No fallback: memory is written above, and writing it again once the write has
-+        // failed would undo a clear that came meanwhile. On a degraded store the database
-+        // is closed, so only memory is written.
++        // failed would undo a clear that came meanwhile.
 +        null,
 +        "keep",
      );
  
      public clearOutOfBandMembers = this.degradable((roomId: string) => {
-@@ -292,12 +344,12 @@ export class IndexedDBStore extends MemoryStore {
+@@ -292,12 +345,13 @@ export class IndexedDBStore extends MemoryStore {
  
      public getClientOptions = this.degradable((): Promise<IStoredClientOpts | undefined> => {
          return this.backend.getClientOptions();
@@ -5105,13 +5107,14 @@ index 25be506..527184f 100644
  
      public storeClientOptions = this.degradable((options: IStoredClientOpts): Promise<void> => {
          super.storeClientOptions(options);
++        if (this.degraded) return Promise.resolve();
          return this.backend.storeClientOptions(options);
 -    }, "storeClientOptions");
 +    }, null, "keep");
  
      /**
       * All member functions of `IndexedDBStore` that access the backend use this wrapper to
-@@ -309,18 +361,41 @@ export class IndexedDBStore extends MemoryStore {
+@@ -309,18 +363,41 @@ export class IndexedDBStore extends MemoryStore {
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.
