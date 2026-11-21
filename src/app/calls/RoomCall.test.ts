@@ -24,6 +24,12 @@ const fakes = vi.hoisted(() => ({
   keys: [] as Array<{ keyIndex: number; identity: string; key: Uint8Array }>,
 }));
 
+/** LiveKit keeps the publication and swaps the media track inside it on restart. */
+const inputPublication = (
+  source: string,
+  mediaStreamTrack = { id: `${source}-default`, readyState: 'live' } as MediaStreamTrack
+) => ({ source, isMuted: false, track: Object.assign(new EventEmitter(), { mediaStreamTrack }) });
+
 vi.mock('livekit-client', async () => {
   const { EventEmitter: Emitter } = await import('node:events');
   class FakeMediaRoom extends Emitter {
@@ -37,15 +43,25 @@ vi.mock('livekit-client', async () => {
       isScreenShareEnabled: false,
       isSpeaking: false,
       isMicrophoneEnabled: false,
-      getTrackPublication: vi.fn((_source: string): unknown => undefined),
-      trackPublications: new Map<string, unknown>(),
-      setMicrophoneEnabled: vi.fn(async (on: boolean) =>
-        on ? { source: 'microphone' } : undefined
+      getTrackPublication: vi.fn((source: string): unknown =>
+        this.localParticipant.trackPublications.get(source)
       ),
-      setCameraEnabled: vi.fn(async (on: boolean) => (on ? { source: 'camera' } : undefined)),
+      trackPublications: new Map<string, ReturnType<typeof inputPublication>>(),
+      setMicrophoneEnabled: vi.fn(async (on: boolean) => this.toggleInput('microphone', on)),
+      setCameraEnabled: vi.fn(async (on: boolean) => this.toggleInput('camera', on)),
       setScreenShareEnabled: vi.fn(async () => undefined),
       setTrackSubscriptionPermissions: vi.fn(),
     };
+
+    private toggleInput(source: string, on: boolean) {
+      const publications = this.localParticipant.trackPublications;
+      const publication = publications.get(source) ?? (on ? inputPublication(source) : undefined);
+      if (publication) {
+        publication.isMuted = !on;
+        publications.set(source, publication);
+      }
+      return publication;
+    }
 
     constructor(readonly options: unknown) {
       super();
@@ -202,7 +218,13 @@ const setup = ({
   encrypted = false,
   grant,
   video,
-}: { encrypted?: boolean; grant?: RoomCallOptions['grant']; video?: boolean } = {}) => {
+  microphone,
+}: {
+  encrypted?: boolean;
+  grant?: RoomCallOptions['grant'];
+  video?: boolean;
+  microphone?: boolean;
+} = {}) => {
   const session = new FakeSession();
   const mx = {
     matrixRTC: { getRoomSession: () => session },
@@ -223,7 +245,7 @@ const setup = ({
   // The device lock `startCall` took before making the call.
   const releaseDeviceLock = vi.fn();
   fakes.releases.push(releaseDeviceLock);
-  const call = new RoomCall({ mx, room, releaseDeviceLock, grant, video });
+  const call = new RoomCall({ mx, room, releaseDeviceLock, grant, video, microphone });
   return { call, session, mx, room };
 };
 
@@ -440,12 +462,14 @@ describe('RoomCall join', () => {
     await call.setMicrophone(false);
     expect(call.getState().problem).toBe('device');
 
-    const opened = pending<{ source: string }>();
+    const opened = pending<ReturnType<typeof inputPublication>>();
     media.localParticipant.setMicrophoneEnabled.mockReturnValueOnce(opened.promise);
     const retry = call.setMicrophone(true);
     expect(call.getState()).toMatchObject({ microphone: true, problem: 'device' });
 
-    opened.resolve({ source: 'microphone' });
+    const publication = inputPublication('microphone', MIC_A);
+    media.localParticipant.trackPublications.set('microphone', publication);
+    opened.resolve(publication);
     await retry;
     expect(call.getState().problem).toBeUndefined();
   });
@@ -454,6 +478,7 @@ describe('RoomCall join', () => {
     const { call } = setup();
     await call.join();
     const { localParticipant } = onlyMediaRoom();
+    await call.setMicrophone(false);
     localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
     localParticipant.setCameraEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
 
@@ -474,8 +499,77 @@ describe('RoomCall join', () => {
     expect(call.getState().problem).toBeUndefined();
   });
 
+  it('records a first microphone enable rejection even if a device pick settled first', async () => {
+    const opening = pending();
+    fakes.connect = async (room) => {
+      (room as FakeMediaRoom).localParticipant.setMicrophoneEnabled.mockReturnValueOnce(
+        opening.promise
+      );
+    };
+    const { call } = setup();
+    const joining = call.join();
+    await settle();
+    expect(onlyMediaRoom().localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+    await call.setDevice('audioinput', 'mic-b');
+
+    opening.reject(new Error('NotReadableError'));
+    await joining;
+    expect(call.getState()).toMatchObject({ microphone: false, problem: 'device' });
+  });
+
+  it('treats an ended publication returned by an enable as a capture failure', async () => {
+    const { call } = setup({ microphone: false });
+    await call.join();
+    const { localParticipant } = onlyMediaRoom();
+    const ended = inputPublication('microphone', { readyState: 'ended' } as MediaStreamTrack);
+    localParticipant.setMicrophoneEnabled.mockImplementationOnce(async () => {
+      localParticipant.trackPublications.set('microphone', ended);
+      return ended;
+    });
+
+    await call.setMicrophone(true);
+    expect(call.getState()).toMatchObject({ microphone: false, problem: 'device' });
+  });
+
+  it('clears a camera capture warning when the same LiveKit track restarts', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const publication = inputPublication('camera', { readyState: 'ended' } as MediaStreamTrack);
+    media.localParticipant.trackPublications.set('camera', publication);
+    media.emit('LocalTrackPublished', publication);
+    await call.setCamera(true);
+    expect(call.getState().problem).toBe('device');
+
+    publication.track.mediaStreamTrack = { readyState: 'live' } as MediaStreamTrack;
+    publication.track.emit('restarted');
+    expect(call.getState().problem).toBeUndefined();
+  });
+
+  it('clears a capture failure on reconnect only if the microphone recovered', async () => {
+    const { call } = setup({ microphone: false });
+    await call.join();
+    const media = onlyMediaRoom();
+    media.localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(
+      new Error('NotReadableError')
+    );
+    await call.setMicrophone(true);
+
+    media.emit('Reconnecting');
+    media.emit('Reconnected');
+    expect(call.getState()).toMatchObject({ phase: 'connected', problem: 'device' });
+    media.emit('Reconnecting');
+    media.localParticipant.trackPublications.set(
+      'microphone',
+      inputPublication('microphone', MIC_A)
+    );
+    media.emit('Reconnected');
+    expect(call.getState()).toMatchObject({ phase: 'connected', microphoneTrack: MIC_A });
+    expect(call.getState().problem).toBeUndefined();
+  });
+
   it('does not open the camera twice when the user turns it on during microphone setup', async () => {
-    const opening = pending<{ source: string }>();
+    const opening = pending<ReturnType<typeof inputPublication>>();
     fakes.connect = async (room) => {
       (room as FakeMediaRoom).localParticipant.setMicrophoneEnabled.mockReturnValueOnce(
         opening.promise
@@ -487,7 +581,9 @@ describe('RoomCall join', () => {
     const { localParticipant } = onlyMediaRoom();
     expect(localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
     await call.setCamera(true);
-    opening.resolve({ source: 'microphone' });
+    const publication = inputPublication('microphone', MIC_A);
+    localParticipant.trackPublications.set('microphone', publication);
+    opening.resolve(publication);
     await joining;
     expect(localParticipant.setCameraEnabled).toHaveBeenCalledTimes(1);
   });
@@ -515,19 +611,19 @@ describe('RoomCall join', () => {
     expect(call.getState().problem).toBeUndefined();
   });
 
-  it('recovers a failed microphone switch on a live unmuted microphone', async () => {
+  it('keeps a failed microphone pick visible while the previous microphone is live', async () => {
     const { call } = setup();
     await call.join();
-    const { localParticipant, switchActiveDevice } = onlyMediaRoom();
-    localParticipant.getTrackPublication.mockImplementation((source: string) =>
-      source === 'microphone' ? microphonePublication(MIC_A) : undefined
-    );
+    const media = onlyMediaRoom();
+    const { switchActiveDevice } = media;
+    expect(call.getState().microphoneTrack?.readyState).toBe('live');
     switchActiveDevice.mockResolvedValueOnce(false);
     await call.setDevice('audioinput', 'mic-b');
     expect(call.getState().problem).toBeUndefined();
 
     switchActiveDevice.mockRejectedValueOnce(new Error('NotReadableError'));
     await call.setDevice('audioinput', 'mic-b');
+    media.emit('TrackUnmuted');
     expect(call.getState().problem).toBe('device');
 
     await call.setDevice('videoinput', 'camera-b');
@@ -539,20 +635,20 @@ describe('RoomCall join', () => {
     expect(call.getState().problem).toBeUndefined();
   });
 
-  it('keeps a failed camera switch visible when reselecting it while muted, until it opens', async () => {
+  it('keeps a camera capture warning when reselecting the camera while muted', async () => {
     const { call } = setup({ video: true });
     await call.join();
     const { localParticipant, switchActiveDevice } = onlyMediaRoom();
-    switchActiveDevice.mockRejectedValueOnce(new Error('NotReadableError'));
-    await call.setDevice('videoinput', 'camera-b');
-    expect(call.getState().problem).toBe('device');
-
     await call.setCamera(false);
-    localParticipant.getTrackPublication.mockImplementation((source: string) =>
-      source === 'camera' ? { isMuted: true, track: { mediaStreamTrack: MIC_A } } : undefined
-    );
+    localParticipant.setCameraEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
+    await call.setCamera(true);
+    expect(call.getState()).toMatchObject({ camera: false, problem: 'device' });
+
+    // A successful selection clears a selection failure, but not a capture failure.
+    switchActiveDevice.mockRejectedValueOnce(new Error('Switch failed'));
     await call.setDevice('videoinput', 'camera-b');
-    expect(call.getState().problem).toBe('device');
+    await call.setDevice('videoinput', 'camera-b');
+    expect(call.getState()).toMatchObject({ camera: false, problem: 'device' });
 
     await call.setCamera(true);
     expect(call.getState().problem).toBeUndefined();
@@ -570,15 +666,20 @@ describe('RoomCall join', () => {
     expect(call.getState().problem).toBeUndefined();
   });
 
-  it.each([true, false])('uses the newer switch result (success: %s)', async (newerSucceeds) => {
+  it.each([
+    ['audioinput', true],
+    ['audioinput', false],
+    ['audiooutput', true],
+    ['audiooutput', false],
+  ] as const)('uses the newer %s pick result (success: %s)', async (kind, newerSucceeds) => {
     const { call } = setup();
     await call.join();
     const { switchActiveDevice } = onlyMediaRoom();
     const older = pending<boolean>();
     switchActiveDevice.mockReturnValueOnce(older.promise);
-    const first = call.setDevice('audiooutput', 'speaker-a');
+    const first = call.setDevice(kind, 'device-a');
     if (!newerSucceeds) switchActiveDevice.mockRejectedValueOnce(new Error('Switch failed'));
-    await call.setDevice('audiooutput', 'speaker-b');
+    await call.setDevice(kind, 'device-b');
 
     if (newerSucceeds) older.reject(new Error('Stale switch failed'));
     else older.resolve(true);
@@ -586,7 +687,7 @@ describe('RoomCall join', () => {
     expect(call.getState().problem).toBe(newerSucceeds ? undefined : 'device');
   });
 
-  it('ignores an older microphone toggle and switch that fail after the microphone opens', async () => {
+  it('ignores a superseded mute failure but keeps the latest pick failure', async () => {
     const { call } = setup();
     await call.join();
     const { localParticipant, switchActiveDevice } = onlyMediaRoom();
@@ -599,11 +700,47 @@ describe('RoomCall join', () => {
     await call.setMicrophone(true);
 
     muting.reject(new Error('Stale mute failed'));
-    switching.reject(new Error('Stale switch failed'));
+    switching.reject(new Error('Switch failed'));
     await Promise.all([mute, select]);
+    expect(call.getState()).toMatchObject({ microphone: true, problem: 'device' });
+  });
+
+  it('shows the microphone as on if muting rejects and it is still live', async () => {
+    const { call } = setup();
+    await call.join();
+    onlyMediaRoom().localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(
+      new Error('Mute failed')
+    );
+
+    await call.setMicrophone(false);
     expect(call.getState().microphone).toBe(true);
     expect(call.getState().problem).toBeUndefined();
   });
+
+  it.each([true, false])(
+    'honors microphone Off when a superseded enable fails: %s',
+    async (fails) => {
+      const { call } = setup({ microphone: false });
+      await call.join();
+      const { localParticipant } = onlyMediaRoom();
+      const opening = pending<ReturnType<typeof inputPublication>>();
+      localParticipant.setMicrophoneEnabled.mockReturnValueOnce(opening.promise);
+      const enable = call.setMicrophone(true);
+      await call.setMicrophone(false);
+
+      const publication = inputPublication('microphone', MIC_A);
+      if (fails) {
+        opening.reject(new Error('NotReadableError'));
+      } else {
+        localParticipant.trackPublications.set('microphone', publication);
+        opening.resolve(publication);
+      }
+      await enable;
+      if (!fails) expect(publication.isMuted).toBe(true);
+      expect(call.getState().microphone).toBe(false);
+      expect(call.getState().problem).toBe(fails ? 'device' : undefined);
+    }
+  );
 
   it('does not update the call when a pending retry rejects after disconnect', async () => {
     const { call } = setup();
@@ -763,29 +900,21 @@ describe('RoomCall after joining', () => {
   });
 });
 
-/** The microphone this device publishes: LiveKit's track, which swaps its media track on a switch. */
-const microphonePublication = (mediaStreamTrack: MediaStreamTrack) => {
-  const track = Object.assign(new EventEmitter(), { mediaStreamTrack });
-  return { source: 'microphone', isMuted: false, track };
-};
-
 const MIC_A = { id: 'mic-a', readyState: 'live' } as MediaStreamTrack;
-const MIC_B = { id: 'mic-b' } as MediaStreamTrack;
-const MIC_C = { id: 'mic-c' } as MediaStreamTrack;
+const MIC_B = { id: 'mic-b', readyState: 'live' } as MediaStreamTrack;
+const MIC_C = { id: 'mic-c', readyState: 'live' } as MediaStreamTrack;
 
 describe('RoomCall microphone track', () => {
   it('shows the microphone it publishes, none while muted, and tells its subscribers of each change', async () => {
-    const { call } = setup();
+    const { call } = setup({ microphone: false });
     await call.join();
     const media = onlyMediaRoom();
     const listener = vi.fn();
     call.subscribe(listener);
     expect(call.getState().microphoneTrack).toBeUndefined();
 
-    const publication = microphonePublication(MIC_A);
-    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
-      source === 'microphone' ? publication : undefined
-    );
+    const publication = inputPublication('microphone', MIC_A);
+    media.localParticipant.trackPublications.set('microphone', publication);
     media.emit('LocalTrackPublished', publication);
     expect(call.getState().microphoneTrack).toBe(MIC_A);
     expect(listener).toHaveBeenCalled();
@@ -812,7 +941,7 @@ describe('RoomCall microphone track', () => {
     expect(call.getState().microphoneTrack).toBe(MIC_C);
     expect(listener).toHaveBeenCalled();
 
-    media.localParticipant.getTrackPublication.mockImplementation(() => undefined);
+    media.localParticipant.trackPublications.delete('microphone');
     media.emit('LocalTrackUnpublished', publication);
     expect(call.getState().microphoneTrack).toBeUndefined();
     expect(publication.track.listenerCount('restarted')).toBe(0);
@@ -822,10 +951,8 @@ describe('RoomCall microphone track', () => {
     const { call } = setup();
     await call.join();
     const media = onlyMediaRoom();
-    const publication = microphonePublication(MIC_A);
-    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
-      source === 'microphone' ? publication : undefined
-    );
+    const publication = inputPublication('microphone', MIC_A);
+    media.localParticipant.trackPublications.set('microphone', publication);
     media.emit('LocalTrackPublished', publication);
     media.switchActiveDevice.mockImplementationOnce(async () => {
       publication.track.mediaStreamTrack = MIC_B;
@@ -841,10 +968,7 @@ describe('RoomCall microphone track', () => {
     const { call } = setup();
     await call.join();
     const media = onlyMediaRoom();
-    const publication = microphonePublication(MIC_A);
-    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
-      source === 'microphone' ? publication : undefined
-    );
+    const publication = inputPublication('microphone', MIC_A);
     media.localParticipant.trackPublications.set('microphone', publication);
     media.emit('LocalTrackPublished', publication);
     expect(publication.track.listenerCount('restarted')).toBe(1);

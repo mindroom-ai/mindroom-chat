@@ -41,13 +41,13 @@ export type CallProblem =
   | 'service'
   /** The media connection failed or dropped. */
   | 'connection'
-  /** The microphone or camera could not be opened; the call goes on without it. */
+  /** An input could not be opened, or a device selection failed; the call goes on. */
   | 'device';
 
 export type CallDeviceKind = 'audioinput' | 'videoinput' | 'audiooutput';
 export type CallDevices = Partial<Record<CallDeviceKind, string>>;
 
-type DeviceFailureKind = 'microphone' | 'camera' | 'speaker';
+type InputKind = 'microphone' | 'camera';
 
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
@@ -153,17 +153,17 @@ export class RoomCall {
 
   private state: CallState;
 
-  private readonly failedDevices = new Set<DeviceFailureKind>();
+  private readonly captureFailures = new Set<InputKind>();
 
-  // Toggles and switches share a counter for the same input.
-  private readonly deviceOps: Record<DeviceFailureKind, number> = {
-    microphone: 0,
-    camera: 0,
-    speaker: 0,
+  private readonly selectionFailures = new Set<CallDeviceKind>();
+
+  private readonly toggleOps: Record<InputKind, number> = { microphone: 0, camera: 0 };
+
+  private readonly switchOps: Record<CallDeviceKind, number> = {
+    audioinput: 0,
+    videoinput: 0,
+    audiooutput: 0,
   };
-
-  // A device selection alone does not take over from join's initial camera enable.
-  private cameraToggleOp = 0;
 
   private readonly listeners = new Set<() => void>();
 
@@ -237,6 +237,14 @@ export class RoomCall {
   }
 
   private refresh = () => {
+    if (this.stopped) return;
+    this.captureFailures.forEach((kind) => {
+      if (this.hasLiveInput(kind)) this.captureFailures.delete(kind);
+    });
+    let { problem } = this.state;
+    if (problem === undefined || problem === 'device') {
+      problem = this.captureFailures.size || this.selectionFailures.size ? 'device' : undefined;
+    }
     const participants = this.readParticipants();
     const media = this.media;
     const audioBlocked =
@@ -248,11 +256,12 @@ export class RoomCall {
       sameParticipants(participants, this.state.participants) &&
       audioBlocked === this.state.audioBlocked &&
       screenShare === this.state.screenShare &&
-      microphoneTrack === this.state.microphoneTrack
+      microphoneTrack === this.state.microphoneTrack &&
+      problem === this.state.problem
     ) {
       return;
     }
-    this.update({ participants, audioBlocked, screenShare, microphoneTrack });
+    this.update({ participants, audioBlocked, screenShare, microphoneTrack, problem });
   };
 
   /** The media track of the microphone this device publishes, unless it is muted. */
@@ -381,7 +390,11 @@ export class RoomCall {
       .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
       .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
       .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
-      .on(RoomEvent.Reconnected, () => this.update({ phase: 'connected' }))
+      .on(RoomEvent.Reconnected, () => {
+        if (this.stopped) return;
+        this.update({ phase: 'connected' });
+        this.refresh();
+      })
       // The media server dropped this device for good (LiveKit retries before giving up); after
       // a leave or another failure this is the teardown's own disconnect.
       .on(RoomEvent.Disconnected, () => this.fail('connection'))
@@ -614,41 +627,49 @@ export class RoomCall {
       this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
     }
 
-    const cameraToggleOp = this.cameraToggleOp;
+    const cameraOp = this.toggleOps.camera;
     await this.setMicrophone(this.state.microphone);
-    if (!this.stopped && this.state.camera && cameraToggleOp === this.cameraToggleOp) {
+    if (!this.stopped && this.state.camera && cameraOp === this.toggleOps.camera) {
       await this.setCamera(true);
     }
   }
 
-  private clearDeviceFailure(kind: DeviceFailureKind) {
-    if (
-      this.failedDevices.delete(kind) &&
-      this.failedDevices.size === 0 &&
-      this.state.problem === 'device'
-    ) {
-      this.update({ problem: undefined });
-    }
+  private hasLiveInput(kind: InputKind): boolean {
+    const source = kind === 'microphone' ? Track.Source.Microphone : Track.Source.Camera;
+    const publication = this.media?.localParticipant.getTrackPublication(source);
+    return (
+      !!publication &&
+      !publication.isMuted &&
+      publication.track?.mediaStreamTrack.readyState === 'live'
+    );
   }
 
-  private async setInputEnabled(kind: Exclude<DeviceFailureKind, 'speaker'>, on: boolean) {
-    const op = (this.deviceOps[kind] += 1);
-    if (kind === 'camera') this.cameraToggleOp = op;
+  private async setInputEnabled(kind: InputKind, on: boolean) {
+    if (this.stopped) return;
+    const op = (this.toggleOps[kind] += 1);
     this.update({ [kind]: on });
     const participant = this.media?.localParticipant;
     if (!participant || this.state.phase === 'connecting') return;
-    const publication = await (kind === 'microphone'
+    const failed = await (kind === 'microphone'
       ? participant.setMicrophoneEnabled(on)
       : participant.setCameraEnabled(on)
-    ).catch(() => null);
-    if (this.stopped || op !== this.deviceOps[kind]) return;
-    if (publication === null || (on && !publication)) {
-      this.failedDevices.add(kind);
-      this.update({ [kind]: false, problem: 'device' });
-    } else if (on) {
-      this.clearDeviceFailure(kind);
-    }
+    ).then(
+      () => false,
+      () => true
+    );
+    if (this.stopped) return;
+
+    const latest = op === this.toggleOps[kind];
+    const live = this.hasLiveInput(kind);
+    const failedEnable = on && (failed || (latest && !live));
+    if (failedEnable) this.captureFailures.add(kind);
+    if (latest && (failedEnable || (!on && failed && live))) this.update({ [kind]: !on });
     this.refresh();
+
+    // An older enable can finish publishing after Off. Apply Off again as the latest toggle.
+    if (!latest && !this.state[kind] && this.hasLiveInput(kind)) {
+      await this.setInputEnabled(kind, false);
+    }
   }
 
   setMicrophone(on: boolean) {
@@ -688,34 +709,15 @@ export class RoomCall {
   }
 
   async setDevice(kind: CallDeviceKind, deviceId: string) {
-    const device =
-      kind === 'audioinput' ? 'microphone' : kind === 'videoinput' ? 'camera' : 'speaker';
-    const op = (this.deviceOps[device] += 1);
+    if (this.stopped) return;
+    const op = (this.switchOps[kind] += 1);
     this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
     const media = this.media;
     if (!media) return;
     const switched = await media.switchActiveDevice(kind, deviceId).catch(() => null);
-    if (this.stopped || op !== this.deviceOps[device]) return;
-    if (switched === null) {
-      this.failedDevices.add(device);
-      this.update({ problem: 'device' });
-    } else if (switched && this.failedDevices.has(device)) {
-      // LiveKit can select a muted or unopened input without actually opening it.
-      const publication =
-        device === 'speaker'
-          ? undefined
-          : media.localParticipant.getTrackPublication(
-              device === 'microphone' ? Track.Source.Microphone : Track.Source.Camera
-            );
-      if (
-        device === 'speaker' ||
-        (publication &&
-          !publication.isMuted &&
-          publication.track?.mediaStreamTrack.readyState === 'live')
-      ) {
-        this.clearDeviceFailure(device);
-      }
-    }
+    if (this.stopped || op !== this.switchOps[kind] || switched === false) return;
+    if (switched === null) this.selectionFailures.add(kind);
+    else this.selectionFailures.delete(kind);
     this.refresh();
   }
 
