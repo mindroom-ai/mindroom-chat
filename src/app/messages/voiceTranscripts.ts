@@ -59,7 +59,7 @@ export const planVoiceTranscripts = ({
   revealed: ReadonlySet<string>;
   viewerId: string | undefined;
   hasJoinedAgent: boolean;
-  hasThreadReplies: (eventId: string) => boolean;
+  hasThreadReplies: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
   const echoes =
@@ -118,7 +118,7 @@ export const planVoiceTranscripts = ({
         if (
           content.msgtype === MsgType.Audio &&
           isVoiceMessageContent(content) &&
-          !hasThreadReplies(id)
+          !hasThreadReplies(event)
         ) {
           pendingVoiceIds.add(id);
         }

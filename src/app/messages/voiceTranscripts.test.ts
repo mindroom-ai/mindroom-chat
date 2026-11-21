@@ -77,7 +77,7 @@ const plan = (
     revealed = new Set<string>(),
     trustedAccountIds = new Set([ROUTER]),
     hasJoinedAgent = false,
-    hasThreadReplies = (_eventId: string): boolean => false,
+    hasThreadReplies = (_event: MatrixEvent): boolean => false,
   } = {}
 ) =>
   planVoiceTranscripts({
@@ -333,7 +333,7 @@ describe('pending voice transcription', () => {
 
   it('does not show if the voice message has thread replies', () => {
     expect(
-      plan([voice()], { hasJoinedAgent: true, hasThreadReplies: (id) => id === '$voice' })
+      plan([voice()], { hasJoinedAgent: true, hasThreadReplies: (event) => event.getId() === '$voice' })
     ).toBe(NO_VOICE_TRANSCRIPTS);
   });
 

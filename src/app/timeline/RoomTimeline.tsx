@@ -164,6 +164,7 @@ import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
@@ -940,8 +941,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     revealed: pluginRevealedRef.current,
     viewerId,
     hasJoinedAgent: viewerIsOnlyPerson && [...joinedAccountIds].some(isResponder),
-    hasThreadReplies: (id) =>
-      (threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 || (room.getThread(id)?.length ?? 0) > 0,
+    hasThreadReplies: (event) => {
+      const id = event.getId();
+      return (
+        (getKnownThreadReplyCount(event) ?? 0) > 0 ||
+        (!!id &&
+          ((threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 ||
+            (room.getThread(id)?.length ?? 0) > 0))
+      );
+    },
   });
   // The open thread's model changes these accounts applied: one line each at its reply, the
   // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,

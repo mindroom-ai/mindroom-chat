@@ -225,6 +225,31 @@ it('hides the transcribing skeleton 60 seconds after the voice message was sent'
   }
 });
 
+it('does not show pending for a voice root whose unloaded replies are bundled', async () => {
+  const { RoomTimeline } = await import('../RoomTimeline');
+  const voice = makeEvent('$voice', {
+    ts: Date.now(),
+    isThreadRoot: true,
+    unsigned: { age: 0, 'm.relations': { 'm.thread': { count: 1 } } },
+    content: { msgtype: 'm.audio', body: 'voice.ogg', 'org.matrix.msc3245.voice': {} },
+  });
+  const room = makeRoom({ liveEvents: [voice], joinedMembers: [VIEWER, AGENT] });
+  const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+  let renderer: ReturnType<typeof create> | undefined;
+  roomTimelineVirtualizerState.virtualIndexes = [0];
+  await act(async () => {
+    renderer = create(React.createElement(Harness, { room, initialViewMode: 'classic' }));
+    await flushAsyncWork();
+  });
+  try {
+    expect(room.getThread('$voice')).toBeNull();
+    expect(getRenderedEventIds(renderer!)).toContain('$voice');
+    expect(transcribingStatuses(renderer!)).toHaveLength(0);
+  } finally {
+    act(() => renderer?.unmount());
+  }
+});
+
 describe("the router's voice echo in the room's timeline", () => {
   afterEach(() => {
     stateEventsByTypeMock.clear();
