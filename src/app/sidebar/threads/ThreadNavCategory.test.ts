@@ -404,9 +404,13 @@ describe('ThreadNavCategory', () => {
     ).toEqual([older.key]);
   });
 
-  it('shows the For me hint, including pins, when reached by keyboard', () => {
+  it('describes the For me toggle before its tooltip opens on keyboard focus', () => {
     render(categoryTree());
-    const forMe = screen.getByRole('button', { name: 'For me' });
+    const forMe = screen.getByRole('button', {
+      name: 'For me',
+      description:
+        'Only threads you take part in, that an agent posted for you, or that you pinned',
+    });
     expect(screen.queryByRole('tooltip')).toBeNull();
     forMe.focus();
     fireEvent.keyUp(forMe, { key: 'Tab' });

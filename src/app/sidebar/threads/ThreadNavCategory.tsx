@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useId, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -145,6 +145,8 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   );
 
   const rowsProps = { pinnedKeys: pinned, isOpen, onTogglePin: togglePin };
+  const forMeHintId = useId();
+  const forMeHint = t('threadNav.forMeHint');
 
   return (
     <NavCategory data-testid="thread-nav-category">
@@ -170,13 +172,16 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
                 </button>
               ))}
             </div>
+            <span id={forMeHintId} hidden>
+              {forMeHint}
+            </span>
             <TooltipProvider
               position="Bottom"
               align="End"
               offset={6}
               tooltip={
                 <Tooltip className={css.ForMeTooltip}>
-                  <Text size="T200">{t('threadNav.forMeHint')}</Text>
+                  <Text size="T200">{forMeHint}</Text>
                 </Tooltip>
               }
             >
@@ -186,6 +191,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
                   type="button"
                   className={css.ForMeToggle}
                   aria-label={t('threadNav.forMe')}
+                  aria-describedby={forMeHintId}
                   aria-pressed={involvedOnly}
                   onClick={() =>
                     updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
