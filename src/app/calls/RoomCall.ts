@@ -47,6 +47,8 @@ export type CallProblem =
 export type CallDeviceKind = 'audioinput' | 'videoinput' | 'audiooutput';
 export type CallDevices = Partial<Record<CallDeviceKind, string>>;
 
+type DeviceFailureKind = 'microphone' | 'camera' | 'speaker';
+
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
 /** One device in the call, as a tile shows it. */
@@ -151,8 +153,17 @@ export class RoomCall {
 
   private state: CallState;
 
-  // Opening an input and selecting a device are separate: selecting a muted input does not open it.
-  private readonly failedDevices = new Set<'microphone' | 'camera' | CallDeviceKind>();
+  private readonly failedDevices = new Set<DeviceFailureKind>();
+
+  // Toggles and switches share a counter for the same input.
+  private readonly deviceOps: Record<DeviceFailureKind, number> = {
+    microphone: 0,
+    camera: 0,
+    speaker: 0,
+  };
+
+  // A device selection alone does not take over from join's initial camera enable.
+  private cameraToggleOp = 0;
 
   private readonly listeners = new Set<() => void>();
 
@@ -603,11 +614,14 @@ export class RoomCall {
       this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
     }
 
+    const cameraToggleOp = this.cameraToggleOp;
     await this.setMicrophone(this.state.microphone);
-    if (!this.stopped && this.state.camera) await this.setCamera(true);
+    if (!this.stopped && this.state.camera && cameraToggleOp === this.cameraToggleOp) {
+      await this.setCamera(true);
+    }
   }
 
-  private clearDeviceFailure(kind: 'microphone' | 'camera' | CallDeviceKind) {
+  private clearDeviceFailure(kind: DeviceFailureKind) {
     if (
       this.failedDevices.delete(kind) &&
       this.failedDevices.size === 0 &&
@@ -617,21 +631,23 @@ export class RoomCall {
     }
   }
 
-  private async setInputEnabled(kind: 'microphone' | 'camera', on: boolean) {
+  private async setInputEnabled(kind: Exclude<DeviceFailureKind, 'speaker'>, on: boolean) {
+    const op = (this.deviceOps[kind] += 1);
+    if (kind === 'camera') this.cameraToggleOp = op;
     this.update({ [kind]: on });
     const participant = this.media?.localParticipant;
     if (!participant || this.state.phase === 'connecting') return;
     const publication = await (kind === 'microphone'
       ? participant.setMicrophoneEnabled(on)
       : participant.setCameraEnabled(on)
-    ).catch(() => {
-      if (this.stopped) return undefined;
+    ).catch(() => null);
+    if (this.stopped || op !== this.deviceOps[kind]) return;
+    if (publication === null || (on && !publication)) {
       this.failedDevices.add(kind);
       this.update({ [kind]: false, problem: 'device' });
-      return undefined;
-    });
-    if (this.stopped) return;
-    if (on && publication) this.clearDeviceFailure(kind);
+    } else if (on) {
+      this.clearDeviceFailure(kind);
+    }
     this.refresh();
   }
 
@@ -672,14 +688,33 @@ export class RoomCall {
   }
 
   async setDevice(kind: CallDeviceKind, deviceId: string) {
+    const device =
+      kind === 'audioinput' ? 'microphone' : kind === 'videoinput' ? 'camera' : 'speaker';
+    const op = (this.deviceOps[device] += 1);
     this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-    const switched = await this.media?.switchActiveDevice(kind, deviceId).catch(() => false);
-    if (this.stopped) return;
-    if (switched) {
-      this.clearDeviceFailure(kind);
-    } else if (switched === false) {
-      this.failedDevices.add(kind);
+    const media = this.media;
+    if (!media) return;
+    const switched = await media.switchActiveDevice(kind, deviceId).catch(() => null);
+    if (this.stopped || op !== this.deviceOps[device]) return;
+    if (switched === null) {
+      this.failedDevices.add(device);
       this.update({ problem: 'device' });
+    } else if (switched && this.failedDevices.has(device)) {
+      // LiveKit can select a muted or unopened input without actually opening it.
+      const publication =
+        device === 'speaker'
+          ? undefined
+          : media.localParticipant.getTrackPublication(
+              device === 'microphone' ? Track.Source.Microphone : Track.Source.Camera
+            );
+      if (
+        device === 'speaker' ||
+        (publication &&
+          !publication.isMuted &&
+          publication.track?.mediaStreamTrack.readyState === 'live')
+      ) {
+        this.clearDeviceFailure(device);
+      }
     }
     this.refresh();
   }
