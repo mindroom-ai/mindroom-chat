@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { ThreadBadge } from './ThreadBadge';
@@ -25,7 +25,10 @@ const badge = (summaryInfo?: ThreadSummaryInfo, onClick = vi.fn()) => (
 );
 
 describe('ThreadBadge titles', () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it.each([
     [{ summaryText: title, messageCount: 3 }, 'AI summary of last 3 messages'],
@@ -55,9 +58,11 @@ describe('ThreadBadge titles', () => {
     const onClick = vi.fn();
     const { rerender } = render(badge(undefined, onClick));
     const button = screen.getByRole('button');
+    const measure = vi.spyOn(button, 'getBoundingClientRect');
     act(() => button.focus());
     expect(button.matches(':focus-visible')).toBe(true);
     expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(measure).not.toHaveBeenCalled();
 
     rerender(badge({ summaryText: title }, onClick));
     const description = 'AI-generated thread summary';
@@ -67,6 +72,60 @@ describe('ThreadBadge titles', () => {
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('keeps provenance open as the mouse moves from the pill to the tooltip', () => {
+    vi.useFakeTimers();
+    render(badge({ summaryText: title }));
+    const button = screen.getByRole('button');
+    const move = (target: HTMLElement, type: 'pointerover' | 'pointerout') =>
+      fireEvent(
+        target,
+        Object.assign(new MouseEvent(type, { bubbles: true }), { pointerType: 'mouse' })
+      );
+    const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+    move(button, 'pointerover');
+    const tooltip = screen.getByRole('tooltip');
+    move(button, 'pointerout');
+    wait(50);
+    expect(screen.getByRole('tooltip')).toBe(tooltip);
+
+    move(tooltip, 'pointerover');
+    wait(200);
+    expect(screen.getByRole('tooltip')).toBe(tooltip);
+    expect(getComputedStyle(tooltip).pointerEvents).toBe('auto');
+
+    move(tooltip, 'pointerout');
+    wait(50);
+    expect(screen.getByRole('tooltip')).toBe(tooltip);
+    wait(200);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('dismisses keyboard provenance before Escape can reach the room shortcut', () => {
+    render(badge({ summaryText: title }));
+    const button = screen.getByRole('button');
+    act(() => button.focus());
+    expect(screen.getByRole('tooltip').textContent).toBe('AI-generated thread summary');
+
+    const onRoomKeyDown = vi.fn();
+    window.addEventListener('keydown', onRoomKeyDown);
+    try {
+      const dismiss = createEvent.keyDown(button, { key: 'Escape' });
+      fireEvent(button, dismiss);
+      expect(screen.queryByRole('tooltip')).toBeNull();
+      expect(document.activeElement).toBe(button);
+      expect(dismiss.defaultPrevented).toBe(true);
+      expect(onRoomKeyDown).not.toHaveBeenCalled();
+
+      const escape = createEvent.keyDown(button, { key: 'Escape' });
+      fireEvent(button, escape);
+      expect(escape.defaultPrevented).toBe(false);
+      expect(onRoomKeyDown).toHaveBeenCalledExactlyOnceWith(escape);
+    } finally {
+      window.removeEventListener('keydown', onRoomKeyDown);
+    }
   });
 
   it('lets the title set paragraph direction and isolates the metadata in UI direction', () => {

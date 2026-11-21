@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useId,
   useMemo,
   type ComponentPropsWithoutRef,
@@ -20,6 +21,7 @@ import {
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
 import { PopOut, revealDirectionControls } from '../ui/directional';
 import { useAnchoredCard } from '../ui/useAnchoredCard';
+import { MARKER_DETAILS_CLOSE_DELAY_MS } from '../messages/thread-summary/ThreadSummaryMarker';
 import { threadSummaryProvenance } from '../messages/thread-summary/threadSummaryProvenance';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
@@ -71,11 +73,19 @@ function TimelineThreadIndicator({
   const unread = useThreadUnread(props.room, props.threadRootId, isUnread);
   const { t } = useTranslation();
   const descriptionId = useId();
-  const { open, triggerRef, show, close, hover, onFocusLeave } = useAnchoredCard();
+  const { open, triggerRef, cardRef, show, close, hover, onFocusLeave } = useAnchoredCard(
+    MARKER_DETAILS_CLOSE_DELAY_MS
+  );
   const title = summaryInfo?.summaryText?.trim()
     ? revealDirectionControls(summaryInfo.summaryText)
     : undefined;
   const description = title && summaryInfo ? threadSummaryProvenance(t, summaryInfo) : undefined;
+
+  useEffect(() => {
+    if (!description) close();
+    // A title can arrive after keyboard focus has already reached the pill.
+    else if (triggerRef.current?.matches(':focus-visible')) show('focus');
+  }, [description, close, show, triggerRef]);
 
   return (
     <>
@@ -87,8 +97,17 @@ function TimelineThreadIndicator({
         threadTitle={title}
         aria-describedby={description ? descriptionId : undefined}
         onFocus={(event) => {
-          // Track keyboard focus even before an asynchronously delivered title arrives.
-          if (event.currentTarget.matches(':focus-visible')) show('focus');
+          if (description && event.currentTarget.matches(':focus-visible')) show('focus');
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && description && open) {
+            // Dismiss the tooltip without handing Escape to the room's composer shortcut.
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+            return;
+          }
+          props.onKeyDown?.(event);
         }}
         onBlur={onFocusLeave}
         onClick={(event) => {
@@ -107,7 +126,7 @@ function TimelineThreadIndicator({
             position="Top"
             offset={4}
             content={
-              <Tooltip role="tooltip">
+              <Tooltip ref={cardRef} role="tooltip" style={{ pointerEvents: 'auto' }} {...hover}>
                 <Text size="T300">{description}</Text>
               </Tooltip>
             }
