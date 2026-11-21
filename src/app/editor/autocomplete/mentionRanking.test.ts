@@ -11,17 +11,16 @@ import {
 const member = (userId: string, name: string) =>
   ({ userId, name, rawDisplayName: name } as unknown as RoomMember);
 
-// A MindRoom team: agents under `mindroom_` (the router among them, here with the namespace an
-// installation can add), beside people whose user names carry no prefix.
+// A MindRoom team: agents and the owner under `mindroom_`, beside people without the prefix.
 const scout = member('@mindroom_scout:example.org', 'Scout');
-const router = member('@mindroom_router_ab12cd:example.org', 'RouterAgent');
+const owner = member('@mindroom_router_ab12cd:example.org', 'MindRoom');
 const mind = member('@mindroom_mind:example.org', 'Mind');
 const mindy = member('@mindy:example.org', 'Mindy');
 const planner = member('@mindroom_daily_planner:example.org', 'Daily Planner');
 const reviewer = member('@mindroom_code_reviewer:example.org', 'Ada');
 const maya = member('@maya.lin:example.org', 'Maya Lin');
 const berlin = member('@berlinbot:example.org', 'Berlin Bot');
-const team = [scout, router, mindy, mind, planner, reviewer, maya, berlin];
+const team = [scout, mindy, mind, planner, reviewer, maya, berlin];
 
 const names = (members: RoomMember[]) => members.map(({ rawDisplayName }) => rawDisplayName);
 const search = (query: string, members = team) =>
@@ -47,7 +46,7 @@ describe('mentionRank', () => {
 
   it('matches every agent by the prefix only when it is typed', () => {
     expect(search('mindroom_s')).toEqual(['Scout']);
-    expect(search('mindroom_')).toEqual(['Scout', 'RouterAgent', 'Mind', 'Daily Planner', 'Ada']);
+    expect(search('mindroom_')).toEqual(['Scout', 'Mind', 'Daily Planner', 'Ada']);
     expect(search('mindroom')).toEqual([]);
   });
 
@@ -69,19 +68,19 @@ describe('orderMentionCandidates', () => {
     ]);
   });
 
-  it('puts the router last, even when it spoke last', () => {
+  it('excludes the namespaced owner even when it spoke last', () => {
     expect(
-      names(orderMentionCandidates([router, scout, mind], [router.userId, mind.userId]))
-    ).toEqual(['Mind', 'Scout', 'RouterAgent']);
+      names(orderMentionCandidates([owner, scout, mind], [owner.userId, mind.userId]))
+    ).toEqual(['Mind', 'Scout']);
   });
 
-  it('knows the router only among agents', () => {
+  it('excludes the default owner, not a person or agent with a similar user name', () => {
+    const defaultOwner = member('@mindroom_router:example.org', 'MindRoom');
     const person = member('@router:example.org', 'Router');
     const routerBot = member('@mindroom_routerbot:example.org', 'Router Bot');
-    expect(names(orderMentionCandidates([router, person, routerBot], []))).toEqual([
+    expect(names(orderMentionCandidates([defaultOwner, person, routerBot], []))).toEqual([
       'Router',
       'Router Bot',
-      'RouterAgent',
     ]);
   });
 });
@@ -104,7 +103,7 @@ describe('recentSenders', () => {
           liveTimeline: {
             getEvents: () => [
               event('m.room.message', maya.userId, 3),
-              event('m.reaction', router.userId, 6),
+              event('m.reaction', owner.userId, 6),
             ],
           },
         },

@@ -10,7 +10,7 @@ import { withoutNameDisguises } from '../../matrix/room';
  */
 const AGENT_PREFIX = 'mindroom_';
 
-/** MindRoom's router agent, with the installation namespace MindRoom appends when one is set. */
+/** The owner keeps the old router user name, with an optional installation namespace. */
 const ROUTER_AGENT = /^router(?:_[a-z0-9]{4,32})?$/;
 
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
@@ -38,7 +38,7 @@ const userName = (userId: string): string => {
   return name.startsWith(AGENT_PREFIX) ? name.slice(AGENT_PREFIX.length) : name;
 };
 
-const isRouterAgent = (userId: string): boolean => {
+const isOwnerAccount = (userId: string): boolean => {
   const name = localpart(userId);
   return name.startsWith(AGENT_PREFIX) && ROUTER_AGENT.test(name.slice(AGENT_PREFIX.length));
 };
@@ -89,18 +89,16 @@ export const recentSenders = (room: SenderTimelines): string[] => {
 };
 
 /**
- * Members in the order equal matches keep: the router after everyone else, since a match on a
- * name always means that member more than the agent that only dispatches; then whoever sent a
- * message most recently; then the order given.
+ * Members to offer as mentions, excluding the owner, which never answers. Equal matches keep
+ * the order of who sent a message most recently, then the order given.
  */
 export const orderMentionCandidates = <T extends MentionCandidate>(
   members: readonly T[],
   senders: readonly string[]
 ): T[] => {
   const recency = new Map(senders.map((userId, index) => [userId, index]));
-  const routerLast = (member: T): number => (isRouterAgent(member.userId) ? 1 : 0);
   const recent = (member: T): number => recency.get(member.userId) ?? senders.length;
-  return [...members].sort(
-    (left, right) => routerLast(left) - routerLast(right) || recent(left) - recent(right)
-  );
+  return members
+    .filter((member) => !isOwnerAccount(member.userId))
+    .sort((left, right) => recent(left) - recent(right));
 };

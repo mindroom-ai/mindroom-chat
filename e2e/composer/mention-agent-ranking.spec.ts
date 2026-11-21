@@ -16,11 +16,11 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// "@Min" and Tab in a room of MindRoom agents mentions Mind, whose display name matches, rather
-// than the agent listed first: every agent's user ID starts with `mindroom_`, so its user name
-// matches "min" too. The message goes out as "@Mind ..." with Mind in `m.mentions`. Runs in
-// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against
-// the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
+// Typing "@Min" and Tab picks Mind by display name, not another agent by the shared ID prefix.
+// The owner, MindRoom, is not offered even though its name also matches. The message goes out
+// as "@Mind ..." with Mind in `m.mentions`. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// names Playwright's WebKit, in WebKit, against the disposable homeserver of `just hs-up` or of
+// a slot of scripts/e2e-slot.sh.
 const PASSWORD = 'mention-ranking-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MENTION_RANKING_SHOTS;
@@ -60,37 +60,38 @@ type RoomMessage = {
   };
 };
 
-/** A launch room: the router and four agents, Mind joining last, so it is listed last. */
+/** A launch room: the owner and four agents, Mind joining last, so it is listed last. */
 const launchRoom = async (tag: string) => {
   const reader = await registerPerson(`mar_reader_${tag}`, 'Robin Reader');
-  const agents = {
+  const accounts = {
     scout: await registerAgent('scout', 'Scout'),
-    router: await registerAgent('router', 'RouterAgent'),
+    owner: await registerAgent('router', 'MindRoom'),
     quill: await registerAgent('quill', 'Quill'),
     forge: await registerAgent('forge', 'Forge'),
     mind: await registerAgent('mind', 'Mind'),
   };
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Launch day ${tag} ${RUN}`,
-    invite: Object.values(agents).map((agent) => agent.userId),
+    invite: Object.values(accounts).map((account) => account.userId),
   });
-  for (const agent of Object.values(agents)) {
-    await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  for (const account of Object.values(accounts)) {
+    await joinRoom(HOMESERVER, account.accessToken, roomId);
   }
   await Promise.all(
     Array.from({ length: FILLER_ROOMS }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index + 1} ${RUN}` })
     )
   );
-  await sendRoomMessage(HOMESERVER, agents.mind.accessToken, roomId, {
+  await sendRoomMessage(HOMESERVER, accounts.mind.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'The launch checklist is up to date: pricing page, release notes and the status page are ready for review.',
   });
-  await sendRoomMessage(HOMESERVER, agents.router.accessToken, roomId, {
+  // A historical post makes the owner known even before all members load.
+  await sendRoomMessage(HOMESERVER, accounts.owner.accessToken, roomId, {
     msgtype: 'm.text',
-    body: 'Welcome to the launch room. Mention an agent by name to ask it directly, or ask the room and I will pick the agent that fits.',
+    body: 'The launch room is ready.',
   });
-  return { reader, agents, roomId };
+  return { reader, accounts, roomId };
 };
 
 const ownLatestMessage = async (session: MatrixSession, roomId: string) => {
@@ -105,7 +106,7 @@ const ownLatestMessage = async (session: MatrixSession, roomId: string) => {
 };
 
 const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
-  const { reader, agents, roomId } = await launchRoom(tag);
+  const { reader, accounts, roomId } = await launchRoom(tag);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: reader.username,
@@ -114,17 +115,16 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   const composer = page.locator('[data-editable-name="RoomInput"]');
   await expect(composer).toBeVisible({ timeout: 60_000 });
-  // The room has loaded its members once the router's message shows (the room list previews it
-  // too).
-  await expect(page.getByText('Welcome to the launch room.').first()).toBeVisible({
+  await expect(page.getByText('The launch room is ready.').first()).toBeVisible({
     timeout: 30_000,
   });
   await composer.click();
   await page.keyboard.type('@Min');
 
-  // The picker's rows: a name, then the user ID.
-  const rows = page.getByRole('option', { name: /^(Scout|Mind|RouterAgent|Quill|Forge)\s*@/ });
-  await expect(rows.first()).toBeVisible({ timeout: 20_000 });
+  // Mind is offered, but MindRoom is not, even though "Min" starts both names.
+  const rows = page.getByRole('option', { name: /^(Scout|Mind|MindRoom|Quill|Forge)\s*@/ });
+  await expect(rows).toHaveCount(1, { timeout: 20_000 });
+  await expect(rows.first()).toHaveAccessibleName(/^Mind\s*@/);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/picker-${tag}.png` });
   // Tab (or a tap on the top row) right away, as a person who sees the picker open does.
   if (pick === 'tab') await page.keyboard.press('Tab');
@@ -142,8 +142,8 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
       msgtype: 'm.text',
       body: '@Mind check the launch numbers',
       format: 'org.matrix.custom.html',
-      formatted_body: `<a href="https://matrix.to/#/${agents.mind.userId}">@Mind</a> check the launch numbers`,
-      'm.mentions': { user_ids: [agents.mind.userId] },
+      formatted_body: `<a href="https://matrix.to/#/${accounts.mind.userId}">@Mind</a> check the launch numbers`,
+      'm.mentions': { user_ids: [accounts.mind.userId] },
     });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/sent-${tag}.png` });
 };
