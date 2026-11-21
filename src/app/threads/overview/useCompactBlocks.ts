@@ -94,7 +94,7 @@ export function useCompactBlocks(options: Options) {
     indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
   const canPlace =
     !awaitingAnchors && (backSlot === undefined ? extentComplete : prefixReady(backSlot));
-  const placeReady = !back || (state.checked && canPlace);
+  const placeReady = !back || ((small || state.checked) && canPlace);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const visible = geometry.visible.filter((id) => index.has(id));
@@ -191,7 +191,7 @@ export function useCompactBlocks(options: Options) {
       return changed || start !== first || end !== last;
     };
     const measured = layout();
-    if (back && canPlace && !state.checked) render();
+    if (back && canPlace && !placeReady) render();
     state.checked = true;
     const update = () => {
       state.placed ||= placeReady && liveIds.length > 0;
