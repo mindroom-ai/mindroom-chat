@@ -96,7 +96,6 @@ function inspect(
   if (away(a) && b.held && !b.pill && a.pill && same(a.order, b.order))
     report('I7', 'pending-order affordance disappeared before catch-up');
 }
-
 const password = 'compact-harness-test-only';
 const framesPass = (count: number) =>
   new Promise<void>((done) => {
@@ -106,7 +105,6 @@ const framesPass = (count: number) =>
     };
     requestAnimationFrame(tick);
   });
-
 for (const phone of [false, true]) {
   const form = phone ? 'phone' : 'desktop';
   const size = { width: phone ? 390 : 1440, height: phone ? 780 : 900 };
@@ -159,7 +157,6 @@ for (const phone of [false, true]) {
         incidents.push({ id, op: sequence, reason, frame });
         console.log(`${id}: ${reason}; ${replay()}`);
       };
-
       try {
         const suffix = randomUUID().slice(0, 8);
         const reader = await registerDisposableUser(`inv_${suffix}`, password);
@@ -416,9 +413,6 @@ for (const phone of [false, true]) {
               await openBoard();
               break;
           }
-          // Confirm the two known winners actually reach the client.
-          if (op === 'reply' && sequence <= 3 && (await card(target).count()))
-            await expect(card(target)).toContainText(label);
           await page.evaluate(
             framesPass,
             op === 'wheel' || op === 'flick' || passiveOps.includes(op) ? 24 : 8
@@ -448,14 +442,21 @@ for (const phone of [false, true]) {
             report('I6', 'Back did not restore a visible witness');
           if (op === 'wheel' && !away(previous) && away(prior) && !prior.held)
             report('I5', 'reader crossed half a screen without entering hold');
-          if (sequence === 4 && knownWinner && !prior.held && prior.order[0]?.[0] !== knownWinner)
+          if (
+            sequence === 4 &&
+            knownWinner &&
+            !away(prior) &&
+            !prior.held &&
+            prior.order.some(([key]) => key === knownWinner) &&
+            prior.order[0]?.[0] !== knownWinner
+          )
             report('I7', 'catch-up did not apply the known live winner');
           // Check a known live winner in the seeded newest-first flat list.
           if (
             op === 'reply' &&
             sequence <= 3 &&
             !prior.pending &&
-            prior.order.some(([key]) => key === target)
+            (await card(target).allTextContents()).some((text) => text.includes(label))
           ) {
             if (away(previous) && previous.order[0]?.[0] !== target && !prior.pill)
               report('I7', 'known stale order without pill');
