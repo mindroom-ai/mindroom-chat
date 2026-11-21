@@ -45,13 +45,22 @@ const settledCardLayout = (page: Page): Promise<CardLayout> =>
   page.evaluate(async (selector) => {
     const view = document.querySelector<HTMLElement>(selector);
     if (!view) return { offsets: {}, headerHeight: 0, scrollTop: -1 };
-    let previous = view.scrollTop;
+    const layout = () =>
+      [
+        view.scrollTop,
+        ...Array.from(view.querySelectorAll('button[data-thread-root-id]'), (card) => {
+          const rect = card.getBoundingClientRect();
+          return `${card.getAttribute('data-thread-root-id')}:${rect.top}:${rect.bottom}`;
+        }),
+      ].join(',');
+    let previous = layout();
     for (let stableFrames = 0, frames = 0; stableFrames < 5 && frames < 120; frames += 1) {
       await new Promise((resolve) => {
         requestAnimationFrame(resolve);
       });
-      stableFrames = view.scrollTop === previous ? stableFrames + 1 : 0;
-      previous = view.scrollTop;
+      const current = layout();
+      stableFrames = current === previous ? stableFrames + 1 : 0;
+      previous = current;
     }
     const { top, bottom } = view.getBoundingClientRect();
     const offsets: Record<string, number> = {};
