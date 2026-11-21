@@ -178,6 +178,23 @@ it('remeasures evicted cards after a font-size change without shrinking the old 
   expect(space()).toBe(10602.25);
 });
 
+it('does not insert a stale probe above the reader after a late font change', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  act(() => {
+    view.scrollTop = 30 * 199.25;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  const first = () => view.querySelector('[data-scroll-anchor="$row0"]');
+  expect(first()).toBeNull();
+  fontSize = 24;
+  rerender(<List memory={memory} />);
+  tick(1);
+  expect(first()).toBeNull();
+});
+
 it('can place a warm Back while occupied spacer heights await a font refresh', () => {
   const memory: ScrollAnchorMemory = new Map();
   const { unmount } = render(<List memory={memory} />);

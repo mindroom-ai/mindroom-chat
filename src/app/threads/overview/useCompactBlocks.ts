@@ -66,11 +66,7 @@ export function useCompactBlocks(options: Options) {
     return { key, start, end: blocks.length };
   });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
-  // Card data refreshes do not relocate a measurement probe into the occupied scroll range.
-  // Live shells are remeasured on layout; only layout-context changes invalidate evicted heights.
   const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id)));
-  const probe =
-    missing >= 0 ? missing : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const order = JSON.stringify(groups);
   const small = index.size <= 2 * BLOCK_CARDS;
   let firstScreen = heights.size === 0 ? 2 * BLOCK_CARDS : 0;
@@ -100,6 +96,12 @@ export function useCompactBlocks(options: Options) {
         ? band(savedKeys)
         : [backSlot, backSlot]
       : band(geometry.order === order ? visible : visible.slice(0, 1));
+  // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
+  // Refresh occupied heights at the top, or measure the shells as they enter the window.
+  const probe =
+    missing >= 0 || first > 0
+      ? missing
+      : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   const retained = new Set([focused, protectedId, state.gesture?.id]);
   const liveIds: string[] = [];
