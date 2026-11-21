@@ -7,15 +7,26 @@ interface Row {
   key: string;
   group: string;
   top: number;
+  height: number;
+  glide: number;
   painted: number;
   bottom: number;
   origin: number | null;
 }
 interface Write {
+  seq: number;
   method: string;
   before: number;
   after: number;
   stack: string;
+}
+export interface ListInput {
+  seq: number;
+  type: string;
+  direction: number;
+  y: number;
+  mouse: boolean;
+  inside: boolean;
 }
 export interface ListFrame {
   time: number;
@@ -30,14 +41,21 @@ export interface ListFrame {
   pill: boolean;
   order: [key: string, group: string][];
   visible: Row[];
-  input: string[];
+  input: ListInput[];
+  moving: boolean;
+  replySeen: boolean;
   writes: Write[];
   reattached: string[];
 }
 
 declare global {
   interface Window {
-    compactRecorder: { take: () => ListFrame[]; board: boolean };
+    compactRecorder: {
+      take: () => ListFrame[];
+      board: boolean;
+      evidence: [string, string] | null;
+      last: ListFrame | undefined;
+    };
   }
 }
 export const installListRecorder = (page: Page) =>
@@ -53,12 +71,19 @@ export const installListRecorder = (page: Page) =>
         row.dataset.scrollAnchor ?? `header:${row.dataset.compactSection}`;
       const translationY = (value: string) => parseFloat(value.split(' ')[1] ?? '');
       const viewIds = new WeakMap<Element, string>();
+      const glideIds = new WeakMap<Animation, number>();
       let nextView = 0;
+      let seq = 0;
       const frames: ListFrame[] = [];
-      let input: string[] = [];
+      let input: ListInput[] = [];
       let writes: (Write & { view: Element })[] = [];
       let reattached: { key: string; view: Element }[] = [];
-      window.compactRecorder = { board: false, take: () => frames.splice(0) };
+      window.compactRecorder = {
+        board: false,
+        evidence: null,
+        last: undefined,
+        take: () => frames.splice(0),
+      };
       const findView = (target: Element) => target.closest(selector());
       const record = (target: Element, method: string, call: () => unknown) => {
         const view = findView(target);
@@ -71,6 +96,7 @@ export const installListRecorder = (page: Page) =>
         const result = call();
         writes.push({
           view,
+          seq: ++seq,
           method,
           before,
           after: view.scrollTop,
@@ -95,29 +121,40 @@ export const installListRecorder = (page: Page) =>
           },
         });
       }
-      for (const type of [
-        'wheel',
-        'touchstart',
-        'touchmove',
-        'touchend',
-        'pointerdown',
-        'pointermove',
-        'pointerup',
-        'pointerout',
-        'keydown',
-      ]) {
+      let touchY = 0;
+      for (const type of 'wheel touchstart touchmove touchend touchcancel pointerdown pointermove pointerup click keydown'.split(
+        ' '
+      )) {
         document.addEventListener(
           type,
           (event) => {
-            if (event.isTrusted && event.target instanceof Element && findView(event.target))
-              input.push(type);
+            if (!event.isTrusted || !(event.target instanceof Element)) return;
+            const view = document.querySelector<HTMLElement>(selector());
+            if (!view) return;
+            let direction = 0;
+            if (event instanceof WheelEvent && findView(event.target))
+              direction = Math.sign(event.deltaY);
+            if (event instanceof TouchEvent) {
+              const current = event.touches[0]?.clientY ?? touchY;
+              if (event.type === 'touchmove') direction = Math.sign(touchY - current);
+              touchY = current;
+            }
+            input.push({
+              seq: ++seq,
+              type,
+              direction,
+              y: view.scrollTop,
+              mouse:
+                event instanceof PointerEvent && event.pointerType === 'mouse' && !event.buttons,
+              inside: !!findView(event.target),
+            });
           },
           { capture: true, passive: true }
         );
       }
       new MutationObserver((changes) => {
-        const removed = new Map<HTMLElement, Element>();
-        const added = new Set<HTMLElement>();
+        const removed: { view: Element; key: string }[] = [];
+        const added = new Map<HTMLElement, Element>();
         const rowsIn = (node: Node) =>
           node instanceof HTMLElement
             ? [
@@ -130,12 +167,16 @@ export const installListRecorder = (page: Page) =>
           const view = findView(change.target);
           if (!view) continue;
           change.removedNodes.forEach((node) =>
-            rowsIn(node).forEach((row) => removed.set(row, view))
+            rowsIn(node).forEach((row) => removed.push({ view, key: key(row) }))
           );
-          change.addedNodes.forEach((node) => rowsIn(node).forEach((row) => added.add(row)));
+          change.addedNodes.forEach((node) => rowsIn(node).forEach((row) => added.set(row, view)));
         }
-        removed.forEach((view, row) => {
-          if (added.has(row) && !row.closest('[inert]')) reattached.push({ view, key: key(row) });
+        added.forEach((view, row) => {
+          if (
+            !row.closest('[inert]') &&
+            removed.some((entry) => entry.view === view && entry.key === key(row))
+          )
+            reattached.push({ view, key: key(row) });
         });
       }).observe(document, { childList: true, subtree: true });
       const tick = (time: number) => {
@@ -164,26 +205,33 @@ export const installListRecorder = (page: Page) =>
               Math.min(box.top, painted.top) >= edge + end
             )
               continue;
-            const translate = child
+            const active = child
               .getAnimations()
-              .map(({ effect }) => (effect as KeyframeEffect | null)?.getKeyframes()[0]?.translate)
-              .find((value): value is string => typeof value === 'string');
+              .find(({ effect }) =>
+                (effect as KeyframeEffect | null)?.getKeyframes().some((frame) => frame.translate)
+              );
+            if (active && !glideIds.has(active)) glideIds.set(active, ++seq);
+            const translate = (active?.effect as KeyframeEffect | undefined)?.getKeyframes()[0]
+              ?.translate;
             const top =
               box.top -
               edge -
               (child === row ? translationY(getComputedStyle(row).translate) || 0 : 0);
-            const dy = translationY(translate ?? '');
+            const dy = translationY(typeof translate === 'string' ? translate : '');
             visible.push({
               key: id,
               group,
               top,
+              height: box.height,
+              glide: active ? glideIds.get(active)! : 0,
               painted: painted.top - edge,
               bottom: painted.bottom - edge,
               origin: Number.isFinite(dy) ? top + dy : null,
             });
           }
-          frames.push({
-            time,
+          const evidence = window.compactRecorder.evidence;
+          const sample = {
+            time: performance.timeOrigin + time,
             view: viewIds.get(view)!,
             y: view.scrollTop,
             height: view.clientHeight,
@@ -198,13 +246,27 @@ export const installListRecorder = (page: Page) =>
                 button.textContent?.trim() === 'Show updated order'
             ),
             order,
+            moving: view
+              .getAnimations({ subtree: true })
+              .some(
+                (animation) =>
+                  animation.playState === 'running' &&
+                  animation.effect?.getComputedTiming().endTime !== Infinity
+              ),
+            replySeen:
+              !!evidence &&
+              !!view
+                .querySelector(`[data-scroll-anchor="${CSS.escape(evidence[0])}"]`)
+                ?.textContent?.includes(evidence[1]),
             visible,
             input,
             writes: writes
               .filter((item) => item.view === view)
               .map(({ view: _, ...write }) => write),
             reattached: reattached.filter((item) => item.view === view).map((item) => item.key),
-          });
+          };
+          window.compactRecorder.last = sample;
+          frames.push(sample);
         }
         input = [];
         writes = [];

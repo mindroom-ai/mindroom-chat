@@ -66,17 +66,12 @@ it('keeps survivors in their old sections and puts joins in their live sections'
 });
 // Main lets a survivor whose live group changed anchor a join in its old group.
 it.fails('a section join with no live predecessor there leads its section', () => {
-  examples((shown, live) => {
-    const [mover, stay] = shown.filter((id) => live.includes(id));
-    const join = live.find((id) => !shown.includes(id));
-    if (!mover || !stay || !join) return;
-    const held = holdCompactThreadSections(
-      [
-        { id: 'needsYou', rootIds: [mover] },
-        { id: 'working', rootIds: [join, stay] },
-      ],
-      [{ id: 'working', rootIds: [stay, mover] }]
-    );
-    expect(held[0]?.rootIds).toEqual([join, stay, mover]);
-  });
+  const held = holdCompactThreadSections(
+    [
+      { id: 'needsYou', rootIds: ['mover'] },
+      { id: 'working', rootIds: ['join', 'stayer'] },
+    ],
+    [{ id: 'working', rootIds: ['stayer', 'mover'] }]
+  );
+  expect(held[0]?.rootIds).toEqual(['join', 'stayer', 'mover']);
 });
