@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type FocusEvent,
   type ReactElement,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -223,7 +224,7 @@ export function RoomViewHeader({
   const room = useRoom();
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const { slots, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
+  const { layout, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
@@ -257,7 +258,8 @@ export function RoomViewHeader({
   const [pinAnchor, setPinAnchor] = useState<HeaderPopupAnchor>();
   // The phone canvas chooser and schedules dialog outlive their opener moving into overflow.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<HeaderPopupAnchor>();
-  const canvasChooserMobile = useRef(mobile);
+  const canvasChooserLayout = useRef({ mobile, layout });
+  const focusedAction = useRef<HTMLElement>();
   const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
   const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
   const openSchedules = (opener?: HTMLButtonElement) =>
@@ -343,9 +345,9 @@ export function RoomViewHeader({
       // Run after the trap has let go, unless another control already received focus.
       requestAnimationFrame(() => {
         const target = headerFocusTarget(anchor?.opener);
-        if (target && target.ownerDocument.activeElement === target.ownerDocument.body) {
-          target.focus({ preventScroll: true });
-        }
+        if (!target) return;
+        const { activeElement, body } = target.ownerDocument;
+        if (!activeElement || activeElement === body) target.focus({ preventScroll: true });
       });
     },
     [headerFocusTarget]
@@ -354,6 +356,23 @@ export function RoomViewHeader({
     event.stopPropagation();
     restoreFocusAfterDismiss(anchor);
   };
+
+  const forgetActionFocus = ({ target, relatedTarget }: FocusEvent<HTMLDivElement>) => {
+    if (relatedTarget && relatedTarget !== target.ownerDocument.body) {
+      focusedAction.current = undefined;
+    } else {
+      queueMicrotask(() => {
+        if (target.isConnected && focusedAction.current === target)
+          focusedAction.current = undefined;
+      });
+    }
+  };
+  // Removing a focused node doesn't always emit focusout. Check its connection after the row commits.
+  useLayoutEffect(() => {
+    if (!focusedAction.current || focusedAction.current.isConnected) return;
+    focusedAction.current = undefined;
+    restoreFocusAfterDismiss();
+  });
 
   // An action in the room menu closes it before it acts where the menu's button was.
   const closeMenu = () => setMenuAnchor(undefined);
@@ -366,12 +385,13 @@ export function RoomViewHeader({
   const needsCanvasChooser = canvasesHere.length > 1;
   useLayoutEffect(() => {
     // The chooser's captured rect belongs to its old layout. Close it before painting the new one.
-    const crossedBreakpoint = canvasChooserMobile.current !== mobile;
-    canvasChooserMobile.current = mobile;
-    if (!canvasMenuAnchor || (!crossedBreakpoint && needsCanvasChooser)) return;
+    const previous = canvasChooserLayout.current;
+    const layoutChanged = previous.mobile !== mobile || previous.layout !== layout;
+    canvasChooserLayout.current = { mobile, layout };
+    if (!canvasMenuAnchor || (!layoutChanged && needsCanvasChooser)) return;
     setCanvasMenuAnchor(undefined);
-    if (crossedBreakpoint) restoreFocusAfterDismiss(canvasMenuAnchor);
-  }, [mobile, canvasMenuAnchor, needsCanvasChooser, restoreFocusAfterDismiss]);
+    if (layoutChanged) restoreFocusAfterDismiss(canvasMenuAnchor);
+  }, [mobile, layout, canvasMenuAnchor, needsCanvasChooser, restoreFocusAfterDismiss]);
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
   const chooseCanvas = (canvasId: string, anchor?: HeaderPopupAnchor) => {
     setCanvasMenuAnchor(undefined);
@@ -579,7 +599,7 @@ export function RoomViewHeader({
       }))
   );
   const promoted = selectPhoneHeaderActions(
-    mobile ? slots : 0,
+    mobile ? layout.slots : 0,
     entries
       .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
       .map((entry) => entry.id)
@@ -677,7 +697,15 @@ export function RoomViewHeader({
         </Box>
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
-      <Box shrink="No" alignItems="Center" gap="100">
+      <Box
+        shrink="No"
+        alignItems="Center"
+        gap="100"
+        onFocus={({ target, currentTarget }: FocusEvent<HTMLDivElement>) => {
+          if (currentTarget.contains(target)) focusedAction.current = target;
+        }}
+        onBlur={forgetActionFocus}
+      >
         {rowEntries.filter((entry) => !inMandatoryTail(entry)).map(drawRowEntry)}
         <Box
           alignItems="Center"

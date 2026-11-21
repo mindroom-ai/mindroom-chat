@@ -191,11 +191,17 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
 // jsdom does not lay out controls, including the buttons checked by the real focus trap.
 const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () => ReactNode) => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const headerObservers = new Set<() => void>();
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      observe() {}
-      disconnect() {}
+      constructor(private readonly resize: () => void) {}
+      observe(element: Element) {
+        if (element.tagName === 'HEADER') headerObservers.add(this.resize);
+      }
+      disconnect() {
+        headerObservers.delete(this.resize);
+      }
     }
   );
   const box = new DOMRect(0, 0, 40, 40);
@@ -221,6 +227,10 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () 
   return {
     host,
     rerender,
+    resize: (next: number) => {
+      width.mockReturnValue(next);
+      actInDom(() => headerObservers.forEach((resize) => resize()));
+    },
     unmount: () => {
       actInDom(() => root.unmount());
       host.remove();
@@ -882,6 +892,53 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       }
     }
   );
+
+  it('focuses More Options when a focused Members button loses its slot', async () => {
+    screen.size = 'Mobile';
+    const { host, unmount } = renderDomHeader({}, 250);
+    try {
+      const members = host.querySelector<HTMLButtonElement>('button[aria-label="Show Members"]')!;
+      members.focus();
+      expect(document.activeElement).toBe(members);
+      actInDom(() => run('running'));
+      expect(members.isConnected).toBe(false);
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+      );
+    } finally {
+      unmount();
+    }
+  });
+
+  it('closes the canvas chooser when the measured width changes within Mobile', async () => {
+    screen.size = 'Mobile';
+    const { host, resize, unmount } = renderDomHeader(
+      {
+        canvases,
+        onCanvasOpen: vi.fn(),
+        onCanvasClose: vi.fn(),
+      },
+      375
+    );
+    const menuItem = () =>
+      Array.from(host.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Garden map')
+      );
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+      actInDom(() => opener.click());
+      expect(menuItem()).toBeDefined();
+      resize(375);
+      const item = menuItem();
+      expect(item).toBeDefined();
+      item!.focus();
+      resize(667);
+      expect(menuItem()).toBeUndefined();
+      await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+    } finally {
+      unmount();
+    }
+  });
 
   it('does not reopen the chooser when two canvases become one and then two again', () => {
     const props = { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() };

@@ -30,7 +30,7 @@ export function usePhoneHeaderSlots(phone: boolean) {
   const headerRef = useRef<HTMLElement>(null);
   const callGroupRef = useRef<HTMLDivElement>(null);
   const mandatoryTailRef = useRef<HTMLDivElement>(null);
-  const [slots, setSlots] = useState(0);
+  const [layout, setLayout] = useState({ slots: 0, headerWidth: 0, mandatoryWidth: 0 });
   const measure = useCallback(() => {
     if (!phone) return;
     const header = headerRef.current;
@@ -38,17 +38,24 @@ export function usePhoneHeaderSlots(phone: boolean) {
     const more = tail?.querySelector('[data-room-more-options]');
     if (!header || !tail || !more) return;
     const headerStyle = getComputedStyle(header);
+    const headerWidth = header.clientWidth;
     const contentWidth =
-      header.clientWidth -
-      pixels(headerStyle.paddingInlineStart) -
-      pixels(headerStyle.paddingInlineEnd);
+      headerWidth - pixels(headerStyle.paddingInlineStart) - pixels(headerStyle.paddingInlineEnd);
     const gap = pixels(getComputedStyle(tail).columnGap);
     // More Options has the same 40 px icon button box as a promoted action, and tracks page zoom.
     const slotWidth = more.getBoundingClientRect().width + gap;
     const callWidth = callGroupRef.current?.getBoundingClientRect().width ?? 0;
     const mandatoryWidth =
       tail.getBoundingClientRect().width + (callWidth > 0 ? callWidth + gap : 0);
-    setSlots(getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth));
+    const slots = getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth);
+    // The chooser needs actual width changes even when the slot count is unchanged.
+    setLayout((previous) =>
+      previous.headerWidth === headerWidth &&
+      previous.mandatoryWidth === mandatoryWidth &&
+      previous.slots === slots
+        ? previous
+        : { slots, headerWidth, mandatoryWidth }
+    );
   }, [phone]);
   useLayoutEffect(measure, [measure]);
   // Observe only fixed groups, not the whole actions row: promotions never change these widths.
@@ -63,5 +70,5 @@ export function usePhoneHeaderSlots(phone: boolean) {
     [phone]
   );
   useResizeObserver(measure, observedElements);
-  return { slots, headerRef, callGroupRef, mandatoryTailRef };
+  return { layout, headerRef, callGroupRef, mandatoryTailRef };
 }
