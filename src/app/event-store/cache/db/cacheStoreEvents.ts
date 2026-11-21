@@ -16,7 +16,6 @@ import {
   stripRedactedRelationsFromRawEvent,
   type RelationSnapshotMode,
 } from '../../../matrix/eventRevision';
-import { withoutCachedEventAge } from '../eventCacheEditUtils';
 import { getCachedPaginationToken, mergeCachedPaginationTokens } from '../eventCacheTokenUtils';
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import {
@@ -114,9 +113,6 @@ const stripKnownRedactedRelations = <T extends Partial<IEvent>>(
 ): T[] =>
   rawEvents.map((rawEvent) => stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds) as T);
 
-const mergeCachedEventRevisions: typeof mergeRawEventRevisions = (current, incoming, mode) =>
-  withoutCachedEventAge(mergeRawEventRevisions(current, incoming, mode));
-
 const buildMergedEventRecord = (
   roomId: string,
   scope: string,
@@ -124,7 +120,7 @@ const buildMergedEventRecord = (
   previous: CachedEventRecord | undefined,
   relationSnapshotMode: RelationSnapshotMode
 ): CachedEventRecord => {
-  const rawEvent = mergeCachedEventRevisions(previous?.rawEvent, incoming, relationSnapshotMode);
+  const rawEvent = mergeRawEventRevisions(previous?.rawEvent, incoming, relationSnapshotMode);
   return {
     cacheKey: buildEventCacheKey(roomId, scope, incoming.event_id),
     roomId,
@@ -352,7 +348,7 @@ const runScrubRedactedRelationsTxn = async (
       ) {
         return undefined;
       }
-      const merged = tombstone ? mergeCachedEventRevisions(rawEvent, tombstone) : rawEvent;
+      const merged = tombstone ? mergeRawEventRevisions(rawEvent, tombstone) : rawEvent;
       return stripRedactedRelationsFromRawEvent(merged, redactedEventIds);
     };
 
@@ -538,7 +534,7 @@ const toRawEventInternal = (
 ): (Partial<IEvent> & { event_id: string; origin_server_ts: number }) | undefined => {
   if (!raw || typeof raw.event_id !== 'string' || raw.event_id.length === 0) return undefined;
   return {
-    ...withoutCachedEventAge(raw),
+    ...raw,
     event_id: raw.event_id,
     origin_server_ts:
       typeof raw.origin_server_ts === 'number' && Number.isFinite(raw.origin_server_ts)
@@ -772,11 +768,11 @@ export const loadCachedEventAcrossRoomScopes = async (
     const root = transaction.objectStore(META_STORE).get(buildMetaKey(roomId, eventId));
     transaction.oncomplete = () => {
       const rootEvent = (root.result as CachedMetaRecord | undefined)?.rootEvent;
-      let merged = withoutCachedEventAge(rootEvent);
+      let merged: Partial<IEvent> | undefined = rootEvent;
       // A copy that names another room lends nothing, and a thread root that does hides every copy.
       (request.result as CachedEventRecord[]).forEach((row) => {
         if (!isOtherRoomEvent(row.rawEvent, roomId))
-          merged = mergeCachedEventRevisions(merged, row.rawEvent);
+          merged = mergeRawEventRevisions(merged, row.rawEvent);
       });
       resolve(isOtherRoomEvent(rootEvent, roomId) ? undefined : merged);
     };
@@ -818,7 +814,7 @@ export const loadRoomOfflineEventBatch = async (
         resolve({ events: [...events.values()], nextEventId: [...events.keys()].at(-1) });
         return;
       }
-      events.set(row.eventId, mergeCachedEventRevisions(events.get(row.eventId), row.rawEvent));
+      events.set(row.eventId, mergeRawEventRevisions(events.get(row.eventId), row.rawEvent));
       cursor.continue();
     };
     request.onerror = () => reject(request.error);
@@ -1212,10 +1208,10 @@ export const loadCachedThreadRootsForRoom = async (
           .index(EVENTS_BY_ROOM_EVENT_INDEX)
           .getAll([roomId, meta.scope]);
         copies.onsuccess = () => {
-          let root = withoutCachedEventAge(meta.rootEvent);
+          let root = meta.rootEvent;
           (copies.result as CachedEventRecord[]).forEach((row) => {
             if (!isOtherRoomEvent(row.rawEvent, roomId))
-              root = mergeCachedEventRevisions(root, row.rawEvent);
+              root = mergeRawEventRevisions(root, row.rawEvent);
           });
           if (root?.event_id !== meta.scope) return;
           const rootEvent = root;
@@ -1251,10 +1247,10 @@ export const loadCachedThreadRootsForRoom = async (
             const relation = event.content?.['m.relates_to'];
             if (relation?.rel_type === 'm.thread' && relation.event_id === meta.scope) {
               if (!summaryLatest) {
-                entry.latestReply = withoutCachedEventAge(event);
+                entry.latestReply = event;
                 return;
               }
-              newerReplies.push(withoutCachedEventAge(event));
+              newerReplies.push(event);
               if (event.event_id === summaryLatest.event_id) {
                 entry.rootEvent = withNewestCachedReplies(rootEvent, newerReplies);
                 return;
@@ -1287,7 +1283,7 @@ const buildThreadEventPage = (
   isOtherRoomEvent(meta?.rootEvent, roomId)
     ? buildThreadEventPage(undefined, [], false, roomId)
     : {
-        rootEvent: withoutCachedEventAge(meta?.rootEvent),
+        rootEvent: meta?.rootEvent,
         events: orderedEvents,
         hasMoreBefore,
         beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
@@ -1603,12 +1599,12 @@ const runSaveThreadEventsTxn = async (
                 beforeTokenForEarliest
               ),
               rootEvent: cacheableRootEvent
-                ? mergeCachedEventRevisions(
+                ? mergeRawEventRevisions(
                     currentMeta?.rootEvent,
                     cacheableRootEvent,
                     relationSnapshotMode
                   )
-                : withoutCachedEventAge(currentMeta?.rootEvent),
+                : currentMeta?.rootEvent,
               expectedReplyCount: mergeThreadExpectedReplyCount(
                 currentMeta?.expectedReplyCount,
                 normalizedExpectedReplyCount,
