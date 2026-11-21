@@ -260,12 +260,15 @@ export function ThreadContextBanner({
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  if (!focusInside && !menu) shown.current = wanted;
+  const inUse = !!menu || (focusInside && !!focused.current?.isConnected);
+  if (!inUse) shown.current = wanted;
   const { compact, wholeTitle } = shown.current;
   useEffect(() => {
-    if (!focusInside) return undefined;
-    // Once the focus has moved (in the same task, to another control of the banner or out),
-    // see whether the control the banner last saw focused still has it.
+    const banner = bannerRef.current;
+    if (!focusInside || !banner) return undefined;
+    // Once the focus has moved (to another control of the banner or out) or the focused control
+    // went, see whether the control the banner last saw focused still has it, after what moved it
+    // (a closing popout hands the focus back to its button) is done.
     let timer: ReturnType<typeof setTimeout> | undefined;
     const settle = () => {
       clearTimeout(timer);
@@ -276,7 +279,18 @@ export function ThreadContextBanner({
       });
     };
     document.addEventListener('focusout', settle);
+    // A focused control that goes (Escape out of the title's field, Unsnooze, a tag's x, the tag
+    // picker's field in its popout) takes no focus event with it in Firefox and WebKit: the
+    // banner looks whenever the page's content changes, while it holds the focus.
+    const removed =
+      typeof MutationObserver === 'undefined'
+        ? undefined
+        : new MutationObserver(() => {
+            if (!focused.current?.isConnected) settle();
+          });
+    removed?.observe(banner.ownerDocument.body, { childList: true, subtree: true });
     return () => {
+      removed?.disconnect();
       clearTimeout(timer);
       document.removeEventListener('focusout', settle);
     };

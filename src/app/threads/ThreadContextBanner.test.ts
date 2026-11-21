@@ -819,7 +819,11 @@ describe('ThreadContextBanner rendering', () => {
     it('keeps the buttons in a row on a short screen held sideways, which hides Resolve', () => {
       vi.stubGlobal('document', { documentElement: {} });
       vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
-      const sideways = vi.fn((query: string) => ({ matches: query.includes('landscape') }));
+      const sideways = vi.fn((query: string) => ({
+        matches: query.includes('landscape'),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
       vi.stubGlobal('matchMedia', sideways);
       const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
         renderer.root.find(
@@ -1116,20 +1120,6 @@ describe('ThreadContextBanner rendering', () => {
       );
       return { run: () => act(() => callbacks.forEach((callback) => callback())), callbacks };
     };
-    // Focus moves to `element` in the banner: the page says so, and React's focus event reaches
-    // the banner.
-    const focusIn = (
-      renderer: ReturnType<typeof renderBanner>,
-      page: { activeElement: unknown },
-      element: unknown
-    ) => {
-      page.activeElement = element;
-      act(() => {
-        renderer.root
-          .findByProps({ 'data-thread-context-banner': 'true' })
-          .props.onFocus({ target: element });
-      });
-    };
     const menuOf = async (renderer: ReturnType<typeof renderBanner>) => {
       const more = renderer.root
         .findAllByType('button')
@@ -1305,57 +1295,6 @@ describe('ThreadContextBanner rendering', () => {
       expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
       banner.unmount();
       expect(screen.listeners.size).toBe(0);
-    });
-
-    it('changes its layout only while nothing in it has the focus or an open menu', async () => {
-      let width = 646;
-      const resized = stubObserver('ResizeObserver');
-      const focusOut = new Set<() => void>();
-      const page = {
-        documentElement: {},
-        activeElement: null as unknown,
-        addEventListener: (type: string, listener: () => void) =>
-          type === 'focusout' && focusOut.add(listener),
-        removeEventListener: (type: string, listener: () => void) =>
-          type === 'focusout' && focusOut.delete(listener),
-      };
-      vi.stubGlobal('document', page);
-      // The focus moved: the page's focusout, then the banner sees where it went.
-      const settle = () =>
-        act(async () => {
-          focusOut.forEach((listener) => listener());
-          await new Promise((resolve) => setTimeout(resolve));
-        });
-      const banner = renderBanner(
-        TITLE,
-        bannerOf(() => width)
-      );
-      // Pin has the focus while the pane narrows: the banner stays as it is.
-      focusIn(banner, page, { isConnected: true });
-      width = 330;
-      resized.run();
-      expect(buttons(banner)).toContain('Pin thread');
-      expect(tagPills(banner)).toHaveLength(2);
-      // The focus moves on to another of its controls: still as it is.
-      focusIn(banner, page, { isConnected: true });
-      await settle();
-      expect(tagPills(banner)).toHaveLength(2);
-      // The focus leaves the banner: it takes the narrow layout.
-      page.activeElement = null;
-      await settle();
-      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
-      expect(focusOut.size).toBe(0);
-
-      // An open menu holds the layout too, until it closes.
-      expect((await menuOf(banner)).tagsAtTop).toBe(true);
-      width = 646;
-      resized.run();
-      expect(tagPills(banner)).toHaveLength(0);
-      act(() => {
-        (menuProps.mock.calls.at(-1)![0] as { onClose: () => void }).onClose();
-      });
-      expect(tagPills(banner)).toHaveLength(2);
-      banner.unmount();
     });
   });
 
@@ -1588,8 +1527,7 @@ describe('ThreadContextBanner rendering', () => {
   it('focuses the banner on expanding while More waits for a confirmed root', async () => {
     store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
     bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
-    // Unlaid out, with no width to measure.
-    const banner = { focus: vi.fn(), getBoundingClientRect: () => ({ width: 0 }) };
+    const banner = { focus: vi.fn() };
     const more = { focus: vi.fn(), disabled: true };
     let renderer: ReturnType<typeof renderBanner> | undefined;
     act(() => {

@@ -14,8 +14,8 @@ export const useFloatingCards = (): boolean => useContext(FloatingCardsContext);
 const subscribeShortViewport = (onChange: () => void) => {
   if (typeof matchMedia !== 'function') return () => undefined;
   const query = matchMedia(shortViewport);
-  query.addEventListener?.('change', onChange);
-  return () => query.removeEventListener?.('change', onChange);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
 };
 
 const isShortViewport = () => typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
