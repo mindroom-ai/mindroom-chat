@@ -3,7 +3,7 @@ import type { MatrixEvent, RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString, rankMatches } from '../../lib/hooks/useAsyncSearch';
 import {
   mentionRank,
-  orderMentionCandidates,
+  filterAndOrderMentionCandidates,
   recentSenders,
   type SenderTimelines,
 } from './mentionRanking';
@@ -13,7 +13,7 @@ const member = (userId: string, name: string) =>
 
 // A MindRoom team: agents and the owner under `mindroom_`, beside people without the prefix.
 const scout = member('@mindroom_scout:example.org', 'Scout');
-const owner = member('@mindroom_router_ab12cd:example.org', 'MindRoom');
+const routerLab = member('@mindroom_router_ab12cd:example.org', 'Router Lab');
 const mind = member('@mindroom_mind:example.org', 'Mind');
 const mindy = member('@mindy:example.org', 'Mindy');
 const planner = member('@mindroom_daily_planner:example.org', 'Daily Planner');
@@ -59,26 +59,26 @@ describe('mentionRank', () => {
   });
 });
 
-describe('orderMentionCandidates', () => {
+describe('filterAndOrderMentionCandidates', () => {
   it('puts the latest sender first and keeps the rest in their order', () => {
-    expect(names(orderMentionCandidates([scout, mind, maya], [maya.userId]))).toEqual([
+    expect(names(filterAndOrderMentionCandidates([scout, mind, maya], [maya.userId]))).toEqual([
       'Maya Lin',
       'Scout',
       'Mind',
     ]);
   });
 
-  it('excludes the namespaced owner even when it spoke last', () => {
+  it('offers a possible namespaced owner last, even when it spoke last', () => {
     expect(
-      names(orderMentionCandidates([owner, scout, mind], [owner.userId, mind.userId]))
-    ).toEqual(['Mind', 'Scout']);
+      names(filterAndOrderMentionCandidates([routerLab, scout, mind], [routerLab.userId, mind.userId]))
+    ).toEqual(['Mind', 'Scout', 'Router Lab']);
   });
 
   it('excludes the default owner, not a person or agent with a similar user name', () => {
     const defaultOwner = member('@mindroom_router:example.org', 'MindRoom');
     const person = member('@router:example.org', 'Router');
     const routerBot = member('@mindroom_routerbot:example.org', 'Router Bot');
-    expect(names(orderMentionCandidates([defaultOwner, person, routerBot], []))).toEqual([
+    expect(names(filterAndOrderMentionCandidates([defaultOwner, person, routerBot], []))).toEqual([
       'Router',
       'Router Bot',
     ]);
@@ -103,7 +103,7 @@ describe('recentSenders', () => {
           liveTimeline: {
             getEvents: () => [
               event('m.room.message', maya.userId, 3),
-              event('m.reaction', owner.userId, 6),
+              event('m.reaction', routerLab.userId, 6),
             ],
           },
         },
