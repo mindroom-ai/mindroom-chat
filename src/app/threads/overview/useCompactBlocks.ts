@@ -11,7 +11,7 @@ const cardId = (element?: Element | null) =>
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
 type Geometry = {
   heights: Map<string, number>;
-  fresh: Map<string, string>;
+  fresh: Set<string>;
   visible: string[];
   gap: number;
   order?: string;
@@ -23,19 +23,12 @@ const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   rooms.set(memory, cache);
   const geometry = cache.get(roomId) ?? {
     heights: new Map(),
-    fresh: new Map(),
+    fresh: new Set(),
     visible: [],
     gap: 0,
   };
   cache.set(roomId, geometry);
   return geometry;
-};
-const revisions = new WeakMap<ThreadRecord, string>();
-const revisionOf = (record?: ThreadRecord) => {
-  if (!record) return '';
-  const key = revisions.get(record) ?? JSON.stringify([record.presentation, record.status]);
-  revisions.set(record, key);
-  return key;
 };
 
 type Options = {
@@ -73,9 +66,9 @@ export function useCompactBlocks(options: Options) {
     return { key, start, end: blocks.length };
   });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
-  const probe = blocks.findIndex((block) =>
-    block.some((id) => fresh.get(id) !== revisionOf(records?.get(id)))
-  );
+  // Card data refreshes do not relocate a measurement probe into the occupied scroll range.
+  // Live shells are remeasured on layout; only layout-context changes invalidate evicted heights.
+  const probe = blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const order = JSON.stringify(groups);
   const small = index.size <= 2 * BLOCK_CARDS;
   let firstScreen = heights.size === 0 ? 2 * BLOCK_CARDS : 0;
@@ -165,7 +158,7 @@ export function useCompactBlocks(options: Options) {
       const bottom = top + view.clientHeight;
       const visible: string[] = [];
       for (const id of liveIds) {
-        fresh.set(id, revisionOf(records?.get(id)));
+        fresh.add(id);
         if (!heights.has(id)) heights.set(id, 0);
       }
       for (const row of content.querySelectorAll<HTMLElement>(`${SHELL}, [data-compact-spacer]`)) {

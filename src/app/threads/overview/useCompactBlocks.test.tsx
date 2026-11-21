@@ -173,6 +173,27 @@ it('remeasures evicted cards after a font-size change without shrinking the old 
   expect(space()).toBe(10602.25);
 });
 
+it('does not probe already measured offscreen rows on an index-only refresh', () => {
+  const memory = new Map();
+  const id = '$row80';
+  const record = { status: { isUnread: true } } as ThreadRecord;
+  const records = new Map([[id, record]]);
+  const { container, rerender } = render(<List memory={memory} records={records} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  expect(view.dataset.complete).toBe('true');
+  const spacer = view.querySelector('[data-compact-spacer]');
+  rerender(
+    <List
+      memory={memory}
+      records={new Map([[id, { ...record, status: { ...record.status, isUnread: false } }]])}
+    />
+  );
+  expect(view.dataset.complete).toBe('true');
+  expect(view.querySelector('[data-scroll-anchor="$row80"]')).toBeNull();
+  expect(view.querySelector('[data-compact-spacer]')).toBe(spacer);
+});
+
 it('keeps filtered heights but rediscovers IDs that really left the index', () => {
   const memory = new Map();
   const id = '$row80';
