@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
   getHomeserver,
   getPrimaryCredentials,
@@ -16,10 +16,11 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
+import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
-test('following glass appears only while another reader follows the latest message', async ({
-  page,
-}, testInfo) => {
+const TITLE = 'following glass appears only while another reader follows the latest message';
+
+const followingGlass = async (page: Page, testInfo: TestInfo) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
   const secondary = getSecondaryCredentials();
   test.skip(!secondary, 'A second local Matrix account is required');
@@ -305,5 +306,20 @@ test('following glass appears only while another reader follows the latest messa
       }),
     ]);
     expect(results.filter((result) => result.status === 'rejected')).toEqual([]);
+  }
+};
+
+test(TITLE, async ({ page }, testInfo) => {
+  await followingGlass(page, testInfo);
+});
+
+test(`${TITLE} (WebKit)`, async ({ baseURL }, testInfo) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  const browser = await launchWebKit();
+  try {
+    const context = await browser.newContext({ baseURL });
+    await followingGlass(await context.newPage(), testInfo);
+  } finally {
+    await browser.close();
   }
 });
