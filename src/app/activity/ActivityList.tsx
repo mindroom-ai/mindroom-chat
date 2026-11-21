@@ -269,13 +269,14 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
               variant="Secondary"
               fill="None"
               radii="300"
+              className={css.ActionButton}
               onClick={() => setShowAutomations(false)}
             >
               <Text size="B300">{t('activity.hideAutomations')}</Text>
             </Button>
           ) : (
             <>
-              <Text size="T200" className={css.Grow}>
+              <Text size="T200" className={css.FooterText}>
                 {t('activity.automationsHidden', { count: hiddenAutomations })}
               </Text>
               <Button
@@ -283,6 +284,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
                 variant="Primary"
                 fill="None"
                 radii="300"
+                className={css.ActionButton}
                 onClick={() => setShowAutomations(true)}
               >
                 <Text size="B300">{t('activity.showAutomations')}</Text>
@@ -293,7 +295,14 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       )}
       {hasInvites && (
         <div className={css.Footer}>
-          <Button size="300" variant="Secondary" fill="None" radii="300" onClick={openInvites}>
+          <Button
+            size="300"
+            variant="Secondary"
+            fill="None"
+            radii="300"
+            className={css.ActionButton}
+            onClick={openInvites}
+          >
             <Text size="B300">{t('activity.allInvites')}</Text>
           </Button>
         </div>

@@ -8,10 +8,10 @@ import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadInd
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { holdOrder } from './useHeldThreadOrder';
 
-/** The sections in the order they show: Working on top, then as the workflow tabs. */
+/** The sections in workflow-tab order, with Needs you first. */
 export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
-  'working',
   'needsYou',
+  'working',
   'later',
   'done',
 ];
@@ -115,7 +115,7 @@ export const buildCompactThreadSections = ({
 
 /**
  * Held sections keep surviving cards in their displayed bucket and order. New cards join their
- * live bucket. Interaction holds keep empty headers; only at the top can a card move to Working.
+ * live bucket. Interaction holds keep empty headers.
  */
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
@@ -128,12 +128,7 @@ export const holdCompactThreadSections = (
   );
   return COMPACT_THREAD_SECTION_ORDER.flatMap((id) => {
     const members = live.flatMap((section) =>
-      section.rootIds.filter(
-        (rootId) =>
-          (interactionOnly && section.id === 'working'
-            ? section.id
-            : shownIn.get(rootId) ?? section.id) === id
-      )
+      section.rootIds.filter((rootId) => (shownIn.get(rootId) ?? section.id) === id)
     );
     const shownIds = shown.find((section) => section.id === id)?.rootIds;
     if (!members.length && (!shownIds || !keepEmptyHeaders)) return [];

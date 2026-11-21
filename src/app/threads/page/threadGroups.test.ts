@@ -184,13 +184,12 @@ describe('groupThreads', () => {
   });
 
   it('leaves a resolved thread with only a background approval out of Needs you', () => {
-    // The signals hold only requests asked after the resolve (readThreadSignals' resolvedTs).
-    const question = { eventId: '$q', senderId: 'a', text: 'q', options: [] };
+    // A foreground approval asked after the resolve still waits.
     const resolved = { isResolved: true, resolvedTs: 2000 };
     const job = item('job', resolved);
     job.entry.threadRecord.status.hasBackgroundApproval = true;
     const groups = groupThreads(
-      [job, item('askedAfter', resolved, { pendingQuestion: question })],
+      [job, item('askedAfter', resolved, { pendingApproval: approval })],
       'following',
       ME,
       '',

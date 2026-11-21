@@ -82,7 +82,7 @@ export type CompactRoomViewProps = {
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
-   * Set while the cards show in sections (Working, Needs you, Later and Done, each folding on its
+   * Set while the cards show in sections (Needs you, Working, Later and Done, each folding on its
    * own): the snooze clock the list was filtered at (`useThreadIndex`'s `snoozeNow`), which the
    * sections classify at too, so they show what the selected tab does.
    */
@@ -391,6 +391,7 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
+
   const heldSections = useMemo(() => {
     const shown = committed.current?.scope === scope ? committed.current.sections : undefined;
     return orderHeld && threadSections && shown
@@ -398,9 +399,8 @@ export function CompactRoomView({
       : threadSections;
   }, [away, interactionHeld, orderHeld, scope, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back. While the order is held, that section stays open when a card
-  // moving to Working brings a second one, so the cards under the pointer stay in view, until the
-  // hold lets go or the reader folds it from its header.
+  // other sections to come back. If another section appears, such as Working below Needs you,
+  // the original stays open until the hold lets go or the reader folds it.
   const soleSection = heldSections?.length === 1;
   const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
   const [, showFolds] = useReducer((count: number) => count + 1, 0);
@@ -460,7 +460,12 @@ export function CompactRoomView({
       )
     );
   }, [away, heldSections, listedRows, livePins, orderHeld, shownPins]);
-  const shownRows = useHeldThreadOrder(calmRows, orderHeld && !heldSections && !away, viewRef);
+  const shownRows = useHeldThreadOrder(
+    calmRows,
+    orderHeld && !heldSections && !away,
+    viewRef,
+    sectionOfRow
+  );
   useLayoutEffect(() => {
     committed.current = { scope, sections: heldSections, rows: shownRows, pins: shownPins };
     // Consume the explicit override on the next commit, even if scrolling did not reach the top.

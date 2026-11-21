@@ -12,7 +12,7 @@ import { COMPACT_THREAD_SECTION_ORDER } from './compactThreadSections';
 const COMPACT_ROOM_SECTIONS = 'compactRoomSections';
 
 /**
- * Whether Compact rooms show their cards in sections (Working, Needs you, Later, Done), and which
+ * Whether Compact rooms show their cards in sections (Needs you, Working, Later, Done), and which
  * sections are folded. One choice for the account in every room, where the filters and the sort
  * the filter bar sets are kept per room.
  */
