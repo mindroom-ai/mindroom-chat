@@ -13,6 +13,7 @@ import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
+import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import {
   readInteractiveQuestion,
   readInteractiveSourceEventId,
@@ -80,8 +81,6 @@ export const SIGNAL_EVENT_LIMIT = 40;
 /** A reply whose last edit came this long after it tells that its run finished. */
 export const FINISHED_AFTER_MS = 60_000;
 
-/** Who wrote the message an agent relays (MindRoom's router handoff). */
-const ORIGINAL_SENDER_KEY = 'com.mindroom.original_sender';
 const PREVIEW_LENGTH = 240;
 /** How long an agent's question waits for an answer before it stops asking. */
 export const QUESTION_WAITS_MS = 7 * 24 * 60 * 60 * 1000;

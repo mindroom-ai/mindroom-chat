@@ -1675,9 +1675,9 @@
     }
   },
   "threadNav": {
-    "layout": "Anordnung der Threads",
-    "layoutRecent": "Zuletzt",
-    "layoutSections": "Abschnitte",
+    "forMe": "Für mich",
+    "forMeHint": "Nur Threads, an denen du teilnimmst, in denen ein Agent für dich gepostet hat oder die du angepinnt hast",
+    "emptyForMe": "Noch keine Threads für dich",
     "group": "Gruppieren",
     "groupHint": "Nach Status gruppieren",
     "sections": {

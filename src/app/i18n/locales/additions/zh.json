@@ -1635,9 +1635,9 @@
     }
   },
   "threadNav": {
-    "layout": "讨论串布局",
-    "layoutRecent": "最近",
-    "layoutSections": "分区",
+    "forMe": "与我相关",
+    "forMeHint": "只显示你参与过、代理代你发过消息或你已置顶的讨论串",
+    "emptyForMe": "暂无与你相关的讨论串",
     "group": "分组",
     "groupHint": "按状态分组",
     "sections": {

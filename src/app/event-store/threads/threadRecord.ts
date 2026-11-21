@@ -6,6 +6,7 @@ import {
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getThreadStreamingState } from './useThreadStreamingState';
+import type { getBundledThreadPreviews } from './threadBundledPreviews';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from './recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
@@ -46,6 +47,8 @@ type BuildThreadRecordOptions = {
   room: Room;
   threadRootId: string;
   threadRootEvent?: MatrixEvent;
+  /** Reuse the bundle if the caller already read it. */
+  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
   summaryInfo?: ThreadSummaryInfo;
   fallbackSummaryInfo?: ThreadSummaryInfo;
   fallbackReplyCount?: number;
@@ -335,6 +338,7 @@ export const buildThreadRecord = ({
   room,
   threadRootId,
   threadRootEvent,
+  bundledPreviews,
   summaryInfo,
   fallbackSummaryInfo,
   fallbackReplyCount,
@@ -397,6 +401,7 @@ export const buildThreadRecord = ({
     threadRootId,
     thread,
     rootEvent: resolvedThreadRootEvent,
+    bundledPreviews,
     preferredSummaryInfo,
     preferredRootPreviewText: rootPreviewText,
     fallbackLatestReplyPreviewText,
