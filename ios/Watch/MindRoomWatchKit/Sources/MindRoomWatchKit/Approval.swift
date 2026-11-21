@@ -109,9 +109,14 @@ private func parseDate(_ value: String) -> Date? {
 /// (as the web client's `isMindroomAgentUserIdForViewer`).
 public enum MindRoomAgent {
     public static func isAgent(_ userId: String?, viewer: String) -> Bool {
-        guard let userId, let local = userId.dropFirst().split(separator: ":").first,
-              local.lowercased().hasPrefix("mindroom_") else { return false }
+        guard let userId, hasAgentName(userId) else { return false }
         return server(userId) != nil && server(userId) == server(viewer)
+    }
+
+    /// Whether an account is named as MindRoom names its agents, on any homeserver. Anyone can register such
+    /// a name elsewhere, so it tells how a reply was written and nothing about whom to trust.
+    static func hasAgentName(_ userId: String) -> Bool {
+        userId.dropFirst().split(separator: ":").first?.lowercased().hasPrefix("mindroom_") ?? false
     }
 
     private static func server(_ userId: String) -> Substring? {

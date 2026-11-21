@@ -2,10 +2,13 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
+  createDefaultThreadFilterState,
   createPrivateRoom,
   matrixFetch,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
+  sendStateEvent,
 } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -165,12 +168,16 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (test: string) => {
+const seed = async (test: string, extraThreads = 0) => {
   const username = `pps_${test}_${RUN}`;
-  const reader = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
-    method: 'POST',
-    body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
-  });
+  const reader = await matrixFetch<{ access_token: string; user_id: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
   // The rooms have an agent, as MindRoom rooms do, so they open in Compact.
   const agent = await registerAgentAccount(HOMESERVER, `pps${test}`);
   const create = (name: string) =>
@@ -198,7 +205,42 @@ const seed = async (test: string) => {
   await say(garden, text('Who waters the beds in the second week of July?'));
   const harbor = await create('Harbor Plans');
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
-  return { username, root };
+  const subjects = [
+    'Water the new plants',
+    'Plan the harvest',
+    'Mend the greenhouse',
+    'Clean the tools',
+  ];
+  const batchSize = Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1)
+    throw new Error('PAGE_SLIDE_SEED_CONCURRENCY must be a positive integer');
+  // Send roots in order so their timestamps are stable; batch the replies and resolutions.
+  for (let start = 0; start < extraThreads; start += batchSize) {
+    const batch: string[] = [];
+    for (let i = start; i < Math.min(start + batchSize, extraThreads); i += 1) {
+      batch.push(await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`)));
+    }
+    await Promise.all(
+      batch.map(async (id, index) => {
+        const i = start + index;
+        await say(garden, {
+          ...text('I added this to the garden checklist.'),
+          'm.relates_to': { rel_type: 'm.thread', event_id: id },
+        });
+        if (i % 4 !== 0) {
+          await sendStateEvent(
+            HOMESERVER,
+            reader.access_token,
+            garden,
+            'com.mindroom.thread.tags',
+            JSON.stringify([id, 'resolved']),
+            { set_by: reader.user_id, set_at: new Date().toISOString() }
+          );
+        }
+      })
+    );
+  }
+  return { username, root, userId: reader.user_id, roomId: garden };
 };
 
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
@@ -394,6 +436,290 @@ for (const engine of ENGINES) {
     });
   });
 }
+
+test('webkit: a held copy keeps clips and pictures through stage growth', async ({ browser }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
+  const { username, root } = await seed('clip');
+  await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+    await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+    const siblingY = await page.locator('[data-phone-stage]').evaluate(async (stage, pixel) => {
+      // Simulate the keyboard reducing the stage without fixing the copy to its initial height.
+      document.head.insertAdjacentHTML(
+        'beforeend',
+        `<style>
+        [data-phone-stage], [data-page-slide-copy] {
+          height: var(--test-height) !important; max-height: var(--test-height) !important;
+          flex: none !important;
+        }
+      </style>`
+      );
+      document.documentElement.style.setProperty('--test-height', '450px');
+      const phonePage = stage.querySelector('[data-phone-page]')!;
+      phonePage.insertAdjacentHTML(
+        'beforeend',
+        '<div data-probe-scroll style="position:absolute;top:0;left:0;height:140px;width:110px;overflow:auto;overflow-anchor:none;pointer-events:none">' +
+          '<div data-page-slide-clip><div style="height:400px">Far clip</div></div>' +
+          '<div style="height:1600px"></div><div data-probe-sibling style="height:350px">Visible sibling</div></div>' +
+          '<div data-near-clip data-page-slide-clip style="position:absolute;top:475px;left:120px;width:120px;overflow:auto;pointer-events:none">' +
+          `<div data-page-slide-row><img src="data:image/png;base64,${pixel}" width="32" height="32" alt="Garden avatar"></div></div>`
+      );
+      await phonePage.querySelector<HTMLImageElement>('[data-near-clip] img')!.decode();
+      const scroller = phonePage.querySelector<HTMLElement>('[data-probe-scroll]')!;
+      scroller.scrollTop = 2030;
+      return (
+        scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top
+      );
+    }, PIXEL.toString('base64'));
+    await card(page, root).tap();
+    const layout = await page.locator('[data-page-slide-copy]').evaluate(async (copy) => {
+      const stage = copy.parentElement!;
+      const clip = copy.querySelector('[data-near-clip]')!;
+      const scroller = copy.querySelector('[data-probe-scroll]')!;
+      const y =
+        scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top;
+      const visible = () => clip.getBoundingClientRect().top < stage.getBoundingClientRect().bottom;
+      const before = visible();
+      document.documentElement.style.setProperty('--test-height', '844px');
+      // Through a paint, so a resize callback that ended the slide would have run.
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      const canvas = clip.querySelector('canvas');
+      const alpha = canvas?.getContext('2d')?.getImageData(0, 0, 1, 1).data[3];
+      return { y, before, after: visible(), alpha, held: copy.isConnected };
+    });
+    expect(layout.held, 'the copy outlived the resize').toBe(true);
+    expect(layout.y).toBeCloseTo(siblingY, 0);
+    expect(layout.before).toBe(false);
+    expect(layout.after).toBe(true);
+    expect(layout.alpha, 'newly exposed avatar was drawn').toBeGreaterThan(0);
+  });
+});
+
+// The real guard: a seeded room with thousands of live nodes must not double its DOM.
+test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
+  test.setTimeout(240_000);
+  const threadCount = Number(process.env.PAGE_SLIDE_THREADS ?? 250);
+  const { username, userId, roomId } = await seed('long', threadCount);
+  await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+    await seedRoomOverviewState({
+      page,
+      userId,
+      roomId,
+      viewMode: 'compact',
+      filterState: { ...createDefaultThreadFilterState(), sortBy: 'natural' },
+    });
+    await page.evaluate((id) => {
+      localStorage.setItem(`compactRoomSections:${id}`, JSON.stringify({ on: true, folded: [] }));
+    }, userId);
+    await page.reload();
+    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+    await expect(drawer(page)).toBeHidden();
+    const view = '[data-compact-room-view]';
+    const cards = '[data-thread-root-id]';
+    const before = page.locator(`[data-phone-stage] > [data-phone-page] ${view}`);
+    // The original example includes a root with no replies, which older history may omit.
+    await expect
+      .poll(() => before.locator(cards).count(), { timeout: 90_000 })
+      .toBeGreaterThanOrEqual(threadCount);
+    await expect(before).not.toHaveAttribute('data-cards-pending', 'true');
+    const scroll = () =>
+      before.evaluate((view) => {
+        view.scrollTop = view.scrollHeight * 0.6;
+      });
+    await scroll();
+    const settleCards = () =>
+      expect
+        .poll(() =>
+          before.evaluate((scroller) =>
+            scroller
+              .getAnimations({ subtree: true })
+              .some((animation) =>
+                (animation.effect as KeyframeEffect | null)?.target?.hasAttribute('data-motion-row')
+              )
+          )
+        )
+        .toBe(false);
+    await settleCards();
+    const finishSlide = async () => {
+      await page.evaluate(() => {
+        document.getAnimations().forEach((animation) => {
+          if ((animation as CSSAnimation).animationName?.startsWith('phone-page-'))
+            animation.finish();
+        });
+      });
+      await takeSlides(page, 'the held slide');
+    };
+    const point = await before.evaluate((scroller) => {
+      const { x, y, width, height } = scroller.getBoundingClientRect();
+      const middle = x + width / 2;
+      const target = [0, 20, -20]
+        .map((offset) => y + height / 2 + offset)
+        .find((at) => document.elementFromPoint(middle, at)?.closest('[data-thread-root-id]'));
+      if (target === undefined) throw new Error('No card at the middle of the scroller');
+      return { x: middle, y: target };
+    });
+    await page.evaluate(() => {
+      let tap: number | undefined;
+      document.addEventListener(
+        'click',
+        () => {
+          tap = performance.now();
+        },
+        { capture: true, once: true }
+      );
+      document.addEventListener(
+        'animationstart',
+        (event) => {
+          const timing = window as unknown as { firstFrameMs?: number };
+          if (event.animationName === 'phone-page-under-out' && tap !== undefined)
+            timing.firstFrameMs ??= performance.now() - tap;
+        },
+        true
+      );
+    });
+    await page.touchscreen.tap(point.x, point.y);
+    const frameMs = await page
+      .waitForFunction(
+        () => (window as unknown as { firstFrameMs?: number }).firstFrameMs!,
+        undefined,
+        { timeout: 30_000 }
+      )
+      .then((time) => time.jsonValue());
+    await expect(threadColumn(page)).toBeVisible();
+    await finishSlide();
+    await threadBack(page).tap();
+    await expect(threadColumn(page)).toBeHidden();
+    await finishSlide();
+    await expect(before).not.toHaveAttribute('data-cards-pending', 'true');
+    await scroll();
+    await settleCards();
+    const initial = await before.evaluate((scroller, shooting) => {
+      const read = (scroller: Element) => {
+        const { top, bottom, left, right } = scroller.getBoundingClientRect();
+        const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
+          .map((row) => ({
+            id: row.dataset.threadRootId,
+            title: row.querySelector('[title]')?.getAttribute('title'),
+            rect: row.getBoundingClientRect(),
+          }))
+          .filter(
+            ({ rect }) =>
+              rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right
+          )
+          .map(({ id, title, rect }) => ({
+            id,
+            title,
+            y: rect.top - top,
+            x: rect.left - left,
+            width: rect.width,
+            height: rect.height,
+          }));
+        return {
+          nodes: scroller
+            .closest('[data-page-slide-copy], [data-phone-stage]')!
+            .querySelectorAll('*').length,
+          scrollTop: scroller.scrollTop,
+          scrollHeight: scroller.scrollHeight,
+          visible,
+          height: bottom - top,
+        };
+      };
+
+      type Layout = ReturnType<typeof read>;
+      let live: Layout | undefined;
+      document.addEventListener(
+        'click',
+        () => {
+          live = read(scroller);
+        },
+        { capture: true, once: true }
+      );
+      document.addEventListener('animationstart', (event) => {
+        if (event.animationName === 'phone-page-over-out') {
+          const still = document.querySelector('[data-page-slide-copy]');
+          (window as unknown as { backNodes?: number }).backNodes =
+            still?.querySelectorAll('*').length;
+        }
+        if (event.animationName !== 'phone-page-under-out' || !live) return;
+        const copy = document.querySelector('[data-page-slide-copy] [data-compact-room-view]');
+        const capture = window as unknown as {
+          snapshot?: { layout: Layout; live: Layout };
+        };
+        if (copy && !capture.snapshot) capture.snapshot = { layout: read(copy), live };
+      });
+      if (shooting) {
+        // Keep the held copy around for screenshots. 2_000 matches PLAY_MS in phonePageSlide.ts.
+        const clock: Window = window;
+        const later = clock.setTimeout.bind(clock);
+        clock.setTimeout = (handler, delay, ...args: unknown[]) =>
+          later(
+            handler,
+            delay === 2_000 && !!document.documentElement.dataset.pageSlide ? 120_000 : delay,
+            ...args
+          );
+      }
+      return read(scroller);
+    }, !!SHOTS);
+    expect(initial.nodes).toBeGreaterThan(6_000);
+    expect(initial.scrollTop).toBeGreaterThan(10_000);
+    expect(initial.visible.length).toBeGreaterThan(2);
+    expect(initial.visible.every(({ title }) => !!title)).toBe(true);
+
+    // A partial row or one behind the glass bars belongs in the copy, but is not a tap target.
+    const tappable = initial.visible.filter(
+      ({ y, height }) => y >= 80 && y + height <= initial.height - 80
+    );
+    const opened = tappable[Math.floor(tappable.length / 2)]!;
+    const viewBox = (await before.boundingBox())!;
+    await page.touchscreen.tap(
+      viewBox.x + opened.x + opened.width / 2,
+      viewBox.y + opened.y + opened.height / 2
+    );
+    const { layout: snapshot, live } = await page
+      .waitForFunction(
+        () => {
+          type Capture = { layout: typeof initial; live: typeof initial };
+          return (window as unknown as { snapshot?: Capture }).snapshot!;
+        },
+        undefined,
+        { timeout: 30_000 }
+      )
+      .then((capture) => capture.jsonValue());
+    console.log('Compact slide:', { frameMs, liveNodes: live.nodes, copyNodes: snapshot.nodes });
+    if (SHOTS) {
+      await page
+        .locator('[data-page-slide-copy] > *')
+        .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
+      await page.screenshot({ path: `${SHOTS}/webkit-large-compact-slide.png` });
+    }
+    await expect(threadColumn(page)).toBeVisible();
+    expect(snapshot.scrollTop).toBeCloseTo(live.scrollTop, 0);
+    expect(snapshot.scrollHeight).toBe(live.scrollHeight);
+    expect(snapshot.visible.map(({ id, title }) => ({ id, title }))).toEqual(
+      live.visible.map(({ id, title }) => ({ id, title }))
+    );
+    snapshot.visible.forEach((row, index) => {
+      for (const axis of ['x', 'y', 'width', 'height'] as const) {
+        expect(row[axis]).toBeCloseTo(live.visible[index]![axis], 0);
+      }
+    });
+    expect(snapshot.nodes).toBeLessThan(2_400);
+
+    await finishSlide();
+    await threadBack(page).tap();
+    const backNodes = await page
+      .waitForFunction(() => (window as unknown as { backNodes?: number }).backNodes!, undefined, {
+        timeout: 10_000,
+      })
+      .then((count) => count.jsonValue());
+    expect(backNodes).toBeLessThan(2_000);
+    await expect(threadColumn(page)).toBeHidden();
+    console.log('Compact back slide:', { copyNodes: backNodes });
+  });
+});
 
 const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)[number]) => {
   {

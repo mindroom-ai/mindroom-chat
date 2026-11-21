@@ -819,7 +819,11 @@ describe('ThreadContextBanner rendering', () => {
     it('keeps the buttons in a row on a short screen held sideways, which hides Resolve', () => {
       vi.stubGlobal('document', { documentElement: {} });
       vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
-      const sideways = vi.fn((query: string) => ({ matches: query.includes('landscape') }));
+      const sideways = vi.fn((query: string) => ({
+        matches: query.includes('landscape'),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
       vi.stubGlobal('matchMedia', sideways);
       const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
         renderer.root.find(
@@ -1024,6 +1028,313 @@ describe('ThreadContextBanner rendering', () => {
       const desktop = renderBanner();
       expect(rootTitle(desktop).props).toMatchObject({ className: 'SummaryText', truncate: true });
       desktop.unmount();
+    });
+  });
+
+  describe('in a narrow pane on a desktop', () => {
+    const TITLE = '🧪 Example thread with a long title that wraps';
+    const tagged = {
+      tags: {
+        alpha: { set_by: '@a:b', set_at: ISO_1 },
+        beta: { set_by: '@a:b', set_at: ISO_2 },
+      },
+      displayTags: ['alpha', 'beta'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: ['gamma'],
+    };
+    const buttons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAllByType('button')
+        .map((button) => button.props['aria-label'] ?? text(button));
+    const tagPills = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && /^(alpha|beta)$/.test(text(node))
+      );
+    const title = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
+    // The banner's node, in a slot as wide as `width()` says when it is measured (no padding or
+    // margins unless `getComputedStyle` gives them), and null for the other elements.
+    const bannerOf = (width: () => number) => (element: React.ReactElement) =>
+      (element.props as Record<string, unknown>)['data-thread-context-banner']
+        ? {
+            focus: vi.fn(),
+            contains: () => true,
+            getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
+            parentElement: {
+              get clientWidth() {
+                return width();
+              },
+            },
+          }
+        : null;
+    const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.find(
+        (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+      ).props.className as string;
+    // The menu the banner opens on a right click, as a collapsed pill offers it.
+    const contextMenuOf = async (renderer: ReturnType<typeof renderBanner>) => {
+      const banner = renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
+      const target = { contains: () => true };
+      // Async, so the lazy menu has rendered before its props are read.
+      await act(async () => {
+        banner.props.onContextMenu({
+          currentTarget: target,
+          target,
+          clientX: 0,
+          clientY: 0,
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+        });
+      });
+      return menuProps.mock.calls.at(-1)![0] as { tagsAtTop?: boolean; onClose: () => void };
+    };
+    // A short screen (the short viewport query matches) while `short()` says so; `turn()` tells
+    // the banner's listeners that it changed.
+    const shortScreen = (short = () => true) => {
+      const listeners = new Set<() => void>();
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query.includes('500px') && short(),
+        addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
+      }));
+      return { turn: () => act(() => listeners.forEach((listener) => listener())), listeners };
+    };
+    // Stubs the observer class `name`: `run()` calls back every one observing, in one update.
+    const stubObserver = (name: 'ResizeObserver' | 'MutationObserver') => {
+      const callbacks: (() => void)[] = [];
+      vi.stubGlobal(
+        name,
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            callbacks.push(this.callback);
+          }
+
+          disconnect() {
+            callbacks.splice(callbacks.indexOf(this.callback), 1);
+          }
+        }
+      );
+      return { run: () => act(() => callbacks.forEach((callback) => callback())), callbacks };
+    };
+    const menuOf = async (renderer: ReturnType<typeof renderBanner>) => {
+      const more = renderer.root
+        .findAllByType('button')
+        .find((button) => button.props['aria-haspopup'] === 'menu')!;
+      const trigger = {
+        focus: vi.fn(),
+        isConnected: true,
+        getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
+      };
+      await act(async () => more.props.onClick({ currentTarget: trigger }));
+      return menuProps.mock.calls.at(-1)![0] as { tagsAtTop?: boolean };
+    };
+
+    beforeEach(() => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      pinningMocks.canPin = true;
+      bannerMocks.useThreadTags.mockReturnValue(tagged);
+      screenSize = ScreenSize.Desktop;
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('lays a banner narrower than 36rem out as a phone does, tags and pin in More', async () => {
+      // A thread column beside the room's messages: 330 px of banner.
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 330)
+      );
+      expect(buttons(narrow)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(narrow)).toHaveLength(0);
+      expect(narrow.root.findAllByProps({ className: 'TagsRow CompactHidden' })).toHaveLength(0);
+      expect(narrow.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+      expect(title(narrow).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect((await menuOf(narrow)).tagsAtTop).toBe(true);
+      narrow.unmount();
+    });
+
+    it('keeps the desktop layout in a banner as wide as a conversation', async () => {
+      // A tablet's conversation beside the room list: 646 px.
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 646)
+      );
+      expect(buttons(wide)).toEqual(['Back', '+ tag', 'Thread options', 'Pin thread', 'Resolve']);
+      expect(tagPills(wide)).toHaveLength(2);
+      expect(wide.root.findByProps({ className: 'TagsRow CompactHidden' })).toBeDefined();
+      expect(wide.root.findByProps({ className: 'TitleRow' })).toBeDefined();
+      expect(title(wide).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect((await menuOf(wide)).tagsAtTop).toBe(false);
+      wide.unmount();
+    });
+
+    it('follows the banner as its pane resizes, and as Page Zoom moves 36rem', () => {
+      let width = 646;
+      let fontSize = '16px';
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
+      const resized = stubObserver('ResizeObserver');
+      const rootStyleChanged = stubObserver('MutationObserver');
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      expect(tagPills(banner)).toHaveLength(2);
+      width = 330;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(0);
+      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
+      width = 646;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(2);
+      // At 125% 36rem is 720 px, more than the banner has.
+      fontSize = '20px';
+      rootStyleChanged.run();
+      expect(tagPills(banner)).toHaveLength(0);
+      banner.unmount();
+      expect(resized.callbacks).toHaveLength(0);
+      expect(rootStyleChanged.callbacks).toHaveLength(0);
+    });
+
+    it("takes the slot's padding and the banner's margins off the slot's width", () => {
+      // 36rem is 576 px: a 600 px slot with 8 px of padding leaves a 592 px box, and the banner's
+      // 8 px margins on either side a 576 px banner, just wide enough.
+      vi.stubGlobal('getComputedStyle', (element: object) => {
+        if ('clientWidth' in element) return { paddingLeft: '0px', paddingRight: '8px' };
+        if ('focus' in element) return { marginLeft: '8px', marginRight: '8px' };
+        return { fontSize: '16px' };
+      });
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 600)
+      );
+      expect(tagPills(wide)).toHaveLength(2);
+      wide.unmount();
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 599)
+      );
+      expect(tagPills(narrow)).toHaveLength(0);
+      narrow.unmount();
+    });
+
+    it('keeps its layout while its slot has no width, and measures again once it has', () => {
+      let width = 646;
+      const resized = stubObserver('ResizeObserver');
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      expect(tagPills(banner)).toHaveLength(2);
+      // Hidden: no width, which says nothing about the banner's.
+      width = 0;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(2);
+      width = 330;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(0);
+      banner.unmount();
+    });
+
+    it('keeps a phone compact where its banner is wider than 36rem', () => {
+      // A 750 px phone has 710 px of banner, more than a tablet's 646 px that keeps the tags.
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner(
+        TITLE,
+        bannerOf(() => 710)
+      );
+      expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(phone)).toHaveLength(0);
+      phone.unmount();
+    });
+
+    it('keeps one truncated row on a short screen, the tags and the pin still in More', async () => {
+      // A large phone held sideways with the room list open: a tablet's width, a short screen.
+      shortScreen();
+      const short = renderBanner(
+        TITLE,
+        bannerOf(() => 466)
+      );
+      expect(rowClass(short)).toBe('TitleRow');
+      expect(title(short).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(title(short).props.tabIndex).toBeUndefined();
+      expect(buttons(short)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(short)).toHaveLength(0);
+      expect((await menuOf(short)).tagsAtTop).toBe(true);
+      short.unmount();
+    });
+
+    it("keeps a phone's layout on a phone held sideways, as before", () => {
+      shortScreen();
+      screenSize = ScreenSize.Mobile;
+      const sideways = renderBanner(
+        TITLE,
+        bannerOf(() => 627)
+      );
+      expect(rowClass(sideways)).toBe('TitleRow PhoneTitleRow');
+      expect(title(sideways).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      expect(tagPills(sideways)).toHaveLength(0);
+      sideways.unmount();
+    });
+
+    it('gives a collapsed pill the menu of its width, whether it was ever expanded or not', async () => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+      // Opened collapsed in a narrow pane: More lists the tags at its top.
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 330)
+      );
+      const menu = await contextMenuOf(narrow);
+      expect(menu.tagsAtTop).toBe(true);
+      act(() => menu.onClose());
+      // Expanded, it is compact; collapsed again, its menu is the same.
+      act(() => {
+        narrow.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick();
+      });
+      expect(tagPills(narrow)).toHaveLength(0);
+      expect(title(narrow).props.className).toBe('PhoneTitle');
+      act(() =>
+        store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true })
+      );
+      expect((await contextMenuOf(narrow)).tagsAtTop).toBe(true);
+      narrow.unmount();
+
+      // Opened collapsed in a wide one: the tags keep their own item.
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 646)
+      );
+      expect((await contextMenuOf(wide)).tagsAtTop).toBe(false);
+      wide.unmount();
+    });
+
+    it('follows the short screen query at the same width', () => {
+      let short = false;
+      const screen = shortScreen(() => short);
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => 466)
+      );
+      expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      // Turned sideways: one truncated row; the tags stay in More.
+      short = true;
+      screen.turn();
+      expect(rowClass(banner)).toBe('TitleRow');
+      expect(title(banner).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(tagPills(banner)).toHaveLength(0);
+      short = false;
+      screen.turn();
+      expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      banner.unmount();
+      expect(screen.listeners.size).toBe(0);
     });
   });
 

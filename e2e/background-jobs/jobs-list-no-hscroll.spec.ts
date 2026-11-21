@@ -122,7 +122,8 @@ for (const { rootSizes, ...viewport } of [
     test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
     test.setTimeout(4 * 60_000);
     await page.setViewportSize({ width: 1400, height: 860 });
-    const room = await openPanelRoom(context, page);
+    // With the usage details the rows are their widest: their number columns and the raw call.
+    const room = await openPanelRoom(context, page, { showUsageDetails: true });
     const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
     const powerLevels = await matrixFetch<Record<string, unknown>>(
       DISPOSABLE_HOMESERVER,

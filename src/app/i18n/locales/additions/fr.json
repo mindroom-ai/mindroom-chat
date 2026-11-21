@@ -449,7 +449,8 @@
         "voiceKey": "message vocal, micro, enregistrer, appuyer pour parler, Contrôle, Ctrl, Maj, Shift, Espace, raccourci clavier",
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
-        "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre"
+        "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
+        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -1110,6 +1111,27 @@
       },
       "stopTask": "Arrêter la tâche",
       "stopTaskFor": "Arrêter la tâche : {{tool}}",
+      "stopStepFailed": "Impossible d’arrêter « {{step}} ». Réessayez.",
+      "toolNames": {
+        "readFile": "Lire un fichier",
+        "writeFile": "Écrire un fichier",
+        "editFile": "Modifier un fichier",
+        "searchFiles": "Rechercher dans les fichiers",
+        "browseFiles": "Parcourir les fichiers",
+        "runCommand": "Exécuter une commande",
+        "openPage": "Ouvrir une page web",
+        "searchWeb": "Rechercher sur le web",
+        "useBrowser": "Utiliser le navigateur",
+        "checkMemory": "Consulter la mémoire",
+        "updateMemory": "Mettre à jour la mémoire",
+        "deleteMemory": "Supprimer un souvenir",
+        "useMessages": "Utiliser les messages Matrix",
+        "schedule": "Planifier une tâche",
+        "checkSchedule": "Consulter le planning",
+        "updateSchedule": "Mettre à jour le planning",
+        "cancelSchedule": "Annuler une tâche planifiée",
+        "use": "Utiliser {{tool}}"
+      },
       "jobTotal_one": "{{count}} tâche en arrière-plan",
       "jobTotal_many": "{{count}} tâches en arrière-plan",
       "jobTotal_other": "{{count}} tâches en arrière-plan",
@@ -1158,7 +1180,10 @@
       "toolCallsNote": "appels d'outils",
       "tokensSplit": "{{input}} entrée · {{output}} sortie",
       "costNested": "+{{cost}} imbriqués",
-      "costOwn": "cette exécution"
+      "costOwn": "cette exécution",
+      "showUsageDetails": "Afficher les détails d’utilisation",
+      "showUsageDetailsDescription": "Affiche les appels d’outils, les jetons et le coût des sous-agents et des tâches en arrière-plan, et ce que chacun fait en ce moment.",
+      "usage": "Utilisation"
     },
     "models": {
       "modelPicker": {

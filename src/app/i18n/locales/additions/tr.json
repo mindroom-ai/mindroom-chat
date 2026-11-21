@@ -440,7 +440,8 @@
         "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Control, Ctrl, Shift, boşluk, klavye kısayolu",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
-        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
+        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
+        "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -1086,6 +1087,27 @@
       },
       "stopTask": "Görevi durdur",
       "stopTaskFor": "Görevi durdur: {{tool}}",
+      "stopStepFailed": "“{{step}}” durdurulamadı. Tekrar deneyin.",
+      "toolNames": {
+        "readFile": "Dosya oku",
+        "writeFile": "Dosya yaz",
+        "editFile": "Dosya düzenle",
+        "searchFiles": "Dosyalarda ara",
+        "browseFiles": "Dosyalara göz at",
+        "runCommand": "Komut çalıştır",
+        "openPage": "Web sayfası aç",
+        "searchWeb": "Web’de ara",
+        "useBrowser": "Tarayıcıyı kullan",
+        "checkMemory": "Belleği kontrol et",
+        "updateMemory": "Belleği güncelle",
+        "deleteMemory": "Bir anıyı sil",
+        "useMessages": "Matrix mesajlarını kullan",
+        "schedule": "Görev planla",
+        "checkSchedule": "Planı kontrol et",
+        "updateSchedule": "Planı güncelle",
+        "cancelSchedule": "Planlanmış görevi iptal et",
+        "use": "{{tool}} kullan"
+      },
       "jobTotal_one": "{{count}} arka plan işi",
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
@@ -1127,7 +1149,10 @@
       "toolCallsNote": "araç çağrısı",
       "tokensSplit": "{{input}} giriş · {{output}} çıkış",
       "costNested": "+{{cost}} iç içe",
-      "costOwn": "bu çalıştırma"
+      "costOwn": "bu çalıştırma",
+      "showUsageDetails": "Kullanım ayrıntılarını göster",
+      "showUsageDetailsDescription": "Alt ajanlarda ve arka plan işlerinde araç çağrılarını, tokenleri ve maliyeti, ayrıca her birinin şu an ne yaptığını gösterir.",
+      "usage": "Kullanım"
     },
     "models": {
       "modelPicker": {

@@ -2661,9 +2661,6 @@
         "argumentsMayDifferBetweenCalls": "Los argumentos pueden variar entre llamadas.",
         "requestedBy": "Solicitado por {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "El agente enrutador está transcribiendo"
-      },
       "streamingIndicator": {
         "aiIsResponding": "La IA está respondiendo"
       },

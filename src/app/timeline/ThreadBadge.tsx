@@ -1,10 +1,17 @@
-import React, { useMemo, type ComponentPropsWithoutRef, type MouseEventHandler } from 'react';
+import React, {
+  useEffect,
+  useId,
+  useMemo,
+  type ComponentPropsWithoutRef,
+  type MouseEventHandler,
+} from 'react';
+import { useTranslation } from 'react-i18next';
 import { atom, useAtomValue } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Box, config } from 'folds';
+import { config, Text, Tooltip } from 'folds';
 import { ThreadIndicator, type ThreadIndicatorUnread } from '../messages/ThreadIndicator';
-import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
 import {
   crossRoomThreadIndexAtom,
@@ -12,7 +19,10 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { revealDirectionControls } from '../ui/directional';
+import { PopOut, revealDirectionControls } from '../ui/directional';
+import { useAnchoredCard } from '../ui/useAnchoredCard';
+import { MARKER_DETAILS_CLOSE_DELAY_MS } from '../messages/thread-summary/ThreadSummaryMarker';
+import { threadSummaryProvenance } from '../messages/thread-summary/threadSummaryProvenance';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
 // Read-only, so it holds nothing an account could leave behind.
@@ -51,12 +61,83 @@ type TimelineThreadIndicatorProps = Omit<
   threadRootId: string;
   /** The record's unread state, as the sidebar reads it; the signals only add a mention. */
   isUnread: boolean;
+  summaryInfo?: ThreadSummaryInfo;
 };
 
 /** The timeline's thread chip, which reads "New" while the thread is unread. */
-function TimelineThreadIndicator({ isUnread, ...props }: TimelineThreadIndicatorProps) {
+function TimelineThreadIndicator({
+  isUnread,
+  summaryInfo,
+  ...props
+}: TimelineThreadIndicatorProps) {
   const unread = useThreadUnread(props.room, props.threadRootId, isUnread);
-  return <ThreadIndicator {...props} unread={unread} />;
+  const { t } = useTranslation();
+  const descriptionId = useId();
+  const { open, triggerRef, cardRef, show, close, hover, onFocusLeave } = useAnchoredCard(
+    MARKER_DETAILS_CLOSE_DELAY_MS
+  );
+  const title = summaryInfo?.summaryText?.trim()
+    ? revealDirectionControls(summaryInfo.summaryText)
+    : undefined;
+  const description = title && summaryInfo ? threadSummaryProvenance(t, summaryInfo) : undefined;
+
+  useEffect(() => {
+    if (!description) close();
+    // A title can arrive after keyboard focus has already reached the pill.
+    else if (triggerRef.current?.matches(':focus-visible')) show('focus');
+  }, [description, close, show, triggerRef]);
+
+  return (
+    <>
+      <ThreadIndicator
+        {...props}
+        {...(description && hover)}
+        ref={triggerRef}
+        unread={unread}
+        threadTitle={title}
+        aria-describedby={description ? descriptionId : undefined}
+        onFocus={(event) => {
+          if (description && event.currentTarget.matches(':focus-visible')) show('focus');
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && description && open) {
+            // Dismiss the tooltip without handing Escape to the room's composer shortcut.
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+            return;
+          }
+          props.onKeyDown?.(event);
+        }}
+        onBlur={onFocusLeave}
+        onClick={(event) => {
+          close();
+          props.onClick?.(event);
+        }}
+      />
+      {description && (
+        <>
+          <span id={descriptionId} hidden>
+            {description}
+          </span>
+          {/* Mounted only while open: a closed PopOut still listens for window resizes, once per pill. */}
+          {open && (
+            <PopOut
+              style={{ pointerEvents: 'none' }}
+              anchor={open.anchor}
+              position="Top"
+              offset={4}
+              content={
+                <Tooltip ref={cardRef} role="tooltip" style={{ pointerEvents: 'auto' }} {...hover}>
+                  <Text size="T300">{description}</Text>
+                </Tooltip>
+              }
+            />
+          )}
+        </>
+      )}
+    </>
+  );
 }
 
 type ThreadBadgeProps = {
@@ -77,31 +158,21 @@ export const ThreadBadge = ({
   const { threadRootId } = model.id;
 
   return (
-    <>
-      {model.summaryInfo && (
-        <Box style={{ marginTop: config.space.S200 }}>
-          <ThreadSummaryCard
-            compact
-            summaryInfo={model.summaryInfo}
-            renderBody={({ body }) => <>{revealDirectionControls(body)}</>}
-          />
-        </Box>
-      )}
-      <TimelineThreadIndicator
-        as="button"
-        style={{ marginTop: model.summaryInfo ? config.space.S100 : config.space.S200 }}
-        data-thread-root-id={threadRootId}
-        data-event-id={threadRootId}
-        data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
-        threadReplyCount={model.replyCount}
-        threadParticipantIds={model.participantIds}
-        isResolved={model.isResolved}
-        isUnread={model.isUnread}
-        threadRootId={threadRootId}
-        room={room}
-        onClick={onClick}
-      />
-    </>
+    <TimelineThreadIndicator
+      as="button"
+      style={{ marginTop: config.space.S200 }}
+      summaryInfo={model.summaryInfo}
+      data-thread-root-id={threadRootId}
+      data-event-id={threadRootId}
+      data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
+      threadReplyCount={model.replyCount}
+      threadParticipantIds={model.participantIds}
+      isResolved={model.isResolved}
+      isUnread={model.isUnread}
+      threadRootId={threadRootId}
+      room={room}
+      onClick={onClick}
+    />
   );
 };
 

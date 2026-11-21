@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
+import { readDeepTraceSnapshot, setDeepTraceEnabled } from '../diagnostics/deepTrace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { conversationUnderThreadAtom } from './conversationCover';
@@ -98,6 +100,28 @@ afterEach(async () => {
 });
 
 describe('slidePhonePage', () => {
+  it('records an unmatched start until the shield is removed', async () => {
+    const page = browser();
+    await setDeepTraceEnabled(true, localStorage);
+    const events = async () =>
+      (await readDeepTraceSnapshot()).events.filter(({ name }) =>
+        name.startsWith('navigation.phone_slide.')
+      );
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      expect((await events()).map(({ name }) => name)).toEqual([
+        'navigation.phone_slide.forward.start',
+      ]);
+      await page.finish();
+      expect(await events()).toMatchObject([
+        { name: 'navigation.phone_slide.forward.start' },
+        { name: 'navigation.phone_slide.forward.end', data: { duration_ms: expect.any(Number) } },
+      ]);
+    } finally {
+      await setDeepTraceEnabled(false, localStorage);
+    }
+  });
   it('slides without a view transition of the browser', async () => {
     const page = browser();
     const startViewTransition = vi.fn();
@@ -155,6 +179,73 @@ describe('slidePhonePage', () => {
     endAnimation(still.querySelector('main'), 'phone-page-under-out');
     expect(copy()).toBeNull();
     expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('keeps the boxes of marked rows outside the clip without copying their contents', () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<div data-page-slide-clip>' +
+      '<div class="card" data-page-slide-row="above"><span>Above the clip</span></div>' +
+      '<div class="card" data-page-slide-row="visible"><span>Still visible</span></div>' +
+      '<div data-page-slide-row="gutter"><span>In the gutter</span></div>' +
+      '<div class="card" data-page-slide-row="below"><span>Below the clip</span></div></div>' +
+      '<div data-page-slide-row="other"><span>Outside the clip container</span></div>';
+    const view = stage.querySelector('[data-page-slide-clip]')!;
+    vi.stubGlobal('innerHeight', 844);
+    const rect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        if (this === stage) return new DOMRect(0, 0, 390, 844);
+        if (this === view) return new DOMRect(0, 180, 390, 470);
+        const y = { above: -800, visible: 300, gutter: 1200, below: 1550 }[
+          this.getAttribute('data-page-slide-row') ?? ''
+        ];
+        return new DOMRect(0, y ?? 2000, 380.5, 42.25);
+      });
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      const still = copy()!;
+      for (const at of ['above', 'below']) {
+        const row = still.querySelector<HTMLElement>(`[data-page-slide-row="${at}"]`)!;
+        expect(row.childNodes).toHaveLength(0);
+        expect(row.className).toBe('card');
+        expect([row.style.boxSizing, row.style.width, row.style.height]).toEqual([
+          'border-box',
+          '380.5px',
+          '42.25px',
+        ]);
+      }
+      expect(still.querySelector('[data-page-slide-row="visible"] > span')?.textContent).toBe(
+        'Still visible'
+      );
+      expect(still.querySelector('[data-page-slide-row="gutter"] > span')?.textContent).toBe(
+        'In the gutter'
+      );
+      expect(still.querySelector('[data-page-slide-row="other"] > span')?.textContent).toBe(
+        'Outside the clip container'
+      );
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('copies a clip with no layout box as an empty shell on Back', async () => {
+    const page = browser();
+    showThread(true);
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<div data-page-slide-clip style="display:none">' +
+      '<div data-page-slide-row><span>Hidden</span></div></div>';
+    slidePhonePage(() => showThread(false));
+    page.frame();
+    const shell = copy()?.querySelector<HTMLElement>('[data-page-slide-clip]');
+    expect(shell?.childElementCount).toBe(0);
+    expect(shell?.style.height).toBe('0px');
+    expect(page.plays).toEqual(['back']);
+    await page.finish();
+    expect(copy()).toBeNull();
   });
 
   it('draws in the copy the pictures the page shows, and loads none', async () => {

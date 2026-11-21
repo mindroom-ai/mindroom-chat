@@ -2612,9 +2612,6 @@
         "argumentsMayDifferBetweenCalls": "每次调用的参数可能不同。",
         "requestedBy": "由{{requester}}请求"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由智能体正在转写"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI正在响应"
       },

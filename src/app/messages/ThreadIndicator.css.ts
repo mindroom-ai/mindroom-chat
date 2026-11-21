@@ -45,6 +45,29 @@ export const ThreadIndicator = style([
   },
 ]);
 
+export const ThreadIndicatorTitled = style({
+  display: 'inline-grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  alignItems: 'start',
+  alignContent: 'center',
+  maxWidth: 'min(100%, 35rem)',
+});
+
+export const ThreadIndicatorBody = style({
+  fontSize: config.fontSize.L400,
+  lineHeight: toRem(18),
+  overflowWrap: 'anywhere',
+});
+
+export const ThreadIndicatorTitle = style({ fontWeight: 600 });
+
+export const ThreadIndicatorMetadata = style({
+  ...inlineRow,
+  gap: config.space.S100,
+  verticalAlign: 'middle',
+  whiteSpace: 'nowrap',
+});
+
 /** A resolved thread's chip takes the success tint and steps back a little. */
 export const ThreadIndicatorResolved = style({
   borderColor: color.Success.ContainerLine,
@@ -93,6 +116,9 @@ export const ThreadIndicatorLabel = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  selectors: {
+    [`${ThreadIndicatorTitled} &`]: { fontWeight: 500 },
+  },
 });
 
 export const ThreadParticipants = style({

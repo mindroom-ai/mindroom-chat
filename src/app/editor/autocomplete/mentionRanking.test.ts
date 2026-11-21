@@ -3,7 +3,7 @@ import type { MatrixEvent, RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString, rankMatches } from '../../lib/hooks/useAsyncSearch';
 import {
   mentionRank,
-  orderMentionCandidates,
+  filterAndOrderMentionCandidates,
   recentSenders,
   type SenderTimelines,
 } from './mentionRanking';
@@ -11,17 +11,16 @@ import {
 const member = (userId: string, name: string) =>
   ({ userId, name, rawDisplayName: name } as unknown as RoomMember);
 
-// A MindRoom team: agents under `mindroom_` (the router among them, here with the namespace an
-// installation can add), beside people whose user names carry no prefix.
+// A MindRoom team: agents and the owner under `mindroom_`, beside people without the prefix.
 const scout = member('@mindroom_scout:example.org', 'Scout');
-const router = member('@mindroom_router_ab12cd:example.org', 'RouterAgent');
+const routerLab = member('@mindroom_router_ab12cd:example.org', 'Router Lab');
 const mind = member('@mindroom_mind:example.org', 'Mind');
 const mindy = member('@mindy:example.org', 'Mindy');
 const planner = member('@mindroom_daily_planner:example.org', 'Daily Planner');
 const reviewer = member('@mindroom_code_reviewer:example.org', 'Ada');
 const maya = member('@maya.lin:example.org', 'Maya Lin');
 const berlin = member('@berlinbot:example.org', 'Berlin Bot');
-const team = [scout, router, mindy, mind, planner, reviewer, maya, berlin];
+const team = [scout, mindy, mind, planner, reviewer, maya, berlin];
 
 const names = (members: RoomMember[]) => members.map(({ rawDisplayName }) => rawDisplayName);
 const search = (query: string, members = team) =>
@@ -47,7 +46,7 @@ describe('mentionRank', () => {
 
   it('matches every agent by the prefix only when it is typed', () => {
     expect(search('mindroom_s')).toEqual(['Scout']);
-    expect(search('mindroom_')).toEqual(['Scout', 'RouterAgent', 'Mind', 'Daily Planner', 'Ada']);
+    expect(search('mindroom_')).toEqual(['Scout', 'Mind', 'Daily Planner', 'Ada']);
     expect(search('mindroom')).toEqual([]);
   });
 
@@ -60,28 +59,30 @@ describe('mentionRank', () => {
   });
 });
 
-describe('orderMentionCandidates', () => {
+describe('filterAndOrderMentionCandidates', () => {
   it('puts the latest sender first and keeps the rest in their order', () => {
-    expect(names(orderMentionCandidates([scout, mind, maya], [maya.userId]))).toEqual([
+    expect(names(filterAndOrderMentionCandidates([scout, mind, maya], [maya.userId]))).toEqual([
       'Maya Lin',
       'Scout',
       'Mind',
     ]);
   });
 
-  it('puts the router last, even when it spoke last', () => {
+  it('offers a possible namespaced owner last, even when it spoke last', () => {
     expect(
-      names(orderMentionCandidates([router, scout, mind], [router.userId, mind.userId]))
-    ).toEqual(['Mind', 'Scout', 'RouterAgent']);
+      names(
+        filterAndOrderMentionCandidates([routerLab, scout, mind], [routerLab.userId, mind.userId])
+      )
+    ).toEqual(['Mind', 'Scout', 'Router Lab']);
   });
 
-  it('knows the router only among agents', () => {
+  it('excludes the default owner, not a person or agent with a similar user name', () => {
+    const defaultOwner = member('@mindroom_router:example.org', 'MindRoom');
     const person = member('@router:example.org', 'Router');
     const routerBot = member('@mindroom_routerbot:example.org', 'Router Bot');
-    expect(names(orderMentionCandidates([router, person, routerBot], []))).toEqual([
+    expect(names(filterAndOrderMentionCandidates([defaultOwner, person, routerBot], []))).toEqual([
       'Router',
       'Router Bot',
-      'RouterAgent',
     ]);
   });
 });
@@ -104,7 +105,7 @@ describe('recentSenders', () => {
           liveTimeline: {
             getEvents: () => [
               event('m.room.message', maya.userId, 3),
-              event('m.reaction', router.userId, 6),
+              event('m.reaction', routerLab.userId, 6),
             ],
           },
         },

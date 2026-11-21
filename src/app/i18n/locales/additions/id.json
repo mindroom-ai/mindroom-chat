@@ -431,7 +431,8 @@
         "voiceKey": "pesan suara, mikrofon, rekam, tekan untuk bicara, Control, Ctrl, Shift, spasi, pintasan keyboard",
         "emoji": "emoji, stiker, paket, emoji kustom",
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
-        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
+        "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -1062,6 +1063,27 @@
       },
       "stopTask": "Hentikan tugas",
       "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "stopStepFailed": "Tidak dapat menghentikan “{{step}}”. Coba lagi.",
+      "toolNames": {
+        "readFile": "Baca file",
+        "writeFile": "Tulis file",
+        "editFile": "Edit file",
+        "searchFiles": "Cari di file",
+        "browseFiles": "Telusuri file",
+        "runCommand": "Jalankan perintah",
+        "openPage": "Buka halaman web",
+        "searchWeb": "Cari di web",
+        "useBrowser": "Gunakan browser",
+        "checkMemory": "Periksa memori",
+        "updateMemory": "Perbarui memori",
+        "deleteMemory": "Hapus memori",
+        "useMessages": "Gunakan pesan Matrix",
+        "schedule": "Jadwalkan tugas",
+        "checkSchedule": "Periksa jadwal",
+        "updateSchedule": "Perbarui jadwal",
+        "cancelSchedule": "Batalkan tugas terjadwal",
+        "use": "Gunakan {{tool}}"
+      },
       "jobTotal_other": "{{count}} tugas latar belakang",
       "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },
@@ -1096,7 +1118,10 @@
       "toolCallsNote": "panggilan alat",
       "tokensSplit": "{{input}} masuk · {{output}} keluar",
       "costNested": "+{{cost}} bertingkat",
-      "costOwn": "proses ini"
+      "costOwn": "proses ini",
+      "showUsageDetails": "Tampilkan detail penggunaan",
+      "showUsageDetailsDescription": "Menampilkan panggilan alat, token, dan biaya pada subagen dan tugas latar belakang, serta apa yang sedang dikerjakan masing-masing.",
+      "usage": "Penggunaan"
     },
     "models": {
       "modelPicker": {

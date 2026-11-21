@@ -62,7 +62,14 @@ const seedPanelRoom = async (): Promise<PanelRoom> => {
 export const openPanelRoom = async (
   context: BrowserContext,
   page: Page,
-  { canvas = {} }: { canvas?: Record<string, unknown> } = {}
+  {
+    canvas = {},
+    showUsageDetails,
+  }: {
+    canvas?: Record<string, unknown>;
+    // Shows sub-agents' and jobs' calls, tokens, cost and model, which the app starts without.
+    showUsageDetails?: boolean;
+  } = {}
 ): Promise<PanelRoom> => {
   const room = await seedPanelRoom();
   await context.route(`${COMPUTER_API}/**`, (route) =>
@@ -97,7 +104,7 @@ export const openPanelRoom = async (
       },
     });
   });
-  await loginWithPassword(page, { homeserver: HOMESERVER, ...room.viewer });
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...room.viewer, showUsageDetails });
   // The viewer docked the call view into the room's side column, where it is one of the side
   // panels; on desktop it otherwise floats in its own window (e2e/calls/call-window.spec.ts). The
   // room's page load below reads the setting.

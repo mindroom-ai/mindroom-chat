@@ -35,16 +35,19 @@ export function useAnchoredCard(closeDelayMs = 0) {
   const [open, setOpen] = useState<OpenCard>();
   const closeTimer = useRef<number>();
 
-  const cancelClose = () => window.clearTimeout(closeTimer.current);
+  const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), []);
   const close = useCallback(() => {
-    window.clearTimeout(closeTimer.current);
-    setOpen(undefined);
-  }, []);
-  const show = (mode: CardMode) => {
     cancelClose();
-    const trigger = triggerRef.current;
-    if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
-  };
+    setOpen(undefined);
+  }, [cancelClose]);
+  const show = useCallback(
+    (mode: CardMode) => {
+      cancelClose();
+      const trigger = triggerRef.current;
+      if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
+    },
+    [cancelClose]
+  );
   // Focus reached the card: the mouse leaving must not take it, nor a close the mouse already
   // started, or the focus in it would drop to the page.
   const pin = () => {

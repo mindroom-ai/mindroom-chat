@@ -758,7 +758,9 @@ const createToolTraceMarkerParserOptions = (
   traceEvents: ToolTraceEvent[] | undefined,
   metadataStatus: ToolMetadataStatus | undefined,
   // The markers a run of calls ends at, because reasoning or a compaction shows after them.
-  splitAfter: ReadonlySet<number>
+  splitAfter: ReadonlySet<number>,
+  // Whether a tool marker draws a row. Anyone can type one, so only an agent's does.
+  toolRows = true
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -795,7 +797,7 @@ const createToolTraceMarkerParserOptions = (
         };
 
         const buildItem = (element: Element): ToolRefItem | undefined => {
-          const toolRefPrefix = getToolRefPrefixFromElement(element);
+          const toolRefPrefix = toolRows && getToolRefPrefixFromElement(element);
           if (!toolRefPrefix) return undefined;
 
           const toolRef = parseToolRefHtml(toolRefPrefix.html);
@@ -1018,7 +1020,8 @@ export const readRenderedToolCalls = (
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>,
-  metadataStatus?: ToolMetadataStatus
+  metadataStatus?: ToolMetadataStatus,
+  toolRows = true
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
@@ -1044,6 +1047,12 @@ export const useToolTraceMarkerParserOptions = (
     const traceEvents = getToolTraceV2Events(toolTrace);
     const splitAfter = new Set(splitAfterKey ? splitAfterKey.split(',').map(Number) : []);
     return () =>
-      createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus, splitAfter);
-  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey]);
+      createToolTraceMarkerParserOptions(
+        baseOpts,
+        traceEvents,
+        metadataStatus,
+        splitAfter,
+        toolRows
+      );
+  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey, toolRows]);
 };

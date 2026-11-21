@@ -238,7 +238,7 @@ describe('timeline rows of an encrypted room', () => {
   });
 });
 
-describe('a voice message the router transcribed', () => {
+describe('a voice message with a folded transcript', () => {
   const voice = makeEvent('$voice', {
     content: { msgtype: 'm.audio', body: 'voice.ogg', url: 'mxc://example.org/voice' },
   }) as unknown as MatrixEvent;
@@ -254,6 +254,7 @@ describe('a voice message the router transcribed', () => {
   const paired = () => ({
     ...emptyData(),
     voiceTranscripts: {
+      ...NO_VOICE_TRANSCRIPTS,
       hiddenEventIds: new Set(['$echo']),
       byVoiceId: new Map([['$voice', echo]]),
     },

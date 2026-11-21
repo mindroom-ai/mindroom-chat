@@ -431,7 +431,8 @@
         "voiceKey": "음성 메시지, 마이크, 녹음, 눌러서 말하기, Control, Ctrl, Shift, 스페이스, 키보드 단축키",
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
-        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단"
+        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
+        "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -1062,6 +1063,27 @@
       },
       "stopTask": "작업 중지",
       "stopTaskFor": "작업 중지: {{tool}}",
+      "stopStepFailed": "‘{{step}}’을(를) 중지하지 못했습니다. 다시 시도하세요.",
+      "toolNames": {
+        "readFile": "파일 읽기",
+        "writeFile": "파일 쓰기",
+        "editFile": "파일 편집",
+        "searchFiles": "파일 검색",
+        "browseFiles": "파일 살펴보기",
+        "runCommand": "명령 실행",
+        "openPage": "웹 페이지 열기",
+        "searchWeb": "웹 검색",
+        "useBrowser": "브라우저 사용",
+        "checkMemory": "메모리 확인",
+        "updateMemory": "메모리 업데이트",
+        "deleteMemory": "기억 삭제",
+        "useMessages": "Matrix 메시지 사용",
+        "schedule": "작업 예약",
+        "checkSchedule": "일정 확인",
+        "updateSchedule": "일정 업데이트",
+        "cancelSchedule": "예약된 작업 취소",
+        "use": "{{tool}} 사용"
+      },
       "jobTotal_other": "백그라운드 작업 {{count}}개",
       "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
     },
@@ -1096,7 +1118,10 @@
       "toolCallsNote": "도구 호출",
       "tokensSplit": "입력 {{input}} · 출력 {{output}}",
       "costNested": "+{{cost}} 중첩",
-      "costOwn": "이 실행"
+      "costOwn": "이 실행",
+      "showUsageDetails": "사용량 세부 정보 표시",
+      "showUsageDetailsDescription": "하위 에이전트와 백그라운드 작업에 도구 호출, 토큰, 비용과 각각 지금 하는 일을 표시합니다.",
+      "usage": "사용량"
     },
     "models": {
       "modelPicker": {

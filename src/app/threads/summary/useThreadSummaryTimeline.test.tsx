@@ -40,6 +40,10 @@ class EncryptedEvent extends EventEmitter {
 
   getRelation = () => null;
 
+  getStateKey = () => undefined;
+
+  isRedacted = () => false;
+
   // The wire type stays encrypted after a failed attempt, as in the SDK.
   isEncrypted = () => true;
 
@@ -49,8 +53,8 @@ class EncryptedEvent extends EventEmitter {
     this.emit(MatrixEventEvent.Decrypted, this);
   }
 
-  decryptAs(content: Record<string, unknown>) {
-    this.type = 'm.room.message';
+  decryptAs(content: Record<string, unknown>, type = 'm.room.message') {
+    this.type = type;
     this.content = content;
     this.emit(MatrixEventEvent.Decrypted, this);
   }
@@ -87,6 +91,22 @@ describe('useThreadSummaryTimeline', () => {
     expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$s2']);
     act(() => renderer.unmount());
     expect(encrypted.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('folds title markers when the event between them decrypts to a reaction', () => {
+    const encrypted = new EncryptedEvent('$reaction');
+    const { plans, renderer } = renderPlan([
+      summary('$s1', 'Sketch a garden'),
+      encrypted as unknown as MatrixEvent,
+      summary('$s2', 'Plan a greenhouse'),
+    ]);
+    expect(plans.at(-1)!.hiddenEventIds.size).toBe(0);
+
+    act(() => encrypted.decryptAs({}, 'm.reaction'));
+
+    expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$s1']);
+    expect(plans.at(-1)!.markersByEventId.get('$s2')).toEqual({ first: true });
+    act(() => renderer.unmount());
   });
 
   it('plans a summary again when it decrypts after a failed attempt', () => {

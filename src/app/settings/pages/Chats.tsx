@@ -93,6 +93,12 @@ export function Chats({ requestClose }: SettingsPageProps) {
           description={t('mindroomUi.messages.showToolCallsDescription')}
         />
         <SettingSwitchTile
+          focusId="showUsageDetails"
+          setting="showUsageDetails"
+          title={t('mindroomUi.subagents.showUsageDetails')}
+          description={t('mindroomUi.subagents.showUsageDetailsDescription')}
+        />
+        <SettingSwitchTile
           focusId="mediaAutoLoad"
           setting="mediaAutoLoad"
           inverted

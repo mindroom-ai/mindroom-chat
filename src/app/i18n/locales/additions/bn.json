@@ -440,7 +440,8 @@
         "voiceKey": "ভয়েস বার্তা, মাইক্রোফোন, রেকর্ড, চেপে কথা বলুন, Control, Ctrl, Shift, স্পেস, কীবোর্ড শর্টকাট",
         "emoji": "ইমোজি, স্টিকার, প্যাক, কাস্টম ইমোজি",
         "errorReports": "ত্রুটি, ক্র্যাশ, বাগ, ডায়াগনস্টিক, টেলিমেট্রি, গোপনীয়তা",
-        "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান"
+        "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান",
+        "usage": "টোকেন, খরচ, দাম, মডেল, টুল কল, সাব-এজেন্ট, ব্যাকগ্রাউন্ড কাজ"
       },
       "errorReports": {
         "title": "ত্রুটির রিপোর্ট পাঠান",
@@ -1086,6 +1087,27 @@
       },
       "stopTask": "কাজ থামান",
       "stopTaskFor": "কাজ থামান: {{tool}}",
+      "stopStepFailed": "“{{step}}” থামানো যায়নি। আবার চেষ্টা করুন।",
+      "toolNames": {
+        "readFile": "ফাইল পড়ুন",
+        "writeFile": "ফাইল লিখুন",
+        "editFile": "ফাইল সম্পাদনা করুন",
+        "searchFiles": "ফাইলে খুঁজুন",
+        "browseFiles": "ফাইলগুলো দেখুন",
+        "runCommand": "কমান্ড চালান",
+        "openPage": "ওয়েব পেজ খুলুন",
+        "searchWeb": "ওয়েবে খুঁজুন",
+        "useBrowser": "ব্রাউজার ব্যবহার করুন",
+        "checkMemory": "মেমরি দেখুন",
+        "updateMemory": "মেমরি আপডেট করুন",
+        "deleteMemory": "একটি স্মৃতি মুছুন",
+        "useMessages": "Matrix বার্তা ব্যবহার করুন",
+        "schedule": "কাজ নির্ধারণ করুন",
+        "checkSchedule": "সময়সূচি দেখুন",
+        "updateSchedule": "সময়সূচি আপডেট করুন",
+        "cancelSchedule": "নির্ধারিত কাজ বাতিল করুন",
+        "use": "{{tool}} ব্যবহার করুন"
+      },
       "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
@@ -1127,7 +1149,10 @@
       "toolCallsNote": "টুল কল",
       "tokensSplit": "{{input}} ইন · {{output}} আউট",
       "costNested": "+{{cost}} নেস্টেড",
-      "costOwn": "এই রান"
+      "costOwn": "এই রান",
+      "showUsageDetails": "ব্যবহারের বিস্তারিত দেখান",
+      "showUsageDetailsDescription": "সাব-এজেন্ট ও ব্যাকগ্রাউন্ড কাজে টুল কল, টোকেন ও খরচ দেখায়, আর প্রত্যেকটি এখন কী করছে।",
+      "usage": "ব্যবহার"
     },
     "models": {
       "modelPicker": {

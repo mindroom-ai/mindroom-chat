@@ -265,7 +265,7 @@ describe('getMessageCopyTextSource', () => {
       source &&
         getMessageCopyTexts(
           source,
-          scanToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback)
+          scanToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback, true)
         )
     ).toEqual({ text: body });
   });
@@ -281,7 +281,7 @@ const copyTexts = (source: Omit<MessageCopyTextSource, 'plainBodyFallback'>) => 
   const fullSource = { plainBodyFallback: true, ...source };
   return getMessageCopyTexts(
     fullSource,
-    scanToolMarkerLines(fullSource.body, fullSource.formattedBody, true)
+    scanToolMarkerLines(fullSource.body, fullSource.formattedBody, true, true)
   );
 };
 const copy = (body: string, toolTraceEvents?: ToolTraceEvent[]) =>
@@ -315,6 +315,18 @@ describe('getMessageCopyTexts plain copy', () => {
     expect(
       copyText('Let me check.\n\n🔧 `search_web` [1]\n\n🔧 `read_file` [2] ⏳\n\nIt is sunny.')
     ).toBe('Let me check.\n\nIt is sunny.');
+  });
+
+  it('copies a marker line whole where it draws no tool row, as the text it shows as', () => {
+    // A person's message, or one of another homeserver's agent: the renderer shows all three lines.
+    const body = 'Before\n\n🔧 `shell` [1]\n\nAfter';
+    const formattedBody = '<p>Before</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>After</p>\n';
+    const source = { body, formattedBody, plainBodyFallback: false };
+    const copied = (toolRows: boolean) =>
+      getMessageCopyTexts(source, scanToolMarkerLines(body, formattedBody, false, toolRows));
+
+    expect(copied(false)).toEqual({ text: body });
+    expect(copied(true).text).toBe('Before\n\nAfter');
   });
 
   it('collapses wide gaps before markers to one blank line', () => {

@@ -1,4 +1,6 @@
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
+import { reactionOrEditEvent } from '../../matrix/room';
 
 /**
  * Which events get a row in the timeline, and how big media rows get. The renderer, the row
@@ -26,6 +28,14 @@ const MESSAGE_KINDS: ReadonlyMap<string, TimelineMessageKind> = new Map([
 /** How the timeline draws a message event, or undefined for a type it shows no message row for. */
 export const getTimelineMessageKind = (eventType: string): TimelineMessageKind | undefined =>
   MESSAGE_KINDS.get(eventType);
+
+/** Edits, reactions, redactions and unsupported event types have no timeline row. */
+export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
+  reactionOrEditEvent(event) ||
+  !!event.isRedaction?.() ||
+  (event.getStateKey() !== undefined
+    ? !NOTICE_STATE_EVENT_TYPES.has(event.getType())
+    : !getTimelineMessageKind(event.getType()));
 
 /** Text message types; their body is only as wide as their text. */
 export const TEXT_MSGTYPES: ReadonlySet<string> = new Set(['m.text', 'm.notice', 'm.emote']);

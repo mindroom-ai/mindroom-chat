@@ -440,7 +440,8 @@
         "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Strg, Ctrl, Umschalt, Shift, Leertaste, Tastenkürzel",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
-        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
+        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
+        "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -1086,6 +1087,27 @@
       },
       "stopTask": "Aufgabe stoppen",
       "stopTaskFor": "Aufgabe stoppen: {{tool}}",
+      "stopStepFailed": "„{{step}}“ konnte nicht gestoppt werden. Versuche es erneut.",
+      "toolNames": {
+        "readFile": "Datei lesen",
+        "writeFile": "Datei schreiben",
+        "editFile": "Datei bearbeiten",
+        "searchFiles": "Dateien durchsuchen",
+        "browseFiles": "Dateien durchsehen",
+        "runCommand": "Befehl ausführen",
+        "openPage": "Webseite öffnen",
+        "searchWeb": "Im Web suchen",
+        "useBrowser": "Browser verwenden",
+        "checkMemory": "Im Gedächtnis nachsehen",
+        "updateMemory": "Gedächtnis aktualisieren",
+        "deleteMemory": "Erinnerung löschen",
+        "useMessages": "Matrix-Nachrichten verwenden",
+        "schedule": "Aufgabe planen",
+        "checkSchedule": "Zeitplan prüfen",
+        "updateSchedule": "Zeitplan aktualisieren",
+        "cancelSchedule": "Geplante Aufgabe abbrechen",
+        "use": "{{tool}} verwenden"
+      },
       "jobTotal_one": "{{count}} Hintergrundaufgabe",
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
@@ -1127,7 +1149,10 @@
       "toolCallsNote": "Werkzeugaufrufe",
       "tokensSplit": "{{input}} ein · {{output}} aus",
       "costNested": "+{{cost}} verschachtelt",
-      "costOwn": "dieser Lauf"
+      "costOwn": "dieser Lauf",
+      "showUsageDetails": "Nutzungsdetails anzeigen",
+      "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens und Kosten bei Sub-Agenten und Hintergrundaufgaben und was jeweils gerade passiert.",
+      "usage": "Nutzung"
     },
     "models": {
       "modelPicker": {

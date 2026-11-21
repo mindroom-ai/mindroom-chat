@@ -53,6 +53,7 @@ export const ROAMING_SETTINGS = {
   hideMembershipEvents: 'hideMembershipEvents',
   hideNickAvatarEvents: 'hideNickAvatarEvents',
   showToolCalls: 'showToolCalls',
+  showUsageDetails: 'showUsageDetails',
   urlPreview: 'urlPreview',
   hideActivity: 'hideActivity',
   hour24Clock: 'hour24Clock',

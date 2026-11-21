@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { openSubagentsPanel } from '../navigation/subagentsPanel';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
@@ -49,6 +51,7 @@ type OpenMode = 'hover' | 'pinned';
  */
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const mx = useMatrixClient();
   const store = useStore();
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
@@ -81,8 +84,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
 
   const [open, setOpen] = useState<OpenMode>();
   const expanded = !!open;
-  // Only rows on show read the tool jobs' calls: the listed ones, or the folded bar's one job.
-  const lookups = useJobLookups(room, jobs, expanded || !several);
+  // Only rows on show follow the jobs' calls (a tool job's in its reply, a sub-agent's current one):
+  // the listed ones, or the folded bar's one job, and only with the usage details, as only they show
+  // a call.
+  const lookups = useJobLookups(room, jobs, details && (expanded || !several));
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
   const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
@@ -161,7 +166,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
 
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
-  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups);
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups, details);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
@@ -185,11 +190,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   };
   const stopJob = (item: BackgroundJobsBarItem, pressed: HTMLElement) => {
     focusNextCancel(pressed);
-    void cancel(
-      { jobId: item.jobId },
-      [item.jobId],
-      t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name })
-    );
+    // A tool job named in words is quoted, as a phrase within the sentence.
+    const failure =
+      item.plainName !== undefined
+        ? t('mindroomUi.backgroundJobs.stopStepFailed', { step: item.plainName })
+        : t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name });
+    void cancel({ jobId: item.jobId }, [item.jobId], failure);
   };
   const stopAll = () => {
     bar.current?.focus();
@@ -213,8 +219,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       );
     }
     if (!canCancel) return null;
-    // A task runs on apart from the reply, whose own Stop stops only the reply.
-    const label = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: item.name });
+    // A task runs on apart from the reply, whose own Stop stops only the reply. It names the job as
+    // its row does.
+    const label = t('mindroomUi.backgroundJobs.stopTaskFor', {
+      tool: item.plainName ?? item.name,
+    });
     return (
       <button
         key={item.jobId}
@@ -294,10 +303,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           expanded && glassDenseOverBackdrop,
           // A row's Thread button needs its slot in every row, so the buttons line up.
           model.items.some((item) => item.threadId !== null && item.threadId !== threadId) &&
-            css.WithThreads
+            css.WithThreads,
+          // Without the usage details, the rows have no number columns.
+          !details && css.Quiet
         )}
         role="region"
         aria-label={model.title}
+        data-jobs-bar=""
         onPointerLeave={(event: React.PointerEvent) => {
           if (event.pointerType !== 'mouse') return;
           window.clearTimeout(hoverTimer.current);
@@ -368,11 +380,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   ) : (
                     <span className={css.GroupName} />
                   )}
-                  {(['calls', 'tokens', 'cost'] as const).map((column) => (
-                    <span key={column} className={css.StatColumn} aria-hidden>
-                      {group.kind === 'subagent' && t(`mindroomUi.backgroundJobs.column.${column}`)}
-                    </span>
-                  ))}
+                  {details &&
+                    (['calls', 'tokens', 'cost'] as const).map((column) => (
+                      <span key={column} className={css.StatColumn} aria-hidden>
+                        {group.kind === 'subagent' &&
+                          t(`mindroomUi.backgroundJobs.column.${column}`)}
+                      </span>
+                    ))}
                   <span className={css.ColumnName} aria-hidden>
                     {t('mindroomUi.backgroundJobs.column.time')}
                   </span>

@@ -36,13 +36,13 @@ test('a running background job shows in the jobs bar until its Stop button cance
   const rootId = await startThread(stack, `${uniqueWord('job')} #job`);
   await showThread(page, stack, rootId);
 
-  const bar = page.getByRole('region', { name: 'Running: run_shell_command' });
+  const bar = page.getByRole('region', { name: 'Running: Run a command', exact: true });
   await expect(bar).toBeVisible({ timeout: 120_000 });
   await expect
     .poll(async () => (await threadJobs(stack, rootId)).map((job) => job.status))
     .toContain('running');
 
-  await bar.getByRole('button', { name: 'Stop task: run_shell_command' }).click();
+  await bar.getByRole('button', { name: 'Stop task: Run a command' }).click();
   await expect(bar).toBeHidden({ timeout: 60_000 });
   // The backend drops the job from the thread's running jobs.
   await expect

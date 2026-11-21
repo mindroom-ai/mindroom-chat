@@ -126,6 +126,7 @@ const render = (
                 }}
                 htmlReactParserOptions={{}}
                 markerContent={content}
+                toolRows
               />
             )}
           </ToolCallsFold>

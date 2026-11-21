@@ -1,3 +1,4 @@
+import { isDeepTraceRecording, recordDeepTraceEvent } from '../diagnostics/deepTrace';
 import { flushSync } from 'react-dom';
 import { NavigationType, type createBrowserRouter } from 'react-router-dom';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
@@ -18,6 +19,10 @@ export const PHONE_PAGE = 'data-phone-page';
 const PHONE_TOP_BAR = 'data-phone-top-bar';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
+/** A vertical scroll clip. */
+const CLIP = '[data-page-slide-clip]';
+/** A row in a clip becomes an empty box once it is more than one screen out of view. */
+const ROW = '[data-page-slide-row]';
 /** The slide's keyframes (phonePageSlide.css.ts), apart from any other animation in the page. */
 const KEYFRAMES = 'phone-page-';
 /** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
@@ -52,73 +57,107 @@ const depth = (): number => {
  * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
  * find twice, and loads and plays nothing: its pictures are drawn from the page's own. Its fields
  * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
+ * Copy what lies within one screen (max(screen.height, innerHeight)) of the visible stage in
+ * full, pictures included. Beyond that a marked row or clip leaves an empty box of its size.
  */
 const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
-  // Made in a document of its own, which loads nothing, and brought into the page's once what
-  // would load there has lost its source: the copy asks the network for nothing.
-  const copy = document.implementation
-    .createHTMLDocument('')
-    .importNode(stage, true) as HTMLElement;
-  const copies = copy.querySelectorAll<HTMLElement>('*');
-  const scrolled: [Element, number, number][] = [];
   const bounds = stage.getBoundingClientRect();
-  // A canvas is copied empty: each of these is drawn from what shows in the page.
+  // Keep a screen of rows on either side: the keyboard can go away or text can shrink mid-slide.
+  const buffer = Math.max(window.screen.height, window.innerHeight);
+  const buffered = { top: bounds.top - buffer, bottom: bounds.bottom + buffer };
+  // Read live geometry while writing only into a detached document. No write there can dirty
+  // the live layout, and nothing loads before the copy loses its media sources.
+  const still = document.implementation.createHTMLDocument('');
+  const scrolled: [Element, number, number][] = [];
   const drawn: [HTMLCanvasElement, HTMLCanvasElement | HTMLImageElement][] = [];
-  stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
-    const twin = copies[index];
-    if (!twin) return;
-    if (element.scrollTop || element.scrollLeft) {
-      scrolled.push([twin, element.scrollTop, element.scrollLeft]);
+  const sizeBox = (twin: HTMLElement, { width, height }: { width: number; height: number }) => {
+    Object.assign(twin.style, {
+      boxSizing: 'border-box',
+      width: `${width}px`,
+      height: `${height}px`,
+    });
+  };
+  const prepare = (element: Element, twin: Element): Element => {
+    const { scrollTop, scrollLeft } = element;
+    if (scrollTop || scrollLeft) scrolled.push([twin, scrollTop, scrollLeft]);
+    if (element instanceof HTMLCanvasElement && element.width && element.height) {
+      drawn.push([twin as HTMLCanvasElement, element]);
     }
-    if (element instanceof HTMLCanvasElement) {
-      if (element.width && element.height) drawn.push([twin as HTMLCanvasElement, element]);
-      return;
-    }
-    if (!element.matches(MEDIA)) return;
+    if (!(element instanceof HTMLElement) || !element.matches(MEDIA)) return twin;
+    const blank = twin as HTMLElement;
     ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading', 'alt'].forEach((name) =>
-      twin.removeAttribute(name)
+      blank.removeAttribute(name)
     );
-    // Anything that would load or play is a box of its size, and a picture the page has loaded
-    // shows in it as a canvas drawn from the page's own. A picture given its address again would
-    // load and decode anew: the copy would show empty boxes for its first frames, or for good
-    // where the address is gone (the app lets go of avatars it has not shown for a while, which
-    // the page still shows). A frame's page cannot be copied, and loading it or a video again
-    // would outlast the slide.
-    const { offsetWidth, offsetHeight } = element;
-    twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
-    if (!(element instanceof HTMLImageElement)) return;
+    // A frame, video or unloaded picture stays a blank box. A loaded picture is drawn from
+    // the page's own, even if the address (such as a revoked avatar URL) no longer works.
+    const { offsetWidth: width, offsetHeight: height } = element;
+    sizeBox(blank, { width, height });
+    if (!(element instanceof HTMLImageElement)) return blank;
     const { complete, naturalWidth, naturalHeight } = element;
-    // Only a picture the copy shows: not one of no size, nor one scrolled out of the layout.
-    const shows = element.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
     if (
       !complete ||
       !naturalWidth ||
       !naturalHeight ||
-      !shows.width ||
-      !shows.height ||
-      shows.right <= bounds.left ||
-      shows.left >= bounds.right ||
-      shows.bottom <= bounds.top ||
-      shows.top >= bounds.bottom
-    ) {
-      return;
-    }
-    const picture = twin.ownerDocument.createElement('canvas');
-    Array.from(twin.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
-    // In the picture's own shape, so it fills or fits its box as it did, and neither side sharper
-    // than its box shows on the screen: a large picture takes no memory of its full size.
-    // One far wider or taller than its box shows a little soft where it fills it, for the slide.
+      !box.width ||
+      !box.height ||
+      box.right <= bounds.left ||
+      box.left >= bounds.right ||
+      box.bottom < buffered.top ||
+      box.top > buffered.bottom
+    )
+      return blank;
+    const picture = still.createElement('canvas');
+    Array.from(blank.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
+    // Keep the picture's aspect ratio, with no more pixels than its box can show.
     const pixels = window.devicePixelRatio || 1;
-    const scale = Math.min(
-      1,
-      (offsetWidth / naturalWidth) * pixels,
-      (offsetHeight / naturalHeight) * pixels
-    );
+    const scale = Math.min(1, (width / naturalWidth) * pixels, (height / naturalHeight) * pixels);
     picture.width = Math.max(1, Math.round(naturalWidth * scale));
     picture.height = Math.max(1, Math.round(naturalHeight * scale));
-    twin.replaceWith(picture);
     drawn.push([picture, element]);
-  });
+    return picture;
+  };
+  const shellOf = (element: Element, box: DOMRect) => {
+    const shell = still.importNode(element, false) as HTMLElement;
+    sizeBox(shell, box);
+    return shell;
+  };
+  const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
+    if (element.matches(CLIP)) {
+      const view = element.getBoundingClientRect();
+      const { top, bottom } = clip ?? buffered;
+      if (!view.width || !view.height || view.bottom < top || view.top > bottom)
+        return shellOf(element, view);
+      clip = {
+        top: Math.max(top, view.top - buffer),
+        bottom: Math.min(bottom, view.bottom + buffer),
+      };
+    }
+    if (clip && element.matches(ROW)) {
+      const box = element.getBoundingClientRect();
+      if (box.bottom < clip.top || box.top > clip.bottom) return shellOf(element, box);
+    }
+    const split = !!element.querySelector(clip ? `${CLIP}, ${ROW}` : CLIP);
+    const twin = still.importNode(element, !split);
+    const prepared = element === stage ? twin : prepare(element, twin);
+    if (split) {
+      for (const child of element.childNodes) {
+        twin.appendChild(
+          child instanceof Element ? clone(child, clip) : still.importNode(child, false)
+        );
+      }
+    } else {
+      // With no clip or rows to split below us, use the browser's native deep clone.
+      const children = twin.querySelectorAll('*');
+      element.querySelectorAll('*').forEach((child, index) => {
+        const match = children[index]!;
+        const ready = prepare(child, match);
+        if (ready !== match) match.replaceWith(ready);
+      });
+    }
+    return prepared;
+  };
+  const copy = clone(stage) as HTMLElement;
   document.adoptNode(copy);
   drawn.forEach(([canvas, from]) =>
     canvas.getContext('2d')?.drawImage(from, 0, 0, canvas.width, canvas.height)
@@ -211,6 +250,7 @@ export const slidePhonePage = (change: Change): void => {
   let copy: HTMLElement | undefined;
   let watch: MutationObserver | undefined;
   let ended = false;
+  let trace: { direction: string; startedAt: number } | undefined;
   let finish: () => void = () => undefined;
   const finished = new Promise<void>((resolve) => {
     finish = resolve;
@@ -228,6 +268,15 @@ export const slidePhonePage = (change: Change): void => {
     delete root.dataset.pageSlide;
     delete root.dataset.pageSlideHeld;
     finish();
+    if (trace) {
+      try {
+        recordDeepTraceEvent(`navigation.phone_slide.${trace.direction}.end`, {
+          duration_ms: Math.round(performance.now() - trace.startedAt),
+        });
+      } catch {
+        // A diagnostics failure must not escape slide cleanup.
+      }
+    }
   };
   const run = (sliding: boolean) => {
     if (waiting !== changes) return;
@@ -260,7 +309,17 @@ export const slidePhonePage = (change: Change): void => {
       end();
       return;
     }
-    root.dataset.pageSlide = to > from ? 'forward' : 'back';
+    const direction = to > from ? 'forward' : 'back';
+    root.dataset.pageSlide = direction;
+    if (isDeepTraceRecording()) {
+      try {
+        trace = { direction, startedAt: performance.now() };
+        recordDeepTraceEvent(`navigation.phone_slide.${direction}.start`);
+      } catch {
+        // Diagnostics must not strand the input shield before its cleanup is armed.
+        trace = undefined;
+      }
+    }
     copy = show(stage);
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.

@@ -2612,9 +2612,6 @@
         "argumentsMayDifferBetweenCalls": "每次呼叫的引數可能不同。",
         "requestedBy": "由{{requester}}請求"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由 AI 代理正在轉錄"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI正在響應"
       },

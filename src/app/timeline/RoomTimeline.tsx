@@ -13,12 +13,19 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  RoomMemberEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+} from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
@@ -136,7 +143,14 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
+import {
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+  boundRoomRoster,
+  trustedRoomAccountIds,
+  trustedRouterUserId,
+} from '../matrix/protocol/routerBinding';
 import {
   InlineSecretRequestsContext,
   useDrawnSecretRequestIds,
@@ -147,6 +161,7 @@ import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
@@ -768,7 +783,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hideActivity,
   });
 
-  // Rows the thread's plans hide: repeated summaries and settled approvals.
   const getRowContent = useCallback(
     (event: MatrixEvent) =>
       getLatestMessageContent(
@@ -777,17 +791,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ) as Record<string, unknown>,
     [threadStateRef]
   );
-  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
-    getContent: getRowContent,
-    ignoredUserIds: ignoredUsersSet,
-    routeId: threadId ? eventId : undefined,
-    focusId: threadId ? focusItem?.eventId : undefined,
-  });
   // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
   // rows show them; one the route or a jump opened stays visible after the route moves on. The
   // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
@@ -887,27 +890,73 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
-  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
-  // Only from the router the room's state names, read again when that state or the levels change.
-  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  // Fold only messages from the bound account or joined accounts it vouches for.
+  // The SDK may redact and re-emit the same state event object.
+  const bindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBinding = bindingEvent?.isRedacted() ? undefined : bindingEvent;
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const routerUserId = trustedRouterUserId(
-    voiceRouterBinding,
-    powerLevels,
-    roomCreators,
-    rawPowerLevels
+  const boundUserId = useMemo(
+    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
+    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
   );
+  const rosterEvent = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
+  const roster = rosterEvent?.isRedacted() ? undefined : rosterEvent;
+  const rosterAccountIds = useMemo(
+    () => boundRoomRoster(boundUserId, roster),
+    [boundUserId, roster]
+  );
+  const [membershipRevision, refreshMembership] = useForceUpdate();
+  const joinedAccountIds = useMemo(() => {
+    void membershipRevision;
+    // A new roster can list someone whose membership changes we were not following before.
+    void rosterAccountIds;
+    return new Set(room.getJoinedMembers().map((member) => member.userId));
+  }, [room, membershipRevision, rosterAccountIds]);
+  const trustedAccountIds = useMemo(
+    () => trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet),
+    [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]
+  );
+  const viewerId = mx.getUserId() ?? undefined;
+  useLayoutEffect(() => {
+    const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
+      if (
+        member.roomId === room.roomId &&
+        (member.membership === 'join') !== (previous === 'join') &&
+        (member.userId === boundUserId || rosterAccountIds.has(member.userId))
+      ) {
+        refreshMembership();
+      }
+    };
+    mx.on(RoomMemberEvent.Membership, onMembership);
+    return () => {
+      mx.removeListener(RoomMemberEvent.Membership, onMembership);
+    };
+  }, [mx, room.roomId, boundUserId, rosterAccountIds, refreshMembership]);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
-    routerUserId,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
+    viewerId,
+    expectsAnswer: () =>
+      room
+        .getJoinedMembers()
+        .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
+    hasThreadReplies: (event) => {
+      const id = event.getId();
+      return (
+        (getKnownThreadReplyCount(event) ?? 0) > 0 ||
+        (!!id &&
+          ((threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 ||
+            (room.getThread(id)?.length ?? 0) > 0))
+      );
+    },
   });
-  // The open thread's model changes the same router applied: one line each at its reply, the
+  // The open thread's model changes these accounts applied: one line each at its reply, the
   // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,
   // as does a change with a row the route or a jump opened, a reply a plugin hides (its command
   // shows without it; asked of the row as it reads now, as one that decrypts in place brings no
@@ -916,7 +965,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
-    routerUserId,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     keeps: (id) =>
       pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),
@@ -929,6 +978,46 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     viewerId: mx.getUserId() ?? undefined,
     isHidden: (event) => isHiddenByPlugin(event) || modelChanges.byAckId.has(event.getId() ?? ''),
     revealed: pluginRevealedRef.current,
+  });
+  const isHiddenBeforeFolding = useCallback(
+    (event: MatrixEvent) =>
+      isTimelineRowHidden(event, {
+        messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
+        ignoredUsersSet,
+        showHiddenEvents,
+        isHiddenByPlugin,
+      }),
+    [
+      approvalTimeline,
+      voiceTranscripts,
+      replyCards,
+      modelChanges,
+      ignoredUsersSet,
+      showHiddenEvents,
+      isHiddenByPlugin,
+    ]
+  );
+  // Cards eligible to move into a reply do not split titles. Read the plan, not the mounted
+  // lines: which replies mount depends on the folds.
+  const isTitleRowHidden = useMemo(() => {
+    const inlineCardIds = new Set<string>();
+    secretRequestPlan.byReply.forEach((calls) =>
+      calls.forEach(({ eventId }) => inlineCardIds.add(eventId))
+    );
+    return (event: MatrixEvent) =>
+      isHiddenBeforeFolding(event) || inlineCardIds.has(event.getId() ?? '');
+  }, [isHiddenBeforeFolding, secretRequestPlan.byReply]);
+  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
+    history: {
+      sdkLoaded: session.snapshot.open.sdkReady,
+      canPaginateBack: threadState.canPaginateThreadBack,
+      hasMoreCachedBack: threadHasMoreCachedBack,
+    },
+    getContent: getRowContent,
+    isHidden: isTitleRowHidden,
+    rowRepaintRevision: feature.rowRepaintRevision,
+    routeId: threadId ? eventId : undefined,
+    focusId: threadId ? focusItem?.eventId : undefined,
   });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
@@ -943,33 +1032,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ),
     [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
   );
-  // A secret request card counts as a row of its turn whether or not a reply draws it now: the
-  // folds would hide that reply, and so change what it draws.
+  // Secret request cards still count as rows of their turns: folding a reply can unmount its
+  // inline line and give the card its own row again.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
-      isTimelineRowHidden(event, {
-        messageData: {
-          approvalTimeline,
-          threadSummaryTimeline,
-          secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
-          voiceTranscripts,
-          replyCards,
-          modelChanges,
-        },
-        ignoredUsersSet,
-        showHiddenEvents,
-        isHiddenByPlugin,
-      }),
-    [
-      approvalTimeline,
-      ignoredUsersSet,
-      isHiddenByPlugin,
-      replyCards,
-      modelChanges,
-      showHiddenEvents,
-      threadSummaryTimeline,
-      voiceTranscripts,
-    ]
+      threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),
+    [isHiddenBeforeFolding, threadSummaryTimeline]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
   const turnPinnedIds = useMemo(() => {

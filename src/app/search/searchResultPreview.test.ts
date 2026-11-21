@@ -1,5 +1,6 @@
 import { MsgType, RelationType } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import {
   getSearchResultBodySnippet,
@@ -164,6 +165,54 @@ describe('getSearchResultPreviewText', () => {
     expect(preview).toContain('ISSUE-024');
     expect(preview.startsWith('…')).toBe(true);
     expect(preview.endsWith('…')).toBe(true);
+  });
+});
+
+describe('a search hit of a reply with tool calls', () => {
+  const AGENT = '@mindroom_helper:example.org';
+  const calls = [{ type: 'tool_call_completed', tool_name: 'shell' }];
+  const built = {
+    msgtype: 'm.text',
+    body: 'The walrus plan.\n\n🔧 `shell` [1]\n\nDone.',
+    format: 'org.matrix.custom.html',
+    formatted_body: '<p>The walrus plan.</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>Done.</p>\n',
+    'io.mindroom.tool_trace': { version: 2, events: calls },
+  };
+  // As Matrix holds the reply: its marker out of its text, the call's place on its entry.
+  const held = {
+    ...built,
+    body: 'The walrus plan.\n\nDone.',
+    formatted_body: '<p>The walrus plan.</p>\n<p>Done.</p>\n',
+    'io.mindroom.tool_trace': { version: 3, events: [{ ...calls[0], body_line: 2, at: 1 }] },
+  };
+  const hit = (sender: string, content: Record<string, unknown>) =>
+    ({ type: MessageEvent.RoomMessage, sender, content } as never);
+
+  beforeAll(() => trustAgentsOfViewer('@reader:example.org'));
+
+  it("previews an agent's reply as it was built, its calls where they stood", () => {
+    expect(getSearchResultPreviewText(hit(AGENT, held))).toBe(
+      getSearchResultPreviewText(hit(AGENT, built))
+    );
+    expect(getSearchResultPreviewText(hit(AGENT, held))).toContain('plan. 🔧 `shell` [1] Done.');
+    const { body, formatted_body: html } = getSearchResultEffectiveContent(hit(AGENT, held));
+    expect([body, html]).toEqual([built.body, built.formatted_body]);
+  });
+
+  it('previews the content it is given, without reading the hit again', () => {
+    const content = getSearchResultEffectiveContent(hit(AGENT, held));
+    expect(
+      getSearchResultPreviewText(hit(AGENT, held), [], undefined, {
+        ...content,
+        body: 'Read once.',
+      })
+    ).toBe('Read once.');
+  });
+
+  it("puts no calls in anyone else's message", () => {
+    expect(getSearchResultPreviewText(hit('@someone:example.org', held))).toBe(
+      'The walrus plan. Done.'
+    );
   });
 });
 

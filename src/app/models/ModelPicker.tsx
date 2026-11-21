@@ -74,7 +74,7 @@ export type DefaultSource = 'agent' | 'room' | 'unknown';
 
 /**
  * What the default row says: its source, each agent's model by name ("DevAgent · Opus", or
- * "DevAgent: Opus · Analyst: Sol"), empty before the router names them, and whether `!room_model` set it.
+ * "DevAgent: Opus · Analyst: Sol"), empty before an agent names them, and whether `!room_model` set it.
  */
 export const describeDefault = (
   inherited: ModelPickerState['inherited'],

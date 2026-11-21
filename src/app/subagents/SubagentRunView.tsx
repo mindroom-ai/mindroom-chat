@@ -27,7 +27,9 @@ import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { Time } from '../messages/Time';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { settingsAtom } from '../preferences/settings';
 import { useHour24Clock } from '../preferences/useHour24Clock';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
@@ -210,9 +212,11 @@ const nestedTotals = (node: SubagentNode): RunTotals => {
 /**
  * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
  * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
- * turns' (`runTotals`); a count it does not send is left out.
+ * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure
+ * its cells are what it used alone.
  */
 function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotals; time: string }) {
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { meta } = latestTurn(node);
@@ -224,13 +228,13 @@ function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotal
     costNote = t('mindroomUi.subagents.costNested', {
       cost: formatCostUsd(below.costUsd, language),
     });
-  const cells = [
-    {
-      key: 'status',
-      name: t('mindroomUi.subagents.status'),
-      value: <RunStatus meta={meta} />,
-      note: time,
-    },
+  const status = {
+    key: 'status',
+    name: t('mindroomUi.subagents.status'),
+    value: <RunStatus meta={meta} />,
+    note: time,
+  };
+  const used = [
     {
       key: 'calls',
       name: t('mindroomUi.backgroundJobs.column.calls'),
@@ -260,7 +264,8 @@ function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotal
         ]
       : []),
   ];
-  return (
+  const cells = details ? [status, ...used] : used;
+  const strip = (
     <dl className={css.Strip} data-subagent-strip="">
       {cells.map((cell) => (
         <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
@@ -284,6 +289,17 @@ function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotal
       ))}
     </dl>
   );
+  return details ? (
+    strip
+  ) : (
+    <details className={css.Usage} data-subagent-usage="">
+      <summary className={css.UsageSummary}>
+        <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
+        {t('mindroomUi.subagents.usage')}
+      </summary>
+      {strip}
+    </details>
+  );
 }
 
 type ViewProps = {
@@ -304,7 +320,8 @@ type ViewProps = {
 /**
  * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
  * sub-agents that turn started, then its reply. A reader at the end follows new text until they
- * scroll up.
+ * scroll up. Without the usage details (`showUsageDetails`) no line says what it does now, and what
+ * it used folds into a closed Usage; its model stays in the header.
  */
 export function SubagentRunView({
   room,
@@ -324,6 +341,7 @@ export function SubagentRunView({
   const { run: newestRun, meta } = newest;
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const { threadId } = meta;
   const first = node.turns[0].run.meta;
@@ -334,7 +352,7 @@ export function SubagentRunView({
   // Stop cancels the newest turn's job, so it is named for that turn's task.
   const turnName = turnTitle(meta, agent.name);
   const stop = useRunStop(room, newest, turnName, readOnly);
-  const activity = runToolCall(newest);
+  const activity = details ? runToolCall(newest) : undefined;
   const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
   // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -376,8 +394,15 @@ export function SubagentRunView({
     box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
   }, [opened]);
-  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
-  const getThread = useCallback(() => box.current?.firstElementChild, []);
+  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding), or a box
+  // that shrinks (the Usage above it opening).
+  const getThread = useCallback(
+    () =>
+      [box.current, box.current?.firstElementChild].filter(
+        (element): element is Element => !!element
+      ),
+    []
+  );
   useResizeObserver(keepEnd, getThread);
   // The card that opened it is gone, so focus moves to the way back. Before the panel's own
   // layout effect, which gives focus to the card of a sub-agent Back closed.
@@ -432,8 +457,9 @@ export function SubagentRunView({
             {node.turns.length > 1 && (
               <span>{t('mindroomUi.subagents.turnNumber', { number: node.turns.length })}</span>
             )}
-            {/* Without what the run used (older MindRoom), how it stands stays up here. */}
-            {!used && (
+            {/* Without what the run used (older MindRoom), or with it folded away, how it stands
+                stays up here. */}
+            {(!used || !details) && (
               <>
                 <RunStatus meta={meta} />
                 <span>{time}</span>

@@ -1355,9 +1355,6 @@
         "submitted": "प्रस्तुत किया गया",
         "toolApprovalRequest": "उपकरण अनुमोदन अनुरोध"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "राउटर एजेंट आवाज़ को टेक्स्ट में बदल रहा है"
-      },
       "pendingSendIndicator": {
         "messageFailedToSend": "संदेश भेजने में विफल रहा",
         "messageSending": "संदेश भेजा जा रहा है",

@@ -244,6 +244,15 @@ describe('presentBackgroundJobs, rich rows', () => {
       tool: 'run_shell_command',
       preview: 'just test',
     });
+    const quiet = presentBackgroundJobs(
+      [subagentJob('job_1', 's1')],
+      none,
+      t,
+      1,
+      lookups([subagentRun('s1', { tools })]),
+      false
+    );
+    expect(quiet?.items[0]).not.toHaveProperty('activity');
     const ended = present(
       [subagentJob('job_1', 's1')],
       lookups([subagentRun('s1', { tools, status: 'completed' })])
