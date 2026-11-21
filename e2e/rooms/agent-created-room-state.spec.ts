@@ -12,8 +12,8 @@ import {
 } from '../helpers/agentStack';
 
 // A room made with the Create Room form takes the state MindRoom publishes. The helper joins
-// from the Invite dialog and publishes its server, thread mode, thread tag, background job and
-// auto-approve window. The backend logs no refused write for these events.
+// from the Invite dialog and publishes its server, accounts roster, thread mode, thread tag,
+// background job and auto-approve window. The backend logs no refused write for these events.
 // Runs against the agent stack (scripts/agent-stack/stack.py) with the stub model; skips without a
 // MindRoom checkout.
 test.describe.configure({ timeout: 420_000 });
@@ -30,6 +30,7 @@ const missingAgentState = async (stack: AgentStack, roomId: string): Promise<str
   const { helper } = stack.agents;
   const expected: Array<[string, string, string | undefined]> = [
     ['io.mindroom.server', helper, helper],
+    ['io.mindroom.accounts', helper, helper],
     ['io.mindroom.thread_mode', helper, ''],
     ['com.mindroom.thread.tags', helper, undefined],
     ['io.mindroom.background_jobs', helper, helper],
