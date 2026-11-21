@@ -384,6 +384,26 @@ describe('ThreadNavCategory', () => {
     ).toEqual([older.key]);
   });
 
+  it('keeps an attributed, unpinned thread visible with For me on', () => {
+    store.set(crossRoomThreadIndexAtom, {
+      ...store.get(crossRoomThreadIndexAtom),
+      entries: new Map([
+        [older.key, { ...older, isInvolved: false, hasAgentPostForUser: true }],
+        [newer.key, { ...newer, isInvolved: false }],
+      ]),
+    });
+    renderCategory();
+
+    act(() => {
+      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
+    });
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([older.key]);
+  });
+
   it('shows the For me hint, including pins, when reached by keyboard', () => {
     render(categoryTree());
     const forMe = screen.getByRole('button', { name: 'For me' });
