@@ -17,6 +17,8 @@ export const View = style([
     paddingInline: config.space.S300,
     overflowY: 'auto',
     overflowX: 'hidden',
+    // Without a stacking context here, WebKit composites each card separately.
+    isolation: 'isolate',
     width: '100%',
   },
 ]);
