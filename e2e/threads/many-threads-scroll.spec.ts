@@ -315,20 +315,28 @@ const startWatch = (scroller: Scroller) =>
     };
   });
 
-/** The first row fully inside the visible band and its top, to see whether it moves. */
-const readPlace = (scroller: Scroller) =>
-  scroller.evaluate((view) => {
+/** The first fully visible row, or the Threads ledger's top-inset row when checking drift. */
+const readPlace = (scroller: Scroller, anchorAtInset = false) =>
+  scroller.evaluate((view, atInset) => {
     const style = getComputedStyle(view);
     const box = view.getBoundingClientRect();
     const bandTop = box.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
     const bandBottom = box.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
+    if (atInset) {
+      // New history below the ledger anchor can move the first fully visible message.
+      const tile = Array.from(view.querySelectorAll('[data-timeline-rows] > [data-index]'))
+        .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+        .findLast(({ rect }) => rect.top <= bandTop && rect.bottom > bandTop);
+      const id = tile?.element.querySelector('[data-message-id]')?.getAttribute('data-message-id');
+      if (tile && id) return { id, top: tile.rect.top, ledgerTile: true };
+    }
     const rows = Array.from(view.querySelectorAll<HTMLElement>('[data-message-id]'))
       .map((row) => ({ id: row.dataset.messageId ?? '', rect: row.getBoundingClientRect() }))
       .filter(({ rect }) => rect.height > 0 && rect.top >= bandTop && rect.bottom <= bandBottom)
       .sort((a, b) => a.rect.top - b.rect.top);
     const first = rows[0];
-    return { id: first?.id, top: first?.rect.top ?? 0 };
-  });
+    return { id: first?.id, top: first?.rect.top ?? 0, ledgerTile: false };
+  }, anchorAtInset);
 
 /** Waits until the scroll position has not moved for five frames: the flick has run out. */
 const settle = (scroller: Scroller) =>
@@ -344,11 +352,13 @@ const settle = (scroller: Scroller) =>
     }
   });
 
-const topOf = (scroller: Scroller, id: string) =>
+const topOf = (scroller: Scroller, id: string, ledgerTile = false) =>
   scroller.evaluate(
-    (view, rowId) =>
-      view.querySelector<HTMLElement>(`[data-message-id="${rowId}"]`)?.getBoundingClientRect().top,
-    id
+    (view, { rowId, tile }) => {
+      const row = view.querySelector(`[data-message-id="${rowId}"]`);
+      return (tile ? row?.closest('[data-index]') : row)?.getBoundingClientRect().top;
+    },
+    { rowId: id, tile: ledgerTile }
   );
 
 /** Whether the row is inside the visible band. */
@@ -476,11 +486,12 @@ const readToOldest = async (
     // eslint-disable-next-line no-await-in-loop
     const moved = from.id ? await topOf(scroller, from.id) : undefined;
     // eslint-disable-next-line no-await-in-loop
-    const place = await readPlace(scroller);
+    const place = await readPlace(scroller, down);
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(400);
     // eslint-disable-next-line no-await-in-loop
-    const later = place.id ? await topOf(scroller, place.id) : undefined;
+    const later = place.id ? await topOf(scroller, place.id, place.ledgerTile) : undefined;
+    if (place.ledgerTile) expect(later, `${label}: ledger anchor stayed mounted`).toBeDefined();
     // eslint-disable-next-line no-await-in-loop
     reached = await inView(scroller, target);
     // eslint-disable-next-line no-await-in-loop
