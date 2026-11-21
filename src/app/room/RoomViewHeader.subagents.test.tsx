@@ -490,6 +490,32 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     );
   });
 
+  it('keeps the focused schedules menu entry until the menu closes', async () => {
+    screen.size = 'Mobile';
+    const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
+    const clock = () => host.querySelector('button[aria-label="Scheduled tasks (1)"]');
+    const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+    try {
+      actInDom(() => more.click());
+      const entry = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Scheduled tasks (0)'
+      )!;
+      entry.focus();
+      expect(document.activeElement).toBe(entry);
+      schedules.events = [schedule('orchard', THREAD)];
+      rerender();
+      expect(entry.textContent).toBe('Scheduled tasks (1)');
+      expect(document.activeElement).toBe(entry);
+      expect(clock()).toBeNull();
+      pressEscape(entry);
+      expect(entry.isConnected).toBe(false);
+      expect(clock()).not.toBeNull();
+      await vi.waitFor(() => expect(document.activeElement).toBe(more));
+    } finally {
+      unmount();
+    }
+  });
+
   it.each([
     { size: 'Mobile', scope: 'room timeline', keepsEmptyClock: false },
     { size: 'Desktop', scope: 'open thread', keepsEmptyClock: true },
@@ -631,31 +657,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     expect(rowLabels()).toEqual(['Show Members', 'More Options']);
   });
 
-  it('keeps the canvas chooser open when an active sub-agent takes its slot', () => {
-    screen.size = 'Mobile';
-    const { createNodeMock } = phoneLayout(390, 2);
-    const onCanvasOpen = vi.fn();
-    renderHeader({ canvases, onCanvasOpen, onCanvasClose: vi.fn() }, createNodeMock);
-    const chooserTrigger = renderer!.root.findByProps({ 'aria-label': 'Canvases' });
-    act(() => {
-      chooserTrigger.props.onClick({ currentTarget: document.createElement('button') });
-    });
-    const garden = () =>
-      renderer!.root
-        .findAllByType('button')
-        .find((node) =>
-          node.findAllByType(Text).some((text) => text.props.children === 'Garden map')
-        );
-    expect(garden()).toBeDefined();
-    run('running');
-    expect(rowLabels()).not.toContain('Canvases');
-    expect(garden()).toBeDefined();
-    act(() => {
-      garden()?.props.onClick();
-    });
-    expect(onCanvasOpen).toHaveBeenCalledWith('$drawing-1:example.org');
-  });
-
   it.each([
     { demote: false, dismiss: 'Escape' },
     { demote: true, dismiss: 'Escape' },
@@ -681,12 +682,14 @@ describe("the Sub-agents panel's toggle in the room header", () => {
           schedule('seeds', null),
         ];
         rerender();
-        expect(clock.isConnected).toBe(false);
+        expect(clock.isConnected).toBe(true);
+        expect(clock.getAttribute('aria-label')).toBe('Scheduled tasks (0)');
         expect(close.isConnected).toBe(true);
       }
       if (dismiss === 'Escape') pressEscape(close);
       else actInDom(() => close.click());
       expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(clock.isConnected).toBe(!demote);
       const target = demote ? host.querySelector('[data-room-more-options]') : clock;
       await vi.waitFor(() => expect(document.activeElement).toBe(target));
     } finally {
@@ -699,13 +702,16 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     { demote: true, dismiss: 'Escape' },
     { demote: true, dismiss: 'choosing a canvas' },
   ])(
-    'restores chooser focus on $dismiss (canvas demoted: $demote)',
+    'holds chooser placement until $dismiss (canvas demotes afterward: $demote)',
     async ({ demote, dismiss }) => {
       screen.size = 'Mobile';
+      const onCanvasOpen = vi.fn();
       const { host, unmount } = renderDomHeader(
-        { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
+        { canvases, onCanvasOpen, onCanvasClose: vi.fn() },
         280
       );
+      const subagents = () => host.querySelector('button[data-subagents-toggle]');
+      const members = host.querySelector('button[aria-label="Show Members"]')!;
       try {
         const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
         opener.focus();
@@ -715,11 +721,18 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         )!;
         item.focus();
         if (demote) actInDom(() => run('running'));
-        expect(opener.isConnected).toBe(!demote);
-        expect(item.isConnected).toBe(true);
+        expect(opener.isConnected).toBe(true);
+        expect(members.isConnected).toBe(true);
+        expect(subagents()).toBeNull();
+        expect(document.activeElement).toBe(item);
         if (dismiss === 'Escape') pressEscape(item);
-        else actInDom(() => item.click());
+        else {
+          actInDom(() => item.click());
+          expect(onCanvasOpen).toHaveBeenCalledWith(canvases[1]!.canvasId);
+        }
         expect(item.isConnected).toBe(false);
+        expect(opener.isConnected).toBe(!demote);
+        expect(!!subagents()).toBe(demote);
         const target = demote ? host.querySelector('[data-room-more-options]') : opener;
         await vi.waitFor(() => expect(document.activeElement).toBe(target));
       } finally {

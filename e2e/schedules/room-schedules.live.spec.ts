@@ -143,7 +143,7 @@ test.describe('room schedules in the chat header', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    // The phone promotes the clock and keeps the dialog open even if the last task is cancelled.
+    // The phone keeps the promoted clock in place while the dialog is open.
     const moreOptions = roomMoreOptions(page);
     const roomMenu = page.getByRole('menu').filter({ hasText: 'Leave Room' });
     const menuEntry = roomMenu.getByRole('menuitem', { name: /^Scheduled tasks \(/ });
@@ -197,9 +197,11 @@ test.describe('room schedules in the chat header', () => {
     await expect(
       dialog.getByText('No scheduled tasks in this room.', { exact: true })
     ).toBeVisible();
-    await expect(trigger).toHaveCount(0);
+    const emptyClock = page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true });
+    await expect(emptyClock).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
+    await expect(emptyClock).toHaveCount(0);
     await expect(moreOptions).toBeFocused();
     await moreOptions.click();
     await expect(menuEntry).toHaveAccessibleName('Scheduled tasks (0)');

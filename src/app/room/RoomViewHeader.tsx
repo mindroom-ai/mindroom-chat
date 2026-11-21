@@ -256,7 +256,7 @@ export function RoomViewHeader({
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   const [menuAnchor, setMenuAnchor] = useState<HeaderPopupAnchor>();
   const [pinAnchor, setPinAnchor] = useState<HeaderPopupAnchor>();
-  // The phone canvas chooser and schedules dialog outlive their opener moving into overflow.
+  // The header owns the chooser and schedules dialog, not the controls that open them.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<HeaderPopupAnchor>();
   const canvasChooserLayout = useRef({ mobile, layout });
   const focusedAction = useRef<HTMLElement>();
@@ -598,12 +598,28 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  const promoted = selectPhoneHeaderActions(
-    mobile ? layout.slots : 0,
-    entries
-      .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
-      .map((entry) => entry.id)
+  // Freeze the last rendered promotion set until every header popover closes. Entry data still
+  // updates, but eligibility changes cannot move entries between the row and the menu.
+  const popoverOpen = !!(
+    menuAnchor ||
+    pinAnchor ||
+    (needsCanvasChooser && canvasMenuAnchor) ||
+    schedulesOpen ||
+    (topic && topicOpen) ||
+    dialog
   );
+  const lastPromoted = useRef<ReadonlySet<string>>();
+  const promoted =
+    (popoverOpen ? lastPromoted.current : undefined) ??
+    selectPhoneHeaderActions(
+      mobile ? layout.slots : 0,
+      entries
+        .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
+        .map((entry) => entry.id)
+    );
+  useLayoutEffect(() => {
+    if (!popoverOpen) lastPromoted.current = promoted;
+  }, [popoverOpen, promoted]);
   const inRow = (entry: RoomHeaderEntry) =>
     showsInRow(entry.placement, mobile, promoted.has(entry.id));
   const rowEntries = entries.filter(inRow);
