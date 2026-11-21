@@ -20,7 +20,7 @@ interface Write {
 }
 export interface ListFrame {
   time: number;
-  view: number;
+  view: string;
   y: number;
   height: number;
   max: number;
@@ -47,11 +47,13 @@ export const installListRecorder = (page: Page) =>
     ({ compact, board, live }) => {
       if (window !== window.top) return;
       const selector = () =>
-        `${window.compactRecorder.board ? `${board} ` : `:not(${board}) > `}${compact}${live}`;
+        window.compactRecorder.board
+          ? `${board} ${compact}${live}`
+          : `${compact}${live}:not([data-thread-board-column] *)`;
       const rowSelector = '[data-scroll-anchor], [data-compact-section]';
       const key = (row: HTMLElement) =>
         row.dataset.scrollAnchor ?? `header:${row.dataset.compactSection}`;
-      const viewIds = new WeakMap<Element, number>();
+      const viewIds = new WeakMap<Element, string>();
       let nextView = 0;
       const frames: ListFrame[] = [];
       let input: string[] = [];
@@ -141,7 +143,7 @@ export const installListRecorder = (page: Page) =>
       const tick = (time: number) => {
         const view = document.querySelector<HTMLElement>(selector());
         if (view) {
-          if (!viewIds.has(view)) viewIds.set(view, ++nextView);
+          if (!viewIds.has(view)) viewIds.set(view, `${performance.timeOrigin}/${++nextView}`);
           const { top: edge } = view.getBoundingClientRect();
           const css = getComputedStyle(view);
           const start = view.clientTop + (parseFloat(css.scrollPaddingTop) || 0);
@@ -164,18 +166,11 @@ export const installListRecorder = (page: Page) =>
               Math.min(box.top, painted.top) >= edge + end
             )
               continue;
-            const first = child
+            const translate = child
               ?.getAnimations()
-              .flatMap((animation) =>
-                animation.effect instanceof KeyframeEffect
-                  ? animation.effect.getKeyframes().slice(0, 1)
-                  : []
-              )
-              .find((frame) => typeof frame.translate === 'string');
-            const dy =
-              first && typeof first.translate === 'string'
-                ? parseFloat(first.translate.split(' ')[1] ?? '')
-                : NaN;
+              .map(({ effect }) => (effect as KeyframeEffect | null)?.getKeyframes()[0]?.translate)
+              .find((value) => typeof value === 'string');
+            const dy = parseFloat(translate?.split(' ')[1] ?? '');
             visible.push({
               key: id,
               group,

@@ -23,7 +23,6 @@ import {
   joinRoom,
   registerAgentAccount,
   seedRoomOverviewState,
-  sendMessageEdit,
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
@@ -35,25 +34,17 @@ const cards = (frame: ListFrame) => frame.order.filter(([key]) => !key.startsWit
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const away = (frame: ListFrame) => frame.y > frame.height / 2;
 const difference = (a: number, b: number) => Math.abs(a - b) > 1;
-const positionWrites = (f: ListFrame) => f.writes.filter((w) => difference(w.before, w.after));
+const positionWrites = (f: ListFrame) => f.writes.filter((w) => w.before !== w.after);
 const restore = (stack: string) => stack.includes('scrollAnchorMemory');
 const passiveOps = ['reply', 'new', 'resolve', 'pin', 'start', 'finish', 'title'];
-const bag = [
-  ...passiveOps,
-  'filter',
-  'sections',
-  'fold',
-  'sort',
-  'wheel',
-  'flick',
-  'hover',
-  'leave',
-  'arrow',
-  'back',
-  'link',
-  'resize',
-  'pill',
-];
+const bag = `${passiveOps.join(
+  ' '
+)} filter sections fold sort wheel flick hover leave arrow back link resize pill`.split(' ');
+const prefix =
+  'wheel reply wheel reply pill pin back link sections start finish resolve fold title sections sort filter new wheel reply flick hover leave arrow resize'.split(
+    ' '
+  );
+const boardOps = 'wheel reply start finish resolve pin new wheel reply resize'.split(' ');
 
 function inspect(
   a: ListFrame,
@@ -84,12 +75,7 @@ function inspect(
       (row) => oldKeys.has(row.key) && row.bottom > a.start && row.top < a.end
     );
     const next = b.visible.find((row) => row.key === anchor?.key);
-    if (
-      anchor &&
-      (next
-        ? difference(anchor.painted, next.painted) && b.y > 1 && b.y < b.max - 1
-        : b.y > 1 && b.y < b.max - 1)
-    )
+    if (anchor && b.y > 1 && b.y < b.max - 1 && (!next || difference(anchor.painted, next.painted)))
       report('I1', 'calm visible witness drifted');
   } else {
     if (difference(b.y, Math.min(a.y, b.max))) report('I2', 'live offset changed');
@@ -107,7 +93,7 @@ function inspect(
     report('I5', 'hold followed a passive half-screen crossing');
   if (writes.some((w) => restore(w.stack)))
     report('I6', 'settled placement wrote during a later update');
-  if (away(a) && b.held && !b.pill && b.order.length && a.pill && !reordered)
+  if (away(a) && b.held && !b.pill && a.pill && same(a.order, b.order))
     report('I7', 'pending-order affordance disappeared before catch-up');
 }
 
@@ -125,16 +111,19 @@ for (const phone of [false, true]) {
   const form = phone ? 'phone' : 'desktop';
   const size = { width: phone ? 390 : 1440, height: phone ? 780 : 900 };
   test.describe(form, () => {
-    test.use({ viewport: size, hasTouch: phone, isMobile: phone });
+    // Mobile WebKit rejects mouse.wheel; the narrow viewport still takes the phone layout.
+    test.use({
+      viewport: size,
+      hasTouch: phone,
+      isMobile: async ({ browserName }, use) => {
+        await use(phone && browserName === 'chromium');
+      },
+    });
     test('records Compact frame invariants @webkit', async ({ page, browserName }, info) => {
-      test.setTimeout(
-        235_000 +
-          Math.max(0, Number(process.env.OPS ?? process.env.COMPACT_INVARIANTS_OPS ?? 40) - 40) *
-            2200
-      );
       test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${hs}`);
       const seed = Number(process.env.SEED ?? 725);
       const ops = Number(process.env.OPS ?? process.env.COMPACT_INVARIANTS_OPS ?? 40);
+      test.setTimeout(235_000 + Math.max(0, ops - 40) * 2200);
       expect(
         Number.isSafeInteger(seed) && Number.isSafeInteger(ops) && ops > 0,
         'integer seed and positive operation count'
@@ -145,7 +134,10 @@ for (const phone of [false, true]) {
         return Math.floor((state / 2 ** 32) * length);
       };
       const counts = { I1: 0, I2: 0, I3: 0, I4: 0, I5: 0, I6: 0, I7: 0 };
-      const strict = (process.env.COMPACT_INVARIANTS_STRICT ?? '').split(',').filter(Boolean);
+      const strict = (process.env.COMPACT_INVARIANTS_STRICT ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
       expect(strict.every((id) => id === 'all' || invariants.some((known) => id === known))).toBe(
         true
       );
@@ -157,17 +149,15 @@ for (const phone of [false, true]) {
       let frame: ListFrame | undefined;
       let sequence = 0;
       const seen = new Set<string>();
+      const replay = () =>
+        `SEED=${seed} OPS=${sequence + 1}; op=${sequence}; ${log.slice(-5).join(', ')}`;
       const report = (id: Invariant, reason: string) => {
         const key = `${sequence}/${id}/${reason}`;
         if (seen.has(key)) return;
         seen.add(key);
         counts[id] += 1;
         incidents.push({ id, op: sequence, reason, frame });
-        console.log(
-          `${id}: ${reason}; SEED=${seed} OPS=${sequence + 1}; op=${sequence}; ${log
-            .slice(-5)
-            .join(', ')}`
-        );
+        console.log(`${id}: ${reason}; ${replay()}`);
       };
 
       try {
@@ -184,6 +174,8 @@ for (const phone of [false, true]) {
         const pinned = new Set<string>();
         const resolved = new Set<string>();
         const runs = new Map<string, string>();
+        const sendState = (type: string, key: string, content: Record<string, unknown>) =>
+          sendStateEvent(hs, reader.accessToken, roomId, type, key, content);
         const send = (body: string, root?: string, pending = false) =>
           sendRoomMessage(hs, root ? agent.accessToken : reader.accessToken, roomId, {
             msgtype: 'm.text',
@@ -240,13 +232,8 @@ for (const phone of [false, true]) {
           await page.evaluate(framesPass, 3);
         };
         const touch = phone && browserName === 'chromium' ? await fingersOn(page) : undefined;
-        const filter = () => page.locator('[data-thread-filter-bar-toggle]').first();
-        const sort = () => page.locator(`[data-sort-direction]${LIVE}`).first();
-        const sections = () => page.locator(`[data-thread-sections]${LIVE}`).first();
-        const toggleFilters = async () => {
-          if (phone) await roomMoreOptions(page).click();
-          await filter().click();
-        };
+        const sort = page.locator(`[data-sort-direction]${LIVE}`).first();
+        const sections = page.locator(`[data-thread-sections]${LIVE}`).first();
         const choose = async () => {
           const rect = await view().boundingBox();
           if (!rect) throw Error('Compact scroller not visible');
@@ -259,44 +246,11 @@ for (const phone of [false, true]) {
           await page.mouse.move(8, 8);
         };
         await ready();
-        await expect
-          .poll(async () => (await takeFrames(page)).at(-1)?.order.length ?? 0)
-          .toBeGreaterThan(6);
-        // Guaranteed live and calm reorders, followed by a seeded permutation per bag.
-        const prefix = [
-          'reply',
-          'wheel',
-          'reply',
-          'pin',
-          'back',
-          'link',
-          'sections',
-          'start',
-          'finish',
-          'resolve',
-          'fold',
-          'title',
-          'sections',
-          'sort',
-          'filter',
-          'new',
-          'wheel',
-          'reply',
-        ];
+        frame = (await takeFrames(page)).at(-1);
+        expect(frame?.visible.length, 'initial visible witnesses').toBeGreaterThan(0);
         let pool: string[] = [];
-        const boardOps = [
-          'wheel',
-          'reply',
-          'start',
-          'finish',
-          'resolve',
-          'pin',
-          'new',
-          'wheel',
-          'reply',
-          'resize',
-        ];
         const boardAt = 27;
+        let knownWinner: string | undefined;
         const openBoard = async () => {
           await roomMoreOptions(page).click();
           await page.getByRole('menuitemcheckbox', { name: 'Example board', exact: true }).click();
@@ -305,6 +259,7 @@ for (const phone of [false, true]) {
             window.compactRecorder.board = true;
           });
           await ready();
+          await page.locator(BOARD).scrollIntoViewIfNeeded();
           const more = page.locator(BOARD).getByRole('button', { name: 'Show more' });
           if (await more.isVisible()) await more.click();
         };
@@ -313,34 +268,23 @@ for (const phone of [false, true]) {
           let op = prefix[sequence] ?? pool.splice(pick(pool.length), 1)[0]!;
           if (boardEnabled && sequence === boardAt) op = 'board';
           if (board) op = boardOps[(sequence - boardAt - 1) % boardOps.length]!;
-          if (
-            ['sections', 'sort'].includes(op) &&
-            !(await (op === 'sections' ? sections() : sort()).isVisible())
-          )
-            op = 'filter';
-          const previous = (await takeFrames(page)).at(-1) ?? frame;
-          if (!previous) throw Error('Recorder produced no frames');
-          frame = previous;
+          const control = op === 'sections' ? sections : op === 'sort' ? sort : undefined;
+          if (control && !(await control.isVisible())) op = 'filter';
+          const previous = frame!;
           let target = roots[pick(roots.length)]!;
-          let direction = 0;
-          let delta = 0;
+          const roll = pick(1800);
           const label = `Sample ${op} ${sequence}`;
-          if (op === 'reply' && (sequence < 3 || sequence === 17))
-            target = roots[sequence % roots.length]!;
+          if (op === 'reply' && sequence <= 3) knownWinner = target = roots[sequence - 1]!;
+          if (op === 'link') target = roots.at(-5)!;
           if (op === 'finish') target = runs.keys().next().value ?? target;
-          if (op === 'wheel') {
-            delta =
-              sequence === 1
-                ? previous.height
-                : sequence === 16
-                ? -previous.y
-                : pick(1800) - 900 || 400;
-            direction = Math.sign(delta);
-          }
+          let delta = op === 'wheel' ? roll - 900 || 400 : 0;
+          if (sequence === 0) delta = Math.floor(previous.height / 4);
+          if (sequence === 2) delta = previous.height;
+          if (sequence === 18) delta = -previous.y;
           log.push(
-            `${sequence}:${board ? 'board/' : ''}${op}(ticket ${roots.indexOf(target)}${
-              delta ? `, ${delta}px` : ''
-            })`
+            `${sequence}:${board ? 'board/' : ''}${op}(ticket ${roots.indexOf(
+              target
+            )}, roll ${roll}${delta ? `, ${delta}px` : ''})`
           );
           switch (op) {
             case 'reply':
@@ -352,10 +296,7 @@ for (const phone of [false, true]) {
             case 'resolve': {
               const on = !resolved.delete(target);
               if (on) resolved.add(target);
-              await sendStateEvent(
-                hs,
-                reader.accessToken,
-                roomId,
+              await sendState(
                 'com.mindroom.thread.tags',
                 JSON.stringify([target, 'resolved']),
                 on ? { set_by: reader.userId, set_at: new Date().toISOString() } : {}
@@ -364,7 +305,7 @@ for (const phone of [false, true]) {
             }
             case 'pin':
               if (!pinned.delete(target)) pinned.add(target);
-              await sendStateEvent(hs, reader.accessToken, roomId, 'm.room.pinned_events', '', {
+              await sendState('m.room.pinned_events', '', {
                 pinned: [...pinned],
               });
               break;
@@ -388,19 +329,20 @@ for (const phone of [false, true]) {
               break;
             }
             case 'title':
-              await sendMessageEdit(
-                hs,
-                reader.accessToken,
-                roomId,
-                target,
-                `${label} ${'with further details '.repeat(18)}`
-              );
+              await sendState('io.mindroom.thread_summary', target, {
+                version: 1,
+                summary: `${label} ${'with further details '.repeat(18)}`,
+                message_count: 2,
+                generated_at: new Date().toISOString(),
+                model: 'sample',
+              });
               break;
             case 'filter':
-              await toggleFilters();
+              if (phone) await roomMoreOptions(page).click();
+              await page.locator('[data-thread-filter-bar-toggle]').first().click();
               break;
             case 'sections':
-              await sections().click();
+              await sections.click();
               break;
             case 'fold': {
               const button = view().locator('[data-compact-section] button').first();
@@ -408,7 +350,7 @@ for (const phone of [false, true]) {
               break;
             }
             case 'sort':
-              await sort().click();
+              await sort.click();
               break;
             case 'wheel':
               await wheel(delta);
@@ -437,7 +379,7 @@ for (const phone of [false, true]) {
               const key = previous.visible.find(({ key }) => !key.startsWith('header:'))?.key;
               if (key) {
                 await card(key).focus();
-                await page.keyboard.press(pick(2) ? 'ArrowUp' : 'ArrowDown');
+                await page.keyboard.press(roll % 2 ? 'ArrowUp' : 'ArrowDown');
               }
               break;
             }
@@ -449,7 +391,8 @@ for (const phone of [false, true]) {
                   r.bottom < previous.end
               );
               if (!row) break;
-              await card(row.key).press('Enter');
+              await card(row.key).click();
+              await page.mouse.move(8, 8);
               await expect(page).toHaveURL(/threadId=/);
               await takeFrames(page);
               await page.goBack();
@@ -457,45 +400,36 @@ for (const phone of [false, true]) {
               break;
             }
             case 'link':
-              target = roots.at(-5)!;
               await page.goto(`${rootPath}/${encodeURIComponent(target)}?focusEvent=1`);
               await ready();
               break;
             case 'resize':
-              await page.setViewportSize({ ...size, height: size.height - pick(200) });
+              await page.setViewportSize({ ...size, height: size.height - (roll % 200) });
               break;
             case 'pill': {
               const pill = view().getByRole('button', { name: 'Show updated order' });
               if (await pill.isVisible()) await pill.click();
-              else await wheel(-previous.y);
+              else if (previous.y > 0) await wheel(-previous.y);
               break;
             }
             case 'board':
               await openBoard();
               break;
           }
-          if (passiveOps.includes(op))
-            await expect
-              .poll(
-                async () => {
-                  if (!['reply', 'new', 'title'].includes(op)) return true;
-                  const located = card(target);
-                  return (
-                    (await located.count()) === 0 || (await located.textContent())?.includes(label)
-                  );
-                },
-                { timeout: 1200 }
-              )
-              .toBeTruthy()
-              .catch(() => {});
-          await page.evaluate(framesPass, op === 'flick' || op === 'wheel' ? 20 : 10);
+          // Confirm the two known winners actually reach the client.
+          if (op === 'reply' && sequence <= 3 && (await card(target).count()))
+            await expect(card(target)).toContainText(label);
+          await page.evaluate(
+            framesPass,
+            op === 'wheel' || op === 'flick' || passiveOps.includes(op) ? 24 : 8
+          );
           const samples = await takeFrames(page);
           expect(samples.length, `no frames after ${op}`).toBeGreaterThan(0);
           sampleCount += samples.length;
           let prior = previous;
           for (const next of samples) {
             frame = next;
-            inspect(prior, next, op, direction, report);
+            inspect(prior, next, op, Math.sign(delta), report);
             prior = next;
           }
           if (
@@ -512,26 +446,25 @@ for (const phone of [false, true]) {
             )
           )
             report('I6', 'Back did not restore a visible witness');
-          // Only check a known live winner, in the seeded newest-first flat list.
+          if (op === 'wheel' && !away(previous) && away(prior) && !prior.held)
+            report('I5', 'reader crossed half a screen without entering hold');
+          if (sequence === 4 && knownWinner && !prior.held && prior.order[0]?.[0] !== knownWinner)
+            report('I7', 'catch-up did not apply the known live winner');
+          // Check a known live winner in the seeded newest-first flat list.
           if (
             op === 'reply' &&
-            sequence <= 2 &&
-            !pinned.size &&
+            sequence <= 3 &&
             !prior.pending &&
             prior.order.some(([key]) => key === target)
           ) {
-            if (away(previous) && prior.order[0]?.[0] !== target && !prior.pill)
+            if (away(previous) && previous.order[0]?.[0] !== target && !prior.pill)
               report('I7', 'known stale order without pill');
             if (!away(previous) && !prior.held && prior.order[0]?.[0] !== target)
               report('I2', 'live reply did not lead newest-first list');
           }
         }
       } catch (error) {
-        console.log(
-          `Harness error: SEED=${seed} OPS=${sequence + 1}; op=${sequence}; ${log
-            .slice(-5)
-            .join(', ')}`
-        );
+        console.log(`Harness error: ${replay()}`);
         throw error;
       } finally {
         const project = `${info.project.name}-${form}`;
@@ -539,24 +472,18 @@ for (const phone of [false, true]) {
           info.repeatEachIndex ? `/run-${info.repeatEachIndex + 1}` : ''
         }`;
         await mkdir(dir, { recursive: true });
-        await writeFile(
-          `${dir}/${project}.json`,
-          JSON.stringify(
-            {
-              seed,
-              ops,
-              project,
-              durationMs: Date.now() - started,
-              sampleCount,
-              counts,
-              enforced,
-              log,
-              incidents,
-            },
-            null,
-            2
-          )
-        );
+        const summary = {
+          seed,
+          ops,
+          project,
+          ms: Date.now() - started,
+          sampleCount,
+          counts,
+          enforced,
+          log,
+          incidents,
+        };
+        await writeFile(`${dir}/${project}.json`, JSON.stringify(summary, null, 2));
         for (const id of invariants)
           if (counts[id])
             info.annotations.push({

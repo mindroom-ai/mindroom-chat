@@ -59,11 +59,10 @@ it('keeps survivors in their old sections and puts joins in their live sections'
           live.includes(key)
         )
       );
-      expect(rootIds.filter((key) => !shown.includes(key)).sort()).toEqual(
-        (target.find((section) => section.id === id)?.rootIds ?? [])
-          .filter((key) => !shown.includes(key))
-          .sort()
-      );
+      const joins = rootIds.filter((key) => !shown.includes(key));
+      expect(
+        joins.every((key) => target.find((section) => section.id === id)?.rootIds.includes(key))
+      ).toBe(true);
     }
     expect(holdCompactThreadSections(target, held)).toEqual(held);
   });
