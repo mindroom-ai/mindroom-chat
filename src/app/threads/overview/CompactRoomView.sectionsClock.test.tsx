@@ -129,10 +129,14 @@ describe('Compact sections and the snooze clock of the list', () => {
   it('puts a card whose snooze ended under Needs you while the order is held', () => {
     const { rerender } = render(view(T0));
     expect(rows()).toEqual(['#needsYou', '$read']);
-    const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+    const list = document.querySelector<HTMLElement>(
+      '[data-compact-room-view] > div:has([data-scroll-anchor])'
+    )!;
     act(() => {
       fireEvent.pointerEnter(list);
     });
+
+    expect(list.getAttribute('data-order-held')).toBe('true');
 
     // The snooze ends: the index's clock renews, and the Needs you tab lists the thread again.
     vi.setSystemTime(WAKE + 1);
