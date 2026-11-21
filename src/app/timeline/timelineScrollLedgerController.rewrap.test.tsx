@@ -23,7 +23,7 @@ type Options = {
 type Correction = (
   item: { end: number; index: number },
   delta: number,
-  instance: { scrollOffset: number; scrollDirection: 'backward'; scrollElement: object }
+  instance: { scrollOffset: number; scrollDirection: 'backward' | null; scrollElement: object }
 ) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without them */
@@ -99,11 +99,15 @@ const mount = () => {
   const root = createRoot(document.createElement('div'));
   flushSync(() => root.render(<Harness />));
   const options = virtualizer.options as Options;
-  const correct = (row: { end: number; index: number }, delta: number): boolean =>
+  const correct = (
+    row: { end: number; index: number },
+    delta: number,
+    // While the reader scrolls back no correction is written: the ledger takes a row's above them.
+    scrollDirection: 'backward' | null = 'backward'
+  ): boolean =>
     (virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction)(row, delta, {
       scrollOffset: scrollElement.scrollTop,
-      // While the reader scrolls back no correction is written: the ledger takes a row's above them.
-      scrollDirection: 'backward',
+      scrollDirection,
       scrollElement,
     });
   // The observer's callback returns, and the microtasks it queued run before the paint.
@@ -135,15 +139,19 @@ const mount = () => {
     reportRect({ width: Math.round(layout.width), height: 800 });
     await callbackReturns();
   };
+  const measure = () => options.measureElement(mountedRow, {} as ResizeObserverEntry, instance);
   const reportRows = async (row = { end: 4000, index: 39 }) => {
-    options.measureElement(mountedRow, {} as ResizeObserverEntry, instance);
+    measure();
     expect(correct(row, 22)).toBe(false);
     await callbackReturns();
   };
   commits.length = 0;
   return {
+    callbackReturns,
     commits,
+    correct,
     layout,
+    measure,
     reportRows,
     reportScrollArea,
     resized,
@@ -226,6 +234,50 @@ it('takes the rows of a later render as they are', async () => {
   await new Promise((resolve) => {
     setTimeout(resolve, 50);
   });
+  expect(commits).toEqual([false]);
+  unmount();
+});
+
+it('takes the permission back when the corrections of one report add up to nothing', async () => {
+  const {
+    callbackReturns,
+    commits,
+    correct,
+    layout,
+    measure,
+    reportRows,
+    reportScrollArea,
+    unmount,
+  } = mount();
+  // In one report of a new width, a row above the reader grows by 22 px and another shrinks by
+  // 22 px. virtual-core corrects the scroll position for each, and the two cancel out.
+  layout.width = 640;
+  measure();
+  expect(correct({ end: 3000, index: 20 }, 22, null)).toBe(true);
+  measure();
+  expect(correct({ end: 2900, index: 19 }, -22, null)).toBe(true);
+  await callbackReturns();
+  expect(commits).toEqual([true]);
+  await reportScrollArea();
+
+  // A row in view grows alone in a later pass: the list keeps its height in that render.
+  await reportRows({ end: 3900, index: 38 });
+  expect(commits).toEqual([true, false]);
+  unmount();
+});
+
+it('takes a size set without a measurement as not wrapped anew', async () => {
+  const { callbackReturns, commits, correct, layout, measure, unmount } = mount();
+  // A row of one line is reported with the new width and keeps its size: virtual-core asks for
+  // no correction.
+  layout.width = 640;
+  measure();
+  await callbackReturns();
+
+  // A fold then sets a row's size itself, with no report of any observer, before the scroll
+  // area's observer is called.
+  expect(correct({ end: 3900, index: 38 }, 22)).toBe(false);
+  await callbackReturns();
   expect(commits).toEqual([false]);
   unmount();
 });

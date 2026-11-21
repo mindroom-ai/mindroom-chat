@@ -361,16 +361,20 @@ export const useTimelineScrollLedgerController = ({
   // - The scroll area's observer measures the mounted rows itself, inside its own report.
   // - The rows' observer finds a width the scroll area's observer has not been told of yet. The
   //   browser gathers what a pass reports before it calls any observer, so that width is
-  //   reported in this pass too.
+  //   reported in this pass too. Not covered: another observer's callback that changes the
+  //   scroll area's width itself, after the browser gathered and before the rows are reported.
   // Widths are compared unrounded: a row wraps anew at a change of a fraction of a pixel.
   // `reportedWidthRef` is the scroll area and the width its observer was last told of.
   const reportedWidthRef = useRef<{ scrollElement: Element; width: number }>();
   // Whether the scroll area has a width its observer has not been told of, as the report of
   // the rows' observer that runs now found it; undefined between its reports.
   const widthUnreportedRef = useRef<boolean>();
-  // Whether the row measured last wrapped anew, until the correction hook reads it.
+  // Whether the row measured last wrapped anew, until the correction hook reads it or the
+  // observer's callback returns: a row that kept its size asks for no correction, and a size set
+  // later without a measurement (a fold, a hidden row) did not wrap anew.
   const rowRewrappedRef = useRef(false);
-  // Whether the render queued before the paint shows rows that wrapped anew.
+  // Whether the render queued before the paint shows rows that wrapped anew. The microtask that
+  // runs that render takes it back, whether or not the render commits.
   const unrenderedRewrapRef = useRef(false);
   const measureRow = useCallback(
     (
@@ -387,6 +391,7 @@ export const useTimelineScrollLedgerController = ({
         // The browser runs microtasks when the observer's callback returns.
         queueMicrotask(() => {
           widthUnreportedRef.current = undefined;
+          rowRewrappedRef.current = false;
         });
       }
       rowRewrappedRef.current = !!entry && !!widthUnreportedRef.current;
@@ -410,7 +415,9 @@ export const useTimelineScrollLedgerController = ({
           instance.elementsCache.forEach((row) => {
             if (!row.isConnected) return;
             rowRewrappedRef.current = true;
-            // As the rows' observer measures: its report of this pass then changes nothing.
+            // The size the rows' observer measures from its entry, so its report of this pass
+            // changes nothing. Not `measureRow`: without an entry it takes the row as not
+            // wrapped anew.
             instance.resizeItem(
               instance.indexFromElement(row),
               Math.round(row.getBoundingClientRect().height)
@@ -797,8 +804,8 @@ export const useTimelineScrollLedgerController = ({
     if (unrenderedRowMoveRef.current) return;
     unrenderedRowMoveRef.current = true;
     queueMicrotask(() => {
-      if (!unrenderedRowMoveRef.current) return;
-      flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      if (unrenderedRowMoveRef.current) flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      unrenderedRewrapRef.current = false;
     });
   }, []);
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
@@ -807,7 +814,7 @@ export const useTimelineScrollLedgerController = ({
     unrenderedCorrectionPxRef.current = 0;
     unrenderedEndCorrectionPxRef.current = 0;
     unrenderedRowMoveRef.current = false;
-    // The render that showed the rows wrapped anew has committed: the next one asks again.
+    // The render that showed the rows wrapped anew has committed: a later one asks again.
     unrenderedRewrapRef.current = false;
   });
 
@@ -1007,10 +1014,11 @@ export const useTimelineScrollLedgerController = ({
       const [item] = args;
       const rewrapped = rowRewrappedRef.current;
       rowRewrappedRef.current = false;
-      // Only beside a render before the paint, which takes it back: an applied correction
-      // queued one (`handleAppliedCorrection`), and this queues one for a row left in place.
+      // Always with this render before the paint, whose microtask takes it back: the render an
+      // applied correction queues is skipped when corrections of one report add up to nothing
+      // (a row grew, another shrank), and the permission then lasted into a pass of rows alone.
       if (rewrapped && !dropped) unrenderedRewrapRef.current = true;
-      if (!apply && !dropped && (rewrapped || (item.index ?? itemCount) < itemCount - 1)) {
+      if (!dropped && (rewrapped || (!apply && (item.index ?? itemCount) < itemCount - 1))) {
         renderRowMoveBeforePaint();
       }
       return apply;
