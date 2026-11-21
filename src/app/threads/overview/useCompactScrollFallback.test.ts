@@ -6,7 +6,7 @@ import {
   MOUSE_REST_HOLD_MS,
   useCompactScrollFallback,
   usePointerOverCards,
-} from './useHeldThreadOrder';
+} from './useCompactScrollFallback';
 
 describe('useCompactScrollFallback', () => {
   const CARD = 100;
@@ -80,19 +80,6 @@ describe('useCompactScrollFallback', () => {
   });
 
   it('keeps the cards in view in place when a card joins above them, without scroll anchoring', () => {
-    withoutScrollAnchoring();
-    const ids = ['$c', '$b', '$a'];
-    const { view, show } = list(ids, 150);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    show(['$d', ...ids]);
-    rerender({ live: ['$d', ...ids] });
-    expect(view.scrollTop).toBe(250);
-  });
-
-  it('keeps the cards in view in place when a card joins above them while nothing holds the order', () => {
     withoutScrollAnchoring();
     const ids = ['$c', '$b', '$a'];
     const { view, show } = list(ids, 150);

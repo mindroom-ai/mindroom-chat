@@ -108,19 +108,21 @@ const properties = <Id extends string>(groupOrder: readonly Id[], keepEmpty = fa
       const held = step(shown, live, true, groupOrder);
       const liveIds = live.flatMap(({ rootIds }) => rootIds);
       const shownIds = new Set(shown.flatMap(({ rootIds }) => rootIds));
-      expect(held.flatMap(({ rootIds }) => rootIds).sort()).toEqual(liveIds.sort());
+      expect(held.flatMap(({ rootIds }) => rootIds).sort()).toEqual([...liveIds].sort());
       shown.forEach(({ id, rootIds }) => {
-        const kept = held.find((group) => group.id === id)?.rootIds ?? [];
-        expect(kept.filter((rootId) => shownIds.has(rootId))).toEqual(
+        const kept = held.find((group) => group.id === id);
+        expect(kept?.rootIds.filter((rootId) => shownIds.has(rootId))).toEqual(
           rootIds.filter((rootId) => liveIds.includes(rootId))
         );
       });
     }
   });
 
-  it('returns live by identity when not held', () => {
+  it('keeps every shown group, even when empty, and follows the fixed group order', () => {
     for (const { shown, live } of lists) {
-      expect(step(shown, live, false, groupOrder)).toBe(live);
+      const heldIds = step(shown, live, true, groupOrder).map(({ id }) => id);
+      for (const { id } of shown) expect(heldIds).toContain(id);
+      expect(heldIds).toEqual(groupOrder.filter((id) => heldIds.includes(id)));
     }
   });
 };

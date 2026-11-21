@@ -33,7 +33,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useCompactScrollFallback, usePointerOverCards } from './useHeldThreadOrder';
+import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
 import {
   type CompactFocusRequest,
   compactFocusPlace,

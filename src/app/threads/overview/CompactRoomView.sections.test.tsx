@@ -9,7 +9,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
-import * as scrollFallback from './useHeldThreadOrder';
+import * as scrollFallback from './useCompactScrollFallback';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
