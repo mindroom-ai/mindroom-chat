@@ -56,21 +56,24 @@ vi.mock('folds', async (importOriginal) => {
   const folds = await importOriginal<typeof import('folds')>();
   return {
     ...folds,
-    PopOut: (props: PopOutProps) =>
-      folds.usePopOutContainer() ? <folds.PopOut {...props} /> : props.anchor && props.content,
+    PopOut: (props: PopOutProps & { children?: ReactNode }) =>
+      folds.usePopOutContainer() ? (
+        <folds.PopOut {...props} />
+      ) : (
+        <>
+          {props.children}
+          {props.anchor && props.content}
+        </>
+      ),
   };
 });
 vi.mock('../calls/agent/agentCaller', () => ({
   useAgentCaller: () => ({ pending: false, call: vi.fn() }),
 }));
-// The room menu's own rows, which need the app's providers, stay out of it.
-vi.mock('../notifications/RoomNotificationSwitcher', () => ({
-  RoomNotificationModeSwitcher: () => null,
-}));
-vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
-  getRoomNotificationMode: () => 'all_messages',
-  getRoomNotificationModeIcon: () => undefined,
-  useRoomsNotificationPreferencesContext: () => ({}),
+vi.mock('../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/hooks/useRoomsNotificationPreferences')>()),
+  useRoomsNotificationPreferencesContext: () => new Map(),
+  setRoomNotificationPreference: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/useRoom', () => ({
@@ -268,6 +271,15 @@ const pressEscape = (from: HTMLElement) =>
   actInDom(() => {
     from.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   });
+
+const pressBackdrop = (dialog: Element) => {
+  // folds renders the backdrop immediately before the overlay center containing the dialog.
+  const backdrop = dialog.parentElement?.previousElementSibling;
+  expect(backdrop).toBeInstanceOf(HTMLElement);
+  actInDom(() => {
+    backdrop!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  });
+};
 
 const nextFrame = () =>
   actInDom(async () => {
@@ -592,32 +604,36 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('keeps the topic dialog open when its opener disappears and restores focus on dismissal', async () => {
-    currentRoom.topic = 'Example room topic';
-    const { host, rerender, unmount } = renderDomHeader({});
-    try {
-      const opener = Array.from(host.querySelectorAll('button')).find(
-        (button) => button.textContent === currentRoom.topic
-      )!;
-      opener.focus();
-      actInDom(() => opener.click());
-      const close = document.querySelector<HTMLButtonElement>(
-        '[role="dialog"] button[aria-label="Close"]'
-      )!;
-      close.focus();
-      screen.size = 'Mobile';
-      rerender();
-      expect(opener.isConnected).toBe(false);
-      expect(close.isConnected).toBe(true);
-      pressEscape(close);
-      expect(close.isConnected).toBe(false);
-      await vi.waitFor(() =>
-        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
-      );
-    } finally {
-      unmount();
+  it.each(['Escape', 'backdrop press'])(
+    'keeps the topic dialog open when its opener disappears and restores focus on %s',
+    async (dismiss) => {
+      currentRoom.topic = 'Example room topic';
+      const { host, rerender, unmount } = renderDomHeader({});
+      try {
+        const opener = Array.from(host.querySelectorAll('button')).find(
+          (button) => button.textContent === currentRoom.topic
+        )!;
+        opener.focus();
+        actInDom(() => opener.click());
+        const close = document.querySelector<HTMLButtonElement>(
+          '[role="dialog"] button[aria-label="Close"]'
+        )!;
+        close.focus();
+        screen.size = 'Mobile';
+        rerender();
+        expect(opener.isConnected).toBe(false);
+        expect(close.isConnected).toBe(true);
+        if (dismiss === 'Escape') pressEscape(close);
+        else pressBackdrop(close.closest('[role="dialog"]')!);
+        expect(close.isConnected).toBe(false);
+        await vi.waitFor(() =>
+          expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+        );
+      } finally {
+        unmount();
+      }
     }
-  });
+  );
 
   it('closes the schedules dialog when the same header switches rooms', () => {
     schedules.events = [schedule('orchard', THREAD)];
@@ -642,34 +658,46 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each(['Desktop', 'Mobile'])(
-    'keeps the call chooser anchored when a pin arrives on %s',
-    async (size) => {
-      screen.size = size;
-      const { host, rerender, unmount } = renderDomHeader({
-        calls: <AgentCallHeaderButton candidates={agents} />,
-      });
-      try {
-        const opener = host.querySelector<HTMLButtonElement>('[data-agent-call-button]')!;
-        const bounds = vi
-          .spyOn(opener, 'getBoundingClientRect')
-          .mockReturnValue(new DOMRect(250, 10, 40, 40));
-        actInDom(() => opener.click());
-        const chooser = host.querySelector('[aria-label="Choose an agent to call"]')!;
-        const positioner = chooser.parentElement!;
-        expect(positioner.style.right).toBe('100px');
+  it.each([
+    { size: 'Desktop', popup: 'call' },
+    { size: 'Mobile', popup: 'call' },
+    { size: 'Desktop', popup: 'pins' },
+    { size: 'Mobile', popup: 'pins' },
+  ])('keeps $popup anchored as its opener moves on $size', async ({ size, popup }) => {
+    screen.size = size;
+    const isCall = popup === 'call';
+    if (!isCall) pins.ids = ['$pinned:example.org'];
+    const { host, rerender, unmount } = renderDomHeader({
+      calls: <AgentCallHeaderButton candidates={agents} />,
+    });
+    try {
+      const pinButton = 'button[aria-label="Pinned Messages"]';
+      const opener = host.querySelector<HTMLButtonElement>(
+        isCall ? '[data-agent-call-button]' : pinButton
+      )!;
+      const bounds = vi
+        .spyOn(opener, 'getBoundingClientRect')
+        .mockReturnValue(new DOMRect(250, 10, 40, 40));
+      actInDom(() => opener.click());
+      const selector = isCall
+        ? '[aria-label="Choose an agent to call"]'
+        : '[role="dialog"][aria-label="Pinned Messages"]';
+      const content = host.querySelector(selector)!;
+      const positioner = content.parentElement!;
+      expect(positioner.style.right).toBe('100px');
+      bounds.mockReturnValue(new DOMRect(206, 10, 40, 40));
+      if (isCall) {
         pins.ids = ['$pinned:example.org'];
-        bounds.mockReturnValue(new DOMRect(206, 10, 40, 40));
         rerender();
-        await nextFrame();
-        expect(positioner.style.right).toBe('144px');
-        expect(host.querySelector('[aria-label="Choose an agent to call"]')).toBe(chooser);
-        expect(host.querySelector('button[aria-label="Pinned Messages"]')).not.toBeNull();
-      } finally {
-        unmount();
       }
+      await nextFrame();
+      expect(positioner.style.right).toBe('144px');
+      expect(host.querySelector(selector)).toBe(content);
+      expect(host.querySelector(pinButton)).not.toBeNull();
+    } finally {
+      unmount();
     }
-  );
+  });
 
   it('focuses More Options when the open call chooser and its control unmount', async () => {
     const props: RoomViewHeaderProps = {
@@ -800,7 +828,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     { demote: false, dismiss: 'Escape' },
     { demote: true, dismiss: 'Escape' },
     { demote: true, dismiss: 'Close' },
-  ])('restores clock focus on $dismiss (clock demoted: $demote)', async ({ demote, dismiss }) => {
+    { demote: true, dismiss: 'backdrop press' },
+  ])('restores header focus on $dismiss (clock demoted: $demote)', async ({ demote, dismiss }) => {
     screen.size = 'Mobile';
     schedules.events = [schedule('orchard', THREAD), schedule('seeds', null)];
     const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
@@ -825,11 +854,37 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         expect(close.isConnected).toBe(true);
       }
       if (dismiss === 'Escape') pressEscape(close);
-      else actInDom(() => close.click());
+      else if (dismiss === 'Close') actInDom(() => close.click());
+      else pressBackdrop(close.closest('[role="dialog"]')!);
       expect(document.querySelector('[role="dialog"]')).toBeNull();
       expect(clock.isConnected).toBe(!demote);
       const target = demote ? host.querySelector('[data-room-more-options]') : clock;
       await vi.waitFor(() => expect(document.activeElement).toBe(target));
+    } finally {
+      unmount();
+    }
+  });
+
+  it('opens the only canvas from More Options without forcing focus back to the menu button', async () => {
+    screen.size = 'Mobile';
+    const onCanvasOpen = vi.fn();
+    const { host, unmount } = renderDomHeader(
+      { canvases: canvases.slice(0, 1), onCanvasOpen, onCanvasClose: vi.fn() },
+      250
+    );
+    const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+    try {
+      actInDom(() => more.click());
+      const item = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Show Canvas'
+      )!;
+      item.focus();
+      expect(document.activeElement).toBe(item);
+      actInDom(() => item.click());
+      expect(onCanvasOpen).toHaveBeenCalledWith(canvases[0]?.canvasId);
+      expect(item.isConnected).toBe(false);
+      await nextFrame();
+      expect(document.activeElement).toBe(document.body);
     } finally {
       unmount();
     }
@@ -977,6 +1032,47 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       unmount();
     }
   });
+
+  it.each(['move', 'pick'])(
+    'keeps the notifications submenu anchored on move and does not restore More Options on pick (%s)',
+    async (action) => {
+      const { host, unmount } = renderDomHeader({});
+      const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+      try {
+        actInDom(() => more.click());
+        const opener = Array.from(host.querySelectorAll('button')).find(
+          (button) => button.textContent === 'Notifications'
+        )!;
+        const bounds = vi
+          .spyOn(opener, 'getBoundingClientRect')
+          .mockReturnValue(new DOMRect(250, 10, 40, 40));
+        opener.focus();
+        actInDom(() => opener.click());
+        const submenu = () => host.querySelector('[role="menu"][aria-label="Notifications"]');
+        const menu = submenu()!;
+        if (action === 'move') {
+          expect(menu.parentElement?.style.top).toBe('10px');
+          bounds.mockReturnValue(new DOMRect(250, 54, 40, 40));
+          await nextFrame();
+          expect(submenu()).toBe(menu);
+          expect(menu.parentElement?.style.top).toBe('54px');
+        } else {
+          const mute = Array.from(
+            menu.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')
+          ).find((button) => button.textContent === 'Mute')!;
+          mute.focus();
+          expect(document.activeElement).toBe(mute);
+          await actInDom(async () => mute.click());
+          expect(submenu()).toBeNull();
+          expect(more.getAttribute('aria-expanded')).toBe('false');
+          await nextFrame();
+          expect(document.activeElement).toBe(document.body);
+        }
+      } finally {
+        unmount();
+      }
+    }
+  );
 
   it('focuses More Options when a focused Members button loses its slot', async () => {
     screen.size = 'Mobile';

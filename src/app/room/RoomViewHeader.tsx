@@ -476,10 +476,7 @@ export function RoomViewHeader({
             onSelect={fromMenu((menuButton) => {
               const [only] = canvasesHere;
               if (needsCanvasChooser) canvasMenu.open(menuButton);
-              else if (only) {
-                toggleCanvas(only.canvasId);
-                restoreFocusAfterDismiss(menuButton);
-              }
+              else if (only) toggleCanvas(only.canvasId);
             })}
           />
         ),
@@ -696,7 +693,9 @@ export function RoomViewHeader({
               topic={topic}
               requestClose={(dismissed) => {
                 setTopicOpener(undefined);
-                if (dismissed) restoreFocusAfterDismiss(topicOpener);
+                if (dismissed || (dismissed === false && !topicOpener.isConnected)) {
+                  restoreFocusAfterDismiss(topicOpener);
+                }
               }}
             />
           )}
@@ -742,7 +741,7 @@ export function RoomViewHeader({
               spaceId={space?.roomId}
               threadId={threadId}
               submenuSide="Left"
-              close={closeMenu}
+              close={() => closeMenu()}
               showDialog={showDialog}
               onLeft={() => void navigate(sectionPath)}
               roomEntries={roomEntries}
@@ -770,7 +769,9 @@ export function RoomViewHeader({
           openThreadId={openThreadId}
           onClose={(dismissed) => {
             setSchedules(undefined);
-            if (dismissed) restoreFocusAfterDismiss(schedules?.opener);
+            if (dismissed || (dismissed === false && !schedules?.opener?.isConnected)) {
+              restoreFocusAfterDismiss(schedules?.opener);
+            }
           }}
           onOpenThread={openScheduledThread}
         />

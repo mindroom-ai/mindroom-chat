@@ -7,12 +7,12 @@ type RestoreFocus = (opener?: HTMLElement) => void;
 /** Lets controls drawn by the calls domain return focus to the header that owns them. */
 export const RestoreHeaderFocus = createContext<RestoreFocus>(() => undefined);
 
-/** Escape dismisses the overlay; a click outside closes it without restoring focus. */
+/** Escape passes true; a click outside passes false, distinct from choosing an action. */
 export const headerDismissTrap = (onClose: (dismissed?: boolean) => void) => ({
   initialFocus: false as const,
   returnFocusOnDeactivate: false,
   clickOutsideDeactivates: () => {
-    onClose();
+    onClose(false);
     return true;
   },
   escapeDeactivates: (event: KeyboardEvent) => {

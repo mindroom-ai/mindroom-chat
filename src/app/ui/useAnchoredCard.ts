@@ -14,10 +14,10 @@ import { tabFromCardToOpener } from '../lib/overlayFocus';
 /** How a card came up: a mouse resting on its trigger, keyboard focus, or a click or tap. */
 type CardMode = 'hover' | 'focus' | 'pinned';
 
-/** Follow an open popup through layout changes that don't necessarily resize its opener. */
+/** Follow a popup through layout changes. A getter is read each frame to follow remounted triggers. */
 export function useLiveAnchor(
-  opener: HTMLElement | undefined,
-  onGone: () => void,
+  opener: HTMLElement | (() => HTMLElement | null) | undefined,
+  onGone?: () => void,
   contentRef?: RefObject<HTMLElement>
 ): RectCords | undefined {
   const [anchor, setAnchor] = useState<RectCords>();
@@ -30,28 +30,31 @@ export function useLiveAnchor(
     let rect: RectCords | undefined;
     let contentSize: string | undefined;
     const follow = () => {
-      if (!opener.isConnected) {
+      const trigger = typeof opener === 'function' ? opener() : opener;
+      if (onGone && !trigger?.isConnected) {
         onGone();
         return;
       }
-      const next = opener.getBoundingClientRect();
+      const next = trigger?.getBoundingClientRect();
       const box = contentRef?.current?.getBoundingClientRect();
       const size = box && `${box.width}x${box.height}`;
       const resized = size !== contentSize;
       contentSize = size;
-      const { x, y, width, height } = next;
-      // A hidden opener measures all zeros. Keep the last position until it is shown again.
-      if (
-        !rect ||
-        ((x || y || width || height) &&
-          (resized ||
-            x !== rect.x ||
-            y !== rect.y ||
-            width !== rect.width ||
-            height !== rect.height))
-      ) {
-        rect = next;
-        setAnchor(next);
+      if (next) {
+        const { x, y, width, height } = next;
+        // A hidden opener measures all zeros. Keep the last position until it is shown again.
+        if (
+          !rect ||
+          ((x || y || width || height) &&
+            (resized ||
+              x !== rect.x ||
+              y !== rect.y ||
+              width !== rect.width ||
+              height !== rect.height))
+        ) {
+          rect = next;
+          setAnchor(next);
+        }
       }
       frame = requestAnimationFrame(follow);
     };
@@ -71,29 +74,29 @@ export function useLiveAnchor(
 export function useAnchoredCard(closeDelayMs = 0) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-  const [card, setCard] = useState<{ mode: CardMode; opener: HTMLButtonElement }>();
+  const [mode, setMode] = useState<CardMode>();
   const closeTimer = useRef<number>();
 
   const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), []);
   const close = useCallback(() => {
     cancelClose();
-    setCard(undefined);
+    setMode(undefined);
   }, [cancelClose]);
   const show = useCallback(
     (mode: CardMode) => {
       cancelClose();
-      const opener = triggerRef.current;
-      if (opener) setCard({ mode, opener });
+      if (triggerRef.current) setMode(mode);
     },
     [cancelClose]
   );
-  const anchor = useLiveAnchor(card?.opener, close, cardRef);
-  const open = card && anchor && { mode: card.mode, anchor };
+  const getTrigger = useCallback(() => triggerRef.current, []);
+  const anchor = useLiveAnchor(mode && getTrigger, undefined, cardRef);
+  const open = mode && anchor && { mode, anchor };
   // Focus reached the card: the mouse leaving must not take it, nor a close the mouse already
   // started, or the focus in it would drop to the page.
   const pin = () => {
     cancelClose();
-    setCard((current) => current && { ...current, mode: 'pinned' });
+    setMode((current) => current && 'pinned');
   };
   const toggle = () => (open?.mode === 'pinned' ? close() : show('pinned'));
 
@@ -114,7 +117,7 @@ export function useAnchoredCard(closeDelayMs = 0) {
       }
       cancelClose();
       closeTimer.current = window.setTimeout(() => {
-        setCard((current) => (current?.mode === 'hover' ? undefined : current));
+        setMode((current) => (current === 'hover' ? undefined : current));
       }, closeDelayMs);
     },
   };
