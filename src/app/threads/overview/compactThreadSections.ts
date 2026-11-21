@@ -20,7 +20,7 @@ export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
 export type CompactThreadSection = {
   id: ThreadWorkflowBucket;
   rootIds: string[];
-  sortInputs: ReadonlyMap<string, string>;
+  sortInputs?: ReadonlyMap<string, string>;
 };
 
 type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
@@ -148,7 +148,7 @@ export const holdCompactThreadSections = (
     const liveInputs = live.find((section) => section.id === id)?.sortInputs;
     const sortInputs = new Map(
       rootIds.flatMap((rootId) => {
-        const value = shownSection?.sortInputs.get(rootId) ?? liveInputs?.get(rootId);
+        const value = shownSection?.sortInputs?.get(rootId) ?? liveInputs?.get(rootId);
         return value === undefined ? [] : [[rootId, value] as const];
       })
     );

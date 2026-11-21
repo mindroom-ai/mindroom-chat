@@ -477,7 +477,9 @@ export function CompactRoomView({
   const applied = useRef<{ scope: string; ties: ReadonlyMap<string, string> }>();
   const previous = applied.current?.scope === scope ? applied.current.ties : undefined;
   const ties = new Map<string, string>();
-  const inputs = new Map(heldSections?.flatMap(({ sortInputs }) => [...sortInputs]));
+  const inputs = new Map(
+    heldSections?.flatMap(({ sortInputs }) => (sortInputs ? [...sortInputs] : []))
+  );
   for (const id of shownRootIds) {
     const record = threadRecordMap.get(id);
     const live =
@@ -490,7 +492,7 @@ export function CompactRoomView({
     if (tie) ties.set(id, tie);
     const sectionInput = inputs.get(id);
     if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie ?? 'unknown'}`);
-    else if (tie) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
+    else if (tie && !heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
   }
   useLayoutEffect(() => {
     applied.current = { scope, ties };

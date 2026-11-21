@@ -86,7 +86,7 @@ describe('buildCompactThreadSections', () => {
       record('$done', { isResolved: true, lastActivityTs: 21 })
     );
     const values = (sections: ReturnType<typeof sort>) =>
-      new Map(sections.flatMap(({ sortInputs }) => [...sortInputs]));
+      new Map(sections.flatMap(({ sortInputs }) => (sortInputs ? [...sortInputs] : [])));
     expect(values(live)).toEqual(
       new Map([
         ['$a', 'needsYou:30'],
