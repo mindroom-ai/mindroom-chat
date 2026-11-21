@@ -120,17 +120,20 @@ function TimelineThreadIndicator({
           <span id={descriptionId} hidden>
             {description}
           </span>
-          <PopOut
-            style={{ pointerEvents: 'none' }}
-            anchor={open?.anchor}
-            position="Top"
-            offset={4}
-            content={
-              <Tooltip ref={cardRef} role="tooltip" style={{ pointerEvents: 'auto' }} {...hover}>
-                <Text size="T300">{description}</Text>
-              </Tooltip>
-            }
-          />
+          {/* Mounted only while open: a closed PopOut still listens for window resizes, once per pill. */}
+          {open && (
+            <PopOut
+              style={{ pointerEvents: 'none' }}
+              anchor={open.anchor}
+              position="Top"
+              offset={4}
+              content={
+                <Tooltip ref={cardRef} role="tooltip" style={{ pointerEvents: 'auto' }} {...hover}>
+                  <Text size="T300">{description}</Text>
+                </Tooltip>
+              }
+            />
+          )}
         </>
       )}
     </>
