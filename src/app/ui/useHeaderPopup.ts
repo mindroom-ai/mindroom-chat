@@ -25,7 +25,12 @@ export const headerDismissTrap = (onClose: (dismissed?: boolean) => void) => ({
 export function useHeaderPopup(restoreFocus: RestoreFocus, available = true) {
   const [opener, open] = useState<HTMLButtonElement>();
   const close = useCallback(() => open(undefined), []);
-  const anchor = useLiveAnchor(available ? opener : undefined, close);
+  const onGone = useCallback(() => {
+    close();
+    // A hidden opener stays connected, so the cleanup below won't restore focus.
+    if (opener?.isConnected) restoreFocus();
+  }, [close, opener, restoreFocus]);
+  const anchor = useLiveAnchor(available ? opener : undefined, onGone);
 
   useLayoutEffect(() => {
     if (available || !opener) return;

@@ -16,6 +16,7 @@ import {
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../src/app/matrix/protocol/scheduledTaskContract';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { useRoomEscapeReadReceipts } from '../../src/app/room/useRoomEscapeReadReceipts';
+import { installOverlayFocus } from '../../src/app/lib/overlayFocus';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
@@ -119,6 +120,7 @@ function Fixture() {
   const [openedThread, setOpenedThread] = useState('');
   const [receiptCount, setReceiptCount] = useState(0);
   useRoomEscapeReadReceipts({ roomId: room.roomId, hideActivity: false });
+  useEffect(() => installOverlayFocus(document), []);
   useEffect(() => {
     const receipt = () => setReceiptCount((count) => count + 1);
     const cancel = () => room.currentState.setStateEvents([schedule('overdue', {}, 'cancelled')]);

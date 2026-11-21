@@ -353,7 +353,11 @@ const openMenu = () => {
   );
   act(() => {
     more?.props.onClick({
-      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+      currentTarget: {
+        isConnected: true,
+        getClientRects: () => [new DOMRect()],
+        getBoundingClientRect: () => new DOMRect(),
+      },
     });
   });
 };
@@ -939,7 +943,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('closes the canvas chooser when a sub-agent takes the opener’s slot', async () => {
+  it.each(['removed', 'hidden'])('closes the chooser when its opener is %s', async (loss) => {
     screen.size = 'Mobile';
     const { host, unmount } = renderDomHeader(
       { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
@@ -953,9 +957,16 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       )!;
       item.focus();
       expect(document.activeElement).toBe(item);
-      actInDom(() => run('running'));
-      expect(opener.isConnected).toBe(false);
-      expect(host.querySelector('button[data-subagents-toggle]')).not.toBeNull();
+      if (loss === 'hidden') {
+        opener.style.display = 'none';
+        opener.getClientRects = () => [] as unknown as DOMRectList;
+        opener.getBoundingClientRect = () => new DOMRect();
+        expect(opener.isConnected).toBe(true);
+      } else {
+        actInDom(() => run('running'));
+        expect(opener.isConnected).toBe(false);
+        expect(host.querySelector('button[data-subagents-toggle]')).not.toBeNull();
+      }
       await nextFrame();
       expect(item.isConnected).toBe(false);
       await nextFrame();

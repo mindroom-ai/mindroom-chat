@@ -340,7 +340,7 @@ export function RoomViewHeader({
       // Run after the trap has let go, unless another control already received focus.
       requestAnimationFrame(() => {
         const target = headerFocusTarget(opener);
-        if (!target) return;
+        if (!target || target.getClientRects().length === 0) return;
         const { activeElement, body } = target.ownerDocument;
         if (!activeElement || activeElement === body) target.focus({ preventScroll: true });
       });

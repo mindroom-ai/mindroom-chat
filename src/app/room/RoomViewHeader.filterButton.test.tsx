@@ -299,6 +299,7 @@ const textOf = (node: ReactTestInstance): string =>
 
 const popupOpener = (button: ReactTestInstance) => ({
   isConnected: true,
+  getClientRects: () => [new DOMRect()],
   getBoundingClientRect: () => new DOMRect(),
   hasAttribute: (name: string) => Object.hasOwn(button.props, name),
 });

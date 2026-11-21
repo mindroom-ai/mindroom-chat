@@ -31,7 +31,7 @@ export function useLiveAnchor(
     let contentSize: string | undefined;
     const follow = () => {
       const trigger = typeof opener === 'function' ? opener() : opener;
-      if (onGone && !trigger?.isConnected) {
+      if (onGone && (!trigger?.isConnected || trigger.getClientRects().length === 0)) {
         onGone();
         return;
       }
@@ -42,7 +42,7 @@ export function useLiveAnchor(
       contentSize = size;
       if (next) {
         const { x, y, width, height } = next;
-        // A hidden opener measures all zeros. Keep the last position until it is shown again.
+        // Keep the last position on zero measurements (e.g. a hidden timeline trigger).
         if (
           !rect ||
           ((x || y || width || height) &&

@@ -63,6 +63,7 @@ test('room schedule list shows every destination and follows live state updates'
   await expect(
     page.getByRole('button', { name: 'Scheduled tasks (2)', exact: true })
   ).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(

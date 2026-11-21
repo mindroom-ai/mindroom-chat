@@ -370,7 +370,11 @@ const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
 const moreOptionsClick = {
-  currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+  currentTarget: {
+    isConnected: true,
+    getClientRects: () => [new DOMRect()],
+    getBoundingClientRect: () => new DOMRect(),
+  },
 };
 
 /** Opens the room menu from the header's More Options button. */

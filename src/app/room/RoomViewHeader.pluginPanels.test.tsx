@@ -96,7 +96,11 @@ const openMenu = () => {
   );
   act(() => {
     more?.props.onClick({
-      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+      currentTarget: {
+        isConnected: true,
+        getClientRects: () => [new DOMRect()],
+        getBoundingClientRect: () => new DOMRect(),
+      },
     });
   });
 };
