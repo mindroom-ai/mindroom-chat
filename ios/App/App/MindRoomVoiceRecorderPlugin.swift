@@ -24,16 +24,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         FileManager.default.temporaryDirectory.appendingPathComponent("voice-recorder")
     }
 
-    private static func clearFolder() {
-        try? FileManager.default.removeItem(at: folder)
-    }
-
     private func removeFile(_ id: String) throws {
         guard owners[id] != nil else { return }
-        if live?.id == id {
-            finishLive()
-            owners[id] = nil // Do not offer a discarded live recording if removal fails.
-        }
+        if live?.id == id { finishLive() }
         do { try FileManager.default.removeItem(at: Self.file(of: id)) }
         catch CocoaError.fileNoSuchFile { /* Already removed. */ }
         owners[id] = nil
@@ -42,7 +35,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     // Called only with a UUID generated here or looked up in owners.
     private static func file(of id: String) -> URL { folder.appendingPathComponent("\(id).m4a") }
 
-    private var owners: [String: String] = [:]
+    private var owners: [String: (userId: String, recoverable: Bool)] = [:]
+    private var pendingOwner: String?
     private var live: (id: String, recorder: AVAudioRecorder)?
     /// Its window closed: it records nothing more.
     private var closed = false
@@ -51,7 +45,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     override public func load() {
         // A recording left behind when the app quit.
-        Self.clearFolder()
+        try? FileManager.default.removeItem(at: Self.folder)
         let pageEvents: [Notification.Name] = [.capacitorWebViewNavigationStarted, .capacitorWebViewTerminated]
         for name in pageEvents {
             NotificationCenter.default.addObserver(self, selector: #selector(pageWillLoad), name: name, object: bridge?.webView)
@@ -65,6 +59,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                   let userId = call.getString("userId"), !userId.isEmpty else {
                 return call.reject("Could not start recording", "START_FAILED")
             }
+            self.pendingOwner = userId
             let generation = self.generation
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
@@ -101,7 +96,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                             recorder.isMeteringEnabled = true
                             guard recorder.record() else { throw CocoaError(.fileWriteUnknown) }
                             self.live = (id, recorder)
-                            self.owners[id] = userId
+                            self.owners[id] = (userId, false)
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
@@ -176,11 +171,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async { [self] in
             let recordings: [[String: Any]] = owners.compactMap { id, owner in
                 let url = Self.file(of: id)
-                guard id != live?.id,
+                guard owner.recoverable, id != live?.id,
                       let start = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
                       let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else { return nil }
                 return ["id": id, "path": url.path, "startedAt": (start.timeIntervalSince1970 * 1_000).rounded(),
-                        "duration": player.duration * 1_000, "userId": owner]
+                        "duration": player.duration * 1_000, "userId": owner.userId]
             }
             call.resolve(["recordings": recordings])
         }
@@ -188,15 +183,18 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func clear(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
-            clearRecordings()
+            guard let userId = call.getString("userId"), !userId.isEmpty else {
+                return call.reject("Missing recording owner", "CLEAR_FAILED")
+            }
+            if pendingOwner == userId { generation += 1 }
+            var failed = false
+            for (id, owner) in owners where owner.userId == userId {
+                do { try removeFile(id) }
+                catch { failed = true }
+            }
+            if failed { return call.reject("Could not remove recordings", "CLEAR_FAILED") }
             call.resolve()
         }
-    }
-
-    private func clearRecordings() {
-        pageWillLoad()
-        Self.clearFolder()
-        owners.removeAll()
     }
 
     private static func deactivateAudio() {
@@ -218,14 +216,18 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     /// waiting for permission belongs to the old page and must not record.
     @objc private func pageWillLoad() {
         generation += 1
+        let id = live?.id
         finishLive()
+        if let id { owners[id]?.recoverable = true }
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
     func close() {
         guard !closed else { return }
         closed = true
-        clearRecordings()
+        finishLive()
+        try? FileManager.default.removeItem(at: Self.folder)
+        owners.removeAll()
     }
 }
 #endif

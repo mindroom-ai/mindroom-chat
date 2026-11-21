@@ -16,7 +16,7 @@ type MindRoomVoiceRecorderPlugin = {
   resume(options: RecordingId): Promise<void>;
   stop(options: RecordingId): Promise<{ path: string }>;
   cancel(options: RecordingId): Promise<void>;
-  clear(): Promise<void>;
+  clear(options: { userId: string }): Promise<void>;
   listLeftovers(): Promise<{ recordings: NativeVoiceLeftover[] }>;
 };
 
@@ -34,8 +34,8 @@ export const isNativeVoiceRecorderAvailable = (): boolean =>
   Capacitor.getPlatform() === 'ios' &&
   Capacitor.isPluginAvailable('MindRoomVoiceRecorder');
 
-export const clearNativeVoiceRecordings = async (): Promise<void> => {
-  if (isNativeVoiceRecorderAvailable()) await getVoiceRecorderPlugin().clear();
+export const clearNativeVoiceRecordings = async (userId: string): Promise<void> => {
+  if (isNativeVoiceRecorderAvailable()) await getVoiceRecorderPlugin().clear({ userId });
 };
 
 export const listNativeVoiceLeftovers = () => getVoiceRecorderPlugin().listLeftovers();
@@ -86,12 +86,13 @@ export class NativeVoiceRecorder extends EventTarget {
     this.transition('recording', (plugin) => plugin.resume({ id: this.id }));
   }
 
-  stop(persist?: 'discard' | ((data: Blob) => Promise<boolean>)): void {
+  /** Raises `dataavailable` (an Event with `data: Blob`) when there is audio, then `stop`. */
+  stop(): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    const stopped =
-      persist === 'discard' ? cancelNativeVoiceRecording(this.id) : this.deliver(persist);
-    stopped.catch(() => undefined).finally(() => this.dispatchEvent(new Event('stop')));
+    this.deliver()
+      .catch(() => undefined)
+      .finally(() => this.end());
   }
 
   private transition(
@@ -100,23 +101,24 @@ export class NativeVoiceRecorder extends EventTarget {
   ): void {
     if (this.state === 'inactive') return;
     this.state = state;
+    // A transition the native recorder refuses would leave a wrong duration: end the recording.
     call(getVoiceRecorderPlugin()).catch((error: { code?: string }) => {
       if (this.state === 'inactive') return;
-      if (error?.code !== 'NOT_RECORDING') return this.stop('discard');
-      // The native file is already finalized. Leave it for recovery.
       this.state = 'inactive';
-      this.dispatchEvent(new Event('stop'));
+      // A reload may already have finalized the file. Leave it for recovery.
+      this.end(error?.code === 'NOT_RECORDING');
     });
   }
 
-  private async deliver(persist?: (data: Blob) => Promise<boolean>): Promise<void> {
+  private async deliver(): Promise<void> {
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
     const data = await readNativeVoiceFile(path);
-    if (!data) return;
-    const committed = await persist?.(data).catch(() => false);
-    if (committed) await cancelNativeVoiceRecording(this.id);
-    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
-    if (!committed) void cancelNativeVoiceRecording(this.id).catch(() => undefined);
+    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
+  }
+
+  private end(keepFile = false): void {
+    if (!keepFile) cancelNativeVoiceRecording(this.id).catch(() => undefined);
+    this.dispatchEvent(new Event('stop'));
   }
 }
 

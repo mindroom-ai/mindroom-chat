@@ -53,9 +53,9 @@ export function useVoiceRecorder({
   }, [recorderToken, store]);
   const [capture] = useState(() =>
     createVoiceCaptureSession(
-      (startedAt, mimeType, nativeId) => {
+      (startedAt, mimeType) => {
         const userId = sendBindingAtStartRef.current?.context.ownerSessionId;
-        return userId ? beginVoiceRecording(userId, startedAt, mimeType, nativeId) : undefined;
+        return userId ? beginVoiceRecording(userId, startedAt, mimeType) : undefined;
       },
       (recording) => {
         const context = sendBindingAtStartRef.current?.context;

@@ -109,7 +109,10 @@ export const clearUserUiState = (userId: string): Promise<void> => {
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);
-  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
+  removeStorageItemSafe(
+    getSafeLocalStorage(),
+    `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`
+  );
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);
   clearRecentThreadsStore(userId);
@@ -135,7 +138,7 @@ export const clearUserUiState = (userId: string): Promise<void> => {
     .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
     .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
-  return clearNativeVoiceRecordings();
+  return clearNativeVoiceRecordings(userId);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {

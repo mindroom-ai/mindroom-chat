@@ -2,7 +2,6 @@ import { isNativeApp } from '../../native/nativeSso';
 import {
   isNativeVoiceRecorderAvailable,
   startNativeVoiceRecorder,
-  type NativeVoiceRecorder,
 } from '../../native/nativeVoiceRecorder';
 import {
   analyserRmsToMatrixPoint,
@@ -90,13 +89,12 @@ export type VoiceCaptureSession = {
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
-type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume'> &
-  Pick<EventTarget, 'addEventListener' | 'removeEventListener'> &
-  Pick<NativeVoiceRecorder, 'stop'> & { id?: string };
+type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
 type CaptureJournal = {
   id: string;
-  append: (seq: number, data: Blob, elapsedMs: number) => Promise<boolean | void>;
+  append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;
   remove: () => Promise<void>;
   release: () => void;
 };
@@ -104,6 +102,7 @@ type CaptureJournal = {
 type Generation = {
   journal?: CaptureJournal;
   offerOnStop?: boolean;
+  web?: boolean;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -137,11 +136,7 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
   });
 
 export const createVoiceCaptureSession = (
-  beginJournal?: (
-    startedAt: number,
-    mimeType: string,
-    nativeId?: string
-  ) => CaptureJournal | undefined,
+  beginJournal?: (startedAt: number, mimeType: string) => CaptureJournal | undefined,
   onPark?: (recording: CapturedVoiceRecording) => boolean
 ): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
@@ -209,23 +204,17 @@ export const createVoiceCaptureSession = (
     if (generation.stopTimer !== undefined) clearTimeout(generation.stopTimer);
     generation.stopTimer = undefined;
   };
-  const stopRecorder = (generation: Generation, discard: boolean) => {
-    const { recorder, journal, elapsedMs } = generation;
-    if (!recorder || recorder.state === 'inactive') return;
-    if (recorder.id && discard) recorder.stop('discard');
-    else if (recorder.id && journal)
-      recorder.stop(async (data) => (await journal.append(0, data, elapsedMs)) === true);
-    else recorder.stop();
-  };
   const retire = (generation: Generation) => {
     generation.acceptsEvents = false;
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
-    try {
-      stopRecorder(generation, true);
-    } catch {
-      /* Tracks still release below. */
+    if (generation.recorder && generation.recorder.state !== 'inactive') {
+      try {
+        generation.recorder.stop();
+      } catch {
+        /* Tracks still release below. */
+      }
     }
     releaseResources(generation);
     generation.recorder = undefined;
@@ -304,7 +293,7 @@ export const createVoiceCaptureSession = (
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    const park = (!recorder.id && onPark && !generation.action) || generation.action === 'park';
+    const park = (generation.web && onPark && !generation.action) || generation.action === 'park';
     if (generation.action !== 'send' && (!park || !generation.chunks.length)) {
       update({
         phase: 'idle',
@@ -383,7 +372,7 @@ export const createVoiceCaptureSession = (
       if (native) {
         const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
-          nativeRecorder.stop('discard');
+          nativeRecorder.stop();
           return false;
         }
         recorder = nativeRecorder;
@@ -425,8 +414,7 @@ export const createVoiceCaptureSession = (
         if (!generation.acceptsEvents || data.size === 0) return;
         const seq = generation.chunks.length;
         generation.chunks.push(data);
-        if (!native)
-          void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
+        void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
       generation.finishStop = onStop;
@@ -437,16 +425,18 @@ export const createVoiceCaptureSession = (
         recorder.removeEventListener?.('stop', onStop);
       };
       generation.startedAt = now();
-      try {
-        generation.journal = beginJournal?.(
-          generation.startedAt,
-          recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
-          recorder.id
-        );
-      } catch {
-        // Storage is best effort; capture still works from memory.
+      if (webRecorder) {
+        generation.web = true;
+        try {
+          generation.journal = beginJournal?.(
+            generation.startedAt,
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+          );
+        } catch {
+          // Storage is best effort; capture still works from memory.
+        }
+        webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
       }
-      webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
@@ -481,7 +471,7 @@ export const createVoiceCaptureSession = (
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
       try {
-        stopRecorder(generation, action === 'discard');
+        if (generation.recorder!.state !== 'inactive') generation.recorder!.stop();
         if (!generation.acceptsEvents) return;
         generation.stopTimer = setTimeout(() => {
           recordDeepTraceEvent('voice.capture.stop_timeout', {
@@ -558,7 +548,7 @@ export const createVoiceCaptureSession = (
       if (released) return;
       released = true;
       const generation = current;
-      if (onPark && generation?.recorder && !generation.action) {
+      if (onPark && generation?.web && generation.recorder && !generation.action) {
         generation.offerOnStop = offerOnStop;
         void stop('park');
       }

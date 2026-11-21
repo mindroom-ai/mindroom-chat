@@ -127,13 +127,13 @@ export const useSavedVoiceDraft = (
   useEffect(() => {
     if (!userId || restored.has(userId)) return;
     restored.add(userId);
-    void (async () => {
+    void withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
       const slotTaken = () =>
         !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
       if (slotTaken()) return;
-      const native = isNativeVoiceRecorderAvailable();
-      const canOffer = native ? await importNativeVoiceRecordings(userId) : undefined;
-      const saved = await withDraftDb((db) => db.get('drafts', userId));
+      const canOffer = isNativeVoiceRecorderAvailable()
+        ? await importNativeVoiceRecordings(userId)
+        : undefined;
       if (slotTaken()) return;
       const savedRoom = saved && mx.getRoom(saved.roomId);
       const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
@@ -141,7 +141,7 @@ export const useSavedVoiceDraft = (
       if (
         saved &&
         room &&
-        (!id || (!native && !globalThis.navigator?.locks) || (await holdVoiceRecording(id)))
+        (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
       ) {
         if ((id && canOffer && !(await canOffer(id))) || slotTaken()) {
           if (id) releaseVoiceRecording(id);
@@ -175,7 +175,7 @@ export const useSavedVoiceDraft = (
           return true;
         });
       }
-    })();
+    });
   }, [getRecoveryContext, mx, store, userId]);
 
   useEffect(() => {

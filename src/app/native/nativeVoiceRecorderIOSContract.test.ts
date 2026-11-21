@@ -76,9 +76,6 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     );
     expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
-    expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*finishLive\(\)\s*\}/
-    );
     const finish = pluginSource.match(/private func finishLive\(\) \{[\s\S]*?\n {4}\}/)?.[0];
     expect(finish).toContain('live.recorder.stop()');
     expect(finish).not.toMatch(/deleteRecording|discardLive|clearFolder/);
@@ -91,7 +88,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   });
 
   it('records nothing more once its window has closed', () => {
-    expect(pluginSource).toMatch(/func close\(\) \{[\s\S]*?closed = true\s*clearRecordings\(\)/);
+    expect(pluginSource).toMatch(
+      /func close\(\) \{[\s\S]*?closed = true\s*finishLive\(\)\s*try\? FileManager\.default\.removeItem\(at: Self\.folder\)\s*owners\.removeAll\(\)/
+    );
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
@@ -133,29 +132,37 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     ).toHaveLength(2);
   });
 
-  it('lists only finished UUID audio files and their recovery metadata', () => {
+  it('recovers only files finalized for page reload, not ordinary stops or discards', () => {
     const leftover = body('listLeftovers');
-    expect(leftover).toMatch(
-      /owners\.compactMap \{ id, owner in\s*let url = Self\.file\(of: id\)\s*guard id != live\?\.id,/
+    expect(leftover).toMatch(/guard owner\.recoverable, id != live\?\.id,/);
+    expect(body('start')).toContain('self.owners[id] = (userId, false)');
+    expect(body('stop')).toMatch(/finishLive\(\)\s*call\.resolve\(\["path":/);
+    const reload = pluginSource.match(/private func pageWillLoad\(\) \{[\s\S]*?\n {4}\}/)?.[0];
+    expect(reload).toMatch(
+      /generation \+= 1[\s\S]*?let id = live\?\.id\s*finishLive\(\)\s*if let id \{ owners\[id\]\?\.recoverable = true \}/
     );
+    // In particular a successful Send followed by failed cancel must never reappear on reload.
+    expect(pluginSource.match(/\.recoverable = true/g)).toHaveLength(1);
     expect(leftover).toContain('creationDate');
     expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
     expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
-    expect(leftover).toContain('"userId": owner');
+    expect(leftover).toContain('"userId": owner.userId');
     expect(leftover).toContain('"duration":');
   });
 
-  it('invalidates pending permission and clears the live recording and folder on sign-out', () => {
-    expect(body('clear')).toContain('clearRecordings()');
-    expect(body('clear')).not.toContain('getString');
-    expect(pluginSource).toMatch(
-      /private func clearRecordings\(\) \{\s*pageWillLoad\(\)\s*Self\.clearFolder\(\)\s*owners\.removeAll\(\)/
+  it('clears only matching owned recordings, including stopped ones, and rejects removal failures', () => {
+    const clear = body('clear');
+    expect(clear).toMatch(/guard let userId = call\.getString\("userId"\)/);
+    expect(clear).toMatch(
+      /for \(id, owner\) in owners where owner\.userId == userId \{\s*do \{ try removeFile\(id\) \}/
     );
+    expect(clear).toMatch(/call\.reject\(.*"CLEAR_FAILED"\)/);
+    expect(clear).not.toMatch(/removeItem|clearFolder|finishLive|discardLive/);
   });
 
   it('clears leftovers on plugin load and closes with its window', () => {
     expect(pluginSource).toMatch(
-      /override public func load\(\) \{\s*\/\/[^\n]*\n\s*Self\.clearFolder\(\)/
+      /override public func load\(\) \{\s*\/\/[^\n]*\n\s*try\? FileManager\.default\.removeItem\(at: Self\.folder\)/
     );
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
