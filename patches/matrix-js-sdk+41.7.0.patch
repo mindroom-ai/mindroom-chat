@@ -4465,7 +4465,7 @@ index 26f6aa9..793e861 100644
       */
      private degradable;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..82e75a9 100644
+index 8320c66..59e3286 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -35,6 +35,9 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
@@ -4551,16 +4551,19 @@ index 8320c66..82e75a9 100644
      /**
       * Returns the out-of-band membership events for this room that
       * were previously loaded.
-@@ -146,7 +176,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -145,8 +175,9 @@ export class IndexedDBStore extends MemoryStore {
+      * @returns in case the members for this room haven't been stored yet
       */
      _defineProperty(this, "getOutOfBandMembers", this.degradable(roomId => {
-       return this.backend.getOutOfBandMembers(roomId);
+-      return this.backend.getOutOfBandMembers(roomId);
 -    }, "getOutOfBandMembers"));
++      // What this store was given comes from memory: a write that failed kept it only there.
++      return super.getOutOfBandMembers(roomId).then(given => given !== null && given !== void 0 ? given : this.backend.getOutOfBandMembers(roomId));
 +    }, "getOutOfBandMembers", "keep"));
      /**
       * Stores the out-of-band membership events for this room. Note that
       * it still makes sense to store an empty array as the OOB status for the room is
-@@ -157,18 +187,18 @@ export class IndexedDBStore extends MemoryStore {
+@@ -157,18 +188,19 @@ export class IndexedDBStore extends MemoryStore {
      _defineProperty(this, "setOutOfBandMembers", this.degradable((roomId, membershipEvents) => {
        super.setOutOfBandMembers(roomId, membershipEvents);
        return this.backend.setOutOfBandMembers(roomId, membershipEvents);
@@ -4571,8 +4574,10 @@ index 8320c66..82e75a9 100644
        return this.backend.clearOutOfBandMembers(roomId);
      }, "clearOutOfBandMembers"));
      _defineProperty(this, "getClientOptions", this.degradable(() => {
-       return this.backend.getClientOptions();
+-      return this.backend.getClientOptions();
 -    }, "getClientOptions"));
++      // As for the members above.
++      return super.getClientOptions().then(given => given !== null && given !== void 0 ? given : this.backend.getClientOptions());
 +    }, "getClientOptions", "keep"));
      _defineProperty(this, "storeClientOptions", this.degradable(options => {
        super.storeClientOptions(options);
@@ -4582,7 +4587,7 @@ index 8320c66..82e75a9 100644
      if (!opts.indexedDB) {
        throw new Error("Missing required option: indexedDB");
      }
-@@ -233,7 +263,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -233,7 +265,7 @@ export class IndexedDBStore extends MemoryStore {
     */
    wantsSave() {
      var now = Date.now();
@@ -4591,17 +4596,28 @@ index 8320c66..82e75a9 100644
    }
  
    /**
-@@ -245,7 +275,8 @@ export class IndexedDBStore extends MemoryStore {
+@@ -245,10 +277,16 @@ export class IndexedDBStore extends MemoryStore {
     */
    save() {
      var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
 -    if (force || this.wantsSave()) {
-+    // A forced save skips the usual interval, but not the wait after a failed save.
-+    if (force && !this.failedSaves ? !this.savesStopped : this.wantsSave()) {
-       return this.reallySave();
-     }
-     return Promise.resolve();
-@@ -260,18 +291,40 @@ export class IndexedDBStore extends MemoryStore {
+-      return this.reallySave();
+-    }
+-    return Promise.resolve();
++    var start = () => {
++      // A forced save skips the usual interval, but not the wait after a failed save.
++      if (force && !this.failedSaves ? !this.savesStopped : this.wantsSave()) {
++        return this.reallySave();
++      }
++      return Promise.resolve();
++    };
++    // The save in flight read the data before this call, perhaps before what the caller
++    // changed: a forced save waits for it, however it ends, and then saves.
++    return force && this.saving ? this.saving.then(start, start) : start();
+   }
+   /**
+    * All member functions of `IndexedDBStore` that access the backend use this wrapper to
+@@ -260,18 +298,40 @@ export class IndexedDBStore extends MemoryStore {
     *
     * @param func - The degradable work to do.
     * @param fallback - The method name for fallback.
@@ -4913,7 +4929,7 @@ index 5f58e7c..fbeba0c 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..4190713 100644
+index 25be506..a51b04d 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -40,6 +40,9 @@ import { type SyncUserProfile } from "../models/user.ts";
@@ -4991,16 +5007,24 @@ index 25be506..4190713 100644
      }
  
      /**
-@@ -231,13 +249,15 @@ export class IndexedDBStore extends MemoryStore {
+@@ -231,13 +249,20 @@ export class IndexedDBStore extends MemoryStore {
       *     (or immediately if no write is performed)
       */
      public save(force = false): Promise<void> {
 -        if (force || this.wantsSave()) {
-+        // A forced save skips the usual interval, but not the wait after a failed save.
-+        if (force && !this.failedSaves ? !this.savesStopped : this.wantsSave()) {
-             return this.reallySave();
-         }
-         return Promise.resolve();
+-            return this.reallySave();
+-        }
+-        return Promise.resolve();
++        const start = (): Promise<void> => {
++            // A forced save skips the usual interval, but not the wait after a failed save.
++            if (force && !this.failedSaves ? !this.savesStopped : this.wantsSave()) {
++                return this.reallySave();
++            }
++            return Promise.resolve();
++        };
++        // The save in flight read the data before this call, perhaps before what the caller
++        // changed: a forced save waits for it, however it ends, and then saves.
++        return force && this.saving ? this.saving.then(start, start) : start();
      }
  
      private reallySave = this.degradable((): Promise<void> => {
@@ -5008,7 +5032,7 @@ index 25be506..4190713 100644
          this.syncTs = Date.now(); // set now to guard against multi-writes
  
          // work out changed users (this doesn't handle deletions but you
-@@ -253,12 +273,35 @@ export class IndexedDBStore extends MemoryStore {
+@@ -253,12 +278,35 @@ export class IndexedDBStore extends MemoryStore {
              this.userModifiedMap[u.userId] = u.getLastModifiedTime();
          }
  
@@ -5047,16 +5071,19 @@ index 25be506..4190713 100644
  
      /**
       * Returns the out-of-band membership events for this room that
-@@ -268,7 +311,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -267,8 +315,9 @@ export class IndexedDBStore extends MemoryStore {
+      * @returns in case the members for this room haven't been stored yet
       */
      public getOutOfBandMembers = this.degradable((roomId: string): Promise<IStateEventWithRoomId[] | null> => {
-         return this.backend.getOutOfBandMembers(roomId);
+-        return this.backend.getOutOfBandMembers(roomId);
 -    }, "getOutOfBandMembers");
++        // What this store was given comes from memory: a write that failed kept it only there.
++        return super.getOutOfBandMembers(roomId).then((given) => given ?? this.backend.getOutOfBandMembers(roomId));
 +    }, "getOutOfBandMembers", "keep");
  
      /**
       * Stores the out-of-band membership events for this room. Note that
-@@ -283,6 +326,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -283,6 +332,7 @@ export class IndexedDBStore extends MemoryStore {
              return this.backend.setOutOfBandMembers(roomId, membershipEvents);
          },
          "setOutOfBandMembers",
@@ -5064,11 +5091,14 @@ index 25be506..4190713 100644
      );
  
      public clearOutOfBandMembers = this.degradable((roomId: string) => {
-@@ -292,12 +336,12 @@ export class IndexedDBStore extends MemoryStore {
+@@ -291,13 +341,14 @@ export class IndexedDBStore extends MemoryStore {
+     }, "clearOutOfBandMembers");
  
      public getClientOptions = this.degradable((): Promise<IStoredClientOpts | undefined> => {
-         return this.backend.getClientOptions();
+-        return this.backend.getClientOptions();
 -    }, "getClientOptions");
++        // As for the members above.
++        return super.getClientOptions().then((given) => given ?? this.backend.getClientOptions());
 +    }, "getClientOptions", "keep");
  
      public storeClientOptions = this.degradable((options: IStoredClientOpts): Promise<void> => {
@@ -5079,7 +5109,7 @@ index 25be506..4190713 100644
  
      /**
       * All member functions of `IndexedDBStore` that access the backend use this wrapper to
-@@ -309,18 +353,41 @@ export class IndexedDBStore extends MemoryStore {
+@@ -309,18 +360,41 @@ export class IndexedDBStore extends MemoryStore {
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.

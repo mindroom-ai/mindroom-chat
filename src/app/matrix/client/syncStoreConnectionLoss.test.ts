@@ -375,23 +375,38 @@ describe('Matrix sync store after an IndexedDB failure', () => {
   });
 
   // Each is one transaction, so an abort (as when iOS suspends the app) stores no part of it.
+  // The store that was given the value goes on returning it.
   it.each([
-    ['members', storeMembers],
-    ['client options', (store: IndexedDBStore) => store.storeClientOptions({})],
-  ])('keeps the persisted sync when a write of %s is aborted', async (_what, write) => {
-    const store = await savedStore();
-    const degraded = vi.fn();
-    store.on('degraded', degraded);
+    [
+      'members',
+      storeMembers,
+      (store: IndexedDBStore) => store.getOutOfBandMembers(roomId),
+      members,
+    ],
+    [
+      'client options',
+      (store: IndexedDBStore) => store.storeClientOptions({ lazyLoadMembers: true }),
+      (store: IndexedDBStore) => store.getClientOptions(),
+      { lazyLoadMembers: true },
+    ],
+  ])(
+    'keeps the persisted sync when a write of %s is aborted',
+    async (_what, write, read, given) => {
+      const store = await savedStore();
+      const degraded = vi.fn();
+      store.on('degraded', degraded);
 
-    abortNextSave('UnknownError');
-    await write(store);
+      abortNextSave('UnknownError');
+      await write(store);
 
-    expect(degraded).not.toHaveBeenCalled();
-    const reader = await startStore();
-    expect(await reader.getSavedSyncToken()).toBe('saved');
-    expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
-    expect(await reader.getClientOptions()).toBeUndefined();
-  });
+      expect(degraded).not.toHaveBeenCalled();
+      expect(await read(store)).toEqual(given);
+      const reader = await startStore();
+      expect(await reader.getSavedSyncToken()).toBe('saved');
+      expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
+      expect(await reader.getClientOptions()).toBeUndefined();
+    }
+  );
 
   it('clears the store when the storage is full during a clear of stored members', async () => {
     const store = await savedStore();
@@ -427,6 +442,50 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await persistedToken()).toBe('after-leave');
     expect(degraded).not.toHaveBeenCalled();
     expect(failed).not.toHaveBeenCalled();
+  });
+
+  // The app saves by force after it removed a room that was forgotten on another device.
+  it('holds forced saves during the retry of a failed save until their change is saved', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const invited = '!invited:example';
+    const store = await startStore();
+    await store.setSyncData({
+      next_batch: 'saved',
+      rooms: { invite: { [invited]: { invite_state: { events: [] } } } },
+    } as unknown as Parameters<IndexedDBStore['setSyncData']>[0]);
+    await store.save(true);
+    abortNextSave('UnknownError');
+    await store.save(true);
+    passRetryWait();
+
+    // The retry has written the saved sync with the room, and has not ended yet.
+    let endRetry: () => void = () => undefined;
+    const written = new Promise<void>((resolve) => {
+      endRetry = resolve;
+    });
+    const syncToDatabase = store.backend.syncToDatabase.bind(store.backend);
+    const write = vi
+      .spyOn(store.backend, 'syncToDatabase')
+      .mockImplementationOnce((users) => syncToDatabase(users).then(() => written));
+    const retry = store.save();
+    await store.setSyncData({
+      next_batch: 'removed',
+      rooms: { leave: { [invited]: {} } },
+    } as unknown as Parameters<IndexedDBStore['setSyncData']>[0]);
+    const done = vi.fn();
+    const forced = Promise.all([store.save(true), store.save(true)]).then(done);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(done).not.toHaveBeenCalled();
+    endRetry();
+    await Promise.all([retry, forced]);
+    // The retry, and one save for both callers.
+    expect(write).toHaveBeenCalledTimes(2);
+
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('removed');
+    expect((await reader.getSavedSync())?.roomsData.invite).toEqual({});
   });
 
   it('counts one failure for the callers that share a save', async () => {
