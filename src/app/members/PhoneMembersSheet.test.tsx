@@ -11,7 +11,16 @@ import { usePanelSlot } from '../ui/panels/panelPresence';
 import { PhoneMembersSheet } from './PhoneMembersSheet';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('./PhoneMembersSheet.css', () => ({ Layer: 'layer', Scrim: 'scrim', Panel: 'panel' }));
+vi.mock('./PhoneMembersSheet.css', () => ({
+  Layer: 'layer',
+  Scrim: 'scrim',
+  Panel: 'panel',
+  Members: 'members',
+}));
+// The sheet's notice place is tested with the other places (ui/noticeSlots.test.tsx).
+vi.mock('../ui/noticeSlots', () => ({
+  NoticeSlot: ({ place }: { place: string }) => <div data-notice-place={place} />,
+}));
 
 /** A room's panel slot with the members asked for or not, as Room and Lobby hold it. */
 function Slot({ open, slot, onClose }: { open: boolean; slot: HTMLElement; onClose: () => void }) {
@@ -68,6 +77,17 @@ describe('PhoneMembersSheet', () => {
     });
     expect(panel?.hasAttribute('data-open')).toBe(true);
     expect(store.get(phoneLayerOpenAtom)).toBe(true);
+  });
+
+  it('offers a notice place of its own, above the members, while it is out', () => {
+    const { setOpen } = mount(true);
+    const place = () => sheet()?.querySelector('[data-notice-place="sheet"]');
+    expect(place()).toBe(sheet()?.firstElementChild);
+
+    // Sliding out, it is inert: nothing in it is in reach, and the place goes back to the page.
+    setOpen(false);
+    expect(sheet()).not.toBeNull();
+    expect(place()).toBeNull();
   });
 
   it('is out at once when the room opens with the members shown', () => {

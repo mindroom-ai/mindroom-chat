@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  coverNoticeSlotAtom,
+  DialogNoticeSlot,
   listNoticeSlotAtom,
   NOTICE_LEAVE_MS,
   NoticeSlot,
@@ -58,6 +60,50 @@ describe('NoticeSlot', () => {
 
     unmount();
     expect(store.get(listNoticeSlotAtom)).toBeNull();
+  });
+
+  it('offers the place of the topmost thing that covers the page: a dialog, a sheet, a drawer', () => {
+    const covers = (dialogs: number, sheet: boolean, drawer: boolean) => (
+      <>
+        {drawer && (
+          <section data-cover="drawer">
+            <NoticeSlot place="drawer" />
+          </section>
+        )}
+        {sheet && (
+          <section data-cover="sheet">
+            <NoticeSlot place="sheet" />
+          </section>
+        )}
+        {Array.from({ length: dialogs }, (_, index) => (
+          <section key={index} data-cover={`dialog ${index}`}>
+            <DialogNoticeSlot />
+          </section>
+        ))}
+      </>
+    );
+    const cover = () => store.get(coverNoticeSlotAtom)?.parentElement?.dataset.cover;
+    const { rerender } = render(covers(0, false, false));
+    // Nothing covers the page: what must stay in reach shows in the page's place.
+    expect(store.get(coverNoticeSlotAtom)).toBeNull();
+
+    rerender(covers(0, false, true));
+    expect(cover()).toBe('drawer');
+    expect(store.get(coverNoticeSlotAtom)?.getAttribute('aria-live')).toBe('polite');
+    rerender(covers(0, true, true));
+    expect(cover()).toBe('sheet');
+    rerender(covers(1, true, true));
+    expect(cover()).toBe('dialog 0');
+    // A second dialog opens over the first, then closes: the first one's place is offered again.
+    rerender(covers(2, true, true));
+    expect(cover()).toBe('dialog 1');
+    rerender(covers(1, true, true));
+    expect(cover()).toBe('dialog 0');
+    rerender(covers(0, true, false));
+    expect(cover()).toBe('sheet');
+    rerender(covers(0, false, false));
+    expect(store.get(coverNoticeSlotAtom)).toBeNull();
+    expect(store.get(pageNoticeSlotAtom)).toBeNull();
   });
 
   it('leaves the place to a newer slot that took it over', () => {

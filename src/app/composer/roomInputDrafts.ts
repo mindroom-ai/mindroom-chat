@@ -18,7 +18,9 @@ import {
 } from '../lib/safeLocalStorage';
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
+import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
+import { endVoiceRecordingsOfAccount, liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
@@ -34,7 +36,7 @@ export type IReplyDraft = {
   previewText?: string;
 };
 
-/** Where a voice message goes, captured when recording ends. */
+/** Where a voice message goes: the composer its Send was pressed in, read at that moment. */
 export type PendingVoiceSendContext = {
   /** The account that recorded it; another account never sends it. */
   ownerSessionId: string;
@@ -45,7 +47,7 @@ export type PendingVoiceSendContext = {
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
   /**
-   * Recorded in a thread's own view (room/ThreadView.tsx), not on the room's page: after a failed
+   * Sent from a thread's own view (room/ThreadView.tsx), not from the room's page: after a failed
    * send it comes back in a view of that thread, or on the room's page while it shows that thread.
    */
   threadView?: boolean;
@@ -384,9 +386,6 @@ export const voiceComposerKey = ({
 }: Pick<PendingVoiceSendContext, 'roomId' | 'threadId' | 'threadView'>): string =>
   threadView ? JSON.stringify([roomId, threadId]) : roomId;
 
-/** The composer whose voice recorder is open, one at a time: opening another closes it. */
-export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
-
 /** The composers of thread views that are mounted, by `voiceComposerKey`, each one entry. */
 export const threadViewVoiceComposersAtom = atom<readonly { key: string; view: string }[]>([]);
 
@@ -435,10 +434,12 @@ const familyKeys = <Key>(family: {
 
 /**
  * Whether a composer holds something that only lives in memory, so a page reload would drop it:
- * a staged file, the message being replied to, or a recorded voice message. Typed text is not one:
- * every change is written to localStorage, and the reloaded composer restores it.
+ * a staged file, the message being replied to, or a voice message, recorded or being recorded.
+ * Typed text is not one: every change is written to localStorage, and the reloaded composer
+ * restores it.
  */
 export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
+  store.get(liveVoiceRecordingAtom) !== undefined ||
   store.get(pendingVoiceSendDraftAtom) !== undefined ||
   store.get(voiceAutoSendPendingAtom) ||
   familyKeys(roomIdToUploadItemsAtomFamily).some(
@@ -460,11 +461,25 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
  * files and a voice send in progress. These are keyed by room alone, so the next account to open
  * a room both accounts are in would otherwise show them and send them as its own. Unsent
  * messages stay, since they are kept per account. A recorded voice message waiting for a retry
- * stays too: it names its account and no other one sends it. No recorder stays open.
+ * stays too: it names its account and no other one sends it. A voice message still being recorded
+ * ends, and so does one whose Send is still on its way: the microphone is released at once, and
+ * neither writes anything under the next account.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
-  store.set(openVoiceRecorderAtom, undefined);
+  endVoiceRecordingsOfAccount(store);
+};
+
+// Only logout or a different Matrix user ends the account's voice work, not a route unmount.
+export const watchComposerAccount = (store: JotaiStore): (() => void) => {
+  let userId = getActiveSession()?.userId;
+  return subscribeToSessionStore(() => {
+    const next = getActiveSession()?.userId;
+    if (next === userId) return;
+    const previous = userId;
+    userId = next;
+    if (previous !== undefined) forgetComposerStateOfSession(store);
+  });
 };

@@ -6,7 +6,7 @@ import type {
   PendingVoiceSendInFlight,
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
-import { deleteVoiceRecording } from './voiceRecordingJournal';
+import { deleteVoiceRecording, releaseVoiceRecording } from './voiceRecordingJournal';
 import { clearSavedVoiceDraft } from './savedVoiceDraft';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
@@ -32,11 +32,13 @@ export type VoiceSendDraftController = {
   sendInitial: (
     recording: CapturedVoiceRecording,
     context: PendingVoiceSendContext,
-    attempt: VoiceSendAttempt
+    /** `sameAccount`: false once the account the Send was pressed under was left. */
+    attempt: VoiceSendAttempt & { sameAccount: () => boolean }
   ) => Promise<boolean>;
   retry: (
     attempt: VoiceSendAttempt & {
       claim: () => boolean | void;
+      /** Where a recovered recording goes: the composer its Send is pressed in. */
       context?: () => PendingVoiceSendContext;
     }
   ) => Promise<boolean>;
@@ -56,6 +58,7 @@ const createRetryToken = (): PendingVoiceSendInFlight => ({
   startedAt: Date.now(),
 });
 
+/** The draft was sent or discarded: its disk copies go. */
 const forgetDraft = async ({ context, file, recordingId }: PendingVoiceSendDraft) => {
   await clearSavedVoiceDraft(context.ownerSessionId, recordingId ?? file.name);
   await deleteVoiceRecording(recordingId);
@@ -74,14 +77,15 @@ export const createVoiceSendDraftController = (
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
       await deleteVoiceRecording(recording.recordingId);
-      drafts.write(undefined);
+      // This was a live recording, not a retry. A draft restored meanwhile is not consumed.
       return true;
     } catch (error) {
-      drafts.write({
-        ...recording,
-        context,
-        errorMessage: getVoiceSendErrorMessage(error),
-      });
+      if (attempt.sameAccount()) {
+        drafts.write({ ...recording, context, errorMessage: getVoiceSendErrorMessage(error) });
+      } else if (recording.recordingId) {
+        // The account was left: its disk copy waits, unlocked, for that account to recover.
+        releaseVoiceRecording(recording.recordingId);
+      }
       attempt.onFailure();
       return false;
     }
@@ -126,6 +130,7 @@ export const createVoiceSendDraftController = (
         if (!current || current.inFlight?.token !== inFlight.token) return false;
         drafts.write({
           ...current,
+          // A recovered recording whose send failed waits where that Send was pressed.
           ...(draft.recovered && { recovered: false, context }),
           inFlight: undefined,
           errorMessage: getVoiceSendErrorMessage(error),

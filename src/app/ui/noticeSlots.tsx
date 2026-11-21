@@ -1,12 +1,23 @@
-import { type AnimationEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type AnimationEvent,
+  type ComponentPropsWithoutRef,
+  forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { useInert } from '../lib/hooks/useInert';
+import { layerOf } from '../lib/overlayFocus';
 import * as css from './noticeSlots.css';
 
 // Places a floating notice can be shown in, offered by the layout while it shows them. The new
 // version notice (shell/NewVersionNotice.tsx) and the tour's offer (tour/TourOffer.tsx) take the
 // room list's while there is one, else the page's (useNoticePresence); how the connection is
-// (shell/SyncStatus.tsx) always shows in the page's.
+// (shell/SyncStatus.tsx) always shows in the page's. A voice recording no composer shows
+// (composer/voice/LiveVoiceRecordingIndicator.tsx) shows in the page's too, or in the place of
+// what covers the page (`coverNoticeSlotAtom`).
 
 /** At the foot of the room list beside the page (ResizablePageNav); phones have none. */
 export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
@@ -14,7 +25,33 @@ export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
 /** At the top of the signed-in page, under a phone's top bar (ClientLayout). */
 export const pageNoticeSlotAtom = atom<HTMLElement | null>(null);
 
-const slotAtoms = { list: listNoticeSlotAtom, page: pageNoticeSlotAtom };
+/** In a phone's navigation drawer while it holds its list, above that list (PhoneNavDrawer). */
+export const drawerNoticeSlotAtom = atom<HTMLElement | null>(null);
+
+/** In a phone's members sheet while it is out, above the members (PhoneMembersSheet). */
+export const sheetNoticeSlotAtom = atom<HTMLElement | null>(null);
+
+const slotAtoms = {
+  list: listNoticeSlotAtom,
+  page: pageNoticeSlotAtom,
+  drawer: drawerNoticeSlotAtom,
+  sheet: sheetNoticeSlotAtom,
+};
+
+/** The places of portaled dialog surfaces, in opening order. */
+export const dialogNoticeSlotsAtom = atom<readonly HTMLElement[]>([]);
+
+/**
+ * The place inside the topmost thing that covers the page, from one ordered list: a dialog
+ * (including a bottom sheet), a phone's members sheet, its drawer. Null
+ * while nothing covers the page. Each offers its place only while it is there to use, so what
+ * must stay in reach goes here before the page's place, and what the page shows is out of sight
+ * for as long as this is set.
+ */
+export const coverNoticeSlotAtom = atom((get) => {
+  const dialogs = get(dialogNoticeSlotsAtom);
+  return dialogs[dialogs.length - 1] ?? get(sheetNoticeSlotAtom) ?? get(drawerNoticeSlotAtom);
+});
 
 /** How long a notice takes to leave: the Normal motion token (ui/noticeMotion.css.ts) and a frame. */
 export const NOTICE_LEAVE_MS = 180;
@@ -23,7 +60,7 @@ export const NOTICE_LEAVE_MS = 180;
 export type NoticePlacement = 'list' | 'page';
 
 type NoticeSlotProps = {
-  place: NoticePlacement;
+  place: NoticePlacement | 'drawer' | 'sheet';
   /** Whether the page has the phone layout, which a notice shown here follows. */
   phone?: boolean;
   /** Whether something covers the place, as a phone's drawer does: its notice is inert then. */
@@ -45,15 +82,39 @@ export function NoticeSlot({ place, phone = false, covered = false }: NoticeSlot
     setSlot(element);
     return () => setSlot((current) => (current === element ? null : current));
   }, [setSlot]);
-  return (
-    <div
-      ref={ref}
-      className={place === 'list' ? css.ListSlot : css.PageSlot({ phone })}
-      data-phone={phone || undefined}
-      aria-live="polite"
-    />
-  );
+  let className = css.PageSlot({ phone });
+  if (place === 'list') className = css.ListSlot;
+  if (place === 'drawer' || place === 'sheet') className = css.CoverSlot;
+  return <div ref={ref} className={className} data-phone={phone || undefined} aria-live="polite" />;
 }
+
+/**
+ * Appended inside a shared dialog surface, after its controls to preserve initial focus.
+ * Only a portaled dialog covers the page; an inline surface does not take a stack entry.
+ */
+export function DialogNoticeSlot() {
+  const setSlots = useSetAtom(dialogNoticeSlotsAtom);
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || !layerOf(element.ownerDocument, element)) return undefined;
+    setSlots((slots) => [...slots, element]);
+    return () => setSlots((slots) => slots.filter((slot) => slot !== element));
+  }, [setSlots]);
+  return <div ref={ref} className={css.CoverSlot} aria-live="polite" data-dialog-notice-slot />;
+}
+
+/** A dialog with its own layout rather than a glass Modal or Dialog. */
+export const DialogFrame = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(
+  function DialogFrame({ children, ...props }, ref) {
+    return (
+      <div ref={ref} role="dialog" {...props}>
+        {children}
+        <DialogNoticeSlot />
+      </div>
+    );
+  }
+);
 
 /**
  * The layer that can cover a phone's page, the drawer or a sheet: whether it is out
