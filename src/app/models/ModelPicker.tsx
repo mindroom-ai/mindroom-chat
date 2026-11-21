@@ -622,14 +622,13 @@ export function ModelPicker({
   // A model with levels names the level it runs at too, and shows it as bars after its logo.
   const levels = shownModel?.reasoning_levels;
   const bars = levels && active ? effortBars(levels, active) : undefined;
-  const label = !state.runtime
-    ? undefined
-    : active
+  const modelAndLevel = active
     ? t('mindroomUi.models.modelPicker.withLevel', {
         model: modelLabel,
         level: t(`mindroomUi.models.modelPicker.levels.${active}`),
       })
     : modelLabel;
+  const label = state.runtime ? modelAndLevel : undefined;
   const chooseModel = t('mindroomUi.models.modelPicker.chooseModel');
 
   const close = () => {
@@ -724,11 +723,9 @@ export function ModelPicker({
               size={20}
             />
             {bars && bars.count > 0 && <EffortGlyph count={bars.count} filled={bars.filled} />}
-            {label && (
-              <span id={triggerLabelId} className={css.VisuallyHidden}>
-                {label}
-              </span>
-            )}
+            <span id={triggerLabelId} className={css.VisuallyHidden}>
+              {label}
+            </span>
           </IconButton>
         )}
       </IconTooltip>

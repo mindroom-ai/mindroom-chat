@@ -7,6 +7,7 @@ import {
   Room,
   ClientEvent,
   RoomMemberEvent,
+  RoomStateEvent,
   RoomEvent,
   SyncState,
   type IStateEventWithRoomId,
@@ -30,15 +31,15 @@ const cleanups: (() => void)[] = [];
 const flush = async () => {
   for (let i = 0; i < 30; i += 1) await Promise.resolve();
 };
-const setup = (lazyLoadMembers = false) => {
+const setup = (lazyLoadMembers = false, userId = viewer, roomId = '!room:test') => {
   vi.useFakeTimers();
   const mx = createClient({
     baseUrl: 'https://test',
-    userId: viewer,
+    userId,
     deviceId: 'LOCAL',
     scheduler: new MatrixScheduler(() => -1),
   });
-  const room = new Room('!room:test', mx, viewer, { lazyLoadMembers });
+  const room = new Room(roomId, mx, userId, { lazyLoadMembers });
   const member = (userId: string, membership = 'join') => {
     room.currentState.setStateEvents([
       new MatrixEvent({
@@ -50,7 +51,7 @@ const setup = (lazyLoadMembers = false) => {
       }),
     ]);
   };
-  [viewer, ...(lazyLoadMembers ? [] : [router, helper])].forEach((id) => member(id));
+  [userId, ...(lazyLoadMembers ? [] : [router, helper])].forEach((id) => member(id));
   vi.spyOn(mx, 'getRoom').mockImplementation((id) => (id === room.roomId ? room : null));
   const device = (userId = router, deviceId = 'DEVICE', key = 'curve') =>
     new Device({
@@ -111,10 +112,10 @@ const setup = (lazyLoadMembers = false) => {
     });
   };
   const request = () => queued[queued.length - 1].batch[0].payload.encrypted;
-  const discover = async () => {
+  const discover = async (changes?: object) => {
     const unsubscribe = controller.subscribe(room, '$root', () => {});
     await flush();
-    response(request());
+    response(request(), changes);
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
     return unsubscribe;
@@ -198,6 +199,335 @@ afterEach(() => {
   cleanups.splice(0).forEach((fn) => fn());
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+describe('persisted room catalogs', () => {
+  const key = `mindroom_client_model_catalogs::${viewer}`;
+  const values = new Map<string, string>();
+  const cachedCatalog = {
+    runtime: {
+      id: JSON.stringify([router, 'DEVICE', 'curve']),
+      userId: router,
+      deviceId: 'DEVICE',
+      curveKey: 'curve',
+    },
+    agentUserIds: [helper],
+    models: [{ key: 'fast', display_name: 'Quick', provider: 'openai', id: 'model' }],
+    inherited: [{ entity: 'helper', model: 'fast' }],
+  };
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: (name: string) => values.get(name) ?? null,
+      setItem: (name: string, value: string) => values.set(name, value),
+      removeItem: (name: string) => values.delete(name),
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    values.clear();
+  });
+
+  it('seeds a thread before discovery on a new controller for the same account', async () => {
+    const first = setup();
+    first.controller.subscribe(first.room, '$root', () => {});
+    await flush();
+    first.response(first.request(), {
+      selection: { override: 'reset', inherited: cachedCatalog.inherited },
+    });
+    await flush();
+    expect(first.snapshot().loading).toBe(true);
+    expect(values.has(key)).toBe(false); // The room cache still updates when discovery finishes.
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(first.snapshot().override).toBe('reset');
+    const { models } = first.snapshot();
+    first.controller.dispose();
+
+    const reloaded = setup();
+    expect(reloaded.snapshot('$new')).toMatchObject({
+      eligible: true,
+      models,
+      override: null,
+      inherited: cachedCatalog.inherited,
+      canMutate: false,
+    });
+    expect(reloaded.snapshot('$new').runtime).toBeUndefined();
+    expect(reloaded.queue).not.toHaveBeenCalled();
+  });
+
+  it('waits for lazy membership hydration without throwing away a valid disk seed', async () => {
+    await setup().discover();
+    const h = setup(true);
+    // Relay the SDK's synchronous per-member events, even though membersLoaded() is already true.
+    h.room.currentState.on(RoomStateEvent.NewMember, (_event, _state, member) => {
+      member.on(RoomMemberEvent.Membership, (event, changed) => {
+        h.mx.emit(RoomMemberEvent.Membership, event, changed);
+      });
+    });
+    vi.spyOn(h.mx, 'members').mockResolvedValue({
+      chunk: [router, helper].map((id) => ({
+        type: 'm.room.member',
+        room_id: h.room.roomId,
+        sender: id,
+        state_key: id,
+        content: { membership: 'join' },
+      })) as IStateEventWithRoomId[],
+    });
+    expect(h.snapshot().eligible).toBe(false);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.room.membersLoaded()).toBe(true);
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: true, canMutate: false });
+    expect(h.snapshot().models).not.toHaveLength(0);
+    expect(setup().snapshot().eligible).toBe(true);
+
+    h.member(helper, 'leave');
+    expect(h.snapshot().eligible).toBe(false);
+    expect(setup().snapshot().eligible).toBe(false);
+  });
+
+  it('removes a visible seed when its agent leaves during hydration', async () => {
+    await setup().discover();
+    const h = setup(true);
+    h.member(router);
+    h.member(helper);
+    let hydrated!: (loaded: boolean) => void;
+    vi.spyOn(h.room, 'loadMembersIfNeeded').mockReturnValue(
+      new Promise((resolve) => {
+        hydrated = resolve;
+      })
+    );
+    expect(h.snapshot().eligible).toBe(true);
+    h.controller.subscribe(h.room, '$root', () => {});
+    h.member(helper, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(helper)!);
+    hydrated(true);
+    await flush();
+    expect(h.snapshot()).toMatchObject({
+      eligible: false,
+      models: [],
+      inherited: [],
+      loading: true,
+    });
+  });
+
+  it('does not name a cached agent that left before this client started', async () => {
+    const h = setup();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), {
+      agent_user_ids: [helper, other],
+      selection: {
+        override: null,
+        inherited: [{ entity: 'other', model: 'fast', user_id: other }],
+      },
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const reloaded = setup(); // Only the viewer, router and helper remain joined.
+    expect(reloaded.snapshot()).toMatchObject({ eligible: true, inherited: [] });
+  });
+
+  it('requires a verified answer for the scope before a seeded model can be selected', async () => {
+    const first = setup();
+    await first.discover();
+    const reloaded = setup();
+    reloaded.controller.subscribe(reloaded.room, '$new', () => {});
+    expect(reloaded.snapshot('$new')).toMatchObject({
+      eligible: true,
+      loading: true,
+      canMutate: false,
+    });
+    await flush();
+    reloaded.response(reloaded.request(), {}, null);
+    await flush();
+    reloaded.controller.selectModel(reloaded.room, '$new', 'fast');
+    reloaded.controller.resetToRoomDefault(reloaded.room, '$new');
+    await flush();
+    expect(reloaded.send).not.toHaveBeenCalled();
+
+    reloaded.response(reloaded.request(), { models: [cachedCatalog.models[0]] });
+    await flush();
+    expect(reloaded.snapshot('$new')).toMatchObject({
+      canMutate: true,
+      models: cachedCatalog.models,
+    });
+    reloaded.controller.selectModel(reloaded.room, '$new', 'fast');
+    await flush();
+    expect(reloaded.send).toHaveBeenCalledOnce();
+  });
+
+  it('does not seed another account even when it shares the room and agents', async () => {
+    const first = setup();
+    await first.discover();
+    expect(setup().snapshot().eligible).toBe(true);
+    first.controller.dispose(); // Switching accounts stops this client without signing it out.
+    const other = setup(false, '@other:test');
+    expect(other.snapshot().eligible).toBe(false);
+    expect(setup().snapshot().eligible).toBe(true);
+  });
+
+  it('does not seed where the reported agent is no longer joined', async () => {
+    await setup().discover();
+    const reloaded = setup();
+    expect(reloaded.snapshot().eligible).toBe(true);
+    reloaded.member(helper, 'leave');
+    expect(reloaded.snapshot('$new').eligible).toBe(false);
+  });
+
+  it.each(['{', JSON.stringify({ version: 2, rooms: [['!room:test', [cachedCatalog]]] })])(
+    'ignores unreadable storage %s',
+    (raw) => {
+      values.set(key, raw);
+      expect(setup().snapshot().eligible).toBe(false);
+    }
+  );
+
+  it('ignores an otherwise valid blob that exceeds the byte cap', () => {
+    const raw = JSON.stringify({ version: 1, rooms: [['!room:test', [cachedCatalog]]] });
+    values.set(key, raw.padEnd(256 * 1024 + 1));
+    expect(setup().snapshot().eligible).toBe(false);
+  });
+
+  it('validates each stored room catalog before using it', () => {
+    const invalidCatalogs = [
+      {
+        ...cachedCatalog,
+        models: [{ ...cachedCatalog.models[0], icon_url: 'https://other.test/icon' }],
+      },
+      { ...cachedCatalog, inherited: [{ entity: 'helper', model: 42 }] },
+      { ...cachedCatalog, runtime: { ...cachedCatalog.runtime, deviceId: '' } },
+    ];
+    values.set(
+      key,
+      JSON.stringify({
+        version: 1,
+        rooms: [
+          ['!room:test', invalidCatalogs],
+          ['!other:test', [cachedCatalog]],
+        ],
+      })
+    );
+    expect(setup().snapshot().eligible).toBe(false);
+    expect(setup(false, viewer, '!other:test').snapshot().models).toEqual(cachedCatalog.models);
+  });
+
+  it('hides old scope data on an identity mismatch without deleting the signed-in cache', async () => {
+    await setup().discover();
+    const h = setup();
+    expect(h.snapshot().eligible).toBe(true);
+    vi.spyOn(h.mx, 'getUserId').mockReturnValue('@other:test');
+    h.member('@other:test');
+    expect(h.snapshot().eligible).toBe(false);
+    expect(h.snapshot('$new').eligible).toBe(false);
+    h.controller.refresh(h.room, '$new');
+    expect(values.has(key)).toBe(true);
+  });
+
+  it('keeps at most 64 rooms across reloads, evicting the least recently discovered', async () => {
+    for (let room = 0; room < 64; room += 1) {
+      await setup(false, viewer, `!room${room}:test`).discover();
+    }
+    await setup(false, viewer, '!room0:test').discover();
+    await setup(false, viewer, '!room64:test').discover();
+    const stored = JSON.parse(values.get(key) ?? 'null') as { rooms: unknown[] } | null;
+    expect(stored?.rooms).toHaveLength(64);
+    expect(setup(false, viewer, '!room64:test').snapshot().eligible).toBe(true);
+    expect(setup(false, viewer, '!room0:test').snapshot().eligible).toBe(true);
+    expect(setup(false, viewer, '!room1:test').snapshot().eligible).toBe(false);
+  });
+
+  it('bounds the stored JSON even when many rooms have large valid catalogs', async () => {
+    const models = Array.from({ length: 24 }, (_, index) => ({
+      key: `model-${index}`,
+      display_name: 'Model name '.repeat(90),
+      provider: 'local',
+      id: 'model-id'.repeat(125),
+    }));
+    for (let room = 0; room < 10; room += 1) {
+      await setup(false, viewer, `!large${room}:test`).discover({ models });
+    }
+    expect(values.get(key)!.length * 2).toBeLessThanOrEqual(512 * 1024);
+    expect(setup(false, viewer, '!large9:test').snapshot().models).toEqual(models);
+    expect(setup(false, viewer, '!large0:test').snapshot().eligible).toBe(false);
+  });
+
+  it('reloads disk seeds when explicitly restarting a disposed controller', async () => {
+    const initial = setup();
+    const release = initial.controller.retain();
+    await initial.discover();
+    release();
+    const other = setup(false, viewer, '!other:test');
+    await other.discover();
+
+    initial.controller.retain();
+    expect(initial.controller.getSnapshot(other.room, '$seed').eligible).toBe(true);
+  });
+
+  it('reads only once and does not write for unrelated membership or device events', async () => {
+    const read = vi.spyOn(localStorage, 'getItem');
+    const h = setup();
+    await h.discover();
+    h.snapshot('$other');
+    expect(read).toHaveBeenCalledExactlyOnceWith(key);
+    read.mockClear();
+    const write = vi.spyOn(localStorage, 'setItem');
+    const remove = vi.spyOn(localStorage, 'removeItem');
+    h.member('@someone:test', 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    h.mx.emit(CryptoEvent.DevicesUpdated, ['@someone:test'], false);
+    expect(write).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    h.member(helper, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(helper)!);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    expect(read).not.toHaveBeenCalled();
+    expect(values.has(key)).toBe(false);
+  });
+
+  it('does not rewrite an unchanged room catalog when it is already the newest', async () => {
+    const h = setup();
+    await h.discover();
+    const write = vi.spyOn(localStorage, 'setItem');
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    h.response(h.request());
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('removes the previous disk blob if an invalidation rewrite fails', async () => {
+    await setup().discover();
+    await setup(false, viewer, '!other:test').discover();
+    const a = setup();
+    a.controller.retain();
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    });
+    a.member(helper, 'leave');
+    a.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), a.room.getMember(helper)!);
+
+    expect(values.has(key)).toBe(false);
+  });
+
+  it('ignores duplicate runtime IDs on read', () => {
+    values.set(
+      key,
+      JSON.stringify({ version: 1, rooms: [['!room:test', [cachedCatalog, cachedCatalog]]] })
+    );
+    expect(setup().snapshot().models).toEqual(cachedCatalog.models);
+  });
+
+  it('removes a device-invalidated catalog from disk', async () => {
+    const h = setup();
+    await h.discover();
+    expect(setup().snapshot().eligible).toBe(true);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    expect(setup().snapshot().eligible).toBe(false);
+  });
 });
 
 describe('shared model discovery', () => {
