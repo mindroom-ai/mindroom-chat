@@ -13,8 +13,8 @@ does a composer unmount (`retire`, `releaseOwner`).
 
 ## Rule
 
-**While recording, each chunk is on disk within about a second. The disk copy goes only when the
-send succeeded or the person confirmed Discard.**
+**While recording, each chunk is on disk within about a second. The disk copy goes after a
+successful send, confirmed Discard, or sign-out.**
 
 ## Design
 
@@ -38,13 +38,14 @@ send succeeded or the person confirmed Discard.**
 - **Self-stop and unmount.** A recorder that stops without Send or Discard, or a composer that
   unmounts while recording, parks the captured audio as a recovered draft instead of dropping it.
   When another composer takes the mic, the displaced recording stays on disk with its lock
-  released until the next page load, without occupying the draft slot.
+  released until the next page load, without occupying the draft slot. If the journal could
+  not start, park the recording in memory for its original composer instead.
 - **Send.** The record is deleted after `sendRecording` resolved. A failed send keeps it. The
   existing failed-send copy (`savedVoiceDraft.ts`) stores the recording id. On restore, a journal
   record with that id is not offered a second time.
-- **Discard** asks for confirmation for both live and parked recordings. Only confirmation deletes
-  the record.
-- **Sign-out** deletes the account's records, as it already does the failed-send copy.
+- **Discard** asks for confirmation for both live and parked recordings. Focus starts on Cancel
+  and stays inside the confirmation. The recording is not discarded until confirmed.
+- Sign-out deletes the account's journal records, as main does for the failed-send copy.
 
 ## Not in scope (each was a source of review rounds last time)
 
@@ -61,7 +62,8 @@ send succeeded or the person confirmed Discard.**
   - Chunks are written in `seq` order even when `arrayBuffer()` resolves out of order.
   - A failed write keeps recording.
   - Recovery adopts only unlocked records.
-  - A self-stopped or unmounted recording parks.
+  - A self-stopped or unmounted recording parks. Mic handoff parks the displaced audio in memory
+    if the journal did not start.
   - Send success deletes the record; a failed send keeps it.
   - Discard deletes the record.
   - The failed-send copy and the journal never offer the same id twice.
