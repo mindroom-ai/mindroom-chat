@@ -186,7 +186,8 @@ for (const ios of [false, true]) {
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await clickThreadExitButton(page);
     await expect(page).toHaveURL(/focusEvent=1/);
-    // The Back slide still covers the room after its URL and cards return.
+    // Wait for the Back slide to finish: it can still cover the room after the URL and cards
+    // return.
     const pageSlide = page.locator('html[data-page-slide]');
     await expect(pageSlide).toHaveCount(0);
     await expect(card(linked!)).toBeInViewport();
