@@ -6,6 +6,7 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import type { MarkClientStartup } from '../../lib/startupTimeline';
+import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -55,6 +56,11 @@ import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../../matrix/cachedSpecVersions';
+
+vi.mock('../../diagnostics/deepTrace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../diagnostics/deepTrace')>()),
+  recordSyncStoreFailure: vi.fn(),
+}));
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -279,7 +285,9 @@ describe('initClient', () => {
     };
     const sdkRead = Promise.resolve(savedSync);
     const startup = vi.fn().mockResolvedValue(undefined);
-    const store = { backend: { syncAccumulator }, startup, getSavedSync: vi.fn(() => sdkRead) };
+    const on = vi.fn();
+    const getSavedSync = vi.fn(() => sdkRead);
+    const store = { backend: { syncAccumulator }, startup, getSavedSync, on };
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return store as unknown as IndexedDBStore;
     });
@@ -306,6 +314,16 @@ describe('initClient', () => {
       },
       markStartup
     );
+
+    // What the store reports goes to the diagnostics trace.
+    const failure = new Error('failed');
+    on.mock.calls.forEach(([, report]) => (report as (error: unknown) => void)(failure));
+    expect(on.mock.calls.map(([outcome]) => outcome)).toEqual(['failed', 'stopped', 'degraded']);
+    expect(vi.mocked(recordSyncStoreFailure).mock.calls).toEqual([
+      ['failed', failure],
+      ['stopped', failure],
+      ['degraded', failure],
+    ]);
 
     vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35);
     const read = store.getSavedSync();
@@ -408,7 +426,10 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases });
     vi.stubGlobal('navigator', { onLine: false });
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(),
+      } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -444,7 +465,10 @@ describe('initClient', () => {
     Object.defineProperty(factory, 'databases', { configurable: true, value: undefined });
     vi.stubGlobal('indexedDB', factory);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(),
+      } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -503,7 +527,7 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -543,7 +567,7 @@ describe('initClient', () => {
     });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -588,7 +612,7 @@ describe('initClient', () => {
     });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -622,7 +646,7 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -686,6 +710,7 @@ describe('initClient', () => {
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return {
         startup,
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -765,6 +790,7 @@ describe('initClient', () => {
         startup,
         destroy,
         getSavedSync: vi.fn().mockResolvedValue(null),
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -827,6 +853,7 @@ describe('initClient', () => {
           syncAccumulator,
         },
         startup,
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -871,7 +898,10 @@ describe('initClient', () => {
 
     try {
       vi.mocked(IndexedDBStore).mockImplementation(function () {
-        return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+        return {
+          startup: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(),
+        } as unknown as IndexedDBStore;
       });
       vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
         return {} as unknown as IndexedDBCryptoStore;
