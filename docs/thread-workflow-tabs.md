@@ -31,7 +31,12 @@ request, and the card checks it together with the thread's newest replies. For t
 revision the server sent (the edit bundled with that copy, or the live edit) must say explicitly
 that it still streams and be at most 30 minutes old, and the client must know no newer revision;
 edits from the saved sync never count as such evidence. Keeping the reply does not make the thread
-Working: the card must confirm the stream, as for any reply. Encrypted rooms are excluded. A stream
+Working: the card must confirm the stream, as for any reply, and the live edit by the sender of the
+fetched copy vouches for it, so the card asks the server nothing. Each further live edit brings the
+server's copy again, and the kept reply takes the newest revision known, so a finishing edit that
+only the server's copy bundles ends Working. A redaction of the kept reply or of the edit it shows,
+by someone who may redact it, drops the copy, as does a copy the server returns redacted; the next
+live edit keeps the reply again as the server then holds it. Encrypted rooms are excluded. A stream
 silent since relaunch (for example, in a long tool call) stays in Needs you until its next live
 edit; activity goes idle after 30 minutes without an edit.
 

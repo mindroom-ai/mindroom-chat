@@ -71,9 +71,10 @@ export const getThreadStreamingEvents = (
   const tail = getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
   // A reply that streams behind the tail, or behind the pages the thread holds: by the thread's
   // own copy once a page brought one.
-  const revealedId = thread && revealedReplies.get(thread)?.getId();
-  const revealed = revealedId && (thread.findEventById(revealedId) ?? revealedReplies.get(thread));
-  return revealed && !tail.includes(revealed) ? [revealed, ...tail] : tail;
+  const revealed = thread && revealedReplies.get(thread);
+  const revealedId = revealed?.getId();
+  if (!revealed || !revealedId || tail.some((event) => event.getId() === revealedId)) return tail;
+  return [thread.findEventById(revealedId) ?? revealed, ...tail];
 };
 
 export const isEventStreaming = (

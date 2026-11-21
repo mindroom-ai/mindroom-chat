@@ -336,6 +336,16 @@ describe('edits of unopened threads', () => {
     expect(f.card()).toEqual({ preview: 'Final answer', streaming: false });
   });
 
+  it('shows the older edit that arrived later once the newer one is redacted', async () => {
+    const f = await streamingThread();
+    await f.deliver([edit('Leaked a secret', 160)]);
+    await f.deliver([edit('Draft', 155)]);
+    expect(f.card().preview).toBe('Leaked a secret');
+
+    await f.deliver([redaction('$edit-160', 170)]);
+    expect(f.card()).toEqual({ preview: 'Draft', streaming: true });
+  });
+
   it('ignores an edit by someone other than the reply sender', async () => {
     const f = await streamingThread();
     await f.deliver([edit('Not the agent', 150, 'completed', otherId)]);

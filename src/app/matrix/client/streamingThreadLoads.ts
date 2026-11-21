@@ -28,7 +28,8 @@ import { STREAM_IDLE_LIMIT_MS } from './streamingReplies';
 // agent posts text and files mid-turn) is named nowhere, and a page of the thread need not reach it
 // either: a long stream's edits fill the newest page. Its edits still arrive, and to place one the
 // SDK fetches the reply. `revealStreamingReply` keeps that copy beside the thread, without a request
-// of its own; the streaming checks read it with the thread's tail and decide, as for any reply.
+// of its own; the streaming checks read it with the thread's tail and decide, as for any reply. A
+// redaction reaches no copy outside the timelines, so `forgetRedactedReply` drops the copy.
 
 /** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
 const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
@@ -88,36 +89,55 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
  */
 export const revealedReplies = new WeakMap<Thread, MatrixEvent>();
 
+/** Drops the revealed replies of the room's threads that `gone` names. */
+const forgetReplies = (room: Room, gone: (reply: MatrixEvent) => boolean): void =>
+  room.getThreads().forEach((thread) => {
+    const reply = revealedReplies.get(thread);
+    if (reply && gone(reply) && revealedReplies.delete(thread))
+      thread.emit(ThreadEvent.Update, thread);
+  });
+
 /**
  * Keeps the reply the SDK fetched to place a live `relation` as its thread's revealed reply, when
  * the server's newest word on the reply (the edit it bundles, or the relation) is an edit that
  * streams, sent within the idle limit, and the client knows no newer one. An untrusted sender's
  * stream status is stripped where the content is read (`installEventContentGuard`). The SDK
- * fetches the reply again for each further edit, which then goes on the revealed copy.
+ * fetches the reply again for each further edit; the revealed copy then takes the newest revision
+ * known, whatever it says, and is dropped when the server holds the reply redacted.
  */
 const revealStreamingReply = (mx: MatrixClient, relation: MatrixEvent): void => {
-  const thread = relation.getThread();
-  const fetched = thread?.room.fetchedRelationParents.get(relation);
+  const room = mx.getRoom(relation.getRoomId());
+  const fetched = room?.fetchedRelationParents.get(relation);
   const replyId = fetched?.getId();
-  if (!thread || !fetched || !replyId) return;
-  const { room } = thread;
-  if (room.hasEncryptionStateEvent() || mx.isUserIgnored(fetched.getSender() ?? '')) return;
+  if (!room || !fetched || !replyId) return;
+  if (fetched.isRedacted()) {
+    // A redacted reply names no thread any more, so the relation found none.
+    forgetReplies(room, (reply) => reply.getId() === replyId);
+    return;
+  }
+  const thread = relation.getThread();
+  if (!thread || room.hasEncryptionStateEvent() || mx.isUserIgnored(fetched.getSender() ?? ''))
+    return;
   const revealed = revealedReplies.get(thread);
-  const reply =
-    revealed?.getId() === replyId
-      ? revealed
-      : mx.getEventMapper()({ ...fetched.event, room_id: room.roomId });
+  const known = revealed?.getId() === replyId ? revealed : undefined;
+  // The server's copy as of this relation, on the edit the server bundles with it.
+  const fresh = mx.getEventMapper()({ ...fetched.event, room_id: room.roomId });
+  const reply = known ?? fresh;
   const isEdit = (event: MatrixEvent | null): event is MatrixEvent =>
-    !!event?.isRelation(RelationType.Replace) && event.getAssociatedId() === replyId;
+    !!event?.isRelation(RelationType.Replace) &&
+    event.getAssociatedId() === replyId &&
+    event.getType() === reply.getType() &&
+    !event.isRedacted();
   const shown = reply.replacingEvent();
-  const evidence = getLatestEdit(reply, [shown, relation].filter(isEdit));
-  // Older news never makes a stream: the edits that wait in an unopened thread, and those the
-  // room's relations hold (an opened thread's, and cached ones that no thread took), only tell
-  // that a newer revision exists.
+  const evidence = getLatestEdit(reply, [fresh.replacingEvent(), relation].filter(isEdit));
+  // Older news never makes a stream: the edit the copy shows, the edits that wait in an unopened
+  // thread, and those the room's relations hold (an opened thread's, and cached ones that no
+  // thread took) only tell that a newer revision exists.
   const newest = getLatestEdit(
     reply,
     [
       evidence ?? null,
+      shown,
       ...(thread.replayEvents ?? []),
       ...(room.relations
         .getChildEventsForEvent(replyId, RelationType.Replace, reply.getType())
@@ -125,7 +145,7 @@ const revealStreamingReply = (mx: MatrixClient, relation: MatrixEvent): void => 
     ].filter(isEdit)
   );
   if (!newest) return;
-  if (reply !== revealed) {
+  if (!known) {
     const content: unknown = newest.getOriginalContent()['m.new_content'];
     if (
       newest !== evidence ||
@@ -138,6 +158,27 @@ const revealStreamingReply = (mx: MatrixClient, relation: MatrixEvent): void => 
   }
   if (newest !== shown) reply.makeReplaced(newest);
   thread.emit(ThreadEvent.Update, thread);
+};
+
+/**
+ * Drops the revealed reply that `redaction` names, or whose shown edit it names (the newest the
+ * copy has, so its bundled one too): the next live edit reveals the reply again, as the server
+ * holds it then. By the rule of the SDK patch (`Room.mayRedact`), the reply standing in for its
+ * sender's edits: the redaction's sender is on the reply's sender's server, or may redact here.
+ */
+const forgetRedactedReply = (mx: MatrixClient, redaction: MatrixEvent): void => {
+  const room = mx.getRoom(redaction.getRoomId());
+  const redactedId = redaction.getAssociatedId();
+  const sender = redaction.getSender();
+  if (!room || !redactedId || !sender) return;
+  const server = (userId?: string) => userId?.slice(userId.indexOf(':') + 1);
+  forgetReplies(
+    room,
+    (reply) =>
+      [reply.getId(), reply.replacingEventId()].includes(redactedId) &&
+      (server(sender) === server(reply.getSender()) ||
+        room.currentState.maySendRedactionForEvent(reply, sender))
+  );
 };
 
 /**
@@ -214,7 +255,15 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     drain();
   };
 
-  const onEvent = (event: MatrixEvent) => revealStreamingReply(mx, event);
+  const onEvent = (event: MatrixEvent) => {
+    // A throw here would cost the sync the rest of its batch.
+    try {
+      if (event.isRedaction()) forgetRedactedReply(mx, event);
+      else revealStreamingReply(mx, event);
+    } catch (error) {
+      console.warn('[streamingThreadLoads] could not follow a hidden reply', error);
+    }
+  };
 
   const stopRooms = watchRoomThreads(mx, { onThread: consider });
   mx.on(ClientEvent.Sync, onSync);
