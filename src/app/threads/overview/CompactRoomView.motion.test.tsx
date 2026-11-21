@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { ROW_HEIGHT, ROW_WIDTH, standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
@@ -192,6 +192,64 @@ const releasePointer = (view: HTMLElement) => {
 };
 
 describe('the Compact reading landmark', () => {
+  it('keeps the next stationary card still when the visible leader promotes past two rows', () => {
+    const props = { landmarkSortKey: 'lastReply:desc' };
+    const { container, rerender } = render(
+      list(['$a', '$b', '$c', '$d', '$e', '$f'], false, props)
+    );
+    const view = scrollView(container, 230, 285);
+    const stationary = view.querySelector('[data-scroll-anchor="$d"]')!;
+    expect(stationary.getBoundingClientRect().top).toBe(70);
+
+    const promoted = ['$c', '$a', '$b', '$d', '$e', '$f'];
+    rerender(list(promoted, false, props));
+
+    expect(cardOrder(view)).toEqual(promoted);
+    expect(view.scrollTop).toBe(230);
+    expect(stationary.getBoundingClientRect().top).toBe(70);
+  });
+
+  it('does not follow two replied-to cards to the bottom on an oldest-first hold release', async () => {
+    const ids = Array.from({ length: 50 }, (_, i) => `$${i}`);
+    const props = { landmarkSortKey: 'lastReply:asc' };
+    state.pinned = ['$P', '$Q'];
+    const before = ['$P', '$Q', ...ids];
+    const { container, rerender } = render(list(before, false, props));
+    const view = scrollView(container, 0, 285);
+    await waitFor(() => expect(cardOrder(view)).toEqual(before));
+    view.scrollTop = 145;
+    const leader = view.querySelector('[data-scroll-anchor="$Q"]')!;
+    expect(leader.getBoundingClientRect().top).toBe(-5);
+    fireEvent.pointerEnter(leader);
+
+    state.pinned = ['$Q', '$P'];
+    const after = ['$Q', '$P', ...ids.slice(2), '$0', '$1'];
+    rerender(list(after, false, props));
+    expect(cardOrder(view)).toEqual(before);
+    expect(view.scrollTop).toBe(145);
+
+    releasePointer(view);
+    expect(cardOrder(view)).toEqual(after);
+    expect(view.scrollTop).toBe(145);
+  });
+
+  it('does not follow a lower card across oldest-first history backfill with an exchange', async () => {
+    const ids = Array.from({ length: 50 }, (_, i) => `$${i}`);
+    const props = { landmarkSortKey: 'lastReply:asc' };
+    const { container, rerender } = render(list(ids, false, props));
+    const view = scrollView(container, 0, 285);
+    await waitFor(() => expect(cardOrder(view)).toEqual(ids));
+    view.scrollTop = 2005;
+    expect(view.querySelector('[data-scroll-anchor="$20"]')?.getBoundingClientRect().top).toBe(-5);
+
+    const added = Array.from({ length: 24 }, (_, i) => `$new${i}`);
+    const after = [...ids.slice(0, 19), '$20', '$19', ...added, ...ids.slice(21)];
+    rerender(list(after, false, props));
+
+    expect(cardOrder(view)).toEqual(after);
+    expect(view.scrollTop).toBe(2005);
+  });
+
   it('leaves the first card in view still when a Board card joins below it', () => {
     const { container, rerender } = render(list(['$a', '$b', '$c', '$d', '$e', '$f', '$g']));
     const view = scrollView(container, 130, 450);
@@ -221,21 +279,63 @@ describe('the Compact reading landmark', () => {
     expect(view.scrollTop).toBe(100);
   });
 
-  it('leaves native scrolling alone when releasing a held sort reversal', () => {
-    const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
-    const { container, rerender } = render(list(ids, false, { landmarkSortKey: 'lastReply:desc' }));
+  it.each([
+    { before: 'desc', after: 'asc', heldScrollTop: 200 },
+    { before: 'asc', after: 'desc', heldScrollTop: 100 },
+  ])(
+    'uses the displayed sort until releasing a held $before to $after reversal',
+    ({ before, after, heldScrollTop }) => {
+      const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
+      const { container, rerender } = render(
+        list(ids, false, { landmarkSortKey: `lastReply:${before}` })
+      );
+      const view = scrollView(container, 100, 200);
+      fireEvent.pointerEnter(view.querySelector('[data-scroll-anchor]')!);
+      expect(view.querySelector('[data-order-held]')).not.toBeNull();
+
+      const reversed = [...ids].reverse();
+      const props = { landmarkSortKey: `lastReply:${after}` };
+      rerender(list(reversed, false, props));
+      expect(cardOrder(view)).toEqual(ids);
+      expect(view.scrollTop).toBe(100);
+
+      const withNewLeader = ['$new', ...reversed];
+      rerender(list(withNewLeader, false, props));
+      expect(cardOrder(view)).toEqual(['$new', ...ids]);
+      expect(view.scrollTop).toBe(heldScrollTop);
+
+      releasePointer(view);
+      expect(cardOrder(view)).toEqual(withNewLeader);
+      expect(view.scrollTop).toBe(heldScrollTop);
+    }
+  );
+
+  it('leaves native scrolling alone in Natural even with a descending sort direction', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e'];
+    const props = { landmarkSortKey: 'natural:desc' };
+    const { container, rerender } = render(list(ids, false, props));
     const view = scrollView(container, 100, 200);
-    fireEvent.pointerEnter(view.querySelector('[data-scroll-anchor]')!);
-    expect(view.querySelector('[data-order-held]')).not.toBeNull();
 
-    const reversed = [...ids].reverse();
-    rerender(list(reversed, false, { landmarkSortKey: 'lastReply:asc' }));
-    expect(cardOrder(view)).toEqual(ids);
-    expect(view.scrollTop).toBe(100);
+    const withHistory = ['$new', ...ids];
+    rerender(list(withHistory, false, props));
 
-    releasePointer(view);
-    expect(cardOrder(view)).toEqual(reversed);
+    expect(cardOrder(view)).toEqual(withHistory);
     expect(view.scrollTop).toBe(100);
+  });
+
+  it('uses the landmark in Sections even with oldest-first flat sorting', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e'];
+    const props = { landmarkSortKey: 'lastReply:asc' };
+    state.sections = [{ id: 'needsYou', rootIds: ids }];
+    const { container, rerender } = render(list(ids, false, props));
+    const view = scrollView(container, 130, 285);
+
+    const promoted = ['$e', '$a', '$b', '$c', '$d'];
+    state.sections = [{ id: 'needsYou', rootIds: promoted }];
+    rerender(list(ids, false, props));
+
+    expect(cardOrder(view)).toEqual(promoted);
+    expect(view.scrollTop).toBe(230);
   });
 
   it('keeps the visible landmark when a held live reorder applies with the same sort', () => {

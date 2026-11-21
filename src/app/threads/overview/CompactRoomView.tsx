@@ -417,6 +417,8 @@ export function CompactRoomView({
   const liveMode = sectionsShown ? 'sections' : `flat:${landmarkSortKey ?? ''}`;
   const shownMode =
     flatOrderHeld && previousMode?.roomId === room.roomId ? previousMode.mode : liveMode;
+  // Board columns omit the sort key and show newest or soonest first.
+  const keepRows = sectionsShown || shownMode === 'flat:lastReply:desc' || shownMode === 'flat:';
   useLayoutEffect(() => {
     orderModeRef.current = { roomId: room.roomId, mode: shownMode };
   }, [room.roomId, shownMode]);
@@ -706,18 +708,20 @@ export function CompactRoomView({
         }}
       >
         {/* Do not carry a landmark across rooms, sort changes, or a switch to or from Sections. */}
-        <CompactRowKeeper
-          key={`${room.roomId}|${shownMode}|${sectionsShown}`}
-          viewRef={viewRef}
-          order={
-            heldSections
-              ? sectionRows
-              : [
-                  ...(pinnedCards.length > 0 ? [PINNED_HEADING_ROW] : []),
-                  ...[...pinnedCards, ...ordinaryCards].map((card) => card.id.threadRootId),
-                ]
-          }
-        />
+        {keepRows && (
+          <CompactRowKeeper
+            key={`${room.roomId}|${shownMode}|${sectionsShown}`}
+            viewRef={viewRef}
+            order={
+              heldSections
+                ? sectionRows
+                : [
+                    ...(pinnedCards.length > 0 ? [PINNED_HEADING_ROW] : []),
+                    ...[...pinnedCards, ...ordinaryCards].map((card) => card.id.threadRootId),
+                  ]
+            }
+          />
+        )}
         {listMotion}
         {!!pinning.error && (
           <Text role="alert" size="T200">
