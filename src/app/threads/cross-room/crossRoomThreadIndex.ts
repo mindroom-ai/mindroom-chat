@@ -13,6 +13,7 @@ import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho'
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { getBundledThreadPreviews } from '../../event-store/threads/threadBundledPreviews';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
 import {
   getPreferredVisibleThreadReplyEvents,
@@ -344,29 +345,54 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
 const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
   event?.getSender?.() === userId || eventDirectlyMentionsUser(event, userId);
 
+const getInvolvementReplyEvents = (
+  thread: Thread | null | undefined,
+  rootEvent: MatrixEvent | undefined,
+  loadedReplies = getPreferredVisibleThreadReplyEvents(thread),
+  bundle: ReturnType<typeof getBundledThreadPreviews> = thread?.room
+    ? getBundledThreadPreviews(thread.room, rootEvent ?? thread.rootEvent)
+    : {}
+): MatrixEvent[] => {
+  // The SDK's latest event can be a title notice. The server can bundle the reply separately.
+  // Prefer loaded events to detached copies with the same ID.
+  let replies = loadedReplies;
+  for (const event of [thread?.replyToEvent, bundle.reply]) {
+    if (!event || !isVisibleThreadReplyEvent(event)) continue;
+    const id = event.getId();
+    if (replies.some((reply) => reply.getId() === id)) continue;
+    if (replies === loadedReplies) replies = [...loadedReplies];
+    replies.push(event);
+  }
+  return replies;
+};
+
 type ThreadInvolvementInput = {
   rootEvent?: MatrixEvent;
   thread: Thread | null | undefined;
   userId: string | undefined;
-  visibleReplies?: readonly MatrixEvent[];
+  replyEvents?: readonly MatrixEvent[];
 };
 
 export const isUserInvolvedInThread = ({
   rootEvent,
   thread,
   userId,
-  visibleReplies,
+  replyEvents,
 }: ThreadInvolvementInput): boolean => {
   if (!userId) return false;
   if (eventInvolvesUser(rootEvent, userId)) return true;
 
   // The bundle is for this SDK account. If all replies are present, trust the visible events
   // instead: a redaction of an earlier reply need not refresh the SDK's bundled flag.
-  if (thread?.hasCurrentUserParticipated && !hasLoadedEveryThreadReply(thread)) {
+  if (
+    thread?.hasCurrentUserParticipated &&
+    thread.client?.getUserId?.() === userId &&
+    !hasLoadedEveryThreadReply(thread)
+  ) {
     return true;
   }
 
-  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some((event) =>
+  return (replyEvents ?? getInvolvementReplyEvents(thread, rootEvent)).some((event) =>
     eventInvolvesUser(event, userId)
   );
 };
@@ -375,7 +401,7 @@ export const hasAgentPostForUser = ({
   rootEvent,
   thread,
   userId,
-  visibleReplies,
+  replyEvents,
 }: ThreadInvolvementInput): boolean => {
   if (!userId) return false;
   const postedForUser = (event: MatrixEvent | undefined) =>
@@ -383,12 +409,9 @@ export const hasAgentPostForUser = ({
     isMindroomAgentUserIdForViewer(event.getSender(), userId) &&
     event.getOriginalContent()[ORIGINAL_SENDER_KEY] === userId;
 
-  // An unopened thread may know only its bundled latest reply.
-  const latest = thread?.replyToEvent;
   return (
     postedForUser(rootEvent) ||
-    (!!latest && isVisibleThreadReplyEvent(latest) && postedForUser(latest)) ||
-    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(postedForUser)
+    (replyEvents ?? getInvolvementReplyEvents(thread, rootEvent)).some(postedForUser)
   );
 };
 
@@ -419,10 +442,12 @@ export const buildCrossRoomThreadIndexEntry = ({
     tagSnapshot === undefined ? getRoomThreadTagSnapshotMap(room).get(threadRootId) : tagSnapshot;
   const rootPreviewText =
     getContentText(getEffectiveEventContent(resolvedRootEvent)) ?? summaryInfo?.summaryText ?? '';
+  const bundledPreviews = getBundledThreadPreviews(room, resolvedRootEvent);
   let threadRecord = buildThreadRecord({
     room,
     threadRootId,
     threadRootEvent: resolvedRootEvent,
+    bundledPreviews,
     summaryInfo,
     rootPreviewText,
     scheduledStatus: scheduledStatus ?? getRoomThreadScheduledStatusMap(room).get(threadRootId),
@@ -493,7 +518,12 @@ export const buildCrossRoomThreadIndexEntry = ({
     rootEvent: resolvedRootEvent,
     thread,
     userId: currentUserId,
-    visibleReplies,
+    replyEvents: getInvolvementReplyEvents(
+      thread,
+      resolvedRootEvent,
+      visibleReplies,
+      bundledPreviews
+    ),
   };
 
   return {

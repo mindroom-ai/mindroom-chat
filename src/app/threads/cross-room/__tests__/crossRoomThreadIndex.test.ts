@@ -141,12 +141,34 @@ describe('thread involvement and agent attribution with SDK events', () => {
     const room = new Room(roomId, client, userId, { timelineSupport: true });
     return room.createThread('$root', root, events, false);
   };
-  const bundledRoot = (count: number, participated = true, latest = reply()) =>
+  const title = {
+    ...reply(
+      {
+        msgtype: 'm.notice',
+        body: 'Example title',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Example title' },
+      },
+      agentId
+    ),
+    event_id: '$title',
+    origin_server_ts: 2,
+  };
+  const bundledRoot = (
+    count: number,
+    participated = true,
+    latest = reply(),
+    latestReply?: ReturnType<typeof reply>
+  ) =>
     new MatrixEvent({
       ...message('$root'),
       unsigned: {
         'm.relations': {
-          'm.thread': { count, current_user_participated: participated, latest_event: latest },
+          'm.thread': {
+            count,
+            current_user_participated: participated,
+            latest_event: latest,
+            ...(latestReply && { 'io.mindroom.latest_reply': latestReply }),
+          },
         },
       },
     } satisfies IEvent);
@@ -232,6 +254,51 @@ describe('thread involvement and agent attribution with SDK events', () => {
     expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
   });
 
+  it('keeps bundled attribution when the latest event is the title', () => {
+    const rootEvent = bundledRoot(2, false, title, reply(attribution, agentId));
+    const thread = createThread(rootEvent);
+    expect(thread.events).toHaveLength(0);
+    expect(thread.replyToEvent?.getId()).toBe('$title');
+    expect(hasAgentPostForUser({ rootEvent, thread, userId })).toBe(true);
+    expect(
+      buildCrossRoomThreadIndexEntry({
+        room: thread.room,
+        threadRootId: thread.id,
+        currentUserId: userId,
+      })?.hasAgentPostForUser
+    ).toBe(true);
+  });
+
+  it.each(['latest event', 'reply behind the title'])(
+    'counts a direct mention in the bundled %s of an unopened thread',
+    (source) => {
+      const mentioned = reply({ 'm.mentions': { user_ids: [userId], room: true } });
+      const rootEvent =
+        source === 'latest event'
+          ? bundledRoot(1, false, mentioned)
+          : bundledRoot(2, false, title, mentioned);
+      const thread = createThread(rootEvent);
+      expect(thread.events).toHaveLength(0);
+      expect(thread.hasCurrentUserParticipated).toBe(false);
+      expect(
+        buildCrossRoomThreadIndexEntry({
+          room: thread.room,
+          threadRootId: thread.id,
+          currentUserId: userId,
+        })?.isInvolved
+      ).toBe(true);
+      expect(
+        isUserInvolvedInThread({ rootEvent, thread, userId: '@unmentioned:example.org' })
+      ).toBe(false);
+
+      // The loaded copy no longer mentions the user. Do not count the stale bundled copy.
+      const loaded = createThread(rootEvent, [
+        new MatrixEvent(reply({ 'm.mentions': { room: true } })),
+      ]);
+      expect(isUserInvolvedInThread({ rootEvent, thread: loaded, userId })).toBe(false);
+    }
+  );
+
   it('publishes a new generation when only agent attribution changes', () => {
     const build = (content: Record<string, unknown>) => {
       const thread = createThread(bundledRoot(1, false, reply(content, agentId)));
@@ -258,6 +325,9 @@ describe('thread involvement and agent attribution with SDK events', () => {
     expect(thread.hasCurrentUserParticipated).toBe(true);
     expect(thread.events).toHaveLength(0);
     expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(true);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId: '@different:example.org' })).toBe(
+      false
+    );
   });
 
   it('does not let a stale bundle override a complete timeline with no involved replies', () => {
