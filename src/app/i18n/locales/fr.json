@@ -2663,9 +2663,6 @@
         "argumentsMayDifferBetweenCalls": "Les arguments peuvent varier d’un appel à l’autre.",
         "requestedBy": "Demandé par {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "L’agent routeur effectue la transcription"
-      },
       "streamingIndicator": {
         "aiIsResponding": "L’IA répond"
       },

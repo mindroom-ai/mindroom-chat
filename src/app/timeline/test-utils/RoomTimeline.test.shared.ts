@@ -566,7 +566,12 @@ vi.mock('../../matrix/hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
-  useStateEvent: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType)?.[0],
+  useStateEvent: (_room: unknown, eventType: string, key?: string | null) => {
+    const events = stateEventsByTypeMock.get(eventType);
+    if (key === null) return undefined;
+    if (key === undefined) return events?.[0];
+    return events?.find((event) => (event as MatrixEvent).getStateKey() === key);
+  },
 }));
 vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
@@ -1239,6 +1244,8 @@ const makeEvent = (
   } = {}
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
+  const localTimestamp =
+    typeof unsigned.age === 'number' ? Date.now() - unsigned.age : opts.ts ?? 0;
   return {
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
@@ -1256,6 +1263,8 @@ const makeEvent = (
     getServerAggregatedRelation: () => undefined,
     getStateKey: () => opts.stateKey,
     getTs: () => opts.ts ?? 0,
+    localTimestamp,
+    getLocalAge: () => Date.now() - localTimestamp,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
     isEncrypted: () => opts.encrypted ?? opts.type === 'm.room.encrypted',
@@ -1307,6 +1316,7 @@ const makeTimeline = (
 };
 
 const makeRoom = ({
+  joinedMembers = [],
   liveEvents = [],
   liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
@@ -1317,6 +1327,7 @@ const makeRoom = ({
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
   findEventById?: (eventId: string) => ReturnType<typeof makeEvent> | undefined;
+  joinedMembers?: string[];
   threads?: Array<{ id?: string; rootEvent?: ReturnType<typeof makeEvent> | undefined }>;
 } = {}) => {
   const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
@@ -1421,6 +1432,7 @@ const makeRoom = ({
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: (): string | null | undefined => undefined,
     getLiveTimeline: () => roomLiveTimeline,
+    getJoinedMembers: () => joinedMembers.map((userId) => ({ userId })),
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,

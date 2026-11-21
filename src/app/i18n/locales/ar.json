@@ -2789,9 +2789,6 @@
         "argumentsMayDifferBetweenCalls": "قد تختلف الوسيطات بين الاستدعاءات.",
         "requestedBy": "طلبه ⁨{{requester}}⁩"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "وكيل التوجيه ينسخ الصوت"
-      },
       "streamingIndicator": {
         "aiIsResponding": "الذكاء الاصطناعي يرد"
       },

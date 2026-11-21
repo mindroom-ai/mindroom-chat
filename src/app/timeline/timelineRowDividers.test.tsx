@@ -174,7 +174,7 @@ describe("a fork draft's line at a run of quiet markers", () => {
   });
 });
 
-describe("a router's voice echo", () => {
+describe('a folded voice echo', () => {
   const events = [
     event('$read', 'm.room.message', START),
     event('$voice', 'm.room.message', START + DAY),
@@ -184,6 +184,7 @@ describe("a router's voice echo", () => {
   const paired = {
     ...messageData,
     voiceTranscripts: {
+      ...NO_VOICE_TRANSCRIPTS,
       hiddenEventIds: new Set(['$echo']),
       byVoiceId: new Map([['$voice', events[2]!]]),
     },

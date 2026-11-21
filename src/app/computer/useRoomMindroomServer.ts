@@ -11,10 +11,10 @@ import { trustedServerOrigins, trustedServers } from './agentServer';
 /**
  * The room's MindRoom server: the one the room's agents published while the homeserver binds
  * tokens to it and it is trusted (`trustedServerOrigins`), else the deployment's. Never this
- * device's choice of server for agents' computers, since call transcripts and plugin routes need
- * the MindRoom whose router is in the room. None in a room without a MindRoom agent. `pending`
- * while the room's member list or the homeserver's answer on binding tokens is still out, which
- * can change it.
+ * device's choice of server for agents' computers: call transcripts and plugin routes use the
+ * backend serving the room. None in a room without a joined MindRoom agent. `pending` while
+ * the room's member list or the homeserver's answer on binding tokens is still out, which can
+ * change it.
  */
 export const useRoomMindroomServer = (mx: MatrixClient, roomId: string) => {
   const binding = useOpenIdBinding();

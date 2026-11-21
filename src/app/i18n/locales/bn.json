@@ -1355,9 +1355,6 @@
         "submitted": "জমা দেওয়া হয়েছে",
         "toolApprovalRequest": "টুল অনুমোদন অনুরোধ"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "রাউটার এজেন্ট কথা থেকে লেখা তৈরি করছে"
-      },
       "pendingSendIndicator": {
         "messageFailedToSend": "বার্তা পাঠাতে ব্যর্থ হয়েছে",
         "messageSending": "বার্তা পাঠানো হচ্ছে",

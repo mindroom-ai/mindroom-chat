@@ -8,6 +8,7 @@ import React, {
   useReducer,
   useRef,
   useState,
+  type RefObject,
 } from 'react';
 import classNames from 'classnames';
 import { shortViewport } from '../ui/styles/shortViewport';
@@ -45,6 +46,7 @@ import { focusedCompactCard } from './overview/compactCardKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
+import { useShortViewport } from '../ui/page/floatingCards';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
@@ -78,15 +80,65 @@ export interface ThreadContextBannerProps {
 
 const DESKTOP_MAX_PILLS = 3;
 
-// A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
-// buttons, after them in the tab order too. In rem, since Page Zoom scales the root font size and
-// so the buttons, while the banner keeps its px width.
+// A banner narrower than this takes a phone's layout: the tags and the pin in More, the whole
+// title, the buttons beside it stacked. Narrower are a thread column or a second thread beside the
+// messages (440 px of banner until resized), a conversation beside the members panel on a tablet
+// (372 px at 1024 by 768, 528 px at 1180 by 820) and a portrait tablet's beside the room list
+// (442 px at 820 wide). Wider, and keeping the tags, are a tablet's held sideways beside the room
+// list (646 px at 1024 by 768) and a desktop's, also beside the members panel (628 px at 1280 by
+// 800). A phone takes the compact layout at any width: a 750 px one has 710 px of banner, more than
+// that tablet, so no width tells them apart. In rem, as the row's, since Page Zoom scales what the
+// banner holds.
+const COMPACT_BANNER_REM = 36;
+
+const rootFontSize = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
+  (parseFloat(style[`${side}Left`]) || 0) + (parseFloat(style[`${side}Right`]) || 0);
+
+/**
+ * Whether the banner is narrower than COMPACT_BANNER_REM. Measured from the banner's slot, the
+ * width the banner has expanded, so a collapsed pill gets the same answer; again as the slot
+ * resizes and as Page Zoom changes the root's font size. A hidden slot (no width) keeps the last
+ * answer. Not measured while `skip`. Assumes the parent is the block slot from
+ * `threadBannerSlotStyle`, whose width does not depend on the banner's.
+ */
+const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const node = banner.current;
+    const slot = node?.parentElement;
+    if (skip || !node || !slot) return undefined;
+    const measure = () => {
+      const width =
+        slot.clientWidth -
+        inlineSpace(getComputedStyle(slot), 'padding') -
+        inlineSpace(getComputedStyle(node), 'margin');
+      if (width > 0) setNarrow(width < COMPACT_BANNER_REM * rootFontSize());
+    };
+    measure();
+    const zoom =
+      typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(measure);
+    zoom?.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    resize?.observe(slot);
+    return () => {
+      zoom?.disconnect();
+      resize?.disconnect();
+    };
+  }, [banner, skip]);
+  return narrow;
+};
+
+// A compact banner's row narrower than this (a small phone, a narrow pane, Page Zoom) gives the
+// title the row under its buttons, after them in the tab order too. In rem, since Page Zoom scales
+// the root font size and so the buttons, while the banner keeps its px width.
 const NARROW_PHONE_ROW_REM = 19;
 
 type RowLayout = 'row' | 'stacked' | 'narrow';
 
 /**
- * A phone's title row:
+ * A compact banner's title row:
  * - `narrow`: too narrow to hold the title beside its buttons, which take the line above it.
  * - `stacked`: when the title, beside the buttons side by side, is at least as tall as the buttons
  *   one above the other, they stack and the title gets their width; the card gets no taller.
@@ -107,8 +159,7 @@ const usePhoneRowLayout = (row: HTMLElement | null, text: string | undefined): R
     const title = row.querySelector<HTMLElement>(`:scope > .${css.TitleColumn}`);
     const actions = row.querySelector<HTMLElement>(`:scope > .${css.RowActions}`);
     const measure = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      if (row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rem) {
+      if (row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rootFontSize()) {
         setLayout('narrow');
         return;
       }
@@ -188,6 +239,13 @@ export function ThreadContextBanner({
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  // A phone always gets the phone layout, so it looks as before whatever its width or zoom. Other
+  // screens get it when the banner is narrow: the tags and the pin move to More, and, unless the
+  // screen is short and keeps one row, the title shows whole and the buttons can stack.
+  const narrow = useNarrowBanner(bannerRef, phone);
+  const short = useShortViewport();
+  const compact = phone || narrow;
+  const wholeTitle = phone || (narrow && !short);
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -353,13 +411,13 @@ export function ThreadContextBanner({
     return true;
   });
 
-  // A phone's banner leaves the tags and the pin to More, so the whole title has the room.
-  const hasTags = !phone && headerModel.displayTags.length > 0;
+  // A compact banner leaves the tags and the pin to More, so the whole title has the room.
+  const hasTags = !compact && headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
   const title = headerModel.summaryText || rootTitle;
-  const rowLayout = usePhoneRowLayout(phone ? titleRow : null, title);
+  const rowLayout = usePhoneRowLayout(wholeTitle ? titleRow : null, title);
   const narrowRow = rowLayout === 'narrow';
   const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
     narrowRow ? [items[1], items[0]] : items;
@@ -478,7 +536,7 @@ export function ThreadContextBanner({
             ref={setTitleRow}
             className={classNames(
               css.TitleRow,
-              phone && css.PhoneTitleRow,
+              wholeTitle && css.PhoneTitleRow,
               narrowRow && css.NarrowPhoneTitleRow,
               rowLayout === 'stacked' && css.StackedPhoneTitleRow
             )}
@@ -527,19 +585,19 @@ export function ThreadContextBanner({
                               as="span"
                               data-thread-context-summary="true"
                               className={classNames(
-                                phone ? css.PhoneTitle : css.SummaryText,
+                                wholeTitle ? css.PhoneTitle : css.SummaryText,
                                 summaryChanged && css.SummaryTextChanged
                               )}
                               // A title taller than its bound scrolls, also from the keyboard.
-                              tabIndex={phone ? 0 : undefined}
+                              tabIndex={wholeTitle ? 0 : undefined}
                               onAnimationEnd={() =>
                                 setShownSummary((shown) => ({ ...shown, changed: false }))
                               }
                               onDoubleClick={onDoubleClick}
                               size="T300"
-                              truncate={!phone}
+                              truncate={!wholeTitle}
                               title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                              {...(phone ? ownDirectionBlock : ownDirectionLine)}
+                              {...(wholeTitle ? ownDirectionBlock : ownDirectionLine)}
                             >
                               {revealDirectionControls(headerModel.summaryText)}
                             </Text>
@@ -548,7 +606,7 @@ export function ThreadContextBanner({
                               text={title}
                               hint={hint}
                               onDoubleClick={onDoubleClick}
-                              whole={phone}
+                              whole={wholeTitle}
                             />
                           )
                         }
@@ -699,8 +757,8 @@ export function ThreadContextBanner({
                     </IconButton>
                   )}
                 </IconTooltip>
-                {/* A phone pins from More; its row still says a thread is pinned. */}
-                {!phone && pinning.canPin && mutableThreadRootId ? (
+                {/* A compact banner pins from More; its row still says a thread is pinned. */}
+                {!compact && pinning.canPin && mutableThreadRootId ? (
                   <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                     {(triggerRef) => (
                       <IconButton
@@ -790,7 +848,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
-            tagsAtTop={phone}
+            tagsAtTop={compact}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

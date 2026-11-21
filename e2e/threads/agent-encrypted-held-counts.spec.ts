@@ -7,7 +7,6 @@ import {
   expect,
   mentionHelper,
   openNewSession,
-  readRouterWelcome,
   routerToken,
   serverUnreadCounts,
   test,
@@ -101,20 +100,6 @@ const newestEventId = async (stack: AgentStack, roomId: string): Promise<string>
   return newest.event_id;
 };
 
-/** Whether the router sent a message in the room (its join and state events aside). */
-const routerSpoke = async (stack: AgentStack, roomId: string): Promise<boolean> => {
-  const { chunk } = await matrixFetch<{ chunk: Array<{ sender: string; type: string }> }>(
-    stack.homeserver,
-    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=50`,
-    { accessToken: stack.tester.accessToken }
-  );
-  return chunk.some(
-    (event) =>
-      event.sender === stack.agents.router &&
-      (event.type === 'm.room.message' || event.type === 'm.room.encrypted')
-  );
-};
-
 const openSecurity = async (page: Page): Promise<void> => {
   await openSettingsFromAccountRail(page);
   await page.getByRole('button', { name: 'Privacy & security', exact: true }).click();
@@ -181,7 +166,6 @@ test('after a sync gap every device shows the messages the server counts, also a
       accessToken: colleague.accessToken,
       body: '{}',
     });
-    await readRouterWelcome(stack, roomId);
     await sendRoomMessage(stack.homeserver, colleague.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Before the gap.',
@@ -231,7 +215,6 @@ test('an unread fast agent reply stays counted after a reload', async ({ page: d
   const log: string[] = [];
   try {
     const roomId = await createEncryptedAgentRoom(stack, 'Fast reply');
-    await readRouterWelcome(stack, roomId);
     await desk.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     await expect(composer(desk)).toBeVisible({ timeout: 90_000 });
     await mentionHelper(desk, stack, 'a short question for the helper');
@@ -263,7 +246,7 @@ test('a new session whose keys come late from the key backup shows an unread fin
   try {
     // An account of its own: the secret storage and key backup it sets up stay on the account, so
     // the stack's test account would offer no Enable on a later run. The agents answer the
-    // members of their lobby, where the router invites it.
+    // members of their configured lobby, where the owner invites it.
     const owner = await registerDisposableUser(
       `latekeys${Date.now().toString(36)}`,
       'secret-pass-1'
@@ -301,9 +284,6 @@ test('a new session whose keys come late from the key backup shows an unread fin
     await expect(composer(desk)).toBeVisible({ timeout: 90_000 });
     await mentionHelper(desk, stack, '#slow what changed in the release?');
     await goHome(desk, roomId);
-    // The router welcomes only an empty room, and not always one of an account outside the
-    // stack's: read its welcome, if it sent one, so the counts are the test's own.
-    if (await routerSpoke(stack, roomId)) await readRouterWelcome(stack, roomId);
     await expect
       .poll(
         async () =>

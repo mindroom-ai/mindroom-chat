@@ -54,11 +54,10 @@ export const createRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL,
     // MSC3401 call membership: any member may join the call.
     [StateEvent.GroupCallMemberPrefix]: 0,
-    // State MindRoom's agents and router publish; they join with no power. The client reads
-    // server, jobs and auto-approve state only from an agent under its own user ID, a state key
-    // Matrix accepts only from that user, and the router lists the room's MindRoom accounts under
-    // its own; any member may write thread tags and the thread mode. The rooms MindRoom creates
-    // open the same types.
+    // State MindRoom accounts can publish at level 0. Agents publish server and jobs state
+    // under their own user IDs; the steward does the same for auto-approve and the roster.
+    // Only the account named by a user ID state key can write it. Any member may write thread
+    // tags and the thread mode. Rooms MindRoom creates open the same types.
     'io.mindroom.server': 0,
     [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
     [MINDROOM_AUTO_APPROVE_EVENT]: 0,

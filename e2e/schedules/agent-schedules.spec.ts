@@ -10,7 +10,7 @@ import {
 
 // Room schedules with a live MindRoom backend: the agent's schedule tool makes a one-time task,
 // the header's clock counts it, the thread banner counts down to it, its dialog lists it, and the
-// router posts it as an automated task when it is due.
+// task owner posts it as an automated task when it is due.
 test.describe.configure({ timeout: 300_000 });
 
 test('a reminder the agent schedules is listed, counted down and posted on time', async ({
@@ -44,7 +44,7 @@ test('a reminder the agent schedules is listed, counted down and posted on time'
     stack,
     rootId,
     (event) =>
-      event.sender === stack.agents.router &&
+      event.sender === stack.agents.helper &&
       String(event.content.body ?? '').includes('[Automated Task]'),
     { timeout: 120_000, description: 'the automated task' }
   );

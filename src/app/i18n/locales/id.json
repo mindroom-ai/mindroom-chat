@@ -2614,9 +2614,6 @@
         "argumentsMayDifferBetweenCalls": "Argumen dapat berbeda antar panggilan.",
         "requestedBy": "Diminta oleh {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Agen perute sedang mentranskripsikan"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI sedang merespons"
       },

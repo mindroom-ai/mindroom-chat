@@ -2621,9 +2621,6 @@
         "argumentsMayDifferBetweenCalls": "Argumenten kunnen per aanroep verschillen.",
         "requestedBy": "Aangevraagd door {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router-agent transcribeert"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI antwoordt"
       },
