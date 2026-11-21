@@ -254,36 +254,48 @@ describe('persisted room catalogs', () => {
     expect(reloaded.queue).not.toHaveBeenCalled();
   });
 
-  it('waits for lazy membership hydration without throwing away a valid disk seed', async () => {
-    await setup().discover();
-    const h = setup(true);
-    // Relay the SDK's synchronous per-member events, even though membersLoaded() is already true.
-    h.room.currentState.on(RoomStateEvent.NewMember, (_event, _state, member) => {
-      member.on(RoomMemberEvent.Membership, (event, changed) => {
-        h.mx.emit(RoomMemberEvent.Membership, event, changed);
+  it.each(['cold scope', 'watched scope'])(
+    'preserves a disk seed through lazy hydration (%s)',
+    async (kind) => {
+      await setup().discover();
+      const h = setup(true);
+      // Relay the SDK's synchronous per-member events, even though membersLoaded() is already true.
+      h.room.currentState.on(RoomStateEvent.NewMember, (_event, _state, member) => {
+        member.on(RoomMemberEvent.Membership, (event, changed) => {
+          h.mx.emit(RoomMemberEvent.Membership, event, changed);
+        });
       });
-    });
-    vi.spyOn(h.mx, 'members').mockResolvedValue({
-      chunk: [router, helper].map((id) => ({
-        type: 'm.room.member',
-        room_id: h.room.roomId,
-        sender: id,
-        state_key: id,
-        content: { membership: 'join' },
-      })) as IStateEventWithRoomId[],
-    });
-    expect(h.snapshot().eligible).toBe(false);
-    h.controller.subscribe(h.room, '$root', () => {});
-    await flush();
-    expect(h.room.membersLoaded()).toBe(true);
-    expect(h.snapshot()).toMatchObject({ eligible: true, loading: true, canMutate: false });
-    expect(h.snapshot().models).not.toHaveLength(0);
-    expect(setup().snapshot().eligible).toBe(true);
+      vi.spyOn(h.mx, 'members').mockResolvedValue({
+        chunk: [router, helper].map((id) => ({
+          type: 'm.room.member',
+          room_id: h.room.roomId,
+          sender: id,
+          state_key: id,
+          content: { membership: 'join' },
+        })) as IStateEventWithRoomId[],
+      });
+      if (kind === 'watched scope') {
+        cleanups.push(
+          h.controller.retain(),
+          h.controller.watch(h.room, '$root', () => {})
+        );
+        const unrelated = '@someone:test';
+        h.member(unrelated);
+        h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(unrelated)!);
+      }
+      expect(h.snapshot().eligible).toBe(false);
+      h.controller.subscribe(h.room, '$root', () => {});
+      await flush();
+      expect(h.room.membersLoaded()).toBe(true);
+      expect(h.snapshot()).toMatchObject({ eligible: true, loading: true, canMutate: false });
+      expect(h.snapshot().models).not.toHaveLength(0);
+      expect(setup().snapshot().eligible).toBe(true);
 
-    h.member(helper, 'leave');
-    expect(h.snapshot().eligible).toBe(false);
-    expect(setup().snapshot().eligible).toBe(false);
-  });
+      h.member(helper, 'leave');
+      expect(h.snapshot().eligible).toBe(false);
+      expect(setup().snapshot().eligible).toBe(false);
+    }
+  );
 
   it('removes a visible seed when its agent leaves during hydration', async () => {
     await setup().discover();
@@ -392,6 +404,7 @@ describe('persisted room catalogs', () => {
   });
 
   it('validates each stored room catalog before using it', () => {
+    const longUserId = `@mindroom_${'a'.repeat(1024)}:test`;
     const invalidCatalogs = [
       {
         ...cachedCatalog,
@@ -399,6 +412,8 @@ describe('persisted room catalogs', () => {
       },
       { ...cachedCatalog, inherited: [{ entity: 'helper', model: 42 }] },
       { ...cachedCatalog, runtime: { ...cachedCatalog.runtime, deviceId: '' } },
+      { ...cachedCatalog, runtime: { ...cachedCatalog.runtime, userId: longUserId } },
+      { ...cachedCatalog, runtime: { ...cachedCatalog.runtime, curveKey: 'a'.repeat(1025) } },
     ];
     values.set(
       key,
@@ -407,7 +422,9 @@ describe('persisted room catalogs', () => {
         rooms: { '!room:test': invalidCatalogs, '!other:test': [cachedCatalog] },
       })
     );
-    expect(setup().snapshot().eligible).toBe(false);
+    const h = setup();
+    h.member(longUserId);
+    expect(h.snapshot().eligible).toBe(false);
     expect(setup(false, viewer, '!other:test').snapshot().models).toEqual(cachedCatalog.models);
   });
 
@@ -560,6 +577,28 @@ describe('shared model discovery', () => {
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: true });
+  });
+  it('does not cancel a selection when a superseded room seed runtime changes devices', async () => {
+    const h = setup();
+    await h.discover();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    h.devices.set(other, new Map([['OTHER', h.device(other, 'OTHER', 'other-curve')]]));
+
+    h.controller.subscribe(h.room, '$new', () => {});
+    expect(h.snapshot('$new')).toMatchObject({ eligible: true, canMutate: false });
+    await flush();
+    h.response(h.request(), {}, { senderCurve25519KeyBase64: 'other-curve' }, other);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot('$new')).toMatchObject({ runtime: { userId: other }, canMutate: true });
+
+    h.controller.selectModel(h.room, '$new', 'fast');
+    expect(h.crypto.getUserDeviceInfo).toHaveBeenLastCalledWith([other], true);
+    expect(h.send).not.toHaveBeenCalled();
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    expect(h.send).toHaveBeenCalledOnce();
   });
   it('lets a watcher read a scope without asking for it', async () => {
     const h = setup();

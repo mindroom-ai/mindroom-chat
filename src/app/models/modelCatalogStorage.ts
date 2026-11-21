@@ -26,7 +26,8 @@ const parseRoomCatalog = (value: unknown): RoomCatalog | undefined => {
   const { userId, deviceId, curveKey } = value.runtime;
   if (typeof userId !== 'string' || typeof deviceId !== 'string' || typeof curveKey !== 'string')
     return undefined;
-  if (!userId.startsWith('@') || !deviceId || deviceId.length > 255 || !curveKey) return undefined;
+  if (!userId.startsWith('@') || userId.length > 1024) return undefined;
+  if (!deviceId || deviceId.length > 255 || !curveKey || curveKey.length > 1024) return undefined;
   const payload = parseModelCatalogPayload(value.agentUserIds, value.models, {
     override: null,
     inherited: value.inherited,
@@ -34,8 +35,8 @@ const parseRoomCatalog = (value: unknown): RoomCatalog | undefined => {
   if (!payload) return undefined;
   return {
     runtime: { id: JSON.stringify([userId, deviceId, curveKey]), userId, deviceId, curveKey },
-    agentUserIds: payload.agent_user_ids,
     models: payload.models,
+    agentUserIds: payload.agent_user_ids,
     inherited: payload.selection.inherited,
   };
 };

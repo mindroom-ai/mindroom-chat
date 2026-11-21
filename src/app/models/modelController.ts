@@ -368,8 +368,9 @@ export class ModelController {
       if (hydrating) await scope.room.loadMembersIfNeeded();
       if (!this.currentQuery(query)) return;
       query.hydrating = false;
+      const { failures, catalogs, snapshot } = scope;
       // Recheck the display seed once the whole roster is available, not on intermediate joins.
-      if (hydrating && scope.kept && !scope.catalogs.size && !scope.snapshot.runtime) {
+      if (hydrating && failures < STALE_ATTEMPTS && !catalogs.size && !snapshot.runtime) {
         this.reseed(scope);
         if (!this.currentQuery(query)) return;
       }
@@ -860,7 +861,8 @@ export class ModelController {
     });
     if (rooms.size !== size) save();
     this.scopes.forEach((scope) => {
-      const known = [...scope.catalogs.values(), ...(scope.kept ?? [])]
+      const catalogs = scope.catalogs.size ? scope.catalogs.values() : scope.kept ?? [];
+      const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);
       if (known.some((d) => users.includes(d.userId))) this.invalidateAndRefresh(scope);
