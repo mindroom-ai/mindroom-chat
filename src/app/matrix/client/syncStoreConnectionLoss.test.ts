@@ -5,9 +5,11 @@ import {
   IDBKeyRange,
   IDBObjectStore,
 } from 'fake-indexeddb';
-import { createClient, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, createClient, MatrixEvent, User, type MatrixClient } from 'matrix-js-sdk';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const realPut = IDBObjectStore.prototype.put;
 
 // fake-indexeddb declares the parameter as the database class; it takes an open connection.
 const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase) => void;
@@ -62,6 +64,18 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     const reader = await startStore();
     return reader.getSavedSyncToken();
   };
+
+  /** The types of the account data events in the database. */
+  const persistedAccountData = async () => {
+    const reader = await startStore();
+    return (await reader.getSavedSync())?.accountData.map((event) => event.type);
+  };
+
+  const accumulateWithAccountData = (store: IndexedDBStore, nextBatch: string) =>
+    store.setSyncData({
+      next_batch: nextBatch,
+      account_data: { events: [{ type: 'm.direct', content: {} }] },
+    } as Parameters<IndexedDBStore['setSyncData']>[0]);
 
   const savedStore = async () => {
     const store = await startStore();
@@ -163,13 +177,33 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       const request = put.apply(this, args);
       const { transaction } = this;
       request.addEventListener('success', () => {
-        if (errorName === undefined) transaction.abort();
-        // fake-indexeddb's own abort, which takes the name of the transaction's error.
-        else (transaction as unknown as { _abort: (name: string) => void })._abort(errorName);
+        transaction.abort();
+        // The `abort` event comes in a later task; a browser's own abort has set the error by then.
+        if (errorName !== undefined) {
+          Object.defineProperty(transaction, 'error', { value: new DOMException('', errorName) });
+        }
       });
       return request;
     });
   };
+
+  /**
+   * The next write fails as a browser reports it on the request: the request's `error` event
+   * reaches the transaction, which has no error of its own yet, and the transaction then aborts.
+   */
+  function failRequest(this: IDBObjectStore, ...args: Parameters<IDBObjectStore['put']>) {
+    const request = realPut.apply(this, args);
+    const { transaction } = this;
+    request.addEventListener('success', () => {
+      const error = new DOMException('Storage is full.', 'QuotaExceededError');
+      Object.defineProperty(request, 'error', { value: error });
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: request });
+      transaction.onerror?.(event);
+      transaction.abort();
+    });
+    return request;
+  }
 
   it.each([['UnknownError'], [undefined]])(
     'keeps the persisted sync when a save is aborted on an open connection (%s)',
@@ -211,13 +245,74 @@ describe('Matrix sync store after an IndexedDB failure', () => {
         request.addEventListener('success', () => transaction.abort());
       return request;
     });
-    await store.setSyncData({
-      next_batch: 'aborted',
-      account_data: { events: [{ type: 'm.direct', content: {} }] },
-    } as Parameters<IndexedDBStore['setSyncData']>[0]);
+    await accumulateWithAccountData(store, 'aborted');
     await store.save(true);
 
     expect(await persistedToken()).toBe('saved');
+    expect(await persistedAccountData()).toEqual([]);
+  });
+
+  it('writes no part of a save whose last write throws', async () => {
+    const store = await savedStore();
+
+    const put = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function throwOnSync(
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      if (this.name === 'sync') throw new DOMException('Not clonable.', 'DataCloneError');
+      return put.apply(this, args);
+    });
+    await accumulateWithAccountData(store, 'thrown');
+    await store.save(true);
+
+    expect(await persistedAccountData()).toEqual([]);
+    expect(await persistedToken()).toBe('saved');
+  });
+
+  it('saves a user again whose presence a failed save did not write', async () => {
+    const store = await savedStore();
+    const user = new User('@bob:example');
+    user.setPresenceEvent(
+      new MatrixEvent({ type: 'm.presence', sender: user.userId, content: { presence: 'online' } })
+    );
+    store.storeUser(user);
+
+    abortNextSave('UnknownError');
+    await store.save(true);
+    await store.save(true);
+
+    const reader = await startStore();
+    expect(reader.getUser(user.userId)?.events.presence?.getContent()).toEqual({
+      presence: 'online',
+    });
+  });
+
+  it('clears the stored members of a room once a save succeeds, after a clear that failed', async () => {
+    const roomId = '!left:example';
+    const member = { room_id: roomId, state_key: '@bob:example', type: 'm.room.member' };
+    const store = await savedStore();
+    await store.setOutOfBandMembers(roomId, [member] as Parameters<
+      IndexedDBStore['setOutOfBandMembers']
+    >[1]);
+    const storedMembers = async () => (await startStore()).getOutOfBandMembers(roomId);
+
+    // The rows are deleted, and the browser then aborts the transaction.
+    const remove = IDBObjectStore.prototype.delete;
+    vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(function abortAfterDelete(
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['delete']>
+    ) {
+      const request = remove.apply(this, args);
+      const { transaction } = this;
+      request.addEventListener('success', () => transaction.abort());
+      return request;
+    });
+    await store.clearOutOfBandMembers(roomId);
+    expect(await storedMembers()).toHaveLength(1);
+
+    await store.save(true);
+    await vi.waitFor(async () => expect(await storedMembers()).toBeNull());
   });
 
   it('saves again soon after a failed save, not after the usual five minutes', async () => {
@@ -237,9 +332,47 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await persistedToken()).toBe('retried');
   });
 
+  it('waits twice as long after each further failed save, and reports the first only', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const store = await savedStore();
+    const failed = vi.fn();
+    store.on('failed', failed);
+    const failAfter = async (ms: number) => {
+      vi.setSystemTime(Date.now() + ms - 1);
+      expect(store.wantsSave()).toBe(false);
+      vi.setSystemTime(Date.now() + 2);
+      expect(store.wantsSave()).toBe(true);
+      abortNextSave('UnknownError');
+      await store.save();
+    };
+
+    abortNextSave('UnknownError');
+    await store.save(true);
+    await failAfter(10_000);
+    await failAfter(20_000);
+    await failAfter(40_000);
+    expect(failed).toHaveBeenCalledTimes(1);
+
+    // A save that succeeds ends the streak: the next failure is reported and retried soon.
+    await store.save(true);
+    abortNextSave('UnknownError');
+    await store.save(true);
+    expect(failed).toHaveBeenCalledTimes(2);
+    await failAfter(10_000);
+
+    // The wait never exceeds the usual five minutes.
+    for (let failure = 0; failure < 8; failure += 1) {
+      abortNextSave('UnknownError');
+      await store.save(true);
+    }
+    vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+    expect(store.wantsSave()).toBe(true);
+  });
+
   it('keeps the persisted sync after an internal error on a working connection', async () => {
     const store = await savedStore();
 
+    // Thrown before the save wrote or waited for anything.
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
       throw new DOMException('Internal error.', 'UnknownError');
     });
@@ -247,6 +380,40 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     await store.save(true);
 
     expect(await persistedToken()).toBe('saved');
+
+    // The next save is a new one, not the failed one again.
+    await store.save(true);
+    expect(await persistedToken()).toBe('failed');
+  });
+
+  // A batch the accumulator could not take, or took in part, is missing from every later save,
+  // whose token is past it: the server would never send it again.
+  it('stops saving after a sync batch it could not take, and keeps the persisted sync', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const store = await savedStore();
+    const failed = vi.fn();
+    const degraded = vi.fn();
+    store.on('failed', failed);
+    store.on('degraded', degraded);
+
+    const { syncAccumulator } = (
+      store as unknown as { backend: { syncAccumulator: { accumulate: () => void } } }
+    ).backend;
+    const lost = new Error('bad batch');
+    vi.spyOn(syncAccumulator, 'accumulate').mockImplementationOnce(() => {
+      throw lost;
+    });
+    await accumulate(store, 'lost');
+    await accumulate(store, 'later');
+    await store.save(true);
+    expect(await persistedToken()).toBe('saved');
+
+    vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+    expect(store.wantsSave()).toBe(false);
+    await store.save();
+    expect(await persistedToken()).toBe('saved');
+    expect(degraded.mock.calls).toEqual([[lost]]);
+    expect(failed).not.toHaveBeenCalled();
   });
 
   // A full disk: deleting the saved sync frees space, and the store then works from memory.
@@ -257,21 +424,8 @@ describe('Matrix sync store after an IndexedDB failure', () => {
         throw new DOMException('Storage is full.', 'QuotaExceededError');
       },
     ],
-    [
-      // Browsers report it on the request: its error event reaches the transaction before the
-      // transaction has an error of its own.
-      'reported on the request',
-      function failRequest(this: IDBObjectStore) {
-        const fail = () => {
-          throw new DOMException('Storage is full.', 'QuotaExceededError');
-        };
-        type Internals = { _execRequestAsync: (work: object) => IDBRequest<IDBValidKey> };
-        return (this.transaction as unknown as Internals)._execRequestAsync({
-          source: this,
-          operation: fail,
-        });
-      },
-    ],
+    ['reported on the request', failRequest],
+    ['reported as the transaction commits', undefined],
   ])('clears the store when the storage is full (%s), and stops saving', async (_how, put) => {
     const store = await savedStore();
     const failed = vi.fn();
@@ -279,7 +433,8 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     store.on('failed', failed);
     store.on('degraded', degraded);
 
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(put);
+    if (put) vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(put);
+    else abortNextSave('QuotaExceededError');
     await accumulate(store, 'failed');
     await store.save(true);
 
@@ -292,5 +447,106 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(store.wantsSave()).toBe(false);
     expect(failed).not.toHaveBeenCalled();
     expect(await persistedToken()).toBeUndefined();
+
+    // So do the to-device queue and the user profiles, which the deleted database held.
+    await store.saveToDeviceBatches([{ eventType: 'm.test', txnId: 'txn', batch: [] }]);
+    const queued = await store.getOldestToDeviceBatch();
+    expect(queued?.txnId).toBe('txn');
+    await store.removeToDeviceBatch(queued!.id);
+    expect(await store.getOldestToDeviceBatch()).toBeNull();
+    await store.storeUserProfiles(new Map([['@bob:example', { displayname: 'Bob' }]]));
+    expect(await store.getUserProfile('@bob:example')).toEqual({ displayname: 'Bob' });
+    await store.removeUserProfiles(['@bob:example']);
+    expect(await store.getUserProfile('@bob:example')).toBeUndefined();
+
+    // Deleting all data still deletes the database, which another tab may have written since.
+    const other = await startStore();
+    await accumulate(other, 'other');
+    await other.save(true);
+    await store.deleteAllData();
+    expect(await persistedToken()).toBeUndefined();
+  });
+
+  it('degrades once when two operations in flight both find the storage full', async () => {
+    const store = await savedStore();
+    const failed = vi.fn();
+    const degraded = vi.fn();
+    store.on('failed', failed);
+    store.on('degraded', degraded);
+    const clearDatabase = vi.spyOn(store.backend, 'clearDatabase');
+
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(failRequest);
+    await accumulate(store, 'failed');
+    await Promise.all([store.save(true), store.setOutOfBandMembers('!room:example', [])]);
+
+    expect(degraded).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
+    expect(clearDatabase).toHaveBeenCalledTimes(1);
+  });
+
+  // The first sync request asks for the changes since the saved sync that is replayed.
+  describe('the first sync request', () => {
+    const startSyncing = async (store: IndexedDBStore, requests = 1, failReplay = false) => {
+      const syncRequests: URL[] = [];
+      const answer = (body: object) => Promise.resolve(new Response(JSON.stringify(body)));
+      const fetchFn = vi.fn<typeof fetch>((input) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.pathname.endsWith('/sync')) {
+          syncRequests.push(url);
+          return new Promise(() => {
+            // The server holds the request.
+          });
+        }
+        if (url.pathname.endsWith('/versions')) return answer({ versions: ['v1.11'] });
+        if (url.pathname.endsWith('/filter')) return answer({ filter_id: 'filter' });
+        return answer({});
+      });
+      const client = createClient({
+        baseUrl: 'https://matrix.example',
+        userId: '@alice:example',
+        accessToken: 'token',
+        store,
+        fetchFn,
+      });
+      clients.push(client);
+      if (failReplay) {
+        client.once(ClientEvent.AccountData, () => {
+          throw new Error('replay failed');
+        });
+      }
+      await store.startup();
+      await client.startClient();
+      await vi.waitFor(() => expect(syncRequests).toHaveLength(requests));
+      return syncRequests.map((url) => url.searchParams.get('since'));
+    };
+
+    const unstartedStore = () => {
+      const store = new IndexedDBStore({ indexedDB, dbName: 'connection-loss' });
+      stores.push(store);
+      return store;
+    };
+
+    it('asks for the changes since the saved sync it replays', async () => {
+      await savedStore();
+
+      expect(await startSyncing(unstartedStore())).toEqual(['saved']);
+    });
+
+    it('asks for everything when the saved sync could not be read', async () => {
+      await savedStore();
+      const store = unstartedStore();
+      vi.spyOn(store.backend, 'getSavedSync').mockRejectedValueOnce(new Error('unreadable'));
+
+      expect(await startSyncing(store)).toEqual([null]);
+    });
+
+    it('asks for everything once the replay of the saved sync has failed', async () => {
+      const saved = await startStore();
+      await accumulateWithAccountData(saved, 'saved');
+      await saved.save(true);
+
+      // The first request went out before the replay failed; its answer is dropped.
+      expect(await startSyncing(unstartedStore(), 2, true)).toEqual(['saved', null]);
+    });
   });
 });
