@@ -43,7 +43,11 @@ import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
-import { liveVoiceRecordingAtom, voiceAccountGuard } from './voice/liveVoiceRecording';
+import {
+  liveVoiceRecordingAtom,
+  voiceAccountGuard,
+  voiceDiscardsInFlightAtom,
+} from './voice/liveVoiceRecording';
 import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
 import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
@@ -556,8 +560,18 @@ export const useRoomInputVoice = ({
     [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
   );
 
+  // A confirmed Discard ends the recording at once and deletes its disk copy after: a recorder
+  // that showed stays, with its busy question, until the copy is gone.
+  const discarding = useAtomValue(voiceDiscardsInFlightAtom) > 0;
+  const recorderWasShown = useRef(false);
+  const recorderShown =
+    liveRecording ||
+    sendingHere ||
+    ownsPendingVoiceDraft ||
+    (discarding && recorderWasShown.current);
+  recorderWasShown.current = recorderShown;
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
-    liveRecording || sendingHere || ownsPendingVoiceDraft ? (
+    recorderShown ? (
       <VoiceRecorderComposer
         ref={voiceRecorderRef}
         ownsPendingVoiceDraft={ownsPendingVoiceDraft}
@@ -594,7 +608,6 @@ export const useRoomInputVoice = ({
     void startLiveVoiceRecording(store, getVoiceSendContext());
     return true;
   };
-  const recorderShown = liveRecording || sendingHere || ownsPendingVoiceDraft;
   const voiceShortcut = useSettingValue(settingsAtom, 'voiceHoldShortcut')
     ? 'voiceRecord'
     : undefined;

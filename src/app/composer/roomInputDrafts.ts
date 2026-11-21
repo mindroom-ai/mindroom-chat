@@ -20,7 +20,11 @@ import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
-import { endVoiceRecordingsOfAccount, liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
+import {
+  endVoiceRecordingsOfAccount,
+  liveVoiceRecordingAtom,
+  voiceDiscardsInFlightAtom,
+} from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
@@ -441,6 +445,7 @@ const familyKeys = <Key>(family: {
 export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
   store.get(liveVoiceRecordingAtom) !== undefined ||
   store.get(pendingVoiceSendDraftAtom) !== undefined ||
+  store.get(voiceDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
   familyKeys(roomIdToUploadItemsAtomFamily).some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0

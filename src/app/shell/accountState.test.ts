@@ -144,6 +144,10 @@ const keptAtoms = (): Map<object, string> =>
       loaded.liveVoice.liveVoiceCapsulesShownAtom,
       'counts the composers showing the recording, each taken out as it goes',
     ],
+    [
+      loaded.liveVoice.voiceDiscardsInFlightAtom,
+      'counts the Discards still deleting a disk copy, each taken out as its deletion settles',
+    ],
     [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
     [
       loaded.spaceTabs.openFoldersAtom,

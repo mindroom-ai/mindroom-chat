@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, config } from 'folds';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { ModalLayer } from '../../ui/ModalLayer';
+import { voiceDiscardsInFlightAtom } from './liveVoiceRecording';
 
 type DiscardVoiceRecordingDialogProps = {
   open: boolean;
@@ -26,11 +28,17 @@ export function DiscardVoiceRecordingDialog({
   const { t } = useTranslation();
   const title = t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording');
   const [busy, setBusy] = useState(false);
+  // Counted for the app too: a composer keeps this question up, and a reload still asks.
+  const setInFlight = useSetAtom(voiceDiscardsInFlightAtom);
   // The buttons stay enabled, so the focus kept inside always has a place.
   const discard = () => {
     if (busy) return;
     setBusy(true);
-    void onDiscard().finally(() => setBusy(false));
+    setInFlight((count) => count + 1);
+    void onDiscard().finally(() => {
+      setBusy(false);
+      setInFlight((count) => count - 1);
+    });
   };
   return (
     <ModalLayer open={open || busy} busy={busy} onClose={onCancel}>

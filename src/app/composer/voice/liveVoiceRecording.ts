@@ -22,6 +22,9 @@ export const liveVoiceRecordingAtom = atom<VoiceCaptureSession | undefined>(unde
 /** Why a recording could not be captured, until the person dismisses it. */
 export const liveVoiceRecordingErrorAtom = atom<string | undefined>(undefined);
 
+/** Confirmed Discards, of a live or a parked recording, whose disk copy is not gone yet. */
+export const voiceDiscardsInFlightAtom = atom(0);
+
 /** How many composers show the recording's capsule now; with none, the shell's indicator shows. */
 export const liveVoiceCapsulesShownAtom = atom(0);
 
