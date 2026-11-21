@@ -1,10 +1,4 @@
-import {
-  expect,
-  test,
-  type BrowserContextOptions,
-  type Locator,
-  type Page,
-} from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 
 import { createRoom } from '../helpers/createRoom';
@@ -140,8 +134,6 @@ const cardOrder = (page: Page) =>
     .locator(CARDS)
     .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
 
-const topOf = (card: Locator) => card.evaluate((element) => element.getBoundingClientRect().top);
-
 const scrollList = (page: Page, top: number) =>
   page.evaluate((scrollTop) => {
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
@@ -250,24 +242,12 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
   await expect(page.locator('[data-order-held]')).toHaveCount(1);
-  const before = await topOf(midCard);
-  const scrolledBefore = await listScrollTop(page);
+  const still = await watchVisibleRows(page);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
   const scrolled = await agentPosts(seeded, scrolledBody);
   await expectFirst(page, scrolled, scrolledBody, `scrolled down, under the pointer (${label})`);
-  await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      })
-  );
-  const moved = (await topOf(midCard)) - before;
-  const scrolledAfter = await listScrollTop(page);
-  test.info().annotations.push({
-    type: 'held card',
-    description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
-  });
-  expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
+  await page.waitForTimeout(600);
+  await still();
   await shot(page, `${label}-4-held-scrolled`);
 };
 
