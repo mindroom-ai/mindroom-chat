@@ -150,6 +150,32 @@ describe('the Compact room in sections', () => {
     expect(rows()).toEqual(['#working 1', '$b', '#later 1', '$c']);
   });
 
+  it('joins at the live edge of a section despite a pending move to Working', () => {
+    const ids = ['$a', '$b', '$c'];
+    state.sections = [{ id: 'needsYou', rootIds: ids }];
+    const { container, rerender } = render(view(ids));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const pill = () => screen.queryByRole('button', { name: /showUpdatedOrder/ });
+    const working = { id: 'working' as const, rootIds: ['$c'] };
+
+    state.sections = [working, { id: 'needsYou', rootIds: ['$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$a', '$b', '$c']);
+
+    const needsYou = { id: 'needsYou' as const, rootIds: ['$new', '$a', '$b'] };
+    state.sections = [working, needsYou];
+    rerender(view(['$new', ...ids]));
+    expect(rows()).toEqual(['#needsYou 4', '$new', '$a', '$b', '$c']);
+    expect(pill()).not.toBeNull();
+
+    state.sections = [needsYou];
+    rerender(view(needsYou.rootIds));
+    expect(rows()).toEqual(['#needsYou 3', '$new', '$a', '$b']);
+    expect(pill()).toBeNull();
+  });
+
   it('offers changed folded header counts, but not a reorder within a folded section', () => {
     const ids = ['$a', '$b', '$c', '$d'];
     state.sections = [

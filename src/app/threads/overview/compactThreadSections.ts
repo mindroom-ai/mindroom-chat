@@ -137,10 +137,11 @@ export const holdCompactThreadSections = (
             : shownIn.get(rootId) ?? section.id) === id
       )
     );
-    const shownSection = shown.find((section) => section.id === id);
-    if (!shownSection || (!interactionOnly && members.length === 0)) {
-      return members.length > 0 ? [{ id, rootIds: members }] : [];
-    }
-    return [{ id, rootIds: holdOrder(shownSection.rootIds, members) }];
+    const shownIds = shown.find((section) => section.id === id)?.rootIds;
+    if (!members.length && (!shownIds || !interactionOnly)) return [];
+    const anchors = new Set(live.find((section) => section.id === id)?.rootIds);
+    const canAnchor = (rootId: string) => interactionOnly || anchors.has(rootId);
+    const rootIds = holdOrder(shownIds ?? [], members, canAnchor);
+    return [{ id, rootIds }];
   });
 };
