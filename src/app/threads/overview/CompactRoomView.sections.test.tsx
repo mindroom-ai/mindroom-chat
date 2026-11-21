@@ -121,6 +121,35 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
+  it('keeps Working promotions in place while scrolled but applies folds and leaves', () => {
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$c'] },
+    ];
+    const { container, rerender } = render(view(['$a', '$b', '$c']));
+    const scrollView = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scrollView.scrollTop = 30;
+    fireEvent.scroll(scrollView);
+    state.sections = [
+      { id: 'working', rootIds: ['$b'] },
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$c'] },
+    ];
+    rerender(view(['$a', '$b', '$c']));
+    expect(rows()).toEqual(['#needsYou 2', '$a', '$b', '#done 1', '$c']);
+    fireEvent.click(header('needsYou'));
+    expect(rows()).toEqual(['#needsYou 2', '#done 1', '$c']);
+    state.sections = [
+      { id: 'working', rootIds: ['$b'] },
+      { id: 'done', rootIds: ['$c'] },
+    ];
+    rerender(view(['$b', '$c']));
+    expect(rows()).toEqual(['#needsYou 1', '#done 1', '$c']);
+    scrollView.scrollTop = 0;
+    fireEvent.scroll(scrollView);
+    expect(rows()).toEqual(['#working 1', '$b', '#done 1', '$c']);
+  });
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
@@ -8,13 +8,13 @@ import { CompactRoomView } from './CompactRoomView';
 
 const ROOM_ID = '!room:example.org';
 
-const state = vi.hoisted(() => ({ pinned: [] as string[] }));
+const state = vi.hoisted(() => ({ pinned: [] as string[], preview: 'No replies yet' }));
 
 const viewModel = (threadRootId: string): CompactThreadCardViewModel => ({
   id: { roomId: ROOM_ID, threadRootId },
   titleText: threadRootId,
   displayTitleText: threadRootId,
-  previewText: 'No replies yet',
+  previewText: state.preview,
   messageCount: 0,
   messageCountLabel: '0 replies',
   messageCountText: '0',
@@ -62,8 +62,13 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID } as unknown as Room;
-const list = (threadRootIds: string[], filterBarShown = false) => (
+const list = (
+  threadRootIds: string[],
+  filterBarShown = false,
+  options: { orderKey?: string; pageLimit?: number } = {}
+) => (
   <CompactRoomView
+    {...options}
     room={room}
     filterBarShown={filterBarShown}
     threadRootIds={threadRootIds}
@@ -85,6 +90,7 @@ const glided = () =>
 
 beforeEach(() => {
   state.pinned = [];
+  state.preview = 'No replies yet';
   motion = standInForListMotion();
 });
 
@@ -136,5 +142,89 @@ describe('the compact thread list in motion', () => {
     rerender(list(['$a', '$b', '$c']));
 
     expect(glided().sort()).toEqual(['$a', '$b', '$c']);
+  });
+});
+
+const row = (id: string) => document.querySelector(`[data-scroll-anchor="${id}"]`);
+const order = () =>
+  [...document.querySelectorAll('[data-scroll-anchor]')].map((element) =>
+    element.getAttribute('data-scroll-anchor')
+  );
+const pill = () => screen.queryByRole('button', { name: /showUpdatedOrder/ });
+const scroll = (top: number) => {
+  const view = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+  view.scrollTop = top;
+  fireEvent.scroll(view);
+};
+
+describe('the calm compact list', () => {
+  it.each([-1, 0, 0.25, 30])('reads offset %s before the scroll event', (offset) => {
+    const { container, rerender } = render(list(['$a', '$b']));
+    container.querySelector<HTMLElement>('[data-compact-room-view]')!.scrollTop = offset;
+    rerender(list(['$b', '$a']));
+    expect(order()).toEqual(offset > 0 ? ['$a', '$b'] : ['$b', '$a']);
+    expect(!!pill()).toBe(offset > 0);
+  });
+
+  it('keeps pins in their parent with fresh content and drops the offer when the update reverts', () => {
+    const { rerender } = render(list(['$a', '$b', '$c']));
+    const incumbent = row('$c');
+    scroll(30);
+    state.pinned = ['$c'];
+    state.preview = 'Fresh preview';
+    rerender(list(['$c', '$a', '$b']));
+    expect(row('$c')).toBe(incumbent);
+    expect(incumbent?.textContent).toContain('Fresh preview');
+    expect(incumbent?.closest('[data-pinned-threads]')).toBeNull();
+    expect(pill()).not.toBeNull();
+    state.pinned = [];
+    rerender(list(['$a', '$b', '$c']));
+    expect(pill()).toBeNull();
+  });
+
+  it('releases scroll and pointer holds independently, but resets both on a control change', () => {
+    const { rerender } = render(list(['$a', '$b']));
+    const cards = row('$a')!.parentElement!;
+    fireEvent.pointerEnter(cards);
+    scroll(30);
+    rerender(list(['$b', '$a']));
+    scroll(0);
+    expect(order()).toEqual(['$a', '$b']);
+    scroll(30);
+    fireEvent.pointerLeave(cards);
+    expect(order()).toEqual(['$a', '$b']);
+    fireEvent.pointerEnter(cards);
+    rerender(list(['$b', '$a'], false, { orderKey: 'new filter' }));
+    expect(order()).toEqual(['$b', '$a']);
+    expect(pill()).toBeNull();
+  });
+
+  it('keeps page survivors, fills departures and expands a held page immediately', () => {
+    const { rerender } = render(list(['$a', '$b', '$c', '$d'], false, { pageLimit: 2 }));
+    expect(order()).toEqual(['$a', '$b']);
+    scroll(30);
+    rerender(list(['$c', '$a', '$b', '$d'], false, { pageLimit: 2 }));
+    expect(order()).toEqual(['$a', '$b']);
+    expect(pill()).not.toBeNull();
+    rerender(list(['$c', '$b', '$d'], false, { pageLimit: 2 }));
+    expect(order()).toEqual(['$c', '$b']);
+    rerender(list(['$c', '$b', '$d'], false, { pageLimit: 3 }));
+    expect(order()).toEqual(['$c', '$b', '$d']);
+    expect(pill()).toBeNull();
+  });
+
+  it('returns to the top and hands focus to the scroller when activating the offer', () => {
+    const { container, rerender } = render(list(['$a', '$b']));
+    const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    view.scrollTo = ({ top }: ScrollToOptions) => {
+      view.scrollTop = top ?? 0;
+    };
+    scroll(30);
+    rerender(list(['$b', '$a']));
+    fireEvent.click(pill()!);
+    fireEvent.scroll(view);
+    expect(document.activeElement).toBe(view);
+    expect(view.scrollTop).toBe(0);
+    expect(order()).toEqual(['$b', '$a']);
   });
 });

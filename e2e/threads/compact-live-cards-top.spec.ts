@@ -6,9 +6,11 @@ import {
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
+  redactEvent,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
@@ -267,6 +269,317 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   await shot(page, `${label}-4-held-scrolled`);
 };
 
+const listView = (page: Page) => page.locator('[data-compact-room-view]');
+const updatePill = (page: Page) => page.getByRole('button', { name: 'Show updated order' });
+
+/** Sample the layout shells, headers and the actual animated rows on every frame. */
+const watchVisibleRows = async (page: Page) => {
+  const watch = await listView(page).evaluateHandle((view) => {
+    const bounds = view.getBoundingClientRect();
+    const edge = bounds.top + view.clientTop + parseFloat(getComputedStyle(view).scrollPaddingTop);
+    const rows = [
+      ...view.querySelectorAll('[data-scroll-anchor], [data-motion-row], [data-compact-section]'),
+    ].flatMap((row) => {
+      const rect = row.getBoundingClientRect();
+      return rect.bottom > edge + 1 && rect.top < bounds.bottom ? [{ row, top: rect.top }] : [];
+    });
+    let max = 0;
+    let minTop = view.scrollTop;
+    let frame = 0;
+    const sample = () => {
+      minTop = Math.min(minTop, view.scrollTop);
+      rows.forEach(({ row, top }) => {
+        max = Math.max(
+          max,
+          row.isConnected ? Math.abs(row.getBoundingClientRect().top - top) : Infinity
+        );
+      });
+      frame = requestAnimationFrame(sample);
+    };
+    sample();
+    return {
+      read: () => {
+        cancelAnimationFrame(frame);
+        return { rows: rows.length, max, minTop };
+      },
+    };
+  });
+  return async () => {
+    const result = await watch.evaluate(({ read }) => read());
+    await watch.dispose();
+    expect(result.rows).toBeGreaterThan(2);
+    expect(result.minTop, 'the list never clamped to its top').toBeGreaterThan(0);
+    expect(result.max, 'largest visible movement in any frame').toBeLessThanOrEqual(1);
+  };
+};
+
+/** The agent starts on a thread, as MindRoom does: its card moves to Working. */
+const agentStartsOn = (seeded: Seeded, rootId: string) =>
+  sendRoomMessage(HOMESERVER, seeded.agent.accessToken, seeded.roomId, {
+    msgtype: 'm.text',
+    body: 'Thinking...',
+    'io.mindroom.stream_status': 'pending',
+    'm.relates_to': threadRelation(rootId),
+  });
+
+const sectionHeader = (page: Page, id: string) => page.locator(`[data-compact-section="${id}"]`);
+
+/** The threads the agent works on before the reader scrolls, so Working shows above Needs you. */
+const WORKING = 3;
+
+type Move =
+  | 'below'
+  | 'below-reduced'
+  | 'sections'
+  | 'in-view'
+  | 'swap'
+  | 'release'
+  | 'rotate'
+  | 'lead'
+  | 'under'
+  | 'lead-two'
+  | 'freeze-return'
+  | 'sections-swap';
+
+const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
+  const { reader, roomId, rootIds } = seeded;
+  const sections = move === 'sections' || move === 'sections-swap';
+  const freezeReturn = move === 'freeze-return';
+  if (move === 'below-reduced') await page.emulateMedia({ reducedMotion: 'reduce' });
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: reader.username,
+    password: PASSWORD,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId,
+    userId: reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate(
+    ({ userId, on }) =>
+      localStorage.setItem(`compactRoomSections:${userId}`, JSON.stringify({ on, folded: [] })),
+    { userId: reader.userId, on: sections }
+  );
+  await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+  await expectRoomCompact(page, true, 60_000);
+  await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+  const lock = page.locator('[data-thread-sort-freeze]');
+  if (freezeReturn && !(await lock.isVisible())) {
+    await page.locator('[data-thread-filter-bar-toggle]').click();
+    await expect(lock).toBeVisible();
+  }
+  await page.mouse.move(5, 795);
+
+  const reply = (rootId: string, body: string) =>
+    sendRoomMessage(HOMESERVER, seeded.agent.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+      'm.relates_to': threadRelation(rootId),
+    });
+  if (sections) {
+    // The agent starts on the newest threads while the reader is at the top: Working comes and
+    // grows, and the Needs you header glides down each time.
+    for (const [index, rootId] of rootIds.slice(-WORKING).entries()) {
+      // eslint-disable-next-line no-await-in-loop
+      await agentStartsOn(seeded, rootId);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${index + 1}$`), {
+        timeout: 30_000,
+      });
+      // The glide ends.
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(400);
+    }
+    // The Needs you header leads the view, over its cards: no card shows above it.
+    await page.evaluate(() => {
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+      const header = view?.querySelector<HTMLElement>('[data-compact-section="needsYou"]');
+      if (!view || !header) return;
+      const edge =
+        view.getBoundingClientRect().top +
+        view.clientTop +
+        parseFloat(getComputedStyle(view).scrollPaddingTop);
+      view.scrollTop += header.getBoundingClientRect().top - edge;
+    });
+  } else {
+    // Cards glide first: two replies move their cards to the top while the reader is there.
+    for (const rootId of [rootIds[3] ?? '', rootIds[4] ?? '']) {
+      // eslint-disable-next-line no-await-in-loop
+      await reply(rootId, 'An earlier note on this ticket.');
+      // eslint-disable-next-line no-await-in-loop
+      await expect.poll(async () => (await cardOrder(page))[0], { timeout: 30_000 }).toBe(rootId);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(400);
+    }
+    // A swap, and three cards that rotate above two: the first card leads the view, cut by 30 px.
+    await scrollList(page, move === 'swap' || move === 'rotate' ? 30 : 700);
+  }
+  const leads = move === 'lead' || move === 'lead-two' || freezeReturn;
+  if (leads || move === 'under') {
+    // The card that leads the view is cut by 30 px, far down the list.
+    await page.evaluate(() => {
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+      if (!view) return;
+      const edge =
+        view.getBoundingClientRect().top +
+        view.clientTop +
+        parseFloat(getComputedStyle(view).scrollPaddingTop);
+      const lead = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
+        (shell) => shell.getBoundingClientRect().bottom > edge + 1
+      );
+      view.scrollTop += (lead?.getBoundingClientRect().top ?? edge) - edge + 30;
+    });
+  }
+  await page.waitForTimeout(300);
+
+  const shown = await page.evaluate(() => {
+    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+    if (!view) return [];
+    const edge =
+      view.getBoundingClientRect().top +
+      view.clientTop +
+      parseFloat(getComputedStyle(view).scrollPaddingTop);
+    return [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')]
+      .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
+      .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
+  });
+  // The second card in view trades places with the first: flat, at the list's top, and in
+  // sections, at the top of Needs you, whose cards the newest reply leads.
+  const trades = move === 'swap' || move === 'sections-swap';
+  const inView = trades || move === 'in-view' || move === 'rotate' || move === 'under';
+  // The cards that move, the first reply first. One: the oldest thread's, far below the view, or
+  // one in view, the card after the one that leads it, three cards below that one, or the one
+  // that leads it. Several, as a held order is let go: the three oldest threads', the
+  // third to fifth card in view, the fifth first, so they keep their order above the first two,
+  // the two cards under the one that leads the view, or that one and the next.
+  const moversOf: Record<Move, (string | undefined)[]> = {
+    below: [rootIds[0]],
+    'below-reduced': [rootIds[0]],
+    sections: [rootIds[0]],
+    'in-view': [shown[3]],
+    swap: [shown[1]],
+    release: rootIds.slice(0, 3),
+    rotate: [shown[4], shown[3], shown[2]],
+    lead: [shown[0]],
+    under: [shown[1], shown[2]],
+    'lead-two': [shown[0], shown[1]],
+    'freeze-return': [shown[0]],
+    'sections-swap': [shown[1]],
+  };
+  const movers = moversOf[move].map((rootId) => rootId ?? '');
+  const mover = movers[0] ?? '';
+  if (freezeReturn) {
+    const frozen = await cardOrder(page);
+    await lock.click();
+    await expect(lock).toHaveAttribute('aria-pressed', 'true');
+    await cardOf(page, shown[2] ?? '').click();
+    await expect(page).toHaveURL(/threadId=/);
+    await expect(page.locator('[data-compact-room-view]')).toHaveCount(0);
+    const replyText = 'The leading card got an answer while the reader was elsewhere.';
+    await reply(mover, replyText);
+    await page.goBack();
+    await expect(lock).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+    await expect(cardOf(page, mover)).toContainText(replyText);
+    expect(await cardOrder(page)).toEqual(frozen);
+    await page.mouse.move(5, 795);
+    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
+  }
+  const before = await cardOrder(page);
+  const still = await watchVisibleRows(page);
+  if (freezeReturn) {
+    await lock.click();
+    await expect(lock).toHaveAttribute('aria-pressed', 'false');
+  } else if (move === 'sections') {
+    await agentStartsOn(seeded, mover);
+    await expect(cardOf(page, mover)).toContainText('Thinking...', { timeout: 30_000 });
+  } else {
+    if (movers.length > 1) {
+      // Hold with the pointer while the batch arrives, then leave the list while still scrolled.
+      const box = (await cardOf(page, shown[1] ?? '').boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(page.locator('[data-order-held]')).toHaveCount(1);
+    }
+    for (const [index, rootId] of movers.entries()) {
+      const text = `Found it: cause ${index + 1} is in the exporter.`;
+      // eslint-disable-next-line no-await-in-loop
+      await reply(rootId, text);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(cardOf(page, rootId)).toContainText(text, { timeout: 30_000 });
+    }
+    await page.mouse.move(5, 795);
+  }
+  await page.waitForTimeout(600);
+  await still();
+  expect(await cardOrder(page)).toEqual(before);
+  await expect(updatePill(page)).toBeVisible();
+};
+
+const openScrolled = async (page: Page, seeded: Seeded) => {
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.reader.username,
+    password: PASSWORD,
+  });
+  await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
+  await expectRoomCompact(page, true, 60_000);
+  await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+  await scrollList(page, 700);
+  await page.waitForTimeout(400);
+};
+
+const checkRelease = async (
+  page: Page,
+  seeded: Seeded,
+  action: 'click' | 'tap' | 'Enter' | 'scroll'
+) => {
+  await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
+  await openScrolled(page, seeded);
+  const rootId = seeded.rootIds[0] ?? '';
+  const before = await cardOrder(page);
+  const body = 'The report is ready for review.';
+  await sendRoomMessage(HOMESERVER, seeded.agent.accessToken, seeded.roomId, {
+    msgtype: 'm.text',
+    body,
+    'm.relates_to': threadRelation(rootId),
+  });
+  await expect(cardOf(page, rootId)).toContainText(body, { timeout: 30_000 });
+  const pill = updatePill(page);
+  await expect(pill).toBeInViewport();
+  expect(await cardOrder(page)).toEqual(before);
+  await shot(page, `pill-${action}`);
+  const glide = await listView(page).evaluateHandle((view) => {
+    let glided = false;
+    let frame = 0;
+    const sample = () => {
+      glided ||= [...view.querySelectorAll('[data-motion-row]')].some(
+        (row) => getComputedStyle(row).translate !== 'none'
+      );
+      frame = requestAnimationFrame(sample);
+    };
+    sample();
+    return {
+      read: () => {
+        cancelAnimationFrame(frame);
+        return glided;
+      },
+    };
+  });
+  if (action === 'tap') await pill.tap();
+  else if (action === 'click') await pill.click();
+  else if (action === 'Enter') await pill.press('Enter');
+  else await scrollList(page, 0);
+  await expect.poll(() => listScrollTop(page)).toBe(0);
+  await expect.poll(async () => (await cardOrder(page))[0]).toBe(rootId);
+  await expect(pill).toHaveCount(0);
+  if (action !== 'scroll') await expect(listView(page)).toBeFocused();
+  await expect.poll(() => glide.evaluate(({ read }) => read())).toBe(true);
+  await glide.dispose();
+};
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -304,3 +617,69 @@ for (const [form, options] of [
     });
   });
 }
+
+test.describe('Compact order stays calm while scrolled', () => {
+  test.use(DESKTOP);
+
+  const moves: Move[] = [
+    'below',
+    'below-reduced',
+    'sections',
+    'in-view',
+    'swap',
+    'release',
+    'rotate',
+    'lead',
+    'under',
+    'lead-two',
+    'freeze-return',
+    'sections-swap',
+  ];
+  for (const [index, move] of moves.entries()) {
+    test(`holds ${move} through rest (Chromium)`, async ({ page }) => {
+      test.setTimeout(180_000);
+      await checkMove(page, await seed(`m${index}`), move);
+    });
+  }
+
+  test('removing a card above preserves the visible rows', async ({ page }) => {
+    test.setTimeout(180_000);
+    const seeded = await seed('leave');
+    await openScrolled(page, seeded);
+    const newest = seeded.rootIds.at(-1) ?? '';
+    const still = await watchVisibleRows(page);
+    await redactEvent(HOMESERVER, seeded.reader.accessToken, seeded.roomId, newest);
+    await expect(cardOf(page, newest)).toHaveCount(0, { timeout: 30_000 });
+    await page.waitForTimeout(600);
+    await still();
+    await expect(updatePill(page)).toHaveCount(0);
+  });
+
+  for (const action of ['click', 'Enter', 'scroll'] as const) {
+    test(`${action} applies the order at the top with a glide`, async ({ page }) => {
+      test.setTimeout(180_000);
+      await checkRelease(page, await seed(action.toLowerCase()), action);
+    });
+  }
+});
+
+test.describe('Compact catch-up on a phone', () => {
+  test.use(PHONE);
+
+  test('tapping applies the order at the top with a glide', async ({ page }) => {
+    test.setTimeout(180_000);
+    await checkRelease(page, await seed('tap'), 'tap');
+  });
+
+  test('tapping applies the order at the top with a glide (WebKit)', async ({ baseURL }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright WebKit');
+    test.setTimeout(180_000);
+    const browser = await launchWebKit();
+    try {
+      const context = await browser.newContext({ ...PHONE, baseURL });
+      await checkRelease(await context.newPage(), await seed('wtap'), 'tap');
+    } finally {
+      await browser.close();
+    }
+  });
+});
