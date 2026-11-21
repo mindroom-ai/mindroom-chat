@@ -75,9 +75,13 @@ type Check = {
 type Checker = {
   isCurrent: (room: Room, event: MatrixEvent) => boolean;
   hold: (roomId: string) => () => void;
+  held: (roomId: string) => boolean;
 };
 
 const checkers = new WeakMap<MatrixClient, Checker>();
+export const wakeStreamingLoads = new WeakMap<MatrixClient, () => void>();
+export const streamingChecksHeld = (room: Room): boolean =>
+  checkers.get(room.client)?.held(room.roomId) ?? false;
 
 /** When the reply's newest revision the client holds was sent: the reply, its applied or bundled edit. */
 export const newestRevisionTs = (event: MatrixEvent): number => {
@@ -272,6 +276,12 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       announce(room, check.targets);
       return true;
     }
+    if (rawReply.unsigned?.redacted_because) {
+      if (stopped) return true;
+      unknown.add(check.eventId);
+      announce(room, check.targets);
+      return true;
+    }
     const edit = await bundledEdit(check.roomId, getSameSenderBundledEdit(rawReply));
     if (!stopped) answer(room, check, edit);
     return true;
@@ -387,6 +397,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       if (count > 0) holds.set(roomId, count);
       else holds.delete(roomId);
       drain();
+      wakeStreamingLoads.get(mx)?.();
     };
   };
 
@@ -496,7 +507,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.Sync, onSync);
   mx.on(RoomEvent.TimelineReset, onReset);
-  checkers.set(mx, { isCurrent, hold });
+  checkers.set(mx, { isCurrent, hold, held: (roomId) => holds.has(roomId) });
 
   return () => {
     stopped = true;
