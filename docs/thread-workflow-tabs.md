@@ -25,7 +25,7 @@ Pending sends alone do not constitute Working. Resolved and snoozed now precede 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
 the cards the filters show by the same classifier, at the same snooze clock as the tab filter
-(`useThreadIndex`'s `snoozeNow`), Working first, then Needs you, Later and Done, each under a
+(`useThreadIndex`'s `snoozeNow`), Needs you first, then Working, Later and Done, each under a
 header with its count; a tab that shows one bucket shows one section. It owns no filter, but drops
 the hidden default that keeps snoozed threads out of the flat cards, since Later holds them. Working
 goes by when each thread started, Needs you by when its last run finished or its newest message

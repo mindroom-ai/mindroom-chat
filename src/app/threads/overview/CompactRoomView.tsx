@@ -354,9 +354,9 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While the order is held, the cards keep the sections they showed in and their places there,
-  // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
-  // this room's: the view stays mounted when the next room opens under the pointer.
+  // While held, headers stay and cards keep their places, except cards entering Working.
+  // The hook below holds no order in sections. Only hold this room's sections: the view
+  // stays mounted when the next room opens under the pointer.
   const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
   const heldSections = useMemo(() => {
     const shown = shownSectionsRef.current;
@@ -368,9 +368,8 @@ export function CompactRoomView({
     shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
   }, [heldSections, room.roomId]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back. While the order is held, that section stays open when a card
-  // moving to Working brings a second one, so the cards under the pointer stay in view, until the
-  // hold lets go or the reader folds it from its header.
+  // other sections to come back. If another section appears, such as Working below Needs you,
+  // the original stays open until the hold lets go or the reader folds it.
   const soleSection = heldSections?.length === 1;
   const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
   const [, showFolds] = useReducer((count: number) => count + 1, 0);
