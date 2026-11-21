@@ -29,6 +29,8 @@ import {
 //   reaches the server, the page hears nothing of it and is closed too: the page after it has
 //   the recording where it was going, and Retry leaves one voice message of that length, whose
 //   file decodes.
+// - Discard asks first. Cancelled, the recording is still on disk after a reload; confirmed, it
+//   is deleted at once, and no later page brings it back or sends it.
 // Desktop (1280 by 800, light) and phone (390 by 844 with touch, dark), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. The microphone is a tone made in
@@ -350,6 +352,51 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
   }
 };
 
+const discardAsksAndDeletes = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(label);
+  const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
+  await context.addInitScript(toneMicrophone);
+  try {
+    const page = await openRoom(browser, context, world);
+    await startRecording(page, layout);
+    await expect(page.getByText('0:02', { exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // Discard asks while it still records, and Cancel changes nothing.
+    const question = page.getByText('Discard voice recording?', { exact: true });
+    await press(page, layout, 'Discard voice recording');
+    await expect(question).toBeVisible();
+    await press(page, layout, 'Cancel');
+    await expect(question).toHaveCount(0);
+    await expect(page.getByText('0:04', { exact: true })).toBeVisible({ timeout: 30_000 });
+
+    // Asked about and not confirmed, the recording is on disk still: the next page has it.
+    await page.reload();
+    await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({
+      timeout: 60_000,
+    });
+    const recovered = page.getByText('Recovered recording ·', { exact: true });
+    await expect(recovered).toBeVisible({ timeout: 30_000 });
+
+    // Confirmed, it is deleted at once.
+    await press(page, layout, 'Discard voice recording');
+    await expect(question).toBeVisible();
+    await press(page, layout, 'Discard');
+    await expect(recovered).toHaveCount(0);
+    await micIsFree(page);
+
+    // No later page brings it back, and nothing of it was sent.
+    await page.reload();
+    await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({
+      timeout: 60_000,
+    });
+    await micIsFree(page);
+    await expect(recovered).toHaveCount(0);
+    expect(await voiceMessages(world)).toBe(0);
+  } finally {
+    await context.close();
+  }
+};
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -364,6 +411,11 @@ const CASES = [
     title: 'a recording whose page was closed mid-recording is recovered and sent once',
     label: 'k',
     run: recordingSurvivesClosedPage,
+  },
+  {
+    title: 'a Discard asks first, and deletes the recording for good once it is confirmed',
+    label: 'd',
+    run: discardAsksAndDeletes,
   },
 ];
 
