@@ -1,7 +1,8 @@
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useLayoutEffect, useMemo } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SplashScreen } from './SplashScreen';
+import { markPageStartup } from '../../lib/startupTimeline';
 import { ParticleTextBackdrop } from '../particle-background/ParticleTextBackdrop.css';
 import { useLoadedOrCachedClientConfig } from '../../config/ClientConfigLoader';
 import { deploymentBranding } from '../branding/deploymentBranding';
@@ -51,6 +52,7 @@ export function MindRoomSplashScreen({
   random,
 }: MindRoomSplashScreenProps) {
   const { t } = useTranslation();
+  useLayoutEffect(() => markPageStartup('splash.shown'), []);
   const config = useLoadedOrCachedClientConfig();
   const lines = loadingMessages ?? config?.splash?.loadingMessages;
   const name = config && deploymentBranding(config).title;

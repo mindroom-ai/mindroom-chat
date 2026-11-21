@@ -11,6 +11,7 @@ import {
 import { Box, Button, Line, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
+import { ModalLayer } from '../../ui/ModalLayer';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
@@ -19,6 +20,7 @@ import type { PendingVoiceSendContext } from '../roomInputDrafts';
 
 type VoiceRecorderComposerProps = {
   active: boolean;
+  recorderToken?: symbol;
   sendDisabled?: boolean;
   onClose: () => void;
   onRecordingStart?: () => void;
@@ -46,6 +48,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 > = (
   {
     active,
+    recorderToken,
     sendDisabled,
     onClose,
     onRecordingStart,
@@ -58,6 +61,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   ref
 ) => {
   const { t } = useTranslation();
+  const discardTitle = t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording');
   const autoStartTriggeredRef = useRef(false);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
@@ -80,6 +84,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessage,
     canPause,
     hasPendingSend,
+    recovered,
     pendingDuration,
     pendingWaveform,
     start,
@@ -92,6 +97,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     reset,
     clearError,
   } = useVoiceRecorder({
+    recorderToken,
     onRecordingStart,
     onSendStopRequest,
     onSendStopFailure,
@@ -105,18 +111,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
-  const discardAndClose = () => {
-    if (hasPendingSend) {
-      setDiscardConfirmationOpen(true);
-      return;
-    }
-
-    void (async () => {
-      await discard();
-      onClose();
-    })();
-  };
-
   // Any user-initiated retry must clear an existing defer so a follow-up
   // failure with the same canonical message (very common: connection-dropped)
   // re-surfaces the overlay rather than getting silently hidden.
@@ -126,14 +120,14 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   }, [retry]);
 
   const submitRecording = useCallback(async (): Promise<boolean> => {
-    if (sendDisabled) return false;
+    if (sendDisabled || discardConfirmationOpen) return false;
 
     const sent = hasPendingSend ? await beginRetry() : await send();
     if (sent) {
       onClose();
     }
     return sent;
-  }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
+  }, [beginRetry, discardConfirmationOpen, hasPendingSend, onClose, send, sendDisabled]);
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -142,9 +136,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   ]);
 
   const confirmDiscardAndClose = () => {
-    discardPending();
     setDiscardConfirmationOpen(false);
-    onClose();
+    if (hasPendingSend) {
+      void discardPending();
+      onClose();
+    } else void discard().then(onClose);
   };
 
   const dismissError = () => {
@@ -262,42 +258,38 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         </OverlayCenter>
       </Overlay>
 
-      <Overlay open={discardConfirmationOpen} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <Dialog variant="Surface">
-            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">
-                {t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')}
-              </Text>
-              <Text size="T300">
-                {t(
-                  'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
-                )}
-              </Text>
-              <Box justifyContent="End" gap="200">
-                <Button
-                  variant="Secondary"
-                  onClick={() => setDiscardConfirmationOpen(false)}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
-                </Button>
-                <Button
-                  variant="Critical"
-                  onClick={confirmDiscardAndClose}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.discard')}
-                </Button>
-              </Box>
+      <ModalLayer open={discardConfirmationOpen} onClose={() => setDiscardConfirmationOpen(false)}>
+        <Dialog variant="Surface" role="dialog" aria-modal="true" aria-label={discardTitle}>
+          <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
+            <Text size="H5">{discardTitle}</Text>
+            <Text size="T300">
+              {t(
+                'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
+              )}
+            </Text>
+            <Box justifyContent="End" gap="200">
+              <Button
+                variant="Secondary"
+                onClick={() => setDiscardConfirmationOpen(false)}
+                fill="Soft"
+                outlined
+                radii="300"
+              >
+                {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
+              </Button>
+              <Button
+                variant="Critical"
+                onClick={confirmDiscardAndClose}
+                fill="Soft"
+                outlined
+                radii="300"
+              >
+                {t('mindroomUi.voice.voiceRecorderDialog.discard')}
+              </Button>
             </Box>
-          </Dialog>
-        </OverlayCenter>
-      </Overlay>
+          </Box>
+        </Dialog>
+      </ModalLayer>
 
       <Overlay open={showNoBlobError} backdrop={<OverlayBackdrop />}>
         <OverlayCenter>
@@ -326,7 +318,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               sampleCount={hasPendingSend ? undefined : sampleCount}
               canPause={canPause}
               hasPendingSend={hasPendingSend}
-              onDiscard={discardAndClose}
+              recovered={recovered}
+              onDiscard={() => setDiscardConfirmationOpen(true)}
               onPause={pause}
               onResume={resume}
             />

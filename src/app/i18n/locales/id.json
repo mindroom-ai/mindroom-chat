@@ -2232,6 +2232,7 @@
       "statusPaused": "Perekaman suara dijeda",
       "statusProcessing": "Memproses rekaman suara",
       "statusReadyToRetry": "Rekaman suara siap dicoba ulang",
+      "recoveredRecording": "Rekaman dipulihkan · {{time}}",
       "statusSending": "Mengirim rekaman suara",
       "statusStarting": "Memulai rekaman suara",
       "voiceRecorderDialog": {

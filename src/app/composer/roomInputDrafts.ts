@@ -56,8 +56,10 @@ export type PendingVoiceSendInFlight = {
   startedAt: number;
 };
 
-/** A recorded voice message kept for retry after its send failed. */
+/** A recovered recording or a voice message kept for retry. */
 export type PendingVoiceSendDraft = {
+  recordingId?: string;
+  recovered?: boolean;
   file: File;
   duration: number;
   waveform?: number[];

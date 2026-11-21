@@ -124,6 +124,8 @@ export const useViewportAtBottomNow = (
 export const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 /** How much further from the newest row a scroll must leave the reader to count as theirs. */
 const LEFT_LATEST_ROW_PX = 32;
+/** How near the end a held list will have a reader counts as there (rows measure in whole px). */
+const AT_HELD_LIST_END_PX = 2;
 
 const distanceBelowView = (element: HTMLElement): number =>
   element.scrollHeight - element.scrollTop - element.clientHeight;
@@ -362,6 +364,7 @@ export const useLatestRowPin = ({
   surface,
   itemCount,
   virtualizer,
+  listHeightHeld,
   onReaderGesture,
   ...request
 }: LatestRowRequestOptions & {
@@ -372,6 +375,8 @@ export const useLatestRowPin = ({
   surface: 'room' | 'thread' | undefined;
   itemCount: number;
   virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>;
+  /** Whether this commit keeps the list's old height over rows that changed size. */
+  listHeightHeld?: boolean;
 }) => {
   const surfaceRef = useLatestRef(surface);
   const virtualizerRef = useLatestRef(virtualizer);
@@ -391,11 +396,26 @@ export const useLatestRowPin = ({
     surfaceAtLastCommitRef.current = surface;
     if (surface === 'thread') latestRowRequestRef.current = false;
   });
-  const { scrollElement, latestAtTop } = request;
+  const { scrollElement, latestAtTop, pendingListShrinkPx } = request;
   useLayoutEffect(() => {
     if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
-    if (surface === 'room' && latestAtTop) scrollElement?.scrollTo({ top: 0 });
-    else if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
+    if (surface === 'room' && latestAtTop) {
+      scrollElement?.scrollTo({ top: 0 });
+      return;
+    }
+    // A commit that holds the list's height over rows that shrank ends the list below its newest
+    // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
+    // will end is at the newest row: the end the list has now would show a blank band above the
+    // composer for a frame. Any other reader is brought to the end the list has.
+    const heldPx = listHeightHeld ? pendingListShrinkPx?.() ?? 0 : 0;
+    if (
+      heldPx >= 1 &&
+      scrollElement &&
+      Math.abs(distanceBelowView(scrollElement) - heldPx) < AT_HELD_LIST_END_PX
+    ) {
+      return;
+    }
+    if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
     else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });
 };
