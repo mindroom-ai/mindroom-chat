@@ -21,11 +21,11 @@ and spaces, and send it wherever they press Send.
 - Every mounted composer shows the live capsule while it exists, with the same timer, waveform
   and pause state. Pause, resume and Discard act on the shared recording. Mic buttons stay
   disabled.
-- **A Send takes the recording at the press.** Pressing Send (the button, Enter or the voice
-  key) claims the recording in the same task: it leaves the atom, capture stops, and no more
-  audio is recorded. That composer's destination and bundle are taken in that task too: room,
-  thread, reply, typed text and staged files. A second Send in another composer finds nothing
-  to claim.
+- **A Send takes the recording at the press.** The Send button or Enter claims the recording
+  in the same task: it leaves the atom, capture stops, and no more audio is recorded. The same
+  task takes that composer's destination and bundle: room, thread, reply, typed text and staged
+  files. A second Send in another composer finds nothing to claim. The voice key sends only
+  from a composer without text or staged files; a tap with either present focuses the editor.
 - Nothing waits after the press. A send that cannot go to where it was pressed (the room was
   left, the upload fails) parks its audio there as a failed send; it never moves to another
   composer.
@@ -43,8 +43,8 @@ and spaces, and send it wherever they press Send.
 - With no composer in sight (Threads page, settings, the phone's room list), a small indicator
   shows "Recording 0:32" (or paused) with Discard. It has no Send, because it has no
   destination. It shows in the app's notice places (`src/app/ui/noticeSlots.tsx`): the one
-  inside the topmost thing that covers the page (a large dialog, a phone's members sheet, its
-  drawer), so the keyboard reaches it there, else the page's. It also shows the capture error
+  inside the topmost thing that covers the page (a dialog, a phone's bottom sheet, members
+  sheet or drawer), so the keyboard reaches it there, else the page's. It also shows the capture error
   dialog, once, for every composer.
 - Discard and account exit release the microphone at once. Account exit also ends any recording
   a Send claimed that is still stopping. A send begun under the account writes nothing after it:

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
+import { useCommands } from '../commands/useCommands';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
@@ -231,6 +232,7 @@ vi.mock('folds', () => {
     Tooltip: () => null,
     TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
       children(() => undefined),
+    color: { Critical: { Main: 'red' } },
     config: {
       space: new Proxy(
         {},
@@ -479,7 +481,7 @@ vi.mock('../commands/useCommands', () => ({
     Me: 'me',
     Notice: 'notice',
   },
-  useCommands: () => ({}),
+  useCommands: vi.fn(() => ({})),
 }));
 
 vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
@@ -961,6 +963,7 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 afterEach(() => {
   pendingRoots.clear();
   confirmedRootIds.clear();
+  vi.mocked(useCommands).mockReturnValue({});
   threadModeState.mode = undefined;
   voiceRecorderState.props = undefined;
   voiceRecorderState.byView.clear();
@@ -4763,6 +4766,27 @@ describe('RoomInput in a fork draft', () => {
     expect(content).not.toHaveProperty('m.relates_to');
     expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
 
+    renderer.unmount();
+  });
+
+  it('restores a failed slash command to the open fork composer', async () => {
+    const run = vi.fn().mockRejectedValue(new Error('Command failed'));
+    vi.mocked(useCommands).mockReturnValue({
+      invite: { name: 'invite', source: 'app', description: 'Invite user to room.', run },
+    });
+    const { renderer, store } = await renderRoomInput(createStore(), { forkFrom });
+    const text = '/invite @example:example.org';
+    stageComposerText(text);
+    resetEditorOnNextSend();
+    await submitComposer();
+
+    expect(run).toHaveBeenCalledWith('@example:example.org');
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(customEditorState.editor, [
+      { type: 'paragraph', children: [{ text }] },
+    ]);
+    const roomDraft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID));
+    expect(store.get(roomDraft)).toEqual([]);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Command failed');
     renderer.unmount();
   });
 

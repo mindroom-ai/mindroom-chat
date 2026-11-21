@@ -230,6 +230,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording: vi.fn(),
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -249,6 +250,46 @@ describe('VoiceRecorderComposer', () => {
     expect(store.get(liveVoiceCapsulesShownAtom)).toBe(0);
   });
 
+  it('sends the live recording when a draft for another thread is restored', async () => {
+    setupSupportedRecorder();
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
+    const destination = { ...createTestSendContext(), threadId: '$thread-b' };
+    const onSendRecording = vi.fn();
+    const props = {
+      ref: recorderRef,
+      ownsPendingVoiceDraft: false,
+      onRetryRequest: vi.fn(),
+      onSendRecording,
+      getSendContext: () => destination,
+    };
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(renderInProvider(React.createElement(VoiceRecorderComposer, props)));
+    });
+    await startRecording();
+
+    const restoredDraft = {
+      file: new File(['older'], 'older.ogg', { type: 'audio/ogg' }),
+      duration: 900,
+      errorMessage: 'Upload failed',
+      context: { ...destination, threadId: '$thread-a' },
+    };
+    await act(async () => store.set(pendingVoiceSendDraftAtom, restoredDraft));
+    await act(async () => {
+      expect(await recorderRef.current?.send()).toBe(true);
+    });
+
+    expect(onSendRecording).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ type: 'audio/ogg;codecs=opus' }),
+      expect.any(Number),
+      undefined,
+      destination
+    );
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBe(restoredDraft);
+    renderer.unmount();
+  });
+
   it('discards the live recording from its capsule without a confirmation', async () => {
     setupSupportedRecorder();
     let renderer!: ReactTestRenderer;
@@ -259,6 +300,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording: vi.fn(),
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -289,6 +331,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest,
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -335,6 +378,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -403,6 +447,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -460,6 +505,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
@@ -518,6 +564,7 @@ describe('VoiceRecorderComposer', () => {
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );

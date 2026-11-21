@@ -204,6 +204,7 @@ function Harness({
 }: HarnessProps) {
   const store = useStore();
   const recorder = useVoiceRecorder({
+    ownsPendingVoiceDraft: true,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,

@@ -479,11 +479,9 @@ export const useRoomInputVoice = ({
   );
 
   const blocksSubmit = useCallback(() => store.get(voiceAutoSendPendingAtom), [store]);
-  // A Send takes the recording at the press. Pressing Send (the button, Enter or the voice key)
-  // claims the live recording in the same task: it leaves the account's hands, capture stops and
-  // no more audio is recorded. This composer's destination and bundle (room, thread, reply, text,
-  // staged files) are taken in that task too, and nothing waits after it. A send that cannot go
-  // to where it was pressed parks its audio there at once, as any failed send does.
+  // A Send takes the recording at the press: it leaves the account's hands, capture stops and
+  // no more audio is recorded. This composer's destination and bundle are taken in that task too
+  // (the voice key sends audio only). A send that fails parks its audio at the attempted destination.
   const sendAtPress = useCallback(
     (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
       if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
@@ -533,6 +531,7 @@ export const useRoomInputVoice = ({
     liveRecording || sendingHere || ownsPendingVoiceDraft ? (
       <VoiceRecorderComposer
         ref={voiceRecorderRef}
+        ownsPendingVoiceDraft={ownsPendingVoiceDraft}
         sendDisabled={voiceAutoSendPending}
         onSendStopRequest={claimVoiceAutoSend}
         onSendStopFailure={releaseVoiceAutoSend}

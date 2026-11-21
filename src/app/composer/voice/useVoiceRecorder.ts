@@ -52,6 +52,7 @@ export const useVoiceCaptureSnapshot = (
   );
 
 type UseVoiceRecorderOptions = {
+  ownsPendingVoiceDraft: boolean;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onSendRecording?: SendRecordingCallback;
@@ -68,6 +69,7 @@ type UseVoiceRecorderOptions = {
  * draft of a failed send. Mounting or unmounting it never starts or ends a recording.
  */
 export function useVoiceRecorder({
+  ownsPendingVoiceDraft,
   onSendStopRequest,
   onSendStopFailure,
   onSendRecording,
@@ -85,7 +87,8 @@ export function useVoiceRecorder({
   // shows it as sending until it is delivered or parked.
   const [claimed, setClaimed] = useState<VoiceCaptureSession>();
   const captureSnapshot = useVoiceCaptureSnapshot(claimed ?? live);
-  const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
+  const savedDraft = useAtomValue(pendingVoiceSendDraftAtom);
+  const pendingDraft = ownsPendingVoiceDraft ? savedDraft : undefined;
   const phase: VoiceRecorderPhase =
     pendingDraft?.inFlight || claimed || captureSnapshot.phase === 'processing'
       ? 'sending'

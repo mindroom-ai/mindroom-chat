@@ -466,14 +466,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         try {
           await acting.run(acting.args);
         } catch (error) {
-          // A composer that went away meanwhile keeps the text as its room's draft.
-          composer.restoreText(roomId, typed, threadId);
+          // A composer that went away meanwhile keeps the text in its own draft.
+          composer.restoreText(roomId, typed, draftThreadId);
           if (mountedRef.current) setCommandProblem(describeCommandFailure(t, acting, error));
         } finally {
           if (mountedRef.current) setSubmitPending(false);
         }
       },
-      [composer, roomId, sendTypingStatus, t, threadId]
+      [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.

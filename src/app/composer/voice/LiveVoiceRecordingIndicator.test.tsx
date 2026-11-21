@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
 import { DialogNoticeSlot, NoticeSlot } from '../../ui/noticeSlots';
+import { BottomSheet } from '../../ui/BottomSheet';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
 import { LiveVoiceRecordingIndicator } from './LiveVoiceRecordingIndicator';
 import { liveVoiceRecordingAtom, liveVoiceRecordingErrorAtom } from './liveVoiceRecording';
@@ -45,6 +46,7 @@ const sendContext = (): PendingVoiceSendContext => ({
 });
 const composer = () => (
   <VoiceRecorderComposer
+    ownsPendingVoiceDraft={false}
     onRetryRequest={vi.fn()}
     onSendRecording={vi.fn()}
     getSendContext={sendContext}
@@ -56,6 +58,7 @@ describe('LiveVoiceRecordingIndicator', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
+    vi.unstubAllGlobals();
   });
 
   it('shows nothing while no recording runs', () => {
@@ -177,6 +180,36 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(screen.getByTestId('sheet').contains(pill())).toBe(true);
     rerender(page(0));
     expect(pill()).toBeNull();
+  });
+
+  it('lets you discard a live recording from a bottom sheet covering its composer', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const store = createStore();
+    const { session, discard } = recordingSession();
+    store.set(liveVoiceRecordingAtom, session);
+    render(
+      <Provider store={store}>
+        <main>
+          <NoticeSlot place="page" />
+          {composer()}
+        </main>
+        <BottomSheet title="Activity" closeLabel="Close" requestClose={vi.fn()}>
+          <p>Example activity</p>
+        </BottomSheet>
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Activity' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
+    expect(discard).toHaveBeenCalledOnce();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
   });
 
   it('stands down while a composer shows the capsule, and back up when it goes or is covered', () => {

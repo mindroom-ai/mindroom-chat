@@ -48,8 +48,9 @@ const deferred = () => {
 };
 
 describe('voiceSendDraftController', () => {
-  it('sends an initial recording with exact identity and clears durable state on success', async () => {
-    const store = createDraftStore(createDraft('older'));
+  it('sends an initial recording with exact identity without consuming an older draft', async () => {
+    const olderDraft = createDraft('older');
+    const store = createDraftStore(olderDraft);
     const controller = createVoiceSendDraftController(store);
     const recording = createRecording();
     const context = createContext();
@@ -69,7 +70,7 @@ describe('voiceSendDraftController', () => {
       recording.waveform,
       context
     );
-    expect(store.read()).toBeUndefined();
+    expect(store.read()).toBe(olderDraft);
     expect(onFailure).not.toHaveBeenCalled();
   });
 

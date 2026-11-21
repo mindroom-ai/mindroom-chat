@@ -62,8 +62,7 @@ export const createVoiceSendDraftController = (
   ) => {
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
-      // The one slot for a parked recording is the next account's once this one was left.
-      if (attempt.sameAccount()) drafts.write(undefined);
+      // This was a live recording, not a retry. A draft restored meanwhile is not consumed.
       return true;
     } catch (error) {
       if (attempt.sameAccount()) {

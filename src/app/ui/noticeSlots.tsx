@@ -29,12 +29,12 @@ const slotAtoms = {
   sheet: sheetNoticeSlotAtom,
 };
 
-/** The places of the large dialogs open over the page (ui/Modal500.tsx), the topmost one last. */
+/** The places of open dialogs (Modal500 and BottomSheet), the topmost one last. */
 export const dialogNoticeSlotsAtom = atom<readonly HTMLElement[]>([]);
 
 /**
- * The place inside the topmost thing that covers the page, from one ordered list: a large dialog
- * (at its foot, where the focus it holds reaches), a phone's members sheet, its drawer. Null
+ * The place inside the topmost thing that covers the page, from one ordered list: a dialog
+ * (including a bottom sheet), a phone's members sheet, its drawer. Null
  * while nothing covers the page. Each offers its place only while it is there to use, so what
  * must stay in reach goes here before the page's place, and what the page shows is out of sight
  * for as long as this is set.
@@ -80,7 +80,7 @@ export function NoticeSlot({ place, phone = false, covered = false }: NoticeSlot
 }
 
 /**
- * The notice place of a large dialog, for as long as the dialog is open: of several open over
+ * The notice place of a dialog, for as long as the dialog is open: of several open over
  * each other, the topmost one's is offered. A live region, as the other places are.
  */
 export function DialogNoticeSlot() {

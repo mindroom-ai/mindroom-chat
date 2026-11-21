@@ -22,6 +22,7 @@ import { observeLayerHost } from '../lib/overlayFocus';
 import { holdModalSheet } from '../lib/portalOverlay';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
+import { DialogNoticeSlot } from './noticeSlots';
 import * as css from './BottomSheet.css';
 
 type BottomSheetProps = {
@@ -120,6 +121,7 @@ export function BottomSheet({
                 </div>
               </PageScroll>
             </div>
+            <DialogNoticeSlot />
           </Modal>
           <div ref={setMenus} />
         </FocusScope>

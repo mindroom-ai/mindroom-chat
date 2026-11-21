@@ -22,6 +22,7 @@ import { coverNoticeSlotAtom } from '../../ui/noticeSlots';
 import { liveVoiceCapsulesShownAtom } from './liveVoiceRecording';
 
 type VoiceRecorderComposerProps = {
+  ownsPendingVoiceDraft: boolean;
   sendDisabled?: boolean;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
@@ -51,6 +52,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   VoiceRecorderComposerProps
 > = (
   {
+    ownsPendingVoiceDraft,
     sendDisabled,
     onSendStopRequest,
     onSendStopFailure,
@@ -91,6 +93,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     retry,
     discardPending,
   } = useVoiceRecorder({
+    ownsPendingVoiceDraft,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,
