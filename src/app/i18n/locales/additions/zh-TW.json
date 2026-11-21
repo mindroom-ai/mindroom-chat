@@ -1637,6 +1637,7 @@
   "threadNav": {
     "forMe": "與我相關",
     "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
+    "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",
     "emptyForMe": "目前沒有與你相關的討論串",
     "group": "分組",
     "groupHint": "依狀態分組",

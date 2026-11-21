@@ -6,7 +6,8 @@ import {
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getThreadStreamingState } from './useThreadStreamingState';
-import type { getBundledThreadPreviews } from './threadBundledPreviews';
+import { getBundledThreadPreviews } from './threadBundledPreviews';
+import { getPendingOwnThreadReply, resolveThreadInvolvement } from './threadInvolvement';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from './recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
@@ -47,8 +48,6 @@ type BuildThreadRecordOptions = {
   room: Room;
   threadRootId: string;
   threadRootEvent?: MatrixEvent;
-  /** Reuse the bundle if the caller already read it. */
-  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
   summaryInfo?: ThreadSummaryInfo;
   fallbackSummaryInfo?: ThreadSummaryInfo;
   fallbackReplyCount?: number;
@@ -338,7 +337,6 @@ export const buildThreadRecord = ({
   room,
   threadRootId,
   threadRootEvent,
-  bundledPreviews,
   summaryInfo,
   fallbackSummaryInfo,
   fallbackReplyCount,
@@ -396,6 +394,7 @@ export const buildThreadRecord = ({
     resolvedThreadRootEvent,
     fallbackParticipantIds
   );
+  const bundledPreviews = getBundledThreadPreviews(room, resolvedThreadRootEvent);
   const presentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId,
@@ -453,10 +452,36 @@ export const buildThreadRecord = ({
   const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
   const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, visibleReplyEvents);
 
+  // Only a first pending reply counts here. Cached reply counts are for display, not involvement.
+  const pendingOwnReply =
+    !recordReplyCount || resolvedFallbackReplyCount
+      ? getPendingOwnThreadReply(room, threadRootId, currentUserId)
+      : undefined;
+  const pendingOwnFirstReplyTs =
+    pendingOwnReply &&
+    (!recordReplyCount ||
+      !resolvedThreadRootEvent ||
+      !getThreadReplyCount(room, resolvedThreadRootEvent))
+      ? pendingOwnReply.getTs()
+      : undefined;
+
   return {
     roomId: room.roomId,
     threadRootId,
     rootEventId: resolvedThreadRootEvent?.getId(),
+    involvement: currentUserId
+      ? resolveThreadInvolvement(
+          {
+            room,
+            thread,
+            userId: currentUserId,
+            rootEvent: resolvedThreadRootEvent,
+            visibleReplies: visibleReplyEvents,
+            bundledPreviews,
+          },
+          pendingOwnFirstReplyTs
+        )
+      : undefined,
     presentation: {
       ...presentation,
       primarySummaryText: getThreadPrimarySummaryText(presentation),

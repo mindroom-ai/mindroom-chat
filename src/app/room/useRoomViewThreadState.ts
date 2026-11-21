@@ -94,6 +94,7 @@ export type RoomViewThreadState = {
   /** Turns Compact's Sections on or off, for every room of the account. */
   handleToggleThreadSections: () => void;
   handleToggleUnresolvedOnly: () => void;
+  handleToggleForMe: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
@@ -365,16 +366,18 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery]
   );
 
-  // Simple mode's single binary control: unresolved-only on/off. Flips only
-  // the resolved dimension so the hidden advanced dimensions survive in
-  // storage. ('exclude' is the one resolved value the simple-mode projection
-  // keeps, so flipping the raw value matches what the user sees.)
+  // The simple-mode projection keeps only the exclusion. Leave hidden filters stored.
   const handleToggleUnresolvedOnly = useCallback(() => {
     const base = flushPendingSearchQuery();
     setThreadFilterState({
       ...base,
       resolved: base.resolved === 'exclude' ? 'any' : 'exclude',
     });
+  }, [flushPendingSearchQuery, setThreadFilterState]);
+
+  const handleToggleForMe = useCallback(() => {
+    const base = flushPendingSearchQuery();
+    setThreadFilterState({ ...base, forMe: !base.forMe });
   }, [flushPendingSearchQuery, setThreadFilterState]);
 
   // The People filter: checks or unchecks one person.
@@ -537,6 +540,7 @@ export const useRoomViewThreadState = ({
     handleToggleThreadSortFreeze,
     handleToggleThreadSections,
     handleToggleUnresolvedOnly,
+    handleToggleForMe,
     handleTogglePerson,
     handleRoomMessageSent,
     setThreadSortFreezeState,

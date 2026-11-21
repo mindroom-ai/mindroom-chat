@@ -42,11 +42,12 @@ const getThreadRecordDimension = (
   }
 };
 
-const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
+const hasStructuredThreadFilters = (state: ThreadFilterState): boolean =>
   (state.tab !== undefined && state.tab !== 'all') ||
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
-  (state.people?.length ?? 0) > 0;
+  (state.people?.length ?? 0) > 0 ||
+  state.forMe === true;
 
 /** Whether `record` passes `state`; a snooze counts while its time is later than `now`. */
 export const matchesThreadRecordFilterState = (
@@ -56,6 +57,7 @@ export const matchesThreadRecordFilterState = (
 ): boolean => {
   if (state.tab && state.tab !== 'all' && classifyThreadWorkflow(record.status, now) !== state.tab)
     return false;
+  if (state.forMe && !record.involvement?.isForUser) return false;
   if (!matchesThreadPeopleFilter(record, state.people)) return false;
   if (state.statusMode === 'or') {
     for (const key of THREAD_FILTER_KEYS) {
@@ -86,7 +88,7 @@ export const filterThreadRecordRootIds = (
   recordMap: ReadonlyMap<string, ThreadRecord>,
   now = Date.now()
 ): string[] => {
-  if (!hasStatusOrTagFilters(state)) return threadRootIds;
+  if (!hasStructuredThreadFilters(state)) return threadRootIds;
 
   return threadRootIds.filter((threadRootId) => {
     const record = recordMap.get(threadRootId);
@@ -234,7 +236,7 @@ export const computeThreadRecordTagCounts = (
   return counts;
 };
 
-/** Counts reflect people, tags and text, but not the selected status tab or legacy statuses. */
+/** Counts reflect For me, people, tags and text, but not the selected status tab or legacy statuses. */
 export const computeThreadWorkflowCounts = (
   ids: string[],
   records: ReadonlyMap<string, ThreadRecord>,

@@ -125,12 +125,35 @@ describe('thread filter bar modes', () => {
     expect(emptyStates()).toHaveLength(1);
   });
 
-  it('keeps only the sort and the switch in a simple bar without agents', () => {
-    renderBar(true, { hasMindroomAgents: false });
+  it('keeps For me and sorting in a simple bar without agents', () => {
+    renderBar(true, { hasMindroomAgents: false, onToggleForMe: noop });
+    expect(renderer?.root.findByProps({ 'aria-label': 'For me' }).props['aria-pressed']).toBe(
+      false
+    );
     expect(unresolvedToggles()).toHaveLength(0);
     expect(byData('data-thread-count')).toHaveLength(0);
     expect(byData('data-sort-by')).toHaveLength(1);
     expect(byData('data-thread-filter-mode-switch')).toHaveLength(1);
+  });
+
+  it('offers Clear when For me hides every thread in a room without agents', () => {
+    const onReset = vi.fn();
+    renderBar(true, {
+      hasMindroomAgents: false,
+      threadCount: 0,
+      totalThreadCount: 2,
+      state: { ...createDefaultThreadFilterState(), forMe: true },
+      onToggleForMe: noop,
+      onReset,
+    });
+    const reset = renderer?.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Reset all thread filters'
+    )[0];
+    expect(reset).toBeDefined();
+    act(() => {
+      reset?.props.onClick();
+    });
+    expect(onReset).toHaveBeenCalledTimes(1);
   });
 
   it('speaks the summary when the filters change, not when a message moves the count', () => {
@@ -165,5 +188,7 @@ describe('thread filter bar modes', () => {
     rerender({ threadCount: 2, totalThreadCount: 4, state: unresolved });
     expect(live()).toBe(summary());
     expect(live()).toContain('2');
+    rerender({ threadCount: 2, totalThreadCount: 4, state: { ...unresolved, forMe: true } });
+    expect(live()).toContain('For me');
   });
 });

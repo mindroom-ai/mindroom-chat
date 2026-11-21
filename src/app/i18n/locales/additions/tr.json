@@ -1677,6 +1677,7 @@
   "threadNav": {
     "forMe": "Benim için",
     "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
+    "roomForMeHint": "Yalnızca katıldığınız veya bir ajanın sizin adınıza mesaj gönderdiği konular",
     "emptyForMe": "Henüz sizin için konu yok",
     "group": "Grupla",
     "groupHint": "Duruma göre grupla",

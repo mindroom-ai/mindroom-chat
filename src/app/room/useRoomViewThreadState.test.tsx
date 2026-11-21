@@ -354,6 +354,16 @@ describe('useRoomViewThreadState', () => {
     expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
   });
 
+  it('keeps For me when switching filter modes in rooms without agents, until reset', () => {
+    const { store, current } = mountThreadState({ hasMindroomAgents: false });
+    act(() => current().handleToggleForMe());
+    expect(current().threadFilterState.forMe).toBe(true);
+    act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false }));
+    expect(current().threadFilterState.forMe).toBe(true);
+    act(() => current().handleReset());
+    expect(current().threadFilterState.forMe).toBe(false);
+  });
+
   it('keeps agent filters stored but inactive in a room without agents', () => {
     storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude', sortBy: 'natural' });
 

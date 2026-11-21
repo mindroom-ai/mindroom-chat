@@ -11,8 +11,6 @@ import {
   emptyCrossRoomThreadIndexSnapshot,
   getCrossRoomThreadIndexKey,
   getCrossRoomThreadRootsForEvent,
-  hasAgentPostForUser,
-  isUserInvolvedInThread,
   MAX_CROSS_ROOM_INDEX_ENTRIES,
   removeCrossRoomThreadIndexEntry,
   removeRoomCrossRoomThreadIndexEntries,
@@ -27,6 +25,13 @@ import { groupThreads } from '../../page/threadGroups';
 import { readThreadSignals } from '../threadSignals';
 import { getBundledThreadPreviews } from '../../../event-store/threads/threadBundledPreviews';
 import { hasLoadedEveryThreadReply } from '../../../event-store/threads/threadUtils';
+import {
+  hasAgentPostForUser,
+  isUserInvolvedInThread,
+} from '../../../event-store/threads/threadInvolvement';
+import { buildThreadRecord } from '../../../event-store/threads/threadRecord';
+import { filterThreadRecordRootIds } from '../../../event-store/threads/threadRecordOverview';
+import { createDefaultThreadFilterState } from '../../../event-store/threads/roomThreadOverviewModel';
 
 const upsert = (snapshot: CrossRoomThreadIndexSnapshot, entry: CrossRoomThreadIndexEntry) =>
   applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
@@ -196,6 +201,37 @@ describe('thread involvement and agent attribution with SDK events', () => {
     expect(entry.isForUser).toBe(true);
   });
 
+  it('filters room records by the same involvement and attribution as sidebar entries', () => {
+    const roots = [
+      new MatrixEvent(message('$own', {}, userId)),
+      new MatrixEvent(message('$attributed', attribution, agentId)),
+      new MatrixEvent(message('$other')),
+    ];
+    const ids = roots.map((root) => root.getId()!);
+    const records = new Map(
+      roots.map((root) => {
+        const threadRootId = root.getId()!;
+        const room = makeRoom({ root });
+        return [threadRootId, buildThreadRecord({ room, threadRootId, currentUserId: userId })];
+      })
+    );
+    const forMe = { ...createDefaultThreadFilterState(), forMe: true };
+    const sidebarIds = roots
+      .filter(
+        (root) =>
+          buildCrossRoomThreadIndexEntry({
+            room: makeRoom({ root }),
+            threadRootId: root.getId()!,
+            currentUserId: userId,
+          })?.isForUser
+      )
+      .map((root) => root.getId());
+
+    expect(filterThreadRecordRootIds(ids, createDefaultThreadFilterState(), records)).toEqual(ids);
+    expect(filterThreadRecordRootIds(ids, forMe, records)).toEqual(['$own', '$attributed']);
+    expect(filterThreadRecordRootIds(ids, forMe, records)).toEqual(sidebarIds);
+  });
+
   it('counts a visible agent reply posted on behalf of the user', () => {
     const rootEvent = new MatrixEvent(message('$root'));
     const thread = createThread(rootEvent, [new MatrixEvent(reply(attribution, agentId))]);
@@ -346,9 +382,15 @@ describe('thread involvement and agent attribution with SDK events', () => {
     };
     const previous = build({});
     const next = build(attribution);
-    expect(areCrossRoomThreadIndexEntriesEquivalent(previous, { ...next, isForUser: false })).toBe(
-      true
-    );
+    expect(previous.isForUser).toBe(false);
+    expect(next.isForUser).toBe(true);
+    expect(
+      areCrossRoomThreadIndexEntriesEquivalent(previous, {
+        ...next,
+        isForUser: false,
+        threadRecord: { ...next.threadRecord, involvement: previous.threadRecord.involvement },
+      })
+    ).toBe(true);
 
     const first = upsert(emptyCrossRoomThreadIndexSnapshot(), previous);
     const second = upsert(first, next);
