@@ -1137,6 +1137,10 @@ describe('useVoiceRecorder', () => {
       startRenderer.unmount();
     });
     expect(stream.track.stop).not.toHaveBeenCalled();
+    // Time passes on a page with no composer (the Threads page): the recording keeps counting.
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
     const getSendContext = () => ({
       ...createTestSendContext(OTHER_ROOM_ID, '$thread-b'),
       replyDraft,
@@ -1150,6 +1154,7 @@ describe('useVoiceRecorder', () => {
       },
       store
     );
+    expect(sentFrom.current!.elapsedMs).toBe(1200);
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
@@ -1159,7 +1164,7 @@ describe('useVoiceRecorder', () => {
 
     expect(startRoomSend).not.toHaveBeenCalled();
     expect(sendRoomSend).toHaveBeenCalledOnce();
-    expect(sendRoomSend.mock.calls[0]![1]).toBe(1000);
+    expect(sendRoomSend.mock.calls[0]![1]).toBe(1500);
     expect(sendRoomSend.mock.calls[0]![3]).toMatchObject({
       roomId: OTHER_ROOM_ID,
       threadId: '$thread-b',
