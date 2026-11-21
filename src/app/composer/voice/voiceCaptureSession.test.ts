@@ -236,7 +236,7 @@ describe('voice capture session', () => {
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.duration).toBe(400);
     expect(await result.recording.file.text()).toBe('voice');
-    expect(result.recording.file.type).toBe(latest().mimeType);
+    expect(result.recording.file.type).toBe('audio/webm');
     expect(result.recording.waveform).toEqual(Array(48).fill(512));
     expect(session.getSnapshot().phase).toBe('processing');
     expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -607,6 +607,44 @@ describe('voice capture session', () => {
       'Voice recording stopped unexpectedly. Please record again.'
     );
     expect(await session.finish()).toEqual({ status: 'ignored' });
+  });
+
+  it.each(['self-stop', 'unmount'])('parks audio after %s', async (exit) => {
+    const park = vi.fn(() => true);
+    const session = createVoiceCaptureSession(undefined, park);
+    sessions.push(session);
+    await session.start();
+    vi.advanceTimersByTime(4_900);
+    const recorder = latest();
+    if (exit === 'unmount') session.releaseOwner();
+    recorder.emitData(new Blob(['voice'], { type: 'audio/webm' }));
+    recorder.emitStop();
+    expect(park).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 4_900 }));
+    expect(session.getSnapshot().errorMessage).toBeUndefined();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
+    const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
+    const session = createVoiceCaptureSession(() => ({
+      id: 'recording',
+      append,
+      remove: vi.fn(),
+      release: vi.fn(),
+    }));
+    sessions.push(session);
+    expect(await session.start()).toBe(true);
+    vi.advanceTimersByTime(1_000);
+    latest().emitData(new Blob(['first'], { type: 'audio/webm' }));
+    await Promise.resolve();
+    expect(session.getSnapshot().phase).toBe('recording');
+    const result = await finish(session, 'second');
+    expect(append.mock.calls.map(([seq]) => seq)).toEqual([0, 1]);
+    expect(result.status).toBe('captured');
+    if (result.status !== 'captured') return;
+    expect(result.recording.recordingId).toBe('recording');
+    expect(await result.recording.file.text()).toBe('firstsecond');
+    expect(result.recording.file.type).toBe('audio/webm');
   });
 
   it('discards with false and releases ordinary ownership before native stop arrives', async () => {
