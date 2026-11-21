@@ -139,85 +139,12 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   ]);
   expect(Math.abs(moreBox!.y - resolveBox!.y)).toBeLessThan(1);
 
-  // The banner changes its layout only while nothing in it is in use.
-  const addTag = threadBanner.getByRole('button', { name: 'Add tag', exact: true });
-  const options = threadBanner.getByRole('button', { name: 'Thread options', exact: true });
-  const field = page.getByRole('textbox', { name: 'Filter or create tag' });
-  const pin = threadBanner.getByRole('button', { name: 'Pin thread', exact: true });
-
-  // Pin with the focus: the window narrows past the threshold and the banner stays wide; once
-  // the focus leaves, it turns compact.
-  await pin.focus();
-  await page.setViewportSize({ width: 900, height: 900 });
-  await expect(pin).toBeFocused();
-  await expect(addTag).toBeVisible();
-  await pin.evaluate((button) => button.blur());
-  await expect(pin).toHaveCount(0);
-  await expect(addTag).toHaveCount(0);
-
-  // A tag typed in the banner's own picker survives the window narrowing.
-  const typeThenResize = async (to: { width: number; height: number }, tag: string) => {
-    await page.setViewportSize({ width: 1400, height: 900 });
-    await addTag.click();
-    await expect(field).toBeFocused();
-    await field.pressSequentially(tag);
-    await page.setViewportSize(to);
-    await expect(field).toBeFocused();
-    await expect(field).toHaveValue(tag);
-    await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
-    // Escape gives the focus back to "+ tag", which keeps the layout; once it goes, the banner
-    // turns compact.
-    await page.keyboard.press('Escape');
-    await expect(field).toHaveCount(0);
-    await expect(addTag).toBeFocused();
-    await addTag.evaluate((button) => button.blur());
-    await expect(addTag).toHaveCount(0);
-  };
-  await typeThenResize({ width: 900, height: 900 }, 'delta');
-  // Past the phone breakpoint too.
-  await typeThenResize({ width: 750, height: 900 }, 'delta');
-
-  // A tag typed at the top of More, in a narrow banner, survives the window widening past the
-  // threshold while the menu is open; the next menu follows the wide layout.
-  await page.setViewportSize({ width: 900, height: 900 });
-  await expect(addTag).toHaveCount(0);
-  await options.click();
-  const tagSection = menu.locator('[data-thread-menu-tags]');
-  await tagSection.getByRole('button', { name: 'Add tag', exact: true }).click();
-  await expect(field).toBeFocused();
-  await field.pressSequentially('gamma');
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await expect(tagSection).toBeVisible();
-  await expect(field).toBeFocused();
-  await expect(field).toHaveValue('gamma');
-  await page.keyboard.press('Escape');
-  await expect(field).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
-  // Closed, the menu hands the focus back to More, which the layout leaves in place: the banner
-  // takes the wide layout at once.
-  await expect(options).toBeFocused();
-  await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
-
-  // The banner's own context menu, closed, gives the banner the focus, which the layout leaves
-  // in place: narrowing turns it compact at once.
-  await threadBanner.click({ button: 'right', position: { x: 4, y: 4 } });
-  await expect(menu).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
-  await expect(threadBanner).toBeFocused();
-  await page.setViewportSize({ width: 900, height: 900 });
-  await expect(threadBanner).toBeFocused();
-  await expect(addTag).toHaveCount(0);
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await expect(addTag).toBeVisible();
-
-  await options.click();
+  // Its More lists the tags as an item, not at its top.
+  await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
   await expect(menu).toBeVisible();
   await expect(menu.locator('[data-thread-menu-tags]')).toHaveCount(0);
 
-  // Show the thread beside the messages from More: the narrow pane's banner is compact at once,
-  // with no click elsewhere.
+  // Shown beside the messages from More, the thread's narrow banner is compact.
   await menu.getByRole('menuitem', { name: 'Show the thread beside the messages' }).click();
   await expect(column).not.toHaveAttribute('data-filled', 'true');
   const beside = column.locator('[data-thread-context-banner="true"]');

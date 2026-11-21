@@ -80,11 +80,6 @@ export interface ThreadContextBannerProps {
 
 const DESKTOP_MAX_PILLS = 3;
 
-// Marks the banner's controls that a switch of layout unmounts; the tag picker's popout carries it
-// too (ThreadTagPicker).
-const LAYOUT_BOUND = 'data-banner-layout-bound';
-const isLayoutBound = (element: Element) => !!element.closest(`[${LAYOUT_BOUND}]`);
-
 // A banner narrower than this takes a phone's layout: the tags and the pin in More, the whole
 // title, the buttons beside it stacked. Narrower are a thread column or a second thread beside the
 // messages (440 px of banner until resized), a conversation beside the members panel on a tablet
@@ -248,25 +243,8 @@ export function ThreadContextBanner({
   // screen is short and keeps one row, the title shows whole and the buttons can stack.
   const narrow = useNarrowBanner(bannerRef, phone);
   const short = useShortViewport();
-  const wanted = { compact: phone || narrow, wholeTitle: phone || (narrow && !short) };
-  // The layout changes only while nothing it would remove is in use: the menu is closed and the
-  // focus is on none of the controls the switch unmounts (LAYOUT_BOUND: the tags, the tag
-  // picker's popout, Pin). The banner itself, Back, More and Resolve stay in either layout, so
-  // focus there holds nothing. Focus events reach the banner from its popouts through React.
-  const focused = useRef<Element | null>(null);
-  const [boundFocus, setBoundFocus] = useState(false);
-  const shown = useRef(wanted);
-  // Lets go once the control the banner last saw focused has lost the focus or is gone.
-  const recheckFocus = useCallback(() => {
-    const control = focused.current;
-    if (control?.isConnected && control === document.activeElement && isLayoutBound(control)) {
-      return;
-    }
-    focused.current = null;
-    setBoundFocus(false);
-  }, []);
-  const blurTimer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(blurTimer.current), []);
+  const compact = phone || narrow;
+  const wholeTitle = phone || (narrow && !short);
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -277,36 +255,6 @@ export function ThreadContextBanner({
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  const inUse = !!menu || boundFocus;
-  if (!inUse) shown.current = wanted;
-  const { compact, wholeTitle } = shown.current;
-  // A layout waits on the focus. An open menu needs no watching: closing it renders the banner.
-  const pending = boundFocus && (compact !== wanted.compact || wholeTitle !== wanted.wholeTitle);
-  useEffect(() => {
-    if (!pending) return undefined;
-    // Looks once what moved the focus (a closing popout hands it back to its button) is done.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const settle = () => {
-      clearTimeout(timer);
-      timer = setTimeout(recheckFocus);
-    };
-    // The focused control may have gone before the layout began to wait.
-    settle();
-    // A focused control that goes (a tag's x, the tag picker's field in its popout) takes no
-    // focus event with it in Firefox and WebKit: the banner looks whenever the page's content
-    // changes, while its layout waits.
-    const removed =
-      typeof MutationObserver === 'undefined'
-        ? undefined
-        : new MutationObserver(() => {
-            if (!focused.current?.isConnected) settle();
-          });
-    removed?.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      removed?.disconnect();
-      clearTimeout(timer);
-    };
-  }, [pending, recheckFocus]);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
     const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
@@ -539,14 +487,6 @@ export function ThreadContextBanner({
         )}
         data-thread-context-banner="true"
         tabIndex={-1}
-        onFocus={(event) => {
-          focused.current = event.target;
-          setBoundFocus(isLayoutBound(event.target));
-        }}
-        onBlur={() => {
-          clearTimeout(blurTimer.current);
-          blurTimer.current = setTimeout(recheckFocus);
-        }}
         onContextMenu={(event) => {
           if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
           event.preventDefault();
@@ -614,10 +554,7 @@ export function ThreadContextBanner({
                   <ThreadApprovalPermissions />
                   {/* More adds the first tag; + tag joins the ones already set. */}
                   {hasTags && (
-                    <div
-                      className={classNames(css.TagsRow, css.CompactHidden)}
-                      {...{ [LAYOUT_BOUND]: '' }}
-                    >
+                    <div className={classNames(css.TagsRow, css.CompactHidden)}>
                       <TagPills
                         tags={headerModel.displayTags}
                         maxPills={DESKTOP_MAX_PILLS}
@@ -826,7 +763,6 @@ export function ThreadContextBanner({
                       <IconButton
                         ref={triggerRef}
                         aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                        {...{ [LAYOUT_BOUND]: '' }}
                         className={classNames(
                           toolbarCss.MessageOptionsButton,
                           !isPinned && css.CompactHidden
