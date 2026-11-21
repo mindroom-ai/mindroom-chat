@@ -186,7 +186,8 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
           await moveWithinCard();
           return workingHeader.textContent();
         },
-        { timeout: 15_000 }
+        // Each move must come before the mouse-rest limit lets the hold go.
+        { timeout: 15_000, intervals: [200] }
       )
       .toMatch(/· 1$/),
   ]);
