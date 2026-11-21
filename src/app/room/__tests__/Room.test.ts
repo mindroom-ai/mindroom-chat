@@ -171,6 +171,13 @@ vi.mock('../../ui/noticeSlots', async () => {
   };
 });
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
+// Its module reads `document` when it loads, which these tests stub.
+vi.mock('../../lib/portalOverlay', () => ({
+  holdModalSheet: () => () => undefined,
+  modalSheetOpen: () => false,
+  portalContainer: undefined,
+  hasBlockingPortalOverlay: () => false,
+}));
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
 vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
