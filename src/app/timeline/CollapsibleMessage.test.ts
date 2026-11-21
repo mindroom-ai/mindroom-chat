@@ -1145,20 +1145,29 @@ describe('CollapsibleMessage', () => {
     expect(state.get('$newest')).toBe(true);
   });
 
-  it('labels its toggle in the app language', async () => {
+  it('relabels its toggle when the app language changes', async () => {
     i18next.addResourceBundle('nl', 'translation', nl, true, true);
     i18next.addResourceBundle('nl', 'translation', nlAdditions, true, false);
-    await i18next.changeLanguage('nl');
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const toggle = () => renderer.root.find((node) => node.type === 'button');
+    /** The button's visible text and its accessible name, which must agree. */
+    const label = () => {
+      const text = toggle().findByType('span').children.join('');
+      expect(toggle().props['aria-label']).toBe(text);
+      return text;
+    };
     try {
-      const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-      const toggle = () => renderer.root.find((node) => node.type === 'button');
-      expect(toggle().props['aria-label']).toBe('Volledig bericht tonen');
+      expect(label()).toBe('Show full message');
+      await act(async () => {
+        await i18next.changeLanguage('nl');
+      });
+      expect(label()).toBe('Volledig bericht tonen');
       act(() => {
         toggle().props.onClick({ stopPropagation: () => {} });
       });
-      expect(toggle().props['aria-label']).toBe('Minder tonen');
-      act(() => renderer.unmount());
+      expect(label()).toBe('Minder tonen');
     } finally {
+      act(() => renderer.unmount());
       await i18next.changeLanguage('en');
     }
   });
