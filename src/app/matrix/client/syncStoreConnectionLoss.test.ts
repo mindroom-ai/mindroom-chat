@@ -393,7 +393,20 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await reader.getClientOptions()).toBeUndefined();
   });
 
-  // The failed write puts its members back into the store's memory, after the clear emptied it.
+  /** The next read of stored members fails, and the store answers from its memory. */
+  const abortNextMembersRead = () => {
+    const openCursor = IDBIndex.prototype.openCursor;
+    vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementationOnce(function abortRead(
+      this: IDBIndex,
+      ...args: Parameters<IDBIndex['openCursor']>
+    ) {
+      const request = openCursor.apply(this, args);
+      this.objectStore.transaction.abort();
+      return request;
+    });
+  };
+
+  // The write that failed must not put its members back, in the database or in memory.
   it('returns no members after a clear that overlapped a write of them that was aborted', async () => {
     const store = await savedStore();
     const degraded = vi.fn();
@@ -406,7 +419,24 @@ describe('Matrix sync store after an IndexedDB failure', () => {
 
     expect(degraded).not.toHaveBeenCalled();
     expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+    abortNextMembersRead();
+    expect(await store.getOutOfBandMembers(roomId)).toBeNull();
     expect(await (await startStore()).getOutOfBandMembers(roomId)).toBeNull();
+  });
+
+  // After a read that failed, the members come from the server and are stored anew.
+  it('stores the members of a room in place of those stored before', async () => {
+    const former = { room_id: roomId, state_key: '@former:example', type: 'm.room.member' };
+    await (
+      await startStore()
+    ).setOutOfBandMembers(roomId, [former] as Parameters<IndexedDBStore['setOutOfBandMembers']>[1]);
+    const store = await startStore();
+
+    abortNextMembersRead();
+    expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+    await storeMembers(store);
+
+    expect(await (await startStore()).getOutOfBandMembers(roomId)).toEqual(members);
   });
 
   // Two tabs: what one of them holds in memory must not hide what the other wrote since.
@@ -679,9 +709,11 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(degraded).toHaveBeenCalledTimes(1);
     expect(await persistedToken()).toBeUndefined();
 
-    // Later saves and reads use memory only.
+    // Later saves, reads and writes use memory only.
     await store.save(true);
     expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
+    await storeMembers(store);
+    expect(await store.getOutOfBandMembers(roomId)).toEqual(members);
     expect(store.wantsSave()).toBe(false);
     expect(failed).not.toHaveBeenCalled();
     expect(await persistedToken()).toBeUndefined();
