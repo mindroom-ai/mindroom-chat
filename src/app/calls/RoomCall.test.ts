@@ -39,14 +39,14 @@ vi.mock('livekit-client', async () => {
 
     remoteParticipants = new Map();
 
+    private publications = new Map<string, ReturnType<typeof inputPublication>>();
+
     localParticipant = {
       isScreenShareEnabled: false,
       isSpeaking: false,
       isMicrophoneEnabled: false,
-      getTrackPublication: vi.fn((source: string): unknown =>
-        this.localParticipant.trackPublications.get(source)
-      ),
-      trackPublications: new Map<string, ReturnType<typeof inputPublication>>(),
+      getTrackPublication: vi.fn((source: string) => this.publications.get(source)),
+      trackPublications: this.publications,
       setMicrophoneEnabled: vi.fn(async (on: boolean) => this.toggleInput('microphone', on)),
       setCameraEnabled: vi.fn(async (on: boolean) => this.toggleInput('camera', on)),
       setScreenShareEnabled: vi.fn(async () => undefined),
@@ -54,11 +54,11 @@ vi.mock('livekit-client', async () => {
     };
 
     private toggleInput(source: string, on: boolean) {
-      const publications = this.localParticipant.trackPublications;
-      const publication = publications.get(source) ?? (on ? inputPublication(source) : undefined);
+      const publication =
+        this.publications.get(source) ?? (on ? inputPublication(source) : undefined);
       if (publication) {
         publication.isMuted = !on;
-        publications.set(source, publication);
+        this.publications.set(source, publication);
       }
       return publication;
     }
