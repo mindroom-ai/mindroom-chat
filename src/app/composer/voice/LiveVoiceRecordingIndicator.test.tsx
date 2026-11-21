@@ -348,9 +348,16 @@ describe('LiveVoiceRecordingIndicator', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Command palette' });
-    fireEvent.click(
-      within(dialog.parentElement!).getByRole('button', { name: 'Discard voice recording' })
-    );
+    const button = within(dialog.parentElement!).getByRole('button', {
+      name: 'Discard voice recording',
+    });
+    // A whole press, as a pointer makes it: the palette must not take it for a press outside.
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1, pointerType: 'mouse' });
+    fireEvent.mouseDown(button, { button: 0 });
+    fireEvent.pointerUp(button, { button: 0, pointerId: 1, pointerType: 'mouse' });
+    fireEvent.mouseUp(button, { button: 0 });
+    fireEvent.click(button);
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
     expect(discard).toHaveBeenCalledOnce();
     expect(pill()).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Command palette' })).toBe(dialog);
