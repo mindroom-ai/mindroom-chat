@@ -2,19 +2,10 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAtom, useAtomValue, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import {
-  Box,
-  Button,
-  Icon,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  config,
-} from 'folds';
+import { Box, Button, Icon, Icons, Text, config } from 'folds';
 import { Dialog, IconButton } from '../../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../../ui/IconTooltip';
+import { ModalLayer } from '../../ui/ModalLayer';
 import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { millisecondsToMinutesAndSeconds } from '../../lib/common';
 import {
@@ -65,27 +56,26 @@ export function LiveVoiceRecordingIndicator() {
 
   return (
     <>
-      <Overlay open={error !== undefined} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <Dialog variant="Surface">
-            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceRecordingError')}</Text>
-              <Text size="T300">{localizeVoiceErrorMessage(t, error)}</Text>
-              <Box justifyContent="End" gap="200">
-                <Button
-                  variant="Primary"
-                  onClick={() => setError(undefined)}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.ok')}
-                </Button>
-              </Box>
+      {/* A modal layer, so OK answers over a bottom sheet or the command palette too. */}
+      <ModalLayer open={error !== undefined} onClose={() => setError(undefined)}>
+        <Dialog variant="Surface">
+          <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
+            <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceRecordingError')}</Text>
+            <Text size="T300">{localizeVoiceErrorMessage(t, error)}</Text>
+            <Box justifyContent="End" gap="200">
+              <Button
+                variant="Primary"
+                onClick={() => setError(undefined)}
+                fill="Soft"
+                outlined
+                radii="300"
+              >
+                {t('mindroomUi.voice.voiceRecorderDialog.ok')}
+              </Button>
             </Box>
-          </Dialog>
-        </OverlayCenter>
-      </Overlay>
+          </Box>
+        </Dialog>
+      </ModalLayer>
       <DiscardVoiceRecordingDialog
         open={recording !== undefined && discarding === recording}
         onCancel={() => setDiscarding(undefined)}

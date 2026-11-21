@@ -472,6 +472,7 @@ describe('LiveVoiceRecordingIndicator', () => {
   });
 
   it('shows why a recording could not be captured once, however many composers are mounted', () => {
+    layOut();
     const store = createStore();
     store.set(liveVoiceRecordingAtom, recordingSession().session);
     render(
@@ -496,5 +497,39 @@ describe('LiveVoiceRecordingIndicator', () => {
 
     expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
     expect(screen.queryByText('Voice Recording Error')).toBeNull();
+  });
+
+  it('lets you dismiss why a recording could not be captured over an open bottom sheet', async () => {
+    layOut();
+    const requestClose = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const store = createStore();
+    render(
+      <Provider store={store}>
+        <main>
+          <NoticeSlot place="page" />
+        </main>
+        <BottomSheet title="Activity" closeLabel="Close" requestClose={requestClose}>
+          <p>Example activity</p>
+        </BottomSheet>
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    act(() => store.set(liveVoiceRecordingErrorAtom, 'No audio data was captured.'));
+
+    // The error is over the sheet, not outside it: OK is not hidden as the page is, and a press
+    // on it does not close the sheet.
+    const ok = await screen.findByRole('button', { name: 'OK' });
+    await waitFor(() => expect(ok).toBe(document.activeElement));
+    press(ok);
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(screen.queryByText('Voice Recording Error')).toBeNull();
+    expect(requestClose).not.toHaveBeenCalled();
   });
 });
