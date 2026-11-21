@@ -20,18 +20,19 @@ export const useRoomTimelineMinimap = ({
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
   // Fine-pointer only (like the reference implementation): touch devices
   // never see the minimap, so skip deriving items and tracking scroll there.
-  const hasThreadEvents = threadEvents.length > 0;
-  const [minimapPointerFine, setMinimapPointerFine] = useState(false);
+  const [minimapPointerFine, setMinimapPointerFine] = useState(
+    () => typeof window !== 'undefined' && (window.matchMedia?.('(pointer: fine)').matches ?? false)
+  );
   useEffect(() => {
-    if (!hasThreadEvents || typeof window === 'undefined') return undefined;
-    const queryList = window.matchMedia?.('(pointer: fine)');
+    const queryList =
+      typeof window === 'undefined' ? undefined : window.matchMedia?.('(pointer: fine)');
     if (!queryList) return undefined;
     const handleChange = () => setMinimapPointerFine(queryList.matches);
-    handleChange();
     queryList.addEventListener('change', handleChange);
     return () => queryList.removeEventListener('change', handleChange);
-  }, [hasThreadEvents]);
-  const minimapEnabled = hasThreadEvents && minimapPointerFine;
+  }, []);
+  // Only a thread shows the minimap: a room timeline passes no thread events.
+  const minimapEnabled = minimapPointerFine && threadEvents.length > 0;
   const minimapItems = useMemo(
     () => (minimapEnabled ? deriveTimelineMinimapItems(threadEvents, t) : []),
     [minimapEnabled, threadEvents, t]
