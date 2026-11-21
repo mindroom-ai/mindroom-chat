@@ -472,14 +472,15 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   endVoiceRecordingsOfAccount(store);
 };
 
-// Only logout or a different Matrix user ends the account's voice work, not a route unmount.
+// Only logout or another session ends the account's voice work, not a route unmount. Sessions
+// are told apart by their id: two can share a Matrix user id on different homeservers.
 export const watchComposerAccount = (store: JotaiStore): (() => void) => {
-  let userId = getActiveSession()?.userId;
+  let sessionId = getActiveSession()?.sessionId;
   return subscribeToSessionStore(() => {
-    const next = getActiveSession()?.userId;
-    if (next === userId) return;
-    const previous = userId;
-    userId = next;
+    const next = getActiveSession()?.sessionId;
+    if (next === sessionId) return;
+    const previous = sessionId;
+    sessionId = next;
     if (previous !== undefined) forgetComposerStateOfSession(store);
   });
 };

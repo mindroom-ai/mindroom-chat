@@ -127,25 +127,29 @@ it('keeps a recording and an accepted send across a same-account shell remount',
   expect(store.get(pendingVoiceSendDraftAtom)?.file).toBe(file);
 });
 
-it.each(['switch', 'logout'])('tears down recording on a real account %s off the shell', (exit) => {
-  const store = createStore();
-  const session = putSession({
-    baseUrl: 'https://example.org',
-    userId: '@example:example.org',
-    deviceId: 'A',
-    accessToken: 'a',
-  });
-  const stop = watchComposerAccount(store);
-  try {
-    const reset = vi.fn();
-    store.set(liveVoiceRecordingAtom, { reset } as unknown as VoiceCaptureSession);
-    const sameAccount = voiceAccountGuard(store);
-    if (exit === 'logout') removeSession(session.sessionId);
-    else putSession({ ...session, userId: '@other:example.org' });
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(reset).toHaveBeenCalledOnce();
-    expect(sameAccount()).toBe(false);
-  } finally {
-    stop();
+it.each(['switch', 'logout', 'switch to the same user id on another homeserver'])(
+  'tears down recording on a real account %s off the shell',
+  (exit) => {
+    const store = createStore();
+    const session = putSession({
+      baseUrl: 'https://example.org',
+      userId: '@example:example.org',
+      deviceId: 'A',
+      accessToken: 'a',
+    });
+    const stop = watchComposerAccount(store);
+    try {
+      const reset = vi.fn();
+      store.set(liveVoiceRecordingAtom, { reset } as unknown as VoiceCaptureSession);
+      const sameAccount = voiceAccountGuard(store);
+      if (exit === 'logout') removeSession(session.sessionId);
+      else if (exit === 'switch') putSession({ ...session, userId: '@other:example.org' });
+      else putSession({ ...session, baseUrl: 'https://other.example.org' });
+      expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+      expect(reset).toHaveBeenCalledOnce();
+      expect(sameAccount()).toBe(false);
+    } finally {
+      stop();
+    }
   }
-});
+);
