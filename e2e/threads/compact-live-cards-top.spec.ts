@@ -299,6 +299,7 @@ type LeadPlaces = {
   /** The first card in view that does not move. */
   card: number;
   scrollTop: number;
+  order: string[];
   /**
    * Whether the card that moves shows before that row, or, when it led the view itself, before
    * the row that stood right before it.
@@ -308,7 +309,7 @@ type LeadPlaces = {
 
 type LeadWatch = {
   before: LeadPlaces;
-  /** The first frame that shows the card that moves before the leading row. */
+  /** The first frame that shows any change to the order. */
   first?: LeadPlaces;
   /** The furthest the leading row or card showed from its place in any frame since. */
   furthest: number;
@@ -363,6 +364,9 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
         row: placeOf(leadRow),
         card: placeOf(leadCard),
         scrollTop: view.scrollTop,
+        order: [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
+          (row) => row.dataset.scrollAnchor ?? ''
+        ),
         // eslint-disable-next-line no-bitwise
         crossed:
           !!now && !!(passed().compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
@@ -372,7 +376,12 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
     (window as unknown as { leadWatch: LeadWatch }).leadWatch = watch;
     const frame = () => {
       const now = read();
-      if (now.crossed) {
+      if (
+        watch.first ||
+        now.crossed ||
+        now.order.length !== watch.before.order.length ||
+        now.order.some((id, index) => id !== watch.before.order[index])
+      ) {
         watch.first ??= now;
         watch.furthest = Math.max(
           watch.furthest,
@@ -411,6 +420,7 @@ type Move =
   | 'lead'
   | 'under'
   | 'lead-two'
+  | 'freeze-return'
   | 'sections-swap';
 
 /**
@@ -421,6 +431,7 @@ type Move =
 const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   const { reader, roomId, rootIds } = seeded;
   const sections = move === 'sections' || move === 'sections-swap';
+  const freezeReturn = move === 'freeze-return';
   if (move === 'below-reduced') await page.emulateMedia({ reducedMotion: 'reduce' });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -442,6 +453,11 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await expectRoomCompact(page, true, 60_000);
   await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+  const lock = page.locator('[data-thread-sort-freeze]');
+  if (freezeReturn && !(await lock.isVisible())) {
+    await page.locator('[data-thread-filter-bar-toggle]').click();
+    await expect(lock).toBeVisible();
+  }
   await page.mouse.move(5, 795);
 
   const reply = (rootId: string, body: string) =>
@@ -488,7 +504,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     // A swap, and three cards that rotate above two: the first card leads the view, cut by 30 px.
     await scrollList(page, move === 'swap' || move === 'rotate' ? 30 : 700);
   }
-  const leads = move === 'lead' || move === 'lead-two';
+  const leads = move === 'lead' || move === 'lead-two' || freezeReturn;
   if (leads || move === 'under') {
     // The card that leads the view is cut by 30 px, far down the list.
     await page.evaluate(() => {
@@ -537,11 +553,32 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     lead: [shown[0]],
     under: [shown[1], shown[2]],
     'lead-two': [shown[0], shown[1]],
+    'freeze-return': [shown[0]],
     'sections-swap': [shown[1]],
   };
   const movers = moversOf[move].map((rootId) => rootId ?? '');
   const held = movers.length > 1;
   const mover = movers[0] ?? '';
+  if (freezeReturn) {
+    const savedTop = await page
+      .locator('[data-compact-room-view]')
+      .evaluate((view) => view.scrollTop);
+    const frozen = await cardOrder(page);
+    await lock.click();
+    await expect(lock).toHaveAttribute('aria-pressed', 'true');
+    await cardOf(page, shown[2] ?? '').click();
+    await expect(page).toHaveURL(/threadId=/);
+    await expect(page.locator('[data-compact-room-view]')).toHaveCount(0);
+    const replyText = 'The leading card got an answer while the reader was elsewhere.';
+    await reply(mover, replyText);
+    await page.goBack();
+    await expect(lock).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+    await expect(cardOf(page, mover)).toContainText(replyText);
+    expect(await cardOrder(page)).toEqual(frozen);
+    await page.mouse.move(5, 795);
+    await scrollList(page, savedTop);
+  }
   const start = await watchLead(page, movers, trades ? shown[0] : undefined);
   const { before } = start;
   expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
@@ -568,7 +605,10 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   if (sections) expect(Math.abs(before.row), `${move}: the header leads the view`).toBeLessThan(1);
   await shot(page, `move-${move}-1-before`);
 
-  if (move === 'sections') {
+  if (freezeReturn) {
+    await lock.click();
+    await expect(lock).toHaveAttribute('aria-pressed', 'false');
+  } else if (move === 'sections') {
     await agentStartsOn(seeded, mover);
     await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${WORKING + 1}$`), {
       timeout: 30_000,
@@ -582,6 +622,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await page.mouse.move(pointer.x, pointer.y);
     await expect(page.locator('[data-order-held]')).toHaveCount(1);
+    const orderBeforeReplies = await cardOrder(page);
     let moves = 0;
     const moving = setInterval(() => {
       moves += 1;
@@ -600,9 +641,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       clearInterval(moving);
     }
     await expect(page.locator('[data-order-held]')).toHaveCount(1);
-    expect((await leadWatch(page)).now.crossed, `${move}: the held cards kept their order`).toBe(
-      false
-    );
+    expect(await cardOrder(page), `${move}: the full order was held`).toEqual(orderBeforeReplies);
     // The pointer leaves the list: the cards move up in one render.
     await page.mouse.move(5, 795);
   } else {
@@ -624,6 +663,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   // The glides end.
   await page.waitForTimeout(600);
   const { first, furthest, now } = await leadWatch(page);
+  if (held) {
+    expect(
+      first?.order.slice(0, movers.length),
+      `${move}: all movers lead in the first changed frame`
+    ).toEqual([...movers].reverse());
+  }
   const moved = (places: LeadPlaces | undefined) =>
     places ? Math.max(Math.abs(places.row - before.row), Math.abs(places.card - before.card)) : NaN;
   test.info().annotations.push({
@@ -714,6 +759,10 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       [
         'lead-two',
         'replies at once in the threads of the card that leads the view and the next leave the cards under them in place',
+      ],
+      [
+        'freeze-return',
+        'unlocking after a thread visit leaves the next card in place when the leader got a reply',
       ],
       [
         'sections-swap',
