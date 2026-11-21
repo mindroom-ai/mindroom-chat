@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  MatrixEvent,
-  RoomMember,
-  RoomMemberEvent,
-  RoomState,
-  type Room,
-} from 'matrix-js-sdk';
+import { MatrixEvent, RoomMember, RoomMemberEvent, RoomState, type Room } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';

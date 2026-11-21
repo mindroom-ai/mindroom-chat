@@ -951,9 +951,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    expectsAnswer: room.getJoinedMembers().some(({ userId }) =>
-      isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)
-    ),
+    expectsAnswer: room
+      .getJoinedMembers()
+      .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (
