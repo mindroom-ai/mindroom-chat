@@ -495,10 +495,6 @@
       "remove": "Supprimer"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Enregistrement vocal non envoyé",
-      "unsentVoiceBody": "Vous avez un enregistrement vocal qui n’a pas été envoyé.",
-      "sendUnsentVoice": "L’envoyer",
-      "discardVoiceAndSignOut": "Supprimer et se déconnecter",
       "logout": "Se déconnecter",
       "unverifiedDevice": "Appareil non vérifié",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Vérifiez votre appareil avant de vous déconnecter afin de conserver vos messages chiffrés.",

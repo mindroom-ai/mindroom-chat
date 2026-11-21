@@ -492,10 +492,6 @@
       "remove": "Entfernen"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Nicht gesendete Sprachaufnahme",
-      "unsentVoiceBody": "Du hast eine Sprachaufnahme, die noch nicht gesendet wurde.",
-      "sendUnsentVoice": "Aufnahme senden",
-      "discardVoiceAndSignOut": "Verwerfen und abmelden",
       "logout": "Abmelden",
       "unverifiedDevice": "Nicht verifiziertes Gerät",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Verifiziere dein Gerät vor der Abmeldung, um deine verschlüsselten Nachrichten zu sichern.",

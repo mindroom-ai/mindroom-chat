@@ -492,10 +492,6 @@
       "remove": "제거"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "보내지 않은 음성 녹음",
-      "unsentVoiceBody": "아직 보내지 않은 음성 녹음이 있습니다.",
-      "sendUnsentVoice": "보내기",
-      "discardVoiceAndSignOut": "삭제하고 로그아웃",
       "logout": "로그아웃",
       "unverifiedDevice": "인증되지 않은 기기",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "암호화된 메시지를 보존하려면 로그아웃하기 전에 기기를 인증하세요.",

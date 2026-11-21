@@ -153,9 +153,6 @@ export const recoverVoiceRecording = async (
   });
 };
 
-export const hasVoiceRecordings = async (userId: string): Promise<boolean> =>
-  !!(await withDb((db) => db.countFromIndex('recordings', 'userId', userId)));
-
 export const clearVoiceRecordings = async (userId: string): Promise<void> => {
   await Promise.all(starts.values());
   const deleted = await withDb((db) =>

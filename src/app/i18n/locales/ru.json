@@ -498,10 +498,6 @@
       "remove": "Удалить"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Неотправленная голосовая запись",
-      "unsentVoiceBody": "У вас есть голосовая запись, которая ещё не отправлена.",
-      "sendUnsentVoice": "Отправить запись",
-      "discardVoiceAndSignOut": "Удалить и выйти",
       "logout": "Выйти",
       "unverifiedDevice": "Непроверенное устройство",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Проверьте устройство перед выходом, чтобы сохранить зашифрованные сообщения.",

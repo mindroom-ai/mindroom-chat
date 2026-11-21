@@ -44,11 +44,7 @@ send succeeded or the person confirmed Discard.**
   record with that id is not offered a second time.
 - **Discard** asks for confirmation for both live and parked recordings. Only confirmation deletes
   the record.
-- **Sign-out.** The user-initiated confirmation checks the account's live or paused recorder,
-  journal and failed-send copy. **Send it** cancels sign-out and returns to the composer without
-  deleting audio. **Discard and sign out** stops capture and deletes the account's audio before
-  signing out. **Cancel** leaves both the account and recording alone. Forced sign-out (such as
-  session expiration or remote logout) skips the warning and keeps its existing cleanup.
+- **Sign-out** deletes the account's records, as it already does the failed-send copy.
 
 ## Not in scope (each was a source of review rounds last time)
 

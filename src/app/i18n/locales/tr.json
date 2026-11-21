@@ -492,10 +492,6 @@
       "remove": "Kaldır"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Gönderilmemiş ses kaydı",
-      "unsentVoiceBody": "Henüz gönderilmemiş bir ses kaydınız var.",
-      "sendUnsentVoice": "Kaydı gönder",
-      "discardVoiceAndSignOut": "Sil ve oturumu kapat",
       "logout": "Çıkış yap",
       "unverifiedDevice": "Doğrulanmamış cihaz",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Şifreli mesajlarınızı korumak için çıkış yapmadan önce cihazınızı doğrulayın.",

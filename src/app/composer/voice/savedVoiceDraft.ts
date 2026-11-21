@@ -111,64 +111,8 @@ const saveVoiceDraft = async (
   });
 };
 
-export const readSavedVoiceDraft = (userId: string) =>
-  withDraftDb((db) => db.get('drafts', userId));
-export const hasSavedVoiceDraft = async (userId: string) =>
-  !!(await withDraftDb((db) => db.getKey('drafts', userId)));
-
-export const restoreSavedVoiceDraft = async (
-  mx: MatrixClient,
-  store: ReturnType<typeof useStore>,
-  userId: string,
-  getRecoveryContext?: () => PendingVoiceSendContext
-): Promise<void> => {
-  const saved = await readSavedVoiceDraft(userId);
-  const slotTaken = () =>
-    !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
-  if (slotTaken()) return;
-  const savedRoom = saved && mx.getRoom(saved.roomId);
-  const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
-  const id = saved?.recordingId;
-  if (saved && room && (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))) {
-    if (slotTaken()) {
-      if (id) releaseVoiceRecording(id);
-      return;
-    }
-    store.set(pendingVoiceSendDraftAtom, {
-      recordingId: id,
-      file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
-      duration: saved.duration,
-      waveform: saved.waveform,
-      errorMessage: saved.errorMessage,
-      context: {
-        ownerSessionId: userId,
-        roomId: saved.roomId,
-        room,
-        threadId: saved.threadId,
-        replyDraft: saved.replyDraft,
-        threadingEnabled: saved.threadingEnabled,
-        signalBridgedRoom: saved.signalBridgedRoom,
-        ...(saved.threadView && { threadView: true }),
-      },
-    });
-  } else if (getRecoveryContext) {
-    await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
-      if (slotTaken()) return false;
-      store.set(pendingVoiceSendDraftAtom, {
-        ...recording,
-        recovered: true,
-        context: getRecoveryContext(),
-      });
-      return true;
-    });
-  }
-};
-
-// Restore once per account and page, unless Send it asks to show a stored account's draft.
+// Restore once per account and page.
 const restored = new Set<string>();
-export const allowVoiceDraftRestore = (userId: string): void => {
-  restored.delete(userId);
-};
 
 export const useSavedVoiceDraft = (
   mx: MatrixClient,
@@ -181,7 +125,51 @@ export const useSavedVoiceDraft = (
   useEffect(() => {
     if (!userId || restored.has(userId)) return;
     restored.add(userId);
-    void restoreSavedVoiceDraft(mx, store, userId, getRecoveryContext);
+    void withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
+      const slotTaken = () =>
+        !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
+      if (slotTaken()) return;
+      const savedRoom = saved && mx.getRoom(saved.roomId);
+      const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
+      const id = saved?.recordingId;
+      if (
+        saved &&
+        room &&
+        (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+      ) {
+        if (slotTaken()) {
+          if (id) releaseVoiceRecording(id);
+          return;
+        }
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: id,
+          file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
+          duration: saved.duration,
+          waveform: saved.waveform,
+          errorMessage: saved.errorMessage,
+          context: {
+            ownerSessionId: userId,
+            roomId: saved.roomId,
+            room,
+            threadId: saved.threadId,
+            replyDraft: saved.replyDraft,
+            threadingEnabled: saved.threadingEnabled,
+            signalBridgedRoom: saved.signalBridgedRoom,
+            ...(saved.threadView && { threadView: true }),
+          },
+        });
+      } else if (getRecoveryContext) {
+        await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
+          if (slotTaken()) return false;
+          store.set(pendingVoiceSendDraftAtom, {
+            ...recording,
+            recovered: true,
+            context: getRecoveryContext(),
+          });
+          return true;
+        });
+      }
+    });
   }, [getRecoveryContext, mx, store, userId]);
 
   useEffect(() => {

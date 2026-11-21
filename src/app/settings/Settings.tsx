@@ -181,7 +181,7 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
   );
 }
 
-function LogoutButton({ onShowRecording }: { onShowRecording: () => void }) {
+function LogoutButton() {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const dismiss = () => setConfirming(false);
@@ -196,7 +196,7 @@ function LogoutButton({ onShowRecording }: { onShowRecording: () => void }) {
             onDeactivate: dismiss,
           }}
         >
-          <LogoutDialog handleClose={dismiss} onShowRecording={onShowRecording} />
+          <LogoutDialog handleClose={dismiss} />
         </FocusTrap>
       </OverlayCenter>
     </Overlay>
@@ -314,7 +314,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
         >
           <SettingsMenuList items={menuItems} activePage={activePage} onSelect={selectPage} />
         </SettingsSearch>
-        <LogoutButton onShowRecording={requestClose} />
+        <LogoutButton />
       </Box>
     </PageNav>
   );

@@ -492,10 +492,6 @@
       "remove": "移除"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "未傳送的語音錄音",
-      "unsentVoiceBody": "你有一段尚未傳送的語音錄音。",
-      "sendUnsentVoice": "傳送錄音",
-      "discardVoiceAndSignOut": "捨棄並登出",
       "logout": "登出",
       "unverifiedDevice": "未驗證裝置",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "登出前請先驗證裝置，以儲存加密訊息。",

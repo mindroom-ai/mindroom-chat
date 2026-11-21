@@ -492,10 +492,6 @@
       "remove": "Verwijderen"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Niet-verzonden spraakopname",
-      "unsentVoiceBody": "Je hebt een spraakopname die nog niet is verzonden.",
-      "sendUnsentVoice": "Opname verzenden",
-      "discardVoiceAndSignOut": "Verwijderen en uitloggen",
       "logout": "Uitloggen",
       "unverifiedDevice": "Niet-geverifieerd apparaat",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Verifieer je apparaat voordat je uitlogt om je versleutelde berichten te bewaren.",

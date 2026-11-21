@@ -495,10 +495,6 @@
       "remove": "Rimuovi"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "Registrazione vocale non inviata",
-      "unsentVoiceBody": "Hai una registrazione vocale che non è stata inviata.",
-      "sendUnsentVoice": "Inviala",
-      "discardVoiceAndSignOut": "Elimina ed esci",
       "logout": "Disconnetti",
       "unverifiedDevice": "Dispositivo non verificato",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Verifica il dispositivo prima di disconnetterti per conservare i messaggi crittografati.",

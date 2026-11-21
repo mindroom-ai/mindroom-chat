@@ -2375,10 +2375,6 @@
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "इस क्लाइंट को Apple के साथ साइन इन करना आवश्यक है। Apple को शामिल करने के लिए होमसर्वर SSO प्रदाता सूची को कॉन्फ़िगर करें।"
     },
     "logoutDialog": {
-      "unsentVoiceTitle": "बिना भेजी गई वॉइस रिकॉर्डिंग",
-      "unsentVoiceBody": "आपकी एक वॉइस रिकॉर्डिंग अभी भेजी नहीं गई है।",
-      "sendUnsentVoice": "इसे भेजें",
-      "discardVoiceAndSignOut": "हटाएँ और साइन आउट करें",
       "alert": "चेतावनी",
       "cancel": "रद्द करें",
       "enableDeviceVerificationOrExportYourEncryptedDataFromSettingsToAvoid": "अपने संदेशों तक पहुंच खोने से बचने के लिए डिवाइस सत्यापन सक्षम करें या सेटिंग्स से अपना एन्क्रिप्टेड डेटा निर्यात करें।",

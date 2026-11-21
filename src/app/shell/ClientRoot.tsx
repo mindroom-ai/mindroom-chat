@@ -13,9 +13,6 @@ import {
 } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Dialog, Menu, MenuItem } from '../ui/glass/GlassPrimitives';
-import { ModalLayer } from '../ui/ModalLayer';
-import type { LogoutDialog } from '../account/LogoutDialog';
-import { hasUnsentVoice } from '../composer/voice/unsentVoice';
 import FocusTrap from 'focus-trap-react';
 import { Navigate } from 'react-router-dom';
 import { useStore } from 'jotai';
@@ -162,28 +159,16 @@ type StartupScreenProps = { session: StoredSession; mx?: MatrixClient };
 function StartupRecoveryMenu({ session, mx }: StartupScreenProps) {
   const { t } = useTranslation();
   const recovery = useRecoveryActions(session, mx);
-  const store = useStore();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const [VoiceWarning, setVoiceWarning] = useState<typeof LogoutDialog>();
 
   const hideMenu = () => setMenuAnchor(undefined);
-  const signOut = async () => {
-    hideMenu();
-    if (!(await hasUnsentVoice(store, session.userId))) {
-      recovery.logout?.();
-      return;
-    }
-    // Startup can sign out without its page UI; a failed UI load must never discard audio.
-    const dialog = await import('../account/LogoutDialog').catch(() => undefined);
-    if (dialog) setVoiceWarning(() => dialog.LogoutDialog);
-  };
   const { busy } = recovery;
 
   const recoveryItems = (
     <Menu>
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
         {recovery.logout && (
-          <MenuItem size="300" radii="300" disabled={busy} onClick={() => void signOut()}>
+          <MenuItem size="300" radii="300" disabled={busy} onClick={recovery.logout}>
             <Text size="T300">{t('sharedUi.clientRoot.logout')}</Text>
           </MenuItem>
         )}
@@ -239,13 +224,6 @@ function StartupRecoveryMenu({ session, mx }: StartupScreenProps) {
           <Icon src={Icons.VerticalDots} size="200" />
         </IconButton>
       </PopOut>
-      {VoiceWarning && mx && (
-        <MatrixClientProvider value={mx}>
-          <ModalLayer onClose={() => setVoiceWarning(undefined)}>
-            <VoiceWarning handleClose={() => setVoiceWarning(undefined)} />
-          </ModalLayer>
-        </MatrixClientProvider>
-      )}
     </Box>
   );
 }
