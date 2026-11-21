@@ -50,6 +50,12 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
             bridge?.registerPluginInstance(MindRoomVoiceRecorderPlugin())
         }
 #endif
+#if targetEnvironment(macCatalyst)
+        // Mac Catalyst's WebKit has no WebRTC. Only the main window makes calls.
+        if !(self is QuickCaptureViewController) {
+            bridge?.registerPluginInstance(MindRoomCallPlugin())
+        }
+#endif
 #if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
         // The main window shows the update card; the Quick Capture window does not.
         if !(self is QuickCaptureViewController) { bridge?.registerPluginInstance(MindRoomUpdatePlugin()) }

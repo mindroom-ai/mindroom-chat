@@ -81,10 +81,13 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         // `live` is set only once it records, so a failed attempt cleans up from here.
                         var attempt: AVAudioRecorder?
                         do {
-                            // Not `.record`: the session keeps its category afterwards, and the page
-                            // must still play audio then.
-                            try session.setCategory(.playAndRecord, mode: .default)
-                            try session.setActive(true)
+                            // A call owns the audio session while it runs (MindRoomCallPlugin).
+                            if MindRoomCallPlugin.liveSessions == 0 {
+                                // Not `.record`: the session keeps its category afterwards, and the page
+                                // must still play audio then.
+                                try session.setCategory(.playAndRecord, mode: .default)
+                                try session.setActive(true)
+                            }
                             try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
                             let recorder = try AVAudioRecorder(url: url, settings: [
                                 AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
@@ -97,7 +100,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
-                            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                            if MindRoomCallPlugin.liveSessions == 0 {
+                                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                            }
                             return call.reject("Could not start recording", "START_FAILED")
                         }
                         call.resolve(["id": id])
@@ -149,7 +154,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
             live.recorder.stop()
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            if MindRoomCallPlugin.liveSessions == 0 {
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            }
             self.live = nil
             call.resolve(["path": live.recorder.url.path])
         }
@@ -173,7 +180,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         self.live = nil
         live.recorder.stop()
         live.recorder.deleteRecording()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if MindRoomCallPlugin.liveSessions == 0 {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     /// The page is going, or its process ended (main queue): nothing of it records or stays on
