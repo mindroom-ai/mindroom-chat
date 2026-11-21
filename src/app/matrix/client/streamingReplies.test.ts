@@ -30,7 +30,7 @@ import { defined } from '../../../test/utils/defined';
 // edit came in a sync gap is checked against the server, which bundles the reply's newest edit.
 
 const roomId = '!room:example.org';
-const agentId = '@agent:example.org';
+const agentId = '@mindroom_agent:example.org';
 const readerId = '@reader:example.org';
 const rootId = '$root';
 const replyId = '$reply';
@@ -633,53 +633,76 @@ describe('streaming replies on thread cards', () => {
         'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
       });
 
-    it.each(['cold', 'warm'])('finds a stream behind a newer file (%s)', async (start) => {
+    it.each(['cold', 'warm', 'listed', 'full', 'old'])('checks file tails (%s)', async (start) => {
       const now = Date.now();
       const f = fixture();
       const streaming = withEdit(
         reply(now - 121 * MINUTE),
         edit('Checking the results', now - 5_000, 'streaming')
       );
+      const ts = start === 'old' ? now - 120 * MINUTE - 1_000 : now;
       const rel = { rel_type: 'm.thread', event_id: rootId };
-      const text = message('$text', now - 5_000, { body: 'Results', 'm.relates_to': rel });
-      const file = message('$file', now - 4_000, {
+      const text = message('$text', ts - 5_000, {
+        body: 'Results',
+        'm.relates_to': rel,
+        'io.mindroom.stream_status': start === 'listed' ? 'completed' : undefined,
+      });
+      const file = message('$file', ts - 4_000, {
         msgtype: 'm.file',
         body: 'results.txt',
         url: 'mxc://example.org/results',
         'm.relates_to': rel,
       });
-      const listed = withSummary(root(now - 122 * MINUTE), file, 3);
-      f.setServerThread({ root: listed, replies: [streaming, text, file] });
+      const listed = withSummary(root(now - 122 * MINUTE), file, start === 'full' ? 1 : 3);
+      f.setServerThread({
+        root: listed,
+        replies: start === 'full' ? [file] : [streaming, text, file],
+      });
       f.setServerReply(streaming);
       await f.start();
-      const first = start === 'cold' ? listed : withSummary(listed, streaming);
-      await f.deliver(start === 'cold' ? [first, text, file] : [first]);
-      f.holdThreadList([first])();
-      await loadRoomThreads(f.room());
+      const first = start === 'warm' ? withSummary(listed, streaming) : listed;
+      await f.deliver([
+        start === 'listed' ? withSummary(listed, text) : first,
+        ...(['cold', 'listed'].includes(start) ? [text] : []),
+        ...(['cold', 'full'].includes(start) ? [file] : []),
+      ]);
+      const openList = f.holdThreadList([first]);
+      const listing = loadRoomThreads(f.room());
+      if (start === 'cold') {
+        await afterCheckDelay();
+        expect(f.requested('/relations/')).toBe(0);
+      }
+      expect(f.room().getThread(rootId)?.initialEventsFetched).toBe(false);
+      openList();
+      await listing;
       if (start === 'warm') {
         expect(f.card().streaming).toBe(true);
         await f.deliver([file]);
       }
-      expect(f.room().getThread(rootId)?.initialEventsFetched).toBe(false);
       expect(f.card().streaming).toBe(false);
-      await afterCheckDelay();
+      if (start === 'cold') await settle();
+      else await afterCheckDelay();
+      const skip = start === 'full' || start === 'old';
+      expect(f.requested('/relations/')).toBe(skip ? 0 : 1);
+      if (skip) return;
       f.card();
-      if (start === 'cold') await afterCheckDelay();
+      if (start !== 'warm') await afterCheckDelay();
       const { status } = buildThreadRecord({ room: f.room(), threadRootId: rootId });
       expect(classifyThreadWorkflow(status, now)).toBe('working');
     });
 
-    it('lets a held list rule out loads for 30 recently finished threads', async () => {
+    it.each([agentId, readerId])('bounds requests for 30 threads (%s)', async (sender) => {
       const now = Date.now();
       const f = fixture();
       const roots = (status: string, ts: number) =>
         Array.from({ length: 30 }, (_, i) => {
           const id = `$root-${i}`;
           const newest = message(`$${status}-${i}`, ts, {
-            'io.mindroom.stream_status': status,
+            'io.mindroom.stream_status':
+              sender === agentId && status === 'completed' ? status : undefined,
             'm.relates_to': { rel_type: 'm.thread', event_id: id },
           });
-          return withSummary({ ...root(now - 20_000), event_id: id }, newest);
+          return withSummary({ ...root(now - 20_000), event_id: id }, { ...newest, sender });
         });
       await f.start();
       await f.deliver(roots('pending', now - 10_000));
@@ -850,11 +873,11 @@ describe('streaming replies on thread cards', () => {
     });
 
     describe('an unopened thread whose summary names its title', () => {
-      const listedRoot = (now: number, status: string) => {
-        const listed = withSummary(root(now - 60_000), title(now - 15_000), 2);
+      const listedRoot = (now: number, status: string, ts = now - 50_000) => {
+        const listed = withSummary(root(ts - 10_000), title(now - 15_000), 2);
         const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
         summary['io.mindroom.latest_reply'] = withEdit(
-          reply(now - 50_000),
+          reply(ts),
           edit('The notes', now - 3_000, status)
         );
         return listed;
@@ -880,9 +903,9 @@ describe('streaming replies on thread cards', () => {
         return f;
       };
 
-      it('loads its first page while its bundled reply streams, and the card streams', async () => {
+      it('loads a bundled stream with a fresh edit even if its reply is over two hours old', async () => {
         const now = Date.now();
-        const f = await reloadUnopened(now, listedRoot(now, 'streaming'));
+        const f = await reloadUnopened(now, listedRoot(now, 'streaming', now - 121 * MINUTE));
         expect(f.requested(`/relations/${rootId}`)).toBe(1);
         // The loaded reply is checked as any restored reply that says it streams.
         f.card();
@@ -938,12 +961,11 @@ describe('streaming replies on thread cards', () => {
         expect(f.requested(`/relations/${rootId}`)).toBe(0);
       });
 
-      it('loads nothing when the newest reply was sent over two hours ago', async () => {
+      it('loads nothing for a bundled reply that went idle', async () => {
         const now = Date.now();
         const listed = listedRoot(now, 'streaming');
         const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
-        const newest = summary['io.mindroom.latest_reply'] as IEvent;
-        newest.origin_server_ts = now - 121 * MINUTE;
+        summary['io.mindroom.latest_reply'] = reply(now - 40 * MINUTE);
         const f = await reloadUnopened(now, listed);
         expect(f.requested(`/relations/${rootId}`)).toBe(0);
       });

@@ -76,10 +76,14 @@ type Checker = {
   isCurrent: (room: Room, event: MatrixEvent) => boolean;
   hold: (roomId: string) => () => void;
   held: (roomId: string, threadId: string) => boolean;
+  wakeLoads?: () => void;
 };
 
 const checkers = new WeakMap<MatrixClient, Checker>();
-export const wakeStreamingLoads = new WeakMap<MatrixClient, () => void>();
+export const setStreamingLoadWake = (mx: MatrixClient, wake?: () => void): void => {
+  const checker = checkers.get(mx);
+  if (checker) checker.wakeLoads = wake;
+};
 export const streamingChecksHeld = (room: Room, threadId: string): boolean =>
   checkers.get(room.client)?.held(room.roomId, threadId) ?? false;
 
@@ -326,7 +330,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
         .finally(() => {
           running -= 1;
           drain();
-          wakeStreamingLoads.get(mx)?.();
+          checkers.get(mx)?.wakeLoads?.();
         });
     }
   };
@@ -404,7 +408,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       if (count > 0) holds.set(roomId, count);
       else holds.delete(roomId);
       drain();
-      wakeStreamingLoads.get(mx)?.();
+      checkers.get(mx)?.wakeLoads?.();
     };
   };
 

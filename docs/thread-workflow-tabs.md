@@ -22,12 +22,13 @@ Later sorts by active snooze end or next scheduled time, soonest first; unknown 
 follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
-After live sync, a short delay, the room's thread-list read, and any in-flight check for the
-thread, the client loads unopened threads one at a time if the newest non-title reply was sent
-within two hours and its latest same-sender revision is not terminal. It uses the SDK tail first,
-then the summary. A fetch never means Working on its own: the card needs a confirmed held stream.
-This can miss streams if the newest reply is over two hours old, more than ten replies follow the
-placeholder, or another agent's finished reply hides a second stream. Encrypted rooms are excluded.
+After live sync, a 2 s delay, and the list/check holds, the client loads unopened threads serially.
+A hidden bundled stream qualifies if its newest revision is within 30 minutes. Otherwise, the
+client looks for a MindRoom agent reply sent within two hours without active or terminal stream
+metadata, and skips threads whose replies are all held. It chooses the newer non-title reply from
+the SDK tail or summary, preferring the tail on ties. Only a held, confirmed stream counts as
+Working. Ten or more later replies or another agent's finished reply can hide a stream.
+Encrypted rooms are excluded.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
