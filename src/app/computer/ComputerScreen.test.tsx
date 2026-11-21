@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createRef } from 'react';
+import { createRef, type Ref } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,10 +14,7 @@ import { SOFT_KEYBOARD_BUFFER } from './computerSoftKeyboard';
 // noVNC's mouse capture, which its canvas takes on every mousedown, and its keyboard. The
 // package exports only RFB.
 /* eslint-disable import/no-relative-packages */
-import {
-  releaseCapture,
-  setCapture,
-} from '../../../node_modules/@novnc/novnc/core/util/events.js';
+import { releaseCapture, setCapture } from '../../../node_modules/@novnc/novnc/core/util/events.js';
 import NoVncKeyboard from '../../../node_modules/@novnc/novnc/core/input/keyboard.js';
 /* eslint-enable import/no-relative-packages */
 
@@ -40,6 +37,7 @@ const rfb: RfbClient = {
   clipboardPasteFrom: vi.fn(),
   sendKey: vi.fn(),
   scaleViewport: false,
+  background: '',
   viewOnly: true,
   focusOnClick: true,
 };
@@ -159,10 +157,11 @@ describe('ComputerScreen', () => {
     container.remove();
   });
 
-  const renderScreen = (props: Partial<ComputerScreenProps>) =>
+  const renderScreen = (props: Partial<ComputerScreenProps>, ref?: Ref<ComputerScreenHandle>) =>
     act(() => {
       root.render(
         <ComputerScreen
+          ref={ref}
           mode="view"
           onConnected={() => undefined}
           onDisconnected={() => undefined}
@@ -204,6 +203,7 @@ describe('ComputerScreen', () => {
       { wsProtocols: ['binary', 'mindroom-ticket.ticket-1'] }
     );
     expect(rfb.scaleViewport).toBe(true);
+    expect(rfb.background).toBe('transparent');
     expect(rfb.viewOnly).toBe(true);
 
     act(() => listeners.get('connect')?.(new Event('connect')));
@@ -227,6 +227,32 @@ describe('ComputerScreen', () => {
     act(() => root.unmount());
     expect(rfb.disconnect).toHaveBeenCalledOnce();
     expect(listeners.size).toBe(0);
+  });
+
+  it('copies the live canvas at framebuffer size when present and non-empty', () => {
+    const ref = createRef<ComputerScreenHandle>();
+    renderScreen({ createRfb: createRfbWithCanvas() }, ref);
+    const { canvas } = screenElements();
+    canvas.width = 0;
+    expect(ref.current!.captureFrame()).toBeUndefined();
+
+    canvas.width = 640;
+    canvas.height = 400;
+    const drawImage = vi.fn();
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    try {
+      const frame = ref.current!.captureFrame();
+      expect(frame).not.toBe(canvas);
+      expect(frame).toMatchObject({ width: 640, height: 400 });
+      expect(drawImage).toHaveBeenCalledExactlyOnceWith(canvas, 0, 0);
+
+      canvas.remove();
+      expect(ref.current!.captureFrame()).toBeUndefined();
+    } finally {
+      getContext.mockRestore();
+    }
   });
 
   it('keeps keyboard and paste events inside the computer surface', () => {

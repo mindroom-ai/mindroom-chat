@@ -105,11 +105,26 @@ export const ScreenFrame = style([
     justifyContent: 'center',
     minHeight: toRem(240),
     overflow: 'hidden',
+    position: 'relative',
     '@container': {
       [sideBySide]: { minHeight: 0 },
     },
   },
 ]);
+
+export const HeldFrame = style({
+  inset: 0,
+  pointerEvents: 'none',
+  position: 'absolute',
+});
+
+// Like noVNC's scaleViewport: fit the whole framebuffer and center it in the available space.
+globalStyle(`${HeldFrame} canvas`, {
+  display: 'block',
+  height: '100%',
+  objectFit: 'contain',
+  width: '100%',
+});
 
 export const Screen = style({
   alignItems: 'center',

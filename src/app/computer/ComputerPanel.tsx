@@ -145,6 +145,7 @@ export function ComputerPanel({
   const [operation, setOperation] = useState<PanelOperation>();
   const [status, setStatus] = useState<ComputerStatus>();
   const [stream, setStream] = useState<ComputerStreamConnection>();
+  const [heldFrame, setHeldFrame] = useState<HTMLCanvasElement>();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [sendError, setSendError] = useState<string>();
@@ -208,6 +209,11 @@ export function ComputerPanel({
     void session.dispose().catch(() => undefined);
   }, []);
 
+  const clearStream = useCallback(() => {
+    setStream(undefined);
+    setHeldFrame(undefined);
+  }, []);
+
   const connectStream = useCallback(
     async (
       session: ComputerSessionClient,
@@ -221,7 +227,7 @@ export function ComputerPanel({
         disposedSessionsRef.current.add(session);
         sessionRef.current = undefined;
         setStatus(nextStatus);
-        setStream(undefined);
+        clearStream();
         setConnected(false);
         setError(undefined);
         setPhase('stopped');
@@ -235,7 +241,7 @@ export function ComputerPanel({
       setStream(nextStream);
       setPhase('ready');
     },
-    []
+    [clearStream]
   );
 
   useEffect(() => {
@@ -253,7 +259,7 @@ export function ComputerPanel({
     setStatus(undefined);
     activeStreamTicketRef.current = undefined;
     connectedStreamRef.current = undefined;
-    setStream(undefined);
+    clearStream();
     setConnected(false);
     setError(undefined);
     setSendError(undefined);
@@ -342,6 +348,7 @@ export function ComputerPanel({
     };
   }, [
     agentServerUrl,
+    clearStream,
     connectStream,
     disposeSession,
     mx,
@@ -387,6 +394,7 @@ export function ComputerPanel({
     const releasingTicket = activeStreamTicketRef.current;
     releasingStreamTicketRef.current = releasingTicket;
     try {
+      setHeldFrame(screenRef.current?.captureFrame());
       const nextStatus = await session.control('release');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
@@ -399,7 +407,7 @@ export function ComputerPanel({
       // A failed watch reconnect shows at once, without waiting for the continuation to send.
       const reconnect = connectStream(session, lifecycle, false).catch((reconnectError) => {
         if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
-        setStream(undefined);
+        clearStream();
         setError(getErrorMessage(reconnectError));
         setPhase('disconnected');
       });
@@ -414,9 +422,10 @@ export function ComputerPanel({
       if (lifecycleRef.current === lifecycle) {
         setError(`Control was not released. ${getErrorMessage(releaseError)}`);
         if (activeStreamTicketRef.current) {
+          setHeldFrame(undefined);
           setPhase('ready');
         } else {
-          setStream(undefined);
+          clearStream();
           setPhase('disconnected');
         }
       }
@@ -441,7 +450,7 @@ export function ComputerPanel({
       sessionRef.current = undefined;
       setStatus(nextStatus);
       activeStreamTicketRef.current = undefined;
-      setStream(undefined);
+      clearStream();
       setConnected(false);
       setError(undefined);
       setPhase('stopped');
@@ -535,6 +544,7 @@ export function ComputerPanel({
       disposeSession(session);
     }
     activeStreamTicketRef.current = undefined;
+    setHeldFrame(undefined);
     onClose();
   };
 
@@ -548,7 +558,7 @@ export function ComputerPanel({
     setConnected(false);
     // Resume agent owns this close: it reconnects on success or reports the disconnect on failure.
     if (releasingStreamTicketRef.current === streamTicket) return;
-    setStream(undefined);
+    clearStream();
     // A pending operation reports its own outcome; otherwise a stream that had connected, or one
     // opened by an automatic reconnect, is retried before the panel shows the disconnect.
     const connectedSince =
@@ -636,6 +646,13 @@ export function ComputerPanel({
 
           {stream && (
             <div className={css.ScreenFrame}>
+              {heldFrame && (
+                <div
+                  aria-hidden="true"
+                  className={css.HeldFrame}
+                  ref={(layer) => layer?.replaceChildren(heldFrame)}
+                />
+              )}
               <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
                 <ScreenComponent
                   key={`${stream.url}:${stream.protocols[1]}`}

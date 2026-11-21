@@ -49,6 +49,8 @@ window.__rfb = fixture;
 class FixtureRfb extends EventTarget implements RfbClient {
   scaleViewport = false;
 
+  background = '';
+
   focusOnClick = true;
 
   private readonly canvas = document.createElement('canvas');

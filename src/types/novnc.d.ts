@@ -8,6 +8,8 @@ declare module '@novnc/novnc' {
 
     scaleViewport: boolean;
 
+    background: string;
+
     viewOnly: boolean;
 
     focusOnClick: boolean;

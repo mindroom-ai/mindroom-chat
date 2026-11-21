@@ -13,6 +13,7 @@ export type RfbClient = {
   clipboardPasteFrom(text: string): void;
   sendKey(keysym: number, code: string | null, down?: boolean): void;
   scaleViewport: boolean;
+  background: string;
   viewOnly: boolean;
   focusOnClick: boolean;
 };
@@ -36,6 +37,7 @@ export type ComputerScreenProps = {
 };
 
 export type ComputerScreenHandle = {
+  captureFrame(): HTMLCanvasElement | undefined;
   /**
    * Opens the software keyboard while in control. Call it from the tap's own handler: iOS shows
    * the keyboard only for a focus that runs inside the user's gesture.
@@ -86,6 +88,17 @@ function ComputerScreenWithHandle(
   useImperativeHandle(
     ref,
     () => ({
+      captureFrame: () => {
+        const canvas = targetRef.current?.querySelector('canvas');
+        if (!canvas?.width || !canvas.height) return undefined;
+        const frame = canvas.ownerDocument.createElement('canvas');
+        frame.width = canvas.width;
+        frame.height = canvas.height;
+        const context = frame.getContext('2d');
+        if (!context) return undefined;
+        context.drawImage(canvas, 0, 0);
+        return frame;
+      },
       openKeyboard: () => {
         if (modeRef.current !== 'control') return;
         keyboardInputRef.current?.focus({ preventScroll: true });
@@ -110,6 +123,8 @@ function ComputerScreenWithHandle(
     // which a dropped stream does before the screen unmounts.
     const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
+    // Let the panel's held frame show through until the new stream paints its canvas.
+    rfb.background = 'transparent';
     rfbRef.current = rfb;
 
     // Read through refs, so a change of mode never reconnects the stream.

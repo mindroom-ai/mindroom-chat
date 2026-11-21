@@ -57,6 +57,7 @@ vi.mock('./ComputerPanel.css.ts', () => ({
   Details: 'Details',
   Error: 'Error',
   Header: 'Header',
+  HeldFrame: 'HeldFrame',
   KeyboardInput: 'KeyboardInput',
   Layout: 'Layout',
   Panel: 'Panel',
@@ -132,12 +133,16 @@ const createGateway = () => {
 const screenConnections: ComputerScreenProps[] = [];
 const screenDisposals = vi.fn();
 let screensConnect = true;
-const screenKeyboard = { openKeyboard: vi.fn(), closeKeyboard: vi.fn() };
+const screenHandle = {
+  captureFrame: vi.fn<ComputerScreenHandle['captureFrame']>(),
+  openKeyboard: vi.fn(),
+  closeKeyboard: vi.fn(),
+};
 const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screenProps, ref) => {
   const screenPropsRef = React.useRef(screenProps);
   screenPropsRef.current = screenProps;
   const { mode, url } = screenProps;
-  useImperativeHandle(ref, () => screenKeyboard, []);
+  useImperativeHandle(ref, () => screenHandle, []);
   useEffect(() => {
     const connection = screenPropsRef.current;
     screenConnections.push({
@@ -210,8 +215,9 @@ describe('ComputerPanel', () => {
   beforeEach(() => {
     screenConnections.length = 0;
     screenDisposals.mockReset();
-    screenKeyboard.openKeyboard.mockReset();
-    screenKeyboard.closeKeyboard.mockReset();
+    screenHandle.captureFrame.mockReset();
+    screenHandle.openKeyboard.mockReset();
+    screenHandle.closeKeyboard.mockReset();
     screensConnect = true;
     container = document.createElement('div');
     document.body.append(container);
@@ -653,15 +659,15 @@ describe('ComputerPanel', () => {
       expect(press.defaultPrevented).toBe(true);
 
       await click(keyboardButton()!);
-      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.openKeyboard).toHaveBeenCalledOnce();
       // The screen reports the keyboard from its textarea's focus.
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
       act(() => screenConnections[0]!.onKeyboardChange!(true));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
 
       await click(keyboardButton()!);
-      expect(screenKeyboard.closeKeyboard).toHaveBeenCalledOnce();
-      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.closeKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.openKeyboard).toHaveBeenCalledOnce();
       act(() => screenConnections[0]!.onKeyboardChange!(false));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
     });
@@ -669,6 +675,7 @@ describe('ComputerPanel', () => {
     // The real screen, on a stand-in for noVNC that connects at once.
     const createRfb = vi.fn((target: HTMLElement): RfbClient => {
       const canvas = document.createElement('canvas');
+      canvas.width = 0;
       canvas.tabIndex = -1;
       target.append(canvas);
       const events = new EventTarget();
@@ -681,6 +688,7 @@ describe('ComputerPanel', () => {
         clipboardPasteFrom: vi.fn(),
         sendKey: vi.fn(),
         scaleViewport: false,
+        background: '',
         viewOnly: true,
         focusOnClick: true,
       };
@@ -872,9 +880,12 @@ describe('ComputerPanel', () => {
   };
 
   const screenTickets = () => screenConnections.map(({ protocols }) => protocols[1]);
+  const heldCanvas = () => container.querySelector('.ScreenFrame .HeldFrame canvas');
 
-  it('keeps the screen when the control stream closes before the release response', async () => {
+  it('captures before release and holds the frame through the stream swap', async () => {
     const { pending, request } = holdControl('release');
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
     await waitFor(() => findButton(container, 'Take control'));
@@ -882,21 +893,33 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(pending.resolve).toBeDefined());
+    expect(screenHandle.captureFrame).toHaveBeenCalledOnce();
+    expect(screenHandle.captureFrame.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(request).mock.invocationCallOrder.at(-1)!
+    );
     act(() => screenConnections[0]!.onDisconnected());
 
     expect(container.textContent).not.toContain('Computer disconnected');
     expect(container.textContent).not.toContain('The computer connection closed.');
-    expect(container.querySelector('[data-testid="computer-screen"]')).not.toBeNull();
+    expect(heldCanvas()).toBe(frame);
 
+    screensConnect = false;
     await act(async () => pending.resolve?.());
-    await waitFor(() => findButton(container, 'Take control'));
+    await waitFor(() => expect(screenTickets()).toHaveLength(2));
     expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+    expect(container.textContent).toContain('Connecting display…');
+    expect(heldCanvas()).toBe(frame);
+
+    act(() => screenConnections[1]!.onConnected());
+    expect(heldCanvas()).toBe(frame);
     expect(container.textContent).toContain('Watch mode');
     expect(container.textContent).not.toContain('Computer disconnected');
   });
 
   it('keeps control when release fails with the stream still open', async () => {
     const { pending, request } = holdControl('release', true);
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
     await waitFor(() => findButton(container, 'Take control'));
@@ -904,9 +927,11 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(pending.resolve).toBeDefined());
+    expect(heldCanvas()).toBe(frame);
     await act(async () => pending.resolve?.());
 
     await waitFor(() => expect(findButton(container, 'Resume agent').disabled).toBe(false));
+    expect(heldCanvas()).toBeNull();
     expect(container.textContent).toContain('Control was not released. Control unavailable.');
     expect(container.textContent).toContain('You have control');
 
@@ -943,6 +968,8 @@ describe('ComputerPanel', () => {
   });
 
   it('reconnects a failed replacement watch stream while continuation delivery is pending', async () => {
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
     const continuation = new Promise<{ event_id: string }>((resolve) => {
       resolveContinuation = resolve;
@@ -957,9 +984,11 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(screenConnections).toHaveLength(2));
 
+    expect(heldCanvas()).toBe(frame);
     act(() => screenConnections[1]!.onDisconnected('Replacement watch stream closed.'));
 
     await waitFor(() => findButton(container, 'Reconnect'));
+    expect(heldCanvas()).toBeNull();
     expect(container.textContent).toContain('Replacement watch stream closed.');
     await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
     await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
@@ -972,6 +1001,7 @@ describe('ComputerPanel', () => {
       'mindroom-ticket.ticket-2',
       'mindroom-ticket.ticket-3',
     ]);
+    expect(heldCanvas()).toBeNull();
     expect(mx.sendMessage).toHaveBeenCalledOnce();
   });
 
