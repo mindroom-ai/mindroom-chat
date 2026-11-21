@@ -276,14 +276,21 @@ const watchVisibleRows = async (page: Page) => {
           row.isConnected ? Math.abs(row.getBoundingClientRect().top - top) : Infinity
         );
       });
-      frame = requestAnimationFrame(sample);
     };
-    sample();
+    const tick = () => {
+      sample();
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
     return {
-      read: () => {
-        cancelAnimationFrame(frame);
-        return { rows: rows.length, max, minTop };
-      },
+      read: () =>
+        new Promise<{ rows: number; max: number; minTop: number }>((resolve) => {
+          cancelAnimationFrame(frame);
+          requestAnimationFrame(() => {
+            sample();
+            resolve({ rows: rows.length, max, minTop });
+          });
+        }),
     };
   });
   return async () => {
