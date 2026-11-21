@@ -524,14 +524,13 @@ export const useRoomInputVoice = ({
         composerThreadId: context.threadId,
         // A live recording follows the reply/thread visible when primary Send is pressed.
         // A parked retry keeps the durable context captured with the failed recording.
-        relationContext:
-          ownsPendingVoiceDraft && !recovered
-            ? undefined
-            : {
-                threadId: context.threadId,
-                replyDraft: context.replyDraft,
-                threadingEnabled: context.threadingEnabled,
-              },
+        relationContext: ownsPendingVoiceDraft
+          ? undefined
+          : {
+              threadId: context.threadId,
+              replyDraft: context.replyDraft,
+              threadingEnabled: context.threadingEnabled,
+            },
         textContent: content,
         composerFallback: content ? snapshotText() : undefined,
         companionItems,
@@ -554,15 +553,7 @@ export const useRoomInputVoice = ({
 
       return true;
     },
-    [
-      attachmentAccess,
-      getContext,
-      ownsPendingVoiceDraft,
-      recovered,
-      snapshotText,
-      view,
-      voiceRecorderOpen,
-    ]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, view, voiceRecorderOpen]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>

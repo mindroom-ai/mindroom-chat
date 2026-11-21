@@ -46,10 +46,17 @@ it('writes chunks in sequence despite out-of-order byte conversion, using the fi
       resolveFirst = resolve;
     })
   );
+  const put = vi.spyOn(IDBObjectStore.prototype, 'put');
+  const second = new Blob(['second'], { type: 'audio/mp4' });
+  const secondBytes = await second.arrayBuffer();
+  vi.spyOn(second, 'arrayBuffer').mockResolvedValue(secondBytes);
   const a = recording.append(0, first, 1_000);
-  const b = recording.append(1, new Blob(['second'], { type: 'audio/mp4' }), 2_000);
+  const b = recording.append(1, second, 2_000);
+  await Promise.resolve();
   resolveFirst(bytes);
   await Promise.all([a, b]);
+  expect(put.mock.calls.map(([chunk]) => (chunk as { seq: number }).seq)).toEqual([0, 1]);
+  put.mockRestore();
   releaseVoiceRecording(recording.id);
 
   const offer = vi.fn((_draft: { file: File; duration: number }) => true);

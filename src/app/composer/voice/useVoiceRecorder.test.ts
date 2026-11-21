@@ -1545,9 +1545,9 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('does not send when recording stops without an explicit send action', async () => {
+  it.each(['self-stop', 'unmount'])('parks without sending on %s', async (exit) => {
     const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
+    const { renderer, store } = await renderHarness({ onSendRecording });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -1555,19 +1555,19 @@ describe('useVoiceRecorder', () => {
 
     const recorder = MockMediaRecorder.instances[0]!;
     await act(async () => {
-      recorder.state = 'inactive';
-      recorder.flushStop();
-      await Promise.resolve();
+      vi.advanceTimersByTime(5_000);
+      if (exit === 'unmount') renderer.unmount();
+      else {
+        recorder.state = 'inactive';
+        recorder.flushStop();
+      }
     });
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(recorderState.current?.phase).toBe('idle');
-    expect(recorderState.current?.errorMessage).toBe(
-      'Voice recording stopped unexpectedly. Please record again.'
-    );
-
-    renderer.unmount();
+    const parked = store.get(pendingVoiceSendDraftAtom);
+    expect(parked).toMatchObject({ duration: 5_000, recovered: true });
+    expect(await parked?.file.text()).toBe('voice');
   });
 
   it('does not retain a pending send draft when no audio chunks were captured', async () => {
