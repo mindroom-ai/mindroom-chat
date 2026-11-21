@@ -18,6 +18,9 @@ export const PHONE_PAGE = 'data-phone-page';
 const PHONE_TOP_BAR = 'data-phone-top-bar';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
+/** A vertical clip and the rows it may replace with empty boxes. Row adornments stay nearby. */
+const CLIP = '[data-page-slide-clip]';
+const ROW = '[data-page-slide-row]';
 /** The slide's keyframes (phonePageSlide.css.ts), apart from any other animation in the page. */
 const KEYFRAMES = 'phone-page-';
 /** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
@@ -53,49 +56,11 @@ const depth = (): number => {
  * find twice, and loads and plays nothing: its pictures are drawn from the page's own. Its fields
  * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
  */
-const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
+const copyOf = (stage: Element) => {
   const bounds = stage.getBoundingClientRect();
-  const standIns = new Map<Element, DOMRect>();
-  const media = new Map<Element, { width: number; height: number; shows: boolean }>();
-  const offsets = new Map<Element, [number, number]>();
-  // Measure before building the copy. Only Compact's marked rows can be pruned: arbitrary
-  // elements can have children that escape their box. Leave room for the cards' edge effects.
-  const measure = (element: Element, clip?: { top: number; bottom: number }) => {
-    if (element.hasAttribute('data-compact-room-view')) {
-      const view = element.getBoundingClientRect();
-      clip = {
-        top: Math.max(bounds.top, view.top) - 32,
-        bottom: Math.min(bounds.bottom, view.bottom) + 32,
-      };
-    }
-    if (clip && element.hasAttribute('data-page-slide-row')) {
-      const box = element.getBoundingClientRect();
-      if (box.bottom <= clip.top || box.top >= clip.bottom) {
-        standIns.set(element, box);
-        return;
-      }
-    }
-    const { scrollTop, scrollLeft } = element;
-    if (element !== stage && (scrollTop || scrollLeft))
-      offsets.set(element, [scrollTop, scrollLeft]);
-    if (element instanceof HTMLElement && element.matches(MEDIA)) {
-      const { offsetWidth: width, offsetHeight: height } = element;
-      const box = element instanceof HTMLImageElement ? element.getBoundingClientRect() : undefined;
-      const shows =
-        !!box &&
-        box.width > 0 &&
-        box.height > 0 &&
-        box.right > bounds.left &&
-        box.left < bounds.right &&
-        box.bottom > bounds.top &&
-        box.top < bounds.bottom;
-      media.set(element, { width, height, shows });
-    }
-    for (const child of element.children) measure(child, clip);
-  };
-  measure(stage);
-
-  // A detached document loads nothing. Bring the copy over only after removing media sources.
+  let pruned = false;
+  // Read live geometry while writing only into a detached document. No write there can dirty
+  // the live layout, and nothing loads before the copy loses its media sources.
   const still = document.implementation.createHTMLDocument('');
   const scrolled: [Element, number, number][] = [];
   const drawn: [HTMLCanvasElement, HTMLCanvasElement | HTMLImageElement][] = [];
@@ -106,45 +71,86 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
       height: `${height}px`,
     });
   };
-  const clone = (node: Node): Node => {
-    const twin = still.importNode(node, false);
-    if (!(node instanceof Element)) return twin;
-    const standIn = standIns.get(node);
-    if (standIn) {
-      sizeBox(twin as HTMLElement, standIn);
-      return twin;
+  const prepare = (element: Element, twin: Element): Element => {
+    const { scrollTop, scrollLeft } = element;
+    if (scrollTop || scrollLeft) scrolled.push([twin, scrollTop, scrollLeft]);
+    if (element instanceof HTMLCanvasElement && element.width && element.height) {
+      drawn.push([twin as HTMLCanvasElement, element]);
     }
-    const offset = offsets.get(node);
-    if (offset) scrolled.push([twin as Element, ...offset]);
-    for (const child of node.childNodes) twin.appendChild(clone(child));
-    if (node instanceof HTMLCanvasElement && node.width && node.height) {
-      drawn.push([twin as HTMLCanvasElement, node]);
-    }
-    const box = media.get(node);
-    if (!box) return twin;
+    if (!(element instanceof HTMLElement) || !element.matches(MEDIA)) return twin;
     const blank = twin as HTMLElement;
     ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading', 'alt'].forEach((name) =>
       blank.removeAttribute(name)
     );
     // A frame, video or unloaded picture stays a blank box. A loaded picture is drawn from
     // the page's own, even if the address (such as a revoked avatar URL) no longer works.
-    sizeBox(blank, box);
-    if (!(node instanceof HTMLImageElement) || !box.shows) return blank;
-    const { complete, naturalWidth, naturalHeight } = node;
-    if (!complete || !naturalWidth || !naturalHeight) return blank;
+    const { offsetWidth: width, offsetHeight: height } = element;
+    sizeBox(blank, { width, height });
+    if (!(element instanceof HTMLImageElement)) return blank;
+    const { complete, naturalWidth, naturalHeight } = element;
+    const box = element.getBoundingClientRect();
+    if (
+      !complete ||
+      !naturalWidth ||
+      !naturalHeight ||
+      !box.width ||
+      !box.height ||
+      box.right <= bounds.left ||
+      box.left >= bounds.right ||
+      box.bottom <= bounds.top ||
+      box.top >= bounds.bottom
+    )
+      return blank;
     const picture = still.createElement('canvas');
     Array.from(blank.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
     // Keep the picture's aspect ratio, with no more pixels than its box can show.
     const pixels = window.devicePixelRatio || 1;
-    const scale = Math.min(
-      1,
-      (box.width / naturalWidth) * pixels,
-      (box.height / naturalHeight) * pixels
-    );
+    const scale = Math.min(1, (width / naturalWidth) * pixels, (height / naturalHeight) * pixels);
     picture.width = Math.max(1, Math.round(naturalWidth * scale));
     picture.height = Math.max(1, Math.round(naturalHeight * scale));
-    drawn.push([picture, node]);
+    drawn.push([picture, element]);
     return picture;
+  };
+  const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
+    if (element.matches(CLIP)) {
+      const view = element.getBoundingClientRect();
+      const top = Math.max(clip?.top ?? bounds.top, view.top);
+      const bottom = Math.min(clip?.bottom ?? bounds.bottom, view.bottom);
+      if (!view.width || !view.height || bottom <= top) {
+        pruned = true;
+        return still.importNode(element, false);
+      }
+      clip = { top, bottom };
+    }
+    if (clip && element.matches(ROW)) {
+      const box = element.getBoundingClientRect();
+      // Leave a gutter for the row's outlines and other nearby adornments.
+      if (box.bottom <= clip.top - 32 || box.top >= clip.bottom + 32) {
+        pruned = true;
+        const shell = still.importNode(element, false) as HTMLElement;
+        sizeBox(shell, box);
+        return shell;
+      }
+    }
+    const split = !!element.querySelector(clip ? `${CLIP}, ${ROW}` : CLIP);
+    const twin = still.importNode(element, !split);
+    const prepared = element === stage ? twin : prepare(element, twin);
+    if (split) {
+      for (const child of element.childNodes) {
+        twin.appendChild(
+          child instanceof Element ? clone(child, clip) : still.importNode(child, false)
+        );
+      }
+    } else {
+      // With no clip or rows to split below us, use the browser's native deep clone.
+      const children = twin.querySelectorAll('*');
+      element.querySelectorAll('*').forEach((child, index) => {
+        const match = children[index]!;
+        const ready = prepare(child, match);
+        if (ready !== match) match.replaceWith(ready);
+      });
+    }
+    return prepared;
   };
   const copy = clone(stage) as HTMLElement;
   document.adoptNode(copy);
@@ -170,12 +176,15 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  return (over) => {
-    over.append(copy);
-    scrolled.forEach(([element, scrollTop, scrollLeft]) =>
-      Object.assign(element, { scrollTop, scrollLeft })
-    );
-    return copy;
+  return {
+    bounds: pruned ? bounds : undefined,
+    append: (over: Element) => {
+      over.append(copy);
+      scrolled.forEach(([element, scrollTop, scrollLeft]) =>
+        Object.assign(element, { scrollTop, scrollLeft })
+      );
+      return copy;
+    },
   };
 };
 
@@ -238,6 +247,7 @@ export const slidePhonePage = (change: Change): void => {
   let timer = 0;
   let copy: HTMLElement | undefined;
   let watch: MutationObserver | undefined;
+  let resize: ResizeObserver | undefined;
   let ended = false;
   let finish: () => void = () => undefined;
   const finished = new Promise<void>((resolve) => {
@@ -249,6 +259,7 @@ export const slidePhonePage = (change: Change): void => {
     window.cancelAnimationFrame(frame);
     window.clearTimeout(timer);
     watch?.disconnect();
+    resize?.disconnect();
     page.removeEventListener('visibilitychange', end);
     copy?.remove();
     playing = false;
@@ -289,7 +300,17 @@ export const slidePhonePage = (change: Change): void => {
       return;
     }
     root.dataset.pageSlide = to > from ? 'forward' : 'back';
-    copy = show(stage);
+    copy = show.append(stage);
+    const { bounds } = show;
+    if (bounds && typeof ResizeObserver !== 'undefined') {
+      // The copy fills the stage. If it changes size (e.g. the keyboard goes away), don't
+      // paint rows that were outside the old clip as empty boxes in the new one.
+      resize = new ResizeObserver(() => {
+        const { width, height } = stage.getBoundingClientRect();
+        if (width !== bounds.width || height !== bounds.height) end();
+      });
+      resize.observe(stage, { box: 'border-box' });
+    }
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.
     watch = new MutationObserver(() => {

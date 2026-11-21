@@ -666,6 +666,7 @@ export function CompactRoomView({
       ref={viewRef}
       className={css.View}
       data-compact-room-view="true"
+      data-page-slide-clip=""
       // Cards still to mount: the cards' end is further down than the view's.
       data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
       tabIndex={-1}

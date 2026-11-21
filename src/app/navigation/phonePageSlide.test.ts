@@ -157,22 +157,23 @@ describe('slidePhonePage', () => {
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
-  it('keeps the boxes of Compact rows outside the scroller without copying their contents', () => {
+  it('keeps the boxes of marked rows outside the clip without copying their contents', () => {
     const page = browser();
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
     stage.innerHTML =
-      '<div data-compact-room-view>' +
+      '<div data-page-slide-clip>' +
       '<div class="card" data-page-slide-row="above"><span>Above the clip</span></div>' +
       '<div class="card" data-page-slide-row="visible"><span>Still visible</span></div>' +
+      '<div data-page-slide-row="gutter"><span>In the gutter</span></div>' +
       '<div class="card" data-page-slide-row="below"><span>Below the clip</span></div></div>' +
-      '<div data-other><span>Not a Compact row</span></div>';
-    const view = stage.querySelector('[data-compact-room-view]')!;
+      '<div data-page-slide-row="other"><span>Outside the clip container</span></div>';
+    const view = stage.querySelector('[data-page-slide-clip]')!;
     const rect = vi
       .spyOn(Element.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: Element) {
         if (this === stage) return new DOMRect(0, 0, 390, 844);
         if (this === view) return new DOMRect(0, 180, 390, 470);
-        const y = { above: 40, visible: 300, below: 720 }[
+        const y = { above: 40, visible: 300, gutter: 660, below: 720 }[
           this.getAttribute('data-page-slide-row') ?? ''
         ];
         return new DOMRect(0, y ?? 990, 380.5, 42.25);
@@ -194,7 +195,68 @@ describe('slidePhonePage', () => {
       expect(still.querySelector('[data-page-slide-row="visible"] > span')?.textContent).toBe(
         'Still visible'
       );
-      expect(still.querySelector('[data-other] > span')?.textContent).toBe('Not a Compact row');
+      expect(still.querySelector('[data-page-slide-row="gutter"] > span')?.textContent).toBe(
+        'In the gutter'
+      );
+      expect(still.querySelector('[data-page-slide-row="other"] > span')?.textContent).toBe(
+        'Outside the clip container'
+      );
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
+  it('does not copy the contents of a clip with no layout box', () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<div data-page-slide-clip style="display:none">' +
+      '<div data-page-slide-row><span>Hidden</span></div></div>';
+    slidePhonePage(() => showThread(true));
+    page.frame();
+    expect(copy()?.querySelector('[data-page-slide-clip]')?.childElementCount).toBe(0);
+  });
+
+  it('drops a pruned copy if its stage grows while held', () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<div data-page-slide-clip>' +
+      '<div data-page-slide-row><span>Revealed by a larger stage</span></div></div>';
+    let height = 450;
+    const rect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        if (this === stage) return new DOMRect(0, 0, 390, height);
+        if (this.hasAttribute('data-page-slide-clip')) return new DOMRect(0, 0, 390, 844);
+        return new DOMRect(0, 570, 390, 50);
+      });
+    let notify: (() => void) | undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notify = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      }
+    );
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      expect(copy()?.querySelector('[data-page-slide-row]')?.childElementCount).toBe(0);
+      notify?.();
+      expect(copy()).not.toBeNull();
+
+      height = 844;
+      notify?.();
+      expect(copy()).toBeNull();
+      expect(root.dataset.pageSlideHeld).toBeUndefined();
+      expect(observe).toHaveBeenCalledWith(stage, { box: 'border-box' });
+      expect(disconnect).toHaveBeenCalledOnce();
     } finally {
       rect.mockRestore();
     }
