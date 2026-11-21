@@ -46,6 +46,9 @@ const sectionOf = (page: Page, rootId: string) =>
     return found;
   }, rootId);
 
+// Measure settled card positions, not the animation when a fixture card first arrives.
+test.use({ reducedMotion: 'reduce' });
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
