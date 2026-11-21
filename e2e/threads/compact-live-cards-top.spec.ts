@@ -557,13 +557,12 @@ const checkRelease = async (
   expect(gap, 'gap below the floating filter bar').toBeGreaterThanOrEqual(0);
   expect(gap, 'gap below the floating filter bar').toBeLessThanOrEqual(16);
   await shot(page, `pill-${action}`);
-  const glide = await listView(page).evaluateHandle((view) => {
+  const formerFirstRow = listView(page).locator(`[data-motion-row="${before[0] ?? ''}"]`);
+  const glide = await formerFirstRow.evaluateHandle((row) => {
     let glided = false;
     let frame = 0;
     const sample = () => {
-      glided ||= [...view.querySelectorAll('[data-motion-row]')].some(
-        (row) => getComputedStyle(row).translate !== 'none'
-      );
+      glided ||= getComputedStyle(row).translate !== 'none';
       frame = requestAnimationFrame(sample);
     };
     sample();
