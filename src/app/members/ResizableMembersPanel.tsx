@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Overlay, OverlayBackdrop } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ export function ResizableMembersPanel({
   // A closing panel keeps its form: one that closes as the window narrows never opens over the room.
   const mobile = usePanelForm(useScreenSizeContext() === ScreenSize.Mobile || overlay);
   const phoneSheetSlot = usePhoneSheetSlot();
+  const overlayRef = useRef<HTMLDivElement>(null);
   const panel = (
     <ResizablePanel
       side="end"
@@ -59,13 +60,14 @@ export function ResizableMembersPanel({
           escapeDeactivates: (event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (event.target instanceof HTMLElement) markOverlayDismissed(event.target);
+            markOverlayDismissed(overlayRef.current);
             onClose();
             return false;
           },
         }}
       >
         <div
+          ref={overlayRef}
           className={css.MobileOverlay}
           role="dialog"
           aria-modal="true"

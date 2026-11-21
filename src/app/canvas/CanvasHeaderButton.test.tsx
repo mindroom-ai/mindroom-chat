@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
-import { Scroll, Text, type RectCords } from 'folds';
+import { Scroll, Text } from 'folds';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasHeaderButton, CanvasMenu } from './CanvasHeaderButton';
 import { Trigger } from './CanvasHeaderButton.css';
@@ -44,53 +44,51 @@ const budget = canvas('$c1', 'Budget', 3_000);
 const roadmap = canvas('$c2', 'Roadmap', 2_000);
 const survey = canvas('$c3', 'Survey', 1_000);
 
-const anchorEvent = {
-  currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 32, height: 32 }) },
-};
+const anchor = { x: 0, y: 0, width: 32, height: 32 };
+const anchorEvent = { currentTarget: { getBoundingClientRect: () => anchor } };
 
-type Props = Omit<React.ComponentProps<typeof CanvasHeaderButton>, 'chooser'>;
+type ButtonProps = React.ComponentProps<typeof CanvasHeaderButton>;
 
-/** Mount both controls with the state supplied by a parent, as in the room header. */
-function Controls(props: Props) {
-  const [anchor, setAnchor] = useState<RectCords>();
-  const several = props.canvases.length > 1;
-  useEffect(() => {
-    if (!several) setAnchor(undefined);
-  }, [several]);
-  return (
-    <>
-      <CanvasHeaderButton
-        {...props}
-        chooser={{ open: !!anchor, onOpen: (opener) => setAnchor(opener.getBoundingClientRect()) }}
-      />
-      {several && (
-        <CanvasMenu
-          anchor={anchor}
-          canvases={props.canvases}
-          openCanvasId={props.openCanvasId}
-          onChoose={(id) => {
-            setAnchor(undefined);
-            if (id === props.openCanvasId) props.onClose();
-            else props.onOpen(id);
-          }}
-          requestClose={() => setAnchor(undefined)}
-        />
-      )}
-    </>
-  );
-}
-
-const render = (props: Partial<Props> = {}) => {
+const renderButton = (props: Partial<ButtonProps> = {}) => {
   const handlers = { onOpen: vi.fn(), onClose: vi.fn() };
-  const all: Props = { canvases: [budget], ...handlers, ...props };
+  const all: ButtonProps = {
+    canvases: [budget],
+    chooser: { open: false, onOpen: vi.fn() },
+    ...handlers,
+    ...props,
+  };
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<Controls {...all} />);
+    renderer = create(<CanvasHeaderButton {...all} />);
   });
   return {
     renderer,
     ...handlers,
-    update: (next: Partial<Props>) => act(() => renderer.update(<Controls {...all} {...next} />)),
+    update: (next: Partial<ButtonProps>) =>
+      act(() => renderer.update(<CanvasHeaderButton {...all} {...next} />)),
+  };
+};
+
+type MenuProps = React.ComponentProps<typeof CanvasMenu>;
+
+const renderMenu = (props: Partial<MenuProps> = {}) => {
+  const onChoose = vi.fn();
+  const all: MenuProps = {
+    anchor,
+    canvases: [budget, roadmap],
+    onChoose,
+    requestClose: vi.fn(),
+    ...props,
+  };
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(<CanvasMenu {...all} />);
+  });
+  return {
+    renderer,
+    onChoose,
+    update: (next: Partial<MenuProps>) =>
+      act(() => renderer.update(<CanvasMenu {...all} {...next} />)),
   };
 };
 
@@ -107,29 +105,24 @@ const nodeText = (node: ReactTestInstance): string =>
 const titles = (renderer: ReactTestRenderer) =>
   menuItems(renderer).map((item) => nodeText(item.findAllByType(Text)[0]!));
 
-const openMenu = (renderer: ReactTestRenderer) =>
-  act(() => trigger(renderer).props.onClick(anchorEvent));
-
 describe('CanvasHeaderButton', () => {
   it('renders nothing without canvases', () => {
-    expect(render({ canvases: [] }).renderer.toJSON()).toBeNull();
+    expect(renderButton({ canvases: [] }).renderer.toJSON()).toBeNull();
   });
 
   it('applies the expanded touch-target class to the canvas button', () => {
-    const { renderer } = render();
+    const { renderer } = renderButton();
     expect(String(trigger(renderer).props.className).split(' ')).toContain(Trigger);
   });
 
   it('toggles a single canvas', async () => {
-    const { renderer, onOpen, onClose, update } = render({ canvases: [budget] });
+    const { renderer, onOpen, onClose, update } = renderButton({ canvases: [budget] });
 
     expect(trigger(renderer).props['aria-label']).toBe('Show Canvas');
     expect(trigger(renderer).props['aria-pressed']).toBe(false);
     await act(() => trigger(renderer).props.onClick(anchorEvent));
-    expect(onOpen).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledWith('$c1');
     expect(onClose).not.toHaveBeenCalled();
-    expect(menuItems(renderer)).toHaveLength(0);
 
     update({ openCanvasId: '$c1' });
     expect(trigger(renderer).props['aria-label']).toBe('Hide Canvas');
@@ -139,16 +132,32 @@ describe('CanvasHeaderButton', () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('lists several canvases in the given order and marks the open one', async () => {
-    const { renderer } = render({ canvases: [budget, roadmap, survey], openCanvasId: '$c2' });
+  it('passes the opener to the parent and reflects its chooser state', async () => {
+    const onOpen = vi.fn();
+    const { renderer, update } = renderButton({
+      canvases: [budget, roadmap],
+      chooser: { onOpen, open: false },
+    });
+    expect(trigger(renderer).props).toMatchObject({
+      'aria-label': 'Canvases',
+      'aria-expanded': false,
+    });
+    await act(() => trigger(renderer).props.onClick(anchorEvent));
+    expect(onOpen).toHaveBeenCalledWith(anchorEvent.currentTarget);
+    update({ chooser: { onOpen, open: true } });
+    expect(trigger(renderer).props['aria-expanded']).toBe(true);
+  });
 
-    expect(trigger(renderer).props['aria-label']).toBe('Canvases');
-    expect(trigger(renderer).props['aria-pressed']).toBe(true);
-    expect(menuItems(renderer)).toHaveLength(0);
+  it('is not pressed while the open canvas is not one of this conversation’s', () => {
+    const { renderer } = renderButton({ canvases: [budget, roadmap], openCanvasId: '$elsewhere' });
+    expect(trigger(renderer).props['aria-pressed']).toBe(false);
+  });
+});
 
-    await openMenu(renderer);
+describe('CanvasMenu', () => {
+  it('lists canvases in the given order and marks the open one', () => {
+    const { renderer } = renderMenu({ canvases: [budget, roadmap, survey], openCanvasId: '$c2' });
     const items = menuItems(renderer);
-    expect(items).toHaveLength(3);
     expect(titles(renderer)).toEqual(['Budget', 'Roadmap', 'Survey']);
     expect(items.map((item) => item.props['aria-current'])).toEqual([undefined, 'true', undefined]);
     // The update time is there for telling same-named canvases apart.
@@ -156,14 +165,11 @@ describe('CanvasHeaderButton', () => {
     expect(nodeText(items[0]!)).toBe(`Budget${time.format(3_000)}`);
   });
 
-  it('keeps a long menu inside the viewport and scrolls its choices', async () => {
+  it('keeps a long menu inside the viewport and scrolls its choices', () => {
     const many = Array.from({ length: 30 }, (_, index) =>
       canvas(`$many${index}`, `Canvas ${index}`, 30_000 - index)
     );
-    const { renderer } = render({ canvases: many });
-    await openMenu(renderer);
-
-    // The choices sit in a scroll area, below the title, inside a menu with a viewport-bound height.
+    const { renderer } = renderMenu({ canvases: many });
     const scroll = renderer.root.findByType(Scroll);
     expect(scroll.findAll((node) => menuItems(renderer).includes(node))).toHaveLength(30);
     let bounded: ReactTestInstance | null = scroll.parent;
@@ -176,62 +182,23 @@ describe('CanvasHeaderButton', () => {
     });
   });
 
-  it('opens the chosen canvas and closes the menu', async () => {
-    const { renderer, onOpen, onClose } = render({
-      canvases: [budget, roadmap],
-      openCanvasId: '$c1',
-    });
-
-    await openMenu(renderer);
+  it('reports the chosen canvas to the parent', async () => {
+    const { renderer, onChoose } = renderMenu();
     await act(() => menuItems(renderer)[1]!.props.onClick());
-
-    expect(onOpen).toHaveBeenCalledOnce();
-    expect(onOpen).toHaveBeenCalledWith('$c2');
-    expect(onClose).not.toHaveBeenCalled();
-    expect(menuItems(renderer)).toHaveLength(0);
+    expect(onChoose).toHaveBeenCalledExactlyOnceWith('$c2');
   });
 
-  it('closes the open canvas when it is chosen again', async () => {
-    const { renderer, onOpen, onClose } = render({
-      canvases: [budget, roadmap],
-      openCanvasId: '$c1',
-    });
-
-    await openMenu(renderer);
-    await act(() => menuItems(renderer)[0]!.props.onClick());
-
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(onOpen).not.toHaveBeenCalled();
-    expect(menuItems(renderer)).toHaveLength(0);
-  });
-
-  it('keeps the menu and the open mark while an update reorders the list', async () => {
-    const { renderer, update } = render({
+  it('keeps the open mark on the same canvas when the list is reordered', () => {
+    const { renderer, update } = renderMenu({
       canvases: [budget, roadmap, survey],
       openCanvasId: '$c2',
     });
-    await openMenu(renderer);
-
     update({ canvases: [{ ...survey, updatedTs: 9_000, title: 'Survey v2' }, budget, roadmap] });
-
-    const items = menuItems(renderer);
     expect(titles(renderer)).toEqual(['Survey v2', 'Budget', 'Roadmap']);
-    expect(items.map((item) => item.props['aria-current'])).toEqual([undefined, undefined, 'true']);
-  });
-
-  it('closes the menu when only one canvas is left, and does not bring it back later', async () => {
-    const { renderer, update } = render({ canvases: [budget, roadmap] });
-    await openMenu(renderer);
-
-    update({ canvases: [budget] });
-    expect(menuItems(renderer)).toHaveLength(0);
-    update({ canvases: [budget, roadmap] });
-    expect(menuItems(renderer)).toHaveLength(0);
-  });
-
-  it('is not pressed while the open canvas is not one of this conversation’s', () => {
-    const { renderer } = render({ canvases: [budget, roadmap], openCanvasId: '$elsewhere' });
-
-    expect(trigger(renderer).props['aria-pressed']).toBe(false);
+    expect(menuItems(renderer).map((item) => item.props['aria-current'])).toEqual([
+      undefined,
+      undefined,
+      'true',
+    ]);
   });
 });

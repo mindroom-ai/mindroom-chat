@@ -344,6 +344,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   };
 
   const returnFocusFrom = (layer: Element) => {
+    const dismissed = dismissedLayers.delete(layer);
     const opener = openers.get(layer);
     if (!opener) return;
     // Focus traps give focus back in a timeout of their own; run after them.
@@ -351,7 +352,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
       if (lastInput !== 'keyboard' && !dialogLayers.has(layer)) return;
       const active = doc.activeElement;
       if (active && active !== doc.body && active.isConnected) return;
-      const fallback = dismissedLayers.has(layer) && openerFallbacks.get(opener)?.();
+      const fallback = dismissed && openerFallbacks.get(opener)?.();
       const target =
         reachableOpener(layer) ?? (fallback && canTakeFocus(fallback) ? fallback : undefined);
       target?.focus({ preventScroll: true });

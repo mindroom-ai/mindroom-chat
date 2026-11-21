@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useState, type ReactElement } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -249,6 +257,7 @@ export function RoomViewHeader({
   const [pinAnchor, setPinAnchor] = useState<HeaderPopupAnchor>();
   // The phone canvas chooser and schedules dialog outlive their opener moving into overflow.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<HeaderPopupAnchor>();
+  const canvasChooserMobile = useRef(mobile);
   const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
   const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
   const openSchedules = (opener?: HTMLButtonElement) =>
@@ -322,19 +331,25 @@ export function RoomViewHeader({
   // Header invariant: Escape, Close and choosing an entry return to its connected opener or ⋮.
   // Outside clicks and navigation keep their own focus. Resize keeps persistent controls mounted
   // and never leaves a hidden popover able to reopen.
-  const headerFocusTarget = (opener?: HTMLButtonElement) =>
-    opener?.isConnected
-      ? opener
-      : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ?? false;
-  const restoreFocusAfterDismiss = (anchor?: HeaderPopupAnchor) => {
-    // Run after the trap has let go, unless another control already received focus.
-    requestAnimationFrame(() => {
-      const target = headerFocusTarget(anchor?.opener);
-      if (target && target.ownerDocument.activeElement === target.ownerDocument.body) {
-        target.focus({ preventScroll: true });
-      }
-    });
-  };
+  const headerFocusTarget = useCallback(
+    (opener?: HTMLButtonElement) =>
+      opener?.isConnected
+        ? opener
+        : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ?? false,
+    [headerRef]
+  );
+  const restoreFocusAfterDismiss = useCallback(
+    (anchor?: HeaderPopupAnchor) => {
+      // Run after the trap has let go, unless another control already received focus.
+      requestAnimationFrame(() => {
+        const target = headerFocusTarget(anchor?.opener);
+        if (target && target.ownerDocument.activeElement === target.ownerDocument.body) {
+          target.focus({ preventScroll: true });
+        }
+      });
+    },
+    [headerFocusTarget]
+  );
   const restoreFocusOnEscape = (event: KeyboardEvent, anchor?: HeaderPopupAnchor) => {
     event.stopPropagation();
     restoreFocusAfterDismiss(anchor);
@@ -349,9 +364,14 @@ export function RoomViewHeader({
   };
   const canvasesHere = showCanvases && canvases ? canvases : [];
   const needsCanvasChooser = canvasesHere.length > 1;
-  useEffect(() => {
-    if (!needsCanvasChooser) setCanvasMenuAnchor(undefined);
-  }, [needsCanvasChooser]);
+  useLayoutEffect(() => {
+    // The chooser's captured rect belongs to its old layout. Close it before painting the new one.
+    const crossedBreakpoint = canvasChooserMobile.current !== mobile;
+    canvasChooserMobile.current = mobile;
+    if (!canvasMenuAnchor || (!crossedBreakpoint && needsCanvasChooser)) return;
+    setCanvasMenuAnchor(undefined);
+    if (crossedBreakpoint) restoreFocusAfterDismiss(canvasMenuAnchor);
+  }, [mobile, canvasMenuAnchor, needsCanvasChooser, restoreFocusAfterDismiss]);
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
   const chooseCanvas = (canvasId: string, anchor?: HeaderPopupAnchor) => {
     setCanvasMenuAnchor(undefined);

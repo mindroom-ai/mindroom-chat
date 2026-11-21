@@ -847,32 +847,61 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('does not resurrect a desktop canvas chooser dismissed after rotating to phone', () => {
-    const { host, rerender, unmount } = renderDomHeader({
-      canvases,
-      onCanvasOpen: vi.fn(),
-      onCanvasClose: vi.fn(),
-    });
-    const menuItem = () =>
+  it.each(['Desktop', 'Mobile'])(
+    'closes the %s canvas chooser on rotation without reopening it',
+    async (start) => {
+      screen.size = start;
+      const { host, rerender, unmount } = renderDomHeader({
+        canvases,
+        onCanvasOpen: vi.fn(),
+        onCanvasClose: vi.fn(),
+      });
+      const menuItem = () =>
+        Array.from(host.querySelectorAll('button')).find((button) =>
+          button.textContent?.includes('Garden map')
+        );
+      try {
+        const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+        actInDom(() => opener.click());
+        const item = menuItem();
+        expect(item).toBeDefined();
+        item!.focus();
+        screen.size = start === 'Mobile' ? 'Desktop' : 'Mobile';
+        rerender();
+        expect(menuItem()).toBeUndefined();
+        const target = opener.isConnected ? opener : host.querySelector('[data-room-more-options]');
+        await vi.waitFor(() => expect(document.activeElement).toBe(target));
+        screen.size = start;
+        rerender();
+        expect(menuItem()).toBeUndefined();
+        expect(
+          host.querySelector('button[aria-label="Canvases"]')?.getAttribute('aria-expanded')
+        ).toBe('false');
+      } finally {
+        unmount();
+      }
+    }
+  );
+
+  it('does not reopen the chooser when two canvases become one and then two again', () => {
+    const props = { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() };
+    const { host, rerender, unmount } = renderDomHeader(props);
+    const chooser = () => host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]');
+    const item = () =>
       Array.from(host.querySelectorAll('button')).find((button) =>
         button.textContent?.includes('Garden map')
       );
     try {
-      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
-      actInDom(() => opener.click());
-      expect(menuItem()).toBeDefined();
-      screen.size = 'Mobile';
+      actInDom(() => chooser()!.click());
+      expect(item()).toBeDefined();
+      props.canvases = canvases.slice(0, 1);
       rerender();
-      const item = menuItem();
-      expect(item).toBeDefined();
-      item!.focus();
-      pressEscape(item!);
-      screen.size = 'Desktop';
+      expect(item()).toBeUndefined();
+      expect(host.querySelector('button[aria-label="Show Canvas"]')).not.toBeNull();
+      props.canvases = canvases;
       rerender();
-      expect(menuItem()).toBeUndefined();
-      expect(
-        host.querySelector('button[aria-label="Canvases"]')?.getAttribute('aria-expanded')
-      ).toBe('false');
+      expect(item()).toBeUndefined();
+      expect(chooser()?.getAttribute('aria-expanded')).toBe('false');
     } finally {
       unmount();
     }
