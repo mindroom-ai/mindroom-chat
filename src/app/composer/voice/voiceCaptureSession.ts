@@ -409,10 +409,24 @@ export const createVoiceCaptureSession = (
         if (!owns(generation)) return false;
         setupAnalyser(generation, stream);
       }
+      const startedAt = now();
+      const startJournal = () => {
+        try {
+          generation.journal = beginJournal?.(
+            startedAt,
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+          );
+        } catch {
+          // Storage is best effort; capture still works from memory.
+        }
+      };
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
         if (!generation.acceptsEvents || data.size === 0) return;
         const seq = generation.chunks.length;
+        // The native recorder delivers the whole file on stop, including when it parks.
+        if (native && seq === 0 && generation.action !== 'discard') startJournal();
+
         generation.chunks.push(data);
         void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
       };
@@ -424,17 +438,10 @@ export const createVoiceCaptureSession = (
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      generation.startedAt = now();
+      generation.startedAt = startedAt;
       if (webRecorder) {
         generation.web = true;
-        try {
-          generation.journal = beginJournal?.(
-            generation.startedAt,
-            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
-          );
-        } catch {
-          // Storage is best effort; capture still works from memory.
-        }
+        startJournal();
         webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
       }
       startTimers(generation);

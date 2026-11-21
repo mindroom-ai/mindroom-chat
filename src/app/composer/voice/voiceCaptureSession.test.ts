@@ -624,10 +624,17 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('parks the native recording when its composer unmounts', async () => {
+  it('parks native audio in the journal when its composer unmounts', async () => {
     const recorder = withoutWebCapture();
+    const append = vi.fn(async (_seq: number, _data: Blob, _duration: number) => undefined);
+    const begin = vi.fn(() => ({
+      id: 'native-journal',
+      append,
+      remove: vi.fn(),
+      release: vi.fn(),
+    }));
     const park = vi.fn((_recording: { file: File; duration: number }) => true);
-    const session = createVoiceCaptureSession(undefined, park);
+    const session = createVoiceCaptureSession(begin, park);
     expect(await session.start()).toBe(true);
     vi.advanceTimersByTime(1_800);
 
@@ -635,7 +642,11 @@ describe('voice capture session', () => {
     expect(recorder.stop).toHaveBeenCalledOnce();
     recorder.deliver('native voice');
 
-    expect(park).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 1_800 }));
+    expect(park).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ duration: 1_800, recordingId: 'native-journal' })
+    );
+    expect(append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 1_800);
+    expect(await append.mock.calls[0]?.[1].text()).toBe('native voice');
     expect(await park.mock.calls[0]?.[0].file.text()).toBe('native voice');
     expect(session.getSnapshot().phase).toBe('idle');
   });
