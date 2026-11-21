@@ -324,6 +324,7 @@ export const readThreadSignals = (
   // A streamed reply asks once its last edit adds the question.
   const askedAt = newestAgentReply ? newestAgentReply.editTs ?? newestAgentReply.event.getTs() : 0;
   if (pendingQuestion && newestAgentReply) {
+    // Clock skew can timestamp an edit before its original, so skip the question itself.
     const hasNewerMessage = counted.some(
       ({ event }) => event !== newestAgentReply.event && event.getTs() > askedAt
     );
