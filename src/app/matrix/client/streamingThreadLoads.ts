@@ -11,10 +11,11 @@ import { isThreadSummaryContent } from '../protocol/threadSummary';
 import { CHECK_DELAY_MS, streamingChecksHeld, wakeStreamingLoads } from './streamingReplies';
 
 // Newer replies can hide a streaming placeholder in an unopened thread. After live sync and
-// the thread-list hold, load first pages serially where the newest non-title reply was sent
-// within two hours and its newest same-sender revision is not terminal. The SDK tail wins over
-// the summary. Loading only lets the usual streaming checks see what the thread now holds.
-// Try once per newest reply, with a retry after sync recovers from an error.
+// check delay, any check for its replies, and the thread-list hold, load a first page if the reply
+// is the newest non-title reply, was sent within two hours and is not terminal on its newest
+// same-sender revision. The SDK tail wins over the summary. A fetch never marks Working. A thread is
+// tried once per reply: a failed page leaves the thread unopened and updates it, which would ask
+// again at once. A sync that recovers from an error tries the threads again.
 
 const RECENT_REPLY_MS = 2 * 60 * 60_000;
 
@@ -35,10 +36,8 @@ const eligibleReply = (room: Room, thread: Thread): string | undefined => {
     return undefined;
   if (reply.type === 'm.room.encrypted' || isThreadSummaryContent(reply.content)) return undefined;
   const shown = held ?? thread.replyToEvent;
-  const edit =
-    (shown?.getId() === reply.event_id ? shown?.replacingEvent()?.event : undefined) ??
-    getSameSenderBundledEdit(reply);
-  const revision = edit?.content;
+  const edit = shown?.getId() === reply.event_id ? shown.replacingEvent() : null;
+  const revision = (edit?.event ?? getSameSenderBundledEdit(reply))?.content;
   const content = revision && isRecord(revision['m.new_content']) ? revision : reply.content;
   const status = readStreamStatus(content);
   if (hasTerminalStreamMetadata(content) || (status && TERMINAL_STREAM_STATUSES.has(status)))
@@ -69,7 +68,7 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
 
   const drain = () => {
     if (stopped || !live || running) return;
-    const index = queue.findIndex(([room]) => !streamingChecksHeld(room));
+    const index = queue.findIndex(([room, thread]) => !streamingChecksHeld(room, thread.id));
     if (index < 0) return;
     const [room, thread] = queue.splice(index, 1)[0]!;
     queued.delete(thread);

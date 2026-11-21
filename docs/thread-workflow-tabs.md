@@ -22,10 +22,10 @@ Later sorts by active snooze end or next scheduled time, soonest first; unknown 
 follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
-After live sync, a short delay, and the room's thread-list read, the client loads unopened threads
-one at a time if the newest non-title reply was sent within two hours and its latest same-sender
-revision is not terminal. It uses the SDK tail first, then the summary's latest reply. A fetch
-never means Working on its own: the card still requires a confirmed streaming reply it holds.
+After live sync, a short delay, the room's thread-list read, and any in-flight check for the
+thread, the client loads unopened threads one at a time if the newest non-title reply was sent
+within two hours and its latest same-sender revision is not terminal. It uses the SDK tail first,
+then the summary. A fetch never means Working on its own: the card needs a confirmed held stream.
 This can miss streams if the newest reply is over two hours old, more than ten replies follow the
 placeholder, or another agent's finished reply hides a second stream. Encrypted rooms are excluded.
 
