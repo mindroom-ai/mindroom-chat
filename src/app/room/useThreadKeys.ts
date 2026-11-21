@@ -59,17 +59,9 @@ export const useThreadKeys = ({
   };
 
   const step = (direction: -1 | 1): boolean => {
-    const shown = cards();
-    const focused = focusedCompactCard(areaRef.current);
-    if (focused && shown.includes(focused)) {
-      focusCardBeside(areaRef.current, focused.dataset.threadRootId, direction);
-      return true;
-    }
-    // From outside the cards: beside the open thread's card, or that of the thread just left.
-    return (
-      shown.length > 0 &&
-      focusCardBeside(areaRef.current, openThreadId ?? leftThreadId(), direction)
-    );
+    if (store.get(conversationHiddenAtom)) return false;
+    const focused = focusedCompactCard(areaRef.current)?.dataset.threadRootId;
+    return focusCardBeside(areaRef.current, focused ?? openThreadId ?? leftThreadId(), direction);
   };
   useShortcut('previousThread', () => step(-1));
   useShortcut('nextThread', () => step(1));

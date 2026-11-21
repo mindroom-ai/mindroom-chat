@@ -6,7 +6,7 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { useCompactBlocks } from './useCompactBlocks';
 
 const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
-const groups = [ids];
+const groups = { cards: ids };
 let width = 390;
 const height = (id: string) =>
   (Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1);

@@ -12,6 +12,9 @@ import {
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
+  createDefaultThreadFilterState,
+  seedRoomOverviewState,
+  sendStateEvent,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
@@ -471,4 +474,55 @@ test('a sync batch larger than the Compact window does not displace a held card 
       release();
     }
   });
+});
+
+test('Chromium keeps a held Done card under the pointer when Needs you arrives above it', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const seeded = await seed('before_done');
+  await Promise.all(
+    seeded.rootIds.map((id) =>
+      sendStateEvent(
+        HOMESERVER,
+        seeded.reader.accessToken,
+        seeded.roomId,
+        'com.mindroom.thread.tags',
+        JSON.stringify([id, 'resolved']),
+        { set_by: seeded.reader.userId, set_at: new Date().toISOString() }
+      )
+    )
+  );
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.reader.username,
+    password: PASSWORD,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId: seeded.roomId,
+    userId: seeded.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate(
+    (userId) =>
+      localStorage.setItem(
+        `compactRoomSections:${userId}`,
+        JSON.stringify({ on: true, folded: [] })
+      ),
+    seeded.reader.userId
+  );
+  await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
+  const view = page.locator('[data-compact-room-view]');
+  await expect(view.locator('[data-compact-section="done"]')).toContainText(`· ${THREAD_COUNT}`, {
+    timeout: 60_000,
+  });
+  await expect(view).not.toHaveAttribute('data-cards-pending', 'true');
+  await scrollList(page, 700);
+  const { middle, pointer } = await holdMiddleCard(page, view, 'chromium-done');
+  await expectHeldArrival(view, middle, THREAD_COUNT + 1, pointer, 'chromium-done', () =>
+    agentPosts(seeded, 'A newly opened ticket')
+  );
+  await expect(view.locator('[data-compact-section="needsYou"]')).toContainText('· 1');
 });

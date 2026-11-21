@@ -55,6 +55,7 @@ import {
   KEY_FOCUS_ATTRIBUTE,
   compactCardsIn,
   compactCardNavigation,
+  focusCardBeside,
   focusCompactCard,
   focusedCompactCard,
   handleCardArrowKey,
@@ -425,13 +426,24 @@ export function CompactRoomView({
     isCompactFocusRequestOpen(memory, focusRequest);
   const groups = useMemo(() => {
     if (heldSections)
-      return [[], ...heldSections.map(({ id, rootIds }) => (folded.includes(id) ? [] : rootIds))];
-    const pinned = new Set(pinnedRootIds);
-    return [shownRows.filter((id) => pinned.has(id)), shownRows.filter((id) => !pinned.has(id))];
+      return Object.fromEntries([
+        ['pinned', []],
+        ...heldSections.map(({ id, rootIds }) => [id, folded.includes(id) ? [] : rootIds]),
+      ]) as Record<string, string[]>;
+    const pins = new Set(pinnedRootIds);
+    return {
+      pinned: shownRows.filter((id) => pins.has(id)),
+      ordinary: shownRows.filter((id) => !pins.has(id)),
+    };
   }, [folded, heldSections, pinnedRootIds, shownRows]);
-  const ids = groups.flat();
+  const ids = useMemo(() => Object.values(groups).flat(), [groups]);
   const keyScope = `${room.roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
-  const [intent, setIntent] = useState<{ id: string; scope: string; from: Element | null }>();
+  const [intent, setIntent] = useState<{
+    id: string;
+    scope: string;
+    from: Element | null;
+    preventScroll?: boolean;
+  }>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
   const blocks = useCompactBlocks({
     groups,
@@ -455,20 +467,21 @@ export function CompactRoomView({
     const card = (id: string) =>
       compactCardsIn(view).find((button) => button.dataset.threadRootId === id);
     const focus = (id: string | undefined, preventScroll?: boolean) => {
-      if (id && !focusCompactCard(card(id), preventScroll))
-        setIntent({ id, scope: keyScope, from: document.activeElement });
-      return !!id;
+      if (!id) return false;
+      if (focusCompactCard(card(id), preventScroll)) setIntent(undefined);
+      else setIntent({ id, scope: keyScope, from: document.activeElement, preventScroll });
+      return true;
     };
     compactCardNavigation.set(view, { ids, focus });
     const active = document.activeElement;
     if (intent && (!pending || (active !== pending.from && active !== document.body)))
       setIntent(undefined);
     else if (pending && !pushed && blocks.targetReady) {
-      focusCompactCard(card(pending.id));
+      focusCompactCard(card(pending.id), pending.preventScroll);
       setIntent(undefined);
     }
     return () => void compactCardNavigation.delete(view);
-  });
+  }, [ids, intent, pending, pushed, blocks.targetReady, keyScope]);
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
@@ -545,10 +558,7 @@ export function CompactRoomView({
       !isConfirmedMatrixEventId(rootId) ||
       updatingThreadRootIds.has(rootId);
     if (fixed) return true;
-    const index = ids.indexOf(rootId);
-    compactCardNavigation
-      .get(card.closest('[data-compact-room-view]')!)
-      ?.focus(ids[index + 1] ?? ids[index - 1]);
+    if (ids.length > 1) focusCardBeside(viewRef.current, rootId, ids.at(-1) === rootId ? -1 : 1);
     handleSetResolved(rootId, !viewModel.isResolved);
     return true;
   });
@@ -713,7 +723,7 @@ export function CompactRoomView({
             {t('thread.pinFailed')}
           </Text>
         )}
-        {groups[0]!.length > 0 && (
+        {!!groups.pinned?.length && (
           <Box
             as="section"
             direction="Column"

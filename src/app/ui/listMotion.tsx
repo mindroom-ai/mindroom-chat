@@ -295,10 +295,8 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order?: string) =
     const before = beforeRef.current;
     beforeRef.current = undefined;
     const list = listRef.current;
-    if (order === undefined) {
-      runningRef.current.forEach((animation) => animation.cancel());
-      runningRef.current = [];
-    }
+    if (order === undefined)
+      runningRef.current.splice(0).forEach((animation) => animation.cancel());
     if (!before || !list) return;
     // A row that still shows where it did keeps its play. Started again, a glide the browser has
     // not begun shows its first frame: a Compact room's cards jumped back to where the last

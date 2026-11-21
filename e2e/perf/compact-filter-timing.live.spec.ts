@@ -184,6 +184,7 @@ type Expect = {
   first?: string[];
   count?: number;
   hidden?: number;
+  resolved?: number;
   selector?: string;
 };
 type Timing = { shown?: number; longestTask?: number; error?: string };
@@ -229,6 +230,13 @@ const instrument = () => {
       if (expected.first?.some((id, index) => ids[index] !== id)) return false;
       if (expected.count !== undefined && count !== expected.count) return false;
       if (expected.hidden !== undefined && total() - count !== expected.hidden) return false;
+      if (
+        expected.resolved !== undefined &&
+        document.querySelectorAll(
+          '[data-compact-room-view] [data-thread-root-id][data-attention-state="resolved"]'
+        ).length !== expected.resolved
+      )
+        return false;
       if (count === 0 ? ids.length !== 0 : ids.length === 0) return false;
       if (expected.selector !== undefined && !document.querySelector(expected.selector))
         return false;

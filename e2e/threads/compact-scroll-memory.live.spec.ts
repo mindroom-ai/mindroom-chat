@@ -225,9 +225,7 @@ test.fixme(
     },
   },
   async ({ baseURL }) => {
-    await onWebKitPage({ baseURL, reducedMotion: 'reduce' }, (page) =>
-      checkBackRestore(page, 'mobile')
-    );
+    await onWebKitPage({ baseURL, reducedMotion: 'reduce' }, (page) => checkBackRestore(page));
   }
 );
 

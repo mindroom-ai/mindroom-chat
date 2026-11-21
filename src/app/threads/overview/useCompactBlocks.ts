@@ -6,14 +6,12 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 const BLOCK_CARDS = 12;
 const BUFFER_BLOCKS = 1;
 const SHELL = '[data-scroll-anchor]';
-const cardId = (element?: Node | null) => {
-  const node = element instanceof Element ? element : element?.parentElement;
-  return node?.closest<HTMLElement>(SHELL)?.dataset.scrollAnchor;
-};
+const cardId = (element?: Element | null) =>
+  element?.closest<HTMLElement>(SHELL)?.dataset.scrollAnchor;
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
 type Geometry = {
   heights: Map<string, number>;
-  fresh: Map<string, number>;
+  fresh: Map<string, string>;
   visible: string[];
   gap: number;
   order?: string;
@@ -32,16 +30,16 @@ const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   cache.set(roomId, geometry);
   return geometry;
 };
-const revisions = new WeakMap<ThreadRecord, number>();
-let nextRevision = 1;
+const revisions = new WeakMap<ThreadRecord, string>();
 const revisionOf = (record?: ThreadRecord) => {
-  if (!record) return 0;
-  if (!revisions.has(record)) revisions.set(record, nextRevision++);
-  return revisions.get(record)!;
+  if (!record) return '';
+  const key = revisions.get(record) ?? JSON.stringify([record.presentation, record.status]);
+  revisions.set(record, key);
+  return key;
 };
 
 type Options = {
-  groups: string[][];
+  groups: Record<string, string[]>;
   scrollRef: RefObject<HTMLElement>;
   contentRef: RefObject<HTMLElement>;
   memory: ScrollAnchorMemory;
@@ -59,6 +57,7 @@ export function useCompactBlocks(options: Options) {
     () => ({
       geometry: getGeometry(memory, roomId),
       saved: memory.get(roomId),
+      checked: false,
       placed: false,
       gesture: undefined as { id: string; pointer?: number } | undefined,
     }),
@@ -67,18 +66,17 @@ export function useCompactBlocks(options: Options) {
   const { geometry, saved } = state;
   const { heights, fresh, gap } = geometry;
   const [, render] = useReducer((revision: number) => revision + 1, 0);
-  const grouped = groups.map((ids) =>
-    Array.from({ length: Math.ceil(ids.length / BLOCK_CARDS) }, (_, i) =>
-      ids.slice(i * BLOCK_CARDS, (i + 1) * BLOCK_CARDS)
-    )
-  );
-  const blocks = grouped.flat();
+  const blocks: string[][] = [];
+  const grouped = Object.entries(groups).map(([key, ids]) => {
+    const start = blocks.length;
+    for (let i = 0; i < ids.length; i += BLOCK_CARDS) blocks.push(ids.slice(i, i + BLOCK_CARDS));
+    return { key, start, end: blocks.length };
+  });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
-  const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id)));
   const probe = blocks.findIndex((block) =>
     block.some((id) => fresh.get(id) !== revisionOf(records?.get(id)))
   );
-  const order = blocks.map((block) => block.join(',')).join('|');
+  const order = JSON.stringify(groups);
   const small = index.size <= 2 * BLOCK_CARDS;
   let firstScreen = heights.size === 0 ? 2 * BLOCK_CARDS : 0;
   const extentComplete = probe < 0 || small;
@@ -90,35 +88,35 @@ export function useCompactBlocks(options: Options) {
   const savedSlots = savedKeys.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
   const backSlot = savedSlots[Math.floor(savedSlots.length / 2)];
   const prefixReady = (slot: number | undefined) =>
-    slot !== undefined && (missing < 0 || small || slot + BUFFER_BLOCKS < missing);
+    slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < probe);
   const back = !state.placed && !!saved && saved.scrollTop > 0;
   const awaitingAnchors =
     indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
   const placeReady =
     !back ||
-    (!awaitingAnchors && (backSlot === undefined ? extentComplete : prefixReady(backSlot)));
+    (state.checked &&
+      !awaitingAnchors &&
+      (backSlot === undefined ? extentComplete : prefixReady(backSlot)));
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const visible = geometry.visible.filter((id) => index.has(id));
   const [first, last] =
-    backSlot !== undefined && back && placeReady
-      ? [backSlot, backSlot]
+    back && backSlot !== undefined
+      ? geometry.order === order
+        ? band(savedKeys)
+        : [backSlot, backSlot]
       : band(geometry.order === order ? visible : visible.slice(0, 1));
-  const focused =
-    typeof document === 'undefined'
-      ? undefined
-      : cardId(contentRef.current?.querySelector(':focus'));
+  const focused = cardId(contentRef.current?.querySelector(':focus'));
   const retained = new Set([focused, protectedId, state.gesture?.id]);
   const liveIds: string[] = [];
   const spacers = new Map<string, string[]>();
-  let slot = 0;
-  const rows = grouped.map((section, groupIndex) => {
+  const rows = grouped.map(({ key: groupKey, start, end }) => {
     const group: CompactBlockRow[] = [];
     let gapIndex = 0;
-    for (const block of section) {
+    for (let slot = start; slot < end; slot += 1) {
       const inBand = slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS;
       const seeking = targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS;
-      for (const id of block) {
+      for (const id of blocks[slot]!) {
         const height = heights.get(id);
         if (
           small ||
@@ -135,14 +133,13 @@ export function useCompactBlocks(options: Options) {
             tail.height += height + gap;
           } else {
             // Keep this gap mounted as its boundaries move: WebKit clamps if it is removed.
-            const key = `${groupIndex}:${gapIndex++}`;
+            const key = `${groupKey}:${gapIndex++}`;
             const ids = [id];
             spacers.set(key, ids);
             group.push({ key, height, ids });
           }
         }
       }
-      slot += 1;
     }
     return group;
   });
@@ -196,15 +193,16 @@ export function useCompactBlocks(options: Options) {
       return changed || start !== first || end !== last;
     };
     const measured = layout();
+    if (back && !state.checked) render();
+    state.checked = true;
     const update = () => {
       state.placed ||= placeReady && liveIds.length > 0;
       return layout();
     };
     let frame = 0;
     const schedule = () => {
-      if (frame) return;
+      cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        frame = 0;
         if (update() || measured || !extentComplete) render();
       });
     };
@@ -223,9 +221,9 @@ export function useCompactBlocks(options: Options) {
     const track = (event: Event) => {
       const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
       if (event.type === 'pointerdown' || event.type === 'dragstart') {
-        const node = event.target as Node | null;
-        const id = cardId(node);
-        if (id && content.contains(node)) state.gesture = { id, pointer };
+        const node = event.target;
+        const id = node instanceof Element && content.contains(node) && cardId(node);
+        if (id) state.gesture = { id, pointer };
       } else if (
         event.type === 'dragend' ||
         event.target === window ||
