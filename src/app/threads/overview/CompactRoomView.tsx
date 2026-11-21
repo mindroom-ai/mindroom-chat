@@ -405,7 +405,12 @@ export function CompactRoomView({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  const shownRows = useHeldThreadOrder(
+    listedRows,
+    orderHeld && !heldSections,
+    viewRef,
+    sectionOfRow
+  );
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(

@@ -67,13 +67,29 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
 
 type OrderLink = { id: string; index: number; previous: OrderLink | undefined };
 
-/** A longest increasing subsequence of old indices identifies rows that kept their relative order. */
-const stationaryRows = (before: readonly string[], after: readonly string[]) => {
-  const oldIndices = new Map(before.map((id, index) => [id, index]));
+type SectionOfRow = (key: string) => string | undefined;
+
+/** Find a longest increasing subsequence, excluding cards that switched between sections. */
+const stationaryRows = (
+  before: readonly string[],
+  after: readonly string[],
+  sectionOfRow?: SectionOfRow
+) => {
+  let section: string | undefined;
+  const oldRows = new Map(
+    before.map((id, index) => {
+      section = sectionOfRow?.(id) ?? section;
+      return [id, { index, section }] as const;
+    })
+  );
+  section = undefined;
   const tails: OrderLink[] = [];
   for (const id of after) {
-    const index = oldIndices.get(id);
-    if (index === undefined) continue;
+    section = sectionOfRow?.(id) ?? section;
+    const old = oldRows.get(id);
+    // With grouping turned on or off, there is no section on one side to compare.
+    if (!old || (old.section && section && old.section !== section)) continue;
+    const { index } = old;
     let low = 0;
     let high = tails.length;
     while (low < high) {
@@ -111,7 +127,8 @@ const browserAnchorsScroll = (): boolean =>
 export const useHeldThreadOrder = (
   liveRootIds: string[],
   held: boolean,
-  viewRef?: RefObject<HTMLElement>
+  viewRef?: RefObject<HTMLElement>,
+  sectionOfRow?: SectionOfRow
 ): string[] => {
   const shownRef = useRef(liveRootIds);
   const shown = useMemo(
@@ -129,7 +146,8 @@ export const useHeldThreadOrder = (
     const before = cardsInViewRef.current;
     if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
-      const stationary = before.order === shown ? undefined : stationaryRows(before.order, shown);
+      const stationary =
+        before.order === shown ? undefined : stationaryRows(before.order, shown, sectionOfRow);
       const anchor = before.cards
         .filter(({ rootId }) => stationary?.has(rootId) ?? true)
         .map(({ rootId, top }) => ({
