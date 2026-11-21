@@ -18,13 +18,16 @@ import {
   type PendingVoiceSendContext,
   type StagedList,
   composerUploadItemsAtom,
+  getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
+  restoreTextToDraft,
   roomUploadAtomFamily,
   threadViewVoiceComposersAtom,
   voiceAutoSendPendingAtom,
   voiceComposerKey,
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
+import { listSessions } from '../matrix/session/sessions';
 import { pauseAllMediaElements } from '../lib/dom';
 import {
   MatrixUploadErrorStage,
@@ -254,15 +257,26 @@ export const useRoomInputVoice = ({
     const sameAccount = accountGuard();
 
     const bundle = pendingVoiceComposerBundleRef.current;
-    if (sameAccount && bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
-      restoreText(bundle.roomId, bundle.composerFallback, bundle.composerThreadId);
+    if (bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
+      const userId = mx.getUserId();
+      if (sameAccount) {
+        restoreText(bundle.roomId, bundle.composerFallback, bundle.composerThreadId);
+      } else if (userId && listSessions().some((session) => session.userId === userId)) {
+        // Left, not signed out: the caption waits in the stored draft of the account it was
+        // typed under, never in the next account's composer.
+        restoreTextToDraft(
+          store,
+          getRoomInputDraftKey(userId, bundle.roomId, bundle.composerThreadId),
+          bundle.composerFallback
+        );
+      }
     }
     bundle?.releasePasteProtection();
     pendingVoiceComposerBundleRef.current = undefined;
     voiceAutoSendInFlightRef.current = false;
     voiceAutoSendClaimedRef.current = undefined;
     if (sameAccount) store.set(voiceAutoSendPendingAtom, false);
-  }, [restoreText, store]);
+  }, [mx, restoreText, store]);
 
   const handleVoiceSend = useCallback(
     async (

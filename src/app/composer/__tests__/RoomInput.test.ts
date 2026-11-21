@@ -367,6 +367,13 @@ vi.mock('../upload/UploadBoard', async () => {
   };
 });
 
+// The accounts signed in on this browser: none, unless a test names them.
+const storedSessions = vi.hoisted(() => ({ list: [] as Array<{ userId: string }> }));
+vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/session/sessions')>()),
+  listSessions: () => storedSessions.list,
+}));
+
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => mxState,
 }));
@@ -3324,7 +3331,11 @@ describe('RoomInput', () => {
     expect(mxState.uploadContent).not.toHaveBeenCalled();
   });
 
-  it('does not restore a voice caption after leaving the account during upload', async () => {
+  it.each([
+    ['keeps a voice caption in its own stored draft after a switch away', true],
+    ['does not restore a voice caption after signing out', false],
+  ])('%s during upload', async (_name, accountKept) => {
+    storedSessions.list = accountKept ? [{ userId: '@me:example.org' }] : [];
     const store = createStore();
     const { renderer } = await renderRoomInput(store);
     stageComposerText('Example caption');
@@ -3350,8 +3361,11 @@ describe('RoomInput', () => {
       await sending.catch(() => undefined);
     });
 
+    // Never in the next account's composer: the editor is gone, and the draft is the first
+    // account's, by its user id.
     const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID));
-    expect(store.get(draft)).toEqual([]);
+    expect(JSON.stringify(store.get(draft)).includes('Example caption')).toBe(accountKept);
+    store.set(draft, []);
   });
 
   it('keeps a voice send going to where Send was pressed through a navigation before its upload completes', async () => {
