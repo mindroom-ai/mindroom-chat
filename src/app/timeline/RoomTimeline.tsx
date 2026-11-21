@@ -15,7 +15,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   Direction,
-  RoomEvent,
   RoomMemberEvent,
   type MatrixEvent,
   type Room,
@@ -144,11 +143,7 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import {
-  isMindroomAgentUserIdForViewer,
-  isMindroomOwnerUserId,
-  isMindroomResponderForViewer,
-} from '../matrix/protocol/agentIdentity';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
@@ -933,67 +928,21 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     return next;
   }, [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]);
   const viewerId = mx.getUserId() ?? undefined;
-  const isResponder = useCallback(
-    (id: string) => isMindroomResponderForViewer(id, viewerId, trustedAccountIds),
-    [viewerId, trustedAccountIds]
-  );
-  const hasJoinedResponder = useMemo(
-    () => [...joinedAccountIds].some(isResponder),
-    [joinedAccountIds, isResponder]
-  );
-  const [viewerIsOnlyPerson, setViewerIsOnlyPerson] = useState(false);
   useLayoutEffect(() => {
-    // People joining or leaving can change the hint, but not the trusted set.
-    const updateOnlyPerson = () => {
-      const joined = room.getJoinedMembers();
-      const people = joined.filter(
-        ({ userId }) =>
-          userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
-      );
-      const mindroomCount = joined.length - people.length;
-      setViewerIsOnlyPerson(
-        people.length === 1 &&
-          people[0]?.userId === viewerId &&
-          room.getJoinedMemberCount() - mindroomCount === 1
-      );
-    };
-    updateOnlyPerson();
-    // Read the member list and summary once the SDK has finished changing both.
-    let scanQueued = false;
-    const queueScan = () => {
-      if (scanQueued) return;
-      scanQueued = true;
-      queueMicrotask(() => {
-        if (!scanQueued) return;
-        scanQueued = false;
-        updateOnlyPerson();
-      });
-    };
     const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
       if (
-        member.roomId !== room.roomId ||
-        (member.membership === 'join') === (previous === 'join')
-      ) {
-        return;
-      }
-      const { userId } = member;
-      if (
-        userId === boundUserId ||
-        rosterAccountIds.has(userId) ||
-        isMindroomAgentUserIdForViewer(userId, viewerId)
+        member.roomId === room.roomId &&
+        (member.membership === 'join') !== (previous === 'join') &&
+        (member.userId === boundUserId || rosterAccountIds.has(member.userId))
       ) {
         refreshMembership();
       }
-      queueScan();
     };
     mx.on(RoomMemberEvent.Membership, onMembership);
-    room.on(RoomEvent.Summary, queueScan);
     return () => {
-      scanQueued = false;
       mx.removeListener(RoomMemberEvent.Membership, onMembership);
-      room.removeListener(RoomEvent.Summary, queueScan);
     };
-  }, [mx, room, boundUserId, rosterAccountIds, viewerId, isResponder, refreshMembership]);
+  }, [mx, room.roomId, boundUserId, rosterAccountIds, refreshMembership]);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
@@ -1002,7 +951,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    expectsAnswer: viewerIsOnlyPerson && hasJoinedResponder,
+    expectsAnswer: room.getJoinedMembers().some(({ userId }) =>
+      isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)
+    ),
     isHidden: (event) =>
       approvalTimeline.hiddenEventIds.has(event.getId() ?? '') ||
       (event.isRedacted() ? !showHiddenEvents : isHiddenByPlugin(event)),

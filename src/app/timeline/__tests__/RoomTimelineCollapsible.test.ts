@@ -877,7 +877,6 @@ const makeRoom = ({
       };
     },
     getJoinedMembers: () => [],
-    getJoinedMemberCount: () => 0,
     getThreads: () => [],
     getUnfilteredTimelineSet: () => roomTimelineSet,
     hasEncryptionStateEvent: () => false,

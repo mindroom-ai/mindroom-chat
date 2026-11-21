@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   MatrixEvent,
-  RoomEvent,
   RoomMember,
   RoomMemberEvent,
   RoomState,
@@ -258,12 +257,13 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
-  it('does not rescan joined members on an unrelated render', async () => {
+  it('does not rebuild fold trust on an unrelated render', async () => {
     const { renderer, room, update } = await openThread(ROUTER);
     try {
       const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
       act(update);
-      expect(getJoinedMembers).not.toHaveBeenCalled();
+      // One current membership read for the hint, none to rebuild fold trust.
+      expect(getJoinedMembers).toHaveBeenCalledTimes(1);
     } finally {
       act(() => renderer.unmount());
     }
@@ -287,6 +287,7 @@ describe('a voice echo in an open thread', () => {
   it.each([
     ['only the owner', [ROUTER], false],
     ['a roster-backed responder with a custom ID', [CUSTOM_AGENT], true],
+    ['a responder and another person', [AGENT, '@alex:example.org'], true],
   ] as const)('shows pending with %s only if somebody answers', async (_case, joined, pending) => {
     setRoster([CUSTOM_AGENT]);
     const { renderer } = await openThread(ROUTER, ROUTER, {
@@ -300,69 +301,11 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
-  it('does not show pending in a room with another person', async () => {
-    const { renderer } = await openThread(undefined, AGENT, {
-      showEcho: false,
-      joinedMembers: [VIEWER, '@alex:example.org', AGENT],
-    });
-    try {
-      expect(transcribingStatuses(renderer)).toHaveLength(0);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
   it('keeps pending when a plugin hides the later agent row', async () => {
     pluginRowHiddenMock.test = (event) => event.eventId === '$echo';
     const { renderer } = await openThread(undefined, AGENT);
     try {
       expect(getRenderedEventIds(renderer)).not.toContain('$echo');
-      expect(transcribingStatuses(renderer)).toHaveLength(1);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
-  it('blocks pending if the room summary counts an unloaded joined member', async () => {
-    const { renderer, room } = await openThread(undefined, AGENT, { showEcho: false });
-    try {
-      expect(transcribingStatuses(renderer)).toHaveLength(1);
-      vi.spyOn(room, 'getJoinedMemberCount').mockReturnValue(3);
-      await act(async () => room.__listeners.get(RoomEvent.Summary)?.());
-      expect(transcribingStatuses(renderer)).toHaveLength(0);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
-  it('scans joined people once for a batch of membership changes', async () => {
-    const joinedMembers = [VIEWER, AGENT];
-    const { renderer, room } = await openThread(undefined, AGENT, {
-      showEcho: false,
-      joinedMembers,
-    });
-    try {
-      const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
-      await act(async () => {
-        changeMembership(joinedMembers, '@alex:example.org', 'join');
-        changeMembership(joinedMembers, '@sam:example.org', 'join');
-      });
-      expect(getJoinedMembers).toHaveBeenCalledTimes(1);
-      expect(transcribingStatuses(renderer)).toHaveLength(0);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
-  it('updates the pending hint when another person joins or leaves', async () => {
-    const joinedMembers = [VIEWER, AGENT];
-    const person = '@alex:example.org';
-    const { renderer } = await openThread(undefined, AGENT, { showEcho: false, joinedMembers });
-    try {
-      expect(transcribingStatuses(renderer)).toHaveLength(1);
-      await act(async () => changeMembership(joinedMembers, person, 'join'));
-      expect(transcribingStatuses(renderer)).toHaveLength(0);
-      await act(async () => changeMembership(joinedMembers, person, 'leave'));
       expect(transcribingStatuses(renderer)).toHaveLength(1);
     } finally {
       act(() => renderer.unmount());
