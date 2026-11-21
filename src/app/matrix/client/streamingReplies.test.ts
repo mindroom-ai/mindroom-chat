@@ -17,6 +17,7 @@ import {
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { startClient } from './clientSyncPolicy';
@@ -607,6 +608,40 @@ describe('streaming replies on thread cards', () => {
         'io.mindroom.thread_summary': { summary: 'Release notes', version: 1 },
         'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
       });
+
+    it('keeps an unopened thread Working when its latest reply is a file sent mid-stream', async () => {
+      const now = Date.now();
+      const f = fixture();
+      const streaming = withEdit(
+        reply(now - 48 * MINUTE),
+        edit('Checking the results', now - 5_000, 'streaming')
+      );
+      const notice = title(now - 47 * MINUTE);
+      const file = message('$file', now - 4_000, {
+        msgtype: 'm.file',
+        body: 'results.txt',
+        url: 'mxc://example.org/results',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      });
+      const listed = withSummary(root(now - 49 * MINUTE), file, 3);
+      const summary = defined(listed.unsigned['m.relations']?.['m.thread'], 'the thread summary');
+      Object.assign(summary, {
+        'io.mindroom.title': notice,
+        'io.mindroom.latest_reply': file,
+      });
+      f.setServerThread({ root: listed, replies: [streaming, notice, file] });
+      f.setServerReply(streaming);
+      await f.start();
+      await f.deliver([file]);
+      f.holdThreadList([listed])();
+      await loadRoomThreads(f.room());
+      // Let any reply check the card starts settle before reading the bucket.
+      f.card();
+      await afterCheckDelay();
+
+      const { status } = buildThreadRecord({ room: f.room(), threadRootId: rootId });
+      expect(classifyThreadWorkflow(status, now)).toBe('working');
+    });
 
     it('lets the list that starts after the card asked answer for the reply', async () => {
       const now = Date.now();
