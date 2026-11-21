@@ -14,7 +14,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { launchWebKit, onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -145,7 +145,7 @@ const expectHeldArrival = async (
   count: number,
   point: { x: number; y: number },
   label: string,
-  arrive: () => Promise<string>
+  arrive: () => string | Promise<string>
 ) => {
   const watch = await view.evaluateHandle(
     (scroller, { id, count, point, frames }) => {
@@ -229,6 +229,39 @@ const expectFirst = async (page: Page, rootId: string, body: string, where: stri
     .toBe(0);
 };
 
+const holdMiddleCard = async (page: Page, view: Locator, label: string) => {
+  let middle: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        middle = await view.evaluate((scroller) => {
+          const { x, y, width, height } = scroller.getBoundingClientRect();
+          return (
+            [0, 16, -16]
+              .map((offset) =>
+                document
+                  .elementFromPoint(x + width / 2, y + height / 2 + offset)
+                  ?.closest('[data-thread-root-id]')
+                  ?.getAttribute('data-thread-root-id')
+              )
+              .find((id) => !!id) ?? undefined
+          );
+        });
+        return middle;
+      },
+      { message: `${label}: a card in the middle of the scrolled view` }
+    )
+    .toBeTruthy();
+  if (!middle) throw new Error('No card at the center of the Compact view');
+  const midCard = cardOf(page, middle);
+  const midBox = await midCard.boundingBox();
+  if (!midBox) throw new Error('The middle card is not laid out');
+  const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
+  await page.mouse.move(pointer.x, pointer.y);
+  await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  return { middle, pointer };
+};
+
 const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: boolean) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -309,35 +342,9 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
       )
     )
     .toBe(false);
-  let middle: string | undefined;
-  await expect
-    .poll(
-      async () => {
-        middle = await view.evaluate((scroller) => {
-          const { x, y, width, height } = scroller.getBoundingClientRect();
-          return (
-            [0, 16, -16]
-              .map((offset) =>
-                document
-                  .elementFromPoint(x + width / 2, y + height / 2 + offset)
-                  ?.closest('[data-thread-root-id]')
-                  ?.getAttribute('data-thread-root-id')
-              )
-              .find((id) => !!id) ?? undefined
-          );
-        });
-        return middle;
-      },
-      { message: `${label}: a card in the middle of the scrolled view` }
-    )
-    .toBeTruthy();
-  const midCard = cardOf(page, middle!);
-  const midBox = (await midCard.boundingBox())!;
-  const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
-  await page.mouse.move(pointer.x, pointer.y);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  const { middle, pointer } = await holdMiddleCard(page, view, label);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
-  const scrolled = await expectHeldArrival(view, middle!, THREAD_COUNT + 3, pointer, label, () =>
+  const scrolled = await expectHeldArrival(view, middle, THREAD_COUNT + 3, pointer, label, () =>
     agentPosts(seeded, scrolledBody)
   );
   await shot(page, `${label}-4-held-scrolled`);
@@ -383,3 +390,85 @@ for (const [form, options] of [
     });
   });
 }
+
+test('a sync batch larger than the Compact window does not displace a held card (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  const seeded = await seed('batch');
+  const batchSize = 40;
+  await onWebKitPage({ ...DESKTOP, baseURL, reducedMotion: 'reduce' }, async (page) => {
+    let buffering = false;
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let deliveredIds: string[] = [];
+    await page.route(/\/_matrix\/client\/(?:v3|r0)\/sync(?:\?|$)/, async (route) => {
+      let response = await route.fetch({ timeout: 60_000 }).catch(() => undefined);
+      if (!response) return;
+      const url = new URL(route.request().url());
+      if (buffering && url.searchParams.has('since')) {
+        await gate;
+        buffering = false;
+        // The pending poll can return as soon as the first post arrives. Replay it from the
+        // same since token with room for the entire batch, not the client's usual 20 events.
+        url.searchParams.set('timeout', '0');
+        url.searchParams.set(
+          'filter',
+          JSON.stringify({ room: { timeline: { limit: batchSize + 20 } } })
+        );
+        response = await route.fetch({ url: url.href, timeout: 15_000 });
+        const sync = (await response.json()) as {
+          rooms?: { join?: Record<string, { timeline?: { events?: { event_id: string }[] } }> };
+        };
+        deliveredIds =
+          sync.rooms?.join?.[seeded.roomId]?.timeline?.events?.map((event) => event.event_id) ?? [];
+      }
+      await route.fulfill({ response }).catch(() => undefined);
+    });
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: seeded.reader.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
+    const view = page.locator('[data-compact-room-view]');
+    await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+      timeout: 60_000,
+    });
+    await scrollList(page, 700);
+    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
+
+    buffering = true;
+    try {
+      const roots: string[] = [];
+      for (let index = 0; index < batchSize; index += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        roots.push(await agentPosts(seeded, `Batch update ${index}: Export check complete.`));
+      }
+      const { middle, pointer } = await holdMiddleCard(page, view, 'webkit-batch');
+      expect(await page.locator(CARDS).count(), 'cards mounted before the batch').toBeLessThan(
+        batchSize
+      );
+      const newest = await expectHeldArrival(
+        view,
+        middle,
+        THREAD_COUNT + batchSize,
+        pointer,
+        'webkit-batch',
+        () => {
+          release();
+          return roots.at(-1)!;
+        }
+      );
+      expect(deliveredIds).toEqual(expect.arrayContaining(roots));
+      await page.mouse.move(5, 795);
+      await scrollList(page, 0);
+      await expectFirst(page, newest, `Batch update ${batchSize - 1}:`, 'after the batch');
+    } finally {
+      release();
+    }
+  });
+});
