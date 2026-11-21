@@ -183,9 +183,9 @@ export const ActionButton = style({
 
 /**
  * The footer's count of hidden runs: it takes the room its button leaves, so the button keeps
- * its one word whole instead of shrinking with the count.
+ * its one word whole instead of shrinking with the count, which wraps even a long word in it.
  */
-export const FooterText = style({ flex: '1 1 0', minInlineSize: 0 });
+export const FooterText = style({ flex: '1 1 0', minInlineSize: 0, overflowWrap: 'anywhere' });
 
 export const Footer = style({
   ...strip,
