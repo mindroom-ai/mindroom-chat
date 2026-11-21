@@ -181,6 +181,25 @@ const sectionKeys = (sections: SidebarThreadSection[]) =>
   sections.map(({ id, entries }) => [id, entries.map((entry) => entry.key)]);
 
 describe('buildSidebarThreadSections', () => {
+  it('shows Needs you first while giving Working first claim on the shared limit', () => {
+    const entries = [
+      makeSectionEntry({ key: 'done', isResolved: true }),
+      makeSectionEntry({ key: 'idle-old', lastActivityTs: 1 }),
+      makeSectionEntry({ key: 'later', snoozedUntilTs: 1000 }),
+      makeSectionEntry({ key: 'working', isStreaming: true }),
+      makeSectionEntry({ key: 'idle-new', lastActivityTs: 3 }),
+      makeSectionEntry({ key: 'idle-middle', lastActivityTs: 2 }),
+    ];
+
+    expect(
+      sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS, 2))
+    ).toEqual([
+      ['idle', ['idle-new']],
+      ['working', ['working']],
+      ['later', ['later']],
+      ['resolved', ['done']],
+    ]);
+  });
   it('puts each thread in the first section that fits, and leaves out empty ones', () => {
     const entries = [
       makeSectionEntry({
@@ -198,8 +217,8 @@ describe('buildSidebarThreadSections', () => {
     expect(
       sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['later', ['sending', 'snoozed']],
       ['idle', ['idle']],
+      ['later', ['sending', 'snoozed']],
       ['resolved', ['resolved-snoozed', 'streaming-resolved']],
     ]);
     expect(
@@ -288,8 +307,8 @@ describe('buildSidebarThreadSections', () => {
         )
       )
     ).toEqual([
-      ['working', ['pinned-working', 'working']],
       ['idle', ['pinned-a', 'pinned-b', 'new']],
+      ['working', ['pinned-working', 'working']],
     ]);
   });
 
@@ -376,8 +395,8 @@ describe('buildSidebarThreadSections', () => {
     );
 
     expect(sectionKeys(sections).slice(0, 2)).toEqual([
-      ['working', ['working']],
       ['idle', ['idle-2', 'idle-1']],
+      ['working', ['working']],
     ]);
     const resolvedKeys = sections.find(({ id }) => id === 'resolved')?.entries.map((e) => e.key);
     expect(resolvedKeys).toHaveLength(MAX_SIDEBAR_RESOLVED_THREADS);
@@ -401,8 +420,8 @@ describe('buildSidebarThreadSections', () => {
     );
 
     expect(sections.map(({ id, entries }) => [id, entries.length])).toEqual([
-      ['later', MAX_SIDEBAR_LATER_THREADS],
       ['idle', MAX_SIDEBAR_THREADS],
+      ['later', MAX_SIDEBAR_LATER_THREADS],
     ]);
   });
 
@@ -467,8 +486,8 @@ describe('shared workflow precedence', () => {
     expect(
       sectionKeys(buildSidebarThreadSections([job, approval], [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['working', ['job']],
       ['idle', ['approval']],
+      ['working', ['job']],
     ]);
   });
 });
