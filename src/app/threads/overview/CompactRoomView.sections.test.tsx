@@ -9,7 +9,6 @@ import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocu
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
-import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -123,35 +122,52 @@ afterEach(() => {
 
 describe('the Compact room in sections', () => {
   it('keeps a 730-card room bounded on every commit while discovering its extent', () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+    });
     const ids = Array.from({ length: 730 }, (_, index) => `$card${index}`);
     state.sections = [
       { id: 'needsYou', rootIds: ids.slice(0, 40) },
       { id: 'done', rootIds: ids.slice(40) },
     ];
     localStorage.setItem(`compactRoomSections:${ME}`, JSON.stringify({ on: true, folded: [] }));
-    vi.stubGlobal('ResizeObserver', class {
-      observe() {}
-      disconnect() {}
-    });
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function box(this: HTMLElement) {
-      const height = (row: HTMLElement) => row.hasAttribute('data-scroll-anchor')
-        ? 81.25 + (Number(row.dataset.scrollAnchor?.slice(5)) % 3) * 7.5
-        : Number.parseFloat(row.style.height) || 32.25;
-      if (this.dataset.compactRoomView) return new DOMRect(0, 0, 390, 810);
-      let top = 0;
-      for (let row = this.previousElementSibling; row instanceof HTMLElement; row = row.previousElementSibling) {
-        top += height(row) + 4.25;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
       }
-      return new DOMRect(0, top, 390, height(this));
-    });
-    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(810);
+    );
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function box(this: HTMLElement) {
+        const height = (row: HTMLElement) =>
+          row.hasAttribute('data-scroll-anchor')
+            ? 81.25 + (Number(row.dataset.scrollAnchor?.slice(5)) % 3) * 7.5
+            : Number.parseFloat(row.style.height) || 32.25;
+        if (this.dataset.compactRoomView) return new DOMRect(0, 0, 390, 810);
+        let top = 0;
+        for (
+          let row = this.previousElementSibling;
+          row instanceof HTMLElement;
+          row = row.previousElementSibling
+        ) {
+          top += height(row) + 4.25;
+        }
+        return new DOMRect(0, top, 390, height(this));
+      });
+    const clientHeight = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockReturnValue(810);
     const commits: number[] = [];
     try {
       render(
-        <Profiler id="compact" onRender={() => {
-          commits.push(document.querySelectorAll('button[data-thread-root-id]').length);
-        }}>
+        <Profiler
+          id="compact"
+          onRender={() => {
+            commits.push(document.querySelectorAll('button[data-thread-root-id]').length);
+          }}
+        >
           {view(ids)}
         </Profiler>
       );
@@ -516,7 +532,18 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('shows the header of the section a mounted card moves to while cards still mount', () => {
+  it('retains the first visible card when it moves to a different section during discovery', () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(450);
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function row(this: HTMLElement) {
+        return new DOMRect(
+          0,
+          this.hasAttribute('data-scroll-anchor') && this.dataset.scrollAnchor !== '$a' ? 500 : 0,
+          390,
+          100
+        );
+      });
     const waiting = Array.from({ length: 100 }, (_unused, index) => `$waiting${index}`);
     const ids = ['$a', ...waiting];
     state.sections = [{ id: 'needsYou', rootIds: ids }];
@@ -532,6 +559,8 @@ describe('the Compact room in sections', () => {
 
     expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
     expect(rows().slice(-2)).toEqual(['#working 1', '$a']);
+    bounds.mockRestore();
+    height.mockRestore();
   });
 
   it('mounts the first screenful on the way back from a card in folded Done', () => {
@@ -561,7 +590,7 @@ describe('the Compact room in sections', () => {
     );
 
     // The first screenful of cards, under their headers, and Done stays folded.
-    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
+    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(24);
     expect(rows()).not.toContain('$done');
   });
 

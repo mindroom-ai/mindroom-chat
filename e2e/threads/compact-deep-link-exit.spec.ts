@@ -1,8 +1,15 @@
-import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { launchWebKit, onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -33,7 +40,7 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const seed = async (label: string) => {
+const seed = async (label: string, mixedHeights = false) => {
   const reader = await registerDisposableUser(`cdl_reader_${label}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `triage_${label}`);
   for (let index = 1; index <= 24; index += 1) {
@@ -45,14 +52,21 @@ const seed = async (label: string) => {
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
-  let linkedRootId = '';
+  const rootIds: string[] = [];
   for (let index = 1; index <= ROOTS; index += 1) {
+    const title = mixedHeights
+      ? `Ticket ${index}${
+          index % 2 === 0
+            ? ': Check why the nightly export stalled again after updating the report schema and moving the scheduled jobs to the next runner.'
+            : ''
+        }`
+      : `Ticket ${index}: the nightly export for region ${
+          index % 7
+        } times out after the schema change.`;
     // eslint-disable-next-line no-await-in-loop
     const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
       msgtype: 'm.text',
-      body: `Ticket ${index}: the nightly export for region ${
-        index % 7
-      } times out after the schema change.`,
+      body: title,
     });
     // Each thread's reply comes right after its root, so the Last Reply order keeps the room's.
     // eslint-disable-next-line no-await-in-loop
@@ -66,9 +80,9 @@ const seed = async (label: string) => {
         'm.in_reply_to': { event_id: rootId },
       },
     });
-    if (index === LINKED) linkedRootId = rootId;
+    rootIds.push(rootId);
   }
-  return { reader, roomId, linkedRootId };
+  return { reader, roomId, rootIds, linkedRootId: rootIds[LINKED - 1]! };
 };
 
 const cardShown = (page: Page, rootId: string) =>
@@ -147,3 +161,215 @@ for (const [form, options] of [
     });
   });
 }
+
+/** Sample visible cards over consecutive frames, without waiting for each window swap to settle. */
+const measureReverseScroll = (view: Locator, throughTop: boolean) =>
+  view.evaluate(async (scroller, toTop) => {
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    const writes: number[] = [];
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => Number(descriptor.get?.call(scroller)),
+      set: (value: number) => {
+        writes.push(value);
+        descriptor.set?.call(scroller, value);
+      },
+    });
+    const bounds = scroller.getBoundingClientRect();
+    const style = getComputedStyle(scroller);
+    const bandTop = bounds.top + (parseFloat(style.scrollPaddingTop) || 0);
+    const bandBottom = bounds.bottom - (parseFloat(style.scrollPaddingBottom) || 0);
+    const read = () => ({
+      scrollTop: scroller.scrollTop,
+      cards: new Map(
+        [
+          ...scroller.querySelectorAll<HTMLElement>('button[data-thread-root-id]:not([inert] *)'),
+        ].map((card) => [card.dataset.threadRootId!, card.getBoundingClientRect()] as const)
+      ),
+    });
+    const deltaY = -64;
+    let before = read();
+    const startScrollTop = before.scrollTop;
+    const frames = toTop ? Math.ceil(startScrollTop / -deltaY) : 48;
+    const mountedAtSeek = new Set(before.cards.keys());
+    const newVisibleHeights = new Map<string, number>();
+    const offsets: number[] = [startScrollTop];
+    let upFrames = 0;
+    let framesWithoutAnchor = 0;
+    let missingAnchors = 0;
+    let worst = { drift: 0, frame: -1, id: '', delta: 0 };
+    for (let frame = 0; frame <= frames; frame += 1) {
+      if (frame < frames) {
+        // Reader input with exact steps. The browser still dispatches the real scroll events.
+        scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY }));
+        scroller.scrollTop += deltaY;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const after = read();
+      const delta = after.scrollTop - before.scrollTop;
+      offsets.push(after.scrollTop);
+      if (delta < 0) upFrames += 1;
+      let anchors = 0;
+      before.cards.forEach((rect, id) => {
+        // Use an anchor that was fully visible and would stay so if only scrolling moved it.
+        if (
+          rect.top < bandTop ||
+          rect.bottom > bandBottom ||
+          rect.top - delta < bandTop ||
+          rect.bottom - delta > bandBottom
+        )
+          return;
+        const next = after.cards.get(id);
+        if (!next) {
+          missingAnchors += 1;
+          return;
+        }
+        anchors += 1;
+        const drift = Math.abs(next.top - rect.top + delta);
+        if (drift > worst.drift) worst = { drift, frame, id, delta };
+      });
+      if (anchors === 0) framesWithoutAnchor += 1;
+      after.cards.forEach((rect, id) => {
+        if (!mountedAtSeek.has(id) && rect.top >= bandTop && rect.bottom <= bandBottom) {
+          newVisibleHeights.set(id, rect.height);
+        }
+      });
+      before = after;
+    }
+    const heights = [...newVisibleHeights.values()];
+    Reflect.deleteProperty(scroller, 'scrollTop');
+    return {
+      frames,
+      writes,
+      distance: startScrollTop - before.scrollTop,
+      offsets,
+      upFrames,
+      framesWithoutAnchor,
+      missingAnchors,
+      newVisibleCards: heights.length,
+      heightSpread: heights.length ? Math.max(...heights) - Math.min(...heights) : 0,
+      worst,
+    };
+  }, throughTop);
+
+const checkReverseScroll = async (
+  baseURL: string | undefined,
+  reducedMotion: 'no-preference' | 'reduce',
+  throughTop = false
+) => {
+  const { reader, roomId, rootIds } = await seed(
+    throughTop ? 'reverse_top' : reducedMotion === 'reduce' ? 'reverse_reduced' : 'reverse',
+    true
+  );
+  await onWebKitPage({ ...PHONE, baseURL, reducedMotion }, async (page) => {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(ROOTS), {
+      timeout: 60_000,
+    });
+    const card = (id: string) => view.locator(`button[data-thread-root-id="${id}"]`);
+    const early = card(rootIds.at(-1)!);
+    const deep = card(rootIds[0]!);
+    await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
+    await expect(early).toBeInViewport();
+    await expect(deep).toHaveCount(0);
+    await early.focus();
+    // Use the inset scrollbar's End handler without transferring focus off the early card.
+    await view.getByRole('scrollbar').dispatchEvent('keydown', { key: 'End' });
+    await expect.poll(() => view.evaluate((el) => el.scrollTop)).toBeGreaterThan(5_000);
+    await expect(deep).toHaveCount(1);
+    await expect(early).toBeFocused();
+    await expect(early).not.toBeInViewport();
+
+    const result = await measureReverseScroll(view, throughTop);
+    test.info().annotations.push({ type: 'reverse scroll', description: JSON.stringify(result) });
+    expect(result.distance, 'actual upward scroll distance').toBeGreaterThan(2_200);
+    expect(
+      result.upFrames,
+      `frames with upward scrolling: ${result.offsets.join(', ')}`
+    ).toBeGreaterThan(36);
+    expect(result.newVisibleCards, 'newly mounted cards read on the way up').toBeGreaterThan(8);
+    expect(result.heightSpread, 'short and tall cards in the new rows').toBeGreaterThan(8);
+    expect(result.framesWithoutAnchor, 'frames without a shared visible anchor').toBe(0);
+    expect(result.missingAnchors, 'visible cards unmounted during the scroll').toBe(0);
+    expect(
+      result.worst.drift,
+      `max drift net of actual scroll: ${JSON.stringify(result.worst)}`
+    ).toBeLessThan(1);
+    expect(result.writes, 'only the reader scrolls during block swaps').toHaveLength(result.frames);
+    if (throughTop) expect(result.offsets.slice(-2)).toEqual([0, 0]);
+    await expect(early).toBeFocused();
+  });
+};
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  const mode = reducedMotion === 'reduce' ? ', reduced motion' : '';
+  test(`reverse scrolling after a deep seek in mixed-height Compact cards (WebKit${mode})`, async ({
+    baseURL,
+  }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(240_000);
+    await checkReverseScroll(baseURL, reducedMotion);
+  });
+}
+
+test('reverse scrolling reaches native zero through its first idle paint (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  await checkReverseScroll(baseURL, 'no-preference', true);
+});
+
+test('scrollbar End during discovery reaches the last logical card (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  const { reader, roomId, rootIds } = await seed('immediate_end', true);
+  await onWebKitPage({ ...PHONE, baseURL }, async (page) => {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await page.addInitScript(
+      ({ selector, total }) => {
+        const observer = new MutationObserver(() => {
+          const view = document.querySelector<HTMLElement>(selector);
+          const bar = view?.querySelector<HTMLElement>('[role="scrollbar"]');
+          if (
+            !bar ||
+            view?.dataset.compactCardCount !== total ||
+            view.dataset.cardsPending !== 'true'
+          )
+            return;
+          observer.disconnect();
+          bar.dataset.endSent = 'true';
+          bar.focus({ preventScroll: true });
+          bar.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
+          );
+        });
+        observer.observe(document, { childList: true, subtree: true, attributes: true });
+      },
+      { selector: COMPACT_VIEW, total: String(ROOTS) }
+    );
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    const view = page.locator(COMPACT_VIEW);
+    const bar = view.getByRole('scrollbar');
+    await expect(bar).toHaveAttribute('data-end-sent', 'true', { timeout: 30_000 });
+    await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
+    await expect(view.locator(`button[data-thread-root-id="${rootIds[0]!}"]`)).toBeInViewport();
+    await expect
+      .poll(() => view.evaluate((el) => Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight)))
+      .toBeLessThan(1);
+    await expect(bar).toBeFocused();
+  });
+});

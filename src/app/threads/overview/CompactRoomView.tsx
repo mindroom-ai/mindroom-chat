@@ -40,7 +40,7 @@ import {
   isCompactFocusRequestOpen,
   meetCompactFocusRequest,
 } from './compactFocusRequest';
-import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
+import { useCompactBlocks, type CompactBlockRow } from './useCompactBlocks';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
@@ -411,26 +411,31 @@ export function CompactRoomView({
     viewRef,
     sectionOfRow
   );
-  // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
-  // always has its header, and the headers take none of the cards' budget.
-  const shownRootIds = useMemo(
-    () => (heldSections ? shownRows.filter((key) => !sectionOfRow(key)) : shownRows),
-    [heldSections, shownRows]
-  );
-  // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
-  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
-  const stagedRootIds = useStagedCardIds(
-    room.roomId,
-    shownRootIds,
-    firstRenderCardCount(
-      shownRootIds,
-      compactRoomScrollStateRef.current.get(room.roomId),
-      threadRootIds
-    )
-  );
+  const memory = compactRoomScrollStateRef.current;
+  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
+  const mountRequestKeyRef = useRef(requestKey);
+  const pushed =
+    focusRequest?.pushed &&
+    requestKey !== mountRequestKeyRef.current &&
+    isCompactFocusRequestOpen(memory, focusRequest);
+  const groups = useMemo(() => {
+    if (heldSections)
+      return [[], ...heldSections.map(({ id, rootIds }) => (folded.includes(id) ? [] : rootIds))];
+    const pinned = new Set(pinnedRootIds);
+    return [shownRows.filter((id) => pinned.has(id)), shownRows.filter((id) => !pinned.has(id))];
+  }, [folded, heldSections, pinnedRootIds, shownRows]);
+  const blocks = useCompactBlocks({
+    groups,
+    scrollRef: viewRef,
+    contentRef,
+    memory,
+    roomId: room.roomId,
+    target: pushed ? focusRequest.eventId : undefined,
+    protectedId: menu?.rootId,
+  });
   const cardViewModels = useCompactThreadCardViewModels({
     room,
-    threadRootIds: stagedRootIds,
+    threadRootIds: blocks.liveIds,
     threadRecordMap,
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
@@ -458,32 +463,16 @@ export function CompactRoomView({
     menuRef.current = undefined;
     setMenu(undefined);
   }, [room.roomId]);
-  // Sections lead each with its pinned cards, so only the sorted list has a Pinned list of them.
-  const pinnedCards = threadSections
-    ? []
-    : cardViewModels.filter((model) => pinning.pinnedEventIds.includes(model.id.threadRootId));
-  const ordinaryCards = threadSections
-    ? cardViewModels
-    : cardViewModels.filter((model) => !pinning.pinnedEventIds.includes(model.id.threadRootId));
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
   // Each header counts its section's threads now: one that a held order still shows after it
   // emptied counts none until the order is let go.
   const sectionCounts = new Map(
     (threadSections ?? []).map(({ id, rootIds }) => [id, rootIds.length] as const)
   );
-  const sectionRows = threadSections
-    ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
-    : [];
-  // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
-  // in and one that left fades out. After the hook that holds the order: it scrolls the list
-  // where the browser does not anchor it.
-  const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
-    models.map((model) => model.id.threadRootId).join(',');
+  // Discovery changes mounts, not the logical order that drives motion.
   const listMotion = useListMotion(
     contentRef,
-    threadSections
-      ? `${filterBarShown}|${sectionRows.join(',')}`
-      : `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
+    `${filterBarShown}|${shownRows.join(',')}|${pinnedRootIds.join(',')}`
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
@@ -548,22 +537,17 @@ export function CompactRoomView({
     memoryKey: room.roomId,
     scrollRef: viewRef,
     contentRef,
-    ready: cardViewModels.length > 0,
+    ready: cardViewModels.length > 0 && blocks.placeReady,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
   // with that request does; the one the list mounted with had that mount. A replaced entry (a
   // thread beside the list closing) or a step back or forward leaves the list where it is.
-  const focusShown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
-  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
-  const mountRequestKeyRef = useRef(requestKey);
-  const arrivedRequestKey =
-    focusRequest?.pushed &&
-    focusShown &&
-    requestKey !== mountRequestKeyRef.current &&
-    isCompactFocusRequestOpen(compactRoomScrollStateRef.current, focusRequest)
-      ? requestKey
-      : undefined;
+  const focusShown =
+    blocks.placeReady &&
+    (!pushed || blocks.targetReady) &&
+    cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
+  const arrivedRequestKey = pushed && focusShown ? requestKey : undefined;
   useLayoutEffect(() => {
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     const place =
@@ -658,12 +642,35 @@ export function CompactRoomView({
       </div>
     );
   };
-  const renderRow = (key: string) => {
-    const sectionId = sectionOfRow(key);
-    if (sectionId) return renderSectionHeader(sectionId);
-    const model = modelByRootId.get(key);
+  const renderRow = (row: CompactBlockRow) => {
+    if (typeof row !== 'string') {
+      return (
+        <div
+          key={`spacer:${row.key}`}
+          aria-hidden
+          data-compact-spacer={row.key}
+          className={css.Spacer}
+          style={{ height: row.height }}
+        />
+      );
+    }
+    const model = modelByRootId.get(row);
     return model ? renderCard(model) : null;
   };
+  const endIntent = useRef(false);
+  const cancelEnd = () => {
+    endIntent.current = false;
+  };
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (blocks.extentComplete && endIntent.current && view) {
+      endIntent.current = false;
+      view.scrollTop = view.scrollHeight;
+    }
+  }, [blocks.extentComplete]);
+  useLayoutEffect(() => {
+    endIntent.current = false;
+  }, [room.roomId]);
 
   return (
     <Box
@@ -671,8 +678,26 @@ export function CompactRoomView({
       className={css.View}
       data-compact-room-view="true"
       data-page-slide-clip=""
-      // Cards still to mount: the cards' end is further down than the view's.
-      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
+      data-compact-card-count={shownRows.filter((id) => !sectionOfRow(id)).length}
+      data-cards-pending={!blocks.extentComplete || undefined}
+      onKeyDownCapture={(event) => {
+        const { key, target, currentTarget } = event;
+        endIntent.current =
+          !blocks.extentComplete &&
+          key === 'End' &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          (target === currentTarget ||
+            (target instanceof HTMLElement && target.getAttribute('role') === 'scrollbar'));
+        if (endIntent.current) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+      onPointerDownCapture={cancelEnd}
+      onWheelCapture={cancelEnd}
+      onBlurCapture={cancelEnd}
       tabIndex={-1}
     >
       <Box
@@ -701,7 +726,7 @@ export function CompactRoomView({
             {t('thread.pinFailed')}
           </Text>
         )}
-        {pinnedCards.length > 0 && (
+        {groups[0]!.length > 0 && (
           <Box
             as="section"
             direction="Column"
@@ -716,7 +741,7 @@ export function CompactRoomView({
                 {t('threadNav.pinned')}
               </Text>
             </Box>
-            {pinnedCards.map(renderCard)}
+            {blocks.rows[0]?.map(renderRow)}
           </Box>
         )}
         {threadRootIds.length === 0 ? (
@@ -725,10 +750,11 @@ export function CompactRoomView({
               {t('mindroomUi.threads.compactRoomView.noThreads')}
             </Text>
           </Box>
-        ) : threadSections ? (
-          sectionRows.map(renderRow)
         ) : (
-          ordinaryCards.map(renderCard)
+          blocks.rows.slice(1).flatMap((rows, i) => {
+            const section = heldSections?.[i]?.id;
+            return [...(section ? [renderSectionHeader(section)] : []), ...rows.map(renderRow)];
+          })
         )}
       </Box>
       <InsetScrollbar

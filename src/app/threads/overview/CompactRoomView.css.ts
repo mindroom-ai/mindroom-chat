@@ -40,6 +40,12 @@ export const Cards = style({
   position: 'relative',
 });
 
+export const Spacer = style({
+  flexShrink: 0,
+  overflowAnchor: 'none',
+  transitionProperty: 'none',
+});
+
 // What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
 const hoverTint = createVar();
 
