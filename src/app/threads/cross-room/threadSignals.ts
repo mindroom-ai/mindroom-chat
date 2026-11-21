@@ -324,7 +324,9 @@ export const readThreadSignals = (
   // A streamed reply asks once its last edit adds the question.
   const askedAt = newestAgentReply ? newestAgentReply.editTs ?? newestAgentReply.event.getTs() : 0;
   if (pendingQuestion && newestAgentReply) {
-    const hasNewerMessage = newest !== undefined && newest.event.getTs() > askedAt;
+    const hasNewerMessage = counted.some(
+      ({ event }) => event !== newestAgentReply.event && event.getTs() > askedAt
+    );
     // The message it answers, or the router's relay of it, names whom the agent asks.
     // The first turn of a thread answers its root, which the thread's events need not hold.
     const sourceId = questionSourceId(newestAgentReply);

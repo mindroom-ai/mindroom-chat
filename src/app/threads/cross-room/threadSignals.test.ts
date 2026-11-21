@@ -360,6 +360,35 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
   });
 
+  it('keeps an agent question pending after notices and a router relay', async () => {
+    const { room } = await setup(ME, [
+      question('$q', 2000),
+      event({
+        id: '$skill',
+        ts: 2500,
+        sender: AGENT,
+        content: { msgtype: 'm.notice', body: 'Skill review: updated an example skill' },
+      }),
+      event({
+        id: '$relay',
+        ts: 2600,
+        sender: '@mindroom_router:example.org',
+        content: { body: 'Review the sample deck', 'com.mindroom.original_sender': ME },
+      }),
+      event({
+        id: '$summary',
+        ts: 2700,
+        sender: AGENT,
+        content: {
+          msgtype: 'm.notice',
+          body: 'Deck notes',
+          'io.mindroom.thread_summary': { version: 1, summary: 'Deck notes', generated_at: 'x' },
+        },
+      }),
+    ]);
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+  });
+
   it('notices an unread reply that mentions the user', async () => {
     const { room } = await setup(BOB, [
       event({ id: '$hi', ts: 2000, content: { 'm.mentions': { user_ids: [ME] } } }),
@@ -640,7 +669,7 @@ describe('readThreadSignals in a loaded thread with edits', () => {
 
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {
     const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
-    const { room } = await setup(
+    const { room, thread } = await setup(
       ME,
       [
         event({ id: '$q', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } }),
@@ -654,6 +683,9 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       { opened: true }
     );
     expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+
+    thread.addEvent(event({ id: '$bob', ts: 3500, sender: BOB }), false);
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
   });
 
   it('takes a corrected reply for read once the user read it, as the thread list does', async () => {
