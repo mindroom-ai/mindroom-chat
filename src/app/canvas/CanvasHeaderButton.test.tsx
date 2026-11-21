@@ -3,6 +3,7 @@ import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-re
 import { Scroll, Text } from 'folds';
 import { describe, expect, it, vi } from 'vitest';
 import { CanvasHeaderButton } from './CanvasHeaderButton';
+import { Trigger } from './CanvasHeaderButton.css';
 import type { CanvasListEntry } from './canvasIndexStore';
 
 vi.mock('focus-trap-react', () => ({
@@ -83,6 +84,11 @@ const openMenu = (renderer: ReactTestRenderer) =>
 describe('CanvasHeaderButton', () => {
   it('renders nothing without canvases', () => {
     expect(render({ canvases: [] }).renderer.toJSON()).toBeNull();
+  });
+
+  it('applies the expanded touch-target class to the canvas button', () => {
+    const { renderer } = render();
+    expect(String(trigger(renderer).props.className).split(' ')).toContain(Trigger);
   });
 
   it('toggles a single canvas', async () => {

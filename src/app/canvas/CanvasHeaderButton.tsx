@@ -6,6 +6,7 @@ import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import type { CanvasListEntry } from './canvasIndexStore';
+import { Trigger } from './CanvasHeaderButton.css';
 
 type CanvasMenuProps = {
   /** Where the menu opens; it is closed while undefined. */
@@ -106,6 +107,8 @@ type CanvasHeaderButtonProps = {
   openCanvasId?: string;
   onOpen: (canvasId: string) => void;
   onClose: () => void;
+  /** The phone header owns the chooser, so overflow changes cannot unmount it. */
+  chooser?: { open: boolean; onOpen: (anchor: RectCords) => void };
 };
 
 /**
@@ -117,6 +120,7 @@ export function CanvasHeaderButton({
   openCanvasId,
   onOpen,
   onClose,
+  chooser,
 }: CanvasHeaderButtonProps) {
   const { t } = useTranslation();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
@@ -139,7 +143,7 @@ export function CanvasHeaderButton({
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (several) {
-      setMenuAnchor(event.currentTarget.getBoundingClientRect());
+      (chooser?.onOpen ?? setMenuAnchor)(event.currentTarget.getBoundingClientRect());
       return;
     }
     const [only] = canvases;
@@ -165,6 +169,7 @@ export function CanvasHeaderButton({
         {(anchorRef) => (
           <IconButton
             ref={anchorRef}
+            className={Trigger}
             size="400"
             radii="300"
             variant={openHere ? 'Primary' : 'Surface'}
@@ -172,20 +177,22 @@ export function CanvasHeaderButton({
             aria-label={label}
             aria-pressed={openHere}
             aria-haspopup={several ? 'menu' : undefined}
-            aria-expanded={several ? !!menuAnchor : undefined}
+            aria-expanded={several ? chooser?.open ?? !!menuAnchor : undefined}
             onClick={handleClick}
           >
             <Icon size="400" src={Icons.Category} filled={openHere} />
           </IconButton>
         )}
       </TooltipProvider>
-      <CanvasMenu
-        anchor={menuAnchor}
-        canvases={canvases}
-        openCanvasId={openCanvasId}
-        onChoose={choose}
-        requestClose={() => setMenuAnchor(undefined)}
-      />
+      {!chooser && (
+        <CanvasMenu
+          anchor={menuAnchor}
+          canvases={canvases}
+          openCanvasId={openCanvasId}
+          onChoose={choose}
+          requestClose={() => setMenuAnchor(undefined)}
+        />
+      )}
     </>
   );
 }

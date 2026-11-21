@@ -197,10 +197,11 @@ test.describe('room schedules in the chat header', () => {
     await expect(
       dialog.getByText('No scheduled tasks in this room.', { exact: true })
     ).toBeVisible();
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(dialog).toHaveCount(0);
-    await moreOptions.click();
     await expect(trigger).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(moreOptions).toBeFocused();
+    await moreOptions.click();
     await expect(menuEntry).toHaveAccessibleName('Scheduled tasks (0)');
     await menuEntry.click();
     await expect(dialog).toBeVisible();

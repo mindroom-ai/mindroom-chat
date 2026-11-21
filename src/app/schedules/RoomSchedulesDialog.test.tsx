@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -110,6 +112,40 @@ describe('RoomSchedulesDialog destinations', () => {
       'Check the herbs',
     ]);
   });
+
+  it.each([true, false])(
+    'keeps a card button focused when the other group arrives (local first: %s)',
+    (localFirst) => {
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      const first = localFirst ? local : elsewhere[2]!;
+      const next = localFirst ? elsewhere[2]! : local;
+      const tree = (tasks: ParsedScheduledTask[]) => (
+        <RoomSchedulesDialog
+          roomId="!room:example.org"
+          tasks={tasks}
+          openThreadId={threadId}
+          onClose={vi.fn()}
+          onOpenThread={vi.fn()}
+        />
+      );
+      try {
+        actInDom(() => root.render(tree([first])));
+        const button = host.querySelector<HTMLButtonElement>('article button')!;
+        button.focus();
+        expect(document.activeElement).toBe(button);
+        actInDom(() => root.render(tree([first, next])));
+        expect(host.textContent).toContain('Elsewhere in this room');
+        expect(document.activeElement).toBe(button);
+      } finally {
+        actInDom(() => root.unmount());
+        host.remove();
+        vi.unstubAllGlobals();
+      }
+    }
+  );
 
   it('omits group headings outside threads or when only one group has tasks', () => {
     expect(headings([elsewhere[0]!, local])).toEqual(['Check the seedlings', 'Check the saplings']);

@@ -139,7 +139,11 @@ function Fixture() {
   }, []);
   return (
     <main style={{ padding: 16, color: color.Surface.OnContainer }}>
-      <RoomSchedulesButton room={activeRoom} open={open} onOpen={() => setOpen(true)} />
+      <RoomSchedulesButton
+        total={pendingSchedules.length}
+        open={open}
+        onOpen={() => setOpen(true)}
+      />
       {open && (
         <RoomSchedulesOverlay
           roomId={activeRoom.roomId}

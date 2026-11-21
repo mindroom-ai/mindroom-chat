@@ -231,21 +231,18 @@ export const RoomSchedulesDialog = forwardRef<
     [locale]
   );
 
-  const threadTasks =
-    openThreadId === undefined
-      ? []
-      : tasks.filter((task) => isScheduleInThread(task, openThreadId));
-  const grouped = threadTasks.length > 0 && threadTasks.length < tasks.length;
-  const groups =
-    grouped && openThreadId !== undefined
-      ? [
-          { heading: t('roomSchedules.thisThread'), tasks: threadTasks },
-          {
-            heading: t('roomSchedules.elsewhereInRoom'),
-            tasks: tasks.filter((task) => !isScheduleInThread(task, openThreadId)),
-          },
-        ]
-      : [{ heading: undefined, tasks }];
+  const threadTasks: ParsedScheduledTask[] = [];
+  const elsewhereTasks: ParsedScheduledTask[] = [];
+  tasks.forEach((task) => {
+    if (openThreadId !== undefined && isScheduleInThread(task, openThreadId))
+      threadTasks.push(task);
+    else elsewhereTasks.push(task);
+  });
+  const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
+  const groups = [
+    { id: 'thread', heading: 'roomSchedules.thisThread', tasks: threadTasks },
+    { id: 'elsewhere', heading: 'roomSchedules.elsewhereInRoom', tasks: elsewhereTasks },
+  ] as const;
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 10_000);
@@ -294,11 +291,11 @@ export const RoomSchedulesDialog = forwardRef<
               </Text>
             </Box>
           ) : (
-            groups.map(({ heading, tasks: groupTasks }) => (
-              <Fragment key={heading ?? 'all'}>
-                {heading && (
+            groups.map(({ id, heading, tasks: groupTasks }) => (
+              <Fragment key={id}>
+                {grouped && (
                   <Text as="h3" size="T300" priority="300">
-                    {heading}
+                    {t(heading)}
                   </Text>
                 )}
                 {groupTasks.map((task) => (

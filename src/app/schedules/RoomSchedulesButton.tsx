@@ -1,4 +1,11 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  type MouseEvent,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -14,13 +21,14 @@ import {
 } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
+import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { getPendingRoomSchedules, getRoomScheduleCount } from './roomSchedules';
+import { getPendingRoomSchedules } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';
 import * as css from './roomSchedules.css';
 
-/** Pending tasks from the room's current state, shared by the header and its clock button. */
+/** Pending tasks from the room's current state, shared by its header, menu and dialog. */
 export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
   const events = useScheduledTaskEvents(room);
   return useMemo(() => getPendingRoomSchedules(events), [events]);
@@ -29,22 +37,21 @@ export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
 /** The horizontal center of the header in viewport pixels, following layout changes. */
 function useCenterX(element: HTMLElement | null): number | undefined {
   const [centerX, setCenterX] = useState<number>();
+  const measure = useCallback(() => {
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    setCenterX(rect.left + rect.width / 2);
+  }, [element]);
   useLayoutEffect(() => {
     if (!element) return undefined;
-    const measure = () => {
-      const rect = element.getBoundingClientRect();
-      setCenterX(rect.left + rect.width / 2);
-    };
     measure();
-    const observer =
-      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
-    observer?.observe(element);
     window.addEventListener('resize', measure);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [element]);
+    return () => window.removeEventListener('resize', measure);
+  }, [element, measure]);
+  useResizeObserver(
+    measure,
+    useCallback(() => element, [element])
+  );
   return element ? centerX : undefined;
 }
 
@@ -54,6 +61,7 @@ type RoomSchedulesOverlayProps = {
   openThreadId?: string;
   /** The room header spans the room view, which the list sits over. */
   roomHeader: HTMLElement | null;
+  returnFocusTo?: () => HTMLElement | false;
   onClose: () => void;
   onOpenThread: (threadId: string) => void;
 };
@@ -64,6 +72,7 @@ export function RoomSchedulesOverlay({
   tasks,
   openThreadId,
   roomHeader,
+  returnFocusTo,
   onClose,
   onOpenThread,
 }: RoomSchedulesOverlayProps) {
@@ -81,6 +90,7 @@ export function RoomSchedulesOverlay({
           focusTrapOptions={{
             initialFocus: false,
             returnFocusOnDeactivate: true,
+            setReturnFocus: returnFocusTo,
             clickOutsideDeactivates: true,
             onDeactivate: onClose,
             // Escape closes the list only; the room's own Escape (mark as read) must not see it.
@@ -126,22 +136,14 @@ export function RoomSchedulesMenuEntry({
 }
 
 type RoomSchedulesButtonProps = {
-  room: Room;
-  countThreadId?: string;
+  total: number;
   open: boolean;
-  onOpen: () => void;
+  onOpen: (opener: HTMLButtonElement) => void;
 };
 
-/** Counts the room's pending tasks, or only this thread's when promoted inside a phone thread. */
-export function RoomSchedulesButton({
-  room,
-  countThreadId,
-  open,
-  onOpen,
-}: RoomSchedulesButtonProps) {
+/** Opens pending schedules from the room header, with the count for the current scope. */
+export function RoomSchedulesButton({ total, open, onOpen }: RoomSchedulesButtonProps) {
   const { t } = useTranslation();
-  const tasks = usePendingRoomSchedules(room);
-  const total = getRoomScheduleCount(tasks, countThreadId);
   const label = t('roomSchedules.openLabel', { total });
 
   const tooltip = (
@@ -161,7 +163,7 @@ export function RoomSchedulesButton({
           aria-label={label}
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={onOpen}
+          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
         >
           <Icon size="400" src={Icons.Clock} />
           {total > 0 && (

@@ -82,10 +82,7 @@ const showInApp = (page: Page, url: string) =>
 
 /** Moves the loaded client to a thread of `roomId`. */
 const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
-  await showInApp(
-    page,
-    `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
-  );
+  await showInApp(page, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
 };
 
@@ -108,9 +105,7 @@ test('a canvas the agent shows in the open thread puts the canvas button in the 
   await expect
     .poll(
       async () =>
-        (
-          await lobbyEvents(stack)
-        ).some(
+        (await lobbyEvents(stack)).some(
           (event) =>
             inThread(event, rootId) &&
             (event.content['io.mindroom.ui_action'] as { action?: string } | undefined)?.action ===
@@ -146,7 +141,7 @@ const scenarioName = ({ conversation, encrypted }: Scenario) =>
  * the look and closes again).
  */
 const canvasOffered = async (page: Page): Promise<boolean> => {
-  if (await headerCanvasButton(page).isVisible()) return true;
+  if ((await headerCanvasButton(page).count()) > 0) return true;
   if (!isPhoneLayout(page)) return false;
   await roomMoreOptions(page).click();
   const entry = page.getByRole('menuitem', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
@@ -215,18 +210,14 @@ const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scena
 };
 
 for (const scenario of SCENARIOS) {
-  test(`in ${scenarioName(
-    scenario
-  )}, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
+  test(`in ${scenarioName(scenario)}, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
     page,
     stack,
   }) => {
     await canvasComesAndGoes(page, stack, scenario);
   });
 
-  test(`in ${scenarioName(
-    scenario
-  )}, the room menu's canvas entry comes and goes on a phone (WebKit)`, async ({
+  test(`phone canvas appears and disappears in ${scenarioName(scenario)}`, async ({
     stack,
     baseURL,
   }) => {

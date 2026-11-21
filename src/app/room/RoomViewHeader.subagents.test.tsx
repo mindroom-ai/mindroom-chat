@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { lazy, Suspense } from 'react';
 import { createStore, Provider } from 'jotai';
+import { createRoot } from 'react-dom/client';
+import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Badge, Icon, IconButton, Icons, Text } from 'folds';
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
@@ -70,6 +72,7 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => schedules.events }));
+vi.mock('../messages/useMentionClickHandler', () => ({ useMentionClickHandler: () => vi.fn() }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
   usePowerLevels: () => ({}),
   usePowerLevelsContext: () => ({}),
@@ -170,13 +173,13 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
   };
 };
 
-const schedule = (taskId: string, threadId: string | null, newThread = false) =>
+const schedule = (taskId: string, threadId: string | null, newThread = false, status = 'pending') =>
   new MatrixEvent({
     type: MINDROOM_SCHEDULED_TASK_EVENT,
     state_key: taskId,
     sender: SENDER,
     content: {
-      status: 'pending',
+      status,
       workflow: JSON.stringify({ thread_id: threadId, new_thread: newThread }),
     },
   });
@@ -489,6 +492,103 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       createNodeMock
     );
     expect(rowLabels()).toEqual(['Show Members', 'More Options']);
+  });
+
+  it('keeps the canvas chooser open when an active sub-agent takes its slot', () => {
+    screen.size = 'Mobile';
+    const { createNodeMock } = phoneLayout(390, 2);
+    const canvases = ['Orchard map', 'Garden map'].map((title, index) => ({
+      canvasId: `$drawing-${index}:example.org`,
+      roomId: ROOM_ID,
+      threadId: THREAD,
+      agentUserId: SENDER,
+      title,
+      createdTs: 1,
+      revisionId: `$drawing-${index}:example.org`,
+      updatedTs: 1,
+      shared: false,
+    }));
+    const onCanvasOpen = vi.fn();
+    renderHeader({ canvases, onCanvasOpen, onCanvasClose: vi.fn() }, createNodeMock);
+    const chooserTrigger = renderer!.root.findByProps({ 'aria-label': 'Canvases' });
+    act(() => {
+      chooserTrigger.props.onClick({ currentTarget: document.createElement('button') });
+    });
+    const garden = () =>
+      renderer!.root
+        .findAllByType('button')
+        .find((node) =>
+          node.findAllByType(Text).some((text) => text.props.children === 'Garden map')
+        );
+    expect(garden()).toBeDefined();
+    run('running');
+    expect(rowLabels()).not.toContain('Canvases');
+    expect(garden()).toBeDefined();
+    act(() => {
+      garden()?.props.onClick();
+    });
+    expect(onCanvasOpen).toHaveBeenCalledWith('$drawing-1:example.org');
+  });
+
+  it.each([false, true])('restores focus after Escape (clock demoted: %s)', async (demote) => {
+    screen.size = 'Mobile';
+    schedules.events = [schedule('orchard', THREAD), schedule('seeds', null)];
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const box = new DOMRect(0, 0, 40, 40);
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
+    const rects = vi
+      .spyOn(HTMLElement.prototype, 'getClientRects')
+      .mockReturnValue([box] as unknown as DOMRectList);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const tree = () => (
+      <Provider>
+        <RoomViewHeader openThreadId={THREAD} hasMindroomAgents />
+      </Provider>
+    );
+    try {
+      actInDom(() => root.render(tree()));
+      const clock = host.querySelector<HTMLButtonElement>(
+        'button[aria-label="Scheduled tasks (1)"]'
+      )!;
+      clock.focus();
+      actInDom(() => clock.click());
+      const close = document.querySelector<HTMLButtonElement>(
+        '[role="dialog"] button[aria-label="Close"]'
+      )!;
+      expect(close).toBeInstanceOf(HTMLButtonElement);
+      close.focus();
+      if (demote) {
+        schedules.events = [
+          schedule('orchard', THREAD, false, 'cancelled'),
+          schedule('seeds', null),
+        ];
+        actInDom(() => root.render(tree()));
+        expect(clock.isConnected).toBe(false);
+        expect(close.isConnected).toBe(true);
+      }
+      actInDom(() => {
+        close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      });
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      const target = demote ? host.querySelector('[data-room-more-options]') : clock;
+      await vi.waitFor(() => expect(document.activeElement).toBe(target));
+    } finally {
+      actInDom(() => root.unmount());
+      host.remove();
+      rects.mockRestore();
+      bounds.mockRestore();
+      width.mockRestore();
+    }
   });
 
   it("leaves a phone's menu button without a dot while only ended runs are kept", () => {

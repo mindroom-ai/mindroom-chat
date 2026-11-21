@@ -245,16 +245,20 @@ export function RoomViewHeader({
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
-  // On phones the room menu opens these; they stay with the room they were opened in.
+  // The phone canvas chooser and schedules dialog outlive their opener moving into overflow.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
-  const [schedulesRoomId, setSchedulesRoomId] = useState<string>();
-  const schedulesOpen = !!hasMindroomAgents && schedulesRoomId === room.roomId;
-  const openSchedules = () => setSchedulesRoomId(room.roomId);
+  const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
+  const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
+  const openSchedules = (opener?: HTMLButtonElement) =>
+    setSchedules({ roomId: room.roomId, opener });
   const pendingSchedules = usePendingRoomSchedules(room);
-  const scheduleCountThreadId = mobile ? openThreadId : undefined;
+  const displayedScheduleCount = getRoomScheduleCount(
+    pendingSchedules,
+    mobile ? openThreadId : undefined
+  );
   useEffect(() => {
-    if (!schedulesOpen && schedulesRoomId !== undefined) setSchedulesRoomId(undefined);
-  }, [schedulesOpen, schedulesRoomId]);
+    if (!schedulesOpen && schedules) setSchedules(undefined);
+  }, [schedulesOpen, schedules]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -318,6 +322,10 @@ export function RoomViewHeader({
     act(menuButton);
   };
   const canvasesHere = showCanvases && canvases ? canvases : [];
+  const needsCanvasChooser = canvasesHere.length > 1;
+  useEffect(() => {
+    if (!mobile || !needsCanvasChooser) setCanvasMenuAnchor(undefined);
+  }, [mobile, needsCanvasChooser]);
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
   const chooseCanvas = (canvasId: string) => {
     setCanvasMenuAnchor(undefined);
@@ -373,11 +381,10 @@ export function RoomViewHeader({
     hasMindroomAgents && {
       id: 'schedules',
       placement: 'auto',
-      phoneEligible: mobile && getRoomScheduleCount(pendingSchedules, scheduleCountThreadId) > 0,
+      phoneEligible: displayedScheduleCount > 0,
       row: (
         <RoomSchedulesButton
-          room={room}
-          countThreadId={scheduleCountThreadId}
+          total={displayedScheduleCount}
           open={schedulesOpen}
           onOpen={openSchedules}
         />
@@ -385,7 +392,7 @@ export function RoomViewHeader({
       menu: (
         <RoomSchedulesMenuEntry
           total={pendingSchedules.length}
-          onSelect={fromMenu(openSchedules)}
+          onSelect={fromMenu(() => openSchedules())}
         />
       ),
     },
@@ -400,16 +407,17 @@ export function RoomViewHeader({
             openCanvasId={openCanvasId}
             onOpen={onCanvasOpen}
             onClose={onCanvasClose}
+            chooser={mobile ? { open: !!canvasMenuAnchor, onOpen: setCanvasMenuAnchor } : undefined}
           />
         ),
         menu: (
           <MenuEntry
             icon={Icons.Category}
             label={canvasEntryLabel}
-            aria-haspopup={canvasesHere.length > 1 ? 'menu' : undefined}
+            aria-haspopup={needsCanvasChooser ? 'menu' : undefined}
             onSelect={fromMenu((menuButton) => {
               const [only] = canvasesHere;
-              if (canvasesHere.length > 1) setCanvasMenuAnchor(menuButton);
+              if (needsCanvasChooser) setCanvasMenuAnchor(menuButton);
               else if (only) chooseCanvas(only.canvasId);
             })}
           />
@@ -521,16 +529,14 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  const promoted =
-    mobile &&
-    selectPhoneHeaderActions(
-      slots,
-      entries
-        .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
-        .map((entry) => entry.id)
-    );
+  const promoted = selectPhoneHeaderActions(
+    mobile ? slots : 0,
+    entries
+      .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
+      .map((entry) => entry.id)
+  );
   const inRow = (entry: RoomHeaderEntry) =>
-    showsInRow(entry.placement, mobile, !!promoted && promoted.has(entry.id));
+    showsInRow(entry.placement, mobile, promoted.has(entry.id));
   const rowEntries = entries.filter(inRow);
   // The mandatory plugin controls are already after the built-in actions, beside More Options.
   const inMandatoryTail = (entry: RoomHeaderEntry) =>
@@ -694,7 +700,7 @@ export function RoomViewHeader({
           </FocusTrap>
         }
       />
-      {mobile && canvasesHere.length > 1 && (
+      {mobile && needsCanvasChooser && (
         <CanvasMenu
           anchor={canvasMenuAnchor}
           canvases={canvasesHere}
@@ -709,7 +715,14 @@ export function RoomViewHeader({
           roomHeader={headerRef.current}
           tasks={pendingSchedules}
           openThreadId={openThreadId}
-          onClose={() => setSchedulesRoomId(undefined)}
+          returnFocusTo={() => {
+            const opener = schedules?.opener;
+            return opener?.isConnected
+              ? opener
+              : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ??
+                  false;
+          }}
+          onClose={() => setSchedules(undefined)}
           onOpenThread={openScheduledThread}
         />
       )}
