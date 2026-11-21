@@ -4051,7 +4051,7 @@ index d8a2081..f16cacd 100644
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..aac353e 100644
+index 6ce0bac..004b10c 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 @@ -96,8 +96,16 @@ function txnAsPromise(txn) {
@@ -4073,6 +4073,111 @@ index 6ce0bac..aac353e 100644
      };
    });
  }
+@@ -414,7 +422,14 @@ export class LocalIndexedDBStoreBackend {
+     return _asyncToGenerator(function* () {
+       try {
+         var syncData = _this5.syncAccumulator.getJSON(true);
+-        yield Promise.all([_this5.persistUserPresenceEvents(userTuples), _this5.persistAccountData(syncData.accountData), _this5.persistSyncData(syncData.nextBatch, syncData.roomsData)]);
++        // One transaction, so that a save the browser aborts writes no part of it: a new
++        // batch beside older account data would lose the changes between them for good.
++        var txn = _this5.db.transaction(["users", "accountData", "sync"], "readwrite");
++        _this5.persistUserPresenceEvents(txn, userTuples);
++        _this5.persistAccountData(txn, syncData.accountData);
++        _this5.persistSyncData(txn, syncData.nextBatch, syncData.roomsData);
++        yield txnAsPromise(txn);
++        logger.log("Persisted sync data up to", syncData.nextBatch);
+       } finally {
+         _this5.syncToDatabasePromise = undefined;
+       }
+@@ -423,42 +438,32 @@ export class LocalIndexedDBStoreBackend {
+ 
+   /**
+    * Persist rooms /sync data along with the next batch token.
++   * @param txn - The transaction of the save.
+    * @param nextBatch - The next_batch /sync value.
+    * @param roomsData - The 'rooms' /sync data from a SyncAccumulator
+-   * @returns Promise which resolves if the data was persisted.
+    */
+-  persistSyncData(nextBatch, roomsData) {
++  persistSyncData(txn, nextBatch, roomsData) {
+     logger.log("Persisting sync data up to", nextBatch);
+-    return promiseTry(() => {
+-      var txn = this.db.transaction(["sync"], "readwrite");
+-      var store = txn.objectStore("sync");
+-      store.put({
+-        clobber: "-",
+-        // constant key so will always clobber
+-        nextBatch,
+-        roomsData
+-      }); // put == UPSERT
+-      return txnAsPromise(txn).then(() => {
+-        logger.log("Persisted sync data up to", nextBatch);
+-      });
+-    });
++    var store = txn.objectStore("sync");
++    store.put({
++      clobber: "-",
++      // constant key so will always clobber
++      nextBatch,
++      roomsData
++    }); // put == UPSERT
+   }
+ 
+   /**
+    * Persist a list of account data events. Events with the same 'type' will
+    * be replaced.
++   * @param txn - The transaction of the save.
+    * @param accountData - An array of raw user-scoped account data events
+-   * @returns Promise which resolves if the events were persisted.
+    */
+-  persistAccountData(accountData) {
+-    return promiseTry(() => {
+-      var txn = this.db.transaction(["accountData"], "readwrite");
+-      var store = txn.objectStore("accountData");
+-      for (var event of accountData) {
+-        store.put(event); // put == UPSERT
+-      }
+-      return txnAsPromise(txn).then();
+-    });
++  persistAccountData(txn, accountData) {
++    var store = txn.objectStore("accountData");
++    for (var event of accountData) {
++      store.put(event); // put == UPSERT
++    }
+   }
+ 
+   /**
+@@ -466,21 +471,17 @@ export class LocalIndexedDBStoreBackend {
+    * Users with the same 'userId' will be replaced.
+    * Presence events should be the event in its raw form (not the Event
+    * object)
++   * @param txn - The transaction of the save.
+    * @param tuples - An array of [userid, event] tuples
+-   * @returns Promise which resolves if the users were persisted.
+    */
+-  persistUserPresenceEvents(tuples) {
+-    return promiseTry(() => {
+-      var txn = this.db.transaction(["users"], "readwrite");
+-      var store = txn.objectStore("users");
+-      for (var tuple of tuples) {
+-        store.put({
+-          userId: tuple[0],
+-          event: tuple[1]
+-        }); // put == UPSERT
+-      }
+-      return txnAsPromise(txn).then();
+-    });
++  persistUserPresenceEvents(txn, tuples) {
++    var store = txn.objectStore("users");
++    for (var tuple of tuples) {
++      store.put({
++        userId: tuple[0],
++        event: tuple[1]
++      }); // put == UPSERT
++    }
+   }
+ 
+   /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
 index 26f6aa9..a7c4734 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
@@ -4193,7 +4298,7 @@ index 8320c66..4110038 100644
          _this.emitter.emit("degraded", e);
          try {
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..f47a5ab 100644
+index 5f58e7c..0b10cbe 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 @@ -95,8 +95,14 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
@@ -4213,6 +4318,113 @@ index 5f58e7c..f47a5ab 100644
          };
      });
  }
+@@ -427,11 +433,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+     private async doSyncToDatabase(userTuples: UserTuple[]): Promise<void> {
+         try {
+             const syncData = this.syncAccumulator.getJSON(true);
+-            await Promise.all([
+-                this.persistUserPresenceEvents(userTuples),
+-                this.persistAccountData(syncData.accountData),
+-                this.persistSyncData(syncData.nextBatch, syncData.roomsData),
+-            ]);
++            // One transaction, so that a save the browser aborts writes no part of it: a new
++            // batch beside older account data would lose the changes between them for good.
++            const txn = this.db!.transaction(["users", "accountData", "sync"], "readwrite");
++            this.persistUserPresenceEvents(txn, userTuples);
++            this.persistAccountData(txn, syncData.accountData);
++            this.persistSyncData(txn, syncData.nextBatch, syncData.roomsData);
++            await txnAsPromise(txn);
++            logger.log("Persisted sync data up to", syncData.nextBatch);
+         } finally {
+             this.syncToDatabasePromise = undefined;
+         }
+@@ -439,41 +448,31 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+ 
+     /**
+      * Persist rooms /sync data along with the next batch token.
++     * @param txn - The transaction of the save.
+      * @param nextBatch - The next_batch /sync value.
+      * @param roomsData - The 'rooms' /sync data from a SyncAccumulator
+-     * @returns Promise which resolves if the data was persisted.
+      */
+-    private persistSyncData(nextBatch: string, roomsData: ISyncResponse["rooms"]): Promise<void> {
++    private persistSyncData(txn: IDBTransaction, nextBatch: string, roomsData: ISyncResponse["rooms"]): void {
+         logger.log("Persisting sync data up to", nextBatch);
+-        return promiseTry<void>(() => {
+-            const txn = this.db!.transaction(["sync"], "readwrite");
+-            const store = txn.objectStore("sync");
+-            store.put({
+-                clobber: "-", // constant key so will always clobber
+-                nextBatch,
+-                roomsData,
+-            }); // put == UPSERT
+-            return txnAsPromise(txn).then(() => {
+-                logger.log("Persisted sync data up to", nextBatch);
+-            });
+-        });
++        const store = txn.objectStore("sync");
++        store.put({
++            clobber: "-", // constant key so will always clobber
++            nextBatch,
++            roomsData,
++        }); // put == UPSERT
+     }
+ 
+     /**
+      * Persist a list of account data events. Events with the same 'type' will
+      * be replaced.
++     * @param txn - The transaction of the save.
+      * @param accountData - An array of raw user-scoped account data events
+-     * @returns Promise which resolves if the events were persisted.
+      */
+-    private persistAccountData(accountData: IMinimalEvent[]): Promise<void> {
+-        return promiseTry<void>(() => {
+-            const txn = this.db!.transaction(["accountData"], "readwrite");
+-            const store = txn.objectStore("accountData");
+-            for (const event of accountData) {
+-                store.put(event); // put == UPSERT
+-            }
+-            return txnAsPromise(txn).then();
+-        });
++    private persistAccountData(txn: IDBTransaction, accountData: IMinimalEvent[]): void {
++        const store = txn.objectStore("accountData");
++        for (const event of accountData) {
++            store.put(event); // put == UPSERT
++        }
+     }
+ 
+     /**
+@@ -481,21 +480,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+      * Users with the same 'userId' will be replaced.
+      * Presence events should be the event in its raw form (not the Event
+      * object)
++     * @param txn - The transaction of the save.
+      * @param tuples - An array of [userid, event] tuples
+-     * @returns Promise which resolves if the users were persisted.
+      */
+-    private persistUserPresenceEvents(tuples: UserTuple[]): Promise<void> {
+-        return promiseTry<void>(() => {
+-            const txn = this.db!.transaction(["users"], "readwrite");
+-            const store = txn.objectStore("users");
+-            for (const tuple of tuples) {
+-                store.put({
+-                    userId: tuple[0],
+-                    event: tuple[1],
+-                }); // put == UPSERT
+-            }
+-            return txnAsPromise(txn).then();
+-        });
++    private persistUserPresenceEvents(txn: IDBTransaction, tuples: UserTuple[]): void {
++        const store = txn.objectStore("users");
++        for (const tuple of tuples) {
++            store.put({
++                userId: tuple[0],
++                event: tuple[1],
++            }); // put == UPSERT
++        }
+     }
+ 
+     /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 index 25be506..615c5ee 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts

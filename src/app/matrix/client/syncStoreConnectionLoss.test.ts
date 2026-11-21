@@ -17,8 +17,12 @@ const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase
  * exits: it marks each connection as closing, aborts active and committing
  * transactions, and only then fires `close`. The sync store must not hang or
  * delete the persisted sync; the page reload restores the connection.
+ *
+ * WebKit also aborts the transactions in flight when iOS suspends the app, on
+ * a connection that stays open. The sync store keeps the persisted sync then
+ * too, and saves again soon. Only a full disk deletes it.
  */
-describe('Matrix sync store after an IndexedDB connection loss', () => {
+describe('Matrix sync store after an IndexedDB failure', () => {
   let indexedDB: IDBFactory;
   const stores: IndexedDBStore[] = [];
   const clients: MatrixClient[] = [];
@@ -190,6 +194,31 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
       expect(await persistedToken()).toBe('aborted');
     }
   );
+
+  // Kept after a failed save, the saved sync must never hold a new batch beside older account
+  // data: the server sends the changes between them only once.
+  it('writes no part of a save that is aborted part-way', async () => {
+    const store = await savedStore();
+
+    const put = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function abortAccountData(
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['put']>
+    ) {
+      const request = put.apply(this, args);
+      const { transaction } = this;
+      if (this.name === 'accountData')
+        request.addEventListener('success', () => transaction.abort());
+      return request;
+    });
+    await store.setSyncData({
+      next_batch: 'aborted',
+      account_data: { events: [{ type: 'm.direct', content: {} }] },
+    } as Parameters<IndexedDBStore['setSyncData']>[0]);
+    await store.save(true);
+
+    expect(await persistedToken()).toBe('saved');
+  });
 
   it('saves again soon after a failed save, not after the usual five minutes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
