@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados"
+        "advancedFilters": "Filtros avançados",
+        "includeResolvedThreads": "Incluir tópicos resolvidos",
+        "hideResolvedThreads": "Ocultar tópicos resolvidos",
+        "forMeSummary": "{{summary}}. Filtro «Para mim» ativado."
       },
       "threadPeopleFilter": {
         "label": "Pessoas",
@@ -1718,6 +1721,7 @@
   "threadNav": {
     "forMe": "Para mim",
     "forMeHint": "Apenas tópicos em que participa, em que um agente publicou em seu nome ou que fixou",
+    "roomForMeHint": "Apenas tópicos em que participa ou em que um agente publicou em seu nome",
     "emptyForMe": "Ainda não há tópicos para si",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",

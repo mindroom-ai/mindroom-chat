@@ -41,12 +41,12 @@ describe('thread sidebar preferences', () => {
     ).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'recent',
-      involvedOnly: false,
+      involvedOnly: true,
     });
     expect(sanitizeThreadSidebarPreferences({ v: 2 })).toEqual({
       pinnedThreadKeys: [],
       layout: 'recent',
-      involvedOnly: false,
+      involvedOnly: true,
     });
   });
 
@@ -59,7 +59,7 @@ describe('thread sidebar preferences', () => {
     expect(createStore().get(makeThreadSidebarPreferencesAtom(USER_ID))).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'recent',
-      involvedOnly: false,
+      involvedOnly: true,
     });
   });
 
@@ -79,12 +79,12 @@ describe('thread sidebar preferences', () => {
     expect(JSON.parse(storage.get(getThreadSidebarPreferencesStoreKey(USER_ID)) ?? '{}')).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'sections',
-      involvedOnly: false,
+      involvedOnly: true,
       v: 1,
     });
   });
 
-  it('loads existing Sections preferences with For me off, keeping the pins', () => {
+  it('loads v1 Sections preferences missing For me as on, keeping the pins', () => {
     storage.set(
       getThreadSidebarPreferencesStoreKey(USER_ID),
       JSON.stringify({ v: 1, pinnedThreadKeys: [THREAD_KEY], layout: 'sections' })
@@ -93,13 +93,17 @@ describe('thread sidebar preferences', () => {
     expect(createStore().get(makeThreadSidebarPreferencesAtom(USER_ID))).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'sections',
-      involvedOnly: false,
+      involvedOnly: true,
     });
   });
 
-  it('reads only boolean true as enabling For me', () => {
-    expect(sanitizeThreadSidebarPreferences({ v: 1, involvedOnly: 'true' }).involvedOnly).toBe(
-      false
+  it('defaults For me to on for a new account', () => {
+    expect(createStore().get(makeThreadSidebarPreferencesAtom(USER_ID)).involvedOnly).toBe(true);
+  });
+
+  it('defaults a non-boolean For me preference to on', () => {
+    expect(sanitizeThreadSidebarPreferences({ v: 1, involvedOnly: 'false' }).involvedOnly).toBe(
+      true
     );
   });
 
@@ -120,7 +124,8 @@ describe('thread sidebar preferences', () => {
 
     store.set(preferences, { type: 'SET_INVOLVED_ONLY', involvedOnly: false });
     expect(saved().involvedOnly).toBe(false);
-    expect(store.get(preferences)).toEqual(saved());
+    clearThreadSidebarPreferencesStore(USER_ID);
+    expect(createStore().get(makeThreadSidebarPreferencesAtom(USER_ID))).toEqual(saved());
   });
 
   it('persists pin toggles per account', () => {
@@ -132,12 +137,12 @@ describe('thread sidebar preferences', () => {
     expect(store.get(preferencesAtom)).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'recent',
-      involvedOnly: false,
+      involvedOnly: true,
     });
     expect(JSON.parse(storage.get(getThreadSidebarPreferencesStoreKey(USER_ID)) ?? '{}')).toEqual({
       pinnedThreadKeys: [THREAD_KEY],
       layout: 'recent',
-      involvedOnly: false,
+      involvedOnly: true,
       v: 1,
     });
 

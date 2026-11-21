@@ -39,7 +39,7 @@ type ThreadSidebarPreferencesAtom = WritableAtom<
 export const DEFAULT_THREAD_SIDEBAR_PREFERENCES: ThreadSidebarPreferences = {
   pinnedThreadKeys: [],
   layout: 'recent',
-  involvedOnly: false,
+  involvedOnly: true,
 };
 
 const isValidThreadKey = (value: unknown): value is string =>
@@ -61,7 +61,7 @@ export const sanitizeThreadSidebarPreferences = (value: unknown): ThreadSidebarP
     pinnedThreadKeys,
     // Preferences stored before the layout existed read as Recent, the list they showed.
     layout: value.layout === 'sections' ? 'sections' : 'recent',
-    involvedOnly: value.involvedOnly === true,
+    involvedOnly: value.involvedOnly !== false,
   };
 };
 

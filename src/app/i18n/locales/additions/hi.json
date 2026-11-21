@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर"
+        "advancedFilters": "उन्नत फ़िल्टर",
+        "includeResolvedThreads": "सुलझाए गए थ्रेड शामिल करें",
+        "hideResolvedThreads": "सुलझाए गए थ्रेड छिपाएँ",
+        "forMeSummary": "{{summary}}। मेरे लिए फ़िल्टर चालू है।"
       },
       "threadPeopleFilter": {
         "label": "लोग",
@@ -1678,6 +1681,7 @@
   "threadNav": {
     "forMe": "मेरे लिए",
     "forMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं, जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है या जिन्हें आपने पिन किया है",
+    "roomForMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं या जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है",
     "emptyForMe": "अभी आपके लिए कोई थ्रेड नहीं हैं",
     "group": "समूह",
     "groupHint": "स्थिति के अनुसार समूह बनाएँ",

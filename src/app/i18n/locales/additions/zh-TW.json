@@ -992,7 +992,10 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "includeResolvedThreads": "包含已解決的討論串",
+        "hideResolvedThreads": "隱藏已解決的討論串",
+        "forMeSummary": "{{summary}}。與我相關篩選已開啟。"
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -1638,6 +1641,7 @@
   "threadNav": {
     "forMe": "與我相關",
     "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
+    "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",
     "emptyForMe": "目前沒有與你相關的討論串",
     "group": "分組",
     "groupHint": "依狀態分組",

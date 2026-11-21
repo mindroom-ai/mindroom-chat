@@ -992,7 +992,10 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "includeResolvedThreads": "Sertakan utas yang telah diselesaikan",
+        "hideResolvedThreads": "Sembunyikan utas yang telah diselesaikan",
+        "forMeSummary": "{{summary}}. Filter Untuk saya aktif."
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -1638,6 +1641,7 @@
   "threadNav": {
     "forMe": "Untuk saya",
     "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
+    "roomForMeHint": "Hanya utas yang Anda ikuti atau yang berisi pesan dari agen atas nama Anda",
     "emptyForMe": "Belum ada utas untuk Anda",
     "group": "Kelompokkan",
     "groupHint": "Kelompokkan menurut status",

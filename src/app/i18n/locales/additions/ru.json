@@ -1055,7 +1055,10 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры"
+        "advancedFilters": "Расширенные фильтры",
+        "includeResolvedThreads": "Показывать решённые ветки",
+        "hideResolvedThreads": "Скрывать решённые ветки",
+        "forMeSummary": "{{summary}}. Фильтр «Для меня» включён."
       },
       "threadPeopleFilter": {
         "label": "Участники",
@@ -1758,6 +1761,7 @@
   "threadNav": {
     "forMe": "Для меня",
     "forMeHint": "Только ветки, в которых вы участвуете, в которых агент написал от вашего имени или которые вы закрепили",
+    "roomForMeHint": "Только ветки, в которых вы участвуете или в которых агент написал от вашего имени",
     "emptyForMe": "Пока нет веток для вас",
     "group": "Группы",
     "groupHint": "Группировать по статусу",
