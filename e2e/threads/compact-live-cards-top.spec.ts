@@ -495,7 +495,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await expect(lock).toHaveAttribute('aria-pressed', 'false');
   } else if (move === 'sections') {
     await agentStartsOn(seeded, mover);
-    await expect(cardOf(page, mover)).toContainText('Thinking...', { timeout: 30_000 });
+    await expect(cardOf(page, mover)).toHaveAccessibleName(/Agent streaming/, { timeout: 30_000 });
   } else {
     if (movers.length > 1) {
       // Hold with the pointer while the batch arrives, then leave the list while still scrolled.

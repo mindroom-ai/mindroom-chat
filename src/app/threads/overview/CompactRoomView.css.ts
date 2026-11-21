@@ -24,6 +24,20 @@ export const View = style([
   },
 ]);
 
+export const UpdatedOrder = style({
+  position: 'sticky',
+  insetBlockStart: `calc(${topInset} + ${config.space.S300})`,
+  flex: 'none',
+  height: 0,
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'center',
+  zIndex: 2,
+  overflowAnchor: 'none',
+  pointerEvents: 'none',
+});
+globalStyle(`${UpdatedOrder} > button`, { pointerEvents: 'auto' });
+
 export const EmptyState = style({
   display: 'flex',
   alignItems: 'center',

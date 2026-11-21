@@ -5,10 +5,25 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type PointerEvent,
   type RefObject,
   type TouchEvent,
 } from 'react';
+
+/** A scroll event only invalidates the view when it crosses zero, not for each pixel. */
+export const useScrolledAway = (viewRef: RefObject<HTMLElement>): boolean => {
+  const read = useCallback(() => (viewRef.current?.scrollTop ?? 0) > 0, [viewRef]);
+  const subscribe = useCallback(
+    (change: () => void) => {
+      const view = viewRef.current;
+      view?.addEventListener('scroll', change, { passive: true });
+      return () => view?.removeEventListener('scroll', change);
+    },
+    [viewRef]
+  );
+  return useSyncExternalStore(subscribe, read, () => false);
+};
 
 /**
  * The shown order kept against the live one: the threads shown keep their places, threads that

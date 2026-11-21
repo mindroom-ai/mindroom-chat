@@ -1092,6 +1092,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "إظهار الترتيب المحدّث"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "عرض مدمج",
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"

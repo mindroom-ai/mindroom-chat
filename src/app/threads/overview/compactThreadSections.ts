@@ -125,7 +125,8 @@ export const buildCompactThreadSections = ({
  */
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
-  shown: readonly CompactThreadSection[]
+  shown: readonly CompactThreadSection[],
+  promoteWorking = true
 ): CompactThreadSection[] => {
   const shownIn = new Map(
     shown.flatMap(({ id, rootIds }) => rootIds.map((rootId) => [rootId, id] as const))
@@ -134,7 +135,9 @@ export const holdCompactThreadSections = (
     const members = live.flatMap((section) =>
       section.rootIds.filter(
         (rootId) =>
-          (section.id === 'working' ? section.id : shownIn.get(rootId) ?? section.id) === id
+          (promoteWorking && section.id === 'working'
+            ? section.id
+            : shownIn.get(rootId) ?? section.id) === id
       )
     );
     const shownSection = shown.find((section) => section.id === id);

@@ -987,6 +987,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "업데이트된 순서 보기"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "간결 보기",
         "threadFiltersActive": "스레드 필터 (사용 중)"

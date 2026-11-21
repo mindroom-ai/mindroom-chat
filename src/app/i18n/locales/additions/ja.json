@@ -987,6 +987,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "更新された並び順を表示"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "コンパクト表示",
         "threadFiltersActive": "スレッドフィルター（有効）"

@@ -1008,6 +1008,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "अपडेट किया गया क्रम दिखाएँ"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "सघन दृश्य",
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"

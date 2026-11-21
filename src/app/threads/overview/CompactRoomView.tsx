@@ -33,7 +33,10 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { useHeldThreadOrder, usePointerOverCards, useScrolledAway } from './useHeldThreadOrder';
+import { applyFrozenThreadOrder } from '../../event-store/threads/roomThreadOverviewModel';
+import { FloatingAction } from '../../ui/FloatingAction';
+import { useFlickStop } from '../../ui/useFlickStop';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -79,11 +82,22 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
+  orderKey?: string;
+  pageLimit?: number;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
 const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionKeys = (sections: CompactThreadSection[], folded: readonly ThreadWorkflowBucket[]) =>
+  sections.flatMap(({ id, rootIds }) => [
+    sectionRowKey(id),
+    ...(folded.includes(id) ? [] : rootIds),
+  ]);
+const flatKeys = (ids: string[], pinned: ReadonlySet<string>) => [
+  ids.filter((id) => pinned.has(id)),
+  ids.filter((id) => !pinned.has(id)),
+];
 const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
     ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
@@ -327,6 +341,8 @@ export function CompactRoomView({
   focusRequest,
   filterBarShown = false,
   sectionsNow,
+  orderKey,
+  pageLimit,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -338,7 +354,16 @@ export function CompactRoomView({
   const { pointerInside, ...pointerHandlers } = usePointerOverCards();
   const [focusInside, setFocusInside] = useState(false);
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
-  const orderHeld = pointerInside || focusHeld || !!menu;
+  const scope = JSON.stringify([room.roomId, orderKey, sectionsNow !== undefined]);
+  const committed = useRef<{
+    scope: string;
+    sections?: CompactThreadSection[];
+    rows: string[];
+    pins: ReadonlySet<string>;
+  }>();
+  const previous = committed.current?.scope === scope ? committed.current : undefined;
+  const away = useScrolledAway(viewRef);
+  const orderHeld = !!previous && (away || pointerInside || focusHeld || !!menu);
   const pinning = useThreadPinning(room);
   const pinnedRootIds = useMemo(
     () => threadRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId)),
@@ -354,19 +379,12 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While the order is held, the cards keep the sections they showed in and their places there,
-  // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
-  // this room's: the view stays mounted when the next room opens under the pointer.
-  const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
   const heldSections = useMemo(() => {
-    const shown = shownSectionsRef.current;
-    return orderHeld && threadSections && shown?.roomId === room.roomId && shown.sections
-      ? holdCompactThreadSections(threadSections, shown.sections)
+    const shown = committed.current?.scope === scope ? committed.current.sections : undefined;
+    return orderHeld && threadSections && shown
+      ? holdCompactThreadSections(threadSections, shown, !away)
       : threadSections;
-  }, [orderHeld, room.roomId, threadSections]);
-  useLayoutEffect(() => {
-    shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
-  }, [heldSections, room.roomId]);
+  }, [away, orderHeld, scope, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
   // other sections to come back. While the order is held, that section stays open when a card
   // moving to Working brings a second one, so the cards under the pointer stay in view, until the
@@ -395,18 +413,59 @@ export function CompactRoomView({
     }
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
-  // In sections, the list's rows are each section's header and, unless it is folded, its cards.
-  const listedRows = useMemo(
-    () =>
-      heldSections
-        ? heldSections.flatMap(({ id, rootIds }) => [
-            sectionRowKey(id),
-            ...(folded.includes(id) ? [] : rootIds),
-          ])
-        : threadRootIds,
-    [folded, heldSections, threadRootIds]
+  const livePage = useMemo(
+    () => (pageLimit === undefined ? threadRootIds : threadRootIds.slice(0, pageLimit)),
+    [pageLimit, threadRootIds]
   );
+  const listedRows = useMemo(() => {
+    if (heldSections) return sectionKeys(heldSections, folded);
+    const previous = committed.current;
+    if (away && previous?.scope === scope && pageLimit !== undefined) {
+      const page = applyFrozenThreadOrder(previous.rows, threadRootIds).slice(0, pageLimit);
+      const selected = new Set(page);
+      return threadRootIds.filter((id) => selected.has(id));
+    }
+    return livePage;
+  }, [away, folded, heldSections, livePage, pageLimit, scope, threadRootIds]);
   const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  const livePins = useMemo(() => new Set(pinnedRootIds), [pinnedRootIds]);
+  const shownPins = useMemo(() => {
+    const previous = committed.current;
+    if (!away || previous?.scope !== scope || heldSections) return livePins;
+    const incumbents = new Set(previous.rows);
+    return new Set(
+      shownRows.filter((id) => (incumbents.has(id) ? previous.pins : livePins).has(id))
+    );
+  }, [away, heldSections, livePins, scope, shownRows]);
+  useLayoutEffect(() => {
+    committed.current = { scope, sections: heldSections, rows: shownRows, pins: shownPins };
+  }, [heldSections, scope, shownPins, shownRows]);
+  const pending = useMemo(() => {
+    if (!away) return false;
+    const target = threadSections
+      ? sectionKeys(threadSections, threadSections.length === 1 ? NO_FOLDS : sectionsChoice.folded)
+      : flatKeys(livePage, livePins);
+    return (
+      JSON.stringify(target) !==
+      JSON.stringify(heldSections ? shownRows : flatKeys(shownRows, shownPins))
+    );
+  }, [
+    away,
+    heldSections,
+    livePage,
+    livePins,
+    sectionsChoice.folded,
+    shownPins,
+    shownRows,
+    threadSections,
+  ]);
+  const getView = useCallback(() => viewRef.current, []);
+  const stopFlick = useFlickStop(getView);
+  const pillFocused = useRef(false);
+  useLayoutEffect(() => {
+    if (!pending && pillFocused.current) viewRef.current?.focus({ preventScroll: true });
+    if (!pending) pillFocused.current = false;
+  }, [pending]);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
@@ -454,19 +513,19 @@ export function CompactRoomView({
     menuRef.current = undefined;
     setMenu(undefined);
   }, [room.roomId]);
-  // Sections lead each with its pinned cards, so only the sorted list has a Pinned list of them.
+  // The parent is held separately from the card's live pin icon and actions.
   const pinnedCards = threadSections
     ? []
-    : cardViewModels.filter((model) => pinning.pinnedEventIds.includes(model.id.threadRootId));
+    : cardViewModels.filter((model) => shownPins.has(model.id.threadRootId));
   const ordinaryCards = threadSections
     ? cardViewModels
-    : cardViewModels.filter((model) => !pinning.pinnedEventIds.includes(model.id.threadRootId));
-  const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
-  // Each header counts its section's threads now: one that a held order still shows after it
-  // emptied counts none until the order is let go.
+    : cardViewModels.filter((model) => !shownPins.has(model.id.threadRootId));
   const sectionCounts = new Map(
-    (threadSections ?? []).map(({ id, rootIds }) => [id, rootIds.length] as const)
+    ((away ? heldSections : threadSections) ?? []).map(
+      ({ id, rootIds }) => [id, rootIds.length] as const
+    )
   );
+  const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
   const sectionRows = threadSections
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
@@ -671,6 +730,29 @@ export function CompactRoomView({
       data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
       tabIndex={-1}
     >
+      <div
+        className={css.UpdatedOrder}
+        aria-live="polite"
+        onFocus={() => {
+          pillFocused.current = true;
+        }}
+        onBlur={() => {
+          pillFocused.current = false;
+        }}
+      >
+        {pending && (
+          <FloatingAction
+            icon={Icons.ArrowTop}
+            label={t('mindroomUi.threads.compactRoomView.showUpdatedOrder')}
+            onSelect={() => {
+              const view = viewRef.current;
+              view?.focus({ preventScroll: true });
+              stopFlick();
+              view?.scrollTo({ top: 0, behavior: 'instant' });
+            }}
+          />
+        )}
+      </div>
       <Box
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}

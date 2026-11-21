@@ -6,7 +6,8 @@ import * as css from './RoomTimeline.css';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { getRoomUnreadInfo } from '../event-store/timeline/timelinePagination';
 import { useViewScopedState } from './roomTimelineViewScope';
-import { EXPAND_ALL_START_COLUMN, FloatingAction } from './RoomTimelineOverlays';
+import { EXPAND_ALL_START_COLUMN } from './RoomTimelineOverlays';
+import { FloatingAction } from '../ui/FloatingAction';
 
 /**
  * The room's read marker as the timeline shows it: the "New messages" line, and the Jump to

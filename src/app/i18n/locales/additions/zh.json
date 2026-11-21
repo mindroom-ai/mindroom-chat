@@ -987,6 +987,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "显示更新后的顺序"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "紧凑视图",
         "threadFiltersActive": "讨论串过滤器（已启用）"

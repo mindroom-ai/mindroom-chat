@@ -48,10 +48,7 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
   const { t, i18n } = useTranslation();
   const [limit, setLimit] = useState(PAGE);
   const scrollMemory = useRef<ScrollAnchorMemory>(new Map());
-  const shown = useMemo(
-    () => (PAGED.has(column) ? rootIds.slice(0, limit) : rootIds),
-    [column, limit, rootIds]
-  );
+  const pageLimit = PAGED.has(column) ? limit : undefined;
   const headingId = useId();
   return (
     <section className={css.Column} aria-labelledby={headingId} data-thread-board-column={column}>
@@ -63,13 +60,14 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
       {rootIds.length > 0 && (
         <CompactRoomView
           room={room}
-          threadRootIds={shown}
+          threadRootIds={rootIds}
+          pageLimit={pageLimit}
           threadRecordMap={records}
           onThreadClick={onThreadClick}
           compactRoomScrollStateRef={scrollMemory}
         />
       )}
-      {shown.length < rootIds.length && (
+      {pageLimit !== undefined && pageLimit < rootIds.length && (
         <Button
           size="300"
           variant="Secondary"

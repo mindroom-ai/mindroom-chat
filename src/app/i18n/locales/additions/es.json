@@ -1029,6 +1029,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "Mostrar el orden actualizado"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "Vista compacta",
         "threadFiltersActive": "Filtros de hilos (activos)"
