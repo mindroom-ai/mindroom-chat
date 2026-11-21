@@ -194,12 +194,34 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(field).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
-  // Closed, the menu hands the focus back to More, which holds the layout until it goes.
+  // Closed, the menu hands the focus back to More, which the layout leaves in place: the banner
+  // takes the wide layout at once.
   await expect(options).toBeFocused();
-  await expect(threadBanner.getByText('alpha', { exact: true })).toHaveCount(0);
-  await options.evaluate((button) => button.blur());
   await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible();
+
+  // The banner's own context menu, closed, gives the banner the focus, which the layout leaves
+  // in place: narrowing turns it compact at once.
+  await threadBanner.click({ button: 'right', position: { x: 4, y: 4 } });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(threadBanner).toBeFocused();
+  await page.setViewportSize({ width: 900, height: 900 });
+  await expect(threadBanner).toBeFocused();
+  await expect(addTag).toHaveCount(0);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(addTag).toBeVisible();
+
   await options.click();
   await expect(menu).toBeVisible();
   await expect(menu.locator('[data-thread-menu-tags]')).toHaveCount(0);
+
+  // Show the thread beside the messages from More: the narrow pane's banner is compact at once,
+  // with no click elsewhere.
+  await menu.getByRole('menuitem', { name: 'Show the thread beside the messages' }).click();
+  await expect(column).not.toHaveAttribute('data-filled', 'true');
+  const beside = column.locator('[data-thread-context-banner="true"]');
+  await expect(beside.getByRole('button', { name: 'Thread options', exact: true })).toBeVisible();
+  await expect(beside.getByText('alpha', { exact: true })).toHaveCount(0);
+  await expect(beside.getByRole('button', { name: 'Pin thread', exact: true })).toHaveCount(0);
 });

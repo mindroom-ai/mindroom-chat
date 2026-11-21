@@ -157,6 +157,8 @@ describe('ThreadContextBanner layout while in use', () => {
     render();
     act(() => button('Pin thread')!.focus());
     resizeTo(330);
+    // Past the banner's first look at the focus: only the page's change can let go now.
+    await settle();
     expect(tagShown()).toBe(true);
     const focusEvents = vi.fn();
     document.addEventListener('focusout', focusEvents);
@@ -188,7 +190,32 @@ describe('ThreadContextBanner layout while in use', () => {
     outside.remove();
   });
 
-  it('waits while its menu is open, and after it while More has the focus back', async () => {
+  it('follows once the focused control went while nothing waited', async () => {
+    render();
+    act(() => button('Pin thread')!.focus());
+    // Pin goes while the banner is wide, which sends no focus event; the pane narrows later.
+    state.canPin = false;
+    render();
+    await settle();
+    resizeTo(330);
+    await settleUntil(() => !tagShown());
+    expect(tagShown()).toBe(false);
+  });
+
+  it('switches at once while More or the banner itself has the focus', () => {
+    render();
+    act(() => button('Thread options')!.focus());
+    resizeTo(330);
+    expect(tagShown()).toBe(false);
+    expect(document.activeElement).toBe(button('Thread options'));
+    const banner = container.querySelector<HTMLElement>('[data-thread-context-banner]')!;
+    act(() => banner.focus());
+    resizeTo(646);
+    expect(tagShown()).toBe(true);
+    expect(document.activeElement).toBe(banner);
+  });
+
+  it('waits while its menu is open, and switches as it closes onto More', async () => {
     render();
     resizeTo(330);
     expect(tagShown()).toBe(false);
@@ -199,13 +226,9 @@ describe('ThreadContextBanner layout while in use', () => {
     resizeTo(646);
     await settle();
     expect(tagShown()).toBe(false);
-    // Closed, the menu gives More the focus, which keeps the layout until it leaves.
+    // Closed, the menu gives More the focus, which stays in either layout: it switches at once.
     act(() => state.menuClose!());
-    await settle();
     expect(document.activeElement).toBe(button('Thread options'));
-    expect(tagShown()).toBe(false);
-    act(() => button('Thread options')!.blur());
-    await settle();
     expect(tagShown()).toBe(true);
   });
 });

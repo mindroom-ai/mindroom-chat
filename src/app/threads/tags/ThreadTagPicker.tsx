@@ -111,7 +111,12 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
               },
             }}
           >
-            <Menu role="none" style={{ minWidth: '12rem', maxWidth: '16rem' }}>
+            {/* The thread banner holds its layout while the focus is in here. */}
+            <Menu
+              role="none"
+              style={{ minWidth: '12rem', maxWidth: '16rem' }}
+              data-banner-layout-bound=""
+            >
               <div className={css.TagPickerInputContainer}>
                 <input
                   ref={inputRef}
