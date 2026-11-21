@@ -20,9 +20,27 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise)
     ]
 
-    /// The sessions live in the app (main queue): the voice recorder leaves the audio session
-    /// alone meanwhile.
+    /// The sessions live in the app (main queue): the voice recorder coordinates audio session
+    /// ownership with this count.
     static private(set) var liveSessions = 0
+    private static var voiceRecording = false
+    private static var recordingRequirement: SessionRequirementHandle?
+
+    /// Keeps LiveKit's audio session in `.playAndRecord` while a voice message records alongside
+    /// a call, without initializing LiveKit when no call is active (main queue).
+    static func setVoiceRecording(_ active: Bool) {
+        voiceRecording = active
+        if active {
+            if liveSessions > 0, recordingRequirement == nil {
+                recordingRequirement = try? AudioManager.shared.audioSession.acquire(
+                    requirement: .playbackAndRecording
+                )
+            }
+        } else {
+            try? recordingRequirement?.release()
+            recordingRequirement = nil
+        }
+    }
 
     private final class Session {
         let id = UUID().uuidString
@@ -31,6 +49,9 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
         /// The media identities of the call's members; nobody until the page names them.
         var members = Set<String>()
         var sound = true
+        var microphone = false
+        var microphoneGeneration = 0
+        var permissionsApplied = false
 
         init(room: Room, keyProvider: BaseKeyProvider?) {
             self.room = room
@@ -91,6 +112,8 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
     /// engine has stopped.
     private func endLive() {
         guard let session = live else { return }
+        session.microphone = false
+        session.microphoneGeneration += 1
         live = nil
         Self.liveSessions -= 1
         enqueue { await session.room.disconnect() }
@@ -103,34 +126,58 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Only the call's members are subscribed to and may subscribe to this device's tracks, and
-    /// they are heard while sound is on (main queue).
-    private func apply(_ session: Session) {
-        let room = session.room
-        var permissions = [ParticipantTrackPermission]()
-        var subscriptions = [(RemoteTrackPublication, Bool)]()
-        var volumes = [(RemoteAudioTrack, Double)]()
-        for participant in room.remoteParticipants.values {
-            let member = participant.identity.map { session.members.contains($0.stringValue) } ?? false
-            if member, let sid = participant.sid?.stringValue {
-                permissions.append(ParticipantTrackPermission(participantSid: sid, allTracksAllowed: true))
-            }
-            for publication in participant.audioTracks {
-                guard let remote = publication as? RemoteTrackPublication else { continue }
-                if remote.isSubscribed != member { subscriptions.append((remote, member)) }
-                if let track = remote.track as? RemoteAudioTrack {
-                    volumes.append((track, session.sound ? 1 : 0))
-                }
-            }
-        }
+    /// Only the call's members (with GCM encryption in encrypted calls, audio only) are subscribed
+    /// to and may subscribe to this device's tracks, and they are heard while sound is on (main queue).
+    private func apply(_ session: Session, onDone: ((Bool) -> Void)? = nil) {
         enqueue {
-            for (publication, subscribed) in subscriptions {
+            let plan: (
+                permissions: [ParticipantTrackPermission],
+                subscriptions: [(RemoteTrackPublication, Bool)],
+                volumes: [(RemoteAudioTrack, Double)]
+            )? = await MainActor.run {
+                guard self.live === session else { return nil }
+                let room = session.room
+                let encrypted = session.keyProvider != nil
+                var permissions = [ParticipantTrackPermission]()
+                var subscriptions = [(RemoteTrackPublication, Bool)]()
+                var volumes = [(RemoteAudioTrack, Double)]()
+                for participant in room.remoteParticipants.values {
+                    let member = participant.identity.map { session.members.contains($0.stringValue) } ?? false
+                    if member, let sid = participant.sid?.stringValue {
+                        permissions.append(ParticipantTrackPermission(participantSid: sid, allTracksAllowed: true))
+                    }
+                    for publication in participant.trackPublications.values {
+                        guard let remote = publication as? RemoteTrackPublication else { continue }
+                        let encryptionOk = !encrypted || remote.encryptionType == .gcm
+                        let allowed = member && remote.kind == .audio && encryptionOk
+                        subscriptions.append((remote, allowed))
+                        if let track = remote.track as? RemoteAudioTrack {
+                            volumes.append((track, allowed && session.sound ? 1 : 0))
+                        }
+                    }
+                }
+                return (permissions, subscriptions, volumes)
+            }
+            guard let plan else {
+                onDone?(false)
+                return
+            }
+            plan.volumes.forEach { $0.0.volume = $0.1 }
+            for (publication, subscribed) in plan.subscriptions {
                 try? await publication.set(subscribed: subscribed)
             }
-            volumes.forEach { $0.0.volume = $0.1 }
-            try? await room.localParticipant.setTrackSubscriptionPermissions(
-                allParticipantsAllowed: false, trackPermissions: permissions
-            )
+            do {
+                try await session.room.localParticipant.setTrackSubscriptionPermissions(
+                    allParticipantsAllowed: false, trackPermissions: plan.permissions
+                )
+                await MainActor.run { session.permissionsApplied = true }
+                onDone?(true)
+            } catch {
+                await MainActor.run {
+                    if self.live === session { self.endLive() }
+                }
+                onDone?(false)
+            }
         }
     }
 
@@ -170,9 +217,17 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
                 let session = Session(room: room, keyProvider: keyProvider)
                 self.live = session
                 Self.liveSessions += 1
+                if Self.voiceRecording, Self.recordingRequirement == nil {
+                    Self.recordingRequirement = try? AudioManager.shared.audioSession.acquire(
+                        requirement: .playbackAndRecording
+                    )
+                }
                 self.enqueue {
                     do {
                         try await room.connect(url: url, token: token)
+                        try await room.localParticipant.setTrackSubscriptionPermissions(
+                            allParticipantsAllowed: false, trackPermissions: []
+                        )
                     } catch {
                         DispatchQueue.main.async {
                             if self.live === session { self.endLive() }
@@ -185,6 +240,7 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
                         guard self.live === session else {
                             return call.reject("The page is gone", "START_FAILED")
                         }
+                        session.permissionsApplied = true
                         call.resolve(["id": session.id])
                     }
                 }
@@ -195,7 +251,8 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func setKey(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             guard let session = self.session(call) else { return }
-            guard let identity = call.getString("identity"), let index = call.getInt("index"),
+            guard let identity = call.getString("identity"),
+                  let index = call.getInt("index"), (0..<256).contains(index),
                   let key = call.getString("key").flatMap({ Data(base64Encoded: $0) }) else {
                 return call.reject("Not a key", "BAD_KEY")
             }
@@ -211,8 +268,13 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             guard let session = self.session(call) else { return }
             session.members = Set(call.getArray("identities", String.self) ?? [])
-            self.apply(session)
-            call.resolve()
+            self.apply(session) { ok in
+                if ok {
+                    call.resolve()
+                } else {
+                    call.reject("Could not update call permissions", "PERMISSIONS_FAILED")
+                }
+            }
         }
     }
 
@@ -229,8 +291,30 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async {
             guard let session = self.session(call) else { return }
             let on = call.getBool("on") ?? false
+            session.microphone = on
+            session.microphoneGeneration += 1
+            let generation = session.microphoneGeneration
             let publish = {
                 self.enqueue {
+                    let state: (live: Bool, current: Bool, permissionsApplied: Bool) = await MainActor.run {
+                        (
+                            self.live === session,
+                            self.live === session && session.microphone == on && session.microphoneGeneration == generation,
+                            session.permissionsApplied
+                        )
+                    }
+                    guard state.live else {
+                        call.reject("No such call", "NOT_CONNECTED")
+                        return
+                    }
+                    guard state.current else {
+                        call.resolve()
+                        return
+                    }
+                    if on && !state.permissionsApplied {
+                        call.reject("The microphone could not be used", "MICROPHONE_FAILED")
+                        return
+                    }
                     do {
                         try await session.room.localParticipant.setMicrophone(enabled: on)
                         call.resolve()
@@ -242,9 +326,12 @@ public class MindRoomCallPlugin: CAPPlugin, CAPBridgedPlugin {
             guard on else { return publish() }
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
-                    // A page load, a closed window, a leave or a newer start under the prompt.
+                    // A page load, a closed window, a leave, a newer start or a mute under the prompt.
                     guard self.live === session else {
                         return call.reject("No such call", "NOT_CONNECTED")
+                    }
+                    guard session.microphone && session.microphoneGeneration == generation else {
+                        return call.resolve()
                     }
                     guard granted else {
                         return call.reject("Microphone access is denied", "PERMISSION_DENIED")

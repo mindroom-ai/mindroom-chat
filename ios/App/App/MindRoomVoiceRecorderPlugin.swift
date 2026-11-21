@@ -84,8 +84,10 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         // `live` is set only once it records, so a failed attempt cleans up from here.
                         var attempt: AVAudioRecorder?
                         do {
-                            // A call owns the audio session while it runs (MindRoomCallPlugin).
-                            if MindRoomCallPlugin.liveSessions == 0 {
+                            // A call owns the audio session while it runs (MindRoomCallPlugin),
+                            // except a muted call can leave it playback-only.
+                            MindRoomCallPlugin.setVoiceRecording(true)
+                            if MindRoomCallPlugin.liveSessions == 0 || session.category != .playAndRecord {
                                 // Not `.record`: the session keeps its category afterwards, and the page
                                 // must still play audio then.
                                 try session.setCategory(.playAndRecord, mode: .default)
@@ -104,6 +106,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
+                            MindRoomCallPlugin.setVoiceRecording(false)
                             if MindRoomCallPlugin.liveSessions == 0 {
                                 try? session.setActive(false, options: .notifyOthersOnDeactivation)
                             }
@@ -203,6 +206,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let live else { return }
         live.recorder.stop()
         self.live = nil
+        MindRoomCallPlugin.setVoiceRecording(false)
         if MindRoomCallPlugin.liveSessions == 0 {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
