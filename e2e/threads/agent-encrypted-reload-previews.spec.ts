@@ -9,6 +9,7 @@ import {
   test,
   type AgentStack,
 } from '../helpers/agentStack';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -114,20 +115,19 @@ const waitForAnsweredThreads = async (stack: AgentStack, roomId: string, count: 
 
 type CardText = { rootId: string; preview: string };
 
-const cardTexts = (page: Page): Promise<CardText[]> =>
-  page.locator('button[data-thread-root-id][data-attention-state]').evaluateAll((elements) =>
-    elements.map((element) => ({
-      rootId: element.getAttribute('data-thread-root-id') ?? '',
-      // The card's second row is its preview: "<sender>: <text>".
-      preview: (element.querySelector(':scope > div:nth-of-type(2)')?.textContent ?? '').trim(),
-    }))
-  );
-
 /** Cards whose preview is not the helper's reply ("Hello from ...", the stub's answer). */
-const cardsWithoutReply = async (page: Page, rootIds: Set<string>): Promise<CardText[]> =>
-  (await cardTexts(page)).filter(
-    (card) => rootIds.has(card.rootId) && !card.preview.includes('Hello from')
+const cardsWithoutReply = async (page: Page, rootIds: Set<string>): Promise<CardText[]> => {
+  const previews = new Map(
+    (await walkCompactCards(page.locator(COMPACT_VIEW), [...rootIds])).map(({ id, preview }) => [
+      id,
+      preview,
+    ])
   );
+  return [...rootIds].flatMap((rootId) => {
+    const preview = previews.get(rootId) ?? '(not reached)';
+    return preview.includes('Hello from') ? [] : [{ rootId, preview }];
+  });
+};
 
 const reloadKeepsReplies = async (
   page: Page,
@@ -137,10 +137,16 @@ const reloadKeepsReplies = async (
   log: string[]
 ) => {
   const room = encodeURIComponent(roomId);
-  const allCards = page.locator('button[data-thread-root-id][data-attention-state]');
+  const view = page.locator(COMPACT_VIEW);
+  const waitForThreads = () =>
+    expect
+      .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+        timeout: 90_000,
+      })
+      .toBeGreaterThanOrEqual(THREADS);
   // Live, the device shows every reply.
   await page.goto(`/home/${room}`, { timeout: 180_000 });
-  await expect.poll(() => allCards.count(), { timeout: 90_000 }).toBeGreaterThanOrEqual(THREADS);
+  await waitForThreads();
   await expect
     .poll(async () => (await cardsWithoutReply(page, rootIds)).length, {
       timeout: 120_000,
@@ -150,7 +156,7 @@ const reloadKeepsReplies = async (
     .toBe(0);
 
   await page.reload({ timeout: 180_000 });
-  await expect.poll(() => allCards.count(), { timeout: 90_000 }).toBeGreaterThanOrEqual(THREADS);
+  await waitForThreads();
   const startedAt = Date.now();
   let wrong: CardText[] = [];
   // The finding's count rose for about 10 s after the reload, then stayed; read for 30 s.
@@ -163,7 +169,6 @@ const reloadKeepsReplies = async (
     wrong.forEach((card) => log.push(`  ${card.rootId}: ${card.preview}`));
   }
   if (SHOTS) {
-    await allCards.last().scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${SHOTS}/reload-previews-${who}.png` });
   }
   expect(

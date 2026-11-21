@@ -268,7 +268,9 @@ test.describe('console hygiene', () => {
           await page.goto(`/home/${encodeURIComponent(roomId)}`);
           await expect(view).toBeVisible({ timeout: 120_000 });
           await expect
-            .poll(() => view.locator('[data-thread-root-id]').count(), { timeout: 120_000 })
+            .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+              timeout: 120_000,
+            })
             .toBeGreaterThanOrEqual(HISTORY_THREADS);
         };
 

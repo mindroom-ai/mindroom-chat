@@ -174,11 +174,14 @@ test.describe('thread scroll jitter', () => {
                   });
                   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
                   if (view === 'compact') {
-                    const cards = page.locator(
-                      '[data-compact-room-view="true"] [data-scroll-anchor]'
-                    );
+                    const scroller = page.locator('[data-compact-room-view]');
                     await expect
-                      .poll(() => cards.count(), { timeout: 180_000 })
+                      .poll(
+                        async () => Number(await scroller.getAttribute('data-compact-card-count')),
+                        {
+                          timeout: 180_000,
+                        }
+                      )
                       .toBeGreaterThanOrEqual(THREADS);
                   } else {
                     await expect(page.locator('[data-message-item]').first()).toBeVisible({

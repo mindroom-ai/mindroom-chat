@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   loginToMatrix,
@@ -33,7 +34,6 @@ type PerfWindow = Window & {
   };
 };
 const manifestPath = process.env.PERF_STRESS_MANIFEST;
-const cardSelector = '[data-compact-room-view] [data-thread-root-id]';
 const streamCount = 20;
 const steps = 20;
 const batchPauseMs = 50;
@@ -122,17 +122,10 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
     const roomUrl = `/home/${encodeURIComponent(fixture.roomId)}`;
     const openStart = performance.now();
     await page.goto(roomUrl);
-    await expect
-      .poll(
-        () =>
-          page
-            .locator(cardSelector)
-            .evaluateAll((cards) =>
-              cards.map((card) => card.getAttribute('data-thread-root-id')).sort()
-            ),
-        { timeout: 180_000 }
-      )
-      .toEqual(fixture.threads.map(({ rootId }) => rootId).sort());
+    const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(expectedRoots.size), {
+      timeout: 180_000,
+    });
     const openMs = performance.now() - openStart;
     const targets = fixture.threads.slice(0, streamCount);
 
@@ -171,35 +164,27 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
         })
       )
     );
+    const targetRoots = targets.map(({ rootId }) => rootId);
     const waitForPreviews = (step: number) =>
-      page.waitForFunction(
-        ({ selector, roots, markers, terminal }) => {
-          const cards = new Map(
-            Array.from(document.querySelectorAll(selector), (card) => [
-              card.getAttribute('data-thread-root-id'),
-              card,
-            ])
-          );
-          return roots.every((root, index) => {
-            const card = cards.get(root);
-            const label = card?.getAttribute('aria-label');
-            const state = card?.getAttribute('data-attention-state');
-            return (
-              label?.includes(markers[index]!) &&
-              state &&
-              (terminal ? state !== 'streaming' : state === 'streaming')
+      expect
+        .poll(
+          async () => {
+            const cards = new Map(
+              (await walkCompactCards(view, targetRoots)).map((card) => [card.id, card])
             );
-          });
-        },
-        {
-          selector: cardSelector,
-          roots: targets.map(({ rootId }) => rootId),
-          markers: targets.map((_, index) => marker(index, step)),
-          terminal: step === steps,
-        },
-        { timeout: 120_000, polling: 250 }
-      );
+            return targetRoots.filter((root, index) => {
+              const card = cards.get(root);
+              if (!card?.preview.includes(marker(index, step)) || !card.state) return true;
+              return step === steps ? card.state === 'streaming' : card.state !== 'streaming';
+            });
+          },
+          { timeout: 120_000, message: `previews missing edit ${step}` }
+        )
+        .toEqual([]);
     await waitForPreviews(0);
+    await view.evaluate((scroller) => {
+      scroller.scrollTop = 0;
+    });
 
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Performance.enable');

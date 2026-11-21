@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { walkCompactCards } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
@@ -85,13 +86,15 @@ const scrollTo = (page: Page, scrollTop: number) =>
   );
 
 /** The scroll position that shows the Needs you header just below the glass header. */
-const needsYouScrollTop = (page: Page) =>
-  page.evaluate((selector) => {
+const needsYouScrollTop = async (page: Page) => {
+  await walkCompactCards(page.locator(COMPACT_VIEW), '[data-compact-section="needsYou"]');
+  return page.evaluate((selector) => {
     const view = document.querySelector<HTMLElement>(selector)!;
     const header = view.querySelector<HTMLElement>('[data-compact-section="needsYou"]')!;
     const offset = header.getBoundingClientRect().top - view.getBoundingClientRect().top;
     return Math.round(view.scrollTop + offset - parseFloat(getComputedStyle(view).paddingTop) - 40);
   }, COMPACT_VIEW);
+};
 
 const clickThreadExitButton = (page: Page) =>
   page.evaluate(() => {
@@ -152,7 +155,10 @@ for (const ios of [false, true]) {
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     const card = (rootId: string) =>
       page.locator(`${COMPACT_VIEW} [data-thread-root-id="${rootId}"]`).first();
-    await expect(card(roots[0]!)).toBeAttached({ timeout: 60_000 });
+    const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(roots.length), {
+      timeout: 60_000,
+    });
 
     // An agent starts on the first WORKING threads while the reader watches, as MindRoom does.
     for (const rootId of roots.slice(0, WORKING)) {
@@ -167,9 +173,11 @@ for (const ios of [false, true]) {
       new RegExp(`· ${WORKING}$`),
       { timeout: 30_000 }
     );
-    await expect(page.locator('[data-compact-section="needsYou"]')).toHaveText(
-      new RegExp(`· ${NEEDS_YOU}$`)
-    );
+    const needsYou = '[data-compact-section="needsYou"]';
+    await walkCompactCards(view, needsYou);
+    await expect(view.locator(needsYou)).toHaveText(new RegExp(`· ${NEEDS_YOU}$`));
+    await scrollTo(page, 0);
+    await expect(view.locator('[data-compact-section="working"]')).toBeInViewport();
 
     // The reader enters the room from a thread's link (a notification, Activity) and leaves that
     // thread for the room: the room's address now asks for the thread's card, near the top.

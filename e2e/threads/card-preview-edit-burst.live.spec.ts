@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
   createHiddenOverviewFilterState,
@@ -107,9 +108,6 @@ const seed = async (engine: string): Promise<World> => {
   return { reader, writer, roomId, threads };
 };
 
-const threadCard = (page: Page, rootId: string) =>
-  page.locator(`[data-compact-room-view] [data-thread-root-id="${rootId}"]`).first();
-
 const check = async (page: Page, world: World, engine: string) => {
   await seedRoomOverviewState({
     page,
@@ -122,10 +120,19 @@ const check = async (page: Page, world: World, engine: string) => {
   await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
     timeout: 60_000,
   });
-  for (const thread of world.threads)
-    await expect(threadCard(page, thread.rootId)).toContainText(replyText(thread.index, 0), {
-      timeout: 60_000,
+  const view = page.locator(COMPACT_VIEW);
+  const roots = world.threads.map(({ rootId }) => rootId);
+  const readStale = async (revision: number) => {
+    const texts = new Map((await walkCompactCards(view, roots)).map(({ id, text }) => [id, text]));
+    return world.threads.flatMap(({ index, rootId }) => {
+      const text = texts.get(rootId) ?? '';
+      return text.includes(replyText(index, revision)) ? [] : [`${index}: ${text.slice(-90)}`];
     });
+  };
+  await expect.poll(() => readStale(0), { timeout: 60_000 }).toEqual([]);
+  await view.evaluate((scroller) => {
+    scroller.scrollTop = 0;
+  });
 
   // 20 edits of each reply, one round of 20 edits about every 1.3 seconds.
   const started = Date.now();
@@ -146,26 +153,12 @@ const check = async (page: Page, world: World, engine: string) => {
   }
 
   // The load lane read the cards 2, 10, 30 and 60 seconds after the burst; stale ones stayed.
-  const readStale = () =>
-    page.evaluate(
-      ({ threads, finals }) =>
-        threads.flatMap(({ index, rootId }, position) => {
-          const text =
-            document.querySelector(
-              `[data-compact-room-view] [data-thread-root-id="${CSS.escape(rootId)}"]`
-            )?.textContent ?? '';
-          const final = finals[position] ?? '';
-          return text.includes(final) ? [] : [`${index}: ${text.slice(-90)}`];
-        }),
-      {
-        threads: world.threads.map(({ index, rootId }) => ({ index, rootId })),
-        finals: world.threads.map((thread) => replyText(thread.index, REVISIONS)),
-      }
-    );
-  let stale = await readStale();
-  for (let waited = 0; stale.length > 0 && waited < 15_000; waited += 500) {
+
+  const deadline = Date.now() + 15_000;
+  let stale = await readStale(REVISIONS);
+  while (stale.length > 0 && Date.now() < deadline) {
     await page.waitForTimeout(500);
-    stale = await readStale();
+    stale = await readStale(REVISIONS);
   }
   // eslint-disable-next-line no-console
   console.log(`card preview edit burst: ${engine}: ${stale.length} stale of ${THREADS}`);

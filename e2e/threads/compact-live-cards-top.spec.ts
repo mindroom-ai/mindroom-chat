@@ -177,9 +177,13 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   // A room with an agent opens in Compact, sorted by last reply, newest first.
   await expectRoomCompact(page, true, 60_000);
-  await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
-  expect((await cardOrder(page))[0], `${label}: the newest thread leads`).toBe(
-    seeded.rootIds[THREAD_COUNT - 1]
+  const view = page.locator('[data-compact-room-view]');
+  await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+    timeout: 60_000,
+  });
+  await expect(page.locator(CARDS).first(), `${label}: the newest thread leads`).toHaveAttribute(
+    'data-thread-root-id',
+    seeded.rootIds[THREAD_COUNT - 1]!
   );
   // The pointer away from the list.
   if (!phone) await page.mouse.move(5, 795);
@@ -203,8 +207,9 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   if (phone) {
     // 3. A phone reader who scrolled down the list and back up to its top.
     await scrollList(page, 900);
-    await page.waitForTimeout(300);
+    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
     await scrollList(page, 0);
+    await expect.poll(() => listScrollTop(page)).toBe(0);
     const phoneBody = `Heads up for ${label}: the status page shows a partial outage of the search API.`;
     const phoneCard = await agentPosts(seeded, phoneBody);
     await expectFirst(page, phoneCard, phoneBody, `after scrolling back up (${label})`);
@@ -228,19 +233,28 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   // under the pointer stays where it is.
   await page.mouse.move(5, 795);
   await scrollList(page, 700);
-  await page.waitForTimeout(300);
-  const midOrder = await cardOrder(page);
-  const middle = await page.evaluate(() => {
-    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
-    const rect = view?.getBoundingClientRect();
-    if (!rect) return undefined;
-    const hit = document
-      .elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
-      ?.closest('[data-thread-root-id]');
-    return hit?.getAttribute('data-thread-root-id') ?? undefined;
-  });
-  expect(middle, `${label}: a card in the middle of the list`).toBeTruthy();
-  expect(midOrder.indexOf(middle!)).toBeGreaterThan(3);
+  let middle: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        middle = await view.evaluate((scroller) => {
+          const { x, y, width, height } = scroller.getBoundingClientRect();
+          return (
+            [0, 16, -16]
+              .map((offset) =>
+                document
+                  .elementFromPoint(x + width / 2, y + height / 2 + offset)
+                  ?.closest('[data-thread-root-id]')
+                  ?.getAttribute('data-thread-root-id')
+              )
+              .find((id) => !!id) ?? undefined
+          );
+        });
+        return middle;
+      },
+      { message: `${label}: a card in the middle of the scrolled view` }
+    )
+    .toBeTruthy();
   const midCard = cardOf(page, middle!);
   const midBox = (await midCard.boundingBox())!;
   const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
@@ -248,9 +262,11 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   await expect(page.locator('[data-order-held]')).toHaveCount(1);
   const before = await topOf(midCard);
   const scrolledBefore = await listScrollTop(page);
+  expect(scrolledBefore).toBeGreaterThan(0);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
   const scrolled = await agentPosts(seeded, scrolledBody);
-  await expectFirst(page, scrolled, scrolledBody, `scrolled down, under the pointer (${label})`);
+  // The new card is outside this window. Wait for it to join the logical list before measuring.
+  await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT + 3));
   await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -265,6 +281,9 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   });
   expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
   await shot(page, `${label}-4-held-scrolled`);
+  await page.mouse.move(5, 795);
+  await scrollList(page, 0);
+  await expectFirst(page, scrolled, scrolledBody, `after returning to the top (${label})`);
 };
 
 test.beforeEach(async () => {

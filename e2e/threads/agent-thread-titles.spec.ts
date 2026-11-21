@@ -11,6 +11,7 @@ import {
   type AgentStack,
   type MatrixEvent,
 } from '../helpers/agentStack';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { createPrivateRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
@@ -306,19 +307,6 @@ const seedBoard = async (stack: AgentStack, titlesInState: boolean) => {
   return { roomId, titles };
 };
 
-/** How many of the room's Compact cards (on screen or not) show their thread's title. */
-const countTitledCards = async (page: Page, titles: Map<string, string>) => {
-  const cards = await page
-    .locator('button[data-thread-root-id][data-attention-state]')
-    .evaluateAll((elements) =>
-      elements.map((element) => [
-        element.getAttribute('data-thread-root-id') ?? '',
-        element.querySelector(':scope > div [title]')?.getAttribute('title') ?? '',
-      ])
-    );
-  return cards.filter(([rootId, shown]) => !!rootId && titles.get(rootId) === shown).length;
-};
-
 const newDeviceKnowsTitlesFromState = async (
   stack: AgentStack,
   browser: Browser,
@@ -332,24 +320,22 @@ const newDeviceKnowsTitlesFromState = async (
     // A room without agents opens in its timeline; the switch (in a phone's room menu) moves it
     // to Compact.
     await setRoomCompact(device, true);
-    await expect
-      .poll(() => device.locator('button[data-thread-root-id][data-attention-state]').count(), {
-        timeout: 60_000,
-      })
-      .toBe(BOARD_THREADS);
+    const view = device.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(BOARD_THREADS), {
+      timeout: 60_000,
+    });
     try {
       await expect
-        .poll(() => countTitledCards(device, titles), {
-          timeout: 20_000,
-          message: 'every titled thread shows its title',
-        })
+        .poll(
+          async () => {
+            const seen = await walkCompactCards(view);
+            return seen.filter(({ id, title }) => titles.get(id) === title).length;
+          },
+          { timeout: 20_000, message: 'every titled thread shows its title' }
+        )
         .toBe(titles.size);
     } finally {
-      // The oldest threads, whose titles are furthest back in the room's history.
-      await device
-        .locator('button[data-thread-root-id][data-attention-state]')
-        .last()
-        .scrollIntoViewIfNeeded();
+      // The traversal ends at the oldest threads, whose titles are furthest back in history.
       await device.screenshot({ path: test.info().outputPath(`state-titles-${engine}.png`) });
     }
   } finally {

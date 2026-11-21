@@ -122,6 +122,7 @@ test('the compact overview keeps its cards in place when threads re-sort during 
   test.slow();
   const { homeserver, session, runTag, roomId, roots } = await setUpCompactRoom(page);
 
+  const promoted = new Set<string>();
   // Opens the first card below the header and, while the thread is open, gets
   // replies in it and in the thread at the bottom of the list, so both sort
   // above the cards in view. Leaving the thread, the cards below the opened
@@ -134,11 +135,11 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     const opened = inView[openedIndex]!;
     const below = inView.slice(openedIndex + 1);
     expect(below.length).toBeGreaterThan(openedIndex + 1);
-    const lastRootId = await page
-      .locator(`${COMPACT_VIEW} button[data-thread-root-id]`)
-      .last()
-      .getAttribute('data-thread-root-id');
-    expect(inView).not.toContain(lastRootId);
+    // Pick a seeded older thread that has not already moved up in a previous step.
+    const lastRootId = roots.find((id) => !promoted.has(id) && !inView.includes(id))!;
+    expect(lastRootId).toBeTruthy();
+    promoted.add(lastRootId);
+    promoted.add(opened);
     // A locator click first scrolls a card the header overlaps, which would
     // move the overview before it is left; a reader's tap does not.
     const card = await page
@@ -155,9 +156,6 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await leave();
     await expect(page).not.toHaveURL(/threadId=/);
     await expect(page.locator(COMPACT_VIEW)).toBeVisible();
-    const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
-    await expect(cards.nth(0)).toHaveAttribute('data-thread-root-id', opened);
-    await expect(cards.nth(1)).toHaveAttribute('data-thread-root-id', lastRootId!);
     const { offsets: after } = await settledCardLayout(page);
     for (const rootId of below) {
       expect(
@@ -165,6 +163,10 @@ test('the compact overview keeps its cards in place when threads re-sort during 
         `card ${roots.indexOf(rootId)} moved from ${before[rootId]} to ${after[rootId]}`
       ).toBeLessThanOrEqual(1);
     }
+    await scrollOverviewTo(page, 0);
+    const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
+    await expect(cards.nth(0)).toHaveAttribute('data-thread-root-id', opened);
+    await expect(cards.nth(1)).toHaveAttribute('data-thread-root-id', lastRootId);
   };
 
   await page.goto(`/home/${encodeURIComponent(roomId)}`);

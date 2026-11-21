@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import {
   createPrivateRoom,
   joinRoom,
@@ -151,12 +152,14 @@ const shot = async (page: Page, name: string) => {
 const topicsWhere = (keep: (index: number) => boolean) =>
   TOPICS.filter((_topic, index) => keep(index));
 
-const expectCards = async (cards: Locator, topics: string[]) => {
-  await expect(cards).toHaveCount(topics.length);
-  for (const topic of topics) {
-    // eslint-disable-next-line no-await-in-loop
-    await expect(cards.filter({ hasText: topic })).toHaveCount(1);
-  }
+const expectCards = async (view: Locator, topics: string[]) => {
+  await expect(view).toHaveAttribute('data-compact-card-count', String(topics.length));
+  const cards = await walkCompactCards(view);
+  for (const topic of topics)
+    expect(cards.filter(({ text }) => text.includes(topic))).toHaveLength(1);
+  await view.evaluate((scroller) => {
+    scroller.scrollTop = 0;
+  });
 };
 
 /** The seeded room's thread cards and the filter bar's Tags dropdown on `page`. */
@@ -165,7 +168,7 @@ const tagFilterOf = (page: Page) => {
   const panel = overview.locator('[data-tag-filter-panel]');
   const option = (tag: string) => panel.locator(`[data-tag-option="${tag}"]`);
   return {
-    cards: page.locator('[data-compact-room-view] [data-thread-root-id]'),
+    view: page.locator(COMPACT_VIEW),
     overview,
     button: overview.locator('[data-tag-filter-button]'),
     panel,
@@ -220,8 +223,10 @@ const expectRestAfterTaps = async (
 
 /** Everything the dropdown does, on a signed-in page that shows the seeded room. */
 const checkTagFilter = async (page: Page, engine: string) => {
-  const { cards, overview, button, panel, search, options, option, box } = tagFilterOf(page);
-  await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
+  const { view, overview, button, panel, search, options, option, box } = tagFilterOf(page);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(TOPICS.length), {
+    timeout: 120_000,
+  });
 
   // The Tags dropdown is one of the advanced filters, beside People.
   await overview.locator('[data-thread-filter-mode-switch]').click();
@@ -254,7 +259,7 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await expect(box('urgent')).toBeChecked();
   await expect(button).toHaveText('urgent');
   await expectCards(
-    cards,
+    view,
     topicsWhere((index) => index % 3 === 0)
   );
   await search.fill('BU');
@@ -267,7 +272,7 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await expect(button).toHaveText(/^Tags\s*2$/);
   // The threads that carry both tags.
   const both = topicsWhere((index) => index % 6 === 0);
-  await expectCards(cards, both);
+  await expectCards(view, both);
   await expect(overview.locator('[data-thread-count]')).toHaveText(String(both.length));
 
   // Up from the search wraps to the last row; Escape empties the search before it closes.
@@ -289,7 +294,7 @@ const checkTagFilter = async (page: Page, engine: string) => {
 
   // The choice is stored with the room's other filters.
   await page.reload();
-  await expectCards(cards, both);
+  await expectCards(view, both);
   await expect(button).toHaveAttribute('data-tag-filter-count', '2');
 
   // With the mouse: unchecking one tag names the other on the button.
@@ -297,12 +302,12 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await option('bug').click();
   await expect(box('bug')).not.toBeChecked();
   await expect(button).toHaveText('urgent');
-  await expect(cards).toHaveCount(11);
+  await expect(view).toHaveAttribute('data-compact-card-count', '11');
 
   // Clear brings every thread back and keeps the panel open on its search.
   await panel.locator('[data-tag-filter-clear]').click();
   await expect(button).toHaveAttribute('data-tag-filter-count', '0');
-  await expect(cards).toHaveCount(TOPICS.length);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(TOPICS.length));
   await expect(panel.locator('[data-tag-filter-clear]')).toHaveCount(0);
   await expect(search).toBeFocused();
   // A second press on the button closes the dropdown.
@@ -312,13 +317,13 @@ const checkTagFilter = async (page: Page, engine: string) => {
   // A tag excluded in the thread search shows checked and marked; unchecking it drops that filter.
   await overview.locator('[data-search-toggle]').click();
   await overview.locator('[data-search-input]').fill('-tag:docs');
-  await expect(cards).toHaveCount(TOPICS.length - 7);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(TOPICS.length - 7));
   await button.click();
   await expect(box('docs')).toBeChecked();
   await expect(option('docs')).toContainText('Excluded');
   await expect(option('bug')).not.toContainText('Excluded');
   await option('docs').click();
-  await expect(cards).toHaveCount(TOPICS.length);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(TOPICS.length));
   await expect(button).toHaveAttribute('data-tag-filter-count', '0');
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
@@ -344,8 +349,10 @@ const checkPhone = async (
     const page = await context.newPage();
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
-    const { cards, overview, button, panel, option } = tagFilterOf(page);
-    await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
+    const { view, overview, button, panel, option } = tagFilterOf(page);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(TOPICS.length), {
+      timeout: 120_000,
+    });
     await expectRestAfterTaps(
       page,
       overview.locator('[data-simple-unresolved-toggle]'),
@@ -380,7 +387,7 @@ const checkPhone = async (
     await option('urgent').tap();
     await expect(button).toHaveAttribute('data-tag-filter-count', '2');
     await expectCards(
-      cards,
+      view,
       topicsWhere((index) => index % 6 === 0)
     );
     if (engine === 'chromium') await shot(page, 'L28-thread-tags-phone');

@@ -116,7 +116,8 @@ for (const width of [390, 1280]) {
       const filters = page.locator('[data-room-thread-overview="true"]');
       const footer = page.locator('[data-room-footer="true"]');
       const cards = scroll.locator('button[data-thread-root-id]');
-      await expect(cards).toHaveCount(14);
+      await expect(scroll).toHaveAttribute('data-compact-card-count', '14');
+      await expect(cards.first()).toBeVisible();
       // Nobody else read the latest message: no names show above the composer.
       await expect(page.locator('[data-room-following="true"]')).toHaveCount(0);
       expect(
@@ -192,12 +193,22 @@ for (const width of [390, 1280]) {
           )
         )
         .toBeCloseTo((await footer.boundingBox())!.height, 0);
-      await scroll.evaluate((element) => {
-        element.scrollTop = element.scrollHeight;
-      });
-      const lastCard = (await cards.last().boundingBox())!;
-      expect(lastCard.y + lastCard.height).toBeLessThanOrEqual((await footer.boundingBox())!.y);
+      await expect
+        .poll(async () => {
+          await scroll.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+          });
+          const lastCard = await cards.last().boundingBox();
+          return (
+            lastCard !== null && lastCard.y + lastCard.height <= (await footer.boundingBox())!.y
+          );
+        })
+        .toBe(true);
       // Native focus scrolling must also respect the controls' measured insets.
+      await scroll.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      await expect(cards.first()).toBeInViewport();
       await cards.first().evaluate((element) => element.scrollIntoView({ block: 'start' }));
       expect((await cards.first().boundingBox())!.y).toBeGreaterThanOrEqual(
         (await filters.boundingBox())!.y + filtersBox.height

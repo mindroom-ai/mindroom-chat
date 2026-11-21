@@ -363,7 +363,9 @@ test.describe('busy room typing', () => {
         const view = page.locator('[data-compact-room-view="true"]');
         await expect(view).toBeVisible({ timeout: 120_000 });
         await expect
-          .poll(() => view.locator('[data-thread-root-id]').count(), { timeout: 180_000 })
+          .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+            timeout: 180_000,
+          })
           .toBeGreaterThanOrEqual(HISTORY_THREADS);
         const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
         await composer.click();

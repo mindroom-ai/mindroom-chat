@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
   createHiddenOverviewFilterState,
@@ -210,11 +211,6 @@ const streamingSince = (page: Page): Promise<string[]> =>
     ...(window as unknown as { __streamingCards: Set<string> }).__streamingCards,
   ]);
 
-const streamingNow = (page: Page): Promise<string[]> =>
-  page
-    .locator('[data-attention-state="streaming"]')
-    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
-
 const ofStreams = (rootIds: string[], streams: Stream[]) => {
   const ours = new Set(streams.map((stream) => stream.rootId));
   return [...new Set(rootIds)].filter((rootId) => ours.has(rootId));
@@ -262,12 +258,22 @@ const expectWholeList = async (ends: ListEnds, before: number, label: string) =>
 
 /** Each finished reply's card stops streaming. */
 const expectNoneStreaming = async (page: Page, streams: Stream[], label: string) => {
-  let stuck = ofStreams(await streamingNow(page), streams);
-  for (let waited = 0; stuck.length > 0 && waited < 30_000; waited += 500) {
-    await page.waitForTimeout(500);
-    stuck = ofStreams(await streamingNow(page), streams);
-  }
-  expect.soft(stuck, `${label}: finished replies whose card streams`).toEqual([]);
+  const roots = streams.map(({ rootId }) => rootId);
+  await expect
+    .configure({ soft: true })
+    .poll(
+      async () => {
+        const states = new Map(
+          (await walkCompactCards(page.locator(COMPACT_VIEW), roots)).map(({ id, state }) => [
+            id,
+            state,
+          ])
+        );
+        return roots.filter((id) => !states.has(id) || states.get(id) === 'streaming');
+      },
+      { timeout: 30_000, message: `${label}: missing or still streaming` }
+    )
+    .toEqual([]);
 };
 
 type Watch = {
@@ -340,6 +346,8 @@ const report = (description: string) => {
 };
 
 const check = async (page: Page, world: World, engine: string) => {
+  const view = page.locator(COMPACT_VIEW);
+  const findCard = (id: string) => walkCompactCards(view, `[data-thread-root-id="${id}"]`);
   await page.addInitScript(recordStreamingCards);
   const listEnds = watchListEnds(page, world);
   await seedRoomOverviewState({
@@ -393,6 +401,7 @@ const check = async (page: Page, world: World, engine: string) => {
   // The page saves what it received a moment later.
   await page.waitForTimeout(3_000);
   for (const stream of live.slice(0, 4)) {
+    await findCard(stream.rootId);
     await expect
       .soft(threadCard(page, stream.rootId), `${engine}: off-screen terminal edit ${stream.index}`)
       .toContainText(`Item ${stream.index} is ready: the notes list the export fix`);
@@ -424,14 +433,23 @@ const check = async (page: Page, world: World, engine: string) => {
     const releaseLists = watch.holdLists();
     try {
       await openRoom(page, world);
-      for (const stream of streams.slice(0, 8))
-        await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
+      const cachedRoots = streams.slice(0, 8).map(({ rootId }) => rootId);
+      await expect
+        .poll(
+          async () => {
+            const seen = new Set((await walkCompactCards(view, cachedRoots)).map(({ id }) => id));
+            return cachedRoots.filter((id) => !seen.has(id));
+          },
+          { timeout: 60_000, message: 'cached cards before server pages arrive' }
+        )
+        .toEqual([]);
       await page.waitForTimeout(2_000);
       await shot(page, `${engine}-reload-${pass}`);
       // These older cards stayed outside the viewport while the replies finished. A title notice
       // is the thread's newest event, so only the card's cached reply preview can show the answer.
       // Check the actual text on the first scroll into view, before opening any thread.
       for (const stream of live.slice(0, 4)) {
+        await findCard(stream.rootId);
         const card = threadCard(page, stream.rootId);
         await expect
           .soft(card, `${engine} ${pass}: finished reply preview ${stream.index}`)

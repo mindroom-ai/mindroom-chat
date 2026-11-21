@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
@@ -199,11 +200,6 @@ const streamingSince = (page: Page): Promise<string[]> =>
     ...(window as unknown as { __streamingCards: Set<string> }).__streamingCards,
   ]);
 
-const streamingNow = (page: Page): Promise<string[]> =>
-  page
-    .locator('[data-attention-state="streaming"]')
-    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
-
 const finishedOnly = (rootIds: string[], streams: Stream[]) => {
   const finished = new Set(streams.map((stream) => stream.rootId));
   return rootIds.filter((rootId) => finished.has(rootId));
@@ -217,19 +213,40 @@ const openRoom = async (page: Page, world: World) => {
   await expect(threadCard(page, world.historyRootId)).toBeAttached({ timeout: 60_000 });
 };
 
+const expectPresent = async (page: Page, streams: Stream[]) => {
+  const roots = streams.map(({ rootId }) => rootId);
+  await expect
+    .poll(
+      async () => {
+        const seen = new Set(
+          (await walkCompactCards(page.locator(COMPACT_VIEW), roots)).map(({ id }) => id)
+        );
+        return roots.filter((id) => !seen.has(id));
+      },
+      { timeout: 60_000, message: 'missing stream cards' }
+    )
+    .toEqual([]);
+};
+
 /** Each finished reply has its card, and within a while none of them says it streams. */
 const expectFinished = async (page: Page, streams: Stream[], label: string) => {
-  for (const stream of streams)
-    await expect(threadCard(page, stream.rootId), `${label}: card ${stream.index}`).toBeAttached({
-      timeout: 60_000,
-    });
-  // Soft, so one run shows every check that fails.
-  let stuck = finishedOnly(await streamingNow(page), streams);
-  for (let waited = 0; stuck.length > 0 && waited < 30_000; waited += 500) {
-    await page.waitForTimeout(500);
-    stuck = finishedOnly(await streamingNow(page), streams);
-  }
-  expect.soft(stuck, `${label}: finished replies whose card streams`).toEqual([]);
+  const roots = streams.map(({ rootId }) => rootId);
+  // Soft, so one run shows every check that fails. An unseen card does not count as finished.
+  await expect
+    .configure({ soft: true })
+    .poll(
+      async () => {
+        const states = new Map(
+          (await walkCompactCards(page.locator(COMPACT_VIEW), roots)).map(({ id, state }) => [
+            id,
+            state,
+          ])
+        );
+        return roots.filter((id) => !states.has(id) || states.get(id) === 'streaming');
+      },
+      { timeout: 60_000, message: `${label}: missing or still streaming` }
+    )
+    .toEqual([]);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replaceAll(' ', '-')}.png` });
 };
 
@@ -336,15 +353,13 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
     });
     streams.push({ index, rootId, replyId, agent });
   }
-  for (const stream of streams)
-    await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
+  await expectPresent(page, streams);
 
   // The reader reloads before the first words: the room's thread list is read while every reply
   // is still its placeholder.
   await page.reload();
   await openRoom(page, world);
-  for (const stream of streams)
-    await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
+  await expectPresent(page, streams);
   for (const step of [1, 2])
     for (const stream of streams)
       await streamEdit(world, stream, stepText(stream.index, step), 'streaming');
@@ -380,8 +395,7 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
   await slowThreadList(page, SLOW_LIST_MS);
   await page.reload();
   await openRoom(page, world);
-  for (const stream of streams)
-    await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
+  await expectPresent(page, streams);
   expect
     .soft(finishedOnly(await streamingSince(page), streams), 'streaming as the list loads')
     .toEqual([]);

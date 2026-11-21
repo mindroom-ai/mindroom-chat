@@ -65,7 +65,12 @@ test.describe('PERF: compact room view with many threads', () => {
 
     const openStart = Date.now();
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
-    await page.waitForSelector('[data-compact-room-view]', { timeout: 60_000 });
+    const view = page.locator('[data-compact-room-view]');
+    await expect
+      .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+        timeout: 60_000,
+      })
+      .toBeGreaterThanOrEqual(THREAD_COUNT);
     await page.waitForTimeout(3_000);
     const openMs = Date.now() - openStart;
 
@@ -123,6 +128,6 @@ test.describe('PERF: compact room view with many threads', () => {
       contentType: 'application/json',
     });
 
-    expect(state.cards).toBeGreaterThanOrEqual(THREAD_COUNT);
+    expect(state.cards).toBeGreaterThan(0);
   });
 });

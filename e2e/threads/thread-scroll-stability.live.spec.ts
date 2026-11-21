@@ -101,9 +101,12 @@ test.describe('scrolling a room with many agent threads', () => {
         };
 
         await open('compact');
-        const cards = page.locator('[data-compact-room-view="true"] [data-scroll-anchor]');
+        const view = page.locator('[data-compact-room-view]');
+        const cards = view.locator('[data-scroll-anchor]');
         await expect
-          .poll(() => cards.count(), { timeout: 120_000 })
+          .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+            timeout: 120_000,
+          })
           .toBeGreaterThanOrEqual(THREADS);
         // The cards of the first screen load their threads.
         await page.waitForTimeout(3_000);

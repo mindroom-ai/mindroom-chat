@@ -9,6 +9,7 @@ import {
 } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
@@ -196,19 +197,9 @@ const watchThreadList = async (page: Page, roomId: string) => {
   return requests;
 };
 
-/** The cards' thread root IDs; scrolls the card list to its end first. */
-const listedRoots = (page: Page) =>
-  page.evaluate(() => {
-    const view = document.querySelector('[data-compact-room-view]');
-    if (view) view.scrollTop = view.scrollHeight;
-    return [
-      ...new Set(
-        [...document.querySelectorAll('[data-compact-room-view] [data-thread-root-id]')].map(
-          (card) => card.getAttribute('data-thread-root-id')
-        )
-      ),
-    ];
-  });
+/** The room's thread IDs, read while scrolling through the cards. */
+const listedRoots = async (page: Page) =>
+  (await walkCompactCards(page.locator(COMPACT_VIEW))).map(({ id }) => id);
 
 const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'webkit') => {
   seeded ??= seed();
@@ -256,7 +247,11 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
   expect(seen.filter((text) => !/^\d+$/.test(text))).toEqual([]);
 
   // A card for every thread, the oldest ones included.
-  await expect.poll(async () => (await listedRoots(page)).sort()).toEqual([...roots].sort());
+  await expect(page.locator(COMPACT_VIEW)).toHaveAttribute(
+    'data-compact-card-count',
+    String(THREADS)
+  );
+  expect((await listedRoots(page)).sort()).toEqual([...roots].sort());
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-end.png` });
 
   // Each page of the room's list once, the reader's list once, and nothing more after a while.
@@ -388,11 +383,12 @@ const checkOlderQuestions = async (page: Page, name: string) => {
   await expect(page.locator(`[data-thread-root-id="${questions.at(-1)}"]`)).toBeVisible({
     timeout: 30_000,
   });
-  await expect
-    .poll(async () => (await listedRoots(page)).length, { timeout: 30_000 })
-    .toBe(threads.length + 1);
+  const view = page.locator(COMPACT_VIEW);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(threads.length + 1), {
+    timeout: 30_000,
+  });
   await page.waitForTimeout(3_000);
-  expect((await listedRoots(page)).length).toBe(threads.length + 1);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(threads.length + 1));
   await expect(chip).toHaveText(`${threads.length + 1}`);
   const pagesBefore = historyPages.length;
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-before.png` });
@@ -407,8 +403,9 @@ const checkOlderQuestions = async (page: Page, name: string) => {
       { timeout: 60_000, intervals: [500] }
     )
     .toBe(String(total));
+  await expect(view).toHaveAttribute('data-compact-card-count', String(total));
   expect((await listedRoots(page)).sort()).toEqual([...questions, ...threads].sort());
-  await expect(page.locator(`[data-thread-root-id="${questions[0]}"]`)).toBeVisible();
+  await expect(page.locator(`[data-thread-root-id="${questions[0]}"]`)).toBeInViewport();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-after.png` });
   report({
     type: 'older history',
