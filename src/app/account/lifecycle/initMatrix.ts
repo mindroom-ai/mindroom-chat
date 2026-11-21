@@ -35,6 +35,7 @@ import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
 import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 import type { MarkClientStartup } from '../../lib/startupTimeline';
+import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 
 /** A client of `session` without stores or sync, for requests in its name. */
 export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>
@@ -272,6 +273,10 @@ export const initClient = async (
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
+  // A save that failed, or a store that stopped saving, shows in the next diagnostics export.
+  (['failed', 'degraded'] as const).forEach((outcome) =>
+    store.on?.(outcome, (error: unknown) => recordSyncStoreFailure(outcome, error))
+  );
   if (markStartup) {
     const readSavedSync = store.getSavedSync.bind(store);
     store.getSavedSync = () => {

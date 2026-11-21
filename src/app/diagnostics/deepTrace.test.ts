@@ -19,6 +19,7 @@ import {
   isDeepTraceRecording,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
+  recordSyncStoreFailure,
   setDeepTraceEnabled,
   traceDeepDiagnosticFetch,
 } from './deepTrace';
@@ -238,6 +239,24 @@ describe('opt-in deep diagnostic trace', () => {
         data: { reload_ms_ago: 1_500 },
       })
     );
+  });
+
+  it('records a sync store failure with the code of its error', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    // An error with the name of a DOMException, which in a browser is an Error too.
+    const failure = (name: string) => Object.assign(new Error('private detail'), { name });
+    recordSyncStoreFailure('failed', failure('UnknownError'));
+    recordSyncStoreFailure('degraded', failure('QuotaExceededError'));
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({ name: 'storage.sync_store.failed', data: { error_code: 13 } })
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({ name: 'storage.sync_store.degraded', data: { error_code: 12 } })
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('private');
   });
 
   it('keeps memory samples with their reason flag and numeric gauges', async () => {

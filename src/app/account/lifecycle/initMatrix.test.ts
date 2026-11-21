@@ -6,6 +6,7 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import type { MarkClientStartup } from '../../lib/startupTimeline';
+import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -54,6 +55,11 @@ import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../../matrix/cachedSpecVersions';
+
+vi.mock('../../diagnostics/deepTrace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../diagnostics/deepTrace')>()),
+  recordSyncStoreFailure: vi.fn(),
+}));
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -276,7 +282,9 @@ describe('initClient', () => {
     };
     const sdkRead = Promise.resolve(savedSync);
     const startup = vi.fn().mockResolvedValue(undefined);
-    const store = { backend: { syncAccumulator }, startup, getSavedSync: vi.fn(() => sdkRead) };
+    const on = vi.fn();
+    const getSavedSync = vi.fn(() => sdkRead);
+    const store = { backend: { syncAccumulator }, startup, getSavedSync, on };
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return store as unknown as IndexedDBStore;
     });
@@ -303,6 +311,14 @@ describe('initClient', () => {
       },
       markStartup
     );
+
+    // A failed save and a store that stopped saving go to the diagnostics trace.
+    const failure = new Error('failed');
+    on.mock.calls.forEach(([, report]) => (report as (error: unknown) => void)(failure));
+    expect(vi.mocked(recordSyncStoreFailure).mock.calls).toEqual([
+      ['failed', failure],
+      ['degraded', failure],
+    ]);
 
     vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35);
     const read = store.getSavedSync();

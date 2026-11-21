@@ -256,6 +256,8 @@ const STATIC_EVENT_NAMES = new Set([
   'storage.cache.transaction_settled',
   'storage.cache.transaction_stalled',
   'storage.indexeddb_loss_reload',
+  'storage.sync_store.degraded',
+  'storage.sync_store.failed',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -608,9 +610,23 @@ const getErrorCode = (value: unknown): number => {
       URIError: 8,
       object: 9,
       string: 10,
+      InvalidStateError: 11,
+      QuotaExceededError: 12,
+      UnknownError: 13,
     }[name] ?? 0
   );
 };
+
+/**
+ * The Matrix sync store kept its saved data and skipped an operation that failed ('failed'), or
+ * deleted its saved data and stopped saving ('degraded'). `error_code` is `getErrorCode`'s.
+ */
+export const recordSyncStoreFailure = (outcome: 'failed' | 'degraded', error: unknown): void =>
+  recordDeepTraceEvent(
+    `storage.sync_store.${outcome}`,
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
 
 const getSourceCode = (filename: string): number => {
   if (!filename) return 0;

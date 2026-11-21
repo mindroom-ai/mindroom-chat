@@ -4050,201 +4050,271 @@ index d8a2081..f16cacd 100644
        } else {
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
-diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
-index d08eb66..a1f0c08 100644
---- a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
-+++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
-@@ -10,6 +10,8 @@ export interface IIndexedDBBackend {
-     getSavedSync(): Promise<ISavedSync | null>;
-     getNextBatchToken(): Promise<string>;
-     clearDatabase(): Promise<void>;
-+    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
-+    isConnectionLost?(): boolean;
-     getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
-     setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
-     clearOutOfBandMembers(roomId: string): Promise<void>;
-diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-index 7b41057..2a51149 100644
---- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-+++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-@@ -10,6 +10,7 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     private readonly syncAccumulator;
-     private db?;
-     private disconnected;
-+    private closedByBrowser;
-     private _isNewlyCreated;
-     private syncToDatabasePromise?;
-     private pendingUserPresenceData;
-@@ -30,6 +31,12 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns Promise which resolves if successfully connected.
-      */
-     connect(onClose?: () => void): Promise<void>;
-+    /**
-+     * @returns whether the connection is closed or closing, for example because
-+     * the browser lost its IndexedDB server. WebKit marks every connection as
-+     * closing before it reports the aborted requests and fires `close`.
-+     */
-+    isConnectionLost(): boolean;
-     /** @returns whether or not the database was newly created in this session. */
-     isNewlyCreated(): Promise<boolean>;
-     /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..79774f1 100644
+index 6ce0bac..aac353e 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-@@ -99,6 +99,12 @@ function txnAsPromise(txn) {
-     txn.onerror = function () {
-       reject(txn.error);
+@@ -96,8 +96,16 @@ function txnAsPromise(txn) {
+     txn.oncomplete = function (event) {
+       resolve(event);
      };
-+    // A transaction aborted by the browser (for example when the IndexedDB
-+    // server connection is lost while it commits) fires only `abort`.
+-    txn.onerror = function () {
+-      reject(txn.error);
++    // A failed request reports here before the transaction has an error of its own.
++    txn.onerror = function (event) {
++      var _txn$error2;
++      reject((_txn$error2 = txn.error) !== null && _txn$error2 !== void 0 ? _txn$error2 : event.target.error);
++    };
++    // A transaction aborted by the browser (for example when WebKit suspends
++    // the app, or loses its IndexedDB server, while it commits) fires only `abort`.
 +    txn.onabort = function () {
 +      var _txn$error;
 +      reject((_txn$error = txn.error) !== null && _txn$error !== void 0 ? _txn$error : new DOMException("Transaction aborted", "AbortError"));
-+    };
+     };
    });
  }
- function reqAsEventPromise(req) {
-@@ -142,6 +148,7 @@ export class LocalIndexedDBStoreBackend {
-     _defineProperty(this, "syncAccumulator", void 0);
-     _defineProperty(this, "db", void 0);
-     _defineProperty(this, "disconnected", true);
-+    _defineProperty(this, "closedByBrowser", false);
-     _defineProperty(this, "_isNewlyCreated", false);
-     _defineProperty(this, "syncToDatabasePromise", void 0);
-     _defineProperty(this, "pendingUserPresenceData", []);
-@@ -193,6 +200,7 @@ export class LocalIndexedDBStoreBackend {
-       };
-       _this.db.onclose = () => {
-         _this.disconnected = true;
-+        _this.closedByBrowser = true;
-         _this.db = undefined;
-         onClose === null || onClose === void 0 || onClose();
-       };
-@@ -200,6 +208,22 @@ export class LocalIndexedDBStoreBackend {
-     }));
-   }
- 
-+  /**
-+   * @returns whether the connection is closed or closing, for example because
-+   * the browser lost its IndexedDB server. WebKit marks every connection as
-+   * closing before it reports the aborted requests and fires `close`.
-+   */
-+  isConnectionLost() {
-+    var _this$db3;
-+    if (this.closedByBrowser) return true;
-+    try {
-+      (_this$db3 = this.db) === null || _this$db3 === void 0 || _this$db3.transaction(["sync"], "readonly").abort();
-+      return false;
-+    } catch (e) {
-+      return (e === null || e === void 0 ? void 0 : e.name) === "InvalidStateError";
-+    }
-+  }
-+
-   /** @returns whether or not the database was newly created in this session. */
-   isNewlyCreated() {
-     return Promise.resolve(this._isNewlyCreated);
+diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
+index 26f6aa9..a7c4734 100644
+--- a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
++++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
+@@ -24,6 +24,7 @@ export declare class IndexedDBStore extends MemoryStore {
+      */
+     readonly backend: IIndexedDBBackend;
+     private startedUp;
++    private degraded;
+     private syncTs;
+     private userModifiedMap;
+     private emitter;
+@@ -56,7 +57,7 @@ export declare class IndexedDBStore extends MemoryStore {
+      */
+     constructor(opts: IOpts);
+     /** Re-exports `TypedEventEmitter.on` */
+-    on(event: EventEmitterEvents | "degraded" | "closed", handler: (...args: any[]) => void): void;
++    on(event: EventEmitterEvents | "degraded" | "closed" | "failed", handler: (...args: any[]) => void): void;
+     /**
+      * @returns Resolved when loaded from indexed db.
+      */
+@@ -124,8 +125,9 @@ export declare class IndexedDBStore extends MemoryStore {
+      * watch for failures after initial store startup, including `QuotaExceededError` as
+      * free disk space changes, etc.
+      *
+-     * When IndexedDB fails via any of these paths, we degrade this back to a `MemoryStore`
+-     * in place so that the current operation and all future ones are in-memory only.
++     * When IndexedDB fails via any of these paths because the storage is full, we degrade this
++     * back to a `MemoryStore` in place so that the current operation and all future ones are
++     * in-memory only. Any other failure skips the one operation and keeps the saved data.
+      *
+      * @param func - The degradable work to do.
+      * @param fallback - The method name for fallback.
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..7228597 100644
+index 8320c66..4110038 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-@@ -272,6 +272,14 @@ export class IndexedDBStore extends MemoryStore {
+@@ -35,6 +35,8 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
+ // often does not affect the length of the pause since the entire /sync
+ // response is persisted each time.
+ var WRITE_DELAY_MS = 1000 * 60 * 5; // once every 5 minutes
++// A save that failed is tried again once this long has passed.
++var FAILED_WRITE_RETRY_MS = 1000 * 10;
+ 
+ export class IndexedDBStore extends MemoryStore {
+   static exists(indexedDB, dbName) {
+@@ -77,6 +79,7 @@ export class IndexedDBStore extends MemoryStore {
+     super(opts);
+     _defineProperty(this, "backend", void 0);
+     _defineProperty(this, "startedUp", false);
++    _defineProperty(this, "degraded", false);
+     _defineProperty(this, "syncTs", 0);
+     // Records the last-modified-time of each user at the last point we saved
+     // the database, such that we can derive the set if users that have been
+@@ -133,7 +136,10 @@ export class IndexedDBStore extends MemoryStore {
+         // note that we've saved this version of the user
+         this.userModifiedMap[u.userId] = u.getLastModifiedTime();
+       }
+-      return this.backend.syncToDatabase(userTuples);
++      return this.backend.syncToDatabase(userTuples).catch(e => {
++        this.syncTs = Date.now() - WRITE_DELAY_MS + FAILED_WRITE_RETRY_MS;
++        throw e;
++      });
+     }, null));
+     _defineProperty(this, "setSyncData", this.degradable(syncData => {
+       return this.backend.setSyncData(syncData);
+@@ -233,7 +239,7 @@ export class IndexedDBStore extends MemoryStore {
+    */
+   wantsSave() {
+     var now = Date.now();
+-    return now - this.syncTs > WRITE_DELAY_MS;
++    return !this.degraded && now - this.syncTs > WRITE_DELAY_MS;
+   }
+ 
+   /**
+@@ -245,7 +251,7 @@ export class IndexedDBStore extends MemoryStore {
+    */
+   save() {
+     var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+-    if (force || this.wantsSave()) {
++    if (force ? !this.degraded : this.wantsSave()) {
+       return this.reallySave();
+     }
+     return Promise.resolve();
+@@ -255,8 +261,9 @@ export class IndexedDBStore extends MemoryStore {
+    * watch for failures after initial store startup, including `QuotaExceededError` as
+    * free disk space changes, etc.
+    *
+-   * When IndexedDB fails via any of these paths, we degrade this back to a `MemoryStore`
+-   * in place so that the current operation and all future ones are in-memory only.
++   * When IndexedDB fails via any of these paths because the storage is full, we degrade this
++   * back to a `MemoryStore` in place so that the current operation and all future ones are
++   * in-memory only. Any other failure skips the one operation and keeps the saved data.
+    *
+    * @param func - The degradable work to do.
+    * @param fallback - The method name for fallback.
+@@ -269,9 +276,22 @@ export class IndexedDBStore extends MemoryStore {
+       for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+         args[_key] = arguments[_key];
+       }
++      // Once degraded, reads and writes use memory only; deleting all data still runs.
++      if (_this.degraded && fallbackFn) return fallbackFn.call(_this, ...args);
        try {
          return yield func.call(_this, ...args);
        } catch (e) {
-+        var _this$backend$isConne, _this$backend;
-+        if (((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true) {
-+          // Only the connection failed; the data is intact. Deleting it would
-+          // force a full initial sync on the next start.
-+          logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
++        if ((e === null || e === void 0 ? void 0 : e.name) !== "QuotaExceededError") {
++          // The operation wrote nothing, so the saved data is intact: WebKit aborts the
++          // transactions in flight when it suspends the app, and a lost connection fails
++          // every operation. Deleting the data would force a full initial sync on the
++          // next start.
++          logger.warn("IndexedDBStore operation failed; keeping its data", e);
++          _this.emitter.emit("failed", e);
 +          if (fallbackFn) return fallbackFn.call(_this, ...args);
 +          return;
 +        }
++        _this.degraded = true;
          logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
          _this.emitter.emit("degraded", e);
          try {
-diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
-index 4cd5e8c..1b058f8 100644
---- a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
-+++ b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
-@@ -27,6 +27,8 @@ export interface IIndexedDBBackend {
-     getSavedSync(): Promise<ISavedSync | null>;
-     getNextBatchToken(): Promise<string>;
-     clearDatabase(): Promise<void>;
-+    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
-+    isConnectionLost?(): boolean;
-     getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
-     setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
-     clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..7d7e9ba 100644
+index 5f58e7c..f47a5ab 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-@@ -98,6 +98,11 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
-         txn.onerror = function (): void {
-             reject(txn.error);
+@@ -95,8 +95,14 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
+         txn.oncomplete = function (event): void {
+             resolve(event);
          };
-+        // A transaction aborted by the browser (for example when the IndexedDB
-+        // server connection is lost while it commits) fires only `abort`.
+-        txn.onerror = function (): void {
+-            reject(txn.error);
++        // A failed request reports here before the transaction has an error of its own.
++        txn.onerror = function (event): void {
++            reject(txn.error ?? (event.target as IDBRequest).error);
++        };
++        // A transaction aborted by the browser (for example when WebKit suspends
++        // the app, or loses its IndexedDB server, while it commits) fires only `abort`.
 +        txn.onabort = function (): void {
 +            reject(txn.error ?? new DOMException("Transaction aborted", "AbortError"));
-+        };
+         };
      });
  }
- 
-@@ -133,6 +138,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     private readonly syncAccumulator: SyncAccumulator;
-     private db?: IDBDatabase;
-     private disconnected = true;
-+    private closedByBrowser = false;
-     private _isNewlyCreated = false;
-     private syncToDatabasePromise?: Promise<void>;
-     private pendingUserPresenceData: UserTuple[] = [];
-@@ -201,6 +207,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-             };
-             this.db.onclose = (): void => {
-                 this.disconnected = true;
-+                this.closedByBrowser = true;
-                 this.db = undefined;
-                 onClose?.();
-             };
-@@ -209,6 +216,21 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         });
-     }
- 
-+    /**
-+     * @returns whether the connection is closed or closing, for example because
-+     * the browser lost its IndexedDB server. WebKit marks every connection as
-+     * closing before it reports the aborted requests and fires `close`.
-+     */
-+    public isConnectionLost(): boolean {
-+        if (this.closedByBrowser) return true;
-+        try {
-+            this.db?.transaction(["sync"], "readonly").abort();
-+            return false;
-+        } catch (e) {
-+            return (e as Error | undefined)?.name === "InvalidStateError";
-+        }
-+    }
-+
-     /** @returns whether or not the database was newly created in this session. */
-     public isNewlyCreated(): Promise<boolean> {
-         return Promise.resolve(this._isNewlyCreated);
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..be62de5 100644
+index 25be506..615c5ee 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-@@ -321,6 +321,13 @@ export class IndexedDBStore extends MemoryStore {
+@@ -40,6 +40,8 @@ import { type SyncUserProfile } from "../models/user.ts";
+ // often does not affect the length of the pause since the entire /sync
+ // response is persisted each time.
+ const WRITE_DELAY_MS = 1000 * 60 * 5; // once every 5 minutes
++// A save that failed is tried again once this long has passed.
++const FAILED_WRITE_RETRY_MS = 1000 * 10;
+ 
+ interface IOpts extends IBaseOpts {
+     /** The Indexed DB interface e.g. `window.indexedDB` */
+@@ -54,6 +56,9 @@ type EventHandlerMap = {
+     // Fired when an IDB command fails on a degradable path, and the store falls back to MemoryStore
+     // This signals the potential for data volatility.
+     degraded: (e: Error) => void;
++    // Fired when an IDB command fails on a degradable path and the store keeps its data: the
++    // command is skipped, and a failed save is tried again soon.
++    failed: (e: Error) => void;
+     // Fired when the IndexedDB gets closed unexpectedly, for example, if the underlying storage is removed or
+     // if the user clears the database in the browser's history preferences.
+     closed: () => void;
+@@ -71,6 +76,7 @@ export class IndexedDBStore extends MemoryStore {
+     public readonly backend: IIndexedDBBackend;
+ 
+     private startedUp = false;
++    private degraded = false;
+     private syncTs = 0;
+     // Records the last-modified-time of each user at the last point we saved
+     // the database, such that we can derive the set if users that have been
+@@ -120,7 +126,7 @@ export class IndexedDBStore extends MemoryStore {
+     }
+ 
+     /** Re-exports `TypedEventEmitter.on` */
+-    public on(event: EventEmitterEvents | "degraded" | "closed", handler: (...args: any[]) => void): void {
++    public on(event: EventEmitterEvents | "degraded" | "closed" | "failed", handler: (...args: any[]) => void): void {
+         this.emitter.on(event, handler);
+     }
+ 
+@@ -220,7 +226,7 @@ export class IndexedDBStore extends MemoryStore {
+      */
+     public wantsSave(): boolean {
+         const now = Date.now();
+-        return now - this.syncTs > WRITE_DELAY_MS;
++        return !this.degraded && now - this.syncTs > WRITE_DELAY_MS;
+     }
+ 
+     /**
+@@ -231,7 +237,7 @@ export class IndexedDBStore extends MemoryStore {
+      *     (or immediately if no write is performed)
+      */
+     public save(force = false): Promise<void> {
+-        if (force || this.wantsSave()) {
++        if (force ? !this.degraded : this.wantsSave()) {
+             return this.reallySave();
+         }
+         return Promise.resolve();
+@@ -253,7 +259,10 @@ export class IndexedDBStore extends MemoryStore {
+             this.userModifiedMap[u.userId] = u.getLastModifiedTime();
+         }
+ 
+-        return this.backend.syncToDatabase(userTuples);
++        return this.backend.syncToDatabase(userTuples).catch((e) => {
++            this.syncTs = Date.now() - WRITE_DELAY_MS + FAILED_WRITE_RETRY_MS;
++            throw e;
++        });
+     }, null);
+ 
+     public setSyncData = this.degradable((syncData: ISyncResponse): Promise<void> => {
+@@ -304,8 +313,9 @@ export class IndexedDBStore extends MemoryStore {
+      * watch for failures after initial store startup, including `QuotaExceededError` as
+      * free disk space changes, etc.
+      *
+-     * When IndexedDB fails via any of these paths, we degrade this back to a `MemoryStore`
+-     * in place so that the current operation and all future ones are in-memory only.
++     * When IndexedDB fails via any of these paths because the storage is full, we degrade this
++     * back to a `MemoryStore` in place so that the current operation and all future ones are
++     * in-memory only. Any other failure skips the one operation and keeps the saved data.
+      *
+      * @param func - The degradable work to do.
+      * @param fallback - The method name for fallback.
+@@ -318,9 +328,22 @@ export class IndexedDBStore extends MemoryStore {
+         const fallbackFn = fallback ? (super[fallback] as (...args: A) => Promise<R>) : null;
+ 
+         return (async (...args) => {
++            // Once degraded, reads and writes use memory only; deleting all data still runs.
++            if (this.degraded && fallbackFn) return fallbackFn.call(this, ...args);
              try {
                  return await func.call(this, ...args);
              } catch (e) {
-+                if (this.backend.isConnectionLost?.() === true) {
-+                    // Only the connection failed; the data is intact. Deleting it would
-+                    // force a full initial sync on the next start.
-+                    logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
++                if ((e as Error | null)?.name !== "QuotaExceededError") {
++                    // The operation wrote nothing, so the saved data is intact: WebKit aborts the
++                    // transactions in flight when it suspends the app, and a lost connection fails
++                    // every operation. Deleting the data would force a full initial sync on the
++                    // next start.
++                    logger.warn("IndexedDBStore operation failed; keeping its data", e);
++                    this.emitter.emit("failed", e as Error);
 +                    if (fallbackFn) return fallbackFn.call(this, ...args);
 +                    return;
 +                }
++                this.degraded = true;
                  logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
                  this.emitter.emit("degraded", e as Error);
                  try {
