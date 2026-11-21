@@ -211,7 +211,7 @@ const seed = async (test: string, extraThreads = 0) => {
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  for (let i = 0; i < extraThreads; i += 1) {
+  const seedThread = async (i: number) => {
     const id = await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`));
     await say(garden, {
       ...text('I added this to the garden checklist.'),
@@ -227,6 +227,15 @@ const seed = async (test: string, extraThreads = 0) => {
         { set_by: reader.user_id, set_at: new Date().toISOString() }
       );
     }
+  };
+  // Several requests in flight, but don't send hundreds to the test server at once.
+  const batchSize = 16;
+  for (let start = 0; start < extraThreads; start += batchSize) {
+    await Promise.all(
+      Array.from({ length: Math.min(batchSize, extraThreads - start) }, (_, i) =>
+        seedThread(start + i)
+      )
+    );
   }
   return { username, root, userId: reader.user_id, roomId: garden };
 };
@@ -447,7 +456,11 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
     const view = '[data-compact-room-view]';
     const cards = '[data-thread-root-id]';
     const before = page.locator(`[data-phone-stage] > [data-phone-page] ${view}`);
-    await expect(before.locator(cards)).toHaveCount(threadCount + 2, { timeout: 90_000 });
+    // The original example includes a root with no replies, which older history may omit.
+    await expect
+      .poll(() => before.locator(cards).count(), { timeout: 90_000 })
+      .toBeGreaterThanOrEqual(threadCount);
+    await expect(before).not.toHaveAttribute('data-cards-pending', 'true');
     await page.evaluate((selector) => {
       const scroller = document.querySelector<HTMLElement>(selector)!;
       scroller.scrollTop = scroller.scrollHeight * 0.6;
@@ -470,7 +483,8 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
           height: rect.height,
         }));
       return {
-        nodes: scroller.querySelectorAll('*').length,
+        nodes: scroller.closest('[data-page-slide-copy], [data-phone-stage]')!.querySelectorAll('*')
+          .length,
         scrollTop: scroller.scrollTop,
         scrollHeight: scroller.scrollHeight,
         visible,
@@ -497,6 +511,17 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
     );
     const still = page.locator(`[data-page-slide-copy] ${view}`);
     await expect(still).toHaveCount(1);
+    await page.waitForFunction(
+      (time) =>
+        document
+          .getAnimations()
+          .some(
+            (animation) =>
+              (animation as CSSAnimation).animationName === 'phone-page-under-out' &&
+              animation.currentTime === time
+          ),
+      HELD_AT_MS
+    );
     const snapshot = await still.evaluate(read);
     const frameMs = await page.evaluate(() => {
       const tap = performance.getEntriesByName('card-tap')[0]?.startTime;

@@ -54,71 +54,99 @@ const depth = (): number => {
  * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
  */
 const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
-  // Made in a document of its own, which loads nothing, and brought into the page's once what
-  // would load there has lost its source: the copy asks the network for nothing.
-  const copy = document.implementation
-    .createHTMLDocument('')
-    .importNode(stage, true) as HTMLElement;
-  const copies = copy.querySelectorAll<HTMLElement>('*');
-  const scrolled: [Element, number, number][] = [];
   const bounds = stage.getBoundingClientRect();
-  // A canvas is copied empty: each of these is drawn from what shows in the page.
+  const standIns = new Map<Element, DOMRect>();
+  const media = new Map<Element, { width: number; height: number; shows: boolean }>();
+  const offsets = new Map<Element, [number, number]>();
+  // Measure before building the copy. Only Compact's marked rows can be pruned: arbitrary
+  // elements can have children that escape their box. Leave room for the cards' edge effects.
+  const measure = (element: Element, clip?: { top: number; bottom: number }) => {
+    if (element.hasAttribute('data-compact-room-view')) {
+      const view = element.getBoundingClientRect();
+      clip = {
+        top: Math.max(bounds.top, view.top) - 32,
+        bottom: Math.min(bounds.bottom, view.bottom) + 32,
+      };
+    }
+    if (clip && element.hasAttribute('data-page-slide-row')) {
+      const box = element.getBoundingClientRect();
+      if (box.bottom <= clip.top || box.top >= clip.bottom) {
+        standIns.set(element, box);
+        return;
+      }
+    }
+    const { scrollTop, scrollLeft } = element;
+    if (element !== stage && (scrollTop || scrollLeft))
+      offsets.set(element, [scrollTop, scrollLeft]);
+    if (element instanceof HTMLElement && element.matches(MEDIA)) {
+      const { offsetWidth: width, offsetHeight: height } = element;
+      const box = element instanceof HTMLImageElement ? element.getBoundingClientRect() : undefined;
+      const shows =
+        !!box &&
+        box.width > 0 &&
+        box.height > 0 &&
+        box.right > bounds.left &&
+        box.left < bounds.right &&
+        box.bottom > bounds.top &&
+        box.top < bounds.bottom;
+      media.set(element, { width, height, shows });
+    }
+    for (const child of element.children) measure(child, clip);
+  };
+  measure(stage);
+
+  // A detached document loads nothing. Bring the copy over only after removing media sources.
+  const still = document.implementation.createHTMLDocument('');
+  const scrolled: [Element, number, number][] = [];
   const drawn: [HTMLCanvasElement, HTMLCanvasElement | HTMLImageElement][] = [];
-  stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
-    const twin = copies[index];
-    if (!twin) return;
-    if (element.scrollTop || element.scrollLeft) {
-      scrolled.push([twin, element.scrollTop, element.scrollLeft]);
+  const sizeBox = (twin: HTMLElement, { width, height }: { width: number; height: number }) => {
+    Object.assign(twin.style, {
+      boxSizing: 'border-box',
+      width: `${width}px`,
+      height: `${height}px`,
+    });
+  };
+  const clone = (node: Node): Node => {
+    const twin = still.importNode(node, false);
+    if (!(node instanceof Element)) return twin;
+    const standIn = standIns.get(node);
+    if (standIn) {
+      sizeBox(twin as HTMLElement, standIn);
+      return twin;
     }
-    if (element instanceof HTMLCanvasElement) {
-      if (element.width && element.height) drawn.push([twin as HTMLCanvasElement, element]);
-      return;
+    const offset = offsets.get(node);
+    if (offset) scrolled.push([twin as Element, ...offset]);
+    for (const child of node.childNodes) twin.appendChild(clone(child));
+    if (node instanceof HTMLCanvasElement && node.width && node.height) {
+      drawn.push([twin as HTMLCanvasElement, node]);
     }
-    if (!element.matches(MEDIA)) return;
+    const box = media.get(node);
+    if (!box) return twin;
+    const blank = twin as HTMLElement;
     ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading', 'alt'].forEach((name) =>
-      twin.removeAttribute(name)
+      blank.removeAttribute(name)
     );
-    // Anything that would load or play is a box of its size, and a picture the page has loaded
-    // shows in it as a canvas drawn from the page's own. A picture given its address again would
-    // load and decode anew: the copy would show empty boxes for its first frames, or for good
-    // where the address is gone (the app lets go of avatars it has not shown for a while, which
-    // the page still shows). A frame's page cannot be copied, and loading it or a video again
-    // would outlast the slide.
-    const { offsetWidth, offsetHeight } = element;
-    twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
-    if (!(element instanceof HTMLImageElement)) return;
-    const { complete, naturalWidth, naturalHeight } = element;
-    // Only a picture the copy shows: not one of no size, nor one scrolled out of the layout.
-    const shows = element.getBoundingClientRect();
-    if (
-      !complete ||
-      !naturalWidth ||
-      !naturalHeight ||
-      !shows.width ||
-      !shows.height ||
-      shows.right <= bounds.left ||
-      shows.left >= bounds.right ||
-      shows.bottom <= bounds.top ||
-      shows.top >= bounds.bottom
-    ) {
-      return;
-    }
-    const picture = twin.ownerDocument.createElement('canvas');
-    Array.from(twin.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
-    // In the picture's own shape, so it fills or fits its box as it did, and neither side sharper
-    // than its box shows on the screen: a large picture takes no memory of its full size.
-    // One far wider or taller than its box shows a little soft where it fills it, for the slide.
+    // A frame, video or unloaded picture stays a blank box. A loaded picture is drawn from
+    // the page's own, even if the address (such as a revoked avatar URL) no longer works.
+    sizeBox(blank, box);
+    if (!(node instanceof HTMLImageElement) || !box.shows) return blank;
+    const { complete, naturalWidth, naturalHeight } = node;
+    if (!complete || !naturalWidth || !naturalHeight) return blank;
+    const picture = still.createElement('canvas');
+    Array.from(blank.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
+    // Keep the picture's aspect ratio, with no more pixels than its box can show.
     const pixels = window.devicePixelRatio || 1;
     const scale = Math.min(
       1,
-      (offsetWidth / naturalWidth) * pixels,
-      (offsetHeight / naturalHeight) * pixels
+      (box.width / naturalWidth) * pixels,
+      (box.height / naturalHeight) * pixels
     );
     picture.width = Math.max(1, Math.round(naturalWidth * scale));
     picture.height = Math.max(1, Math.round(naturalHeight * scale));
-    twin.replaceWith(picture);
-    drawn.push([picture, element]);
-  });
+    drawn.push([picture, node]);
+    return picture;
+  };
+  const copy = clone(stage) as HTMLElement;
   document.adoptNode(copy);
   drawn.forEach(([canvas, from]) =>
     canvas.getContext('2d')?.drawImage(from, 0, 0, canvas.width, canvas.height)

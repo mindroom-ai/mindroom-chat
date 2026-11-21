@@ -180,6 +180,9 @@ const CompactThreadCardRow = React.memo(
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
+        // The phone slide can keep just this shell outside the list's clip. Card adornments
+        // stay by the row, and popovers that can escape it render in the portal instead.
+        data-page-slide-row=""
         draggable={draggable || undefined}
         onPointerDown={
           offered ? (event) => setMousePressed(event.pointerType === 'mouse') : undefined
