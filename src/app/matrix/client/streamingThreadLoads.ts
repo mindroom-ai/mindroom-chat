@@ -254,18 +254,13 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
       dropHints((_hint, id) => id === replyId);
       return;
     }
+    if (!reply || newest !== edit || edit.getType() !== reply.getType()) return;
     const content = newContentOf(edit);
-    const status = readStreamStatus(content);
     // The card's rule (`isEventStreaming`): the status must say that the reply streams.
     const streams =
       getAiRunInfo(content)?.status?.toLowerCase() === 'streaming' ||
-      (!!status && ACTIVE_STREAM_STATUSES.has(status));
-    const counts =
-      !!reply &&
-      edit.getType() === reply.getType() &&
-      !edit.isRedacted() &&
-      isTrustedAgentSender(edit.getSender());
-    if (!counts || newest !== edit || !streams) return;
+      ACTIVE_STREAM_STATUSES.has(readStreamStatus(content) ?? '');
+    if (!streams || edit.isRedacted() || !isTrustedAgentSender(edit.getSender())) return;
     if (Date.now() - edit.getTs() > STREAM_IDLE_LIMIT_MS) return;
     clearTimeout(hint?.timer);
     const timer = setTimeout(() => dropHints((_hint, id) => id === replyId), STREAM_HINT_MS);
