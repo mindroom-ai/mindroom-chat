@@ -551,6 +551,39 @@ describe('the Compact room in sections', () => {
     ).toBe(40);
   });
 
+  it('focuses an off-window card and never writes the offset while the reader scrolls', () => {
+    flowGeometry();
+    const cards = Array.from({ length: 730 }, (_, index) => `$card${index}`);
+    render(view(cards, false));
+    const viewport = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    const first = viewport.querySelector<HTMLButtonElement>(
+      'button[data-thread-root-id="$card0"]'
+    )!;
+    let top = 0;
+    const writes: number[] = [];
+    Object.defineProperties(viewport, {
+      scrollHeight: { value: 730 * 84 },
+      clientHeight: { value: 800 },
+      scrollTop: {
+        get: () => top,
+        set: (next: number) => {
+          top = next;
+          writes.push(next);
+        },
+      },
+    });
+    fireEvent.keyDown(first, { key: 'End' });
+    expect((document.activeElement as HTMLElement).dataset.threadRootId).toBe('$card729');
+    expect(writes).toHaveLength(1);
+    fireEvent.scroll(viewport);
+    writes.length = 0;
+    for (let step = 0; step < 12; step += 1) {
+      top -= 84;
+      fireEvent.scroll(viewport);
+    }
+    expect(writes).toEqual([]);
+  });
+
   it('retains a text drag through pointercancel, then releases it on dragend', () => {
     flowGeometry();
     const cards = Array.from({ length: 730 }, (_, index) => `$card${index}`);
