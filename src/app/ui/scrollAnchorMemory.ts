@@ -115,6 +115,8 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
+  /** A requested anchor can mount after the first window, even if its extent stays the same. */
+  mountedAnchor?: string;
 };
 
 /**
@@ -132,6 +134,7 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
+  mountedAnchor,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -199,7 +202,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [contentRef, memory, memoryKey, mountedAnchor, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;

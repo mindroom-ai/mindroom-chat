@@ -8,7 +8,6 @@ const touchActions = '(max-width: 480px), (hover: none)';
 export const View = style([
   Scroll,
   {
-    position: 'relative',
     display: 'flex',
     flexDirection: 'column',
     flex: '1 1 auto',

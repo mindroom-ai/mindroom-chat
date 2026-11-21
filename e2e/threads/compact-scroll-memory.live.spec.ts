@@ -10,7 +10,7 @@ import {
 } from '../helpers/matrix';
 
 const THREAD_COUNT = 40;
-const COMPACT_VIEW = '[data-compact-room-view="true"]';
+const COMPACT_VIEW = '[data-compact-room-view="true"]:not([inert] *)';
 
 type Session = Awaited<ReturnType<typeof loginToMatrix>>;
 
@@ -149,7 +149,7 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(opened)}`));
     const reply = `Reply while open ${runTag} ${scrollTop}`;
     // Sent first, so the open thread's reply showing means both have synced.
-    await sendThreadReply(homeserver, session, roomId, lastRootId!, `Elsewhere ${reply}`);
+    await sendThreadReply(homeserver, session, roomId, lastRootId, `Elsewhere ${reply}`);
     await sendThreadReply(homeserver, session, roomId, opened, reply);
     await expect(page.getByText(reply, { exact: true })).toBeVisible();
 

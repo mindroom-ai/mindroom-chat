@@ -721,7 +721,7 @@ describe('CompactRoomView', () => {
             addEventListener: () => undefined,
             removeEventListener: () => undefined,
             style: {},
-            offsetTop: 0,
+            getBoundingClientRect: () => ({ top: -scrollElement.scrollTop }),
           };
 
   it('gives the cards one touch-action and one touchmove listener, on their container', () => {
@@ -742,7 +742,7 @@ describe('CompactRoomView', () => {
                     listening.push(String(element.props.className));
                   },
                   removeEventListener: () => undefined,
-                  offsetTop: 0,
+                  getBoundingClientRect: () => ({ top: 0 }),
                   style: {},
                 },
         }

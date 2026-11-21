@@ -127,7 +127,10 @@ describe('the Compact room in sections', () => {
     vi.useFakeTimers();
     try {
       render(view(working));
-      for (let task = 0; task < 24; task += 1) act(() => vi.runOnlyPendingTimers());
+      for (let task = 0; task < 24; task += 1)
+        act(() => {
+          vi.runOnlyPendingTimers();
+        });
 
       expect(rows()).toContain('#working 730');
       expect(rows()).toContain('$card0');

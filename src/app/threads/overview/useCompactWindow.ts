@@ -86,7 +86,10 @@ export function useCompactWindow(
     const list = listRef.current;
     if (!view || !list) return undefined;
     const content = list.parentElement;
-    const measure = () => setScrollMargin(list.offsetTop + (content?.offsetTop ?? 0));
+    const measure = () =>
+      setScrollMargin(
+        list.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop
+      );
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);

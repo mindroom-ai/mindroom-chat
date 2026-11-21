@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import '../overview/__tests__/compactWindowStandIn';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';

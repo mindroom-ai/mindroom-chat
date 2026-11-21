@@ -428,6 +428,15 @@ function CompactRoomList({
     [listRows, pinned]
   );
   const memory = compactRoomScrollStateRef.current;
+  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
+  const mountRequestKey = useRef(requestKey);
+  const placedRequestKey = useRef<string>();
+  const restoreTarget =
+    requestKey === mountRequestKey.current &&
+    focusRequest &&
+    memory.get(room.roomId)?.anchors.some(({ key }) => key === focusRequest.eventId)
+      ? focusRequest.eventId
+      : undefined;
   const { virtualizer, indexes } = useCompactWindow(
     listRows,
     pinned,
@@ -435,21 +444,27 @@ function CompactRoomList({
     listRef,
     memory,
     room.roomId,
-    [focusedId, menu?.rootId, pendingFocus]
+    [focusedId, menu?.rootId, pendingFocus, restoreTarget]
   );
   const items = virtualizer.getVirtualItems();
-  const mountedRootIds = [
-    ...pinned,
-    ...items.map(({ index }) => listRows[index]!).filter((key) => !sectionOfRow(key)),
-  ];
+  const mountedRootIds = useMemo(
+    () => [
+      ...pinned,
+      ...items.map(({ index }) => listRows[index]!).filter((key) => !sectionOfRow(key)),
+    ],
+    [items, listRows, pinned]
+  );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: mountedRootIds,
     threadRecordMap,
   });
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
-  const cardButton = (id: string) =>
-    compactCardsIn(viewRef.current).find((card) => card.dataset.threadRootId === id);
+  const cardButton = useCallback(
+    (id: string) =>
+      compactCardsIn(viewRef.current).find((card) => card.dataset.threadRootId === id),
+    []
+  );
   const focusCard = (id: string | undefined) => {
     if (!id || !shownRootIds.includes(id)) return false;
     if (!focusCompactCard(cardButton(id))) {
@@ -475,7 +490,7 @@ function CompactRoomList({
     ) {
       setPendingFocus(undefined);
     }
-  });
+  }, [cardButton, items, pendingFocus, shownRootIds]);
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
@@ -570,32 +585,35 @@ function CompactRoomList({
     scrollRef: viewRef,
     contentRef,
     ready: shownRootIds.length > 0,
+    mountedAnchor: restoreTarget && modelByRootId.has(restoreTarget) ? restoreTarget : undefined,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
   // with that request does; the one the list mounted with had that mount. A replaced entry (a
   // thread beside the list closing) or a step back or forward leaves the list where it is.
-  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
-  const mountRequestKeyRef = useRef(requestKey);
   useLayoutEffect(() => {
-    const arrived = requestKey !== mountRequestKeyRef.current;
-    if (arrived) mountRequestKeyRef.current = undefined;
+    const arrived = requestKey !== mountRequestKey.current;
+    if (arrived) mountRequestKey.current = undefined;
     const view = viewRef.current;
     if (!focusRequest || !view || !shownRootIds.includes(focusRequest.eventId)) return;
-    const seek =
-      isCompactFocusRequestOpen(memory, focusRequest) &&
-      (arrived
-        ? focusRequest.pushed
-        : memory.get(room.roomId)?.anchors.some(({ key }) => key === focusRequest.eventId));
-    const shown = modelByRootId.has(focusRequest.eventId);
-    if (!shown) {
+    const seek = arrived && focusRequest.pushed && isCompactFocusRequestOpen(memory, focusRequest);
+    const card = cardButton(focusRequest.eventId);
+    if (!card) {
       const index = indexes.get(focusRequest.eventId);
       if (seek && index !== undefined) virtualizer.scrollToIndex(index, { align: 'start' });
       return;
     }
-    const place = seek && compactFocusPlace(focusRequest, view);
-    if (place) placeList(place);
-    meetCompactFocusRequest(memory, focusRequest);
+    const place =
+      seek && placedRequestKey.current !== requestKey && compactFocusPlace(focusRequest, view);
+    if (place) {
+      placedRequestKey.current = requestKey;
+      placeList(place);
+      return;
+    }
+    const { top, bottom } = card.getBoundingClientRect();
+    const viewport = view.getBoundingClientRect();
+    if (top <= viewport.bottom && bottom >= viewport.top)
+      meetCompactFocusRequest(memory, focusRequest);
   });
 
   const resolveLabel = t('thread.resolve');
@@ -705,7 +723,8 @@ function CompactRoomList({
         onFocus={(event: React.FocusEvent<HTMLDivElement>) => {
           setFocusInside(isKeyboardFocus(event.target));
           setFocusedId(
-            event.target.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor
+            event.target.closest<HTMLElement>('[data-motion-row]')?.dataset.motionRow ??
+              event.target.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor
           );
         }}
         onBlur={(event: React.FocusEvent<HTMLDivElement>) => {
@@ -747,8 +766,18 @@ function CompactRoomList({
           </Box>
         ) : (
           <div ref={listRef}>
+            {/* WebKit clamps scrollTop if a window swap removes its leading space. */}
+            <div
+              aria-hidden
+              style={{
+                height:
+                  (items[0]?.start ?? virtualizer.options.scrollMargin) -
+                  virtualizer.options.scrollMargin,
+                overflowAnchor: 'none',
+              }}
+            />
             {items.map(({ index, start }, itemIndex) => {
-              const precedingEnd = items[itemIndex - 1]?.end ?? virtualizer.options.scrollMargin;
+              const precedingEnd = items[itemIndex - 1]?.end ?? start;
               return (
                 <React.Fragment key={listRows[index]}>
                   {start > precedingEnd && (
