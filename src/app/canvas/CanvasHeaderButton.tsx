@@ -18,6 +18,7 @@ type CanvasMenuProps = {
   /** A canvas was chosen: the shown one closes its panel, another opens it. */
   onChoose: (canvasId: string) => void;
   requestClose: () => void;
+  onEscape?: (event: KeyboardEvent) => void;
 };
 
 /** A menu of the conversation's canvases by title, with the update time to tell same-named ones apart. */
@@ -27,11 +28,12 @@ export function CanvasMenu({
   openCanvasId,
   onChoose,
   requestClose,
+  onEscape,
 }: CanvasMenuProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
-  // Escape or a click elsewhere dismisses the list; focus stays where the click put it.
+  // Outside clicks keep their own focus; the phone header restores it on Escape.
   const dismiss = () => {
     requestClose();
     return true;
@@ -39,7 +41,10 @@ export function CanvasMenu({
   const trap = {
     initialFocus: false as const,
     returnFocusOnDeactivate: false,
-    escapeDeactivates: dismiss,
+    escapeDeactivates: (event: KeyboardEvent) => {
+      onEscape?.(event);
+      return dismiss();
+    },
     clickOutsideDeactivates: dismiss,
   };
   return (
@@ -108,7 +113,7 @@ type CanvasHeaderButtonProps = {
   onOpen: (canvasId: string) => void;
   onClose: () => void;
   /** The phone header owns the chooser, so overflow changes cannot unmount it. */
-  chooser?: { open: boolean; onOpen: (anchor: RectCords) => void };
+  chooser?: { open: boolean; onOpen: (opener: HTMLButtonElement) => void };
 };
 
 /**
@@ -143,7 +148,8 @@ export function CanvasHeaderButton({
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (several) {
-      (chooser?.onOpen ?? setMenuAnchor)(event.currentTarget.getBoundingClientRect());
+      if (chooser) chooser.onOpen(event.currentTarget);
+      else setMenuAnchor(event.currentTarget.getBoundingClientRect());
       return;
     }
     const [only] = canvases;

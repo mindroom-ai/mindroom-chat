@@ -21,12 +21,27 @@ export const roomMoreOptions = (page: Page): Locator =>
  */
 export const openRoomPins = async (page: Page): Promise<Locator> => {
   const button = roomHeader(page).getByRole('button', { name: 'Pinned Messages', exact: true });
-  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
-  if (!isPhoneLayout(page) || (await button.isVisible())) {
+  if (!isPhoneLayout(page)) {
     await button.click();
     return button;
   }
-  await roomMoreOptions(page).click();
-  await page.getByRole('menuitem', { name: 'Pinned Messages', exact: true }).click();
-  return roomMoreOptions(page);
+
+  const more = roomMoreOptions(page);
+  const entry = page.getByRole('menuitem', { name: 'Pinned Messages', exact: true });
+  await expect(more).toBeVisible({ timeout: 60_000 });
+  if (!(await button.isVisible()) && (await more.getAttribute('aria-expanded')) !== 'true') {
+    await more.click();
+  }
+  // The pins may sync after the room menu opens, and appear in either place.
+  await expect(button.or(entry).first()).toBeVisible({ timeout: 60_000 });
+  if (await button.isVisible()) {
+    if ((await more.getAttribute('aria-expanded')) === 'true') {
+      await page.keyboard.press('Escape');
+      await expect(more).toHaveAttribute('aria-expanded', 'false');
+    }
+    await button.click();
+    return button;
+  }
+  await entry.click();
+  return more;
 };

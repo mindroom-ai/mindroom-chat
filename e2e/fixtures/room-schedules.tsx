@@ -147,7 +147,6 @@ function Fixture() {
       {open && (
         <RoomSchedulesOverlay
           roomId={activeRoom.roomId}
-          roomHeader={null}
           tasks={pendingSchedules}
           onClose={() => setOpen(false)}
           onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}

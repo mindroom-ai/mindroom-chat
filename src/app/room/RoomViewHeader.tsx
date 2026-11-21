@@ -5,7 +5,7 @@ import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Badge, Box, Icons, Text, config, toRem, type RectCords } from 'folds';
+import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
 import { RoomTopicViewer } from './RoomTopicViewer';
@@ -60,7 +60,9 @@ import {
   HeaderActionButton,
   HeaderActionEntry,
   drawnByHeader,
+  headerPopupAnchor,
   showsInRow,
+  type HeaderPopupAnchor,
   type RoomHeaderAction,
   type RoomHeaderEntry,
 } from './roomHeaderActions';
@@ -243,10 +245,10 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const [pinAnchor, setPinAnchor] = useState<RectCords>();
+  const [menuAnchor, setMenuAnchor] = useState<HeaderPopupAnchor>();
+  const [pinAnchor, setPinAnchor] = useState<HeaderPopupAnchor>();
   // The phone canvas chooser and schedules dialog outlive their opener moving into overflow.
-  const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
+  const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<HeaderPopupAnchor>();
   const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
   const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
   const openSchedules = (opener?: HTMLButtonElement) =>
@@ -314,9 +316,22 @@ export function RoomViewHeader({
     ? t('mindroomUi.subagents.hide')
     : t('mindroomUi.subagents.show');
 
+  const headerFocusTarget = (opener?: HTMLButtonElement) =>
+    opener?.isConnected
+      ? opener
+      : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ?? false;
+  const restoreFocusOnEscape = (event: KeyboardEvent, anchor?: HeaderPopupAnchor) => {
+    event.stopPropagation();
+    // Restore after the focus trap has let go; an outside click keeps its own focus instead.
+    requestAnimationFrame(() => {
+      const target = headerFocusTarget(anchor?.opener);
+      if (target) target.focus({ preventScroll: true });
+    });
+  };
+
   // An action in the room menu closes it before it acts where the menu's button was.
   const closeMenu = () => setMenuAnchor(undefined);
-  const fromMenu = (act: (menuButton: RectCords | undefined) => void) => () => {
+  const fromMenu = (act: (menuButton: HeaderPopupAnchor | undefined) => void) => () => {
     const menuButton = menuAnchor;
     closeMenu();
     act(menuButton);
@@ -392,7 +407,7 @@ export function RoomViewHeader({
       menu: (
         <RoomSchedulesMenuEntry
           total={pendingSchedules.length}
-          onSelect={fromMenu(() => openSchedules())}
+          onSelect={fromMenu((menuButton) => openSchedules(menuButton?.opener))}
         />
       ),
     },
@@ -407,7 +422,14 @@ export function RoomViewHeader({
             openCanvasId={openCanvasId}
             onOpen={onCanvasOpen}
             onClose={onCanvasClose}
-            chooser={mobile ? { open: !!canvasMenuAnchor, onOpen: setCanvasMenuAnchor } : undefined}
+            chooser={
+              mobile
+                ? {
+                    open: !!canvasMenuAnchor,
+                    onOpen: (opener) => setCanvasMenuAnchor(headerPopupAnchor(opener)),
+                  }
+                : undefined
+            }
           />
         ),
         menu: (
@@ -450,11 +472,11 @@ export function RoomViewHeader({
       run: () => onPanelToggle?.('subagents'),
       marker: 'data-subagents-toggle',
     },
-    // The call buttons, in the row on phones too, so a call is one tap away.
-    (mobile || calls) && {
+    // Keep call controls in the same group across rotation. Only phones measure its width.
+    {
       id: 'call',
       placement: 'row',
-      row: mobile ? (
+      row: (
         <Box
           alignItems="Center"
           gap="100"
@@ -464,8 +486,6 @@ export function RoomViewHeader({
         >
           {calls}
         </Box>
-      ) : (
-        calls
       ),
     },
     pinnedCount > 0 && {
@@ -644,7 +664,7 @@ export function RoomViewHeader({
         )}
       </Box>
       <PopOut
-        anchor={pinAnchor}
+        anchor={pinAnchor?.rect}
         position="Bottom"
         align="End"
         offset={4}
@@ -657,8 +677,9 @@ export function RoomViewHeader({
                 setPinAnchor(undefined);
                 return true;
               },
-              escapeDeactivates: () => {
+              escapeDeactivates: (event: KeyboardEvent) => {
                 setPinAnchor(undefined);
+                restoreFocusOnEscape(event, pinAnchor);
                 return true;
               },
             }}
@@ -668,7 +689,7 @@ export function RoomViewHeader({
         }
       />
       <PopOut
-        anchor={menuAnchor}
+        anchor={menuAnchor?.rect}
         position="Bottom"
         align="End"
         offset={4}
@@ -702,7 +723,8 @@ export function RoomViewHeader({
       />
       {mobile && needsCanvasChooser && (
         <CanvasMenu
-          anchor={canvasMenuAnchor}
+          anchor={canvasMenuAnchor?.rect}
+          onEscape={(event) => restoreFocusOnEscape(event, canvasMenuAnchor)}
           canvases={canvasesHere}
           openCanvasId={openCanvasId}
           onChoose={chooseCanvas}
@@ -712,16 +734,10 @@ export function RoomViewHeader({
       {schedulesOpen && (
         <RoomSchedulesOverlay
           roomId={room.roomId}
-          roomHeader={headerRef.current}
+          headerRef={headerRef}
           tasks={pendingSchedules}
           openThreadId={openThreadId}
-          returnFocusTo={() => {
-            const opener = schedules?.opener;
-            return opener?.isConnected
-              ? opener
-              : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ??
-                  false;
-          }}
+          returnFocusTo={() => headerFocusTarget(schedules?.opener)}
           onClose={() => setSchedules(undefined)}
           onOpenThread={openScheduledThread}
         />

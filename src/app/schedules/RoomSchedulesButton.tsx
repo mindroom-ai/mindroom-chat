@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type MouseEvent,
+  type RefObject,
   useCallback,
   useLayoutEffect,
   useMemo,
@@ -35,24 +36,23 @@ export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
 }
 
 /** The horizontal center of the header in viewport pixels, following layout changes. */
-function useCenterX(element: HTMLElement | null): number | undefined {
+function useCenterX(headerRef?: RefObject<HTMLElement>): number | undefined {
   const [centerX, setCenterX] = useState<number>();
+  const header = useCallback(() => headerRef?.current, [headerRef]);
   const measure = useCallback(() => {
+    const element = header();
     if (!element) return;
     const rect = element.getBoundingClientRect();
     setCenterX(rect.left + rect.width / 2);
-  }, [element]);
+  }, [header]);
   useLayoutEffect(() => {
-    if (!element) return undefined;
+    if (!header()) return undefined;
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [element, measure]);
-  useResizeObserver(
-    measure,
-    useCallback(() => element, [element])
-  );
-  return element ? centerX : undefined;
+  }, [header, measure]);
+  useResizeObserver(measure, header);
+  return centerX;
 }
 
 type RoomSchedulesOverlayProps = {
@@ -60,7 +60,7 @@ type RoomSchedulesOverlayProps = {
   tasks: readonly ParsedScheduledTask[];
   openThreadId?: string;
   /** The room header spans the room view, which the list sits over. */
-  roomHeader: HTMLElement | null;
+  headerRef?: RefObject<HTMLElement>;
   returnFocusTo?: () => HTMLElement | false;
   onClose: () => void;
   onOpenThread: (threadId: string) => void;
@@ -71,12 +71,12 @@ export function RoomSchedulesOverlay({
   roomId,
   tasks,
   openThreadId,
-  roomHeader,
+  headerRef,
   returnFocusTo,
   onClose,
   onOpenThread,
 }: RoomSchedulesOverlayProps) {
-  const centerX = useCenterX(roomHeader);
+  const centerX = useCenterX(headerRef);
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter

@@ -19,6 +19,13 @@ export const showsInRow = (
   promoted: boolean
 ): boolean => placement === 'row' || (placement === 'auto' && (!phone || promoted));
 
+export type HeaderPopupAnchor = { rect: RectCords; opener: HTMLButtonElement };
+
+export const headerPopupAnchor = (opener: HTMLButtonElement): HeaderPopupAnchor => ({
+  rect: opener.getBoundingClientRect(),
+  opener,
+});
+
 /**
  * An action of the open room's header, which the header draws: an icon button in its row, or an
  * entry of its room menu, as its placement and the screen decide (`showsInRow`).
@@ -37,7 +44,7 @@ export type RoomHeaderAction = {
    * Runs it. An action with a `popup` gets where its control was, for what it opens: its button,
    * or the room menu's button.
    */
-  run: (anchor: RectCords | undefined) => void;
+  run: (anchor: HeaderPopupAnchor | undefined) => void;
   /** Drawn over its button's corner, such as a count; on phones a dot on the menu's button. */
   badge?: ReactNode;
   /** What it opens, which its button and its menu entry announce. */
@@ -69,11 +76,6 @@ export type RoomHeaderEntry = (RoomHeaderAction | RoomHeaderControls) & {
 /** Whether the header draws the entry's controls, rather than the entry itself. */
 export const drawnByHeader = (entry: RoomHeaderEntry): entry is RoomHeaderAction => 'run' in entry;
 
-const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
-  const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
-  return { x, y, width, height };
-};
-
 /** An action's icon-only button, which names itself in a tooltip, as screen readers hear it. */
 export function HeaderActionButton({
   action,
@@ -102,7 +104,9 @@ export function HeaderActionButton({
           aria-pressed={pressed}
           aria-haspopup={popup}
           aria-expanded={expanded}
-          onClick={(event: MouseEvent<HTMLButtonElement>) => run(popup ? rectOf(event) : undefined)}
+          onClick={(event: MouseEvent<HTMLButtonElement>) =>
+            run(popup ? headerPopupAnchor(event.currentTarget) : undefined)
+          }
           className={headerActionButton}
           style={badge ? { position: 'relative' } : undefined}
           {...shortcutAttributes(shortcut)}

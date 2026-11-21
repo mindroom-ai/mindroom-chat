@@ -217,10 +217,9 @@ for (const scenario of SCENARIOS) {
     await canvasComesAndGoes(page, stack, scenario);
   });
 
-  test(`phone canvas appears and disappears in ${scenarioName(scenario)}`, async ({
-    stack,
-    baseURL,
-  }) => {
+  test(`in ${scenarioName(
+    scenario
+  )}, the canvas control comes and goes on a phone (WebKit)`, async ({ stack, baseURL }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
     const webkit = await launchWebKit();
     try {

@@ -34,11 +34,11 @@ import {
 
 // A phone's room header reserves room for the name and promotes Members and Pins here. The menu
 // keeps the Compact view switch, the filter bar toggle and the empty schedules entry. Those rows
-// are as tall as a message menu's, and the menu stays inside the window. The menu button keeps a 44 px hit area. A desktop header keeps all its buttons. An
-// agent room with a long name and a pinned message among 25 rooms, on a phone (390 by 844, touch)
-// and a desktop (1280 by 800), light and dark, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
-// DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
+// are as tall as a message menu's, and the menu stays inside the window. The menu button keeps a 44
+// px hit area. A desktop header keeps all its buttons. The test uses an agent room with a long name
+// and a pinned message among 25 rooms, on a phone (390 by 844, touch) and a desktop (1280 by 800),
+// light and dark, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
+// WebKit. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
 const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Customer Escalations and Renewals';
 const PINNED = 'Escalation playbook: page the on-call lead first, then the account owner.';

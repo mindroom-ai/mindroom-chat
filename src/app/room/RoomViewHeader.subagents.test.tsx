@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
 import { act as actInDom } from 'react-dom/test-utils';
@@ -81,7 +81,20 @@ vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new S
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false, event: () => false, stateEvent: () => false }),
 }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
+vi.mock('../event-store/cache/useRoomEvent', () => ({ useRoomEvent: () => undefined }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({
+  usePinnedEventIds: () => pins.ids,
+  useThreadPinning: () => ({
+    pinnedEventIds: pins.ids,
+    canPin: true,
+    updating: false,
+    setPinned: (eventId: string, pinned: boolean) => {
+      if (!pinned) pins.ids = pins.ids.filter((id) => id !== eventId);
+      return Promise.resolve(true);
+    },
+  }),
+}));
+vi.mock('../navigation/useRoomRouteParams', () => ({ useRoomRouteParams: () => ({}) }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
@@ -173,6 +186,52 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
   };
 };
 
+// jsdom does not lay out controls, including the buttons checked by the real focus trap.
+const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390) => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  );
+  const box = new DOMRect(0, 0, 40, 40);
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(viewport);
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
+  const rects = vi
+    .spyOn(HTMLElement.prototype, 'getClientRects')
+    .mockReturnValue([box] as unknown as DOMRectList);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const rerender = () =>
+    actInDom(() =>
+      root.render(
+        <Provider>
+          <RoomViewHeader openThreadId={THREAD} {...props} />
+        </Provider>
+      )
+    );
+  rerender();
+  return {
+    host,
+    rerender,
+    unmount: () => {
+      actInDom(() => root.unmount());
+      host.remove();
+      rects.mockRestore();
+      bounds.mockRestore();
+      width.mockRestore();
+    },
+  };
+};
+
+const pressEscape = (from: HTMLElement) =>
+  actInDom(() => {
+    from.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+
 const schedule = (taskId: string, threadId: string | null, newThread = false, status = 'pending') =>
   new MatrixEvent({
     type: MINDROOM_SCHEDULED_TASK_EVENT,
@@ -183,6 +242,18 @@ const schedule = (taskId: string, threadId: string | null, newThread = false, st
       workflow: JSON.stringify({ thread_id: threadId, new_thread: newThread }),
     },
   });
+
+const canvases = ['Orchard map', 'Garden map'].map((title, index) => ({
+  canvasId: `$drawing-${index}:example.org`,
+  roomId: ROOM_ID,
+  threadId: THREAD,
+  agentUserId: SENDER,
+  title,
+  createdTs: 1,
+  revisionId: `$drawing-${index}:example.org`,
+  updatedTs: 1,
+  shared: false,
+}));
 
 const rowLabels = () =>
   renderer?.root.findAllByType('button').map((node) => node.props['aria-label']);
@@ -405,23 +476,75 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     );
   });
 
-  it.each(['Mobile', 'Desktop', 'Tablet'])(
-    'shows the room-wide schedule count on %s when appropriate',
-    (size) => {
+  it.each([
+    { size: 'Mobile', scope: 'room timeline', keepsEmptyClock: false },
+    { size: 'Desktop', scope: 'open thread', keepsEmptyClock: true },
+    { size: 'Tablet', scope: 'open thread', keepsEmptyClock: true },
+  ])(
+    '$size counts all room tasks on the $scope (empty clock visible: $keepsEmptyClock)',
+    ({ size, keepsEmptyClock }) => {
       screen.size = size;
       schedules.events = [schedule('orchard', null), schedule('seeds', THREAD, true)];
+      const props = {
+        hasMindroomAgents: true,
+        openThreadId: size === 'Mobile' ? undefined : THREAD,
+      };
       const { createNodeMock } = phoneLayout(390, 0);
-      renderHeader(
-        { hasMindroomAgents: true, openThreadId: size === 'Mobile' ? undefined : THREAD },
-        createNodeMock
-      );
+      renderHeader(props, createNodeMock);
       expect(rowLabels()).toContain('Scheduled tasks (2)');
       schedules.events = [];
-      renderHeader({ hasMindroomAgents: true }, createNodeMock);
-      if (size !== 'Mobile') expect(rowLabels()).toContain('Scheduled tasks (0)');
-      else expect(rowLabels()).not.toContain('Scheduled tasks (0)');
+      renderHeader(props, createNodeMock);
+      expect(rowLabels()?.includes('Scheduled tasks (0)')).toBe(keepsEmptyClock);
     }
   );
+
+  it('groups the room schedules when opened from a desktop thread', () => {
+    schedules.events = [schedule('orchard', THREAD), schedule('seeds', null)];
+    const { host, unmount } = renderDomHeader({ hasMindroomAgents: true, threadId: THREAD });
+    try {
+      const clock = host.querySelector<HTMLButtonElement>(
+        'button[aria-label="Scheduled tasks (2)"]'
+      )!;
+      actInDom(() => clock.click());
+      const headings = document.querySelectorAll('[role="dialog"] h3');
+      expect(Array.from(headings, (heading) => heading.textContent)).toEqual([
+        'This thread',
+        'Elsewhere in this room',
+      ]);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('keeps the same call child mounted across the phone breakpoint both ways', () => {
+    const mount = vi.fn();
+    const unmount = vi.fn();
+    function CallControl() {
+      useEffect(() => {
+        mount();
+        return () => {
+          unmount();
+        };
+      }, []);
+      return <IconButton aria-label="Call" />;
+    }
+    const { createNodeMock } = phoneLayout();
+    const draw = () => (
+      <Provider>
+        <RoomViewHeader calls={<CallControl />} />
+      </Provider>
+    );
+    act(() => {
+      renderer = create(draw(), { createNodeMock });
+    });
+    for (const size of ['Mobile', 'Desktop']) {
+      screen.size = size;
+      act(() => renderer?.update(draw()));
+      expect(rowLabels()).toContain('Call');
+    }
+    expect(mount).toHaveBeenCalledOnce();
+    expect(unmount).not.toHaveBeenCalled();
+  });
 
   it('remeasures the room for optional buttons after two call controls finish loading', async () => {
     screen.size = 'Mobile';
@@ -497,17 +620,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
   it('keeps the canvas chooser open when an active sub-agent takes its slot', () => {
     screen.size = 'Mobile';
     const { createNodeMock } = phoneLayout(390, 2);
-    const canvases = ['Orchard map', 'Garden map'].map((title, index) => ({
-      canvasId: `$drawing-${index}:example.org`,
-      roomId: ROOM_ID,
-      threadId: THREAD,
-      agentUserId: SENDER,
-      title,
-      createdTs: 1,
-      revisionId: `$drawing-${index}:example.org`,
-      updatedTs: 1,
-      shared: false,
-    }));
     const onCanvasOpen = vi.fn();
     renderHeader({ canvases, onCanvasOpen, onCanvasClose: vi.fn() }, createNodeMock);
     const chooserTrigger = renderer!.root.findByProps({ 'aria-label': 'Canvases' });
@@ -533,30 +645,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
   it.each([false, true])('restores focus after Escape (clock demoted: %s)', async (demote) => {
     screen.size = 'Mobile';
     schedules.events = [schedule('orchard', THREAD), schedule('seeds', null)];
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      }
-    );
-    const box = new DOMRect(0, 0, 40, 40);
-    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
-    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
-    const rects = vi
-      .spyOn(HTMLElement.prototype, 'getClientRects')
-      .mockReturnValue([box] as unknown as DOMRectList);
-    const host = document.createElement('div');
-    document.body.append(host);
-    const root = createRoot(host);
-    const tree = () => (
-      <Provider>
-        <RoomViewHeader openThreadId={THREAD} hasMindroomAgents />
-      </Provider>
-    );
+    const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
     try {
-      actInDom(() => root.render(tree()));
       const clock = host.querySelector<HTMLButtonElement>(
         'button[aria-label="Scheduled tasks (1)"]'
       )!;
@@ -572,22 +662,73 @@ describe("the Sub-agents panel's toggle in the room header", () => {
           schedule('orchard', THREAD, false, 'cancelled'),
           schedule('seeds', null),
         ];
-        actInDom(() => root.render(tree()));
+        rerender();
         expect(clock.isConnected).toBe(false);
         expect(close.isConnected).toBe(true);
       }
-      actInDom(() => {
-        close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      });
+      pressEscape(close);
       expect(document.querySelector('[role="dialog"]')).toBeNull();
       const target = demote ? host.querySelector('[data-room-more-options]') : clock;
       await vi.waitFor(() => expect(document.activeElement).toBe(target));
     } finally {
-      actInDom(() => root.unmount());
-      host.remove();
-      rects.mockRestore();
-      bounds.mockRestore();
-      width.mockRestore();
+      unmount();
+    }
+  });
+
+  it.each([false, true])('restores focus after Escape (canvas demoted: %s)', async (demote) => {
+    screen.size = 'Mobile';
+    const { host, unmount } = renderDomHeader(
+      { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
+      280
+    );
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+      opener.focus();
+      actInDom(() => opener.click());
+      const item = Array.from(host.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Garden map')
+      )!;
+      item.focus();
+      if (demote) actInDom(() => run('running'));
+      expect(opener.isConnected).toBe(!demote);
+      expect(item.isConnected).toBe(true);
+      pressEscape(item);
+      expect(item.isConnected).toBe(false);
+      const target = demote ? host.querySelector('[data-room-more-options]') : opener;
+      await vi.waitFor(() => expect(document.activeElement).toBe(target));
+    } finally {
+      unmount();
+    }
+  });
+
+  it('returns focus to More Options after Escape when the last pinned message is unpinned', async () => {
+    screen.size = 'Mobile';
+    pins.ids = ['$pinned:example.org'];
+    const { host, rerender, unmount } = renderDomHeader({});
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Pinned Messages"]')!;
+      opener.focus();
+      actInDom(() => opener.click());
+      const unpin = host.querySelector<HTMLButtonElement>(
+        '[role="dialog"] button[aria-label="Unpin Message"]'
+      )!;
+      unpin.focus();
+      await actInDom(async () => {
+        unpin.click();
+      });
+      rerender();
+      expect(opener.isConnected).toBe(false);
+      const close = host.querySelector<HTMLButtonElement>(
+        '[role="dialog"] button[aria-label="Close"]'
+      )!;
+      expect(document.activeElement).toBe(close);
+      pressEscape(close);
+      expect(close.isConnected).toBe(false);
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+      );
+    } finally {
+      unmount();
     }
   });
 
