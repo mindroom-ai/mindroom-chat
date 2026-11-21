@@ -73,7 +73,7 @@ export const createVoiceSendDraftController = (
   ) => {
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
-      if (recording.recordingId) await deleteVoiceRecording(recording.recordingId);
+      await deleteVoiceRecording(recording.recordingId);
       drafts.write(undefined);
       return true;
     } catch (error) {

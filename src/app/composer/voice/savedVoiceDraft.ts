@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { isJoined } from '../../matrix/state/roomList';
 import {
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
@@ -128,7 +129,8 @@ export const useSavedVoiceDraft = (
       const slotTaken = () =>
         !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
       if (slotTaken()) return;
-      const room = saved && mx.getRoom(saved.roomId);
+      const savedRoom = saved && mx.getRoom(saved.roomId);
+      const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
       const id = saved?.recordingId;
       if (
         saved &&

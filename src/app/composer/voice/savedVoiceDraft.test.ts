@@ -2,14 +2,23 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pendingVoiceSendDraftAtom, type PendingVoiceSendDraft } from '../roomInputDrafts';
+import {
+  pendingVoiceSendDraftAtom,
+  type PendingVoiceSendContext,
+  type PendingVoiceSendDraft,
+} from '../roomInputDrafts';
 import { clearSavedVoiceDraft, useSavedVoiceDraft } from './savedVoiceDraft';
 import { createVoiceSendDraftController } from './voiceSendDraftController';
 
 const userId = '@alice:example.org';
-const room = { roomId: '!room:example.org', name: 'Harbour desk' } as Room;
+let membership: KnownMembership = KnownMembership.Join;
+const room = {
+  roomId: '!room:example.org',
+  name: 'Harbour desk',
+  getMyMembership: () => membership,
+} as Room;
 const mx = {
   getUserId: () => userId,
   getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
@@ -62,14 +71,14 @@ let reloaded: typeof pendingVoiceSendDraftAtom | undefined;
 const reloadedAtom = () => reloaded!;
 
 /** A reload: fresh modules (nothing restored yet), a fresh store, and the hook mounted again. */
-const reloadPage = async (recover = false) => {
+const reloadPage = async (getRecoveryContext?: () => PendingVoiceSendContext) => {
   vi.resetModules();
   const drafts = await import('../roomInputDrafts');
   const saved = await import('./savedVoiceDraft');
   reloaded = drafts.pendingVoiceSendDraftAtom;
   const store = createStore();
   function Reloaded() {
-    saved.useSavedVoiceDraft(mx, recover ? () => failedDraft().context : undefined);
+    saved.useSavedVoiceDraft(mx, getRecoveryContext);
     return null;
   }
   act(() => {
@@ -80,17 +89,23 @@ const reloadPage = async (recover = false) => {
 };
 
 afterEach(async () => {
+  membership = KnownMembership.Join;
   await clearSavedVoiceDraft(userId);
+  vi.unstubAllGlobals();
 });
 
-it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
-  const journal = await import('./voiceRecordingJournal');
+const stubLocks = () => {
   vi.stubGlobal('navigator', {
     locks: {
       request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) =>
         callback({ name, mode: 'exclusive' }),
     },
   });
+};
+
+it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
+  const journal = await import('./voiceRecordingJournal');
+  stubLocks();
   try {
     const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
     await recording.append(0, new Blob(['journal audio']), 4_000);
@@ -103,16 +118,88 @@ it('restores the failed-send copy instead of offering the same recording as reco
     act(() => first.renderer.unmount());
     journal.releaseVoiceRecording(recording.id);
 
-    const store = await reloadPage(true);
+    const store = await reloadPage(() => failedDraft().context);
     const draft = store.get(reloadedAtom());
     expect(draft?.recordingId).toBe(recording.id);
     expect(draft?.errorMessage).toBe('M_UNKNOWN: injected');
     expect(draft?.recovered).toBeFalsy();
   } finally {
     await journal.clearVoiceRecordings(userId);
-    vi.unstubAllGlobals();
   }
 });
+
+it.each(['send', 'discard'])(
+  'offers a left room’s recording once after reload, then can %s it',
+  async (action) => {
+    const journal = await import('./voiceRecordingJournal');
+    stubLocks();
+    try {
+      const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
+      await recording.append(0, new Blob(['journal audio']), 4_200);
+      const first = openPage();
+      await settle();
+      act(() =>
+        first.store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), recordingId: recording.id })
+      );
+      await settle();
+      act(() => first.renderer.unmount());
+      journal.releaseVoiceRecording(recording.id);
+      membership = KnownMembership.Leave; // The client still has the Room object.
+
+      const newRoom = {
+        roomId: '!another:example.org',
+        getMyMembership: () => KnownMembership.Join,
+      } as Room;
+      const context = {
+        ...failedDraft().context,
+        room: newRoom,
+        roomId: newRoom.roomId,
+        threadId: undefined,
+      };
+      const offerContext = vi.fn(() => context);
+      const store = await reloadPage(offerContext);
+      const atom = reloadedAtom();
+      const recovered = store.get(atom);
+      expect(recovered).toMatchObject({ recordingId: recording.id, recovered: true, context });
+      expect(offerContext).toHaveBeenCalledOnce();
+      expect(await recovered?.file.text()).toBe('journal audio');
+
+      const { createVoiceSendDraftController: createController } = await import(
+        './voiceSendDraftController'
+      );
+      const controller = createController({
+        read: () => store.get(atom),
+        write: (draft) => store.set(atom, draft),
+      });
+      if (action === 'send') {
+        const sendRecording = vi.fn();
+        expect(
+          await controller.retry({
+            claim: () => true,
+            context: () => context,
+            sendRecording,
+            onFailure: vi.fn(),
+          })
+        ).toBe(true);
+        expect(sendRecording).toHaveBeenCalledExactlyOnceWith(
+          recovered?.file,
+          4_200,
+          undefined,
+          context
+        );
+      } else {
+        await controller.discardPending();
+      }
+      expect(store.get(atom)).toBeUndefined();
+      // Even if the original room is joined again, neither copy remains to restore.
+      membership = KnownMembership.Join;
+      const next = await reloadPage(() => context);
+      expect(next.get(reloadedAtom())).toBeUndefined();
+    } finally {
+      await journal.clearVoiceRecordings(userId);
+    }
+  }
+);
 
 describe('useSavedVoiceDraft', () => {
   it('keeps a failed voice message across a reload, where it was meant to go', async () => {
