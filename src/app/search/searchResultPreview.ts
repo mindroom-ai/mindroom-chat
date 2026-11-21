@@ -8,6 +8,7 @@ import { shouldUseLongTextSearchResultBody } from '../messages/content/searchRes
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { matchesEnum } from '../lib/matchesEnum';
+import { WORD_CHAR_PATTERN } from '../lib/regex';
 import { findFirstHighlight } from './highlightRegex';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
@@ -23,6 +24,49 @@ const withBody = (label: string, body?: string): string => {
   return normalizedBody ? `${label}: ${normalizedBody}` : label;
 };
 
+const WORD_CHAR = new RegExp(`^${WORD_CHAR_PATTERN}$`, 'u');
+const ENDS_IN_WORD_CHAR = new RegExp(`${WORD_CHAR_PATTERN}$`, 'u');
+const STARTS_WITH_WORD_CHAR = new RegExp(`^${WORD_CHAR_PATTERN}`, 'u');
+const HAS_WORD_CHAR = new RegExp(WORD_CHAR_PATTERN, 'u');
+
+/** Whether `at` falls between two letters or digits of `text`, inside one word. */
+const cutsWord = (text: string, at: number): boolean =>
+  at > 0 &&
+  at < text.length &&
+  ENDS_IN_WORD_CHAR.test(text.slice(Math.max(0, at - 2), at)) &&
+  STARTS_WITH_WORD_CHAR.test(text.slice(at, at + 2));
+
+/** How many UTF-16 units the letters and digits at the start of `chars` take. */
+const wordRunLength = (chars: readonly string[]): number => {
+  let length = 0;
+  for (const char of chars) {
+    if (!WORD_CHAR.test(char)) break;
+    length += char.length;
+  }
+  return length;
+};
+
+/** Whether `at` falls between the two halves of a surrogate pair of `text`. */
+const splitsPair = (text: string, at: number): boolean =>
+  at > 0 &&
+  at < text.length &&
+  /[\uDC00-\uDFFF]/.test(text.charAt(at)) &&
+  /[\uD800-\uDBFF]/.test(text.charAt(at - 1));
+
+/**
+ * The window `start`..`end` of `text` without the parts of words cut at its edges, so a word's
+ * tail is never read as a whole word. An edge never splits a character. When trimming leaves no
+ * letter or digit, the window keeps its cut words.
+ */
+const clipToWords = (text: string, start: number, end: number): [number, number] => {
+  const first = splitsPair(text, start) ? start + 1 : start;
+  const last = splitsPair(text, end) ? end - 1 : end;
+  const chars = Array.from(text.slice(first, last));
+  const from = cutsWord(text, first) ? first + wordRunLength(chars) : first;
+  const to = cutsWord(text, last) ? last - wordRunLength(chars.reverse()) : last;
+  return from < to && HAS_WORD_CHAR.test(text.slice(from, to)) ? [from, to] : [first, last];
+};
+
 export const getSearchResultBodySnippet = (
   body: string,
   highlights: string[] = [],
@@ -36,11 +80,11 @@ export const getSearchResultBodySnippet = (
     targetIndex >= 0
       ? Math.max(0, Math.min(targetIndex - Math.floor(windowSize * 0.3), body.length - windowSize))
       : 0;
-  const end = Math.min(body.length, start + windowSize);
-  const prefix = start > 0 ? '…' : '';
-  const suffix = end < body.length ? '…' : '';
+  const [from, to] = clipToWords(body, start, Math.min(body.length, start + windowSize));
+  const prefix = from > 0 ? '…' : '';
+  const suffix = to < body.length ? '…' : '';
 
-  return `${prefix}${body.slice(start, end).trim()}${suffix}`;
+  return `${prefix}${body.slice(from, to).trim()}${suffix}`;
 };
 
 const getSerializedReplacementContent = (
