@@ -23,7 +23,7 @@ const room = {
   getMyMembership: () => KnownMembership.Join,
   isSpaceRoom: () => false,
   getMembers: () => [],
-} as Room;
+} as unknown as Room;
 const draftRoom = { ...room, roomId: DRAFT_ROOM } as Room;
 const { logout, navigateRoom, navigateRoomThread, navigatePath } = vi.hoisted(() => ({
   logout: vi.fn(async () => undefined),
