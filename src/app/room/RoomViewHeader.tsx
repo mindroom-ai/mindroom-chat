@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FocusEvent,
   type ReactElement,
 } from 'react';
@@ -225,6 +226,22 @@ export function RoomViewHeader({
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const { layout, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
+  const actionRowRef = useRef<HTMLDivElement>(null);
+  // Call and plugin controls can open their own popups without going through the header.
+  const subscribeRowExpansion = useCallback(
+    (onChange: () => void) => {
+      const row = actionRowRef.current;
+      if (!mobile || !row) return () => undefined;
+      const observer = new MutationObserver(onChange);
+      observer.observe(row, { subtree: true, attributeFilter: ['aria-expanded'], childList: true });
+      return () => observer.disconnect();
+    },
+    [mobile]
+  );
+  const rowExpanded = useSyncExternalStore(
+    subscribeRowExpansion,
+    () => mobile && !!actionRowRef.current?.querySelector('[aria-expanded="true"]')
+  );
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
@@ -598,28 +615,31 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  // Freeze the last rendered promotion set until every header popover closes. Entry data still
-  // updates, but eligibility changes cannot move entries between the row and the menu.
+  // Keep the last rendered placement while a popover is open, unless it no longer fits.
   const popoverOpen = !!(
     menuAnchor ||
     pinAnchor ||
     (needsCanvasChooser && canvasMenuAnchor) ||
     schedulesOpen ||
     (topic && topicOpen) ||
-    dialog
+    dialog ||
+    rowExpanded
   );
+  const slots = mobile ? layout.slots : 0;
   const lastPromoted = useRef<ReadonlySet<string>>();
+  const frozen = popoverOpen ? lastPromoted.current : undefined;
   const promoted =
-    (popoverOpen ? lastPromoted.current : undefined) ??
-    selectPhoneHeaderActions(
-      mobile ? layout.slots : 0,
-      entries
-        .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
-        .map((entry) => entry.id)
-    );
+    frozen && frozen.size <= slots
+      ? frozen
+      : selectPhoneHeaderActions(
+          slots,
+          entries
+            .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
+            .map((entry) => entry.id)
+        );
   useLayoutEffect(() => {
-    if (!popoverOpen) lastPromoted.current = promoted;
-  }, [popoverOpen, promoted]);
+    lastPromoted.current = promoted;
+  }, [promoted]);
   const inRow = (entry: RoomHeaderEntry) =>
     showsInRow(entry.placement, mobile, promoted.has(entry.id));
   const rowEntries = entries.filter(inRow);
@@ -714,6 +734,7 @@ export function RoomViewHeader({
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box
+        ref={actionRowRef}
         shrink="No"
         alignItems="Center"
         gap="100"

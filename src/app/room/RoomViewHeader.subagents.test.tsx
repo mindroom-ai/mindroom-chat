@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
 import { act as actInDom } from 'react-dom/test-utils';
@@ -27,8 +27,9 @@ const SENDER = '@mindroom_lead:example.org';
 /** The thread the header has open unless a test says otherwise, where `run` starts its runs. */
 const THREAD = '$thread:example.org';
 
-const { screen, view, mx, schedules, pins } = vi.hoisted(() => ({
+const { screen, view, mx, schedules, pins, currentRoom } = vi.hoisted(() => ({
   screen: { size: 'Desktop' },
+  currentRoom: { id: '!room:example.org' },
   view: { mode: 'compact' },
   schedules: { events: [] as MatrixEvent[] },
   pins: { ids: [] as string[] },
@@ -59,7 +60,7 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
-    roomId: '!room:example.org',
+    roomId: currentRoom.id,
     name: 'General',
     myUserId: '@me:example.org',
     getJoinRule: () => undefined,
@@ -121,6 +122,7 @@ afterEach(() => {
   store().clear();
   screen.size = 'Desktop';
   view.mode = 'compact';
+  currentRoom.id = ROOM_ID;
   schedules.events = [];
   pins.ids = [];
   vi.unstubAllGlobals();
@@ -551,6 +553,84 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         'This thread',
         'Elsewhere in this room',
       ]);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('closes the schedules dialog when the same header switches rooms', () => {
+    schedules.events = [schedule('orchard', THREAD)];
+    const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
+    const clock = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Scheduled tasks (1)"]'
+    )!;
+    const dialog = () => document.querySelector('[role="dialog"]');
+    try {
+      actInDom(() => clock.click());
+      expect(dialog()?.querySelectorAll('article')).toHaveLength(1);
+      currentRoom.id = '!garden:example.org';
+      schedules.events = [];
+      rerender();
+      expect(dialog()).toBeNull();
+      expect(clock.getAttribute('aria-label')).toBe('Scheduled tasks (0)');
+      actInDom(() => clock.click());
+      expect(dialog()?.textContent).toContain('No scheduled tasks in this room.');
+      expect(dialog()?.querySelectorAll('article')).toHaveLength(0);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('waits to promote Pins until the call control collapses', async () => {
+    screen.size = 'Mobile';
+    function CallControl() {
+      const [open, setOpen] = useState(false);
+      return (
+        <IconButton
+          aria-label="Call"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        />
+      );
+    }
+    const { host, rerender, unmount } = renderDomHeader({ calls: <CallControl /> });
+    const call = host.querySelector<HTMLButtonElement>('button[aria-label="Call"]')!;
+    const pinsButton = () => host.querySelector('button[aria-label="Pinned Messages"]');
+    try {
+      await actInDom(async () => call.click());
+      expect(call.getAttribute('aria-expanded')).toBe('true');
+      pins.ids = ['$pinned:example.org'];
+      rerender();
+      expect(pinsButton()).toBeNull();
+      await actInDom(async () => call.click());
+      expect(call.getAttribute('aria-expanded')).toBe('false');
+      expect(pinsButton()).not.toBeNull();
+    } finally {
+      unmount();
+    }
+  });
+
+  it('reduces the frozen promotion set when fewer buttons fit with the room menu open', () => {
+    screen.size = 'Mobile';
+    run('running');
+    schedules.events = [schedule('orchard', THREAD)];
+    const { host, resize, unmount } = renderDomHeader({ hasMindroomAgents: true });
+    const clock = () => host.querySelector('button[aria-label="Scheduled tasks (1)"]');
+    const members = () => host.querySelector('button[aria-label="Show Members"]');
+    const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+    try {
+      expect(clock()).not.toBeNull();
+      expect(members()).not.toBeNull();
+      actInDom(() => more.click());
+      resize(250);
+      expect(more.getAttribute('aria-expanded')).toBe('true');
+      expect(host.querySelector('button[data-subagents-toggle]')).not.toBeNull();
+      expect(clock()).toBeNull();
+      expect(members()).toBeNull();
+      resize(390);
+      expect(clock()).toBeNull();
+      expect(members()).toBeNull();
     } finally {
       unmount();
     }

@@ -22,7 +22,6 @@ const dark = params.has('dark');
 document.documentElement.className = `${configClass} ${varsClass} ${dark ? darkTheme : lightTheme}`;
 const client = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
 const room = new Room('!schedules:example.org', client, '@alice:example.org');
-const emptyRoom = new Room('!empty:example.org', client, '@alice:example.org');
 client.store.storeRoom(room);
 client.sendReceipt = async () => {
   window.dispatchEvent(new Event('fixture-receipt'));
@@ -115,25 +114,18 @@ room.currentState.setStateEvents([
 ]);
 
 function Fixture() {
-  const [activeRoom, setActiveRoom] = useState(room);
   const [open, setOpen] = useState(false);
-  const pendingSchedules = usePendingRoomSchedules(activeRoom);
+  const pendingSchedules = usePendingRoomSchedules(room);
   const [openedThread, setOpenedThread] = useState('');
   const [receiptCount, setReceiptCount] = useState(0);
-  useRoomEscapeReadReceipts({ roomId: activeRoom.roomId, hideActivity: false });
+  useRoomEscapeReadReceipts({ roomId: room.roomId, hideActivity: false });
   useEffect(() => {
     const receipt = () => setReceiptCount((count) => count + 1);
     const cancel = () => room.currentState.setStateEvents([schedule('overdue', {}, 'cancelled')]);
-    const switchRoom = () => {
-      setOpen(false);
-      setActiveRoom(emptyRoom);
-    };
     window.addEventListener('cancel-schedule', cancel);
-    window.addEventListener('switch-room', switchRoom);
     window.addEventListener('fixture-receipt', receipt);
     return () => {
       window.removeEventListener('cancel-schedule', cancel);
-      window.removeEventListener('switch-room', switchRoom);
       window.removeEventListener('fixture-receipt', receipt);
     };
   }, []);
@@ -146,7 +138,7 @@ function Fixture() {
       />
       {open && (
         <RoomSchedulesOverlay
-          roomId={activeRoom.roomId}
+          roomId={room.roomId}
           tasks={pendingSchedules}
           onClose={() => setOpen(false)}
           onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}
