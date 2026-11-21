@@ -271,6 +271,7 @@ for (const phone of [false, true]) {
           const label = `Sample ${op} ${sequence}`;
           if (op === 'reply' && sequence <= 3) knownWinner = target = roots[sequence - 1]!;
           if (op === 'link') target = roots.at(-5)!;
+          if (op === 'pin' && pinned.size && board) target = pinned.values().next().value!;
           if (op === 'finish') target = runs.keys().next().value ?? target;
           let delta = op === 'wheel' ? roll - 900 || 400 : 0;
           if (sequence === 0) delta = Math.floor(previous.height / 4);
@@ -427,7 +428,7 @@ for (const phone of [false, true]) {
           if (
             op === 'link' &&
             !prior.visible.some(
-              (r) => r.key === target && r.bottom > prior.start && r.painted < prior.end
+              (r) => r.key === target && r.painted >= prior.start - 1 && r.bottom <= prior.end + 1
             )
           )
             report('I6', 'linked card not in readable viewport');

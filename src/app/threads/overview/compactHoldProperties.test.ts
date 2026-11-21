@@ -1,7 +1,6 @@
 import { expect, it } from 'vitest';
 import { holdCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
 import { holdOrder } from './useHeldThreadOrder';
-
 const groups = ['needsYou', 'working', 'later', 'done'] as const;
 const examples = (check: (shown: string[], live: string[], group: () => number) => void) => {
   let state = 725;
@@ -20,7 +19,6 @@ const examples = (check: (shown: string[], live: string[], group: () => number) 
     check(sample(), sample(), () => Math.floor(next() * groups.length));
   }
 };
-
 it('holds flat survivors, admits exactly the live membership and is idempotent', () => {
   examples((shown, live) => {
     const held = holdOrder(shown, live);

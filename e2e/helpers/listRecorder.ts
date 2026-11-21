@@ -3,7 +3,6 @@ import type { Page } from '@playwright/test';
 export const COMPACT = '[data-compact-room-view]';
 export const BOARD = '[data-thread-board-column="open"]';
 export const LIVE = ':not([data-page-slide-copy] *, [inert] *)';
-
 interface Row {
   key: string;
   group: string;
@@ -52,6 +51,7 @@ export const installListRecorder = (page: Page) =>
       const rowSelector = '[data-scroll-anchor], [data-compact-section]';
       const key = (row: HTMLElement) =>
         row.dataset.scrollAnchor ?? `header:${row.dataset.compactSection}`;
+      const translationY = (value: string) => parseFloat(value.split(' ')[1] ?? '');
       const viewIds = new WeakMap<Element, string>();
       let nextView = 0;
       const frames: ListFrame[] = [];
@@ -138,7 +138,6 @@ export const installListRecorder = (page: Page) =>
           if (added.has(row) && !row.closest('[inert]')) reattached.push({ view, key: key(row) });
         });
       }).observe(document, { childList: true, subtree: true });
-
       const tick = (time: number) => {
         const view = document.querySelector<HTMLElement>(selector());
         if (view) {
@@ -158,25 +157,29 @@ export const installListRecorder = (page: Page) =>
             const id = key(row);
             order.push([id, group]);
             const box = row.getBoundingClientRect();
-            const child = row.querySelector<HTMLElement>('[data-motion-row]');
-            const painted = (child ?? row).getBoundingClientRect();
+            const child = row.querySelector<HTMLElement>('[data-motion-row]') ?? row;
+            const painted = child === row ? box : child.getBoundingClientRect();
             if (
               Math.max(box.bottom, painted.bottom) <= edge + start ||
               Math.min(box.top, painted.top) >= edge + end
             )
               continue;
             const translate = child
-              ?.getAnimations()
+              .getAnimations()
               .map(({ effect }) => (effect as KeyframeEffect | null)?.getKeyframes()[0]?.translate)
               .find((value): value is string => typeof value === 'string');
-            const dy = parseFloat(translate?.split(' ')[1] ?? '');
+            const top =
+              box.top -
+              edge -
+              (child === row ? translationY(getComputedStyle(row).translate) || 0 : 0);
+            const dy = translationY(translate ?? '');
             visible.push({
               key: id,
               group,
-              top: box.top - edge,
+              top,
               painted: painted.top - edge,
               bottom: painted.bottom - edge,
-              origin: Number.isFinite(dy) ? box.top - edge + dy : null,
+              origin: Number.isFinite(dy) ? top + dy : null,
             });
           }
           frames.push({
@@ -212,5 +215,4 @@ export const installListRecorder = (page: Page) =>
     },
     { compact: COMPACT, board: BOARD, live: LIVE }
   );
-
 export const takeFrames = (page: Page) => page.evaluate(() => window.compactRecorder.take());
