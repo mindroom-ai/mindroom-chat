@@ -36,7 +36,7 @@ export function useCompactWindow(
   const cached = useRef(windows.get(memory)?.get(roomId));
   const [scrollMargin, setScrollMargin] = useState(cached.current?.margin ?? 0);
   const [gestureId, setGestureId] = useState<string>();
-  const [bias, setBias] = useState(0);
+  const bias = useRef(0);
   const previousRows = useRef(rows);
   const indexes = useMemo(() => new Map(rows.map((key, index) => [key, index])), [rows]);
   const getItemKey = useCallback((index: number) => rows[index]!, [rows]);
@@ -83,11 +83,12 @@ export function useCompactWindow(
     initialOffset,
     initialRect: { ...INITIAL_RECT, height: cached.current?.height ?? INITIAL_RECT.height },
     initialMeasurementsCache: cached.current?.measurements,
-    scrollMargin: scrollMargin + bias,
+    scrollMargin: scrollMargin + bias.current,
     measureElement: (node, entry) =>
       entry?.borderBoxSize[0]?.blockSize ??
       (node.getBoundingClientRect().height || node.offsetHeight),
     overscan: 8,
+    useFlushSync: false,
   });
   // Let the browser and the Compact order hold anchor normal-flow rows, not virtual-core.
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = NO_SCROLL_ADJUST;
@@ -95,20 +96,24 @@ export function useCompactWindow(
   windowRef.current.shift = virtualizer.isScrolling
     ? (delta) => {
         if (Math.abs(delta) < 0.01) return;
-        listRef.current?.style.setProperty('--compact-scroll-bias', `${bias + delta}px`);
-        setBias(bias + delta);
+        // Use the next scroll or size notification for the next range calculation.
+        // Rerendering here can oscillate an unmeasured row at the range boundary.
+        bias.current += delta;
+        listRef.current?.style.setProperty('--compact-scroll-bias', `${bias.current}px`);
       }
     : undefined;
   useLayoutEffect(() => {
     const view = viewRef.current;
-    if (!virtualizer.isScrolling && bias && view) {
-      // Fold the temporary layout offset back into the scroll position only at rest.
-      if (view.scrollTop > 0) view.scrollTop -= bias;
-      listRef.current?.style.removeProperty('--compact-scroll-bias');
-      setBias(0);
-    }
-    if (view && !virtualizer.isScrolling && (bias || previousRows.current !== rows))
+    if (view && !virtualizer.isScrolling && (bias.current || previousRows.current !== rows)) {
+      if (bias.current) {
+        // Fold the temporary layout offset back into the scroll position only at rest.
+        if (view.scrollTop > 0) view.scrollTop -= bias.current;
+        listRef.current?.style.removeProperty('--compact-scroll-bias');
+        virtualizer.options.scrollMargin = scrollMargin;
+        bias.current = 0;
+      }
       virtualizer.scrollOffset = view.scrollTop;
+    }
     previousRows.current = rows;
   });
 
