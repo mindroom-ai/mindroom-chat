@@ -101,7 +101,7 @@ export function useCompactBlocks({
     const group: CompactBlockRow[] = [];
     slots.forEach((slot) => {
       const inBand =
-        (slot >= first! - BUFFER_BLOCKS && slot <= last! + BUFFER_BLOCKS) ||
+        (slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS) ||
         (targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS);
       blocks[slot]!.forEach((id) => {
         const height = heights.get(id);

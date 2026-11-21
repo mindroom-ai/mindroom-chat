@@ -171,7 +171,11 @@ describe('the Compact room in sections', () => {
           {view(ids)}
         </Profiler>
       );
-      for (let frame = 0; frame < 75; frame += 1) act(() => vi.advanceTimersByTime(17));
+      for (let frame = 0; frame < 75; frame += 1) {
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+      }
       expect(header('needsYou').textContent).toContain('· 40');
       expect(header('done').textContent).toContain('· 690');
       expect(document.querySelector('[data-cards-pending]')).toBeNull();

@@ -82,12 +82,18 @@ it('measures the tail in blocks, then remounts evicted rows without shifting the
   const { container } = render(<List memory={new Map()} />);
   const view = container.querySelector<HTMLElement>('[data-view]')!;
   expect(view.dataset.complete).toBe('false');
-  for (let frame = 0; frame < 12; frame += 1) act(() => vi.advanceTimersByTime(17));
+  for (let frame = 0; frame < 12; frame += 1) {
+    act(() => {
+      vi.advanceTimersByTime(17);
+    });
+  }
   expect(view.dataset.complete).toBe('true');
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
   const around = (key: string, top: number) => {
     const originally = (view.scrollTop = top);
-    act(() => view.dispatchEvent(new Event('scroll')));
+    act(() => {
+      view.dispatchEvent(new Event('scroll'));
+    });
     const row = view.querySelector<HTMLElement>(`[data-scroll-anchor="${key}"]`)!;
     expect(row.getBoundingClientRect().top).toBe(0);
     expect(view.scrollTop).toBe(originally);
