@@ -11,6 +11,7 @@ import {
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getSearchResultOpenTarget } from './searchResultOpenTarget';
+import { getSearchResultEffectiveContent } from './searchResultPreview';
 
 /** One server search hit with the messages around it. */
 export type ResultItem = {
@@ -115,8 +116,9 @@ export const dropEditedAwayResults = (results: ISearchResult[], term: string): I
   return results.filter((result) => {
     const edit = getSameSenderBundledEdit(result.result);
     if (!edit || editTarget(result) !== undefined) return true;
-    const editContent = edit.content;
-    const latest = bodyOf(editContent?.['m.new_content'] ?? editContent);
+    // The edit's text as the app shows it: an agent's tool calls are in it, as the server
+    // indexed them in the first text.
+    const latest = bodyOf(getSearchResultEffectiveContent(result.result));
     return !has(bodyOf(result.result.content)) || has(latest);
   });
 };

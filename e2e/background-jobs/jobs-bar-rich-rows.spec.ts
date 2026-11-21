@@ -112,14 +112,7 @@ const sendRuns = async (room: PanelRoom) => {
 const row = (bar: Locator, kind: 'subagent' | 'tool', depth = 0) =>
   bar.locator(`li[data-job-kind="${kind}"][data-job-depth="${depth}"]`);
 
-test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
-  context,
-  page,
-}, testInfo) => {
-  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
-  test.setTimeout(3 * 60_000);
-  const room = await openPanelRoom(context, page);
-  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+async function allowBackgroundJobs(room: Awaited<ReturnType<typeof openPanelRoom>>) {
   const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
   const powerLevels = await matrixFetch<Record<string, unknown>>(
     DISPOSABLE_HOMESERVER,
@@ -140,6 +133,18 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
       },
     }
   );
+}
+
+test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The rows' model and usage show only with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
+  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+  await allowBackgroundJobs(room);
   // The agent's reply that started the shell job, whose trace names the call.
   await sendRoomMessage(DISPOSABLE_HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.text',
@@ -304,4 +309,86 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(phoneLead.locator('[data-job-elapsed]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-open]')).toBeVisible();
   await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-c-phone.png') });
+});
+
+test('a folded quiet bar cuts its title short before the time, with Open, Thread and Stop', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The app's default: no usage details, so the folded row has its title and no line of what it does.
+  const room = await openPanelRoom(context, page);
+  await allowBackgroundJobs(room);
+  await sendStateEvent(
+    DISPOSABLE_HOMESERVER,
+    room.agent.accessToken,
+    room.roomId,
+    'io.mindroom.background_jobs',
+    room.agent.userId,
+    {
+      jobs: [
+        {
+          job_id: 'job_notes',
+          thread_id: room.rootId,
+          status: 'running',
+          requester_id: room.viewer.userId,
+          kind: 'subagent',
+          tool: 'panels',
+          subagent: 'sub-notes',
+          run: 'run-notes',
+          started_at: new Date(Date.now() - 754_000).toISOString(),
+        },
+      ],
+    }
+  );
+  // In the room's own timeline the job, of a thread, has the thread's button besides Open and Stop.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const folded = page.locator('[data-job-folded]');
+  await expect(folded).toBeVisible({ timeout: 30_000 });
+  const title = "Summarize this week's meeting notes and draft the follow-up email";
+  await sendRun(
+    room,
+    'run-notes',
+    {
+      subagent: 'sub-notes',
+      task: title,
+    },
+    [
+      {
+        type: 'tool_call_started',
+        tool_name: 'read_file',
+        args_preview: 'path=notes/2026-11-16-weekly-planning-meeting.md',
+      },
+    ]
+  );
+  await expect(folded.locator('button[aria-expanded]')).toHaveText(title);
+  await expect(folded.locator('[data-job-activity]')).toHaveCount(0);
+  await expect(folded.locator('[data-job-open]')).toBeVisible();
+  await expect(folded.locator('[data-job-thread]')).toBeVisible();
+  await expect(folded.locator('[data-cancel-job]')).toBeVisible();
+  await expect(folded.locator('[data-job-elapsed]')).toBeVisible();
+  // Each part of the text column (the headline and the chevron) ends before the time begins, on a
+  // phone, beside the Sub-agents panel's width and on a desktop; on the phone the title is cut short.
+  for (const width of [390, 800, 1100]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await folded.evaluate((row) => {
+      const task = row.querySelector('button[aria-expanded]')!;
+      const text = task.parentElement!.parentElement!;
+      const time = row.querySelector('[data-job-elapsed]')!.getBoundingClientRect();
+      return {
+        timeStart: time.left,
+        ends: [...text.children].map((part) => part.getBoundingClientRect().right),
+        textEnd: text.getBoundingClientRect().right,
+        titleCut: task.scrollWidth > task.clientWidth,
+      };
+    });
+    testInfo.annotations.push({ type: `layout ${width}`, description: JSON.stringify(layout) });
+    for (const end of [...layout.ends, layout.textEnd])
+      expect(end, `${width} px`).toBeLessThanOrEqual(layout.timeStart + 0.5);
+    if (width === 390) expect(layout.titleCut).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await folded.screenshot({ path: testInfo.outputPath('jobs-bar-quiet-phone-folded.png') });
 });

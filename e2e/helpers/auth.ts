@@ -11,6 +11,12 @@ type LoginOptions = {
    * so the page shows them unless its settings already say. `false` keeps the app's default.
    */
   showToolCalls?: boolean;
+  /**
+   * The app leaves sub-agents' and background jobs' calls, tokens, cost and model out until the
+   * reader shows them (`showUsageDetails`); `true` shows them unless the page's settings already
+   * say, for the specs of those details.
+   */
+  showUsageDetails?: boolean;
 };
 
 export const activeAccountButtonNamePattern = /Open account menu for /;
@@ -111,19 +117,34 @@ export const expectLoggedInShellStable = async (
 };
 
 export const loginWithPassword = async (page: Page, options: LoginOptions) => {
-  const { homeserver, username, password, addAccount = false, showToolCalls = true } = options;
+  const {
+    homeserver,
+    username,
+    password,
+    addAccount = false,
+    showToolCalls = true,
+    showUsageDetails = false,
+  } = options;
 
-  if (showToolCalls) {
-    await page.addInitScript(() => {
+  const shown = [
+    ...(showToolCalls ? ['showToolCalls'] : []),
+    ...(showUsageDetails ? ['showUsageDetails'] : []),
+  ];
+  if (shown.length > 0) {
+    await page.addInitScript((keys: string[]) => {
       // Init scripts run in every frame, and a sandboxed one (an agent's canvas) has no storage.
       if (window !== window.top) return;
       const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<
         string,
         unknown
       >;
-      if (stored.showToolCalls !== undefined) return;
-      localStorage.setItem('settings', JSON.stringify({ ...stored, showToolCalls: true }));
-    });
+      const unset = keys.filter((key) => stored[key] === undefined);
+      if (unset.length === 0) return;
+      localStorage.setItem(
+        'settings',
+        JSON.stringify({ ...stored, ...Object.fromEntries(unset.map((key) => [key, true])) })
+      );
+    }, shown);
   }
   await page.goto(buildLoginPath(homeserver, addAccount));
 

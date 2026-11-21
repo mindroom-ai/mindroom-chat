@@ -1,5 +1,6 @@
 import { IResultContext, ISearchResult } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
 import {
   collapseThreadTitleHits,
   deduplicateResults,
@@ -202,6 +203,8 @@ describe('deduplicateResults with a bundled latest edit', () => {
 });
 
 describe('dropEditedAwayResults', () => {
+  beforeAll(() => trustAgentsOfViewer('@reader:example.org'));
+
   const placeholder = (eventId: string, latest: string) =>
     withLatestEdit(
       makeSearchResult({ eventId, ts: 100, content: { body: 'Thinking...', msgtype: 'm.text' } }),
@@ -230,6 +233,36 @@ describe('dropEditedAwayResults', () => {
     ];
 
     expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$hit']);
+  });
+
+  it("keeps an agent's hit whose tool call is on its latest edit, out of its text", () => {
+    // A reply's first text has its call's marker; its finished edit has the call's place instead.
+    const working = (eventId: string, sender: string): ISearchResult => {
+      const hit = withLatestEdit(
+        makeSearchResult({
+          eventId,
+          ts: 100,
+          sender,
+          content: { body: '🔧 `walrus_count` [1] ⏳', msgtype: 'm.text' },
+        }),
+        `${eventId}-edit`,
+        'Seven.'
+      );
+      const edit = hit.result.unsigned?.['m.relations']?.['m.replace'] as {
+        content: { 'm.new_content': Record<string, unknown> };
+      };
+      edit.content['m.new_content']['io.mindroom.tool_trace'] = {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'walrus_count', body_line: 0, at: 0 }],
+      };
+      return hit;
+    };
+    const results = [
+      working('$agent', '@mindroom_helper:example.org'),
+      working('$person', '@alice:example.org'),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'walrus_count'))).toEqual(['$agent']);
   });
 
   it('keeps hits it cannot compare: edits, unedited messages and stemmed matches', () => {

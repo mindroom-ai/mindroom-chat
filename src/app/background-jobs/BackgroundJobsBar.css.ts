@@ -42,6 +42,8 @@ const actionSlots = createVar();
 // point.
 const actionGap = createVar();
 const actions = `calc(${actionSlots} * ${button} + (${actionSlots} - 1) * ${actionGap})`;
+const narrowRows = `${logoSize} minmax(0, 1fr) ${time} ${actions}`;
+const narrowFolded = `${logoSize} minmax(0, 1fr) ${time} auto`;
 
 // The typing bar's size and material; the rows inside take no surface of their own. Listed jobs
 // sit above the title line, though they follow the title in reading and focus order.
@@ -94,7 +96,7 @@ const grid = {
   columnGap: gap,
   gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${calls} ${tokens} ${cost} ${time} ${actions}`,
   '@container': {
-    [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} ${actions}` },
+    [phone]: { gridTemplateColumns: narrowRows },
   },
 } as const;
 
@@ -560,8 +562,18 @@ export const Folded = style({
   gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${calls} ${tokens} ${cost} ${time} auto`,
   vars: { [logoSize]: smallLogo },
   '@container': {
-    [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto` },
+    [phone]: { gridTemplateColumns: narrowFolded },
   },
+});
+
+// Without the usage details (`showUsageDetails`) the rows have no calls, tokens or cost, so their
+// grid has no columns for them, as on a phone: the time and the buttons keep their places.
+export const Quiet = style({});
+globalStyle(`${Quiet} ${GroupHeading}, ${Quiet} ${Job}`, {
+  gridTemplateColumns: narrowRows,
+});
+globalStyle(`${Quiet} ${Folded}`, {
+  gridTemplateColumns: narrowFolded,
 });
 
 // Its headline, then who and what it does on the same line, in the room the headline leaves, so it
@@ -580,6 +592,10 @@ globalStyle(`${FoldedText} > ${Detail}`, {
   flex: '1 1 0',
   '@container': { [panel]: { display: 'none' } },
 });
+// Without the usage details the headline is the line's only text: it may shrink to nothing, cut
+// short, since with Open, Thread and Stop a narrow phone's text column is under 5rem, and it may
+// not reach into the time beside it.
+globalStyle(`${Quiet} ${FoldedText} > ${Headline}`, { minWidth: 0, overflow: 'hidden' });
 
 // Its title lists the job, from anywhere on its text; to the keyboard the text is ringed.
 export const FoldedToggle = style({

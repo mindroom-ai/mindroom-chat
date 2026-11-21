@@ -1,6 +1,7 @@
 import { MatrixEvent, type IContent } from 'matrix-js-sdk';
-import { isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { isRecord } from '../../lib/isRecord';
+import { hasToolPositions, withToolMarkersRestored } from './toolPositions';
 
 /**
  * Message content keys only MindRoom's agents send: the run details (model chip, Reply details),
@@ -87,12 +88,10 @@ const withoutAgentKeys = (content: Record<string, unknown>): Record<string, unkn
   return rest;
 };
 
-/**
- * Content in the shapes the app reads: an object, a well-formed `m.relates_to` or none, an object
- * `m.new_content` or none, and without the agent-only keys unless `fromAgent`. Returns `content`
- * itself when nothing changes.
- */
-export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent => {
+type Layer = (content: Record<string, unknown>) => Record<string, unknown>;
+
+/** `content` in the shapes the app reads, `read` applied to it and to its `m.new_content`. */
+const sanitizeLayers = (content: unknown, read: Layer): IContent => {
   if (!isRecord(content)) return {};
   let result = content;
   const edit = (key: string, value: unknown) => {
@@ -107,16 +106,32 @@ export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent 
   if ('m.new_content' in content) {
     const newContent = content['m.new_content'];
     if (!isRecord(newContent)) edit('m.new_content', undefined);
-    else if (!fromAgent) {
-      const stripped = withoutAgentKeys(newContent);
-      if (stripped !== newContent) edit('m.new_content', stripped);
+    else {
+      const readContent = read(newContent);
+      if (readContent !== newContent) edit('m.new_content', readContent);
     }
   }
-  if (!fromAgent) {
-    const stripped = withoutAgentKeys(result);
-    if (stripped !== result) result = stripped;
-  }
-  return result;
+  return read(result);
+};
+
+/**
+ * Content in the shapes the app reads: an object, a well-formed `m.relates_to` or none, an object
+ * `m.new_content` or none, without the agent-only keys unless `fromAgent`, and an agent's tool
+ * markers back in its text (`withToolMarkersRestored`). Returns `content` itself when nothing
+ * changes.
+ *
+ * MindRoom takes the markers out of the text of every account `namedAsAgent` (a `mindroom_`
+ * localpart on any homeserver), so the text of one whose keys do not count gets them back before
+ * its keys go: a guest on another homeserver reads the text that was written.
+ */
+export const sanitizeContent = (
+  content: unknown,
+  fromAgent: boolean,
+  namedAsAgent = fromAgent
+): IContent => {
+  if (!namedAsAgent) return sanitizeLayers(content, withoutAgentKeys);
+  const restored = withToolMarkersRestored(sanitizeLayers(content, (layer) => layer));
+  return fromAgent ? restored : sanitizeLayers(restored, withoutAgentKeys);
 };
 
 /** Whether the content needs no change, checked without copying: the common case. */
@@ -129,7 +144,10 @@ const isClean = (content: unknown, sender: string | undefined): boolean => {
   const hasAgentKeys =
     AGENT_ONLY_CONTENT_KEYS.some((key) => key in content) ||
     (isRecord(newContent) && AGENT_ONLY_CONTENT_KEYS.some((key) => key in newContent));
-  return !hasAgentKeys || isTrustedAgentSender(sender);
+  if (!hasAgentKeys) return true;
+  const positions =
+    hasToolPositions(content) || (isRecord(newContent) && hasToolPositions(newContent));
+  return !positions && isTrustedAgentSender(sender);
 };
 
 /**
@@ -198,7 +216,8 @@ export const installEventContentGuard = (): void => {
       const relation = content['m.relates_to'];
       if (relation === undefined || sanitizeRelation(relation) === relation) return content;
     }
-    return memo(wireCache, this, content, () => sanitizeContent(content, true));
+    // The SDK reads relations here, so the shapes are mended and the text stays as it was sent.
+    return memo(wireCache, this, content, () => sanitizeLayers(content, (layer) => layer));
   };
 
   proto.getOriginalContent = function getOriginalContent<T = IContent>(this: MatrixEvent): T {
@@ -206,7 +225,7 @@ export const installEventContentGuard = (): void => {
     const sender = this.getSender();
     if (isClean(content, sender)) return content as T;
     return memo(originalCache, this, content, () =>
-      sanitizeContent(content, isTrustedAgentSender(sender))
+      sanitizeContent(content, isTrustedAgentSender(sender), isMindroomAgentUserId(sender))
     ) as T;
   };
 

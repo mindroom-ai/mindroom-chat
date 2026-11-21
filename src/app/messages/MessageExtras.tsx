@@ -33,6 +33,8 @@ type MessageExtrasProps = {
   htmlReactParserOptions: HTMLReactParserOptions;
   /** The content whose tool and paste markers the sections render. */
   markerContent: Record<string, unknown>;
+  /** Whether a tool marker draws a row: only an agent's does. */
+  toolRows: boolean;
 };
 
 const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParserOptionsSource) => {
@@ -109,9 +111,15 @@ export function MessageExtras({
   extras,
   htmlReactParserOptions,
   markerContent,
+  toolRows,
 }: MessageExtrasProps) {
   const { t } = useTranslation();
-  const parserOptions = useToolTraceMarkerParserOptions(htmlReactParserOptions, markerContent);
+  const parserOptions = useToolTraceMarkerParserOptions(
+    htmlReactParserOptions,
+    markerContent,
+    undefined,
+    toolRows
+  );
   return (
     <div
       className={css.Extras}

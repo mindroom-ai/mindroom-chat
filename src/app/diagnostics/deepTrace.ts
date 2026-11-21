@@ -1,4 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { hasOpenOverlay } from '../lib/openOverlay';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
@@ -41,7 +43,7 @@ const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
 
-export type DeepTraceData = Record<string, number | boolean | null>;
+export type DeepTraceData = Record<string, number | boolean | string | null>;
 
 export type DeepTraceEvent = {
   schemaVersion: typeof DEEP_TRACE_SCHEMA_VERSION;
@@ -261,7 +263,32 @@ const STATIC_EVENT_NAMES = new Set([
   'voice.capture.stop_timeout',
 ]);
 
+// Exact values only: DOM attributes, including test IDs, can come from message or plugin HTML.
+const SURFACE_HIT_TAG =
+  /^(a|article|aside|body|button|canvas|div|em|footer|g|header|html|i|iframe|img|input|label|li|main|nav|ol|p|path|pre|section|small|span|strong|svg|table|tbody|td|tr|ul|video)$/;
+const SURFACE_HIT_TEST_IDS = new Set([
+  ...['plugin', 'call', 'computer', 'transcript', 'subagents', 'canvas', 'members'].map(
+    (panel) => `resizable-${panel}-panel`
+  ),
+  'resizable-page-nav',
+  'second-thread-panel',
+  'thread-column',
+  'room-virtual-inner',
+  'phone-members-sheet',
+  'timeline-minimap',
+  'call-panel',
+  'call-window',
+  'subagents-panel',
+]);
+const SURFACE_HIT_TEST_SELECTOR = Array.from(
+  SURFACE_HIT_TEST_IDS,
+  (id) => `[data-testid="${id}"]`
+).join(',');
+const liveElement = (selector: string): Element | null =>
+  document.querySelector(`${selector}:not([data-page-slide-copy], [data-page-slide-copy] *)`);
+
 const SAFE_EVENT_PATTERNS = [
+  /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
@@ -278,12 +305,19 @@ const safeEventName = (value: string): string | undefined => {
   return undefined;
 };
 
-const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined => {
+const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData | undefined => {
   if (!value) return undefined;
 
   const entries = Object.entries(value)
     .filter(([key, item]) => {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) return false;
+      if (typeof item === 'string') {
+        return (
+          name.startsWith('interaction.pointer.surface.') &&
+          ((key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
+            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item)))
+        );
+      }
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
     })
@@ -473,7 +507,7 @@ export const recordDeepTraceEvent = (
   }
 
   target.sequence += 1;
-  const normalizedData = safeData(data);
+  const normalizedData = safeData(normalizedName, data);
   const event: DeepTraceEvent = {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
     sessionId: target.sessionId,
@@ -678,7 +712,43 @@ const startGlobalCapture = (target: Runtime): void => {
   const pointerDown = (event: PointerEvent) => {
     const action = classifyFlightRecorderAction(event.target);
     setFlightRecorderLastAction(action);
+    // The slide's input shield is a pseudo-element: its pointer target is the stage itself.
+    const slide = document.documentElement.dataset.pageSlide;
+    const slideDetails =
+      action.kind === 'surface' &&
+      action.surface === 'app' &&
+      (slide === 'forward' || slide === 'back')
+        ? {
+            phone_slide_back: slide === 'back',
+            phone_slide_stage_hit:
+              event.target instanceof Element && event.target.hasAttribute('data-phone-stage'),
+          }
+        : undefined;
+    const surface =
+      action.kind === 'surface' && event.target instanceof Element ? event.target : undefined;
+    const conversation = surface && liveElement('[data-conversation-behind-panel]');
+    // Own-frame plugin panels have no shared DOM wrapper to sample.
+    const panel = surface && liveElement('[data-testid="resizable-plugin-panel"]');
+    const appRoot = surface && document.getElementById('root');
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
+      ...slideDetails,
+      ...(surface
+        ? {
+            hit_tag: surface.localName,
+            hit_test_id:
+              surface.closest(SURFACE_HIT_TEST_SELECTOR)?.getAttribute('data-testid') ?? null,
+            ...(slide === '' ? { phone_slide_waiting: true } : undefined),
+            blocking_portal: hasBlockingPortalOverlay(),
+            open_overlay: hasOpenOverlay(),
+            hit_outside_app_root: appRoot ? !appRoot.contains(surface) : null,
+            plugin_panel_open: !!liveElement('[data-plugin-panel-open]'),
+            plugin_panel_inert: panel ? !!panel.closest('[inert]') : null,
+            conversation_inert: conversation ? !!conversation.closest('[inert]') : null,
+            conversation_behind_panel: conversation
+              ? conversation.getAttribute('data-conversation-behind-panel') === 'true'
+              : null,
+          }
+        : undefined),
       primary: event.isPrimary,
       pointer_count: event.pointerType === 'touch' ? 1 : 0,
     });

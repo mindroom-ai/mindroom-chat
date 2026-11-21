@@ -97,14 +97,19 @@ export type ToolMarkerScan = {
  * code, math, quotes, or spelling surround it. Anything else copies the body
  * unchanged.
  *
+ * `toolRows` is whether the renderer draws tool rows for this message at all (`toolRows` in
+ * `renderAgentMessageContent`): an agent's of the viewer's homeserver, or content the app made.
+ * Anyone else's marker lines show as the text they are, and are copied.
+ *
  * Takes plain strings so callers can memoize this, the expensive step.
  */
 export const scanToolMarkerLines = (
   body: string,
   formattedBody: string | undefined,
-  plainBodyFallback: boolean
+  plainBodyFallback: boolean,
+  toolRows: boolean
 ): ToolMarkerScan | undefined => {
-  if (!body.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
+  if (!toolRows || !body.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
 
   // Mirror the renderer, which sanitizes formatted_body or its plain-body fallback.
   const rawHtml =
