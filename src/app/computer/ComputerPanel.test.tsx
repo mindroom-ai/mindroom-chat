@@ -147,8 +147,8 @@ const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screen
     const connection = screenPropsRef.current;
     screenConnections.push({
       ...connection,
-      get initialFrame() {
-        return screenPropsRef.current.initialFrame;
+      get holdingFrame() {
+        return screenPropsRef.current.holdingFrame;
       },
       onDisconnected: (message) => screenPropsRef.current.onDisconnected(message),
     });
@@ -885,17 +885,16 @@ describe('ComputerPanel', () => {
   const screenTickets = () => screenConnections.map(({ protocols }) => protocols[1]);
   const heldCanvas = () => container.querySelector('.ScreenFrame .HeldFrame canvas');
 
-  it('captures before release and holds the frame through the stream swap', async () => {
+  it.each(['connecting', 'connected'])('bounds the hold while %s', async (phase) => {
+    vi.useFakeTimers();
     const { pending, request } = holdControl('release');
     const frame = document.createElement('canvas');
     screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
-    await waitFor(() => findButton(container, 'Take control'));
+    await advance();
     await click(findButton(container, 'Take control'));
-    await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
-    await waitFor(() => expect(pending.resolve).toBeDefined());
     const releaseRequest = vi
       .mocked(request)
       .mock.calls.findIndex(
@@ -909,54 +908,28 @@ describe('ComputerPanel', () => {
     expect(screenHandle.captureFrame.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(request).mock.invocationCallOrder[releaseRequest]!
     );
-    expect(screenConnections[0]!.initialFrame).toBeUndefined();
     act(() => screenConnections[0]!.onDisconnected());
-
     expect(container.textContent).not.toContain('Computer disconnected');
-    expect(container.textContent).not.toContain('The computer connection closed.');
-    expect(heldCanvas()).toBe(frame);
-
-    screensConnect = false;
-    await act(async () => pending.resolve?.());
-    await waitFor(() => expect(screenTickets()).toHaveLength(2));
-    expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
-    expect(container.textContent).toContain('Connecting display…');
-    expect(heldCanvas()).toBe(frame);
-    expect(screenConnections[1]!.initialFrame).toBe(frame);
-
-    act(() => screenConnections[1]!.onConnected());
-    expect(heldCanvas()).toBeNull();
-    expect(screenConnections[1]!.initialFrame).toBeUndefined();
-    expect(frame.width).toBe(0);
-    expect(container.textContent).toContain('Watch mode');
-    expect(container.textContent).not.toContain('Computer disconnected');
-  });
-
-  it('bounds the hold from release through a stalled replacement handshake', async () => {
-    vi.useFakeTimers();
-    const { pending, request } = holdControl('release');
-    const frame = document.createElement('canvas');
-    screenHandle.captureFrame.mockReturnValue(frame);
-    renderPanel({ request });
-
-    await advance();
-    await click(findButton(container, 'Take control'));
-    await click(findButton(container, 'Resume agent'));
-    act(() => screenConnections[0]!.onDisconnected());
     expect(heldCanvas()).toBe(frame);
 
     await advance(1_000);
     screensConnect = false;
     await act(async () => pending.resolve?.());
-    expect(screenConnections).toHaveLength(2);
-    expect(screenConnections[1]!.initialFrame).toBe(frame);
+    expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+    const replacement = screenConnections[1]!;
+    expect(replacement.holdingFrame).toBe(true);
+    if (phase === 'connected') {
+      // Connect only means noVNC requested a framebuffer update. Nothing has painted yet.
+      act(() => replacement.onConnected());
+      expect(container.textContent).toContain('Watch mode');
+    }
 
     await advance(1_999);
     expect(heldCanvas()).toBe(frame);
     await advance(1);
     expect(heldCanvas()).toBeNull();
-    expect(screenConnections[1]!.initialFrame).toBeUndefined();
-    expect(container.textContent).toContain('Connecting display…');
+    expect(replacement.holdingFrame).toBe(false);
+    expect(frame).toMatchObject({ width: 0, height: 0 });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -984,7 +957,7 @@ describe('ComputerPanel', () => {
       });
       await advance();
       expect(screenConnections[2]!.url).toContain('/sessions/session-2/stream');
-      expect(screenConnections[2]!.initialFrame).toBeUndefined();
+      expect(screenConnections[2]!.holdingFrame).toBe(false);
     }
     expect(heldCanvas()).toBeNull();
     expect(vi.getTimerCount()).toBe(0);

@@ -37,6 +37,7 @@ type PanelPhase =
   | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
+// Starts at capture, not at connect. A release slower than this falls back to a blank screen.
 const HELD_FRAME_TIMEOUT_MS = 3_000;
 
 // After a connected stream closes unexpectedly, retry for about 15 seconds before offering Reconnect.
@@ -202,6 +203,7 @@ export function ComputerPanel({
       clearTimeout(timeout);
       // Release the bitmap even if React still holds a previous prop or state value.
       heldFrame.width = 0;
+      heldFrame.height = 0;
     };
   }, [heldFrame]);
 
@@ -674,14 +676,11 @@ export function ComputerPanel({
                   key={`${stream.url}:${stream.protocols[1]}`}
                   ref={screenRef}
                   mode={status?.mode ?? 'view'}
-                  initialFrame={
-                    releasingStreamTicketRef.current === stream.protocols[1] ? undefined : heldFrame
-                  }
+                  holdingFrame={!!heldFrame}
                   onKeyboardChange={setKeyboardOpen}
                   onConnected={() => {
                     if (activeStreamTicketRef.current !== stream.protocols[1]) return;
                     connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
-                    setHeldFrame(undefined);
                     setConnected(true);
                     setPhase('ready');
                     setError(undefined);

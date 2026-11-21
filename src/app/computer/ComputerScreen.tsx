@@ -1,4 +1,11 @@
-import { type ForwardedRef, forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  type ForwardedRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, isApplePlatform, type PasteResult } from './computerClipboard';
@@ -28,7 +35,7 @@ export type ComputerScreenProps = {
   url: string;
   protocols: [string, string];
   mode: 'view' | 'control';
-  initialFrame?: HTMLCanvasElement;
+  holdingFrame?: boolean;
   onConnected: () => void;
   onDisconnected: (message?: string) => void;
   onPaste?: (result: PasteResult) => void;
@@ -54,7 +61,7 @@ function ComputerScreenWithHandle(
     url,
     protocols,
     mode,
-    initialFrame,
+    holdingFrame = false,
     onConnected,
     onDisconnected,
     onPaste,
@@ -66,7 +73,8 @@ function ComputerScreenWithHandle(
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>();
-  const initialFrameRef = useRef(initialFrame);
+  const holdingFrameRef = useRef(holdingFrame);
+  const defaultBackgroundRef = useRef('');
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
@@ -74,7 +82,6 @@ function ComputerScreenWithHandle(
   const modeRef = useRef(mode);
   const showTouchpadPointerRef = useRef<() => void>();
 
-  initialFrameRef.current = initialFrame;
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;
   pasteCallbackRef.current = onPaste;
@@ -132,9 +139,8 @@ function ComputerScreenWithHandle(
     // which a dropped stream does before the screen unmounts.
     const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
-    // Let the panel's held frame show through until the new stream connects.
-    const background = rfb.background;
-    rfb.background = 'transparent';
+    defaultBackgroundRef.current = rfb.background;
+    if (holdingFrameRef.current) rfb.background = 'transparent';
     rfbRef.current = rfb;
 
     // Read through refs, so a change of mode never reconnects the stream.
@@ -143,17 +149,6 @@ function ComputerScreenWithHandle(
     showTouchpadPointerRef.current = touchpad.showPointer;
 
     const handleConnect = () => {
-      // noVNC sizes its canvas before connect and paints the first update later. Seed the
-      // canvas now so the panel can drop its held layer without waiting for the first paint.
-      const frame = initialFrameRef.current;
-      if (frame && canvas?.width === frame.width && canvas.height === frame.height) {
-        try {
-          canvas.getContext('2d')?.drawImage(frame, 0, 0);
-        } catch {
-          // The live stream still connects if copying the frame fails.
-        }
-      }
-      rfb.background = background;
       connectedCallbackRef.current();
       touchpad.showPointer();
     };
@@ -236,6 +231,13 @@ function ComputerScreenWithHandle(
       releaseNoVncCapture(canvas);
     };
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
+
+  useLayoutEffect(() => {
+    // Change the background in the same paint as the panel's held layer.
+    holdingFrameRef.current = holdingFrame;
+    const rfb = rfbRef.current;
+    if (rfb) rfb.background = holdingFrame ? 'transparent' : defaultBackgroundRef.current;
+  }, [holdingFrame]);
 
   useEffect(() => {
     // Watching, nothing is typed: the keyboard closes.

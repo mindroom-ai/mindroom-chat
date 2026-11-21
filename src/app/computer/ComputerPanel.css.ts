@@ -113,6 +113,8 @@ export const ScreenFrame = style([
 ]);
 
 export const HeldFrame = style({
+  // Match noVNC's default letterbox background.
+  background: 'rgb(40, 40, 40)',
   inset: 0,
   pointerEvents: 'none',
   position: 'absolute',
