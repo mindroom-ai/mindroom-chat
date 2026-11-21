@@ -22,7 +22,10 @@ const navigation = vi.hoisted(() => ({
 
 vi.mock('../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => navigation.selected }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
-vi.mock('react-router-dom', () => ({ useLocation: () => ({ search: navigation.search }) }));
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useLocation: () => ({ search: navigation.search }),
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getRoom: (id: string) => (id === HOME ? { name: 'Studio' } : null) }),
 }));
@@ -232,7 +235,12 @@ const callStore = ({
 };
 
 const documentButton = {
-  ownerDocument: { activeElement: null as unknown },
+  ownerDocument: {
+    activeElement: null as unknown,
+    getElementById: () => null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  },
   focus: () => {
     documentButton.ownerDocument.activeElement = documentButton;
   },

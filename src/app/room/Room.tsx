@@ -567,13 +567,16 @@ function RoomContent() {
   // The return shortcut, transcript and sub-agent jobs ask for their panels as the room's own
   // buttons do, even if the panel is already open but folded.
   const store = useStore();
-  useEffect(
-    () =>
-      store.sub(callPanelRequestAtom, () => {
-        if (store.get(callPanelRequestAtom)?.roomId === roomId) request('call', () => undefined);
-      }),
-    [request, roomId, store]
-  );
+  useEffect(() => {
+    const takeRequest = () => {
+      if (store.get(callPanelRequestAtom)?.roomId !== roomId) return;
+      store.set(callPanelRequestAtom, undefined);
+      request('call', () => undefined);
+    };
+    // Returning from another room sets the request before this room is shown.
+    takeRequest();
+    return store.sub(callPanelRequestAtom, takeRequest);
+  }, [request, roomId, store]);
   useEffect(
     () =>
       store.sub(transcriptPanelAtom, () => {

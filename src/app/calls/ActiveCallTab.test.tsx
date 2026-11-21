@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { useRef } from 'react';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { setImperativeJotaiStore } from '../lib/state/jotaiStore';
@@ -13,11 +14,16 @@ import {
   clearCallWindowStore,
   focusHandOffAtom,
   getCallWindowSettingsAtom,
+  useFocusHandOff,
   type CallWindowSettings,
 } from './window/callWindowState';
 
 const USER = '@me:tab.test';
-const navigation = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
+const navigation = vi.hoisted(() => ({
+  navigateRoom: vi.fn(),
+  navigateRoomThread: vi.fn(),
+  roomPath: (roomId: string) => `/home/${encodeURIComponent(roomId)}`,
+}));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
@@ -49,18 +55,32 @@ const active = {
 const bar = { x: 1024, y: 828, width: 400, height: 56 };
 
 let store = createStore();
-const renderTab = (size: ScreenSize = 'Desktop', route = '/home/') =>
-  render(
-    <Provider store={store}>
-      <ScreenSizeProvider value={size}>
-        <MemoryRouter initialEntries={[route]}>
-          <Routes>
-            <Route path="/home/:roomIdOrAlias?" element={<ActiveCallTab active={active} />} />
-          </Routes>
-        </MemoryRouter>
-      </ScreenSizeProvider>
-    </Provider>
+const renderTab = (size: ScreenSize = 'Desktop', route = '/home/') => {
+  const router = createMemoryRouter(
+    [{ path: '/home/:roomIdOrAlias?', element: <ActiveCallTab active={active} /> }],
+    { initialEntries: [route] }
   );
+  return {
+    ...render(
+      <Provider store={store}>
+        <ScreenSizeProvider value={size}>
+          <RouterProvider router={router} />
+        </ScreenSizeProvider>
+      </Provider>
+    ),
+    router,
+  };
+};
+
+function LateHeading() {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useFocusHandOff('panel', () => heading.current?.focus(), ORIGIN);
+  return (
+    <h2 ref={heading} tabIndex={-1}>
+      Planning Room
+    </h2>
+  );
+}
 const settings = (): CallWindowSettings => store.get(getCallWindowSettingsAtom(USER));
 const returnButton = () =>
   screen.getByRole('button', { name: 'Return to the call in Planning Room' });
@@ -158,21 +178,53 @@ describe("the rail's call button", () => {
     }
   );
 
-  it('returns focus to the menu if the call heading never appears', () => {
-    vi.useFakeTimers();
-    const { container } = renderTab('Mobile');
-    const menu = document.createElement('button');
-    menu.id = 'phone-nav-menu-button';
-    container.append(menu);
-    store.set(phoneNavDrawerOpenAtom, true);
-    openCall();
-    expect(store.get(focusHandOffAtom)?.to).toBe('panel');
-    act(() => {
-      vi.runOnlyPendingTimers();
-    });
-    expect(store.get(focusHandOffAtom)).toBeUndefined();
-    expect(menu).toBe(document.activeElement);
-  });
+  it.each(['waits', 'moves focus', 'navigates', 'starts a newer hand-off'] as const)(
+    'handles a late heading when the user %s',
+    async (action) => {
+      vi.useFakeTimers();
+      const target = `/home/${encodeURIComponent(ORIGIN)}?threadId=%24plan`;
+      const { container, router } = renderTab('Mobile');
+      let returned: Promise<void> | undefined;
+      navigation.navigateRoomThread.mockImplementationOnce(() => {
+        returned = router.navigate(target);
+      });
+      const menu = document.createElement('button');
+      menu.id = 'phone-nav-menu-button';
+      container.append(menu);
+      store.set(phoneNavDrawerOpenAtom, true);
+      openCall();
+      await act(async () => returned);
+      act(() => {
+        vi.runOnlyPendingTimers();
+      });
+      expect(menu).toBe(document.activeElement);
+      expect(store.get(focusHandOffAtom)?.to).toBe('panel');
+
+      const newer = { to: 'window', from: menu } as const;
+      if (action === 'moves focus') {
+        const elsewhere = returnButton();
+        elsewhere.focus();
+        expect(store.get(focusHandOffAtom)).toBeUndefined();
+        // Returning to the menu must not revive a cancelled hand-off.
+        menu.focus();
+      } else if (action === 'navigates') {
+        await act(async () => router.navigate('/home/another'));
+        expect(store.get(focusHandOffAtom)).toBeUndefined();
+        await act(async () => router.navigate(target));
+      } else if (action === 'starts a newer hand-off') {
+        act(() => store.set(focusHandOffAtom, newer));
+      }
+      render(
+        <Provider store={store}>
+          <LateHeading />
+        </Provider>
+      );
+      expect(document.activeElement).toBe(action === 'waits' ? screen.getByRole('heading') : menu);
+      expect(store.get(focusHandOffAtom)).toBe(
+        action === 'starts a newer hand-off' ? newer : undefined
+      );
+    }
+  );
 
   it('can reopen an already failed call to dismiss it', () => {
     state.phase = 'failed';

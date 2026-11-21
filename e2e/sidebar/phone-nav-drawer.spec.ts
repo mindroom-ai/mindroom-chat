@@ -768,6 +768,13 @@ for (const engine of ENGINES) {
         await expect(heading).toBeVisible();
         await expect(heading).toBeFocused();
         expect(await page.evaluate(() => history.length)).toBe(current);
+
+        await page.getByRole('button', { name: 'Fold Call to the edge' }).click();
+        await page.getByRole('link', { name: 'Harbor Plans', exact: true }).click();
+        await expectAt(page, inRoom(harbor), 'the user leaves the folded call in Garden Club');
+        await page.getByRole('button', { name: 'Return to the call in Garden Club' }).click();
+        await expect(heading).toBeVisible();
+        await expect(heading).toBeFocused();
       } finally {
         await context.unrouteAll({ behavior: 'ignoreErrors' });
         await context.close();

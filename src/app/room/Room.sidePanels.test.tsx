@@ -4,7 +4,7 @@ import { useContext, useEffect, useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
-import { callPanelRoomAtom } from '../calls/callStore';
+import { callPanelRequestAtom, callPanelRoomAtom } from '../calls/callStore';
 import {
   closeTranscriptPanel,
   openTranscriptPanel,
@@ -421,6 +421,7 @@ describe('the side panels of a room', () => {
   afterEach(() => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
+    store.set(callPanelRequestAtom, undefined);
     store.set(transcriptPanelAtom, undefined);
     store.set(subagentsPanelAtom, undefined);
     store.set(membersOpenAtom, false);
@@ -489,6 +490,29 @@ describe('the side panels of a room', () => {
 
     await renderRoom(ScreenSize.Mobile);
     expect(shown()).toEqual(['call']);
+  });
+
+  it('unfolds a call request sent before its room is shown and consumes it once', async () => {
+    const showRoom = await renderRoom();
+    await open('call');
+    const fold = () =>
+      act(() => screen.getByRole('button', { name: 'Fold Call to the edge' }).click());
+    const unfold = () => screen.queryByRole('button', { name: 'Unfold Call' });
+    fold();
+    expect(unfold()).not.toBeNull();
+
+    await showRoom('!other:example.org');
+    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
+    expect(store.get(callPanelRequestAtom)).toEqual({ roomId: room.roomId });
+    await showRoom(room.roomId);
+    expect(shown()).toEqual(['call']);
+    expect(unfold()).toBeNull();
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
+
+    fold();
+    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
+    expect(unfold()).toBeNull();
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
   });
 
   it('renders again when the call docks or floats, not when the floating window moves', async () => {
