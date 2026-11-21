@@ -34,7 +34,7 @@ sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each sec
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
 folded at first. A section that shows alone, as under its tab, is open and folds nothing: its stored
 fold is kept for when the other sections come back. While the pointer, focus or a card menu is on
-the cards (a mouse with no button down only until it rests for 3 s; its next move, or the release of
+the cards (a mouse with no button down only until it rests for 0.7 s; its next move, or the release of
 a press, starts that again), shown cards keep their sections and order until the hold ends, even
 when a run starts. New cards still join their live sections. A section that showed alone stays
 open while held, even if a new card brings a second section.
