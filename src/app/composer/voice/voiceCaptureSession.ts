@@ -548,7 +548,7 @@ export const createVoiceCaptureSession = (
       if (released) return;
       released = true;
       const generation = current;
-      if (onPark && generation?.web && generation.recorder && !generation.action) {
+      if (onPark && generation?.recorder && !generation.action) {
         generation.offerOnStop = offerOnStop;
         void stop('park');
       }

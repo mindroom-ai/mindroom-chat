@@ -15,7 +15,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "takeLeftover", returnType: CAPPluginReturnPromise)
     ]
 
     private static var folder: URL {
@@ -148,9 +149,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let live = self.live, live.id == call.getString("id") else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
-            live.recorder.stop()
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            self.live = nil
+            finishLive()
             call.resolve(["path": live.recorder.url.path])
         }
     }
@@ -168,6 +167,35 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// Lists files without removing them. The new page cancels each file after saving its audio.
+    @objc func takeLeftover(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [self] in
+            let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .creationDateKey]
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: Self.folder, includingPropertiesForKeys: Array(keys)
+            )) ?? []
+            let recordings: [[String: Any]] = files.compactMap { url in
+                let id = url.deletingPathExtension().lastPathComponent
+                guard url.pathExtension == "m4a", UUID(uuidString: id) != nil, id != live?.id,
+                      let attrs = try? url.resourceValues(forKeys: keys), attrs.isRegularFile == true,
+                      let size = attrs.fileSize, size > 0, let start = attrs.creationDate,
+                      let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else {
+                    return nil
+                }
+                return ["id": id, "path": url.path, "startedAt": (start.timeIntervalSince1970 * 1_000).rounded(),
+                        "duration": player.duration * 1_000]
+            }
+            call.resolve(["recordings": recordings])
+        }
+    }
+
+    private func finishLive() {
+        guard let live else { return }
+        live.recorder.stop()
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        self.live = nil
+    }
+
     private func discardLive() {
         guard let live else { return }
         self.live = nil
@@ -176,18 +204,18 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// The page is going, or its process ended (main queue): nothing of it records or stays on
-    /// disk, and a start that waits on the prompt ends.
+    /// Navigation or WebContent termination ends the capture, not its file. A start still
+    /// waiting for permission belongs to the old page and must not record.
     @objc private func pageWillLoad() {
         generation += 1
-        discardLive()
-        Self.clearFolder()
+        finishLive()
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
     func close() {
         closed = true
         pageWillLoad()
+        Self.clearFolder()
     }
 }
 #endif

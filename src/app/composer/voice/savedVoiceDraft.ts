@@ -4,6 +4,10 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isJoined } from '../../matrix/state/roomList';
 import {
+  importNativeVoiceRecordings,
+  isNativeVoiceRecorderAvailable,
+} from '../../native/nativeVoiceRecorder';
+import {
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   replyDraftAtRest,
@@ -15,6 +19,7 @@ import {
   holdVoiceRecording,
   recoverVoiceRecording,
   releaseVoiceRecording,
+  storeFinishedVoiceRecording,
 } from './voiceRecordingJournal';
 
 /**
@@ -159,6 +164,11 @@ export const useSavedVoiceDraft = (
           },
         });
       } else if (getRecoveryContext) {
+        if (globalThis.navigator?.locks && isNativeVoiceRecorderAvailable()) {
+          await importNativeVoiceRecordings((recording) =>
+            slotTaken() ? Promise.resolve(false) : storeFinishedVoiceRecording(userId, recording)
+          );
+        }
         await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
           if (slotTaken()) return false;
           store.set(pendingVoiceSendDraftAtom, {

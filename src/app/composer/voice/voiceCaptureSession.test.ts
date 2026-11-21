@@ -624,6 +624,22 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
+  it('parks the native recording when its composer unmounts', async () => {
+    const recorder = withoutWebCapture();
+    const park = vi.fn((_recording: { file: File; duration: number }) => true);
+    const session = createVoiceCaptureSession(undefined, park);
+    expect(await session.start()).toBe(true);
+    vi.advanceTimersByTime(1_800);
+
+    session.releaseOwner(true);
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    recorder.deliver('native voice');
+
+    expect(park).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 1_800 }));
+    expect(await park.mock.calls[0]?.[0].file.text()).toBe('native voice');
+    expect(session.getSnapshot().phase).toBe('idle');
+  });
+
   it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
     const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
     const session = createVoiceCaptureSession(() => ({

@@ -4,7 +4,8 @@ import { randomUuid } from '../lib/randomUuid';
 /** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
  *  start({ nonce }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
  *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections
- *  carry `code`. */
+ *  carry `code`. takeLeftover lists finished files, with timestamps and durations in ms. */
+type NativeVoiceLeftover = { id: string; path: string; startedAt: number; duration: number };
 type MindRoomVoiceRecorderPlugin = {
   start(options: { nonce: string }): Promise<{ id: string }>;
   level(options: { id: string }): Promise<{ level: number }>;
@@ -12,6 +13,7 @@ type MindRoomVoiceRecorderPlugin = {
   resume(options: { id: string }): Promise<void>;
   stop(options: { id: string }): Promise<{ path: string }>;
   cancel(options: { id: string }): Promise<void>;
+  takeLeftover(): Promise<{ recordings: NativeVoiceLeftover[] }>;
 };
 
 const START_ERROR_NAMES: Record<string, string> = {
@@ -32,6 +34,37 @@ export const isNativeVoiceRecorderAvailable = (): boolean =>
   Capacitor.isNativePlatform() &&
   Capacitor.getPlatform() === 'ios' &&
   Capacitor.isPluginAvailable('MindRoomVoiceRecorder');
+
+const readVoiceFile = async (path: string): Promise<Blob | undefined> => {
+  const response = await fetch(Capacitor.convertFileSrc(path), {
+    signal: AbortSignal.timeout(5_000),
+  });
+  // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
+  if (!response.ok && response.status !== 0) return undefined;
+  const data = await response.blob();
+  return data.size > 0 ? data : undefined;
+};
+
+/** Hands off one file at a time. Only a committed copy lets us delete the native file. */
+export const importNativeVoiceRecordings = async (
+  persist: (recording: Omit<NativeVoiceLeftover, 'path'> & { data: Blob }) => Promise<boolean>
+): Promise<void> => {
+  const plugin = getVoiceRecorderPlugin();
+  const leftovers = await plugin.takeLeftover().catch(() => undefined);
+  if (!leftovers) return;
+  /* eslint-disable no-await-in-loop */
+  for (const { path, ...recording } of leftovers.recordings) {
+    try {
+      const data = await readVoiceFile(path);
+      if (data && (await persist({ ...recording, data }))) {
+        await plugin.cancel({ id: recording.id });
+      }
+    } catch {
+      // Keep the file on failure so the next page can try again.
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+};
 
 /** The part of `MediaRecorder` the voice capture session drives, over the native recorder. */
 export class NativeVoiceRecorder extends EventTarget {
@@ -93,13 +126,8 @@ export class NativeVoiceRecorder extends EventTarget {
 
   private async deliver(): Promise<void> {
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
-    const response = await fetch(Capacitor.convertFileSrc(path), {
-      signal: AbortSignal.timeout(5_000),
-    });
-    // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
-    if (!response.ok && response.status !== 0) return;
-    const data = await response.blob();
-    if (data.size > 0) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
+    const data = await readVoiceFile(path);
+    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 
   /** Every way out, once (`state` is `inactive` by then): the native side deletes the file. */

@@ -3,7 +3,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
@@ -11,6 +11,17 @@ import {
 } from '../roomInputDrafts';
 import { clearSavedVoiceDraft, useSavedVoiceDraft } from './savedVoiceDraft';
 import { createVoiceSendDraftController } from './voiceSendDraftController';
+
+const native = vi.hoisted(() => ({ available: false, takeLeftover: vi.fn(), cancel: vi.fn() }));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: () => native.available,
+    getPlatform: () => 'ios',
+    isPluginAvailable: (name: string) => name === 'MindRoomVoiceRecorder',
+    convertFileSrc: (path: string) => `capacitor://localhost/_capacitor_file_${path}`,
+  },
+  registerPlugin: () => native,
+}));
 
 const userId = '@alice:example.org';
 let membership: KnownMembership = KnownMembership.Join;
@@ -200,6 +211,118 @@ it.each(['send', 'discard'])(
     }
   }
 );
+
+describe('native recording recovery on composer mount', () => {
+  const leftover = {
+    id: '01162E95-5496-4553-B239-E30AB09FFC47',
+    path: '/tmp/voice-recorder/01162E95-5496-4553-B239-E30AB09FFC47.m4a',
+    startedAt: 1_700_000_000_000,
+    duration: 2_400,
+  };
+  const getContext = () => failedDraft().context;
+  const readAudio = (audio: string) => new Response(audio);
+  const fetchAudio = vi.fn(() => Promise.resolve(readAudio('native voice')));
+
+  beforeEach(() => {
+    native.available = true;
+    let present = true;
+    native.takeLeftover.mockReset().mockImplementation(async () => ({
+      recordings: present ? [leftover] : [],
+    }));
+    native.cancel.mockReset().mockImplementation(async ({ id }: { id: string }) => {
+      if (id === leftover.id) present = false;
+    });
+    fetchAudio.mockClear();
+    vi.stubGlobal('fetch', fetchAudio);
+    stubLocks();
+  });
+
+  afterEach(async () => {
+    native.available = false;
+    vi.restoreAllMocks();
+    const journal = await import('./voiceRecordingJournal');
+    await journal.clearVoiceRecordings(userId);
+  });
+
+  it('offers the native audio as recovered and forgets the file after commit', async () => {
+    let committed = false;
+    const add = IDBObjectStore.prototype.add;
+    vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey
+    ) {
+      if (this.name === 'chunks') {
+        this.transaction.addEventListener('complete', () => {
+          committed = true;
+        });
+      }
+      return add.call(this, value, key);
+    });
+    let committedWhenForgotten = false;
+    const forget = native.cancel.getMockImplementation()!;
+    native.cancel.mockImplementation(async (options: { id: string }) => {
+      committedWhenForgotten = committed;
+      await forget(options);
+    });
+
+    const store = await reloadPage(getContext);
+    const draft = store.get(reloadedAtom());
+    expect(draft).toMatchObject({
+      recordingId: leftover.id,
+      recovered: true,
+      duration: 2_400,
+      context: getContext(),
+    });
+    expect(draft?.file.name).toBe('voice-message-1700000000000.m4a');
+    expect(draft?.file.type).toBe('audio/mp4');
+    expect(await draft?.file.text()).toBe('native voice');
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+    expect(committedWhenForgotten).toBe(true);
+    expect(await native.takeLeftover()).toEqual({ recordings: [] });
+  });
+
+  it('keeps the native file if the journal write fails', async () => {
+    const add = IDBObjectStore.prototype.add;
+    const failWrite = vi
+      .spyOn(IDBObjectStore.prototype, 'add')
+      .mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+        if (this.name === 'recordings') throw new DOMException('Full disk', 'QuotaExceededError');
+        return add.call(this, value, key);
+      });
+    const store = await reloadPage(getContext);
+    expect(fetchAudio).toHaveBeenCalledOnce();
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.cancel).not.toHaveBeenCalled();
+
+    failWrite.mockRestore();
+    const next = await reloadPage(getContext);
+    expect(await next.get(reloadedAtom())?.file.text()).toBe('native voice');
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+  });
+
+  it('does not replace an already committed recording if the old page did not forget the file', async () => {
+    native.cancel.mockRejectedValueOnce(new Error('Page gone'));
+    const store = await reloadPage(getContext);
+    expect(await store.get(reloadedAtom())?.file.text()).toBe('native voice');
+
+    fetchAudio.mockResolvedValueOnce(readAudio('replacement audio'));
+    const next = await reloadPage(getContext);
+    const recovered = next.get(reloadedAtom());
+    expect(recovered?.recordingId).toBe(leftover.id);
+    expect(await recovered?.file.text()).toBe('native voice');
+    expect(native.cancel.mock.calls).toEqual([[{ id: leftover.id }], [{ id: leftover.id }]]);
+  });
+
+  it('does not take native files without Web Locks', async () => {
+    vi.stubGlobal('navigator', {});
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.takeLeftover).not.toHaveBeenCalled();
+    expect(fetchAudio).not.toHaveBeenCalled();
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+});
 
 describe('useSavedVoiceDraft', () => {
   it('keeps a failed voice message across a reload, where it was meant to go', async () => {

@@ -1,6 +1,10 @@
 import { Capacitor } from '@capacitor/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isNativeVoiceRecorderAvailable, startNativeVoiceRecorder } from './nativeVoiceRecorder';
+import {
+  importNativeVoiceRecordings,
+  isNativeVoiceRecorderAvailable,
+  startNativeVoiceRecorder,
+} from './nativeVoiceRecorder';
 
 const plugin = vi.hoisted(() => ({
   start: vi.fn(),
@@ -8,6 +12,7 @@ const plugin = vi.hoisted(() => ({
   resume: vi.fn(),
   stop: vi.fn(),
   cancel: vi.fn(),
+  takeLeftover: vi.fn(),
   level: vi.fn(),
 }));
 vi.mock('@capacitor/core', () => ({
@@ -190,6 +195,30 @@ describe('native voice recorder', () => {
       signal: expect.any(AbortSignal),
     });
     expect(await chunks[0]!.text()).toBe('voice');
+  });
+
+  it('takes leftover audio through the same local file URL without stopping a recording', async () => {
+    const fetchMock = stubFetch({ ...audio(), ok: false, status: 0 });
+    plugin.takeLeftover.mockResolvedValue({
+      recordings: [{ id: 'a', path: PATH, startedAt: 1_700_000_000_000, duration: 2_400 }],
+    });
+    const persist = vi.fn(async (_recording: { id: string; data: Blob }) => true);
+    await importNativeVoiceRecordings(persist);
+
+    expect(plugin.takeLeftover).toHaveBeenCalledExactlyOnceWith();
+    expect(plugin.stop).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      `capacitor://localhost/_capacitor_file_${PATH}`,
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(persist).toHaveBeenCalledExactlyOnceWith({
+      id: 'a',
+      startedAt: 1_700_000_000_000,
+      duration: 2_400,
+      data: expect.any(Blob),
+    });
+    expect(await persist.mock.calls[0]?.[0].data.text()).toBe('voice');
+    expect(plugin.cancel).toHaveBeenCalledExactlyOnceWith({ id: 'a' });
   });
 
   it('delivers a local file that WebKit answers with status 0', async () => {

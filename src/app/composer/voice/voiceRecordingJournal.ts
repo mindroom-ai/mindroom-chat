@@ -113,6 +113,30 @@ export const beginVoiceRecording = (userId: string, startedAt: number, mimeType:
   };
 };
 
+/** Imports a complete native file. Its ID survives a reload between commit and native cancel. */
+export const storeFinishedVoiceRecording = async (
+  userId: string,
+  { id, startedAt, duration, data }: { id: string; startedAt: number; duration: number; data: Blob }
+): Promise<boolean> =>
+  (await withDb(async (db) => {
+    const bytes = await data.arrayBuffer();
+    const mimeType = 'audio/mp4';
+    return change(db, async (tx) => {
+      const records = tx.objectStore('recordings');
+      if (await records.getKey(id)) return true;
+      try {
+        await tx
+          .objectStore('chunks')
+          .add({ id, seq: 0, bytes, elapsedMs: duration, type: mimeType });
+        await records.add({ id, userId, startedAt, mimeType });
+      } catch (error) {
+        tx.abort();
+        throw error;
+      }
+      return true;
+    });
+  })) === true;
+
 type Recovered = { recordingId: string; file: File; duration: number };
 export const recoverVoiceRecording = async (
   userId: string,

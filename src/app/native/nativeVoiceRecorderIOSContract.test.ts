@@ -17,7 +17,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('is the plugin the web side registers, with its methods', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
     expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
-    ['start', 'level', 'pause', 'resume', 'stop', 'cancel'].forEach((method) => {
+    ['start', 'level', 'pause', 'resume', 'stop', 'cancel', 'takeLeftover'].forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
@@ -69,8 +69,11 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
     expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*discardLive\(\)\s*Self\.clearFolder\(\)\s*\}/
+      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*finishLive\(\)\s*\}/
     );
+    const finish = pluginSource.match(/private func finishLive\(\) \{[\s\S]*?\n {4}\}/)?.[0];
+    expect(finish).toContain('live.recorder.stop()');
+    expect(finish).not.toMatch(/deleteRecording|discardLive|clearFolder/);
     expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
       'generation = ',
       'generation = ',
@@ -86,7 +89,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   });
 
   it('records nothing more once its window has closed', () => {
-    expect(pluginSource).toMatch(/func close\(\) \{\s*closed = true\s*pageWillLoad\(\)\s*\}/);
+    expect(pluginSource).toMatch(
+      /func close\(\) \{\s*closed = true\s*pageWillLoad\(\)\s*Self\.clearFolder\(\)\s*\}/
+    );
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
@@ -128,7 +133,17 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     ).toHaveLength(2);
   });
 
-  it('releases the microphone when its page goes away and forgets a recording left behind', () => {
+  it('lists only finished UUID audio files and their recovery metadata', () => {
+    const leftover = body('takeLeftover');
+    expect(leftover).toMatch(/UUID\(uuidString: id\)[\s\S]*id != live\?\.id/);
+    expect(leftover).toMatch(/pathExtension == "m4a"[\s\S]*isRegularFile == true[\s\S]*size > 0/);
+    expect(leftover).toContain('creationDate');
+    expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
+    expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
+    expect(leftover).toContain('"duration":');
+  });
+
+  it('clears leftovers on plugin load and closes with its window', () => {
     expect(pluginSource).toMatch(/override public func load\(\) \{[\s\S]*?clearFolder\(\)/);
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
