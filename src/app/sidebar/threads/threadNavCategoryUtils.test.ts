@@ -200,6 +200,7 @@ describe('buildSidebarThreadSections', () => {
       ['resolved', ['done']],
     ]);
   });
+
   it('puts each thread in the first section that fits, and leaves out empty ones', () => {
     const entries = [
       makeSectionEntry({
