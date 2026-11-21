@@ -38,8 +38,7 @@ successful send, confirmed Discard, or sign-out.**
 - **Self-stop and unmount.** A recorder that stops without Send or Discard, or a composer that
   unmounts while recording, parks the captured audio as a recovered draft instead of dropping it.
   When another composer takes the mic, the displaced recording stays on disk with its lock
-  released until the next page load, without occupying the draft slot. If the journal could
-  not start, park the recording in memory for its original composer instead.
+  released until the next page load, without occupying the draft slot.
 - **Send.** The record is deleted after `sendRecording` resolved. A failed send keeps it. The
   existing failed-send copy (`savedVoiceDraft.ts`) stores the recording id. On restore, a journal
   record with that id is not offered a second time.
@@ -55,6 +54,7 @@ successful send, confirmed Discard, or sign-out.**
 - No room or thread destination on disk.
 - No queue of several recovered recordings beyond "one at a time, the rest wait for a reload".
 - No Mac native orphans: follow-up after mindroom-chat#701.
+- Without Web Locks there is no journal, and a mic handoff behaves as on main.
 
 ## Tests
 
@@ -62,8 +62,7 @@ successful send, confirmed Discard, or sign-out.**
   - Chunks are written in `seq` order even when `arrayBuffer()` resolves out of order.
   - A failed write keeps recording.
   - Recovery adopts only unlocked records.
-  - A self-stopped or unmounted recording parks. Mic handoff parks the displaced audio in memory
-    if the journal did not start.
+  - A self-stopped or unmounted recording parks.
   - Send success deletes the record; a failed send keeps it.
   - Discard deletes the record.
   - The failed-send copy and the journal never offer the same id twice.
