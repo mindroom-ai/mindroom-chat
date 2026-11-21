@@ -17,7 +17,7 @@ import {
   type MatrixEvent,
 } from '../helpers/agentStack';
 
-// A thread's model change with a live MindRoom backend: the router answers the command with
+// A thread's model change with a live MindRoom backend: the handling account answers with
 // `io.mindroom.model_selection_result`, and the open thread shows the two messages as one line
 // (src/app/messages/modelChanges.ts). A backend before typed results answers a typed command
 // without one, so there only the picker's change becomes a line.
@@ -40,7 +40,7 @@ type Result = { command_event_id?: string; operation?: string; status?: string; 
 const resultOf = (event: MatrixEvent): Result | undefined =>
   event.content['io.mindroom.model_selection_result'] as Result | undefined;
 
-/** The thread's command with this body and the router's reply to it, as the homeserver has them. */
+/** The thread's command with this body and its reply, matched by command event ID. */
 const commandAndReply = async (
   stack: AgentStack,
   rootId: string,
@@ -51,17 +51,31 @@ const commandAndReply = async (
     .poll(
       async () => {
         const events = (await lobbyEvents(stack)).filter((event) => inThread(event, rootId));
-        const at = events.findIndex(
+        const command = events.find(
           (event) => event.sender === stack.tester.userId && bodyOf(event) === body
         );
-        const command = events[at];
-        const reply = events
-          .slice(at + 1)
-          .find((event) => event.sender === stack.agents.router && event.type === 'm.room.message');
-        if (command && reply) found = { command, reply };
+        if (!command) return false;
+        const reply = events.find((event) => {
+          if (
+            event.type !== 'm.room.message' ||
+            !Object.values(stack.agents).includes(event.sender)
+          )
+            return false;
+          const result = resultOf(event);
+          if (result) return result.command_event_id === command.event_id;
+          // Refusals and older backends can reply without a typed result.
+          const relation = event.content['m.relates_to'] as {
+            is_falling_back?: boolean;
+            'm.in_reply_to'?: { event_id?: string };
+          };
+          return (
+            !relation.is_falling_back && relation['m.in_reply_to']?.event_id === command.event_id
+          );
+        });
+        if (reply) found = { command, reply };
         return !!found;
       },
-      { timeout: 90_000, intervals: [500, 1000], message: `the router's reply to ${body}` }
+      { timeout: 90_000, intervals: [500, 1000], message: `the reply to ${body}` }
     )
     .toBe(true);
   return found as { command: MatrixEvent; reply: MatrixEvent };
@@ -83,8 +97,8 @@ test('an applied thread model change shows as one line, and a refused one stays 
     modelId: first.id,
   });
 
-  // The picker's change: one line at the router's reply, which names the model the viewer's own
-  // picker lists, and no row for the command.
+  // The picker's change: one line at the reply, naming the model the viewer's own picker lists,
+  // and no row for the command.
   const chip = page.getByRole('button', { name: 'Choose model' });
   await expect(chip).toHaveText(UNCHOSEN, { timeout: 60_000 });
   await chip.click();
@@ -102,7 +116,7 @@ test('an applied thread model change shows as one line, and a refused one stays 
     model: second.key,
   });
   const setRow = messageRow(page, set.reply.event_id);
-  // The row's whole text: the router's own words are not drawn.
+  // The row's whole text: the reply's own words are not drawn.
   await expect(setRow).toHaveText(`Model set${second.displayName}`, { timeout: 60_000 });
   await expect(setRow.locator('[data-model-change="set"]')).toBeVisible();
   await expect(page.locator(`[data-message-id="${set.command.event_id}"]`)).toHaveCount(0);
@@ -123,7 +137,7 @@ test('an applied thread model change shows as one line, and a refused one stays 
     await expect(resetRow.locator('[data-model-change]')).toHaveCount(0);
   }
 
-  // A model nobody has: the router refuses, and both messages stay as they are.
+  // A model nobody has: the agent refuses, and both messages stay as they are.
   const missing = `${word}-missing`;
   await sendFromComposer(page, `!model ${missing}`);
   const refused = await commandAndReply(stack, rootId, `!model ${missing}`);

@@ -11,10 +11,9 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 
-// A room made with the Create Room form, with the router and the helper agent invited from its
-// Invite dialog, takes the room state MindRoom's agents publish as the rooms MindRoom creates do:
-// each agent's server, the router's thread mode, the helper's thread tag and background job, and
-// the router's auto-approve window all land, and the backend logs no refused write for the room.
+// A room made with the Create Room form takes the state MindRoom publishes. The helper joins
+// from the Invite dialog and publishes its server, accounts roster, thread mode, thread tag,
+// background job and auto-approve window. The backend logs no refused write for these events.
 // Runs against the agent stack (scripts/agent-stack/stack.py) with the stub model; skips without a
 // MindRoom checkout.
 test.describe.configure({ timeout: 420_000 });
@@ -28,14 +27,14 @@ const missingAgentState = async (stack: AgentStack, roomId: string): Promise<str
     `/rooms/${encodeURIComponent(roomId)}/state`,
     { accessToken: stack.tester.accessToken }
   );
-  const { router, helper } = stack.agents;
+  const { helper } = stack.agents;
   const expected: Array<[string, string, string | undefined]> = [
-    ['io.mindroom.server', router, router],
     ['io.mindroom.server', helper, helper],
-    ['io.mindroom.thread_mode', router, ''],
+    ['io.mindroom.accounts', helper, helper],
+    ['io.mindroom.thread_mode', helper, ''],
     ['com.mindroom.thread.tags', helper, undefined],
     ['io.mindroom.background_jobs', helper, helper],
-    ['io.mindroom.auto_approve', router, router],
+    ['io.mindroom.auto_approve', helper, helper],
   ];
   return expected
     .filter(
@@ -65,20 +64,16 @@ test('agents publish their room state in a room made with Create Room', async ({
   await page.waitForURL(/\/home\/!/, { timeout: 60_000 });
   const roomId = decodeURIComponent(new URL(page.url()).pathname.split('/')[2] ?? '');
 
-  // The router first, then the helper, from the room's Invite dialog.
+  // Invite the helper from the room's Invite dialog.
   await expect(roomMoreOptions(page)).toBeVisible({ timeout: 90_000 });
   await roomMoreOptions(page).click();
   await page.getByRole('menuitem', { name: 'Invite', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Invite' });
   const field = dialog.getByRole('combobox');
-  const invite = async (userId: string) => {
-    await field.fill(userId);
-    // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
-    await field.press('Enter');
-    await expect(dialog.getByRole('status')).toContainText(userId, { timeout: 15_000 });
-  };
-  await invite(stack.agents.router);
-  await invite(stack.agents.helper);
+  await field.fill(stack.agents.helper);
+  // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
+  await field.press('Enter');
+  await expect(dialog.getByRole('status')).toContainText(stack.agents.helper, { timeout: 15_000 });
   await page.keyboard.press('Escape');
   await expect
     .poll(
@@ -88,14 +83,14 @@ test('agents publish their room state in a room made with Create Room', async ({
           `/rooms/${encodeURIComponent(roomId)}/joined_members`,
           { accessToken: stack.tester.accessToken }
         );
-        return [stack.agents.router, stack.agents.helper].filter((userId) => !joined[userId]);
+        return !!joined[stack.agents.helper];
       },
-      { timeout: 90_000, message: 'the agents join the room' }
+      { timeout: 90_000, message: 'the helper joins the room' }
     )
-    .toEqual([]);
+    .toBe(true);
 
   // The helper tags its thread and starts a background job there; the tester opens an
-  // auto-approve window in it, which the router publishes.
+  // auto-approve window in it, which the helper publishes as steward.
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   await mentionHelper(page, stack, 'tag this thread #tag');
   const banner = page.locator('[data-thread-context-banner]');

@@ -246,8 +246,8 @@ describe('renderAgentMessageContent', () => {
 
     const status = placeholder.root.findByProps({ role: 'status' });
 
-    expect(status.props['aria-label']).toBe('Router agent is transcribing');
-    expect(JSON.stringify(placeholder.toJSON())).toContain('Router agent is transcribing');
+    expect(status.props['aria-label']).toBe('Transcribing…');
+    expect(JSON.stringify(placeholder.toJSON())).toContain('Transcribing…');
     expect(ordinaryMessage.root.findAllByProps({ role: 'status' })).toHaveLength(0);
     expect(settledTranscript.root.findAllByProps({ role: 'status' })).toHaveLength(0);
 

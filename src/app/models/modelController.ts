@@ -74,8 +74,8 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
-  /** A `!model` typed in the thread, whose answer changes the selection without a result. */
-  typedCommand?: boolean;
+  /** Recent event IDs of model commands typed in the thread and awaiting answers. */
+  typedCommands: Set<string>;
   query?: Query;
   command?: Command;
   send?: Command;
@@ -228,6 +228,7 @@ export class ModelController {
         },
         listeners: new Set(),
         watchers: new Set(),
+        typedCommands: new Set(),
         catalogs: new Map(),
         generation: 0,
         needsRefresh: false,
@@ -653,29 +654,51 @@ export class ModelController {
     void this.receiveResult(event).catch(() => undefined);
   };
 
-  /** After a `!model` typed in a thread, the runtime's next message there asks for its selection again. */
+  /** A joined agent's answer to a typed model command triggers discovery again. */
   private receiveTypedCommand(event: MatrixEvent): void {
     const relation = event.getRelation();
     if (
       !this.active() ||
       event.getType() !== 'm.room.message' ||
+      event.isRedacted() ||
       relation?.rel_type !== 'm.thread' ||
       !relation.event_id
     )
       return;
     const scope = this.scopes.get(JSON.stringify([event.getRoomId(), relation.event_id]));
     if (!scope?.listeners.size || scope.command) return;
-    const { body } = event.getContent();
-    if (typeof body === 'string' && /^!model(\s|$)/i.test(body.trim())) {
-      scope.typedCommand = true;
-    } else if (
-      scope.typedCommand &&
-      scope.snapshot.runtimes.some((runtime) => runtime.userId === event.getSender())
-    ) {
-      scope.typedCommand = false;
-      this.cancelQuery(scope);
-      this.refresh(scope.room, scope.threadId);
+    const content = event.getContent<Record<string, unknown>>();
+    const { body } = content;
+    const eventId = event.getId();
+    const { typedCommands } = scope;
+    if (eventId && typeof body === 'string' && /^[!/]model(\s|$)/i.test(body.trim())) {
+      typedCommands.add(eventId);
+      if (typedCommands.size > 4) {
+        const [oldest] = typedCommands;
+        if (oldest) typedCommands.delete(oldest);
+      }
+      return;
     }
+    if (!typedCommands.size) return;
+    const sender = event.getSender();
+    if (!sender || !joinedModelCandidates(this.mx, scope.room).includes(sender)) return;
+    let commandId: string | undefined;
+    if (MODEL_RESULT in content) {
+      const result = parseModelSelectionResult(content[MODEL_RESULT]);
+      if (
+        !result ||
+        result.room_id !== scope.room.roomId ||
+        result.thread_id !== relation.event_id ||
+        result.runtime_user_id !== sender
+      )
+        return;
+      commandId = result.command_event_id;
+    } else if (!relation.is_falling_back) {
+      commandId = event.replyEventId;
+    }
+    if (!commandId || !typedCommands.delete(commandId)) return;
+    this.cancelQuery(scope);
+    this.refresh(scope.room, scope.threadId);
   }
 
   private async receiveResult(event: MatrixEvent): Promise<void> {
