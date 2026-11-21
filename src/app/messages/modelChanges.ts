@@ -8,9 +8,9 @@ import {
   type ModelSelectionResult,
 } from '../models/modelProtocol';
 
-/** A thread's model change the router applied, as its one line shows it. */
+/** A thread's applied model change, as its one line shows it. */
 export type ModelChange = {
-  /** The command the router answered, whose own row hides. */
+  /** The command that was answered, whose own row hides. */
   command: MatrixEvent;
   operation: 'set' | 'reset';
   /** The reference a set chose, `key` or `key@level`; a reset names none. */
@@ -24,8 +24,8 @@ export type ModelChange = {
 };
 
 /**
- * The model changes a thread draws as one line each, at the row of the router's acknowledgement
- * (`byAckId`), in place of that reply and of the command it answers, whose row hides.
+ * The model changes a thread draws as one line each, at the acknowledgement's row (`byAckId`),
+ * in place of that reply and of the command it answers, whose row hides.
  */
 export type ModelChangePlan = {
   hiddenEventIds: ReadonlySet<string>;
@@ -48,9 +48,9 @@ const TYPED_MODEL_COMMAND = /^[!/]model[^\S\n]+(\S[^\n]*)$/i;
 const RESET_ARGUMENTS = new Set(['reset', 'clear']);
 
 /**
- * Whether a message, as its row shows it, is the change `result` says the router applied and
+ * Whether a message, as its row shows it, is the change `result` says was applied and
  * nothing else: its text is the command with its one argument (the model's exact reference for a
- * set, `reset` or `clear` for a reset; a model with one of those names is a set, as the router
+ * set, `reset` or `clear` for a reset; a model with one of those names is a set, as the backend
  * decides), and the picker's structured operation, when it carries one, says the same. So the
  * text the row hides is never more than the line says.
  */
