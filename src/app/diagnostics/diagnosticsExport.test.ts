@@ -112,6 +112,11 @@ describe('combined diagnostics export', () => {
     expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
     expect(payload.currentOrPreservedSession).toEqual({ sessionId: 'current' });
     expect(payload.flightRecorderStatus).toBe('available');
+    expect(payload.startupTimeline).toEqual({
+      timeOrigin: performance.timeOrigin,
+      marks: [],
+      phases: [],
+    });
     expect(payload.deepTrace).toMatchObject({
       enabled: true,
       status: 'recording',

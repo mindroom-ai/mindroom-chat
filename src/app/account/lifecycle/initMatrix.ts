@@ -3,6 +3,7 @@ import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
+import type { IInvitedRoom, IKnockedRoom } from 'matrix-js-sdk/lib/sync-accumulator';
 import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
@@ -34,6 +35,7 @@ import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
 import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
+import type { MarkClientStartup } from '../../lib/startupTimeline';
 
 /** A client of `session` without stores or sync, for requests in its name. */
 export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>
@@ -87,9 +89,17 @@ type SyncArchiveStore = IndexedDBStore & {
   backend?: {
     syncAccumulator?: {
       opts?: { maxTimelineEntries?: number };
-      joinRooms?: Record<string, object>;
+      joinRooms?: Record<string, { _timeline?: unknown[]; _currentState?: Record<string, object> }>;
+      inviteRooms?: Record<string, IInvitedRoom>;
+      knockRooms?: Record<string, IKnockedRoom>;
     };
   };
+};
+
+// Observe the original promise without adding a wait to its callers.
+const onCompletion = <T>(work: Promise<T>, note: (value: T) => void): Promise<T> => {
+  void work.then(note, () => undefined);
+  return work;
 };
 
 // The local IndexedDB backend trims each room's saved timeline to its accumulator's limit.
@@ -210,24 +220,35 @@ const serverDeviceIdentityKey = async (
 const openedOwnStore = async (
   mx: MatrixClient,
   session: ClientBootstrapSession,
-  storeExisted: boolean
+  storeExisted: boolean,
+  markStartup?: MarkClientStartup
 ): Promise<boolean> => {
+  const started = markStartup ? performance.now() : 0;
+  const finish = (
+    branch: 'recorded' | 'server_checked' | 'server_failed' | 'new_store',
+    ownStore: boolean
+  ): boolean => {
+    markStartup?.('identity.check.done', { branch, durationMs: performance.now() - started });
+    return ownStore;
+  };
   const ownKeys = await mx.getCrypto()?.getOwnDeviceKeys();
   if (!ownKeys) throw new DeviceIdentityVerificationError(session.userId);
   const recorded = safeRecordedDeviceIdentityKey(session.sessionId);
-  if (recorded !== undefined) return recorded === ownKeys.ed25519;
+  if (recorded !== undefined) return finish('recorded', recorded === ownKeys.ed25519);
   // A missing store was only created after the homeserver said it has no keys for the device.
+  let branch: 'new_store' | 'server_checked' = 'new_store';
   if (storeExisted && safeHasInitializedCryptoStore(session.sessionId)) {
     let serverKey: string | undefined;
     try {
       serverKey = await serverDeviceIdentityKey(mx, session);
     } catch {
-      return true;
+      return finish('server_failed', true);
     }
-    if (serverKey !== undefined && serverKey !== ownKeys.ed25519) return false;
+    branch = 'server_checked';
+    if (serverKey !== undefined && serverKey !== ownKeys.ed25519) return finish(branch, false);
   }
   safeMarkCryptoStoreInitialized(session.sessionId, ownKeys.ed25519);
-  return true;
+  return finish(branch, true);
 };
 
 /**
@@ -241,8 +262,15 @@ const openedOwnStore = async (
  * that opens with other keys than the device's (it vanished after the check) stops startup the
  * same way, before the client syncs or uploads a key.
  */
-export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
+export const initClient = async (
+  session: ClientBootstrapSession,
+  markStartup?: MarkClientStartup
+): Promise<MatrixClient> => {
+  markStartup?.('client.init.start');
   const continuity = await inspectCryptoStoreContinuity(session);
+  markStartup?.('crypto.store.probe', {
+    result: continuity === undefined ? 'unavailable' : continuity ? 'present' : 'missing',
+  });
   if (continuity === undefined) throw new DeviceIdentityVerificationError(session.userId);
   if (!continuity && safeHasInitializedCryptoStore(session.sessionId)) {
     throw new MissingCryptoStoreError(session.userId);
@@ -258,6 +286,13 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
+  if (markStartup) {
+    const readSavedSync = store.getSavedSync.bind(store);
+    store.getSavedSync = () =>
+      onCompletion(readSavedSync(), (savedSync) =>
+        markStartup('saved_sync.read.done', { cacheHit: Boolean(savedSync) })
+      );
+  }
   const legacyCryptoStore = new LegacyCryptoStore(globalThis.indexedDB, storeNames.crypto);
 
   const { userId, deviceId } = session;
@@ -292,14 +327,40 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   // settle before tearing the half-started runtime down. Streaming replies the saved sync holds
   // are read from the event cache meanwhile, so the rooms first show their newest saved text.
   // Finished scheduled tasks a store saved before they were left out go before the replay.
-  const results = await Promise.allSettled([
-    store.startup().then(() => {
-      const sync = store.backend?.syncAccumulator;
-      if (sync) dropSettledScheduledTasks(sync);
-      return restoreStreamingRepliesFromCache(mx);
-    }),
-    mx.initRustCrypto({ cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session) }),
-  ]);
+  const storeStartup = store.startup().then(() => {
+    const sync = store.backend?.syncAccumulator;
+    if (markStartup) {
+      // Count current state once, without materializing the accumulator's replay data.
+      const joined = Object.values(sync?.joinRooms ?? {});
+      const invited = Object.values(sync?.inviteRooms ?? {});
+      const knocked = Object.values(sync?.knockRooms ?? {});
+      markStartup('store.startup.done', {
+        roomCount: joined.length + invited.length + knocked.length,
+        timelineEventCount: joined.reduce((sum, room) => sum + (room._timeline?.length ?? 0), 0),
+        stateEventCount:
+          joined.reduce(
+            (sum, room) =>
+              Object.values(room._currentState ?? {}).reduce(
+                (count, byKey) => count + Object.keys(byKey).length,
+                sum
+              ),
+            0
+          ) +
+          invited.reduce((sum, room) => sum + room.invite_state.events.length, 0) +
+          knocked.reduce((sum, room) => sum + room.knock_state.events.length, 0),
+      });
+    }
+    if (sync) dropSettledScheduledTasks(sync);
+    const restore = restoreStreamingRepliesFromCache(mx);
+    return markStartup
+      ? onCompletion(restore, () => markStartup('streaming.restore.done'))
+      : restore;
+  });
+  const cryptoInit = mx.initRustCrypto({
+    cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
+  });
+  if (markStartup) onCompletion(cryptoInit, () => markStartup('crypto.init.done'));
+  const results = await Promise.allSettled([storeStartup, cryptoInit]);
   const failure = results.find(
     (result): result is PromiseRejectedResult => result.status === 'rejected'
   );
@@ -310,7 +371,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
 
   let ownStore: boolean;
   try {
-    ownStore = await openedOwnStore(mx, session, continuity);
+    ownStore = await openedOwnStore(mx, session, continuity, markStartup);
   } catch (error) {
     await abandonClient(mx, store);
     throw error;
@@ -321,5 +382,6 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   }
 
   mx.setMaxListeners(MAX_CLIENT_LISTENERS);
+  markStartup?.('client.init.done');
   return mx;
 };

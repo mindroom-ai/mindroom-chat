@@ -14,6 +14,22 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 4. Sign-in pages live under `src/app/account/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
 5. Accounts are kept in a session registry (`src/app/matrix/session/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
 
+### Startup in the diagnostics export
+
+Settings → About → Export diagnostics includes `startupTimeline` even when deep tracing is off.
+Its `timeOrigin` is epoch milliseconds; add a `marks[].atMs` to it to compare that mark with native
+journal timestamps. Each mark has a name and optional diagnostic detail. The `phases` array lists
+elapsed milliseconds between consecutive marks, not exclusive durations: store and crypto startup
+can overlap. `saved_sync.read.done` reports `detail.cacheHit`, even for a saved sync with no rooms.
+Client marks belong to the first initialization attempt only; a retry or account switch does not fill
+missing marks. Splash and shell marks record React commits, not paints.
+
+Where the flight recorder is active, its existing writes include `startupMarks` (time origin and mark
+timestamps, without details). A prior `abnormalSession` can therefore show partial startup progress.
+A kill can lose everything since the last completed checkpoint, normally every two seconds while
+visible. A blocked main thread can delay that checkpoint, and an observed hide or page exit is not
+classified as abnormal.
+
 ## Layout
 
 The code is grouped by feature: one folder per domain, which holds the screens, hooks, state and helpers of one concept. A file goes where someone looking for that concept would look first.

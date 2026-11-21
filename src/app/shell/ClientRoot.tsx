@@ -1,4 +1,12 @@
-import React, { ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  ReactNode,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Box,
   Button,
@@ -18,6 +26,7 @@ import { Navigate } from 'react-router-dom';
 import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import type { ISyncStateData } from 'matrix-js-sdk/lib/sync';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SplashScreen } from '../ui/splash/SplashScreen';
@@ -55,6 +64,7 @@ import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
 import { describeKnownError } from '../lib/describeError';
+import { claimClientStartup, type MarkClientStartup } from '../lib/startupTimeline';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import {
   DeviceIdentityVerificationError,
@@ -68,10 +78,11 @@ import {
  */
 export const hasCachedClientShell = (mx: MatrixClient): boolean => mx.getRooms().length > 0;
 
-type StartupState =
+type StartupState = (
   | { status: 'loading'; mx?: MatrixClient }
   | { status: 'started'; mx: MatrixClient }
-  | { status: 'error'; mx?: MatrixClient; error: unknown };
+  | { status: 'error'; mx?: MatrixClient; error: unknown }
+) & { markStartup?: MarkClientStartup };
 
 /**
  * What the client's sync loop reported so far. `reported` turns on with the
@@ -379,11 +390,14 @@ type AccountProvidersProps = {
   mx: MatrixClient;
   engine: SyncEngine;
   sync: SyncProgress;
+  markStartup?: MarkClientStartup;
   children: ReactNode;
 };
 
 /** Everything the signed-in pages read from context, plus how the connection is. */
-function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps) {
+function AccountProviders({ mx, engine, sync, markStartup, children }: AccountProvidersProps) {
+  // Inside both the /versions gate and Suspense: only commit when the shell replaces the splash.
+  useLayoutEffect(() => markStartup?.('shell.shown'), [markStartup]);
   const store = useStore();
   const wouldLoseWork = useCallback(() => reloadWouldLoseWork(store, mx), [store, mx]);
   return (
@@ -432,7 +446,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const [queryClient] = useState(() => new QueryClient());
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
-  const { mx } = startup;
+  const { mx, markStartup } = startup;
 
   useEffect(() => {
     latestSession.current = session;
@@ -454,14 +468,15 @@ function ClientSession({ session, children }: ClientSessionProps) {
     let opened: MatrixClient | undefined;
     setStartup({ status: 'loading' });
     setSync(NO_SYNC_YET);
-    initClient(latestSession.current).then(
+    const timeline = claimClientStartup();
+    initClient(latestSession.current, timeline?.mark).then(
       (client) => {
         if (abandoned) {
           closeClient(client);
           return;
         }
         opened = client;
-        setStartup({ status: 'loading', mx: client });
+        setStartup({ status: 'loading', mx: client, markStartup: timeline?.mark });
       },
       (error: unknown) => {
         if (!abandoned) setStartup({ status: 'error', error });
@@ -469,6 +484,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     );
     return () => {
       abandoned = true;
+      timeline?.cancel();
       if (opened) closeClient(opened);
     };
   }, [session.sessionId, attempt]);
@@ -488,7 +504,16 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   useEffect(() => {
     if (!mx) return undefined;
-    const noteSyncState = (state: SyncState | null) => {
+    const noteSyncState = (
+      state: SyncState | null,
+      _previous?: SyncState | null,
+      data?: ISyncStateData
+    ) => {
+      // The SDK emits Prepared again after applying the first live response, before
+      // waiting for crypto's onSyncCompleted. Catchup only signals connectivity.
+      if (state === SyncState.Prepared && data) {
+        markStartup?.(data.fromCache ? 'sync.prepared.cache' : 'sync.first_live');
+      }
       const hasRooms = state !== null && hasCachedClientShell(mx);
       setSync((known) => noteSyncReport(known, state, hasRooms));
     };
@@ -499,7 +524,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
       // A failure that throws before its promise exists is shown the same way.
       Promise.resolve()
         .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
-        .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
+        .catch((error: unknown) => setStartup({ status: 'error', mx, markStartup, error }));
     };
     noteSyncState(mx.getSyncState());
     mx.on(ClientEvent.Sync, noteSyncState);
@@ -508,7 +533,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
       mx.removeListener(ClientEvent.Sync, noteSyncState);
       mx.removeListener(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     };
-  }, [mx]);
+  }, [mx, markStartup]);
 
   // The deep trace's memory samples count this client's rooms and events while it runs.
   useEffect(() => (mx ? registerMatrixMemoryGauges(mx) : undefined), [mx]);
@@ -521,16 +546,16 @@ function ClientSession({ session, children }: ClientSessionProps) {
         if (abandoned) return;
         const hasRooms = hasCachedClientShell(mx);
         setSync((known) => noteStoreRestored(known, hasRooms));
-        setStartup({ status: 'started', mx });
+        setStartup({ status: 'started', mx, markStartup });
       },
       (error: unknown) => {
-        if (!abandoned) setStartup({ status: 'error', mx, error });
+        if (!abandoned) setStartup({ status: 'error', mx, markStartup, error });
       }
     );
     return () => {
       abandoned = true;
     };
-  }, [mx]);
+  }, [mx, markStartup]);
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
 
@@ -552,7 +577,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
         {mx && shellEngine && shellReady ? (
           // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
           <Suspense fallback={<StartupSplash session={session} mx={mx} />}>
-            <AccountProviders mx={mx} engine={shellEngine} sync={sync}>
+            <AccountProviders mx={mx} engine={shellEngine} sync={sync} markStartup={markStartup}>
               {children}
             </AccountProviders>
           </Suspense>

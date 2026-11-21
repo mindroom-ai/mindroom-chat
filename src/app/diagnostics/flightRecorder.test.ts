@@ -121,8 +121,8 @@ describe('iOS freeze flight recorder', () => {
         configurable: true,
         get: () => ({ href, origin: 'https://chat.mindroom.test' }),
       },
-      setInterval: { configurable: true, value: globalThis.setInterval },
-      clearInterval: { configurable: true, value: globalThis.clearInterval },
+      setInterval: { configurable: true, get: () => globalThis.setInterval },
+      clearInterval: { configurable: true, get: () => globalThis.clearInterval },
     });
     vi.stubGlobal('document', documentTarget);
     vi.stubGlobal('window', windowTarget);
@@ -152,6 +152,31 @@ describe('iOS freeze flight recorder', () => {
       FLIGHT_RECORDER_CURRENT_KEY,
       FLIGHT_RECORDER_CURRENT_KEY,
     ]);
+  });
+
+  it('keeps partial startup timestamps in abnormal evidence only after an existing checkpoint', () => {
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    vi.setSystemTime(1000);
+    dispose = installFlightRecorder(storage);
+    const name = 'mindroom.startup.client.init.start';
+    const { startTime } = performance.mark(name, { detail: { example: true } });
+    try {
+      expect(readCurrent(storage).startupMarks).toBeUndefined();
+      expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
+      vi.advanceTimersByTime(2000);
+      const startupMarks = { timeOrigin: performance.timeOrigin, atMs: { [name]: startTime } };
+      expect(readCurrent(storage).startupMarks).toEqual(startupMarks);
+      expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY, FLIGHT_RECORDER_CURRENT_KEY]);
+
+      dispose();
+      const prior = makePriorSession({ startupMarks });
+      storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
+      dispose = installFlightRecorder(storage);
+      expect(buildFlightRecorderPayload().abnormalSession?.startupMarks).toEqual(startupMarks);
+    } finally {
+      performance.clearMarks(name);
+    }
   });
 
   it('uses one normalized bounded build version for storage and export metadata', () => {
