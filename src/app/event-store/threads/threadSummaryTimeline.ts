@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { reactionOrEditEvent } from '../../matrix/room';
 import { getThreadSummaryInfo, isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
+import { isRowlessTimelineEvent } from '../timeline/timelineRowTypes';
 
 export type ThreadSummaryMarkerPlan = {
   /** The thread's first summary: it titled the thread rather than updating the title. */
@@ -26,8 +26,8 @@ type PlanOptions = {
   revealedEventIds?: ReadonlySet<string>;
   /** The content an event's row shows, after its latest edit. */
   getContent?: (event: MatrixEvent) => Record<string, unknown>;
-  /** Senders whose rows the timeline hides. */
-  ignoredUserIds?: ReadonlySet<string>;
+  /** Visibility before title folding. Without a view-specific rule, redacted rows are hidden. */
+  isHidden?: (event: MatrixEvent) => boolean;
 };
 
 // MindRoom posts a summary after the first reply and then every ten messages,
@@ -42,7 +42,7 @@ export const planThreadSummaryTimeline = (
     history,
     revealedEventIds,
     getContent = (event) => event.getContent(),
-    ignoredUserIds,
+    isHidden = (event) => event.isRedacted(),
   }: PlanOptions
 ): ThreadSummaryTimelinePlan => {
   // Only then is the earliest summary given also the thread's first.
@@ -57,9 +57,7 @@ export const planThreadSummaryTimeline = (
 
   events.forEach((event) => {
     const eventId = event.getId();
-    // Edits, reactions and ignored senders have no row of their own.
-    if (!eventId || reactionOrEditEvent(event)) return;
-    if (ignoredUserIds?.has(event.getSender() ?? '')) return;
+    if (!eventId || isRowlessTimelineEvent(event) || isHidden(event)) return;
     // Parse as the timeline row does, so only rows that would show a marker are planned.
     const summaryText = isThreadSummaryEvent(event)
       ? getThreadSummaryInfo(getContent(event))?.summaryText
