@@ -1665,5 +1665,9 @@
   },
   "threadActions": {
     "openBeside": "2列目で開く"
+  },
+  "roomSchedules": {
+    "thisThread": "このスレッド",
+    "elsewhereInRoom": "このルーム内の別の場所"
   }
 }

@@ -4,6 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { markOverlayDismissed } from '../lib/overlayFocus';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelForm } from '../ui/panels/panelPresence';
 import { useMembersOverlay } from './PanelRow';
@@ -58,6 +59,7 @@ export function ResizableMembersPanel({
           escapeDeactivates: (event) => {
             event.preventDefault();
             event.stopPropagation();
+            if (event.target instanceof HTMLElement) markOverlayDismissed(event.target);
             onClose();
             return false;
           },

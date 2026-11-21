@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -60,6 +62,97 @@ const recurrenceLines = (task: Partial<ParsedScheduledTask>): string[] => {
   const start = lines.indexOf('Recurrence') + 1;
   return lines.slice(start, lines.indexOf('Prompt'));
 };
+
+describe('RoomSchedulesDialog destinations', () => {
+  const threadId = '$orchard:example.org';
+  const task = (
+    taskId: string,
+    destination: string | null,
+    newThread = false
+  ): ParsedScheduledTask => ({
+    taskId,
+    status: 'pending',
+    threadId: destination,
+    newThread,
+    executeAt: null,
+    scheduleType: 'once',
+  });
+  const local = task('Check the saplings', threadId);
+  const elsewhere = [
+    task('Check the seedlings', null),
+    task('Start a new planting log', threadId, true),
+    task('Check the herbs', '$garden:example.org'),
+  ];
+
+  const headings = (tasks: ParsedScheduledTask[], openThreadId?: string) => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <RoomSchedulesDialog
+          roomId="!room:example.org"
+          tasks={tasks}
+          openThreadId={openThreadId}
+          onClose={vi.fn()}
+          onOpenThread={vi.fn()}
+        />
+      );
+    });
+    const result = renderer.root.findAll((node) => /^h[34]$/.test(String(node.type))).map(textOf);
+    act(() => renderer.unmount());
+    return result;
+  };
+
+  it('puts the open thread first without dropping room tasks or tasks that start a new thread', () => {
+    expect(headings([elsewhere[0]!, local, ...elsewhere.slice(1)], threadId)).toEqual([
+      'This thread',
+      'Check the saplings',
+      'Elsewhere in this room',
+      'Check the seedlings',
+      'Start a new planting log',
+      'Check the herbs',
+    ]);
+  });
+
+  it.each([true, false])(
+    'keeps a card button focused when the other group arrives (local first: %s)',
+    (localFirst) => {
+      vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      const first = localFirst ? local : elsewhere[2]!;
+      const next = localFirst ? elsewhere[2]! : local;
+      const tree = (tasks: ParsedScheduledTask[]) => (
+        <RoomSchedulesDialog
+          roomId="!room:example.org"
+          tasks={tasks}
+          openThreadId={threadId}
+          onClose={vi.fn()}
+          onOpenThread={vi.fn()}
+        />
+      );
+      try {
+        actInDom(() => root.render(tree([first])));
+        const button = host.querySelector<HTMLButtonElement>('article button')!;
+        button.focus();
+        expect(document.activeElement).toBe(button);
+        actInDom(() => root.render(tree([first, next])));
+        expect(host.textContent).toContain('Elsewhere in this room');
+        expect(document.activeElement).toBe(button);
+      } finally {
+        actInDom(() => root.unmount());
+        host.remove();
+        vi.unstubAllGlobals();
+      }
+    }
+  );
+
+  it('omits group headings outside threads or when only one group has tasks', () => {
+    expect(headings([elsewhere[0]!, local])).toEqual(['Check the seedlings', 'Check the saplings']);
+    expect(headings([local], threadId)).toEqual(['Check the saplings']);
+    expect(headings(elsewhere, threadId)).toEqual(elsewhere.map(({ taskId }) => taskId));
+  });
+});
 
 describe('RoomSchedulesDialog recurrence', () => {
   it('shows the description as the runtime wrote it and marks the cron expression as UTC', () => {

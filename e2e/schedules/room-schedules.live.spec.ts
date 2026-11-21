@@ -143,14 +143,12 @@ test.describe('room schedules in the chat header', () => {
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    // A phone's room header leaves scheduled tasks to the room menu.
+    // The phone promotes the clock and keeps the dialog open even if the last task is cancelled.
     const moreOptions = roomMoreOptions(page);
     const roomMenu = page.getByRole('menu').filter({ hasText: 'Leave Room' });
     const menuEntry = roomMenu.getByRole('menuitem', { name: /^Scheduled tasks \(/ });
-    await expect(moreOptions).toBeInViewport();
-    await moreOptions.click();
-    await expect(menuEntry).toHaveAccessibleName('Scheduled tasks (1)');
-    await menuEntry.click();
+    await expect(trigger).toBeInViewport();
+    await trigger.click();
     await expect(dialog.getByText('Weekly report', { exact: true })).toBeVisible();
     await creator.click();
     await expect(shareProfile).toBeVisible();
@@ -199,8 +197,10 @@ test.describe('room schedules in the chat header', () => {
     await expect(
       dialog.getByText('No scheduled tasks in this room.', { exact: true })
     ).toBeVisible();
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(trigger).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
+    await expect(moreOptions).toBeFocused();
     await moreOptions.click();
     await expect(menuEntry).toHaveAccessibleName('Scheduled tasks (0)');
     await menuEntry.click();

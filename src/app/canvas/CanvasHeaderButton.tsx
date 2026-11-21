@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, RectCords, Scroll, Text, Tooltip, config } from 'folds';
@@ -6,6 +6,7 @@ import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import type { CanvasListEntry } from './canvasIndexStore';
+import { Trigger } from './CanvasHeaderButton.css';
 
 type CanvasMenuProps = {
   /** Where the menu opens; it is closed while undefined. */
@@ -17,6 +18,7 @@ type CanvasMenuProps = {
   /** A canvas was chosen: the shown one closes its panel, another opens it. */
   onChoose: (canvasId: string) => void;
   requestClose: () => void;
+  onEscape?: (event: KeyboardEvent) => void;
 };
 
 /** A menu of the conversation's canvases by title, with the update time to tell same-named ones apart. */
@@ -26,11 +28,12 @@ export function CanvasMenu({
   openCanvasId,
   onChoose,
   requestClose,
+  onEscape,
 }: CanvasMenuProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
-  // Escape or a click elsewhere dismisses the list; focus stays where the click put it.
+  // Outside clicks keep their own focus; the header restores it on Escape.
   const dismiss = () => {
     requestClose();
     return true;
@@ -38,7 +41,10 @@ export function CanvasMenu({
   const trap = {
     initialFocus: false as const,
     returnFocusOnDeactivate: false,
-    escapeDeactivates: dismiss,
+    escapeDeactivates: (event: KeyboardEvent) => {
+      onEscape?.(event);
+      return dismiss();
+    },
     clickOutsideDeactivates: dismiss,
   };
   return (
@@ -106,6 +112,8 @@ type CanvasHeaderButtonProps = {
   openCanvasId?: string;
   onOpen: (canvasId: string) => void;
   onClose: () => void;
+  /** The header owns the chooser, so overflow and rotation cannot unmount it. */
+  chooser: { open: boolean; onOpen: (opener: HTMLButtonElement) => void };
 };
 
 /**
@@ -117,15 +125,10 @@ export function CanvasHeaderButton({
   openCanvasId,
   onOpen,
   onClose,
+  chooser,
 }: CanvasHeaderButtonProps) {
   const { t } = useTranslation();
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const several = canvases.length > 1;
-
-  // A menu needs a choice; once one canvas is left it closes for good.
-  useEffect(() => {
-    if (!several) setMenuAnchor(undefined);
-  }, [several]);
 
   if (canvases.length === 0) return null;
 
@@ -139,18 +142,12 @@ export function CanvasHeaderButton({
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (several) {
-      setMenuAnchor(event.currentTarget.getBoundingClientRect());
+      chooser.onOpen(event.currentTarget);
       return;
     }
     const [only] = canvases;
     if (openHere) onClose();
     else if (only) onOpen(only.canvasId);
-  };
-
-  const choose = (canvasId: string) => {
-    setMenuAnchor(undefined);
-    if (canvasId === openCanvasId) onClose();
-    else onOpen(canvasId);
   };
 
   const tooltip = (
@@ -160,32 +157,24 @@ export function CanvasHeaderButton({
   );
 
   return (
-    <>
-      <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
-        {(anchorRef) => (
-          <IconButton
-            ref={anchorRef}
-            size="400"
-            radii="300"
-            variant={openHere ? 'Primary' : 'Surface'}
-            fill={openHere ? 'Soft' : 'None'}
-            aria-label={label}
-            aria-pressed={openHere}
-            aria-haspopup={several ? 'menu' : undefined}
-            aria-expanded={several ? !!menuAnchor : undefined}
-            onClick={handleClick}
-          >
-            <Icon size="400" src={Icons.Category} filled={openHere} />
-          </IconButton>
-        )}
-      </TooltipProvider>
-      <CanvasMenu
-        anchor={menuAnchor}
-        canvases={canvases}
-        openCanvasId={openCanvasId}
-        onChoose={choose}
-        requestClose={() => setMenuAnchor(undefined)}
-      />
-    </>
+    <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
+      {(anchorRef) => (
+        <IconButton
+          ref={anchorRef}
+          className={Trigger}
+          size="400"
+          radii="300"
+          variant={openHere ? 'Primary' : 'Surface'}
+          fill={openHere ? 'Soft' : 'None'}
+          aria-label={label}
+          aria-pressed={openHere}
+          aria-haspopup={several ? 'menu' : undefined}
+          aria-expanded={several ? chooser.open : undefined}
+          onClick={handleClick}
+        >
+          <Icon size="400" src={Icons.Category} filled={openHere} />
+        </IconButton>
+      )}
+    </TooltipProvider>
   );
 }

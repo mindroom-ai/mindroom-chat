@@ -4,17 +4,28 @@ import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
+import { setOverlayOpenerFallback } from '../lib/overlayFocus';
 import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
 
 /** Where an action of the room header shows: see `showsInRow`. */
 type HeaderActionPlacement = 'row' | 'menu' | 'auto';
 
 /**
- * The room header's one overflow rule: an action shows in the header's row when its placement is
- * `row`, or `auto` on a screen wider than a phone's; otherwise the room menu offers it.
+ * `row` controls stay in the header; `auto` shows in the row on wider screens or with a phone
+ * promotion. The menu takes everything else.
  */
-export const showsInRow = (placement: HeaderActionPlacement, phone: boolean): boolean =>
-  placement === 'row' || (placement === 'auto' && !phone);
+export const showsInRow = (
+  placement: HeaderActionPlacement,
+  phone: boolean,
+  promoted: boolean
+): boolean => placement === 'row' || (placement === 'auto' && (!phone || promoted));
+
+export type HeaderPopupAnchor = { rect: RectCords; opener: HTMLButtonElement };
+
+export const headerPopupAnchor = (opener: HTMLButtonElement): HeaderPopupAnchor => ({
+  rect: opener.getBoundingClientRect(),
+  opener,
+});
 
 /**
  * An action of the open room's header, which the header draws: an icon button in its row, or an
@@ -34,13 +45,15 @@ export type RoomHeaderAction = {
    * Runs it. An action with a `popup` gets where its control was, for what it opens: its button,
    * or the room menu's button.
    */
-  run: (anchor: RectCords | undefined) => void;
+  run: (anchor: HeaderPopupAnchor | undefined) => void;
   /** Drawn over its button's corner, such as a count; on phones a dot on the menu's button. */
   badge?: ReactNode;
   /** What it opens, which its button and its menu entry announce. */
   popup?: 'menu' | 'dialog';
   /** Whether what its button opens is open. */
   expanded?: boolean;
+  /** A fallback for a panel that restores focus through the overlay manager. */
+  focusFallback?: () => HTMLElement | false;
   /** The keyboard shortcut for the same action, shown in its button's tooltip. */
   shortcut?: ShortcutId;
   /** A data attribute its button and its menu entry carry. */
@@ -58,15 +71,13 @@ type RoomHeaderControls = {
   menu?: ReactNode;
 };
 
-export type RoomHeaderEntry = RoomHeaderAction | RoomHeaderControls;
+export type RoomHeaderEntry = (RoomHeaderAction | RoomHeaderControls) & {
+  /** Eligible for phone promotion if there is room; only applies to `auto`. */
+  phoneEligible?: boolean;
+};
 
 /** Whether the header draws the entry's controls, rather than the entry itself. */
 export const drawnByHeader = (entry: RoomHeaderEntry): entry is RoomHeaderAction => 'run' in entry;
-
-const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
-  const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
-  return { x, y, width, height };
-};
 
 /** An action's icon-only button, which names itself in a tooltip, as screen readers hear it. */
 export function HeaderActionButton({
@@ -74,7 +85,19 @@ export function HeaderActionButton({
 }: {
   action: Omit<RoomHeaderAction, 'id' | 'placement'>;
 }) {
-  const { label, icon, active, pressed, run, badge, popup, expanded, shortcut, marker } = action;
+  const {
+    label,
+    icon,
+    active,
+    pressed,
+    run,
+    badge,
+    popup,
+    expanded,
+    focusFallback,
+    shortcut,
+    marker,
+  } = action;
   return (
     <TooltipProvider
       position="Bottom"
@@ -96,7 +119,10 @@ export function HeaderActionButton({
           aria-pressed={pressed}
           aria-haspopup={popup}
           aria-expanded={expanded}
-          onClick={(event: MouseEvent<HTMLButtonElement>) => run(popup ? rectOf(event) : undefined)}
+          onClick={(event: MouseEvent<HTMLButtonElement>) => {
+            if (focusFallback) setOverlayOpenerFallback(event.currentTarget, focusFallback);
+            run(popup ? headerPopupAnchor(event.currentTarget) : undefined);
+          }}
           className={headerActionButton}
           style={badge ? { position: 'relative' } : undefined}
           {...shortcutAttributes(shortcut)}

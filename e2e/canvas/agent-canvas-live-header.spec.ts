@@ -137,11 +137,12 @@ const scenarioName = ({ conversation, encrypted }: Scenario) =>
   }`;
 
 /**
- * Whether the conversation offers a canvas: the header's button, or on a phone the room menu's
- * entry (the menu opens for the look and closes again).
+ * Whether the conversation offers a canvas in the row or the overflow menu (the menu opens for
+ * the look and closes again).
  */
 const canvasOffered = async (page: Page): Promise<boolean> => {
-  if (!isPhoneLayout(page)) return (await headerCanvasButton(page).count()) > 0;
+  if ((await headerCanvasButton(page).count()) > 0) return true;
+  if (!isPhoneLayout(page)) return false;
   await roomMoreOptions(page).click();
   const entry = page.getByRole('menuitem', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
   await expect(page.getByRole('menu')).toBeVisible();
@@ -167,7 +168,7 @@ const expectCanvasOffered = async (
 
 /**
  * The helper shows a canvas in the conversation while the page stays open, and the room's creator
- * then deletes it: the canvas button (a phone's room menu entry) comes and goes with it.
+ * then deletes it: the canvas control comes and goes with it.
  */
 const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scenario) => {
   const roomId = await createAgentRoom(stack, `Canvas desk ${uniqueWord('r')}`, scenario.encrypted);
@@ -216,10 +217,9 @@ for (const scenario of SCENARIOS) {
     await canvasComesAndGoes(page, stack, scenario);
   });
 
-  test(`in ${scenarioName(scenario)}, the room menu's canvas entry comes and goes on a phone (WebKit)`, async ({
-    stack,
-    baseURL,
-  }) => {
+  test(`in ${scenarioName(
+    scenario
+  )}, the canvas control comes and goes on a phone (WebKit)`, async ({ stack, baseURL }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
     const webkit = await launchWebKit();
     try {

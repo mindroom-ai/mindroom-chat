@@ -1797,5 +1797,9 @@
   },
   "threadActions": {
     "openBeside": "Открыть во второй колонке"
+  },
+  "roomSchedules": {
+    "thisThread": "Эта ветка",
+    "elsewhereInRoom": "В других местах этой комнаты"
   }
 }

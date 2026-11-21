@@ -41,9 +41,14 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../ui/page/Page', () => ({
-  PageHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('../ui/page/Page', async () => {
+  const { forwardRef } = await import('react');
+  return {
+    PageHeader: forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) => (
+      <header ref={ref}>{children}</header>
+    )),
+  };
+});
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
@@ -87,6 +92,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,
   RoomSchedulesOverlay: () => null,
+  usePendingRoomSchedules: () => [],
 }));
 vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/hooks/useScreenSize')>()),
@@ -419,7 +425,7 @@ describe("the room header's side panel controls", () => {
     renderHeader({ shownPanel: 'members', onPanelToggle });
     const [hide] = buttons((node) => node.props['aria-label'] === 'Hide Members');
     act(() => {
-      hide?.props.onClick();
+      hide?.props.onClick({ currentTarget: document.createElement('button') });
     });
     expect(onPanelToggle).toHaveBeenCalledWith('members');
 
