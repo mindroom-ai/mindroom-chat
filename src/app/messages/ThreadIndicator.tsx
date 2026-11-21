@@ -77,7 +77,8 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
  * A chip with a thread's reply count, its first participants and a resolved mark. With
  * `as="button"` it opens the thread; without a `threadRootId` it only reads "Thread". While
  * `unread` is set it reads "New · 11 replies" in the accent, with an @ pill for a mention.
- * With `threadTitle`, the title wraps and the metadata follows it as a single inline group.
+ * With `threadTitle`, the title wraps and the metadata follows it after a dot, as a single inline
+ * group.
  */
 export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
   function ThreadIndicator(
@@ -170,7 +171,10 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       <Icon size="50" src={Icons.Thread} {...iconLabel} />,
       threadTitle ? (
         <span className={css.ThreadIndicatorBody} dir="auto">
-          <span className={css.ThreadIndicatorTitle}>{threadTitle}</span>{' '}
+          <span className={css.ThreadIndicatorTitle}>{threadTitle}</span>
+          {/* A dot parts the title from the count; the no-break space keeps it on the title's line. */}
+          {'\u00a0'}
+          <span aria-hidden="true">·</span>{' '}
           <bdi
             className={css.ThreadIndicatorMetadata}
             dir={documentIsRightToLeft() ? 'rtl' : 'ltr'}
