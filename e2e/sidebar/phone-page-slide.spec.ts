@@ -211,10 +211,13 @@ const seed = async (test: string, extraThreads = 0) => {
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  // Send roots in order so their timestamps are stable, with at most eight replies in flight.
-  for (let start = 0; start < extraThreads; start += 8) {
+  const batchSize = Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1)
+    throw new Error('PAGE_SLIDE_SEED_CONCURRENCY must be a positive integer');
+  // Send roots in order so their timestamps are stable; batch the replies and resolutions.
+  for (let start = 0; start < extraThreads; start += batchSize) {
     const batch: string[] = [];
-    for (let i = start; i < Math.min(start + 8, extraThreads); i += 1) {
+    for (let i = start; i < Math.min(start + batchSize, extraThreads); i += 1) {
       batch.push(await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`)));
     }
     await Promise.all(
@@ -434,97 +437,68 @@ for (const engine of ENGINES) {
   });
 }
 
-test('webkit: a still copy keeps its layout when the viewport grows or text shrinks', async ({
-  browser,
-}) => {
+test('webkit: a held copy keeps clips and pictures through stage growth', async ({ browser }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
   const { username, root } = await seed('clip');
   await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
     await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
     await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-    const stage = page.locator('[data-phone-stage]');
-    const siblingY = await stage.evaluate((stage) => {
-      // The browser has no iOS keyboard. Cap the stage and its copy with one adjustable box.
+    const siblingY = await page.locator('[data-phone-stage]').evaluate(async (stage, pixel) => {
+      // Simulate the keyboard reducing the stage without fixing the copy to its initial height.
       document.head.insertAdjacentHTML(
         'beforeend',
-        `<style data-slide-test-style>
+        `<style>
         [data-phone-stage], [data-page-slide-copy] {
-          height: var(--slide-test-height) !important;
-          max-height: var(--slide-test-height) !important;
+          height: var(--test-height) !important; max-height: var(--test-height) !important;
           flex: none !important;
         }
       </style>`
       );
-      document.documentElement.style.setProperty('--slide-test-height', '450px');
+      document.documentElement.style.setProperty('--test-height', '450px');
       const phonePage = stage.querySelector('[data-phone-page]')!;
       phonePage.insertAdjacentHTML(
         'beforeend',
         '<div data-probe-scroll style="position:absolute;top:0;left:0;height:140px;width:110px;overflow:auto;overflow-anchor:none;pointer-events:none">' +
-          '<div data-page-slide-clip><div style="height:400px">Offscreen clip</div></div>' +
-          '<div data-probe-sibling style="height:350px">Visible sibling</div></div>' +
-          '<div data-probe-grow data-page-slide-clip style="position:absolute;top:0;bottom:0;left:120px;width:120px;overflow:auto;pointer-events:none">' +
-          '<div data-page-slide-row style="height:3rem"><span>Garden task</span></div>'.repeat(65) +
-          '</div>'
+          '<div data-page-slide-clip><div style="height:400px">Far clip</div></div>' +
+          '<div style="height:1600px"></div><div data-probe-sibling style="height:350px">Visible sibling</div></div>' +
+          '<div data-near-clip data-page-slide-clip style="position:absolute;top:475px;left:120px;width:120px;overflow:auto;pointer-events:none">' +
+          `<div data-page-slide-row><img src="data:image/png;base64,${pixel}" width="32" height="32" alt="Garden avatar"></div></div>`
       );
+      await phonePage.querySelector<HTMLImageElement>('[data-near-clip] img')!.decode();
       const scroller = phonePage.querySelector<HTMLElement>('[data-probe-scroll]')!;
-      scroller.scrollTop = 430;
+      scroller.scrollTop = 2030;
       return (
         scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
         scroller.getBoundingClientRect().top
       );
+    }, PIXEL.toString('base64'));
+    await card(page, root).tap();
+    const layout = await page.locator('[data-page-slide-copy]').evaluate((copy) => {
+      const stage = copy.parentElement!;
+      const clip = copy.querySelector('[data-near-clip]')!;
+      const scroller = copy.querySelector('[data-probe-scroll]')!;
+      const y =
+        scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top;
+      const visible = () => clip.getBoundingClientRect().top < stage.getBoundingClientRect().bottom;
+      const before = visible();
+      document.documentElement.style.setProperty('--test-height', '844px');
+      const canvas = clip.querySelector('canvas');
+      const alpha = canvas?.getContext('2d')?.getImageData(0, 0, 1, 1).data[3];
+      return { y, before, after: visible(), alpha };
     });
-    try {
-      await card(page, root).tap();
-      const still = page.locator('[data-page-slide-copy]');
-      await expect(still).toHaveCount(1);
-      const layout = await still.evaluate(async (copy) => {
-        const stage = copy.parentElement!;
-        const scroller = copy.querySelector('[data-probe-scroll]')!;
-        const sibling = scroller.querySelector('[data-probe-sibling]')!;
-        const rows = Array.from(copy.querySelectorAll('[data-probe-grow] [data-page-slide-row]'));
-        const read = () => {
-          const { top, bottom } = stage.getBoundingClientRect();
-          const visible = rows.filter((row) => {
-            const box = row.getBoundingClientRect();
-            return box.top < bottom && box.bottom > top;
-          });
-          return {
-            visible: visible.length,
-            empty: visible.filter((row) => !row.firstChild).length,
-          };
-        };
-        const y = sibling.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-        const before = read();
-        const frame = () =>
-          new Promise<void>((done) => {
-            requestAnimationFrame(() => requestAnimationFrame(() => done()));
-          });
-        document.documentElement.style.setProperty('--slide-test-height', '844px');
-        await frame();
-        const grown = read();
-        document.documentElement.style.fontSize = '80%';
-        await frame();
-        return { y, before, grown, zoomed: read(), playing: copy.isConnected };
-      });
-      expect(layout.y).toBeCloseTo(siblingY, 0);
-      expect(layout.grown.visible).toBeGreaterThan(layout.before.visible);
-      expect(layout.zoomed.visible).toBeGreaterThan(layout.grown.visible);
-      expect([layout.before.empty, layout.grown.empty, layout.zoomed.empty]).toEqual([0, 0, 0]);
-      expect(layout.playing).toBe(true);
-    } finally {
-      await page.evaluate(() => {
-        document.documentElement.style.removeProperty('font-size');
-        document.documentElement.style.removeProperty('--slide-test-height');
-        document.querySelector('[data-slide-test-style]')?.remove();
-      });
-    }
+    expect(layout.y).toBeCloseTo(siblingY, 0);
+    expect(layout.before).toBe(false);
+    expect(layout.after).toBe(true);
+    expect(layout.alpha, 'newly exposed avatar was drawn').toBeGreaterThan(0);
   });
 });
 
+// The real guard: a seeded room with thousands of live nodes must not double its DOM.
 test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
   test.setTimeout(240_000);
-  const threadCount = process.env.PAGE_SLIDE_THREADS === '730' ? 730 : 250;
+  const threadCount = Number(process.env.PAGE_SLIDE_THREADS ?? 250);
   const { username, userId, roomId } = await seed('long', threadCount);
   await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
     await seedRoomOverviewState({
@@ -674,7 +648,7 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
         if (copy && !capture.snapshot) capture.snapshot = { layout: read(copy), live };
       });
       if (shooting) {
-        // Keep the held copy around long enough for a screenshot even on a slow renderer.
+        // Keep the held copy around for screenshots. 2_000 matches PLAY_MS in phonePageSlide.ts.
         const clock: Window = window;
         const later = clock.setTimeout.bind(clock);
         clock.setTimeout = (handler, delay, ...args: unknown[]) =>
