@@ -28,6 +28,27 @@ export const createBatchedMeasurementRef = <T extends Element>(
 // virtual-core keeps a programmatic scroll's target private and limits
 // measurement to rows near that target while it runs.
 type ProgrammaticScroll = { scrollState: unknown };
+type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolean };
+
+/**
+ * Gives the mounted rows the height they have in the layout of now, the size virtual-core's row
+ * observer measures from its entry, so that observer's report of the same pass changes nothing.
+ * During a smooth scroll virtual-core owns, only the rows its own observer measures then, those
+ * near the scroll's target: the new size of a row far from it must not move the target.
+ * `beforeRow` runs before each row takes its size.
+ */
+export const measureMountedRows = <T extends Element>(
+  virtualizer: Pick<Virtualizer<Element, T>, 'elementsCache' | 'indexFromElement' | 'resizeItem'>,
+  beforeRow: () => void
+): void => {
+  const guard = virtualizer as SmoothScrollGuard;
+  virtualizer.elementsCache.forEach((row) => {
+    const index = virtualizer.indexFromElement(row);
+    if (!row.isConnected || guard.shouldMeasureDuringScroll?.(index) === false) return;
+    beforeRow();
+    virtualizer.resizeItem(index, Math.round(row.getBoundingClientRect().height));
+  });
+};
 
 /**
  * virtual-core measures an attached row at rest or during a programmatic

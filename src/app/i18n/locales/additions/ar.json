@@ -1097,7 +1097,10 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة"
+        "advancedFilters": "عوامل تصفية متقدمة",
+        "includeResolvedThreads": "تضمين سلاسل المحادثات التي تم حلها",
+        "hideResolvedThreads": "إخفاء سلاسل المحادثات التي تم حلها",
+        "forMeSummary": "⁨{{summary}}⁩. فلتر «لي» مفعّل."
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",
@@ -1122,7 +1125,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "توسيع كل الرسائل الطويلة",
-        "collapseAllLong": "طي كل الرسائل الطويلة"
+        "collapseAllLong": "طي كل الرسائل الطويلة",
+        "showFullMessage": "عرض الرسالة كاملة"
       }
     },
     "computer": {
@@ -1339,6 +1343,10 @@
   "composer": {
     "voicePausedInThisRoom": "التسجيل الصوتي متوقف مؤقتًا — أنهِ التسجيل غير المرسل أو تجاهله في مكان آخر في هذه الغرفة",
     "voiceThreadRootUnsent": "لا تحتوي سلسلة المحادثة لهذه الرسالة الصوتية على رسالة أولى مُرسَلة. أعد المحاولة بعد إرسال تلك الرسالة، أو تجاهل التسجيل.",
+    "voiceIndicator": {
+      "recording": "جارٍ التسجيل ⁨{{time}}⁩",
+      "paused": "متوقف مؤقتًا ⁨{{time}}⁩"
+    },
     "emoji": "رمز تعبيري",
     "cancelReply": "إلغاء الرد",
     "moreActions": "مزيد من الإجراءات",
@@ -1835,9 +1843,10 @@
     }
   },
   "threadNav": {
-    "layout": "تخطيط سلاسل المحادثات",
-    "layoutRecent": "الأحدث",
-    "layoutSections": "أقسام",
+    "forMe": "لي",
+    "forMeHint": "سلاسل المحادثات التي تشارك فيها، أو التي نشر فيها وكيل بالنيابة عنك، أو التي ثبّتها أنت فقط",
+    "roomForMeHint": "سلاسل المحادثات التي تشارك فيها أو التي نشر فيها وكيل بالنيابة عنك فقط",
+    "emptyForMe": "لا توجد سلاسل محادثات لك بعد",
     "group": "تجميع",
     "groupHint": "تجميع حسب الحالة",
     "sections": {

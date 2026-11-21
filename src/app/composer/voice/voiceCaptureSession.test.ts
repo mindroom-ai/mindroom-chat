@@ -128,6 +128,7 @@ const capture = () => {
 class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
   mimeType = 'audio/mp4';
+  id = 'native-id';
   level = () => 0.25;
   pause = vi.fn(() => {
     this.state = 'paused';
@@ -177,7 +178,7 @@ beforeEach(() => {
   vi.stubGlobal('MediaRecorder', Recorder);
 });
 afterEach(() => {
-  sessions.forEach((session) => session.releaseOwner());
+  sessions.forEach((session) => session.reset());
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -245,62 +246,38 @@ describe('voice capture session', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('retains accepted finish after release while suppressing observers and diagnostics', async () => {
-    const session = capture();
-    const send = vi.fn();
-    await session.start();
-    vi.advanceTimersByTime(250);
-    const recorder = latest();
-    const result = session.finish();
-    expect(session.canStop()).toBe(false);
-    expect(await session.discard()).toBe(false);
-    session.releaseOwner();
-    const listener = vi.fn();
-    session.subscribe(listener);
-    const publicationCount = diagnostics.publish.mock.calls.length;
-    recorder.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-    recorder.emitStop();
-    const finished = await result;
-    expect(finished.status).toBe('captured');
-    if (finished.status === 'captured') {
-      expect(await finished.recording.file.text()).toBe('voice');
-      expect(finished.recording.duration).toBe(250);
-    }
-    expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(listener).not.toHaveBeenCalled();
-    expect(diagnostics.publish).toHaveBeenCalledTimes(publicationCount);
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it('retains finish when a processing subscriber synchronously releases ownership', async () => {
+  it('ignores finish when a processing subscriber synchronously resets the session', async () => {
     const session = capture();
     await session.start();
     const recorder = latest();
     session.subscribe(() => {
-      if (session.getSnapshot().phase === 'processing') session.releaseOwner();
+      if (session.getSnapshot().phase === 'processing') session.reset();
     });
     const result = session.finish();
-    recorder.emitData(new Blob(['accepted']));
+    recorder.emitData(new Blob(['dropped']));
     recorder.emitStop();
-    const completed = await result;
-    expect(completed.status).toBe('captured');
-    if (completed.status === 'captured')
-      expect(await completed.recording.file.text()).toBe('accepted');
+    expect(await result).toEqual({ status: 'ignored' });
+    expect(session.getSnapshot().phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each(['permission', 'sample'] as const)(
     'releases resources when a %s subscriber tears down during start',
     async (releaseAt) => {
       const session = capture();
+      let tornDown = false;
       session.subscribe(() => {
         const snapshot = session.getSnapshot();
         if (
-          releaseAt === 'permission'
+          !tornDown &&
+          (releaseAt === 'permission'
             ? Recorder.instances.length > 0
-            : snapshot.waveform.length === 1
-        )
-          session.releaseOwner();
+            : snapshot.waveform.length === 1)
+        ) {
+          tornDown = true;
+          session.reset();
+        }
       });
       expect(await session.start()).toBe(false);
       expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -310,14 +287,9 @@ describe('voice capture session', () => {
     }
   );
 
-  it.each([
-    ['initial', 'releaseOwner'],
-    ['initial', 'reset'],
-    ['requesting', 'releaseOwner'],
-    ['requesting', 'reset'],
-  ] as const)(
-    'cancels start on %s notification %s before permission acquisition',
-    async (notification, operation) => {
+  it.each(['initial', 'requesting'] as const)(
+    'cancels start on %s notification reset before permission acquisition',
+    async (notification) => {
       const session = capture();
       let canceled = false;
       session.subscribe(() => {
@@ -326,7 +298,7 @@ describe('voice capture session', () => {
           (notification === 'initial' || session.getSnapshot().phase === 'requesting')
         ) {
           canceled = true;
-          session[operation]();
+          session.reset();
         }
       });
       const started = await session.start();
@@ -335,8 +307,6 @@ describe('voice capture session', () => {
       expect(vi.getTimerCount()).toBe(0);
       expect(session.getSnapshot().phase).toBe('idle');
       expect(started).toBe(false);
-      session.releaseOwner();
-      expect(vi.getTimerCount()).toBe(0);
     }
   );
 
@@ -419,21 +389,16 @@ describe('voice capture session', () => {
     }
   );
 
-  it.each([
-    ['start', 'releaseOwner'],
-    ['start', 'reset'],
-    ['resume', 'releaseOwner'],
-    ['resume', 'reset'],
-  ] as const)(
-    'reports false when final %s recording notification invokes %s',
-    async (operation, teardown) => {
+  it.each(['start', 'resume'] as const)(
+    'reports false when final %s recording notification invokes reset',
+    async (operation) => {
       const session = capture();
       if (operation === 'resume') {
         await session.start();
         session.pause();
       }
       session.subscribe(() => {
-        if (session.getSnapshot().phase === 'recording') session[teardown]();
+        if (session.getSnapshot().phase === 'recording') session.reset();
       });
       const started = await session[operation]();
       expect(session.getSnapshot().phase).toBe('idle');
@@ -445,13 +410,13 @@ describe('voice capture session', () => {
   );
 
   it.each(['resolve', 'reject', 'overconstrained'] as const)(
-    'ignores permission %s after release',
+    'ignores permission %s after reset',
     async (outcome) => {
       const permission = deferred<ReturnType<typeof newStream>>();
       getUserMedia.mockReturnValue(permission.promise);
       const session = capture();
       const started = session.start();
-      session.releaseOwner();
+      session.reset();
       if (outcome === 'resolve') permission.resolve(stream);
       else
         permission.reject(
@@ -511,8 +476,6 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
-    session.clearError();
-    expect(session.getSnapshot().errorMessage).toBeUndefined();
   });
 
   it('records in timeslices so audio reaches the app before native stop', async () => {
@@ -563,27 +526,6 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('keeps the stop deadline for an accepted send after release', async () => {
-    const session = capture();
-    await session.start();
-    latest().emitData(new Blob(['kept']));
-    const result = session.finish();
-    session.releaseOwner();
-    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
-    const finished = await result;
-    expect(finished.status).toBe('captured');
-    if (finished.status === 'captured') expect(await finished.recording.file.text()).toBe('kept');
-  });
-
-  it('discards when native stop never arrives', async () => {
-    const session = capture();
-    await session.start();
-    const result = session.discard();
-    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
-    expect(await result).toBe(false);
-    expect(session.getSnapshot().phase).toBe('idle');
-  });
-
   it('cancels the stop deadline once native stop arrives', async () => {
     const session = capture();
     await session.start();
@@ -609,19 +551,63 @@ describe('voice capture session', () => {
     expect(await session.finish()).toEqual({ status: 'ignored' });
   });
 
-  it.each(['self-stop', 'unmount'])('parks audio after %s', async (exit) => {
+  it('parks the audio of a recorder that stops on its own', async () => {
     const park = vi.fn(() => true);
     const session = createVoiceCaptureSession(undefined, park);
     sessions.push(session);
     await session.start();
     vi.advanceTimersByTime(4_900);
-    const recorder = latest();
-    if (exit === 'unmount') session.releaseOwner();
-    recorder.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-    recorder.emitStop();
+    latest().emitData(new Blob(['voice'], { type: 'audio/webm' }));
+    latest().emitStop();
     expect(park).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 4_900 }));
-    expect(session.getSnapshot().errorMessage).toBeUndefined();
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
     expect(stream.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it('parks on request as when the recorder stops on its own, with its last audio', async () => {
+    const disk = {
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+    };
+    const park = vi.fn(() => true);
+    const session = createVoiceCaptureSession(() => disk, park);
+    sessions.push(session);
+
+    // Not started yet: there is no audio to park, and it ends.
+    getUserMedia.mockReturnValueOnce(new Promise(() => undefined));
+    void session.start();
+    session.park();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(park).not.toHaveBeenCalled();
+
+    await session.start();
+    vi.advanceTimersByTime(700);
+    session.park();
+    expect(latest().stop).toHaveBeenCalledOnce();
+    expect(park).not.toHaveBeenCalled();
+    // Asked again while the recorder is still stopping (Back and Forward): the first one stands.
+    session.park();
+    expect(session.getSnapshot().phase).toBe('processing');
+    latest().emitData(new Blob(['last']));
+    latest().emitStop();
+    expect(disk.append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 700);
+    expect(park).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ duration: 700, recordingId: 'recording' })
+    );
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(disk.release).not.toHaveBeenCalled();
+
+    // Not kept (the draft slot is taken): the disk copy stays, unlocked.
+    park.mockReturnValue(false);
+    await session.start();
+    session.park();
+    latest().emitData(new Blob(['more']));
+    latest().emitStop();
+    expect(disk.release).toHaveBeenCalledOnce();
+    expect(disk.remove).not.toHaveBeenCalled();
   });
 
   it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
@@ -647,56 +633,119 @@ describe('voice capture session', () => {
     expect(result.recording.file.type).toBe(latest().mimeType);
   });
 
-  it('discards with false and releases ordinary ownership before native stop arrives', async () => {
-    const session = capture();
+  it('lets the last audio of a recorder that reset stops reach its disk copy', async () => {
+    const disk = {
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+    };
+    const session = createVoiceCaptureSession(() => disk);
+    sessions.push(session);
+    const settled = () => [disk.release.mock.calls.length, disk.remove.mock.calls.length];
+
+    // Before the first timeslice: the microphone goes now, the copy waits for the recorder.
     await session.start();
-    const result = session.discard();
+    vi.advanceTimersByTime(700);
+    session.reset();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(settled()).toEqual([0, 0]);
+    latest().emitData(new Blob(['last']));
+    latest().emitStop();
+    expect(disk.append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 700);
+    expect(settled()).toEqual([1, 0]);
+
+    // A recorder that had no audio at all: the empty copy goes.
+    await session.start();
+    session.reset();
+    latest().emitStop();
+    expect(settled()).toEqual([1, 1]);
+
+    // A recorder that never says it stopped is not waited for longer than a Send waits.
+    await session.start();
+    latest().emitData(new Blob(['first']));
+    session.reset();
+    expect(settled()).toEqual([1, 1]);
+    vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect(settled()).toEqual([2, 1]);
+
+    // A Discard waits for nothing: the copy goes at once, and what the recorder says is dropped.
+    await session.start();
+    disk.append.mockClear();
+    void session.discard();
+    expect(settled()).toEqual([2, 2]);
     latest().emitData(new Blob(['discarded']));
     latest().emitStop();
-    expect(await result).toBe(false);
-    expect(session.getSnapshot().phase).toBe('idle');
+    expect(disk.append).not.toHaveBeenCalled();
+    expect(settled()).toEqual([2, 2]);
+  });
+
+  it('resolves a Discard once its disk copy is gone', async () => {
+    const removed = deferred<void>();
+    const session = createVoiceCaptureSession(() => ({
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: () => removed.promise,
+      release: vi.fn(),
+    }));
+    sessions.push(session);
     await session.start();
-    session.releaseOwner();
+    let gone = false;
+    const discarded = session.discard().then(() => {
+      gone = true;
+    });
+    // The recording ends in the same call; only the promise waits for the disk.
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(gone).toBe(false);
+    removed.resolve();
+    await discarded;
+    expect(gone).toBe(true);
+  });
+
+  it('stops a running recorder at once on reset, and takes nothing it says after', async () => {
+    const session = capture();
+    await session.start();
+    session.reset();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    latest().emitData(new Blob(['discarded']));
+    latest().emitStop();
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+    await session.start();
+    session.reset();
     expect(latest().stop).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it.each([false, true])(
-    'isolates old data/stop from new capture after release; accepted=%s',
-    async (accepted) => {
-      const session = capture();
-      await session.start();
-      vi.advanceTimersByTime(250);
-      const old = latest();
-      const oldResult = accepted ? session.finish() : undefined;
-      session.releaseOwner();
-      session.releaseOwner();
-      const freshStream = newStream();
-      getUserMedia.mockResolvedValue(freshStream);
-      await session.start();
-      Audio.instances.at(-1)!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(144);
-      vi.advanceTimersByTime(80);
-      const snapshot = session.getSnapshot();
-      old.emitData(new Blob(['old']));
-      old.emitStop();
-      expect(session.getSnapshot()).toBe(snapshot);
-      expect(freshStream.track.stop).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(160);
-      const result = await finish(session, 'fresh');
-      if (result.status !== 'captured') throw new Error('missing fresh recording');
-      expect(await result.recording.file.text()).toBe('fresh');
-      expect(result.recording.duration).toBe(240);
-      expect(result.recording.waveform!.at(-1)).toBe(362);
-      expect(snapshot.waveform).toEqual([512, 362]);
-      if (oldResult) {
-        const completed = await oldResult;
-        if (completed.status !== 'captured') throw new Error('missing accepted recording');
-        expect(await completed.recording.file.text()).toBe('old');
-        expect(completed.recording.duration).toBe(250);
-      }
-    }
-  );
+  it('isolates old data/stop from a new capture after reset', async () => {
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(250);
+    const old = latest();
+    session.reset();
+    const freshStream = newStream();
+    getUserMedia.mockResolvedValue(freshStream);
+    await session.start();
+    Audio.instances.at(-1)!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(144);
+    vi.advanceTimersByTime(80);
+    const snapshot = session.getSnapshot();
+    old.emitData(new Blob(['old']));
+    old.emitStop();
+    expect(session.getSnapshot()).toBe(snapshot);
+    expect(freshStream.track.stop).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(160);
+    const result = await finish(session, 'fresh');
+    if (result.status !== 'captured') throw new Error('missing fresh recording');
+    expect(await result.recording.file.text()).toBe('fresh');
+    expect(result.recording.duration).toBe(240);
+    expect(result.recording.waveform!.at(-1)).toBe(362);
+    expect(snapshot.waveform).toEqual([512, 362]);
+  });
 
   it('bounds raw live samples without normalizing display data', async () => {
     const session = capture();
@@ -713,6 +762,57 @@ describe('voice capture session', () => {
 });
 
 describe('voice capture session on the native recorder', () => {
+  it.each(['send', 'discard', 'account exit'] as const)(
+    'stops native capture for %s without journaling or parking its audio',
+    async (action) => {
+      const recorder = withoutWebCapture();
+      const begin = vi.fn(() => ({
+        id: 'journal-id',
+        append: vi.fn(async () => undefined),
+        remove: vi.fn(),
+        release: vi.fn(),
+      }));
+      const park = vi.fn(() => true);
+      const session = createVoiceCaptureSession(begin, park);
+      expect(await session.start('@voice:example.org')).toBe(true);
+      expect(native.start).toHaveBeenCalledExactlyOnceWith('@voice:example.org');
+      vi.advanceTimersByTime(1_800);
+
+      let stopped;
+      if (action === 'account exit') session.reset();
+      else stopped = action === 'send' ? session.finish() : session.discard();
+      expect(recorder.stop).toHaveBeenCalledExactlyOnceWith();
+      recorder.deliver('native voice');
+
+      const result = await stopped;
+      if (action === 'send') {
+        expect(result).toMatchObject({ status: 'captured', recording: { duration: 1_800 } });
+        if (!result || typeof result === 'boolean' || result.status !== 'captured')
+          throw new Error('missing native recording');
+        expect(await result.recording.file.text()).toBe('native voice');
+        expect(result.recording.recordingId).toBeUndefined();
+      }
+      expect(begin).not.toHaveBeenCalled();
+      expect(park).not.toHaveBeenCalled();
+      session.reset();
+      expect(session.getSnapshot().phase).toBe('idle');
+    }
+  );
+
+  it('parks the audio of the native recorder on request, from memory', async () => {
+    const recorder = withoutWebCapture();
+    const park = vi.fn((_recording: { file: File; recordingId?: string }) => true);
+    const session = createVoiceCaptureSession(undefined, park);
+    expect(await session.start('@voice:example.org')).toBe(true);
+    session.park();
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    recorder.deliver('native voice');
+    const [parked] = park.mock.calls[0]!;
+    expect(await parked.file.text()).toBe('native voice');
+    expect(parked.recordingId).toBeUndefined();
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+  });
+
   it('records, pauses and sends through the native recorder', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
@@ -750,13 +850,13 @@ describe('voice capture session on the native recorder', () => {
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('discards a native recording', async () => {
+  it('ends a native recording at once on reset', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
     await session.start();
-    const discarded = session.discard();
+    session.reset();
+    expect(recorder.stop).toHaveBeenCalledOnce();
     recorder.deliver();
-    expect(await discarded).toBe(false);
     expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
   });
 

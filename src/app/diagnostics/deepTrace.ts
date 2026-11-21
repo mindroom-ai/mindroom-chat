@@ -256,6 +256,10 @@ const STATIC_EVENT_NAMES = new Set([
   'storage.cache.transaction_settled',
   'storage.cache.transaction_stalled',
   'storage.indexeddb_loss_reload',
+  'storage.sync_store.degraded',
+  'storage.sync_store.failed',
+  'storage.sync_store.stopped',
+  'sync.saved_replay.failed',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -353,6 +357,10 @@ const appendStoredEvents = async (
 
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  // A failed request rejects where it is awaited below, and `done` rejects with it, which
+  // nothing awaits then (here and in the other transactions of this file). WebKit fails the
+  // write in flight each time it suspends the app.
+  tx.done.catch(() => undefined);
   const eventStore = tx.objectStore(EVENT_STORE);
   const metaStore = tx.objectStore(META_STORE);
   const stats = { ...((await metaStore.get(STATS_KEY)) ?? EMPTY_STATS) };
@@ -393,6 +401,7 @@ const readStoredEvents = async (): Promise<{
 }> => {
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readonly');
+  tx.done.catch(() => undefined);
   const stored = await tx.objectStore(EVENT_STORE).getAll();
   const storedStats = await tx.objectStore(META_STORE).get(STATS_KEY);
   await tx.done;
@@ -595,7 +604,10 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit): string 
 };
 
 const getErrorCode = (value: unknown): number => {
-  const name = value instanceof Error ? value.name : typeof value;
+  // A DOMException is an Error in browsers, though not in every runtime.
+  const isError =
+    value instanceof Error || (typeof DOMException === 'function' && value instanceof DOMException);
+  const name = isError ? (value as Error).name : typeof value;
   return (
     {
       AbortError: 1,
@@ -608,9 +620,37 @@ const getErrorCode = (value: unknown): number => {
       URIError: 8,
       object: 9,
       string: 10,
+      InvalidStateError: 11,
+      QuotaExceededError: 12,
+      UnknownError: 13,
     }[name] ?? 0
   );
 };
+
+/**
+ * What a failure did to the Matrix sync store's saved data. 'failed': a save failed, the data is
+ * kept and the save is tried again (of the saves that fail in a row, only the first is recorded).
+ * 'stopped': a sync batch could not be taken, the data is kept and nothing more is saved.
+ * 'degraded': the data is deleted, because the saved sync could not be read, a clear of a
+ * room's stored members failed, or the disk was full (code 12). `error_code` is `getErrorCode`'s.
+ */
+export const recordSyncStoreFailure = (
+  outcome: 'failed' | 'stopped' | 'degraded',
+  error: unknown
+): void =>
+  recordDeepTraceEvent(
+    `storage.sync_store.${outcome}`,
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
+
+/** The replay of the saved sync threw at start; the client went on with what it had replayed. */
+export const recordSavedReplayFailure = (error: unknown): void =>
+  recordDeepTraceEvent(
+    'sync.saved_replay.failed',
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
 
 const getSourceCode = (filename: string): number => {
   if (!filename) return 0;
@@ -948,7 +988,9 @@ const markUnavailable = (target: Runtime): void => {
 
 const verifyDatabaseWritable = async (): Promise<void> => {
   const db = await getDatabase();
-  const current = (await db.get(META_STORE, STATS_KEY)) ?? EMPTY_STATS;
+  // Not `db.get`: it leaves `tx.done` unobserved, which an aborted read rejects.
+  const tx = db.transaction(META_STORE, 'readonly');
+  const [current = EMPTY_STATS] = await Promise.all([tx.store.get(STATS_KEY), tx.done]);
   await db.put(
     META_STORE,
     { ...current, droppedEventCount: current.droppedEventCount ?? 0 },
@@ -1097,6 +1139,7 @@ export const clearDeepTrace = async (): Promise<void> => {
   }
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  tx.done.catch(() => undefined);
   await tx.objectStore(EVENT_STORE).clear();
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;

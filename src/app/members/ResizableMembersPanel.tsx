@@ -6,6 +6,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { markOverlayDismissed } from '../lib/overlayFocus';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
+import { DialogFrame } from '../ui/noticeSlots';
 import { usePanelForm } from '../ui/panels/panelPresence';
 import { useMembersOverlay } from './PanelRow';
 import { PhoneMembersSheet, usePhoneSheetSlot } from './PhoneMembersSheet';
@@ -66,15 +67,14 @@ export function ResizableMembersPanel({
           },
         }}
       >
-        <div
+        <DialogFrame
           ref={overlayRef}
           className={css.MobileOverlay}
-          role="dialog"
           aria-modal="true"
           aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.members')}
         >
           {panel}
-        </div>
+        </DialogFrame>
       </FocusTrap>
     </Overlay>
   );

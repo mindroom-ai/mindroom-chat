@@ -992,7 +992,10 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "includeResolvedThreads": "包含已解決的討論串",
+        "hideResolvedThreads": "隱藏已解決的討論串",
+        "forMeSummary": "{{summary}}。與我相關篩選已開啟。"
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -1017,7 +1020,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展開所有長訊息",
-        "collapseAllLong": "收合所有長訊息"
+        "collapseAllLong": "收合所有長訊息",
+        "showFullMessage": "顯示完整訊息"
       }
     },
     "computer": {
@@ -1184,6 +1188,10 @@
   "composer": {
     "voicePausedInThisRoom": "錄音已暫停 — 完成或放棄在此聊天室其他位置未傳送的錄音",
     "voiceThreadRootUnsent": "此語音訊息所在的討論串沒有已傳送的第一則訊息。請在該訊息傳送後重試，或放棄此錄音。",
+    "voiceIndicator": {
+      "recording": "正在錄音 {{time}}",
+      "paused": "已暫停 {{time}}"
+    },
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",
@@ -1635,9 +1643,10 @@
     }
   },
   "threadNav": {
-    "layout": "討論串版面",
-    "layoutRecent": "最近",
-    "layoutSections": "分區",
+    "forMe": "與我相關",
+    "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
+    "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",
+    "emptyForMe": "目前沒有與你相關的討論串",
     "group": "分組",
     "groupHint": "依狀態分組",
     "sections": {

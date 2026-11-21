@@ -36,6 +36,7 @@ import {
   useThreadOverviewRelationUpdates,
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
+import { createThreadForMeMatcher } from '../../event-store/threads/threadInvolvement';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import {
@@ -135,11 +136,13 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
 };
 
 export type ResolveThreadIndexSnapshotOptions = {
+  room: Room;
   pinnedThreadRootIds?: string[];
   threadId: string | undefined;
   compactViewRequested: boolean;
   visibleThreadRootIds: string[];
   compactThreadRootIds: string[];
+  compactThreadRootEventMap?: ReadonlyMap<string, MatrixEvent>;
   normalThreadRecordMap: Map<string, ThreadRecord>;
   compactThreadRecordMap: Map<string, ThreadRecord>;
   threadFilterState: ThreadFilterState;
@@ -219,11 +222,13 @@ export const resolveFocusedRoomOverviewRootId = ({
 };
 
 export const resolveThreadIndexSnapshot = ({
+  room,
   pinnedThreadRootIds,
   threadId,
   compactViewRequested,
   visibleThreadRootIds,
   compactThreadRootIds,
+  compactThreadRootEventMap,
   normalThreadRecordMap,
   compactThreadRecordMap,
   threadFilterState,
@@ -234,6 +239,10 @@ export const resolveThreadIndexSnapshot = ({
   focusedRoomOverviewRootId,
   now = Date.now(),
 }: ResolveThreadIndexSnapshotOptions): ThreadIndexSnapshot => {
+  const isForUser =
+    !threadId && threadFilterState.forMe
+      ? createThreadForMeMatcher(room, undefined, compactThreadRootEventMap)
+      : undefined;
   const searchQuery = threadFilterState.freeText;
   const showCompactRoomView = compactViewRequested && compactThreadRootIds.length > 0;
   const threadRecordMap = showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap;
@@ -244,6 +253,7 @@ export const resolveThreadIndexSnapshot = ({
         threadFilterState,
         searchQuery,
         recordMap: normalThreadRecordMap,
+        isForUser,
         threadSortFreezeState,
         threadSortControlSignature,
         now,
@@ -268,6 +278,7 @@ export const resolveThreadIndexSnapshot = ({
           threadFilterState,
           searchQuery,
           recordMap: compactThreadRecordMap,
+          isForUser,
           threadSortFreezeState,
           threadSortControlSignature,
           now,
@@ -308,7 +319,8 @@ export const resolveThreadIndexSnapshot = ({
       countThreadRootIds,
       threadRecordMap,
       threadFilterState,
-      now
+      now,
+      isForUser
     ),
     statusCounts: computeThreadRecordStatusCounts(countThreadRootIds, threadRecordMap, now),
     tagCounts: computeThreadRecordTagCounts(countThreadRootIds, threadRecordMap),
@@ -699,11 +711,13 @@ export const useThreadIndex = ({
   const snapshot = useMemo(
     () =>
       resolveThreadIndexSnapshot({
+        room,
         pinnedThreadRootIds: [...pinnedEventIds].reverse(),
         threadId,
         compactViewRequested,
         visibleThreadRootIds: visibleThreadRootData.ids,
         compactThreadRootIds: compactThreadRootData.ids,
+        compactThreadRootEventMap,
         normalThreadRecordMap,
         compactThreadRecordMap,
         threadFilterState: requestedThreadFilterState,
@@ -715,11 +729,13 @@ export const useThreadIndex = ({
         now: snoozeNow,
       }),
     [
+      room,
       pinnedEventIds,
       threadId,
       compactViewRequested,
       visibleThreadRootData.ids,
       compactThreadRootData.ids,
+      compactThreadRootEventMap,
       normalThreadRecordMap,
       compactThreadRecordMap,
       requestedThreadFilterState,

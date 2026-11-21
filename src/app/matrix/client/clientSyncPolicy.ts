@@ -1,5 +1,6 @@
-import { Filter, MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, Filter, MatrixClient } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
+import { recordSavedReplayFailure } from '../../diagnostics/deepTrace';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
@@ -109,6 +110,10 @@ export const startClient = async (mx: MatrixClient): Promise<void> => {
     keepUnsentMessages(mx);
     // Before the first sync, whose rings may come before the pages that watch for them load.
     recordRecentLiveEvents(mx);
+    // A saved sync whose replay threw shows in the next diagnostics export.
+    mx.on(ClientEvent.SyncUnexpectedError, (error, fromCache) => {
+      if (fromCache) recordSavedReplayFailure(error);
+    });
   }
   await mx.startClient({
     threadSupport: true,

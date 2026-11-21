@@ -139,7 +139,7 @@ export const hasLoadedThreadReplyEvents = (
  * older replies can stay in another segment. So it must also hold as many
  * thread replies as the SDK counts; its edits and reactions are not replies.
  */
-const hasLoadedEveryThreadReply = (
+export const hasLoadedEveryThreadReply = (
   thread: VisibleThreadEventCollectionLike | null | undefined
 ): boolean =>
   !!thread?.id &&

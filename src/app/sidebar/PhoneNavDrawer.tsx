@@ -17,6 +17,7 @@ import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
+import { NoticeSlot } from '../ui/noticeSlots';
 import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
 
@@ -209,7 +210,12 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         data-animate={animate || undefined}
       >
         {filled && nav}
-        <div ref={slotRef} className={css.Slot} data-nav-slot />
+        <div className={css.ListColumn}>
+          {/* The drawer covers the page's notice place: what must stay in reach shows here, until
+              the drawer has slid away, so a notice does not jump to the page mid-slide. */}
+          {filled && <NoticeSlot place="drawer" />}
+          <div ref={slotRef} className={css.Slot} data-nav-slot />
+        </div>
       </div>
     </>
   );

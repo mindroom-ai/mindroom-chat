@@ -1,9 +1,10 @@
 import 'fake-indexeddb/auto';
+import { openDB } from 'idb';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
@@ -11,6 +12,21 @@ import {
 } from '../roomInputDrafts';
 import { clearSavedVoiceDraft, useSavedVoiceDraft } from './savedVoiceDraft';
 import { createVoiceSendDraftController } from './voiceSendDraftController';
+
+const native = vi.hoisted(() => ({
+  available: false,
+  listLeftovers: vi.fn(),
+  cancel: vi.fn(),
+}));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    isNativePlatform: () => native.available,
+    getPlatform: () => 'ios',
+    isPluginAvailable: (name: string) => name === 'MindRoomVoiceRecorder',
+    convertFileSrc: (path: string) => `capacitor://localhost/_capacitor_file_${path}`,
+  },
+  registerPlugin: () => native,
+}));
 
 const userId = '@alice:example.org';
 let membership: KnownMembership = KnownMembership.Join;
@@ -95,12 +111,21 @@ afterEach(async () => {
 });
 
 const stubLocks = () => {
+  const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) =>
-        callback({ name, mode: 'exclusive' }),
+      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+        if (held.has(name)) return callback(null);
+        held.add(name);
+        try {
+          return await callback({ name, mode: 'exclusive' });
+        } finally {
+          held.delete(name);
+        }
+      },
     },
   });
+  return held;
 };
 
 it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
@@ -175,6 +200,7 @@ it.each(['send', 'discard'])(
         const sendRecording = vi.fn();
         expect(
           await controller.retry({
+            sameAccount: () => true,
             claim: () => true,
             context: () => context,
             sendRecording,
@@ -200,6 +226,240 @@ it.each(['send', 'discard'])(
     }
   }
 );
+
+describe('native recording recovery on composer mount', () => {
+  const leftover = {
+    id: '01162E95-5496-4553-B239-E30AB09FFC47',
+    path: '/tmp/voice-recorder/01162E95-5496-4553-B239-E30AB09FFC47.m4a',
+    startedAt: 1_700_000_000_000,
+    duration: 2_400,
+    userId,
+  };
+  const getContext = () => failedDraft().context;
+  const readAudio = (audio: string) => new Response(audio);
+  const fetchAudio = vi.fn(() => Promise.resolve(readAudio('native voice')));
+  let held: Set<string>;
+
+  beforeEach(() => {
+    native.available = true;
+    let present = true;
+    native.listLeftovers.mockReset().mockImplementation(async () => ({
+      recordings: present ? [leftover] : [],
+    }));
+    native.cancel.mockReset().mockImplementation(async ({ id }: { id: string }) => {
+      if (id === leftover.id) present = false;
+    });
+    fetchAudio.mockReset().mockImplementation(async () => readAudio('native voice'));
+    vi.stubGlobal('fetch', fetchAudio);
+    held = stubLocks();
+  });
+
+  afterEach(async () => {
+    native.available = false;
+    vi.restoreAllMocks();
+    const journal = await import('./voiceRecordingJournal');
+    await journal.clearVoiceRecordings(userId);
+  });
+
+  it('holds the UUID lock from file read through committed audio and successful cancel', async () => {
+    const lock = `mindroom-voice-recording:${leftover.id}`;
+    const lockAtRead = vi.fn();
+    fetchAudio.mockImplementation(async () => {
+      lockAtRead(held.has(lock));
+      return readAudio('native voice');
+    });
+    let finishCancel!: () => void;
+    const pendingCancel = new Promise<void>((resolve) => {
+      finishCancel = resolve;
+    });
+    const forget = native.cancel.getMockImplementation()!;
+    let committed = false;
+    const add = IDBObjectStore.prototype.add;
+    vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey
+    ) {
+      if (this.name === 'chunks') {
+        this.transaction.addEventListener('complete', () => {
+          committed = true;
+        });
+      }
+      return add.call(this, value, key);
+    });
+    const lockAndCommitAtCancel = vi.fn();
+    native.cancel.mockImplementation(async (options: { id: string }) => {
+      lockAndCommitAtCancel(held.has(lock), committed);
+      await pendingCancel;
+      await forget(options);
+    });
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(held.has(lock)).toBe(true);
+    expect(lockAtRead).toHaveBeenCalledExactlyOnceWith(true);
+    expect(lockAndCommitAtCancel).toHaveBeenCalledExactlyOnceWith(true, true);
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+    const db = await openDB('mindroom-voice-journal', 1);
+    try {
+      expect(await db.get('recordings', leftover.id)).toMatchObject({ userId });
+      expect(await db.count('chunks', [leftover.id, 0])).toBe(1);
+    } finally {
+      db.close();
+      finishCancel();
+    }
+    await settle();
+    const draft = store.get(reloadedAtom());
+    expect(draft).toMatchObject({
+      recordingId: leftover.id,
+      recovered: true,
+      duration: 2_400,
+      context: getContext(),
+    });
+    expect(draft?.file.name).toBe('voice-message-1700000000000.m4a');
+    expect(draft?.file.type).toBe('audio/mp4');
+    expect(await draft?.file.text()).toBe('native voice');
+  });
+
+  it('does not restore a native recording if its byte read finishes after cleanup', async () => {
+    const journal = await import('./voiceRecordingJournal');
+    const audio = new Blob(['native voice']);
+    const bytes = await audio.arrayBuffer();
+    const response = readAudio('native voice');
+    vi.spyOn(response, 'blob').mockResolvedValue(audio);
+    fetchAudio.mockResolvedValueOnce(response);
+    let started!: () => void;
+    let resume!: (value: ArrayBuffer) => void;
+    const reading = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const paused = new Promise<ArrayBuffer>((resolve) => {
+      resume = resolve;
+    });
+    vi.spyOn(audio, 'arrayBuffer').mockImplementation(() => {
+      started();
+      return paused;
+    });
+
+    const importing = journal.importNativeVoiceRecordings(userId);
+    await reading;
+    await journal.clearVoiceRecordings(userId);
+    resume(bytes);
+    await importing;
+
+    const db = await openDB('mindroom-voice-journal', 1);
+    try {
+      expect(await db.get('recordings', leftover.id)).toBeUndefined();
+      expect(await db.count('chunks', [leftover.id, 0])).toBe(0);
+    } finally {
+      db.close();
+    }
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the native file and rolls back the chunk if the journal write fails', async () => {
+    const add = IDBObjectStore.prototype.add;
+    const failWrite = vi
+      .spyOn(IDBObjectStore.prototype, 'add')
+      .mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+        if (this.name === 'recordings') throw new DOMException('Full disk', 'QuotaExceededError');
+        return add.call(this, value, key);
+      });
+    const store = await reloadPage(getContext);
+    expect(fetchAudio).toHaveBeenCalledOnce();
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.cancel).not.toHaveBeenCalled();
+    const db = await openDB('mindroom-voice-journal', 1);
+    try {
+      expect(await db.get('recordings', leftover.id)).toBeUndefined();
+      expect(await db.count('chunks', [leftover.id, 0])).toBe(0);
+    } finally {
+      db.close();
+      failWrite.mockRestore();
+    }
+
+    const next = await reloadPage(getContext);
+    expect(await next.get(reloadedAtom())?.file.text()).toBe('native voice');
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+  });
+
+  it('does not replace an already committed recording if the old page did not forget the file', async () => {
+    native.cancel.mockRejectedValueOnce(new Error('Page gone'));
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+
+    fetchAudio.mockRejectedValue(new Error('The native copy is no longer readable'));
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    const next = await reloadPage(getContext);
+    expect(next.get(reloadedAtom())).toBeUndefined();
+
+    const third = await reloadPage(getContext);
+    const recovered = third.get(reloadedAtom());
+    expect(recovered?.recordingId).toBe(leftover.id);
+    expect(await recovered?.file.text()).toBe('native voice');
+    expect(fetchAudio).toHaveBeenCalledOnce();
+    expect(native.cancel.mock.calls).toEqual(
+      Array.from({ length: 3 }, () => [{ id: leftover.id }])
+    );
+  });
+
+  it('does not read a file while its UUID lock is busy', async () => {
+    held.add(`mindroom-voice-recording:${leftover.id}`);
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(fetchAudio).not.toHaveBeenCalled();
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+
+  it('reads a leftover from one listing and requires cancel to succeed before offering it', async () => {
+    native.listLeftovers
+      .mockResolvedValueOnce({ recordings: [leftover] })
+      .mockResolvedValue({ recordings: [] });
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.listLeftovers).toHaveBeenCalledOnce();
+    expect(fetchAudio).toHaveBeenCalledOnce();
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+  });
+
+  it('requires successful cancel even if a previously committed copy is no longer listed', async () => {
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    const first = await reloadPage(getContext);
+    expect(first.get(reloadedAtom())).toBeUndefined();
+
+    native.listLeftovers.mockResolvedValue({ recordings: [] });
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    fetchAudio.mockClear();
+    const second = await reloadPage(getContext);
+    expect(second.get(reloadedAtom())).toBeUndefined();
+    expect(fetchAudio).not.toHaveBeenCalled();
+
+    const third = await reloadPage(getContext);
+    expect(await third.get(reloadedAtom())?.file.text()).toBe('native voice');
+    expect(native.cancel.mock.calls).toEqual(
+      Array.from({ length: 3 }, () => [{ id: leftover.id }])
+    );
+  });
+
+  it('does not read another account’s native audio', async () => {
+    native.listLeftovers.mockResolvedValue({
+      recordings: [{ ...leftover, userId: '@other:example.org' }],
+    });
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(fetchAudio).not.toHaveBeenCalled();
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+
+  it('does not take native files without Web Locks', async () => {
+    vi.stubGlobal('navigator', {});
+    const store = await reloadPage(getContext);
+    expect(store.get(reloadedAtom())).toBeUndefined();
+    expect(native.listLeftovers).not.toHaveBeenCalled();
+    expect(fetchAudio).not.toHaveBeenCalled();
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+});
 
 describe('useSavedVoiceDraft', () => {
   it('keeps a failed voice message across a reload, where it was meant to go', async () => {
@@ -277,6 +537,7 @@ describe('useSavedVoiceDraft', () => {
       act(() => {
         if (action === 'retry')
           result = controller.retry({
+            sameAccount: () => true,
             claim: () => true,
             sendRecording: () => inFlight,
             onFailure: vi.fn(),

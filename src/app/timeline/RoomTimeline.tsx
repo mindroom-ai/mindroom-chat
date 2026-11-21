@@ -244,6 +244,7 @@ export type RoomTimelineProps = {
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
+  onToggleForMe?: () => void;
   onTogglePerson?: (userId: string) => void;
   onClearPeople?: () => void;
   onReset?: () => void;
@@ -252,7 +253,7 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
-  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
+  /** Compact shows its cards in sections (Needs you, Working, Later, Done). */
   threadSections?: boolean;
   /** The Compact filter bar's switch for `threadSections`. */
   onToggleThreadSections?: () => void;
@@ -1232,12 +1233,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
+  // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
-  const listHeight =
-    beforePaint && renderedList?.height
-      ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
-      : virtualizer.getTotalSize();
+  const heldList =
+    beforePaint && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
+  const listHeight = heldList
+    ? heldListHeight(heldList, ledger.ledgerPxAtRender)
+    : virtualizer.getTotalSize();
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
   // (the row that draws a folded turn's break measures the break, also when it is a secret
   // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
@@ -1779,6 +1782,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     surface: threadId ? threadRowsPinned : roomRowsPinned,
     itemCount,
     virtualizer,
+    listHeightHeld: !!heldList,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
     // unless its newest row is first; the way back from a thread at the place the reader left.
     opensAtLatest:
@@ -1797,8 +1801,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
 
   const minimap = useRoomTimelineMinimap({
-    minimapEvents: threadId ? threadEvents : roomRows,
-    showCompactRoomView: compactViewRequested,
+    threadEvents,
     scrollRef,
     handleOpenEvent,
   });
@@ -1856,6 +1859,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
+        onToggleForMe={props.onToggleForMe}
         onReset={props.onReset ?? ignoreFilterChange}
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}

@@ -23,12 +23,11 @@ type VoiceRecordingCapsuleProps = {
 };
 
 const isBusyPhase = (phase: VoiceRecorderPhase): boolean =>
-  phase === 'requesting' || phase === 'processing' || phase === 'sending';
+  phase === 'requesting' || phase === 'sending';
 
 const getStatusKey = (phase: VoiceRecorderPhase) => {
   if (phase === 'requesting') return 'mindroomUi.voice.statusStarting' as const;
   if (phase === 'paused') return 'mindroomUi.voice.statusPaused' as const;
-  if (phase === 'processing') return 'mindroomUi.voice.statusProcessing' as const;
   if (phase === 'sending') return 'mindroomUi.voice.statusSending' as const;
   return 'mindroomUi.voice.statusActive' as const;
 };
@@ -66,7 +65,7 @@ export function VoiceRecordingCapsule({
             size="300"
             radii="300"
             onClick={onDiscard}
-            disabled={phase === 'processing' || phase === 'sending'}
+            disabled={phase === 'sending'}
             aria-label={t('mindroomUi.voice.discardRecording')}
           >
             <Icon src={Icons.Delete} size="50" />
@@ -81,7 +80,7 @@ export function VoiceRecordingCapsule({
         dimmed={paused || busy}
         compact
       />
-      <Text className={css.Timer} size="B300" aria-live="polite">
+      <Text className={css.Timer} size="B300">
         {recovered
           ? t('mindroomUi.voice.recoveredRecording', {
               time: millisecondsToMinutesAndSeconds(elapsedMs),
@@ -115,9 +114,7 @@ export function VoiceRecordingCapsule({
           </IconButton>
         )}
       </IconTooltip>
-      <span className={css.HiddenStatus} aria-live="polite">
-        {statusText}
-      </span>
+      <span className={css.HiddenStatus}>{statusText}</span>
     </Box>
   );
 }

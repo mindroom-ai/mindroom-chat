@@ -13,6 +13,7 @@ import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
+import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import {
   readInteractiveQuestion,
   readInteractiveSourceEventId,
@@ -80,8 +81,6 @@ export const SIGNAL_EVENT_LIMIT = 40;
 /** A reply whose last edit came this long after it tells that its run finished. */
 export const FINISHED_AFTER_MS = 60_000;
 
-/** Who wrote the message an agent relays (MindRoom's router handoff). */
-const ORIGINAL_SENDER_KEY = 'com.mindroom.original_sender';
 const PREVIEW_LENGTH = 240;
 /** How long an agent's question waits for an answer before it stops asking. */
 export const QUESTION_WAITS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -246,8 +245,9 @@ const namesUser = (content: Record<string, unknown>, userId: string): boolean =>
 /**
  * Reads one thread's newest messages (`SIGNAL_EVENT_LIMIT`) for what it has for `userId`, each as
  * its newest edit shows it. Only MindRoom agents of the person's own homeserver can ask, need
- * approval or run. The root is never a reply. Resolving a thread at `resolvedTs` answers what it
- * asked until then: only an approval or a question that comes after waits for the person.
+ * approval or run. The root is never a reply. A resolved thread (`resolvedTs` is set) has no
+ * pending question and only keeps approvals asked after the resolve. A counted message from
+ * anyone clears a pending question if it was sent after the question was asked.
  */
 export const readThreadSignals = (
   room: Room,
@@ -318,12 +318,14 @@ export const readThreadSignals = (
     .at(-1);
 
   const newestAgentReply = counted.findLast(({ event }) => isAgent(event.getSender()));
-  let pendingQuestion = newestAgentReply ? readQuestion(newestAgentReply) : undefined;
+  let pendingQuestion =
+    resolvedTs === undefined && newestAgentReply ? readQuestion(newestAgentReply) : undefined;
   // A streamed reply asks once its last edit adds the question.
   const askedAt = newestAgentReply ? newestAgentReply.editTs ?? newestAgentReply.event.getTs() : 0;
   if (pendingQuestion && newestAgentReply) {
-    const wroteSince = counted.some(
-      ({ event }) => event.getSender() === userId && event.getTs() > askedAt
+    // Clock skew can timestamp an edit before its original, so skip the question itself.
+    const hasNewerMessage = counted.some(
+      ({ event }) => event !== newestAgentReply.event && event.getTs() > askedAt
     );
     // The message it answers, or the router's relay of it, names whom the agent asks.
     // The first turn of a thread answers its root, which the thread's events need not hold.
@@ -332,10 +334,9 @@ export const readThreadSignals = (
     const asker = source?.getContent()[ORIGINAL_SENDER_KEY] ?? source?.getSender();
     const askedSomeoneElse = typeof asker === 'string' && asker !== userId && !isAgent(asker);
     if (
-      wroteSince ||
+      hasNewerMessage ||
       askedSomeoneElse ||
       now - askedAt >= QUESTION_WAITS_MS ||
-      answeredByResolve(askedAt) ||
       // One answer per question: anyone's answer closes it, as the question card shows.
       readRoomQuestionAnswer(room, pendingQuestion.eventId, pendingQuestion, userId)
     ) {

@@ -21,6 +21,7 @@ vi.mock('./PhoneNavDrawer.css', () => ({
   SheetSlot: 'sheet-slot',
   Scrim: 'scrim',
   Panel: 'panel',
+  ListColumn: 'list-column',
   Slot: 'slot',
 }));
 

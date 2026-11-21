@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters"
+        "advancedFilters": "Advanced filters",
+        "includeResolvedThreads": "Include resolved threads",
+        "hideResolvedThreads": "Hide resolved threads",
+        "forMeSummary": "{{summary}}. For me filter on."
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -1038,7 +1041,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expand all long messages",
-        "collapseAllLong": "Collapse all long messages"
+        "collapseAllLong": "Collapse all long messages",
+        "showFullMessage": "Show full message"
       }
     },
     "computer": {
@@ -1215,6 +1219,10 @@
   "composer": {
     "voicePausedInThisRoom": "Voice recording paused — finish or discard your unsent recording elsewhere in this room",
     "voiceThreadRootUnsent": "This voice message's thread has no sent first message. Retry once that message is sent, or discard the recording.",
+    "voiceIndicator": {
+      "recording": "Recording {{time}}",
+      "paused": "Paused {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
@@ -1675,9 +1683,10 @@
     }
   },
   "threadNav": {
-    "layout": "Thread layout",
-    "layoutRecent": "Recent",
-    "layoutSections": "Sections",
+    "forMe": "For me",
+    "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
+    "roomForMeHint": "Only threads you take part in or that an agent posted for you",
+    "emptyForMe": "No threads for you yet",
     "group": "Group",
     "groupHint": "Group by status",
     "sections": {

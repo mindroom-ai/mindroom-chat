@@ -12,8 +12,10 @@ vi.mock('../app/ui/styles/Glass.css', () => ({
   glassInheritTint: 'glass-inherit-tint',
   glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
+  glassFadeDown: 'glass-fade-down',
   glassOutline: 'glass-outline',
   glassDenseOverBackdrop: 'glass-dense-over-backdrop',
+  glassOverFadingBackdrop: 'glass-over-fading-backdrop',
   glassExpanded: 'glass-expanded',
   glassSurface: () => 'glass-surface',
 }));

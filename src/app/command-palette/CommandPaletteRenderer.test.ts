@@ -324,7 +324,8 @@ describe('CommandPaletteRenderer', () => {
   it('resets local query state after close and reopen', async () => {
     const { renderer, store } = renderRenderer('all');
     const getInput = () => renderer.root.findByType('input');
-    const getDialog = () => renderer.root.findByProps({ 'data-testid': 'command-palette-dialog' });
+    // The glass shell carries the overlay's keys, which Escape inside the palette bubbles to.
+    const getShell = () => renderer.root.findByProps({ 'data-testid': 'modal' });
 
     await act(async () => {
       getInput().props.onChange({
@@ -337,7 +338,7 @@ describe('CommandPaletteRenderer', () => {
     expect(getInput().props.value).toBe('@alice');
 
     await act(async () => {
-      getDialog().props.onKeyDown({
+      getShell().props.onKeyDown({
         key: 'Escape',
       });
     });

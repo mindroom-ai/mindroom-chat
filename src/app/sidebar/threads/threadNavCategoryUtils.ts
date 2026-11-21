@@ -8,6 +8,12 @@ export const MAX_SIDEBAR_THREADS = 50;
 export const MAX_SIDEBAR_RESOLVED_THREADS = 20;
 export const MAX_SIDEBAR_LATER_THREADS = 20;
 
+export const matchesSidebarThreadInvolvement = (
+  entry: Pick<CrossRoomThreadIndexEntry, 'key' | 'isForUser'>,
+  involvedOnly: boolean,
+  pinnedKeys: ReadonlySet<string>
+): boolean => !involvedOnly || entry.isForUser || pinnedKeys.has(entry.key);
+
 type Compare = (left: CrossRoomThreadIndexEntry, right: CrossRoomThreadIndexEntry) => number;
 
 /** Pinned threads first, by pin rank, then the rest by `compare`. */
@@ -55,7 +61,7 @@ export type SidebarThreadSection = {
   total: number;
 };
 
-const SECTION_ORDER: SidebarThreadSectionId[] = ['working', 'later', 'idle', 'resolved'];
+const SECTION_ORDER: SidebarThreadSectionId[] = ['idle', 'working', 'later', 'resolved'];
 
 const sectionOf = (entry: CrossRoomThreadIndexEntry, now: number): SidebarThreadSectionId => {
   const bucket = classifyThreadWorkflow(
@@ -82,14 +88,13 @@ const byTsDesc =
     tsOf(right) - tsOf(left) || compareCrossRoomThreadEntries(left, right);
 
 /**
- * The sidebar's THREADS in sections, each shown only when it holds a thread, a thread in the
- * shared workflow bucket: Working, Done (Resolved), Later, or Needs you (Idle). Pinned threads lead their own section. Working keeps the order the
- * threads started in, so a streamed reply moves no row; Idle goes by the newest of when the last
- * run finished and the newest message (`signalsOf`) and the activity, so a run's end counts, not
- * its start, and an old run does not outrank a newer message; Later by the active snooze end or next schedule, soonest first (unknown times last by activity);
- * Resolved by when it was resolved. Working and Idle share `limit`, Working first; Later and
- * Resolved have caps of their own (`MAX_SIDEBAR_LATER_THREADS`, `MAX_SIDEBAR_RESOLVED_THREADS`).
- * Each section counts all of its threads in `total`.
+ * The sidebar's THREADS display nonempty sections in this order: Needs you (Idle), Working,
+ * Later, Done (Resolved). Pinned threads lead their own section. Working keeps the order the
+ * threads started in, so a streamed reply moves no row. Idle sorts by the latest of the last run
+ * finish, the newest message (`signalsOf`), and activity. Later sorts by active snooze end or next
+ * schedule, soonest first (unknown times last by activity); Done by when the thread was resolved.
+ * Working fills the shared `limit` first despite displaying second; Needs you gets the remainder.
+ * Later and Done have separate caps. Each section counts all of its threads in `total`.
  */
 export const buildSidebarThreadSections = (
   entries: Iterable<CrossRoomThreadIndexEntry>,
