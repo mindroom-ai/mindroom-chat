@@ -4,6 +4,7 @@ import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtil
 import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
+import { isThreadSummaryContent } from '../matrix/protocol/threadSummary';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
@@ -124,8 +125,8 @@ export const planVoiceTranscripts = ({
     }
     if (pending.size > 0) {
       // The room window may draw newest first. A drawn event need not have decrypted to count;
-      // an echo folded under another voice message and a state change (joins, profile edits) do
-      // not draw an agent row.
+      // an echo folded under another voice message, a state change (joins, profile edits) and a
+      // thread title (which the timeline may hide as a repeat) are not an answer.
       let latestAgentTs = oldestVoiceTs;
       for (const event of events) {
         const ts = event.getTs();
@@ -138,6 +139,7 @@ export const planVoiceTranscripts = ({
           isRowlessTimelineEvent(event) ||
           event.getStateKey() !== undefined ||
           hiddenEventIds.has(event.getId() ?? '') ||
+          isThreadSummaryContent(getContent(event)) ||
           isHidden(event)
         )
           continue;

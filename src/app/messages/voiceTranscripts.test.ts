@@ -362,6 +362,21 @@ describe('pending voice transcription', () => {
     expect([...pending([voice(), profile]).pendingVoiceIds]).toEqual(['$voice']);
   });
 
+  it('keeps pending when the agent posts a thread title after the voice message', () => {
+    const title = new MatrixEvent({
+      event_id: '$title',
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: now + 1,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Invented title',
+        'io.mindroom.thread_summary': { version: 1 },
+      },
+    });
+    expect([...pending([voice(), title]).pendingVoiceIds]).toEqual(['$voice']);
+  });
+
   it('ends on an unfolded agent echo', () => {
     const untrusted = echo('$echo', undefined, { sender: AGENT });
     expect(pending([voice(), untrusted])).toBe(NO_VOICE_TRANSCRIPTS);
