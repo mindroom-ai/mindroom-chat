@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { JoinRule, Room } from 'matrix-js-sdk';
@@ -30,7 +31,9 @@ vi.mock('folds', async () => {
     Avatar: Container,
     Badge: Container,
     Box: Container,
-    Icon: (props: Record<string, unknown>) => reactModule.createElement('i', props),
+    Icon: reactModule.forwardRef<HTMLElement, Record<string, unknown>>((props, ref) =>
+      reactModule.createElement('i', { ...props, ref })
+    ),
     IconButton: ({ children, ...props }: { children?: React.ReactNode }) =>
       reactModule.createElement('button', props, children),
     Icons: {
@@ -208,8 +211,8 @@ const room = {
 
 const renderRoomNavItem = (
   props: { direct?: boolean; showAvatar?: boolean; subRoom?: boolean } = {}
-) =>
-  create(
+) => {
+  const renderer = create(
     <RoomNavItem
       room={room}
       selected={false}
@@ -218,6 +221,14 @@ const renderRoomNavItem = (
       {...props}
     />
   );
+  renders.push(renderer);
+  return renderer;
+};
+
+const renders: ReactTestRenderer[] = [];
+afterEach(() => {
+  act(() => renders.splice(0).forEach((renderer) => renderer.unmount()));
+});
 
 const findByTestId = (renderer: ReactTestRenderer, testId: string) =>
   renderer.root.findAll((node) => node.props['data-testid'] === testId);
@@ -232,26 +243,33 @@ describe('RoomNavItem call badge', () => {
     originRoomId?: string,
     phase: CallState['phase'] = 'connected'
   ) => {
+    const subscribe = vi.fn(() => () => undefined);
     testState.activeCall = {
       kind: originRoomId ? 'agent' : 'room',
       origin: originRoomId ? { roomId: originRoomId } : undefined,
       call: {
         room: { roomId: callRoomId },
-        subscribe: () => () => undefined,
+        subscribe,
         getState: () => ({ phase }),
       },
     } as unknown as ActiveCall;
+    return subscribe;
   };
   const badge = (renderer: ReactTestRenderer) =>
     renderer.root.findAll((node) => node.type === 'i' && node.props.src === 'Phone');
 
   it('marks a live call in this room and describes it without renaming the link', () => {
-    markCall(room.roomId);
-    const renderer = renderRoomNavItem();
+    const subscribe = markCall(room.roomId);
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = renderRoomNavItem();
+    });
+    expect(subscribe).toHaveBeenCalledOnce();
     expect(badge(renderer)).toHaveLength(1);
-    expect(badge(renderer)[0]?.props['aria-hidden']).toBe('true');
+    expect(badge(renderer)[0]?.props['aria-hidden']).toBe(true);
     const id = renderer.root.findByType('a').props['aria-describedby'];
-    expect(renderer.root.findByProps({ id }).children).toEqual(['In the call']);
+    const description = renderer.root.find((node) => node.type === 'span' && node.props.id === id);
+    expect(description.children).toEqual(['In the call']);
   });
 
   it('marks the originating room of an agent call, not its internal call room', () => {
@@ -259,6 +277,14 @@ describe('RoomNavItem call badge', () => {
     expect(badge(renderRoomNavItem())).toHaveLength(1);
     markCall(room.roomId, '!origin:example.org');
     expect(badge(renderRoomNavItem())).toHaveLength(0);
+  });
+
+  it('does not subscribe to a call in another room', () => {
+    const subscribe = markCall('!elsewhere:example.org');
+    act(() => {
+      renderRoomNavItem();
+    });
+    expect(subscribe).not.toHaveBeenCalled();
   });
 
   it('does not mark other rooms or calls that are not live', () => {

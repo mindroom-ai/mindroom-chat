@@ -1,23 +1,33 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
 import { railWidth } from '../ui/sidebar/SidebarItem.css';
 
 /** The top row's height; the drawer starts below it and the call shortcut, if present. */
-export const phoneTopBarHeight = toRem(52);
+const phoneTopBarHeight = toRem(52);
 const callButtonHeight = `max(44px, ${toRem(44)})`;
-export const returnToCallRowHeight = `calc(${callButtonHeight} + ${config.space.S200})`;
+const returnToCallRowHeight = `calc(${callButtonHeight} + ${config.space.S200})`;
 
 export const PhoneChrome = style({ flexShrink: 0 });
+export const phoneChromeHeight = createVar();
 
 export const ReturnToCallRow = style({
-  paddingInline: `max(${config.space.S200}, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))`,
+  paddingInline: config.space.S200,
   paddingBlockEnd: config.space.S200,
   backgroundColor: color.Background.Container,
 });
 
+// Give the stage and the page slide's copy their own offset, shared by their drawer layers.
+globalStyle(`:has(> .${PhoneChrome})`, {
+  vars: { [phoneChromeHeight]: phoneTopBarHeight },
+});
+globalStyle(`:has(> .${PhoneChrome} > .${ReturnToCallRow})`, {
+  vars: { [phoneChromeHeight]: `calc(${phoneTopBarHeight} + ${returnToCallRowHeight})` },
+});
+
 export const ReturnToCallButton = style({
   inlineSize: '100%',
+  blockSize: callButtonHeight,
   minBlockSize: callButtonHeight,
   selectors: {
     '&[data-speaking]': { boxShadow: `inset 0 0 0 2px ${color.Success.Main}` },

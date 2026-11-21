@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider, createStore } from 'jotai';
+import { Provider, createStore, useAtomValue } from 'jotai';
+import { useRef, type ReactNode } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { useInert } from '../lib/hooks/useInert';
+import { phoneLayerOpenAtom, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import type { IconTooltipProps } from '../ui/IconTooltip';
 import {
   activeCallAtom,
@@ -28,6 +31,7 @@ import { transcriptPanelAtom } from './transcription/transcriptPanel';
 import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowSettings,
 } from './window/callWindowState';
@@ -50,7 +54,7 @@ const dismiss = vi.hoisted(() => vi.fn());
 const start = vi.hoisted(() => vi.fn(async (_options: unknown) => 'started' as const));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test' }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test', getRoom: () => null }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Standup' }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
@@ -226,7 +230,9 @@ const renderRail = () =>
   render(
     <Provider store={store}>
       <ScreenSizeProvider value="Desktop">
-        <ActiveCallTab active={calls.active!} />
+        <MemoryRouter>
+          <ActiveCallTab active={calls.active!} />
+        </MemoryRouter>
       </ScreenSizeProvider>
     </Provider>
   );
@@ -744,6 +750,30 @@ describe('the focus after Dock and Float', () => {
     expect(document.activeElement).toBe(elsewhere);
     elsewhere.remove();
   });
+});
+
+it('waits for the phone page to become interactive before focusing the call title', () => {
+  function CoveredPage({ children }: { children: ReactNode }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useInert(ref, useAtomValue(phoneLayerOpenAtom));
+    return <div ref={ref}>{children}</div>;
+  }
+
+  roomCall([me]);
+  store.set(phoneNavDrawerOpenAtom, true);
+  render(
+    <Provider store={store}>
+      <button type="button">Return</button>
+      <CoveredPage>{panel({ size: 'Mobile' })}</CoveredPage>
+    </Provider>
+  );
+  const source = screen.getByRole('button', { name: 'Return' });
+  source.focus();
+  act(() => store.set(focusHandOffAtom, { to: 'panel', from: source }));
+  expect(document.activeElement).toBe(source);
+
+  act(() => store.set(phoneNavDrawerOpenAtom, false));
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Standup' }));
 });
 
 describe("the focus after the rail's call button", () => {

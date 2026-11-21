@@ -107,10 +107,9 @@ function ActivityBell() {
   );
 }
 
-function ReturnToCallButton({ active, drawerOpen }: { active: ActiveCall; drawerOpen: boolean }) {
+function ReturnToCallButton({ active }: { active: ActiveCall }) {
   const { t } = useTranslation();
   const { label, icon, microphone, speaking, openHome } = useActiveCallShortcut(active);
-  const setDrawerOpen = useSetAtom(phoneNavDrawerOpenAtom);
   const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const mutedId = useId();
 
@@ -126,14 +125,15 @@ function ReturnToCallButton({ active, drawerOpen }: { active: ActiveCall; drawer
         data-speaking={speaking || undefined}
         aria-describedby={microphone ? undefined : mutedId}
         onClick={(event: MouseEvent<HTMLButtonElement>) => {
-          if (event.currentTarget.ownerDocument.activeElement === event.currentTarget) {
-            setFocusHandOff({ to: 'panel', from: event.currentTarget });
-          }
-          if (drawerOpen) movePhoneNavDrawer(false, setDrawerOpen);
+          const button = event.currentTarget;
+          // A touch or assistive click need not focus the button. Move focus out of the drawer
+          // before it closes so it doesn't restore focus to the menu instead of the call.
+          button.focus({ preventScroll: true });
+          setFocusHandOff({ to: 'panel', from: button.ownerDocument.activeElement });
           openHome();
         }}
       >
-        <Icon src={icon} size="100" filled aria-hidden="true" />
+        <Icon src={icon} size="100" filled aria-hidden />
         <Text as="span" size="T300" truncate>
           {label}
         </Text>
@@ -152,17 +152,15 @@ function PhoneReturnToCall() {
   const inCall = useInCall();
   const currentRoomId = useSelectedRoom();
   const panelRoomId = useAtomValue(callPanelRoomAtom);
-  const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
   if (!active || !inCall) return null;
   if (
-    !drawerOpen &&
     currentRoomId &&
     currentRoomId === panelRoomId &&
     isActiveCallShownIn(active, currentRoomId)
   ) {
     return null;
   }
-  return <ReturnToCallButton active={active} drawerOpen={drawerOpen} />;
+  return <ReturnToCallButton active={active} />;
 }
 
 /**

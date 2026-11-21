@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { ActiveCallTab } from './ActiveCallTab';
 import { callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallState } from './RoomCall';
@@ -17,7 +19,7 @@ const USER = '@me:tab.test';
 const navigation = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:tab.test' }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:tab.test', getRoom: () => null }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Call with Helper' }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
@@ -35,11 +37,15 @@ const active = {
 const bar = { x: 1024, y: 828, width: 400, height: 56 };
 
 let store = createStore();
-const renderTab = (size: ScreenSize = 'Desktop') =>
+const renderTab = (size: ScreenSize = 'Desktop', route = '/home/') =>
   render(
     <Provider store={store}>
       <ScreenSizeProvider value={size}>
-        <ActiveCallTab active={active} />
+        <MemoryRouter initialEntries={[route]}>
+          <Routes>
+            <Route path="/home/:roomIdOrAlias?" element={<ActiveCallTab active={active} />} />
+          </Routes>
+        </MemoryRouter>
       </ScreenSizeProvider>
     </Provider>
   );
@@ -109,6 +115,15 @@ describe("the rail's call button", () => {
       expect(store.get(focusHandOffAtom)).toBeUndefined();
       cleanup();
     }
+  });
+
+  it('closes the phone drawer even when the call is already in the shown thread', () => {
+    store.set(phoneNavDrawerOpenAtom, true);
+    renderTab('Mobile', `/home/${encodeURIComponent(ORIGIN)}/?threadId=%24plan`);
+    openCall();
+    expect(store.get(callPanelRoomAtom)).toBe(ORIGIN);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
   });
 
   it('goes back to the conversation while docked, and on phones', () => {

@@ -1,11 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color } from 'folds';
-import {
-  PhoneChrome,
-  ReturnToCallRow,
-  phoneTopBarHeight,
-  returnToCallRowHeight,
-} from './PhoneTopBar.css';
+import { phoneChromeHeight } from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 import { cardRadius } from '../ui/page/floatingCards.css';
 
@@ -24,14 +19,9 @@ const IN_PAGE_SLIDE =
 // Both layers cover the area below the top bar; the bar stays usable above them.
 const belowTopBar = {
   position: 'absolute',
-  insetBlockStart: phoneTopBarHeight,
+  insetBlockStart: phoneChromeHeight,
   insetBlockEnd: 0,
   insetInlineStart: 0,
-  selectors: {
-    [`.${PhoneChrome}:has(> .${ReturnToCallRow}) ~ &`]: {
-      insetBlockStart: `calc(${phoneTopBarHeight} + ${returnToCallRowHeight})`,
-    },
-  },
 } as const;
 
 /**

@@ -255,6 +255,28 @@ function BackgroundJobsMark({ room }: { room: Room }) {
   );
 }
 
+/** A phone after the room's name while this device is in a call there. */
+function CallMark({ id, label }: { id: string; label: string }) {
+  return (
+    <>
+      <IconTooltip label={label}>
+        {(triggerRef) => (
+          <Icon
+            ref={triggerRef}
+            src={Icons.Phone}
+            size="50"
+            aria-hidden
+            style={{ opacity: config.opacity.P500 }}
+          />
+        )}
+      </IconTooltip>
+      <span id={id} hidden>
+        {label}
+      </span>
+    </>
+  );
+}
+
 type RoomNavLinkProps = {
   to: string;
   room: Room;
@@ -313,14 +335,7 @@ function RoomNavLink({
             </Text>
           </Box>
           <BackgroundJobsMark room={room} />
-          {callStatus && (
-            <>
-              <Icon size="50" src={Icons.Phone} aria-hidden="true" />
-              <span id={callStatusId} hidden>
-                {callStatus}
-              </span>
-            </>
-          )}
+          {callStatus && <CallMark id={callStatusId} label={callStatus} />}
           {status && <UnreadBadgeCenter>{status}</UnreadBadgeCenter>}
         </Box>
       </NavItemContent>

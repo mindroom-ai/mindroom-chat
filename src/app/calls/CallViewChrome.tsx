@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
@@ -8,6 +8,7 @@ import { useLocation } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
@@ -216,7 +217,11 @@ export function CallViewChrome(props: CallViewChromeProps) {
   // the shortcut to the call view takes it there too: the window's handle, or the docked panel's
   // title. A panel folded to its tab shows nothing to focus, so the key stays the browser's.
   const focusTarget = frame ? handleRef : titleRef;
-  useFocusHandOff(frame ? 'window' : 'panel', () => focusTarget.current?.focus());
+  const layerOpen = useAtomValue(phoneLayerOpenAtom);
+  // The page clears inert in a layout effect when the covering phone layer closes.
+  useFocusHandOff(frame ? 'window' : phone && layerOpen ? undefined : 'panel', () =>
+    focusTarget.current?.focus()
+  );
   useShortcut('callView', () => {
     const target = focusTarget.current;
     if (!target) return false;
