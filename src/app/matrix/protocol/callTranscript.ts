@@ -48,7 +48,7 @@ export type CallTranscript = {
   moreTurns?: number;
 };
 
-/** The body the router writes for a call between people when no model writes notes. */
+/** The body MindRoom writes for a call between people when no model writes notes. */
 const SUMMARY_ONLY_BODY = /^Call · \d+ min$/;
 
 /** The memberships a speaker of a voice call with an agent may have: joined. */
