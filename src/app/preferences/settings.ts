@@ -70,7 +70,7 @@ const BOOLEAN_SETTING_KEYS = [
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
   'showToolCalls', // Agent replies list the tools they ran, not only a cog; a room or thread can differ.
-  'showUsageDetails', // Sub-agents and background jobs show their tool calls, tokens, cost and model.
+  'showUsageDetails', // Show calls, tokens, cost and current activity; show models in the jobs bar.
   // Keyboard
   'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
   'voiceHoldShortcut', // Control, Shift and Space record a voice message in the composer.

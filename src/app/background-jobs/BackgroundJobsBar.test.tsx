@@ -137,10 +137,10 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
   });
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 // Without the usage details, a tool job's Stop names it as its row does: what it does, in words.
-const using = (tool: string) => tr('mindroomUi.backgroundJobs.toolNames.using', { tool });
-const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool a') });
-const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool b') });
-const stoppingA = tr('mindroomUi.backgroundJobs.stoppingJob', { tool: using('tool a') });
+const taskName = (tool: string) => tr('mindroomUi.backgroundJobs.toolNames.use', { tool });
+const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: taskName('tool a') });
+const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: taskName('tool b') });
+const stoppingA = tr('mindroomUi.backgroundJobs.stoppingJob', { tool: taskName('tool a') });
 const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
   act(async () => {
@@ -197,7 +197,7 @@ it('shows one job folded as its row on the title line, which lists it as several
   state.jobs = [job('a')];
   render();
   // Without the usage details, the bar's title is what it does, in words, as its row's headline.
-  expect(title()).toBe(using('tool a'));
+  expect(title()).toBe(taskName('tool a'));
   // How it stands is said apart, since its row's title is the job itself.
   expect(container.querySelector('[role="status"]')?.textContent).toBe(title());
   // With them, by its tool.
@@ -208,12 +208,12 @@ it('shows one job folded as its row on the title line, which lists it as several
   const folded = container.querySelector('[data-job-folded]');
   expect(folded?.querySelector('.Logo')).not.toBeNull();
   // Without the usage details, its headline says what the tool does, in words.
-  expect(folded?.querySelector('.Task')?.textContent).toBe(using('tool a'));
+  expect(folded?.querySelector('.Task')?.textContent).toBe(taskName('tool a'));
   // Its Stop names the task it stops, with its icon only, as a listed row's.
   expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
   expect(button(cancelA)?.textContent).toBe('');
   // Its title lists it: the same row in the table, the count on the title line, Stop task.
-  expect(toggle()?.textContent).toBe(using('tool a'));
+  expect(toggle()?.textContent).toBe(taskName('tool a'));
   expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
   toggle()?.focus();
   expand();
@@ -277,7 +277,7 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
     render();
     state.jobs = [];
     render();
-    expect(title()).toBe(tr('mindroomUi.backgroundJobs.finished', { tool: using('tool a') }));
+    expect(title()).toBe(tr('mindroomUi.backgroundJobs.finished', { tool: taskName('tool a') }));
     expect(button(cancelA)).toBeUndefined();
     state.jobs = [job('a'), job('b')];
     render();
@@ -493,7 +493,7 @@ it('lists jobs without cancel controls for a viewer who may not cancel', () => {
   state.jobs = [job('a'), job('b')];
   render('$thread', false);
   expand();
-  expect(container.textContent).toContain(using('tool a'));
+  expect(container.textContent).toContain(taskName('tool a'));
   // Only the title, which lists the jobs, is a button.
   expect([...container.querySelectorAll('button')]).toEqual([toggle()]);
 });
@@ -537,7 +537,7 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   render();
   await act(async () => fails[0]!(new Error('offline')));
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: using('tool b') })
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: taskName('tool b') })
   );
 });
 
@@ -954,8 +954,8 @@ it('heads a tool job with its tool in plain words, without its call, until the u
   const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
   const read = { tool: 'read_file', preview: 'path=notes/2026-11-16.md' };
   // Its name in words, with the raw tool name in the tooltip.
-  row(item({ activity: read, plainName: 'mindroomUi.backgroundJobs.toolNames.readingFile' }));
-  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readingFile');
+  row(item({ activity: read, plainName: 'mindroomUi.backgroundJobs.toolNames.readFile' }));
+  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readFile');
   expect(tooltip()).toBe('read_file');
   expect(activity()).toBeNull();
   // With the usage details, its headline is its tool, its call on the line under it.
@@ -1096,7 +1096,7 @@ it('restores the button and shows an error when the send fails', async () => {
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
   expect(button(cancelA)).toBeDefined();
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: using('tool a') })
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: taskName('tool a') })
   );
   // With the usage details, it names its tool.
   act(() => showUsageDetails());

@@ -152,18 +152,18 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await title.click();
   await page.mouse.move(0, 0);
   // Without the usage details, a tool job's row says what it does in words.
-  await expect(bar).toContainText('Using run tests');
-  await expect(bar.getByRole('listitem').filter({ hasText: 'Running a command' })).toContainText(
+  await expect(bar).toContainText('Use run tests');
+  await expect(bar.getByRole('listitem').filter({ hasText: 'Run a command' })).toContainText(
     'Waiting for approval'
   );
   await expect(bar).toContainText('research (subagent)');
-  await expect(bar).not.toContainText('Searching the web');
+  await expect(bar).not.toContainText('Search the web');
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
   // Stop sends the job's cancel in its thread, and the job shows Stopping… until it leaves the state.
-  await bar.getByRole('button', { name: 'Stop task: Using run tests' }).click();
+  await bar.getByRole('button', { name: 'Stop task: Use run tests' }).click();
   await expect(bar).toContainText('Stopping…');
   await expect
     .poll(async () => {
@@ -186,7 +186,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
       },
     ]);
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]!]);
-  await expect(bar.getByRole('button', { name: 'Stop task: Using run tests' })).toHaveCount(0);
+  await expect(bar.getByRole('button', { name: 'Stop task: Use run tests' })).toHaveCount(0);
   // A job cancelled from another client shows Stopping… here too, without its Stop.
   const researchCancel = bar.getByRole('button', { name: 'Stop task: research (subagent)' });
   await expect(researchCancel).toBeVisible();
@@ -201,14 +201,14 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   ]);
   await publish(coder, [coderJobs[1]!]);
   await expect(page.getByRole('region', { name: '2 background jobs' })).not.toContainText(
-    'Using run tests'
+    'Use run tests'
   );
 
   // The main timeline shows every job of the room.
   await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
   const room = page.getByRole('region', { name: '3 background jobs' });
   await room.getByRole('button', { name: '3 background jobs' }).click();
-  await expect(room).toContainText('Searching the web');
+  await expect(room).toContainText('Search the web');
   // An agent with more live jobs than fit its state lists its newest and states how many it runs.
   const researcherJobs = [
     job('job_3', fixture.rootId, 'research', { kind: 'subagent' }),
@@ -305,7 +305,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // A long tool name is cut short and many jobs scroll inside the bar, so every Stop stays reachable.
   const longTool = 'mcp_github_create_pull_request_review_with_inline_comments';
   // Without the usage details, the bar names it in words.
-  const longName = `Using ${longTool.replaceAll('_', ' ')}`;
+  const longName = `Use ${longTool.replaceAll('_', ' ')}`;
   await publish(
     researcher,
     Array.from({ length: 14 }, (_, index) =>

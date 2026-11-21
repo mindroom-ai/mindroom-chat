@@ -195,7 +195,7 @@ export const presentBackgroundJobs = (
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), ...one };
   if (awaitingApproval(first))
     return { title: t('mindroomUi.backgroundJobs.awaitingApproval', { tool }), ...one };
-  // A tool job named in words says it runs already ("Running a command").
+  // A plain task name is enough for a running tool job.
   if (items[0]!.plainName !== undefined) return { title: tool, ...one };
   return { title: t('mindroomUi.backgroundJobs.running', { tool }), ...one };
 };

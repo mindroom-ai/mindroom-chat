@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export const SHELL_JOB = 'Running a command';
+export const SHELL_JOB = 'Run a command';
 
 /** A change of the shell call's jobs bar: its title, or null once it is gone, by the page's clock. */
 export type JobsBarChange = { at: number; label: string | null };
