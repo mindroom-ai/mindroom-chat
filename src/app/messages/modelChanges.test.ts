@@ -111,9 +111,12 @@ const plan = (
 describe('planModelChanges', () => {
   it('pairs a trusted answering agent acknowledgement in its own name', () => {
     const sender = '@mindroom_helper:example.org';
-    const made = plan([typed('!model fast'), ack(result({ runtime_user_id: sender }), { sender })], {
-      trustedAccountIds: new Set([ROUTER, sender]),
-    });
+    const made = plan(
+      [typed('!model fast'), ack(result({ runtime_user_id: sender }), { sender })],
+      {
+        trustedAccountIds: new Set([ROUTER, sender]),
+      }
+    );
     expect([...made.hiddenEventIds]).toEqual(['$command']);
     expect(made.byAckId.get('$ack')?.runtimeUserId).toBe(sender);
   });
