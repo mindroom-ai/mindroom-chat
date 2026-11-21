@@ -158,8 +158,9 @@ export const listNativeVoiceOrphans = async (): Promise<NativeVoiceOrphan[]> => 
     .sort((a, b) => a.startedAt - b.startedAt);
 };
 
-/** Deletes the file of a recording `listNativeVoiceOrphans` listed. Rejects while a window still
- *  writes it, or when it could not be deleted. */
+/** Deletes the file of a recording `listNativeVoiceOrphans` listed. Rejects with a `code`:
+ *  `INVALID_ID` for an ID that is none, `BUSY` while a window still writes it, `DELETE_FAILED`
+ *  when it could not be deleted. */
 export const forgetNativeVoiceRecording = async (id: string): Promise<void> => {
   await getVoiceRecorderPlugin().forget({ id });
 };

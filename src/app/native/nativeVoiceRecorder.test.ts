@@ -357,4 +357,12 @@ describe('native voice orphans', () => {
     await forgetNativeVoiceRecording('old');
     expect(plugin.forget.mock.calls).toEqual([[{ id: 'old' }]]);
   });
+
+  it.each(['INVALID_ID', 'BUSY', 'DELETE_FAILED'])(
+    'tells why a recording was not forgotten: %s',
+    async (code) => {
+      plugin.forget.mockRejectedValue({ code });
+      await expect(forgetNativeVoiceRecording('not-a-uuid')).rejects.toMatchObject({ code });
+    }
+  );
 });

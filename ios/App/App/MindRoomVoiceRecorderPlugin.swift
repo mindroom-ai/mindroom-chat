@@ -143,13 +143,14 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func forget(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let id = call.getString("id") ?? ""
+            guard let file = Self.file(of: id) else { return call.reject("Not a recording ID", "INVALID_ID") }
             let delete = { (lock: RecordingLock) in
                 lock.delete() ? call.resolve() : call.reject("Could not delete the recording", "DELETE_FAILED")
             }
             if let recording = writing[id] {
                 recording.end()
                 recording.whenDone { _, lock in delete(lock) }
-            } else if let lock = Self.file(of: id).flatMap(RecordingLock.init) {
+            } else if let lock = RecordingLock(file) {
                 delete(lock)
             } else {
                 call.reject("The recording is being written", "BUSY")
@@ -244,6 +245,10 @@ private final class Recording {
     var url: URL { writer.outputURL }
     /// It captures (main queue): until `end`.
     private(set) var capturing = true
+    /// The page paused it (main queue): the engine starts again only for a resume.
+    private var paused = false
+    /// The format of the first tap (main queue).
+    private var firstFormat: AVAudioFormat?
     /// Held until the writer is done (main queue).
     private var lock: RecordingLock?
     private var waiters: [(Bool, RecordingLock) -> Void] = []
@@ -288,12 +293,7 @@ private final class Recording {
         // audio then.
         try session.setCategory(.playAndRecord, mode: .default)
         try session.setActive(true)
-        let node = engine.inputNode
-        let format = node.outputFormat(forBus: 0)
-        // An input without a rate or a channel records nothing.
-        guard format.sampleRate > 0, format.channelCount > 0, writer.canAdd(input) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
+        guard writer.canAdd(input) else { throw CocoaError(.fileWriteUnknown) }
         writer.add(input)
         guard writer.startWriting() else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
         writer.startSession(atSourceTime: .zero)
@@ -301,28 +301,84 @@ private final class Recording {
         readiness = input.observe(\.isReadyForMoreMediaData) { [weak self] _, _ in
             self?.queue.async { self?.drain() }
         }
-        // The engine stops on either. They are in place before it starts, and only ask for the end:
-        // nothing is torn down from inside a notification.
+        // The engine stops on either: a changed device (headphones that take over the microphone)
+        // is tapped anew, an interruption ends the recording. They are in place before the engine
+        // starts, and only ask for it on the main queue: nothing is done inside a notification.
+        let center = NotificationCenter.default
         observers = [
-            (Notification.Name.AVAudioEngineConfigurationChange, engine as Any),
-            (AVAudioSession.interruptionNotification, session as Any)
-        ].map { name, object in
-            NotificationCenter.default.addObserver(forName: name, object: object, queue: nil) { [weak self] _ in
+            center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
+                DispatchQueue.main.async { self?.retap() }
+            },
+            center.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: nil) { [weak self] _ in
                 DispatchQueue.main.async { self?.end() }
             }
-        }
-        node.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
-            self?.append(buffer)
-        }
+        ]
+        try tap()
         try engine.start()
+    }
+
+    /// Taps the microphone in the format it has now (main queue). The writer reads every buffer as
+    /// the first one's format, without a word: a later device's other format is converted to it.
+    private func tap() throws {
+        let node = engine.inputNode
+        let format = node.outputFormat(forBus: 0)
+        // An input without a rate or a channel records nothing.
+        guard format.sampleRate > 0, format.channelCount > 0 else { throw CocoaError(.fileWriteUnknown) }
+        let first = firstFormat ?? format
+        firstFormat = first
+        let converter = format == first ? nil : AVAudioConverter(from: format, to: first)
+        guard format == first || converter != nil else { throw CocoaError(.fileWriteUnknown) }
+        // Each channel takes the same one of the new device, or its last: left to match the two
+        // channel layouts, the converter gives silence where it cannot.
+        converter?.channelMap = (0..<first.channelCount).map { NSNumber(value: min($0, format.channelCount - 1)) }
+        node.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
+            guard let self else { return }
+            guard let converter else { return self.append(buffer) }
+            guard let converted = Self.convert(buffer, with: converter) else { return self.queue.sync { self.fail() } }
+            if converted.frameLength > 0 { self.append(converted) }
+        }
+    }
+
+    /// The buffer in the converter's output format; nil when it cannot be converted.
+    private static func convert(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter) -> AVAudioPCMBuffer? {
+        let frames = Double(buffer.frameLength) * converter.outputFormat.sampleRate / converter.inputFormat.sampleRate
+        guard let converted = AVAudioPCMBuffer(
+            pcmFormat: converter.outputFormat, frameCapacity: AVAudioFrameCount(frames) + 16
+        ) else { return nil }
+        var given = false
+        let status = converter.convert(to: converted, error: nil) { _, status in
+            status.pointee = given ? .noDataNow : .haveData
+            defer { given = true }
+            return given ? nil : buffer
+        }
+        return status == .error ? nil : converted
+    }
+
+    /// The device changed, and the engine stopped itself (main queue): the recording goes on from
+    /// the new one, at once unless it is paused, and ends only when that one cannot be recorded.
+    private func retap() {
+        guard capturing else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        do {
+            try tap()
+            if !paused { try engine.start() }
+        } catch {
+            end()
+        }
     }
 
     /// The level of the newest buffer, linear from 0 to 1.
     var level: Float { queue.sync { newestLevel } }
 
-    func pause() { engine.pause() }
+    func pause() {
+        paused = true
+        engine.pause()
+    }
 
-    func resume() -> Bool { capturing && (try? engine.start()) != nil }
+    func resume() -> Bool {
+        paused = false
+        return capturing && (try? engine.start()) != nil
+    }
 
     /// Calls `done` (main queue) once the writer is done, with whether the file holds all that was
     /// recorded and with the lock, still held then. Not for a recording that is done.

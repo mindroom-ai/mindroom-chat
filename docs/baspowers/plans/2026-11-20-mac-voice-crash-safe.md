@@ -33,9 +33,12 @@ infers from the page's lifecycle that a file may go; `cancel`, `keep` and the li
 gone. The lock (`<id>.lock`, an exclusive `flock` owned by one object) means "the writer is not
 done": held from the start until `finishWriting` completed or the writer failed, so `orphans()`
 (lock first, then `lstat` under it) also lists a stopped recording until JS forgets it, and never
-one a window or process still writes. A device change or interruption only asks, from its
-notification, for the end on the main queue (tap, engine, then audio session, in one function);
-`level`, `pause`, `resume` and `stop` then reject `NOT_RECORDING`. Buffers the writer is not ready
+one a window or process still writes. An interruption only asks, from its notification, for the
+end on the main queue (tap, engine, then audio session, in one function); `level`, `pause`,
+`resume` and `stop` then reject `NOT_RECORDING`. A changed device (headphones that take over the
+microphone) does not end the recording: the tap is installed anew in the device's format and the
+engine started again unless the page paused it, and a format other than the first is converted to
+the first, which the writer keeps reading every buffer as. Buffers the writer is not ready
 for wait in a queue of 64 that is handed on whenever the writer is ready again (key-value
 observation, also during a pause); an overflow or a failed append ends the recording and finishes
 what the writer took; times are the exact sum of each buffer's length at its own rate. In JS the
