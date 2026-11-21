@@ -6,7 +6,6 @@ import {
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { withMovingMouseOverCard } from '../helpers/compactOrderHold';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
@@ -22,6 +21,7 @@ import {
   registerDisposableUser,
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // Compact cards sorted by last reply, newest first, have their live end at the top: a card that
 // arrives while the room is open (a new thread, or an agent's answer in the main timeline) shows

@@ -1,7 +1,6 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
-import { withMovingMouseOverCard } from '../helpers/compactOrderHold';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -15,6 +14,7 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // Compact cards sorted by last reply keep their order while the reader points at a card, has a
 // card's menu open, or has keyboard focus on a card (Chromium): replies to threads further down do
