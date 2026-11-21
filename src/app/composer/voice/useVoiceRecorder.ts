@@ -55,7 +55,7 @@ export function useVoiceRecorder({
     createVoiceCaptureSession(
       async (startedAt, mimeType) => {
         const userId = sendBindingAtStartRef.current?.context.ownerSessionId;
-        if (!userId) return undefined;
+        if (!userId || !navigator.locks) return undefined;
         const journal = await loadVoiceRecordingJournal();
         return journal?.beginVoiceRecording(userId, startedAt, mimeType);
       },
