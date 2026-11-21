@@ -22,15 +22,18 @@ Later sorts by active snooze end or next scheduled time, soonest first; unknown 
 follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
-After live sync, the client loads unopened threads serially when the summary bundles a hidden
-stream, or when a live edit from a trusted MindRoom responder reveals a reply the thread does not
-hold. Its newest revision from that sender must explicitly say it is still streaming and be no more
-than 30 minutes old. Saved sync edits do not trigger loads. Failed loads are not retried on every
-edit; recovery after a sync error allows another try. Loading alone does not count as Working:
-the card must confirm the stream. Encrypted rooms are excluded. Without a qualifying bundle, a stream silent
-since relaunch (for example, in a long tool call) stays in Needs you until its next live edit;
-activity goes idle after 30 minutes without an edit. As before, older text held locally can still
-hide a newer placeholder known only to the thread list.
+After live sync, the client loads the first page of each unopened thread whose summary bundles a
+hidden stream, one thread at a time. A reply that streams behind newer messages (an agent posts
+text and files mid-turn) is in no summary, and the edits of a long stream can fill a thread's
+newest page. So when a live edit arrives for a reply that its thread does not hold, the client keeps
+the copy of the reply that the SDK fetched to place the edit, beside the thread and without another
+request, and the card checks it together with the thread's newest replies. For that, the newest
+revision the server sent (the edit bundled with that copy, or the live edit) must say explicitly
+that it still streams and be at most 30 minutes old, and the client must know no newer revision;
+edits from the saved sync never count as such evidence. Keeping the reply does not make the thread
+Working: the card must confirm the stream, as for any reply. Encrypted rooms are excluded. A stream
+silent since relaunch (for example, in a long tool call) stays in Needs you until its next live
+edit; activity goes idle after 30 minutes without an edit.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups

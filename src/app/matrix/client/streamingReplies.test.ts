@@ -18,12 +18,14 @@ import { UNSIGNED_THREAD_ID_FIELD } from 'matrix-js-sdk/lib/@types/event';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { installEventContentGuard, trustAgentsOfViewer } from '../protocol/untrustedContent';
 import { startClient } from './clientSyncPolicy';
 import { CHECK_DELAY_MS, isStreamingReplyCurrent } from './streamingReplies';
+import { revealedReplies } from './streamingThreadLoads';
 import { defined } from '../../../test/utils/defined';
 
 // A streamed reply shows as streaming on its thread's card only while the client can trust that it
@@ -167,14 +169,10 @@ const fixture = () => {
         return json({ chunk: url.searchParams.get('include') === 'all' ? listedRoots : [] });
       }
       if (serverThread && path.endsWith(`/event/${rootId}`)) return json(serverThread.root);
-      if (serverThread && path.includes(`/relations/${rootId}`)) {
-        if (serverThread.fail) {
-          // Fail just once so a broken retry guard cannot spin against the fixture.
-          serverThread.fail = false;
-          return json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500);
-        }
-        return json({ chunk: [...serverThread.replies].reverse() });
-      }
+      if (serverThread && path.includes(`/relations/${rootId}`))
+        return serverThread.fail
+          ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
+          : json({ chunk: [...serverThread.replies].reverse() });
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -300,93 +298,70 @@ describe('streaming replies on thread cards', () => {
     return thread;
   };
 
-  it.each([
-    'live',
-    'cached',
-    'superseded',
-    'tied',
-    'other sender',
-    'idle',
-    'human',
-    'held',
-    'encrypted',
-    'no status',
-    'run status',
-    'custom agent',
-    'recovery',
-  ])('loads on live evidence (%s)', async (kind) => {
-    const now = Date.now();
+  /**
+   * The app after a relaunch, mid-stream: the agent's placeholder still streams behind the text
+   * and the file it posted since. The unopened thread holds only what came after the relaunch, the
+   * summary names the file, and the server's newest page ends before the placeholder.
+   */
+  const relaunchMidStream = async (
+    now: number,
+    {
+      sender = agentId,
+      state = [],
+      summary = 'file',
+      tail = true,
+      saved,
+    }: {
+      sender?: string;
+      state?: IEvent[];
+      summary?: 'file' | 'placeholder';
+      tail?: boolean;
+      /** Start from a saved sync that also holds these events. */
+      saved?: IEvent[];
+    } = {}
+  ) => {
     const f = fixture();
-    const sender = kind === 'custom agent' ? '@helper:example.org' : agentId;
     const rel = { rel_type: 'm.thread', event_id: rootId };
-    const text = message('$text', now - 20_000, { body: 'Results', 'm.relates_to': rel });
-    const file = message('$file', now - 19_000, {
-      msgtype: 'm.file',
-      body: 'results.txt',
-      'm.relates_to': rel,
-    });
     const placeholder = { ...reply(now - 49 * MINUTE), sender };
-    const latest = kind === 'held' ? placeholder : file;
-    const listed = withSummary(root(now - 50 * MINUTE), latest, kind === 'held' ? 1 : 3);
-    const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
-    summary['io.mindroom.latest_reply'] = latest;
-    const ts = kind === 'idle' ? now - 31 * MINUTE : now - 1_000;
-    const active =
-      kind === 'human'
-        ? othersEdit('Checking the results', ts, 'streaming')
-        : {
-            ...edit('Checking the results', ts, 'streaming'),
-            event_id: '$a-active',
-            sender,
-          };
-    if (kind === 'no status' || kind === 'run status') {
-      active.content['m.new_content'] = {
-        body: 'Results',
-        'io.mindroom.ai_run':
-          kind === 'run status' ? { version: 1, status: 'streaming' } : { version: 1 },
-      };
-      delete active.content['io.mindroom.stream_status'];
-    }
-    const terminal = {
-      ...edit(finished, kind === 'tied' ? ts : now, 'completed'),
+    const text = message('$text', now - 20_000, { body: 'Results', 'm.relates_to': rel }, sender);
+    const file = message(
+      '$file',
+      now - 19_000,
+      { msgtype: 'm.file', body: 'results.txt', 'm.relates_to': rel },
+      sender
+    );
+    const latest = summary === 'file' ? file : placeholder;
+    const listed = withSummary(root(now - 50 * MINUTE), latest, summary === 'file' ? 3 : 1);
+    const bundle = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+    bundle['io.mindroom.latest_reply'] = latest;
+    const streaming = (ts: number, eventId = '$a-active'): IEvent => ({
+      ...edit('Checking the results', ts, 'streaming'),
+      event_id: eventId,
+      sender,
+    });
+    const completed = (ts: number): IEvent => ({
+      ...edit(finished, ts, 'completed'),
       event_id: '$z-completed',
+      sender,
+    });
+    /** The edit that ends the stream, with the run's last status as MindRoom sends it. */
+    const ending = (ts: number): IEvent => {
+      const done = { ...completed(ts), event_id: '$c-ending' };
+      const newContent = done.content['m.new_content'] as Record<string, unknown>;
+      newContent['io.mindroom.ai_run'] = { version: 1, status: 'completed' };
+      return done;
     };
-    if (kind === 'other sender') terminal.sender = '@mindroom_other:example.org';
-    const finishes = kind === 'superseded' || kind === 'tied';
-    const answer = (revision: IEvent, fail = false) => {
-      const target = withEdit(placeholder, revision);
-      f.setServerReply(target);
-      f.setServerThread({ root: listed, replies: [target, text, file], fail });
-    };
-    answer(finishes ? terminal : active, kind === 'recovery');
-    const tail = kind === 'held' ? [listed] : [listed, text, file];
-    if (kind === 'encrypted')
-      tail.unshift({
-        ...message('$encrypted', now - MINUTE, { algorithm: 'm.megolm.v1.aes-sha2' }),
-        type: 'm.room.encryption',
-        state_key: '',
-      });
-    if (kind === 'custom agent') {
-      const bound = '@mindroom_router:example.org';
-      const state = (type: string, key: string, content: Record<string, unknown>): IEvent => ({
-        ...message(`$state-${type}`, now - MINUTE, content, bound),
-        type,
-        state_key: key,
-      });
-      tail.unshift(
-        { ...membership(sender), unsigned: {} },
-        state('m.room.power_levels', '', { users: { [bound]: 100 }, state_default: 50 }),
-        state('io.mindroom.router', '', { user_id: bound }),
-        state('io.mindroom.accounts', bound, { accounts: [sender] })
-      );
-    }
-    if (kind === 'cached') {
-      // Saved sync keeps the thread ID the SDK inferred when the edit first arrived.
-      active.unsigned[UNSIGNED_THREAD_ID_FIELD.name] = rootId;
+    /** What GET /event/$reply answers: the placeholder, with the edit the server bundles. */
+    const serve = (newest?: IEvent) =>
+      f.setServerReply(newest ? withEdit(placeholder, newest) : placeholder);
+    const page = Array.from({ length: 28 }, (_, i) => streaming(now - 60_000 + i, `$old-${i}`));
+    f.setServerThread({ root: listed, replies: [...page, text, file] });
+    const batches = [[...state, listed], ...(tail ? [[text, file]] : [])];
+    if (saved) {
       vi.spyOn(f.mx.store, 'getSavedSyncToken').mockResolvedValue('saved');
       vi.spyOn(f.mx.store, 'getSavedSync').mockImplementation(async () => {
         await f.mx.threadSupportPending;
-        const join = { [roomId]: joined([...tail, active], 'before') };
+        const join = { [roomId]: joined([...batches.flat(), ...saved], 'before') };
         return {
           nextBatch: 'saved',
           accountData: [],
@@ -395,54 +370,291 @@ describe('streaming replies on thread cards', () => {
       });
     }
     await f.start();
-    if (kind !== 'cached') await f.deliver(tail);
+    for (const batch of saved ? [[]] : batches) await f.deliver(batch);
     const thread = defined(f.room().getThread(rootId), 'the unopened thread');
-    const loads = () => f.requested(`/relations/${rootId}`);
-    expect(loads()).toBe(0);
-    expect(thread.initialEventsFetched).toBe(false);
-    expect(thread.findEventById(replyId)).toBeUndefined();
-    if (kind === 'held') expect(thread.replyToEvent?.getId()).toBe(replyId);
-    if (kind === 'encrypted') expect(f.room().hasEncryptionStateEvent()).toBe(true);
     const workflow = () => {
       const { status } = buildThreadRecord({ room: f.room(), threadRootId: rootId });
       return classifyThreadWorkflow(status, now);
     };
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(thread.findEventById(replyId)).toBeUndefined();
     expect(workflow()).toBe('needsYou');
+    return {
+      f,
+      thread,
+      workflow,
+      placeholder,
+      text,
+      file,
+      listed,
+      streaming,
+      completed,
+      ending,
+      serve,
+    };
+  };
+  type MidStream = Awaited<ReturnType<typeof relaunchMidStream>>;
+  type MidStreamOptions = (now: number) => Parameters<typeof relaunchMidStream>[1];
+  /** The live batches that follow; the server bundles `newest` with the placeholder. */
+  type Arrival = (s: MidStream, now: number) => { newest?: IEvent; live: IEvent[][] };
 
-    const buffered = new Set(thread.replayEvents?.map((event) => event.getId()));
-    f.room().on(ThreadEvent.Update, (updated) => {
-      if (updated === thread) updated.replayEvents?.forEach((event) => buffered.add(event.getId()));
+  const oneLiveEdit: Arrival = (s, now) => {
+    const active = s.streaming(now - 1_000);
+    return { newest: active, live: [[active]] };
+  };
+  /** As the SDK keeps an edit whose thread it found by fetching the reply. */
+  const inThread = (event: IEvent): IEvent => ({
+    ...event,
+    unsigned: { [UNSIGNED_THREAD_ID_FIELD.name]: rootId },
+  });
+  const roster = (now: number, sender: string): IEvent[] => {
+    const bound = '@mindroom_router:example.org';
+    const state = (type: string, key: string, content: Record<string, unknown>): IEvent => ({
+      ...message(`$state-${type}`, now - MINUTE, content, bound),
+      type,
+      state_key: key,
     });
-    // Receive the newer revision first so a stale edit cannot hide it in a real SDK buffer.
-    const edits = finishes || kind === 'other sender' ? [terminal, active] : [active];
-    await f.deliver(kind === 'cached' ? [] : edits);
-    const loadsThread = ['live', 'other sender', 'run status', 'custom agent', 'recovery'].includes(
-      kind
-    );
-    expect(loads()).toBe(loadsThread ? 1 : 0);
-    expect(buffered).toContain(active.event_id);
-    if (edits.length > 1) expect(buffered).toContain(terminal.event_id);
-    if (kind === 'recovery') {
-      expect(thread.initialEventsFetched).toBe(false);
-      await f.deliver([edit('Still checking', now, 'streaming')]);
-      expect(loads()).toBe(1);
-      f.mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
-      f.mx.emit(ClientEvent.Sync, SyncState.Catchup, SyncState.Error);
-      const recovered = edit('Checking again', now + 1, 'streaming');
-      answer(recovered);
-      await f.deliver([recovered]);
-      expect(loads()).toBe(2);
-    }
-    if (kind === 'custom agent') {
+    return [
+      { ...membership(sender), unsigned: {} },
+      state('m.room.power_levels', '', { users: { [bound]: 100 }, state_default: 50 }),
+      state('io.mindroom.router', '', { user_id: bound }),
+      state('io.mindroom.accounts', bound, { accounts: [sender] }),
+    ];
+  };
+  const encryption = (now: number): IEvent => ({
+    ...message('$encrypted', now - MINUTE, { algorithm: 'm.megolm.v1.aes-sha2' }),
+    type: 'm.room.encryption',
+    state_key: '',
+  });
+  const expectOneEditPerReplyAndSender = ({ thread }: MidStream) => {
+    const edits = (thread.replayEvents ?? [])
+      .filter((event) => event.isRelation('m.replace'))
+      .map((event) => `${event.getAssociatedId()} ${event.getSender()}`);
+    expect(new Set(edits).size).toBe(edits.length);
+  };
+
+  it.each<[string, Arrival, MidStreamOptions?]>([
+    ['a live streaming edit', oneLiveEdit],
+    [
+      'a summary that names the file, with nothing synced since',
+      oneLiveEdit,
+      () => ({ tail: false }),
+    ],
+    [
+      'a thread list read while the placeholder was newest',
+      oneLiveEdit,
+      () => ({ summary: 'placeholder' }),
+    ],
+    [
+      'a run that says it streams',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        delete active.content['io.mindroom.stream_status'];
+        active.content['m.new_content'] = {
+          body: 'Results',
+          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        };
+        return { newest: active, live: [[active]] };
+      },
+    ],
+    [
+      "another sender's newer edit",
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        const other = { ...s.completed(now), sender: '@mindroom_other:example.org' };
+        return { newest: active, live: [[other, active]] };
+      },
+    ],
+    [
+      'a newer edit of another reply',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        const done = s.completed(now);
+        done.content['m.relates_to'] = { rel_type: 'm.replace', event_id: '$text' };
+        return { newest: active, live: [[active, done]] };
+      },
+    ],
+    [
+      'a newer reaction of the agent',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        const stop = {
+          ...message('$stop', now, {
+            'm.relates_to': { rel_type: 'm.annotation', event_id: replyId, key: '🛑' },
+          }),
+          type: 'm.reaction',
+        };
+        return { newest: active, live: [[active, stop]] };
+      },
+    ],
+  ])('reveals the hidden reply by a live edit: %s', async (_name, arrival, options) => {
+    const now = Date.now();
+    const s = await relaunchMidStream(now, options?.(now));
+    const { f, thread, workflow } = s;
+    const shown = { preview: f.card().preview, replies: thread.length };
+    let announced = false;
+    f.room().on(ThreadEvent.Update, (updated) => {
+      announced ||= !!revealedReplies.get(updated);
+    });
+    const { newest, live } = arrival(s, now);
+    s.serve(newest);
+    for (const batch of live) await f.deliver(batch);
+
+    // The SDK fetched the reply to place the edit; the thread itself stays as it was.
+    const revealed = revealedReplies.get(thread);
+    expect(revealed?.replacingEvent()?.getId()).toBe('$a-active');
+    expect(announced).toBe(true);
+    expect(thread.findEventById(replyId)).toBeUndefined();
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(f.replyRequests()).toBe(1);
+    expectOneEditPerReplyAndSender(s);
+    workflow(); // The card checks the reply as it checks any other.
+    await afterCheckDelay();
+    expect(workflow()).toBe('working');
+    expect({ preview: f.card().preview, replies: thread.length }).toEqual(shown);
+
+    // The same copy takes the reply's further edits, to the one that ends the stream.
+    await f.deliver([s.streaming(now, '$b-later')]);
+    expect(revealedReplies.get(thread)).toBe(revealed);
+    expect(revealed?.replacingEvent()?.getId()).toBe('$b-later');
+    expect(workflow()).toBe('working');
+    await f.deliver([s.ending(now + 1)]);
+    expect(workflow()).toBe('needsYou');
+    expect(f.requested('/relations/')).toBe(0);
+  });
+
+  it.each<[string, Arrival, MidStreamOptions?]>([
+    [
+      'an edit from the saved sync alone',
+      () => ({ live: [] }),
+      (now) => ({ saved: [inThread(edit('Checking the results', now - 1_000, 'streaming'))] }),
+    ],
+    [
+      'a stale edit of a reply the server bundles as finished',
+      (s, now) => ({ newest: s.completed(now), live: [[s.streaming(now - 1_000)]] }),
+    ],
+    [
+      'a stale edit after the finishing one',
+      (s, now) => {
+        const done = s.completed(now);
+        return { newest: done, live: [[done, s.streaming(now - 1_000)]] };
+      },
+    ],
+    [
+      'a stale edit sent at the same time as the finishing one',
+      (s, now) => ({ live: [[s.completed(now)], [s.streaming(now)]] }),
+    ],
+    [
+      'a newer finishing edit from the saved sync that no thread took',
+      (s, now) => ({ live: [[s.streaming(now - 1_000)]] }),
+      (now) => ({ saved: [edit(finished, now, 'completed')] }),
+    ],
+    [
+      'a newer streaming edit from the saved sync',
+      (s, now) => ({ live: [[s.completed(now - 2_000)]] }),
+      (now) => ({ saved: [inThread(edit('Checking the results', now - 1_000, 'streaming'))] }),
+    ],
+    [
+      'an idle edit',
+      (s, now) => {
+        const active = s.streaming(now - 31 * MINUTE);
+        return { newest: active, live: [[active]] };
+      },
+    ],
+    [
+      "another member's edit",
+      (_s, now) => ({ live: [[othersEdit('Checking the results', now - 1_000, 'streaming')]] }),
+    ],
+    [
+      'a run without a status',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        delete active.content['io.mindroom.stream_status'];
+        active.content['m.new_content'] = { body: 'Results', 'io.mindroom.ai_run': { version: 1 } };
+        return { newest: active, live: [[active]] };
+      },
+    ],
+    [
+      'an agent the room lists, outside the accounts whose metadata the client trusts',
+      oneLiveEdit,
+      (now) => ({ sender: '@helper:example.org', state: roster(now, '@helper:example.org') }),
+    ],
+    ['an encrypted room', oneLiveEdit, (now) => ({ state: [encryption(now)] })],
+    [
+      'an ignored agent',
+      (s, now) => {
+        vi.spyOn(s.f.mx, 'isUserIgnored').mockImplementation((userId) => userId === agentId);
+        return oneLiveEdit(s, now);
+      },
+    ],
+  ])('leaves the hidden reply unrevealed: %s', async (_name, arrival, options) => {
+    const now = Date.now();
+    const s = await relaunchMidStream(now, options?.(now));
+    const { f, thread, workflow } = s;
+    const { newest, live } = arrival(s, now);
+    s.serve(newest);
+    for (const batch of live) await f.deliver(batch);
+
+    expect(revealedReplies.get(thread)).toBeUndefined();
+    expectOneEditPerReplyAndSender(s);
+    expect(workflow()).toBe('needsYou');
+    expect(f.requested('/relations/')).toBe(0);
+  });
+
+  it('reveals the hidden reply once the SDK could fetch it', async () => {
+    const now = Date.now();
+    const s = await relaunchMidStream(now);
+    const { f, thread, workflow } = s;
+    f.setServerReply(500);
+    await f.deliver([s.streaming(now - 2_000, '$a-first')]);
+    expect(revealedReplies.get(thread)).toBeUndefined();
+
+    const { newest, live } = oneLiveEdit(s, now);
+    s.serve(newest);
+    await f.deliver(defined(live[0], 'the live batch'));
+    expect(revealedReplies.get(thread)).toBeDefined();
+    workflow();
+    await afterCheckDelay();
+    expect(workflow()).toBe('working');
+  });
+
+  it.each([
+    ['before', 'ends before the reply'],
+    ['after', 'ends before the reply'],
+    ['before', 'reaches the reply'],
+  ])(
+    'keeps the revealed reply streaming, revealed %s a first page that %s',
+    async (order, page) => {
+      const now = Date.now();
+      const s = await relaunchMidStream(now);
+      const { f, thread, workflow } = s;
+      const { newest, live } = oneLiveEdit(s, now);
+      s.serve(newest);
+      if (page === 'reaches the reply')
+        f.setServerThread({
+          root: s.listed,
+          replies: [withEdit(s.placeholder, defined(newest, 'the edit')), s.text, s.file],
+        });
+      if (order === 'before') await f.deliver(defined(live[0], 'the live batch'));
+      await thread.initialize();
       expect(thread.initialEventsFetched).toBe(true);
-      // The roster allows a load, not bypassing the card's content guard.
-      expect(f.card().streaming).toBe(false);
-    } else if (loadsThread) {
-      workflow(); // Let the card check the loaded reply, as usual.
+      if (order === 'after') await f.deliver(defined(live[0], 'the live batch'));
+
+      expect(!!thread.findEventById(replyId)).toBe(page === 'reaches the reply');
+      workflow();
       await afterCheckDelay();
       expect(workflow()).toBe('working');
+      const streaming = () => getThreadStreamingReplies(f.room(), rootId).map((e) => e.getId());
+      expect(streaming()).toEqual([replyId]);
+      // The SDK fetches the reply for the first edit of a batch only.
+      await f.deliver([s.streaming(now, '$b-later'), s.streaming(now + 1, '$b-latest')]);
+      const shown = thread.findEventById(replyId) ?? revealedReplies.get(thread);
+      expect(shown?.replacingEvent()?.getId()).toBe('$b-latest');
+      expect(streaming()).toEqual([replyId]);
+      await f.deliver([s.ending(now + 2)]);
+      expect(workflow()).toBe('needsYou');
     }
-  });
+  );
 
   it.each([agentId, readerId])(
     'lists 30 finished threads without loading them (%s)',

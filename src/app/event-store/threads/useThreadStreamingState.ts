@@ -18,6 +18,7 @@ import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../.
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
+import { revealedReplies } from '../../matrix/client/streamingThreadLoads';
 import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
 
 type ThreadStreamingSnapshot = {
@@ -67,7 +68,12 @@ export const getThreadStreamingEvents = (
   if (!room || !threadRootId) return [];
 
   const thread = room.getThread(threadRootId);
-  return getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
+  const tail = getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
+  // A reply that streams behind the tail, or behind the pages the thread holds: by the thread's
+  // own copy once a page brought one.
+  const revealedId = thread && revealedReplies.get(thread)?.getId();
+  const revealed = revealedId && (thread.findEventById(revealedId) ?? revealedReplies.get(thread));
+  return revealed && !tail.includes(revealed) ? [revealed, ...tail] : tail;
 };
 
 export const isEventStreaming = (
