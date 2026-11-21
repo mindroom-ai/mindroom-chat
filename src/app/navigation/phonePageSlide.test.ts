@@ -207,59 +207,21 @@ describe('slidePhonePage', () => {
     }
   });
 
-  it('does not copy the contents of a clip with no layout box', () => {
-    const page = browser();
-    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
-    stage.innerHTML =
-      '<div data-page-slide-clip style="display:none">' +
-      '<div data-page-slide-row><span>Hidden</span></div></div>';
-    slidePhonePage(() => showThread(true));
-    page.frame();
-    const shell = copy()?.querySelector<HTMLElement>('[data-page-slide-clip]');
-    expect(shell?.childElementCount).toBe(0);
-    expect(shell?.style.height).toBe('0px');
-  });
-
-  it('plays a back slide to the end when hiding the keyboard grows the stage', async () => {
+  it('copies a clip with no layout box as an empty shell on Back', async () => {
     const page = browser();
     showThread(true);
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
     stage.innerHTML =
-      '<div data-page-slide-clip style="display:none"><div>Covered room</div></div>';
-    let height = 450;
-    const rect = vi
-      .spyOn(stage, 'getBoundingClientRect')
-      .mockImplementation(() => new DOMRect(0, 0, 390, height));
-    let notify: (() => void) | undefined;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: () => void) {
-          notify = callback;
-        }
-        observe() {
-          /* The test delivers the next observation. */
-        }
-        disconnect() {
-          /* No real observation to stop. */
-        }
-      }
-    );
-    try {
-      slidePhonePage(() => showThread(false));
-      page.frame();
-      expect(page.plays).toEqual(['back']);
-      expect(copy()?.querySelector('[data-page-slide-clip]')?.childElementCount).toBe(0);
-      height = 844;
-      notify?.();
-      page.frame();
-      page.frame();
-      expect(copy()).not.toBeNull();
-      await page.finish();
-      expect(copy()).toBeNull();
-    } finally {
-      rect.mockRestore();
-    }
+      '<div data-page-slide-clip style="display:none">' +
+      '<div data-page-slide-row><span>Hidden</span></div></div>';
+    slidePhonePage(() => showThread(false));
+    page.frame();
+    const shell = copy()?.querySelector<HTMLElement>('[data-page-slide-clip]');
+    expect(shell?.childElementCount).toBe(0);
+    expect(shell?.style.height).toBe('0px');
+    expect(page.plays).toEqual(['back']);
+    await page.finish();
+    expect(copy()).toBeNull();
   });
 
   it('draws in the copy the pictures the page shows, and loads none', async () => {

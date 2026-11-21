@@ -18,8 +18,9 @@ export const PHONE_PAGE = 'data-phone-page';
 const PHONE_TOP_BAR = 'data-phone-top-bar';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
-/** A vertical clip and the rows it may replace with empty boxes. Row adornments stay nearby. */
+/** A vertical scroll clip. */
 const CLIP = '[data-page-slide-clip]';
+/** A row in a clip becomes an empty box once it is more than one screen out of view. */
 const ROW = '[data-page-slide-row]';
 /** The slide's keyframes (phonePageSlide.css.ts), apart from any other animation in the page. */
 const KEYFRAMES = 'phone-page-';
@@ -55,11 +56,14 @@ const depth = (): number => {
  * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
  * find twice, and loads and plays nothing: its pictures are drawn from the page's own. Its fields
  * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
+ * Copy what lies within one screen (max(screen.height, innerHeight)) of the visible stage in
+ * full, pictures included. Beyond that a marked row or clip leaves an empty box of its size.
  */
-const copyOf = (stage: Element) => {
+const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   const bounds = stage.getBoundingClientRect();
   // Keep a screen of rows on either side: the keyboard can go away or text can shrink mid-slide.
   const buffer = Math.max(window.screen.height, window.innerHeight);
+  const buffered = { top: bounds.top - buffer, bottom: bounds.bottom + buffer };
   // Read live geometry while writing only into a detached document. No write there can dirty
   // the live layout, and nothing loads before the copy loses its media sources.
   const still = document.implementation.createHTMLDocument('');
@@ -98,8 +102,8 @@ const copyOf = (stage: Element) => {
       !box.height ||
       box.right <= bounds.left ||
       box.left >= bounds.right ||
-      box.bottom <= bounds.top ||
-      box.top >= bounds.bottom
+      box.bottom < buffered.top ||
+      box.top > buffered.bottom
     )
       return blank;
     const picture = still.createElement('canvas');
@@ -120,15 +124,17 @@ const copyOf = (stage: Element) => {
   const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
     if (element.matches(CLIP)) {
       const view = element.getBoundingClientRect();
-      const top = Math.max(clip?.top ?? bounds.top, view.top);
-      const bottom = Math.min(clip?.bottom ?? bounds.bottom, view.bottom);
-      if (!view.width || !view.height || bottom <= top) return shellOf(element, view);
-      clip = { top, bottom };
+      const { top, bottom } = clip ?? buffered;
+      if (!view.width || !view.height || view.bottom < top || view.top > bottom)
+        return shellOf(element, view);
+      clip = {
+        top: Math.max(top, view.top - buffer),
+        bottom: Math.min(bottom, view.bottom + buffer),
+      };
     }
     if (clip && element.matches(ROW)) {
       const box = element.getBoundingClientRect();
-      if (box.bottom < clip.top - buffer || box.top > clip.bottom + buffer)
-        return shellOf(element, box);
+      if (box.bottom < clip.top || box.top > clip.bottom) return shellOf(element, box);
     }
     const split = !!element.querySelector(clip ? `${CLIP}, ${ROW}` : CLIP);
     const twin = still.importNode(element, !split);
@@ -174,7 +180,7 @@ const copyOf = (stage: Element) => {
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  return (over: Element) => {
+  return (over) => {
     over.append(copy);
     scrolled.forEach(([element, scrollTop, scrollLeft]) =>
       Object.assign(element, { scrollTop, scrollLeft })
