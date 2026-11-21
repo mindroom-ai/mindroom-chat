@@ -41,6 +41,8 @@ import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
+import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
+import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -133,15 +135,17 @@ export const useRoomInputVoice = ({
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   // A recording made while its thread's root was still sending belongs to that thread after.
-  const draftKey = draftBelongsToCurrentSession
-    ? voiceComposerKey({
-        ...pendingVoiceSendDraft.context,
-        threadId: confirmedVoiceThreadId(
-          pendingVoiceSendDraft.context.room,
-          pendingVoiceSendDraft.context.threadId
-        ),
-      })
-    : undefined;
+  const recovered = draftBelongsToCurrentSession && !!pendingVoiceSendDraft.recovered;
+  const draftKey =
+    draftBelongsToCurrentSession && !recovered
+      ? voiceComposerKey({
+          ...pendingVoiceSendDraft.context,
+          threadId: confirmedVoiceThreadId(
+            pendingVoiceSendDraft.context.room,
+            pendingVoiceSendDraft.context.threadId
+          ),
+        })
+      : undefined;
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
   // Before the page paints: it would show the recording for a frame.
@@ -155,6 +159,7 @@ export const useRoomInputVoice = ({
   // Without one, the room's page offers it while it shows that thread: on a page with no room for
   // the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
+    recovered ||
     draftKey === composerKey ||
     (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
       !threadViewComposers.some((entry) => entry.key === draftKey));
@@ -182,9 +187,9 @@ export const useRoomInputVoice = ({
   useEffect(() => {
     const ownedBefore = ownedPendingDraftRef.current;
     ownedPendingDraftRef.current = ownsPendingVoiceDraft;
-    if (ownsPendingVoiceDraft) setVoiceRecorderOpen(true);
+    if (ownsPendingVoiceDraft && !recovered) setVoiceRecorderOpen(true);
     else if (ownedBefore || otherComposerOwnsPendingVoiceDraft) setVoiceRecorderOpen(false);
-  }, [ownsPendingVoiceDraft, otherComposerOwnsPendingVoiceDraft]);
+  }, [ownsPendingVoiceDraft, otherComposerOwnsPendingVoiceDraft, recovered]);
 
   // One recorder is open at a time: opening one in another composer closes this one, which ends
   // its recording as leaving the room does.
@@ -218,15 +223,19 @@ export const useRoomInputVoice = ({
   //      "not joined" the same as "not present".
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
-    if (!draftBelongsToCurrentSession) {
-      setPendingVoiceSendDraft(undefined);
-      return;
-    }
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
-    if (!sourceRoom || !isJoined(sourceRoom)) {
+    if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
+      if (pendingVoiceSendDraft.recordingId)
+        releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
-  }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
+  }, [
+    draftBelongsToCurrentSession,
+    mx,
+    pendingVoiceSendDraft,
+    recovered,
+    setPendingVoiceSendDraft,
+  ]);
 
   // Provide the recording room at start and the latest relation again when Send is claimed.
   // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
@@ -240,6 +249,7 @@ export const useRoomInputVoice = ({
       }),
     [mx, getContext]
   );
+  useSavedVoiceDraft(mx, getVoiceSendContext);
 
   // The draft controller behind the hook owns pendingVoiceSendDraftAtom.
   // It writes the draft on failure and clears it on successful send or explicit
@@ -514,13 +524,14 @@ export const useRoomInputVoice = ({
         composerThreadId: context.threadId,
         // A live recording follows the reply/thread visible when primary Send is pressed.
         // A parked retry keeps the durable context captured with the failed recording.
-        relationContext: ownsPendingVoiceDraft
-          ? undefined
-          : {
-              threadId: context.threadId,
-              replyDraft: context.replyDraft,
-              threadingEnabled: context.threadingEnabled,
-            },
+        relationContext:
+          ownsPendingVoiceDraft && !recovered
+            ? undefined
+            : {
+                threadId: context.threadId,
+                replyDraft: context.replyDraft,
+                threadingEnabled: context.threadingEnabled,
+              },
         textContent: content,
         composerFallback: content ? snapshotText() : undefined,
         companionItems,
@@ -543,7 +554,15 @@ export const useRoomInputVoice = ({
 
       return true;
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, view, voiceRecorderOpen]
+    [
+      attachmentAccess,
+      getContext,
+      ownsPendingVoiceDraft,
+      recovered,
+      snapshotText,
+      view,
+      voiceRecorderOpen,
+    ]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>

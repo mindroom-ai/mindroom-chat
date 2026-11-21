@@ -6,6 +6,7 @@ import type {
   PendingVoiceSendInFlight,
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
+import { deleteVoiceRecording } from './voiceRecordingJournal';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
@@ -32,7 +33,12 @@ export type VoiceSendDraftController = {
     context: PendingVoiceSendContext,
     attempt: VoiceSendAttempt
   ) => Promise<boolean>;
-  retry: (attempt: VoiceSendAttempt & { claim: () => boolean | void }) => Promise<boolean>;
+  retry: (
+    attempt: VoiceSendAttempt & {
+      claim: () => boolean | void;
+      context?: () => PendingVoiceSendContext;
+    }
+  ) => Promise<boolean>;
   discardPending: () => void;
 };
 
@@ -61,13 +67,12 @@ export const createVoiceSendDraftController = (
   ) => {
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
+      if (recording.recordingId) await deleteVoiceRecording(recording.recordingId);
       drafts.write(undefined);
       return true;
     } catch (error) {
       drafts.write({
-        file: recording.file,
-        duration: recording.duration,
-        waveform: recording.waveform,
+        ...recording,
         context,
         errorMessage: getVoiceSendErrorMessage(error),
       });
@@ -96,13 +101,15 @@ export const createVoiceSendDraftController = (
       }
 
       const inFlight = createRetryToken();
+      const context = (draft.recovered && attempt.context?.()) || draft.context;
       drafts.write({ ...draft, errorMessage: undefined, inFlight });
       if (drafts.read()?.inFlight?.token !== inFlight.token) {
         attempt.onFailure();
         return false;
       }
       try {
-        await attempt.sendRecording(draft.file, draft.duration, draft.waveform, draft.context);
+        await attempt.sendRecording(draft.file, draft.duration, draft.waveform, context);
+        if (draft.recordingId) await deleteVoiceRecording(draft.recordingId);
         const current = drafts.read();
         if (current?.inFlight?.token === inFlight.token) {
           drafts.write(undefined);
@@ -113,6 +120,7 @@ export const createVoiceSendDraftController = (
         if (!current || current.inFlight?.token !== inFlight.token) return false;
         drafts.write({
           ...current,
+          ...(draft.recovered && { recovered: false, context }),
           inFlight: undefined,
           errorMessage: getVoiceSendErrorMessage(error),
         });
@@ -127,6 +135,9 @@ export const createVoiceSendDraftController = (
   return {
     sendInitial,
     retry,
-    discardPending: () => drafts.write(undefined),
+    discardPending: () => {
+      void deleteVoiceRecording(drafts.read()?.recordingId);
+      drafts.write(undefined);
+    },
   };
 };

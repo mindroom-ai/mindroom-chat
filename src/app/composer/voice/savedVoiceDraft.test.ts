@@ -61,14 +61,14 @@ let reloaded: typeof pendingVoiceSendDraftAtom | undefined;
 const reloadedAtom = () => reloaded!;
 
 /** A reload: fresh modules (nothing restored yet), a fresh store, and the hook mounted again. */
-const reloadPage = async () => {
+const reloadPage = async (recover = false) => {
   vi.resetModules();
   const drafts = await import('../roomInputDrafts');
   const saved = await import('./savedVoiceDraft');
   reloaded = drafts.pendingVoiceSendDraftAtom;
   const store = createStore();
   function Reloaded() {
-    saved.useSavedVoiceDraft(mx);
+    saved.useSavedVoiceDraft(mx, recover ? () => failedDraft().context : undefined);
     return null;
   }
   act(() => {
@@ -80,6 +80,37 @@ const reloadPage = async () => {
 
 afterEach(async () => {
   await clearSavedVoiceDraft(userId);
+});
+
+it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
+  const journal = await import('./voiceRecordingJournal');
+  vi.stubGlobal('navigator', {
+    locks: {
+      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) =>
+        callback({ name, mode: 'exclusive' }),
+    },
+  });
+  try {
+    const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
+    await recording.append(0, new Blob(['journal audio']), 4_000);
+    const first = openPage();
+    await settle();
+    act(() =>
+      first.store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), recordingId: recording.id })
+    );
+    await settle();
+    act(() => first.renderer.unmount());
+    journal.releaseVoiceRecording(recording.id);
+
+    const store = await reloadPage(true);
+    const draft = store.get(reloadedAtom());
+    expect(draft?.recordingId).toBe(recording.id);
+    expect(draft?.errorMessage).toBe('M_UNKNOWN: injected');
+    expect(draft?.recovered).toBeFalsy();
+  } finally {
+    await journal.clearVoiceRecordings(userId);
+    vi.unstubAllGlobals();
+  }
 });
 
 describe('useSavedVoiceDraft', () => {

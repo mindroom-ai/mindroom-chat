@@ -80,6 +80,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessage,
     canPause,
     hasPendingSend,
+    recovered,
     pendingDuration,
     pendingWaveform,
     start,
@@ -326,6 +327,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               sampleCount={hasPendingSend ? undefined : sampleCount}
               canPause={canPause}
               hasPendingSend={hasPendingSend}
+              recovered={recovered}
               onDiscard={discardAndClose}
               onPause={pause}
               onResume={resume}

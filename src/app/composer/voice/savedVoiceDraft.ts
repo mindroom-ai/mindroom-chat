@@ -1,13 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
+  openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   replyDraftAtRest,
   type IReplyDraft,
+  type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
+import {
+  holdVoiceRecording,
+  recoverVoiceRecording,
+  releaseVoiceRecording,
+} from './voiceRecordingJournal';
 
 /**
  * A voice message whose send failed stays parked with Retry and Discard until it is sent or
@@ -17,6 +24,7 @@ import {
  */
 type SavedVoiceDraft = {
   userId: string;
+  recordingId?: string;
   // The recording's bytes, not the File: WebKit refuses to store a Blob in IndexedDB in a
   // private window.
   audio: ArrayBuffer;
@@ -72,6 +80,7 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
   await withDraftDb((db) =>
     db.put('drafts', {
       userId,
+      recordingId: draft.recordingId,
       audio,
       fileName: file.name,
       fileType: file.type,
@@ -92,45 +101,76 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
 // recording before it is back.
 const restores = new Map<string, Promise<void>>();
 
-export const useSavedVoiceDraft = (mx: MatrixClient): void => {
+export const useSavedVoiceDraft = (
+  mx: MatrixClient,
+  getRecoveryContext?: () => PendingVoiceSendContext
+): void => {
   const store = useStore();
   const draft = useAtomValue(pendingVoiceSendDraftAtom);
+  const previous = useRef<PendingVoiceSendDraft>();
   const userId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
     if (!userId || restores.has(userId)) return;
     restores.set(
       userId,
-      withDraftDb((db) => db.get('drafts', userId)).then((saved) => {
-        if (!saved || store.get(pendingVoiceSendDraftAtom)) return;
-        const room = mx.getRoom(saved.roomId);
-        if (!room) return;
-        store.set(pendingVoiceSendDraftAtom, {
-          file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
-          duration: saved.duration,
-          waveform: saved.waveform,
-          errorMessage: saved.errorMessage,
-          context: {
-            ownerSessionId: userId,
-            roomId: saved.roomId,
-            room,
-            threadId: saved.threadId,
-            replyDraft: saved.replyDraft,
-            threadingEnabled: saved.threadingEnabled,
-            signalBridgedRoom: saved.signalBridgedRoom,
-            ...(saved.threadView && { threadView: true }),
-          },
-        });
+      withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
+        const slotTaken = () =>
+          !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
+        if (slotTaken()) return;
+        const room = saved && mx.getRoom(saved.roomId);
+        const id = saved?.recordingId;
+        if (
+          saved &&
+          room &&
+          (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+        ) {
+          if (slotTaken()) {
+            if (id) releaseVoiceRecording(id);
+            return;
+          }
+          store.set(pendingVoiceSendDraftAtom, {
+            recordingId: id,
+            file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
+            duration: saved.duration,
+            waveform: saved.waveform,
+            errorMessage: saved.errorMessage,
+            context: {
+              ownerSessionId: userId,
+              roomId: saved.roomId,
+              room,
+              threadId: saved.threadId,
+              replyDraft: saved.replyDraft,
+              threadingEnabled: saved.threadingEnabled,
+              signalBridgedRoom: saved.signalBridgedRoom,
+              ...(saved.threadView && { threadView: true }),
+            },
+          });
+        } else if (getRecoveryContext) {
+          await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
+            if (slotTaken()) return false;
+            store.set(pendingVoiceSendDraftAtom, {
+              ...recording,
+              recovered: true,
+              context: getRecoveryContext(),
+            });
+            return true;
+          });
+        }
       })
     );
-  }, [mx, store, userId]);
+  }, [getRecoveryContext, mx, store, userId]);
 
   useEffect(() => {
+    const before = previous.current;
+    previous.current = draft;
     if (!userId) return;
     void (restores.get(userId) ?? Promise.resolve()).then(() => {
       const current = store.get(pendingVoiceSendDraftAtom);
-      if (!current) return clearSavedVoiceDraft(userId);
-      if (current.context.ownerSessionId !== userId) return undefined;
+      if (!current)
+        return before?.context.ownerSessionId === userId ? clearSavedVoiceDraft(userId) : undefined;
+      if (current.context.ownerSessionId !== userId || current.recovered || current.inFlight)
+        return undefined;
       return saveVoiceDraft(userId, current);
     });
   }, [draft, store, userId]);
