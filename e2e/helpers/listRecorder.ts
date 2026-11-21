@@ -53,7 +53,7 @@ export const installListRecorder = (page: Page) =>
         row.dataset.scrollAnchor ?? `header:${row.dataset.compactSection}`;
       const viewIds = new WeakMap<Element, number>();
       let nextView = 0;
-      let frames: ListFrame[] = [];
+      const frames: ListFrame[] = [];
       let input: string[] = [];
       let writes: (Write & { view: Element })[] = [];
       let reattached: { key: string; view: Element }[] = [];
