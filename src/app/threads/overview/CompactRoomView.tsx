@@ -89,9 +89,13 @@ export type CompactRoomViewProps = {
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
 const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
-const sectionKeys = (sections: CompactThreadSection[], folded: readonly ThreadWorkflowBucket[]) =>
+const sectionKeys = (
+  sections: CompactThreadSection[],
+  folded: readonly ThreadWorkflowBucket[],
+  includeCounts = false
+) =>
   sections.flatMap(({ id, rootIds }) => [
-    sectionRowKey(id),
+    includeCounts ? `${sectionRowKey(id)}:${rootIds.length}` : sectionRowKey(id),
     ...(folded.includes(id) ? [] : rootIds),
   ]);
 const flatKeys = (ids: string[], pinned: ReadonlySet<string>) => [
@@ -447,14 +451,19 @@ export function CompactRoomView({
   const pending = useMemo(() => {
     if (!away) return false;
     const target = threadSections
-      ? sectionKeys(threadSections, threadSections.length === 1 ? NO_FOLDS : sectionsChoice.folded)
+      ? sectionKeys(
+          threadSections,
+          threadSections.length === 1 ? NO_FOLDS : sectionsChoice.folded,
+          true
+        )
       : flatKeys(livePage, livePins);
-    return (
-      JSON.stringify(target) !==
-      JSON.stringify(heldSections ? shownRows : flatKeys(shownRows, shownPins))
-    );
+    const displayed = heldSections
+      ? sectionKeys(heldSections, folded, true)
+      : flatKeys(shownRows, shownPins);
+    return JSON.stringify(target) !== JSON.stringify(displayed);
   }, [
     away,
+    folded,
     heldSections,
     livePage,
     livePins,

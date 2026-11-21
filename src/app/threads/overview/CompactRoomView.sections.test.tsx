@@ -150,6 +150,39 @@ describe('the Compact room in sections', () => {
     expect(rows()).toEqual(['#working 1', '$b', '#later 1', '$c']);
   });
 
+  it('offers changed folded header counts, but not a reorder within a folded section', () => {
+    const ids = ['$a', '$b', '$c', '$d'];
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$b', '$c'] },
+      { id: 'done', rootIds: ['$d'] },
+    ];
+    const { container, rerender } = render(view(ids));
+    fireEvent.click(header('later'));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const pill = () => screen.queryByRole('button', { name: /showUpdatedOrder/ });
+
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$c', '$b'] },
+      { id: 'done', rootIds: ['$d'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 1', '$a', '#later 2', '#done 1']);
+    expect(pill()).toBeNull();
+
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$c'] },
+      { id: 'done', rootIds: ['$d', '$b'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 1', '$a', '#later 2', '#done 1']);
+    expect(pill()).not.toBeNull();
+  });
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
