@@ -51,6 +51,7 @@ export const planVoiceTranscripts = ({
   viewerId,
   hasJoinedAgent,
   hasThreadReplies,
+  isHidden,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
@@ -60,6 +61,7 @@ export const planVoiceTranscripts = ({
   viewerId: string | undefined;
   hasJoinedAgent: boolean;
   hasThreadReplies: (event: MatrixEvent) => boolean;
+  isHidden: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
   const echoes =
@@ -95,7 +97,13 @@ export const planVoiceTranscripts = ({
     // An agent event counts even if it has not decrypted.
     let latestAgentTs = -Infinity;
     for (const event of events) {
-      if (!isMindroomResponderForViewer(event.getSender(), viewerId, trustedAccountIds)) continue;
+      const sender = event.getSender();
+      if (
+        !sender ||
+        ignored.has(sender) ||
+        !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
+        isHidden(event)
+      ) continue;
       const ts = event.getTs();
       if (Number.isFinite(ts)) latestAgentTs = Math.max(latestAgentTs, ts);
     }

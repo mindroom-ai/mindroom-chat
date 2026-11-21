@@ -69,6 +69,7 @@ it('does not restart the pending voice hint when rebuilding an old cached event'
       revealed: new Set<string>(),
       viewerId,
       hasJoinedAgent: true,
+      isHidden: () => false,
       hasThreadReplies: () => false,
     }).pendingVoiceIds;
   for (const events of [roomSnapshot.events, threadSnapshot?.events ?? []]) {

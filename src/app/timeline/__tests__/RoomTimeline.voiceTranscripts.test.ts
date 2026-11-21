@@ -19,6 +19,7 @@ import {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  pluginRowHiddenMock,
   roomTimelineVirtualizerState,
   powerLevelsContextMock,
   threadRenderStateMock,
@@ -306,6 +307,17 @@ describe('a voice echo in an open thread', () => {
     });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('keeps pending when a plugin hides the later agent row', async () => {
+    pluginRowHiddenMock.test = (event) => event.eventId === '$echo';
+    const { renderer } = await openThread(undefined, AGENT);
+    try {
+      expect(getRenderedEventIds(renderer)).not.toContain('$echo');
+      expect(transcribingStatuses(renderer)).toHaveLength(1);
     } finally {
       act(() => renderer.unmount());
     }

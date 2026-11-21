@@ -1003,6 +1003,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     viewerId,
     // A room with other people needs a mention, which a voice message has not sent.
     hasJoinedAgent: viewerIsOnlyPerson && hasJoinedResponder,
+    isHidden: (event) =>
+      approvalTimeline.hiddenEventIds.has(event.getId() ?? '') ||
+      (event.isRedacted() ? !showHiddenEvents : isHiddenByPlugin(event)),
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (

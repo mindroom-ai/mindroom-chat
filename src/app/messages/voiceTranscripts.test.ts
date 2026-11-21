@@ -91,6 +91,7 @@ const plan = (
     viewerId: PERSON,
     hasJoinedAgent,
     hasThreadReplies,
+    isHidden: () => false,
   });
 
 describe('getVoiceSourceEventId', () => {
@@ -185,6 +186,7 @@ describe('planVoiceTranscripts', () => {
       viewerId: PERSON,
       hasJoinedAgent: false,
       hasThreadReplies: () => false,
+      isHidden: () => false,
     });
     expect(result).toBe(NO_VOICE_TRANSCRIPTS);
   });
