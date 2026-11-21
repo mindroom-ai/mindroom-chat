@@ -6,7 +6,6 @@ import { Segment, Segments } from '../../ui/styles/Segmented.css';
 
 const compactHeader = '(max-width: 13rem)';
 const hoverCapable = '(hover: hover)';
-const revealToggle = '&:hover, &:focus-visible';
 const reducedMotion = '(prefers-reduced-motion: reduce)';
 
 export const CategoryHeader = style({ containerType: 'inline-size' });
@@ -29,6 +28,10 @@ export const HeaderControls = style([
     },
   },
 ]);
+
+// Pointer hover takes priority so the header never tries to fit two expanded labels.
+const keyboardReveal = `${HeaderControls}:not(:hover)`;
+const revealToggle = `&:hover, ${keyboardReveal} &:focus-visible`;
 
 export const HeaderToggle = style([
   Segment,
@@ -67,7 +70,11 @@ export const HeaderToggleLabel = style({
   transition: transition(['opacity'], motion.duration.Slow),
   '@media': {
     [hoverCapable]: {
-      selectors: { [`${HeaderToggle}:hover &, ${HeaderToggle}:focus-visible &`]: { opacity: 1 } },
+      selectors: {
+        [`${HeaderToggle}:hover &, ${keyboardReveal} ${HeaderToggle}:focus-visible &`]: {
+          opacity: 1,
+        },
+      },
     },
     [reducedMotion]: { transition: 'none' },
   },
