@@ -22,7 +22,11 @@ import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import { readTopInset } from '../ui/styles/threadHeaderInset';
-import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
+import {
+  createBatchedMeasurementRef,
+  createScrollMountMeasurement,
+  measureMountedRows,
+} from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -412,16 +416,9 @@ export const useTimelineScrollLedgerController = ({
         const reported = reportedWidthRef.current;
         reportedWidthRef.current = { scrollElement, width };
         if (observing && reported?.scrollElement === scrollElement && reported.width !== width) {
-          instance.elementsCache.forEach((row) => {
-            if (!row.isConnected) return;
+          // Not `measureRow`: without an entry it takes the row as not wrapped anew.
+          measureMountedRows(instance, () => {
             rowRewrappedRef.current = true;
-            // The size the rows' observer measures from its entry, so its report of this pass
-            // changes nothing. Not `measureRow`: without an entry it takes the row as not
-            // wrapped anew.
-            instance.resizeItem(
-              instance.indexFromElement(row),
-              Math.round(row.getBoundingClientRect().height)
-            );
           });
           rowRewrappedRef.current = false;
         }
