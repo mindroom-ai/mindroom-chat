@@ -42,7 +42,7 @@ import {
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
-import { releaseVoiceRecording } from './voice/loadVoiceRecordingJournal';
+import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -195,12 +195,25 @@ export const useRoomInputVoice = ({
     if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
   }, [openRecorder, recorderToken]);
 
-  // Release drafts that lost their account or destination so they cannot block another composer.
+  // Discard any orphaned draft. Three cases:
+  //   1. Account-switch leak: the atom is module-level and survives
+  //      logout/login since the router store is shared across sessions.
+  //      A draft from account A must not block voice recording in B.
+  //   2. Same-session room loss (rev-A R4 Issue 2): if the user was
+  //      kicked from / left / forgot the parked-draft room, the
+  //      otherComposerOwnsPendingVoiceDraft gate would lock the mic in
+  //      every other room with no in-app surface to discard.
+  //   3. Same-session non-joinable room (rev-B / rev-G R5): a Room
+  //      object can survive in mx.getRoom() after the user is no longer
+  //      Joined (Leave/Ban/etc), in which case the source room composer
+  //      cannot render and the user has no way to retry/discard. Treat
+  //      "not joined" the same as "not present".
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
     if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
-      releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
+      if (pendingVoiceSendDraft.recordingId)
+        releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
   }, [

@@ -11,7 +11,11 @@ import {
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
-import { loadVoiceRecordingJournal } from './loadVoiceRecordingJournal';
+import {
+  holdVoiceRecording,
+  recoverVoiceRecording,
+  releaseVoiceRecording,
+} from './voiceRecordingJournal';
 
 /**
  * A voice message whose send failed stays parked with Retry and Discard until it is sent or
@@ -128,10 +132,13 @@ export const useSavedVoiceDraft = (
       const savedRoom = saved && mx.getRoom(saved.roomId);
       const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
       const id = saved?.recordingId;
-      const journal = globalThis.navigator?.locks ? await loadVoiceRecordingJournal() : undefined;
-      if (saved && room && (!id || !journal || (await journal.holdVoiceRecording(id)))) {
+      if (
+        saved &&
+        room &&
+        (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+      ) {
         if (slotTaken()) {
-          if (id) journal?.releaseVoiceRecording(id);
+          if (id) releaseVoiceRecording(id);
           return;
         }
         store.set(pendingVoiceSendDraftAtom, {
@@ -152,7 +159,7 @@ export const useSavedVoiceDraft = (
           },
         });
       } else if (getRecoveryContext) {
-        await journal?.recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
+        await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
           if (slotTaken()) return false;
           store.set(pendingVoiceSendDraftAtom, {
             ...recording,

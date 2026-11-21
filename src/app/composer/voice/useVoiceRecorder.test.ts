@@ -1562,9 +1562,7 @@ describe('useVoiceRecorder', () => {
         release: vi.fn<() => void>(),
         remove: vi.fn(async () => undefined),
       };
-      vi.stubGlobal('navigator', { ...navigator, locks: {} });
-      const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValue(undefined);
-      begin.mockReturnValueOnce(thread);
+      const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValueOnce(thread);
       MockMediaRecorder.autoStop = false;
       store.set(openVoiceRecorderAtom, threadToken);
       const first = await renderHarness({ recorderToken: threadToken }, store);

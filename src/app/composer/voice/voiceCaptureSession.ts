@@ -136,7 +136,7 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
   });
 
 export const createVoiceCaptureSession = (
-  beginJournal?: (startedAt: number, mimeType: string) => Promise<CaptureJournal | undefined>,
+  beginJournal?: (startedAt: number, mimeType: string) => CaptureJournal | undefined,
   onPark?: (recording: CapturedVoiceRecording) => boolean
 ): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
@@ -408,17 +408,6 @@ export const createVoiceCaptureSession = (
         });
         if (!owns(generation)) return false;
         setupAnalyser(generation, stream);
-        if (beginJournal) {
-          const journal = await beginJournal(
-            now(),
-            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
-          ).catch(() => undefined);
-          if (!owns(generation)) {
-            void journal?.remove();
-            return false;
-          }
-          generation.journal = journal;
-        }
       }
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
@@ -438,6 +427,14 @@ export const createVoiceCaptureSession = (
       generation.startedAt = now();
       if (webRecorder) {
         generation.web = true;
+        try {
+          generation.journal = beginJournal?.(
+            generation.startedAt,
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+          );
+        } catch {
+          // Storage is best effort; capture still works from memory.
+        }
         webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
       }
       startTimers(generation);

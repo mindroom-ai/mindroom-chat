@@ -6,7 +6,7 @@ import type {
   PendingVoiceSendInFlight,
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
-import { deleteVoiceRecording } from './loadVoiceRecordingJournal';
+import { deleteVoiceRecording } from './voiceRecordingJournal';
 import { clearSavedVoiceDraft } from './savedVoiceDraft';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';

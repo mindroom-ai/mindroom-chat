@@ -624,36 +624,9 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('does not start a recorder released while opening the journal', async () => {
-    const journal = { id: 'recording', append: vi.fn(), remove: vi.fn(), release: vi.fn() };
-    const opening = deferred<typeof journal>();
-    const begin = vi.fn(() => opening.promise);
-    const session = createVoiceCaptureSession(begin);
-    const starting = session.start();
-    await Promise.resolve();
-    expect(begin).toHaveBeenCalledOnce();
-    session.releaseOwner();
-    opening.resolve(journal);
-    expect(await starting).toBe(false);
-    expect(journal.remove).toHaveBeenCalledOnce();
-    expect(latest().state).toBe('inactive');
-    expect(stream.track.stop).toHaveBeenCalledOnce();
-  });
-
-  it('records from memory if opening the journal rejects', async () => {
-    const session = createVoiceCaptureSession(() =>
-      Promise.reject(new Error('journal unavailable'))
-    );
-    sessions.push(session);
-    expect(await session.start()).toBe(true);
-    const result = await finish(session);
-    expect(result.status).toBe('captured');
-    if (result.status === 'captured') expect(result.recording.recordingId).toBeUndefined();
-  });
-
   it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
     const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
-    const session = createVoiceCaptureSession(async () => ({
+    const session = createVoiceCaptureSession(() => ({
       id: 'recording',
       append,
       remove: vi.fn(),
