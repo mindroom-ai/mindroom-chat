@@ -183,8 +183,9 @@ export function useVoiceRecorder({
       context: latestGetSendContextRef.current,
       sendRecording,
       onFailure: notifySendStopFailure,
+      sameAccount: voiceAccountGuard(store),
     });
-  }, [claimSendStop, claimed, draftController, notifySendStopFailure]);
+  }, [claimSendStop, claimed, draftController, notifySendStopFailure, store]);
 
   const { discardPending } = draftController;
 

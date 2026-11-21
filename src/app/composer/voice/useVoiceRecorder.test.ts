@@ -1371,6 +1371,42 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
+  it('parks nothing under the next account when a retry fails after the account left', async () => {
+    let failRetry!: (error: Error) => void;
+    const onSendRecording = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('upload failed'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            failRetry = reject;
+          })
+      );
+    const { renderer, store } = await renderHarness({ onSendRecording });
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeDefined();
+
+    let retry!: Promise<boolean | undefined>;
+    await act(async () => {
+      retry = Promise.resolve(recorderState.current?.retry());
+      await Promise.resolve();
+    });
+    act(() => forgetComposerStateOfSession(store));
+    await act(async () => {
+      failRetry(new Error('offline'));
+      expect(await retry).toBe(false);
+    });
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+
+    renderer.unmount();
+  });
+
   it('drops a same-tick second retry instead of double-submitting the draft', async () => {
     const onSendRecording = vi
       .fn()

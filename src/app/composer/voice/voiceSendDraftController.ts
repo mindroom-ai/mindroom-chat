@@ -26,14 +26,15 @@ export type VoiceDraftStore = {
 export type VoiceSendAttempt = {
   sendRecording: SendRecordingCallback;
   onFailure: () => void;
+  /** False once the account the Send or Retry was pressed under was left. */
+  sameAccount: () => boolean;
 };
 
 export type VoiceSendDraftController = {
   sendInitial: (
     recording: CapturedVoiceRecording,
     context: PendingVoiceSendContext,
-    /** `sameAccount`: false once the account the Send was pressed under was left. */
-    attempt: VoiceSendAttempt & { sameAccount: () => boolean }
+    attempt: VoiceSendAttempt
   ) => Promise<boolean>;
   retry: (
     attempt: VoiceSendAttempt & {
@@ -127,7 +128,16 @@ export const createVoiceSendDraftController = (
         return true;
       } catch (error) {
         const current = drafts.read();
-        if (!current || current.inFlight?.token !== inFlight.token) return false;
+        const ours = current?.inFlight?.token === inFlight.token;
+        if (!attempt.sameAccount()) {
+          // The account was left: nothing is parked under the next one. The disk copy waits,
+          // unlocked, for that account to recover.
+          if (ours) drafts.write(undefined);
+          if (draft.recordingId) releaseVoiceRecording(draft.recordingId);
+          attempt.onFailure();
+          return false;
+        }
+        if (!current || !ours) return false;
         drafts.write({
           ...current,
           // A recovered recording whose send failed waits where that Send was pressed.

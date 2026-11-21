@@ -175,6 +175,7 @@ it.each(['send', 'discard'])(
         const sendRecording = vi.fn();
         expect(
           await controller.retry({
+            sameAccount: () => true,
             claim: () => true,
             context: () => context,
             sendRecording,
@@ -277,6 +278,7 @@ describe('useSavedVoiceDraft', () => {
       act(() => {
         if (action === 'retry')
           result = controller.retry({
+            sameAccount: () => true,
             claim: () => true,
             sendRecording: () => inFlight,
             onFailure: vi.fn(),
