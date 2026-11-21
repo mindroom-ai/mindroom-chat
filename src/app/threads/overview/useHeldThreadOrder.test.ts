@@ -3,11 +3,36 @@ import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  captureLiveBandOffset,
   MOUSE_REST_HOLD_MS,
   useHeldThreadOrder,
   usePointerOverCards,
   useScrolledAway,
 } from './useHeldThreadOrder';
+
+describe('captureLiveBandOffset', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    [60, false, 60],
+    [0, false, 0],
+    [201, false, 0],
+    [60, true, 0],
+  ])('restores offset %i with native anchoring %s to %i', (offset, supported, expected) => {
+    vi.stubGlobal('CSS', { supports: () => supported });
+    const view = document.createElement('div');
+    Object.defineProperty(view, 'clientHeight', { value: 400 });
+    view.scrollTop = offset;
+
+    const restore = captureLiveBandOffset(view);
+    view.scrollTop = 0;
+    restore?.();
+
+    expect(view.scrollTop).toBe(expected);
+  });
+});
 
 describe('useScrolledAway', () => {
   it('only holds beyond half the scroller height, including before a scroll event', () => {
