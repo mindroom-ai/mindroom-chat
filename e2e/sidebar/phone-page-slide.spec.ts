@@ -473,7 +473,7 @@ test('webkit: a held copy keeps clips and pictures through stage growth', async 
       );
     }, PIXEL.toString('base64'));
     await card(page, root).tap();
-    const layout = await page.locator('[data-page-slide-copy]').evaluate((copy) => {
+    const layout = await page.locator('[data-page-slide-copy]').evaluate(async (copy) => {
       const stage = copy.parentElement!;
       const clip = copy.querySelector('[data-near-clip]')!;
       const scroller = copy.querySelector('[data-probe-scroll]')!;
@@ -483,10 +483,13 @@ test('webkit: a held copy keeps clips and pictures through stage growth', async 
       const visible = () => clip.getBoundingClientRect().top < stage.getBoundingClientRect().bottom;
       const before = visible();
       document.documentElement.style.setProperty('--test-height', '844px');
+      // Through a paint, so a resize callback that ended the slide would have run.
+      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
       const canvas = clip.querySelector('canvas');
       const alpha = canvas?.getContext('2d')?.getImageData(0, 0, 1, 1).data[3];
-      return { y, before, after: visible(), alpha };
+      return { y, before, after: visible(), alpha, held: copy.isConnected };
     });
+    expect(layout.held, 'the copy outlived the resize').toBe(true);
     expect(layout.y).toBeCloseTo(siblingY, 0);
     expect(layout.before).toBe(false);
     expect(layout.after).toBe(true);
