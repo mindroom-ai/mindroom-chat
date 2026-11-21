@@ -93,28 +93,13 @@ export const planVoiceTranscripts = ({
     byVoiceId.set(voiceId, echo);
     hiddenEventIds.add(echoId);
   });
-  const pendingVoiceIds = new Set<string>();
+  const pending = new Map<string, number>();
   if (viewerId && expectsAnswer) {
-    // The room window may draw newest first. Compare server timestamps, not row order.
-    // An agent event counts even if it has not decrypted.
-    let latestAgentTs = -Infinity;
-    for (const event of events) {
-      const sender = event.getSender();
-      if (
-        !sender ||
-        ignored.has(sender) ||
-        !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
-        isRowlessTimelineEvent(event) ||
-        isHidden(event)
-      )
-        continue;
-      const ts = event.getTs();
-      if (Number.isFinite(ts)) latestAgentTs = Math.max(latestAgentTs, ts);
-    }
+    let oldestVoiceTs = Infinity;
     for (const event of events) {
       if (event.getSender() !== viewerId) continue;
       const ts = event.getTs();
-      if (!Number.isFinite(ts) || ts < latestAgentTs) continue;
+      if (!Number.isFinite(ts)) continue;
       const id = event.getId();
       const age = event.getLocalAge();
       if (
@@ -132,14 +117,36 @@ export const planVoiceTranscripts = ({
           isVoiceMessageContent(content) &&
           !hasThreadReplies(event)
         ) {
-          pendingVoiceIds.add(id);
+          pending.set(id, ts);
+          oldestVoiceTs = Math.min(oldestVoiceTs, ts);
         }
       }
     }
+    if (pending.size > 0) {
+      // The room window may draw newest first. A drawn event need not have decrypted to count.
+      let latestAgentTs = oldestVoiceTs;
+      for (const event of events) {
+        const ts = event.getTs();
+        if (!Number.isFinite(ts) || ts <= latestAgentTs) continue;
+        const sender = event.getSender();
+        if (
+          !sender ||
+          ignored.has(sender) ||
+          !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
+          isRowlessTimelineEvent(event) ||
+          isHidden(event)
+        )
+          continue;
+        latestAgentTs = ts;
+      }
+      for (const [id, ts] of pending) {
+        if (ts < latestAgentTs) pending.delete(id);
+      }
+    }
   }
-  return byVoiceId.size === 0 && pendingVoiceIds.size === 0
+  return byVoiceId.size === 0 && pending.size === 0
     ? NO_VOICE_TRANSCRIPTS
-    : { hiddenEventIds, byVoiceId, pendingVoiceIds };
+    : { hiddenEventIds, byVoiceId, pendingVoiceIds: new Set(pending.keys()) };
 };
 
 /** Whether two plans draw the same: the timeline keeps the older, so its rows do not redraw. */

@@ -78,6 +78,7 @@ const plan = (
     trustedAccountIds = new Set([ROUTER]),
     expectsAnswer = false,
     hasThreadReplies = (_event: MatrixEvent): boolean => false,
+    isHidden = (_event: MatrixEvent): boolean => false,
   } = {}
 ) =>
   planVoiceTranscripts({
@@ -91,7 +92,7 @@ const plan = (
     viewerId: PERSON,
     expectsAnswer,
     hasThreadReplies,
-    isHidden: () => false,
+    isHidden,
   });
 
 describe('getVoiceSourceEventId', () => {
@@ -298,8 +299,13 @@ describe('pending voice transcription', () => {
   });
 
   it('keeps pending when an agent edits its earlier reply after the voice message', () => {
-    const reply = echo('$reply', {}, { sender: AGENT });
-    reply.event.origin_server_ts = now - 1;
+    const reply = new MatrixEvent({
+      event_id: '$reply',
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: now - 1,
+      content: { msgtype: 'm.text', body: 'Invented words' },
+    });
     const edit = new MatrixEvent({
       event_id: '$edit',
       type: 'm.room.message',
@@ -345,6 +351,28 @@ describe('pending voice transcription', () => {
       { sender: AGENT }
     );
     expect(pending([voice(), fallback])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('does not scan agent rows when no fresh voice candidate exists', () => {
+    const stale = voice('$voice', PERSON, VOICE_CONTENT, now - 60_000);
+    const reply = echo('$reply', {}, { sender: AGENT });
+    const getTs = vi.spyOn(reply, 'getTs');
+    expect(pending([stale, reply])).toBe(NO_VOICE_TRANSCRIPTS);
+    expect(getTs).not.toHaveBeenCalled();
+  });
+
+  it('only checks visibility for agent rows newer than a pending voice candidate', () => {
+    const earlierReply = new MatrixEvent({
+      event_id: '$earlier',
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: now - 1,
+    });
+    const laterReply = echo('$later', {}, { sender: AGENT });
+    const isHidden = vi.fn(() => false);
+    const result = plan([earlierReply, voice(), laterReply], { expectsAnswer: true, isHidden });
+    expect(result).toBe(NO_VOICE_TRANSCRIPTS);
+    expect(isHidden.mock.calls).toEqual([[laterReply]]);
   });
 
   it('does not show without a joined agent', () => {
