@@ -505,3 +505,23 @@ and 17 locale lines 85; `NOTICE` and docs 20. Inside the 1,000 to 1,500 estimate
    before answering.
 3. **Room call transcripts**: this device stays out silently (default), or the panel says its
    words are not transcribed.
+
+## Spike results
+
+Date: 2026-11-21. Environment: macOS 26.5.2 (25F84), Xcode 26.6 (17F113), LiveKit Swift SDK 2.19.0
+(`webrtc-xcframework` `150.7871.4` in `Package.resolved`, `livekit-ffi-xcframework` `0.13.1`),
+local native `livekit-server` 1.13.11 (Docker bridge WebRTC ICE failed in `s0`; native server
+passed `s0` 17/17 both ways: web 445 Hz rms=0.3578, web2 879 Hz rms=0.3494).
+
+| Gate | Result | Evidence (one sample each way) |
+|---|---|---|
+| G1 | PASS | `App` and `AppStoreMac` Debug Catalyst built (`LiveKitWebRTC.framework`: 27M; `App` bundle: 116M). iOS `App` build (`generic/platform=iOS`) succeeded with no LiveKit framework or binary (only the existing web bundle asset `livekit-client.e2ee.worker-*.js`). |
+| G2 (`s1`) | PASS | Web heard 445 Hz rms=0.3456 (17/17); Mac heard 879 Hz rms=0.357 (16/16). `microphone granted=true`, `category=AVAudioSessionCategoryPlayAndRecord engineRunning=true`, `after disconnect engineRunning=false state=true`. |
+| G3 (`s2`, `s3`) | PASS | `s2` (wrong Mac key on web): web silent (17/17, maxRms=0.0000), Mac heard 879 Hz rms=0.349 (17/17). `s3` (wrong web key on Mac): web heard 445 Hz rms=0.346 (17/17), Mac silent (17/17, maxRms=0.0000). |
+| G4 (`s4`) | PASS | Both sides rotated to key index 1 at 10 s; post-rotation window (13..20 s): web heard 445 Hz rms=0.3454 (8/8), Mac heard 880 Hz rms=0.3513 (7/7). |
+| G5 (`s5`) | PASS | Unencrypted room: web heard 445 Hz rms=0.3459 (17/17), Mac heard 879 Hz rms=0.3579 (17/17). |
+| G6 (`s1` sandboxed) | PASS | Without `com.apple.security.network.server`: failed (`Code=202`, transport failed). With `com.apple.security.network.server`: web heard 445 Hz rms=0.3458 (17/17), Mac heard 880 Hz rms=0.3506 (16/16), audio session and disconnect checks passed. |
+
+- **Store entitlement**: `network.server: needed`.
+- **iOS exclusion**: verified locally (`generic/platform=iOS` build succeeded; zero LiveKit frameworks in `Debug-iphoneos`).
+- **SDK API names**: every API name in the design compiled unchanged against LiveKit Swift SDK 2.19.0. Probe-only adjustments: injected the test tone via `AudioManager.shared.capturePostProcessingDelegate` (default voice processing kept enabled), handled interleaved stereo PCM in the probe's `AudioRenderer` (`48000 Hz`, 2 ch interleaved int16), ad hoc signed the probe bundle for dyld library validation, and launched via `open -n` for TCC.
