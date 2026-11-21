@@ -6,16 +6,13 @@ import { TimelineMinimapItem, deriveTimelineMinimapItems } from './timelineMinim
 import type { OpenRoomEventHandler } from './roomEventOpenController';
 
 type RoomTimelineMinimapOptions = {
-  minimapEvents: readonly MatrixEvent[];
-  /** Only a thread shows the minimap; a room's flat timeline and its thread cards never do. */
-  inThread: boolean;
+  threadEvents: readonly MatrixEvent[];
   scrollRef: RefObject<HTMLElement>;
   handleOpenEvent: OpenRoomEventHandler;
 };
 
 export const useRoomTimelineMinimap = ({
-  minimapEvents,
-  inThread,
+  threadEvents,
   scrollRef,
   handleOpenEvent,
 }: RoomTimelineMinimapOptions) => {
@@ -23,21 +20,21 @@ export const useRoomTimelineMinimap = ({
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
   // Fine-pointer only (like the reference implementation): touch devices
   // never see the minimap, so skip deriving items and tracking scroll there.
-  const [minimapPointerFine, setMinimapPointerFine] = useState(
-    () => typeof window !== 'undefined' && (window.matchMedia?.('(pointer: fine)').matches ?? false)
-  );
+  const hasThreadEvents = threadEvents.length > 0;
+  const [minimapPointerFine, setMinimapPointerFine] = useState(false);
   useEffect(() => {
-    const queryList =
-      typeof window === 'undefined' ? undefined : window.matchMedia?.('(pointer: fine)');
+    if (!hasThreadEvents || typeof window === 'undefined') return undefined;
+    const queryList = window.matchMedia?.('(pointer: fine)');
     if (!queryList) return undefined;
     const handleChange = () => setMinimapPointerFine(queryList.matches);
+    handleChange();
     queryList.addEventListener('change', handleChange);
     return () => queryList.removeEventListener('change', handleChange);
-  }, []);
-  const minimapEnabled = minimapPointerFine && inThread;
+  }, [hasThreadEvents]);
+  const minimapEnabled = hasThreadEvents && minimapPointerFine;
   const minimapItems = useMemo(
-    () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents, t) : []),
-    [minimapEnabled, minimapEvents, t]
+    () => (minimapEnabled ? deriveTimelineMinimapItems(threadEvents, t) : []),
+    [minimapEnabled, threadEvents, t]
   );
   useTimelineMinimapInView(scrollRef, minimapItems, minimapStripMap, minimapEnabled);
   const handleMinimapSelect = useCallback(

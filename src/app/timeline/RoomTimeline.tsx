@@ -1800,8 +1800,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
 
   const minimap = useRoomTimelineMinimap({
-    minimapEvents: threadEvents,
-    inThread: Boolean(threadId),
+    threadEvents,
     scrollRef,
     handleOpenEvent,
   });
