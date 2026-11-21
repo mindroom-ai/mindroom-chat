@@ -186,59 +186,122 @@ describe('RoomSummaryLoader', () => {
     queryClient.clear();
   });
 
-  it('asks the older summary route of a homeserver that has neither route the SDK asks', async () => {
-    const requests: URL[] = [];
+  describe('a homeserver without the summary route the SDK asks', () => {
+    const STABLE = `/_matrix/client/v1/room_summary/${summary.room_id}`;
+    const MSC3266 = `/_matrix/client/unstable/im.nheko.summary/summary/${summary.room_id}`;
+    const OLDEST = `/_matrix/client/unstable/im.nheko.summary/rooms/${summary.room_id}/summary`;
+    const via = ['one.example.org', 'two.example.org'];
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), {
         status,
         headers: { 'Content-Type': 'application/json' },
       });
-    // Only `/unstable/im.nheko.summary/rooms/{roomId}/summary`, as the first MSC3266 servers had.
-    const mx = createClient({
-      baseUrl: 'https://example.org',
-      accessToken: 'token',
-      fetchFn: async (input) => {
-        const url = new URL(String(input));
-        requests.push(url);
-        const path = decodeURIComponent(url.pathname);
-        if (path.endsWith('/versions')) return json({ versions: ['v1.11'], unstable_features: {} });
-        if (path === `/_matrix/client/unstable/im.nheko.summary/rooms/${summary.room_id}/summary`)
-          return json(summary);
-        return json({ errcode: 'M_UNRECOGNIZED', error: 'Unrecognized request' }, 404);
-      },
-    });
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    let observed: RoomSummaryState | undefined;
-    let renderer: ReactTestRenderer;
 
-    await act(async () => {
-      renderer = create(
-        <QueryClientProvider client={queryClient}>
-          <MatrixClientProvider value={mx}>
-            <RoomSummaryLoader
-              roomIdOrAlias={summary.room_id}
-              viaServers={['one.example.org', 'two.example.org']}
-            >
-              {(state) => {
-                observed = state;
-                return null;
-              }}
-            </RoomSummaryLoader>
-          </MatrixClientProvider>
-        </QueryClientProvider>
+    /**
+     * Loads the summary from a homeserver that answers the paths in `routes` and knows no other.
+     * `advertised` is whether its `/versions` names MSC3266, for which the SDK asks the stable
+     * route; without it the SDK asks the MSC's own.
+     */
+    const summaryFrom = async (routes: Record<string, Response>, advertised: boolean) => {
+      const requests: URL[] = [];
+      const mx = createClient({
+        baseUrl: 'https://example.org',
+        accessToken: 'token',
+        fetchFn: async (input) => {
+          const url = new URL(String(input));
+          const path = decodeURIComponent(url.pathname);
+          if (path.endsWith('/versions')) {
+            return json({
+              versions: ['v1.11'],
+              unstable_features: { 'org.matrix.msc3266': advertised },
+            });
+          }
+          requests.push(url);
+          return (
+            routes[path]?.clone() ??
+            json({ errcode: 'M_UNRECOGNIZED', error: 'Unrecognized request' }, 404)
+          );
+        },
+      });
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      let observed: RoomSummaryState | undefined;
+      let renderer: ReactTestRenderer;
+
+      await act(async () => {
+        renderer = create(
+          <QueryClientProvider client={queryClient}>
+            <MatrixClientProvider value={mx}>
+              <RoomSummaryLoader roomIdOrAlias={summary.room_id} viaServers={via}>
+                {(state) => {
+                  observed = state;
+                  return null;
+                }}
+              </RoomSummaryLoader>
+            </MatrixClientProvider>
+          </QueryClientProvider>
+        );
+      });
+      await act(async () => {
+        await vi.waitFor(() => expect(observed?.status).not.toBe(AsyncStatus.Loading));
+      });
+      act(() => renderer!.unmount());
+      queryClient.clear();
+      return {
+        observed,
+        asked: requests.map((url) => decodeURIComponent(url.pathname)),
+        // The servers to ask over federation, as each request named them.
+        vias: requests.map((url) => url.searchParams.getAll('via')),
+      };
+    };
+
+    it("asks the MSC's route when the stable one the homeserver advertises is missing", async () => {
+      const { observed, asked, vias } = await summaryFrom({ [MSC3266]: json(summary) }, true);
+
+      expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
+      expect(asked).toEqual([STABLE, MSC3266]);
+      expect(vias).toEqual([via, via]);
+    });
+
+    it('asks the route of the first MSC3266 servers last', async () => {
+      const { observed, asked, vias } = await summaryFrom({ [OLDEST]: json(summary) }, true);
+
+      expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
+      expect(asked).toEqual([STABLE, MSC3266, OLDEST]);
+      expect(vias).toEqual([via, via, via]);
+    });
+
+    it("does not ask the MSC's route again when the SDK asked it", async () => {
+      const { observed, asked, vias } = await summaryFrom({ [OLDEST]: json(summary) }, false);
+
+      expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
+      expect(asked).toEqual([MSC3266, OLDEST]);
+      expect(vias).toEqual([via, via]);
+    });
+
+    it('reports a refusal of an older route, and asks no further one', async () => {
+      const { observed, asked } = await summaryFrom(
+        { [MSC3266]: json({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403) },
+        true
       );
-    });
-    await act(async () => {
-      await vi.waitFor(() => expect(observed?.status).not.toBe(AsyncStatus.Loading));
+
+      expect(observed).toMatchObject({
+        status: AsyncStatus.Error,
+        error: { errcode: 'M_FORBIDDEN', httpStatus: 403 },
+      });
+      expect(asked).toEqual([STABLE, MSC3266]);
     });
 
-    expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
-    // The servers to ask over federation go with the older route too.
-    expect(requests.at(-1)?.searchParams.getAll('via')).toEqual([
-      'one.example.org',
-      'two.example.org',
-    ]);
-    act(() => renderer!.unmount());
-    queryClient.clear();
+    it('reports a server error of the route the SDK asks, and asks no older one', async () => {
+      const { observed, asked } = await summaryFrom(
+        { [STABLE]: json({ errcode: 'M_UNKNOWN', error: 'Internal server error' }, 500) },
+        true
+      );
+
+      expect(observed).toMatchObject({
+        status: AsyncStatus.Error,
+        error: { errcode: 'M_UNKNOWN', httpStatus: 500 },
+      });
+      expect(asked).toEqual([STABLE]);
+    });
   });
 });

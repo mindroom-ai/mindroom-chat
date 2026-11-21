@@ -26,10 +26,25 @@ const aliasQueryKey = (alias: string | undefined) => ['room-alias', alias] as co
 
 const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForAlias(alias);
 
+const MSC3266_PREFIX = '/_matrix/client/unstable/im.nheko.summary';
+
+const isUnrecognized = (error: unknown): boolean =>
+  error instanceof MatrixError && error.errcode === 'M_UNRECOGNIZED';
+
 /**
- * The summary from the route the SDK asks (stable since Matrix 1.15, else the MSC3266 one), or
- * from the route the first MSC3266 servers had when the homeserver knows neither. matrix-js-sdk
- * asked that one itself until 45.0.
+ * Whether the SDK asks the stable summary route of this homeserver: for Matrix 1.15, or MSC3266
+ * among the unstable features (its `room-summary-api.ts`). Otherwise it asks the MSC's own route.
+ */
+const sdkAsksStableRoute = async (mx: MatrixClient): Promise<boolean> => {
+  const { versions, unstable_features: unstableFeatures } = await mx.getVersions();
+  return versions.includes('v1.15') || !!unstableFeatures?.['org.matrix.msc3266'];
+};
+
+/**
+ * The summary from the one route the SDK asks or, when the homeserver does not know that route,
+ * from the older ones matrix-js-sdk asked itself until 45.0: the MSC's `summary/{roomId}` (unless
+ * that is the one the SDK asked), then the `rooms/{roomId}/summary` of the first MSC3266 servers.
+ * Any other failure is the result.
  */
 const fetchRoomSummary = async (
   mx: MatrixClient,
@@ -39,15 +54,21 @@ const fetchRoomSummary = async (
   try {
     return await mx.getRoomSummary(roomId, via);
   } catch (error) {
-    if (!(error instanceof MatrixError) || error.errcode !== 'M_UNRECOGNIZED') throw error;
-    return mx.http.authedRequest<RoomSummary>(
-      Method.Get,
-      `/rooms/${encodeURIComponent(roomId)}/summary`,
-      { via },
-      undefined,
-      { prefix: '/_matrix/client/unstable/im.nheko.summary' }
-    );
+    if (!isUnrecognized(error)) throw error;
   }
+  const request = (path: string) =>
+    mx.http.authedRequest<RoomSummary>(Method.Get, path, { via }, undefined, {
+      prefix: MSC3266_PREFIX,
+    });
+  const room = encodeURIComponent(roomId);
+  if (await sdkAsksStableRoute(mx)) {
+    try {
+      return await request(`/summary/${room}`);
+    } catch (error) {
+      if (!isUnrecognized(error)) throw error;
+    }
+  }
+  return request(`/rooms/${room}/summary`);
 };
 
 /**
