@@ -26,6 +26,9 @@ const makeRoom = (): Room =>
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getMember: () => undefined,
     getMembers: () => [],
+    membersLoaded: () => true,
+    on: vi.fn(),
+    removeListener: vi.fn(),
   } as unknown as Room);
 
 const makeRecord = (threadRootId: string, messageCount: number): ThreadRecord =>

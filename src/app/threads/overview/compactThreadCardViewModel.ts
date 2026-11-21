@@ -1,8 +1,9 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { RoomEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
@@ -303,8 +304,17 @@ export const useCompactThreadCardViewModels = ({
   const now = useSnoozeNow(
     threadRootIds.map((id) => threadRecordMap.get(id)?.status.snoozedUntilTs)
   );
-  // Records are rebuilt on every index refresh. Snapshot their values before
-  // formatting so an unrelated streaming edit does not rebuild every card.
+  const membersLoaded = room.membersLoaded(); // Clearing lazy-loaded members can be silent.
+  const [memberVersion, refreshMembers] = useForceUpdate();
+  useLayoutEffect(() => {
+    // RoomState.members also covers avatar-only changes.
+    room.on(RoomStateEvent.Members, refreshMembers);
+    room.on(RoomEvent.CurrentStateUpdated, refreshMembers);
+    return () => {
+      room.removeListener(RoomStateEvent.Members, refreshMembers);
+      room.removeListener(RoomEvent.CurrentStateUpdated, refreshMembers);
+    };
+  }, [refreshMembers, room]);
   const viewModelCacheRef = useRef<{
     mx: MatrixClient;
     room: Room;
@@ -315,9 +325,9 @@ export const useCompactThreadCardViewModels = ({
 
   return useMemo(() => {
     const previousCache = viewModelCacheRef.current;
-    // SDK member objects mutate in place. Include all members because titles
-    // and previews can mention people outside the thread's participant list.
     const contextSignature = JSON.stringify([
+      membersLoaded,
+      memberVersion,
       currentUserId,
       language,
       useAuthentication,
@@ -328,16 +338,13 @@ export const useCompactThreadCardViewModels = ({
         ? mx.getAccessToken()
         : undefined,
       new Intl.DateTimeFormat().resolvedOptions().timeZone,
-      room
-        .getMembers()
-        .map((member) => [member.userId, member.rawDisplayName, member.getMxcAvatarUrl()]),
     ]);
     const canReuseInputs =
       previousCache?.mx === mx &&
       previousCache.room === room &&
       previousCache.t === t &&
       previousCache.contextSignature === contextSignature;
-    const nextCache = new Map<string, CachedCardViewModel>();
+    const models = canReuseInputs ? previousCache.models : new Map<string, CachedCardViewModel>();
     const viewModels: CompactThreadCardViewModel[] = [];
 
     threadRootIds.forEach((threadRootId) => {
@@ -361,7 +368,6 @@ export const useCompactThreadCardViewModels = ({
         cached?.inputSignature === inputSignature &&
         record.status.nextScheduledTs === undefined
       ) {
-        nextCache.set(threadRootId, cached);
         viewModels.push(cached.viewModel);
         return;
       }
@@ -380,15 +386,17 @@ export const useCompactThreadCardViewModels = ({
       const outputSignature = JSON.stringify(freshViewModel);
       const viewModel =
         cached?.outputSignature === outputSignature ? cached.viewModel : freshViewModel;
-      nextCache.set(threadRootId, { inputSignature, outputSignature, viewModel });
+      models.set(threadRootId, { inputSignature, outputSignature, viewModel });
       viewModels.push(viewModel);
     });
 
-    viewModelCacheRef.current = { mx, room, t, contextSignature, models: nextCache };
+    viewModelCacheRef.current = { mx, room, t, contextSignature, models };
     return viewModels;
   }, [
     currentUserId,
     language,
+    membersLoaded,
+    memberVersion,
     mx,
     now,
     room,

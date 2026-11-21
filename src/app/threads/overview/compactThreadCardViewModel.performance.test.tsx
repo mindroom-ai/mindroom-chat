@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { act, create } from 'react-test-renderer';
 import { createClient, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -63,11 +64,15 @@ const setMember = (room: Room, userId: string, name: string, avatar = 'mxc://ser
 
 function mount(room: Room, records: ThreadRecord[]) {
   let latest: CompactThreadCardViewModel[] = [];
-  const Harness = ({ values }: { values: ThreadRecord[] }) => {
+  const Harness = ({ values, windowIds }: { values: ThreadRecord[]; windowIds?: string[] }) => {
+    const threadRecordMap = useMemo(
+      () => new Map(values.map((value) => [value.threadRootId, value])),
+      [values]
+    );
     latest = useCompactThreadCardViewModels({
       room,
-      threadRootIds: values.map((value) => value.threadRootId),
-      threadRecordMap: new Map(values.map((value) => [value.threadRootId, value])),
+      threadRootIds: windowIds ?? values.map((value) => value.threadRootId),
+      threadRecordMap,
     });
     return null;
   };
@@ -79,8 +84,8 @@ function mount(room: Room, records: ThreadRecord[]) {
     get models() {
       return latest;
     },
-    update(values: ThreadRecord[]) {
-      act(() => renderer.update(<Harness values={values} />));
+    update(values: ThreadRecord[], windowIds?: string[]) {
+      act(() => renderer.update(<Harness values={values} windowIds={windowIds} />));
     },
     unmount() {
       act(() => renderer.unmount());
@@ -127,6 +132,50 @@ describe('compact card formatting work', () => {
     expect(harness.models[0]!.messageCount).toBe(1001);
     expect(harness.models[1]).toBe(original[1]);
     expect(format).toHaveBeenCalledTimes(6);
+    harness.unmount();
+  });
+
+  it('reuses returning cards without scanning members on window changes', () => {
+    const records = [record('$a'), record('$b')];
+    const harness = mount(room, records);
+    const [first, second] = harness.models;
+    const getMembers = vi.spyOn(room, 'getMembers');
+
+    harness.update(records, ['$b']);
+    expect(harness.models[0]).toBe(second);
+    harness.update(records, ['$a']);
+    expect(harness.models[0]).toBe(first);
+    expect(getMembers).not.toHaveBeenCalled();
+    harness.unmount();
+  });
+
+  it('invalidates visible and off-window cards on an avatar-only membership update', () => {
+    const records = [record('$a'), record('$b')];
+    const harness = mount(room, records);
+    const original = harness.models[0]!.participants[0]!.avatarUrl;
+    harness.update(records, ['$b']);
+
+    act(() => setMember(room, '@alice:server', 'Alice', 'mxc://server/new-avatar'));
+    const updated = harness.models[0]!.participants[0]!.avatarUrl;
+    expect(updated).not.toBe(original);
+    expect(updated).toContain('new-avatar');
+    harness.update(records, ['$a']);
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toBe(updated);
+    harness.unmount();
+  });
+
+  it('refreshes returning cards after lazy-loaded members are cleared without an event', () => {
+    const lazyRoom = new Room(room.roomId, state.mx!, '@me:server', { lazyLoadMembers: true });
+    lazyRoom.currentState.markOutOfBandMembersStarted();
+    lazyRoom.currentState.setOutOfBandMembers([room.getMember('@alice:server')!.events.member!]);
+    const records = [record('$a'), record('$b')];
+    const harness = mount(lazyRoom, records);
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toBeDefined();
+    harness.update(records, ['$b']);
+
+    lazyRoom.currentState.clearOutOfBandMembers();
+    harness.update(records, ['$a']);
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toBeUndefined();
     harness.unmount();
   });
 
