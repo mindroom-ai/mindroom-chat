@@ -586,6 +586,54 @@ describe('voice capture session', () => {
     expect(result.recording.file.type).toBe(latest().mimeType);
   });
 
+  it('lets the last audio of a recorder that reset stops reach its disk copy', async () => {
+    const disk = {
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+    };
+    const session = createVoiceCaptureSession(() => disk);
+    sessions.push(session);
+    const settled = () => [disk.release.mock.calls.length, disk.remove.mock.calls.length];
+
+    // Before the first timeslice: the microphone goes now, the copy waits for the recorder.
+    await session.start();
+    vi.advanceTimersByTime(700);
+    session.reset();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(settled()).toEqual([0, 0]);
+    latest().emitData(new Blob(['last']));
+    latest().emitStop();
+    expect(disk.append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 700);
+    expect(settled()).toEqual([1, 0]);
+
+    // A recorder that had no audio at all: the empty copy goes.
+    await session.start();
+    session.reset();
+    latest().emitStop();
+    expect(settled()).toEqual([1, 1]);
+
+    // A recorder that never says it stopped is not waited for longer than a Send waits.
+    await session.start();
+    latest().emitData(new Blob(['first']));
+    session.reset();
+    expect(settled()).toEqual([1, 1]);
+    vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect(settled()).toEqual([2, 1]);
+
+    // A Discard waits for nothing: the copy goes at once, and what the recorder says is dropped.
+    await session.start();
+    disk.append.mockClear();
+    session.discard();
+    expect(settled()).toEqual([2, 2]);
+    latest().emitData(new Blob(['discarded']));
+    latest().emitStop();
+    expect(disk.append).not.toHaveBeenCalled();
+    expect(settled()).toEqual([2, 2]);
+  });
+
   it('stops a running recorder at once on reset, and takes nothing it says after', async () => {
     const session = capture();
     await session.start();

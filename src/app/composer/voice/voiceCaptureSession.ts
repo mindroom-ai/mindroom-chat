@@ -217,17 +217,37 @@ export const createVoiceCaptureSession = (
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
-    if (generation.recorder && generation.recorder.state !== 'inactive') {
+    const { recorder, journal } = generation;
+    if (journal && recorder && !forget) {
+      // The audio leaves memory unsent and its disk copy stays: what the stopping recorder still
+      // holds reaches it before its lock goes. A copy with no audio at all goes instead.
+      const elapsedMs = elapsed(generation);
+      let count = generation.chunks.length;
+      const keep = () => {
+        if (count) journal.release();
+        else void journal.remove();
+      };
+      const giveUp = setTimeout(keep, VOICE_RECORDER_STOP_TIMEOUT_MS);
+      recorder.addEventListener('dataavailable', (event) => {
+        const { data } = event as BlobEvent;
+        if (data.size === 0) return;
+        void journal.append(count, data, elapsedMs).catch(() => undefined);
+        count += 1;
+      });
+      recorder.addEventListener('stop', () => {
+        clearTimeout(giveUp);
+        keep();
+      });
+    } else void journal?.remove();
+    if (recorder && recorder.state !== 'inactive') {
       try {
-        generation.recorder.stop();
+        recorder.stop();
       } catch {
         /* Tracks still release below. */
       }
     }
     releaseResources(generation);
     generation.recorder = undefined;
-    if (generation.chunks.length && !forget) generation.journal?.release();
-    else void generation.journal?.remove();
     generation.journal = undefined;
     generation.chunks = [];
     generation.samples = [];

@@ -1857,7 +1857,10 @@ describe('useVoiceRecorder', () => {
     // A change of account without signing out: the microphone stops, the audio waits on disk.
     act(() => forgetComposerStateOfSession(store));
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(left.disk.append).toHaveBeenCalledOnce();
+    expect(left.disk.release).not.toHaveBeenCalled();
+    // The stopped recorder's last audio reaches the disk copy before its lock goes.
+    MockMediaRecorder.instances[0]!.flushStop();
+    expect(left.disk.append).toHaveBeenCalledTimes(2);
     expect(left.disk.release).toHaveBeenCalledOnce();
     expect(left.disk.remove).not.toHaveBeenCalled();
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();

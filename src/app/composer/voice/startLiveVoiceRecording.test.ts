@@ -134,8 +134,11 @@ it('keeps the recording on disk, unlocked, through an account switch; sign-out d
   expect(track.stop).toHaveBeenCalledOnce();
   expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
   expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+  // The stopped recorder hands over what it still held, then says it stopped.
+  MockMediaRecorder.latest.emit(' to its end');
+  MockMediaRecorder.latest.stopOnItsOwn();
   await vi.waitFor(async () => expect(await recoverable()).toHaveLength(1));
-  expect(await (await recoverable())[0]!.text()).toBe('voice');
+  expect(await (await recoverable())[0]!.text()).toBe('voice to its end');
 
   // What signing out runs (account/lifecycle/sessionCleanup.ts).
   await clearVoiceRecordings(USER);
