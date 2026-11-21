@@ -673,7 +673,10 @@ export class ModelController {
     const { typedCommands } = scope;
     if (eventId && typeof body === 'string' && /^[!/]model(\s|$)/i.test(body.trim())) {
       typedCommands.add(eventId);
-      if (typedCommands.size > 4) typedCommands.delete(typedCommands.values().next().value!);
+      if (typedCommands.size > 4) {
+        const [oldest] = typedCommands;
+        if (oldest) typedCommands.delete(oldest);
+      }
       return;
     }
     if (!typedCommands.size) return;
