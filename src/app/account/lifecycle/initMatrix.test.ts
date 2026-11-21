@@ -613,17 +613,21 @@ describe('initClient', () => {
     expect(startup).not.toHaveBeenCalled();
   });
 
-  it('fails before creating keys when the homeserver identity check is unavailable', async () => {
+  it('records a failed identity preflight without creating keys', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, getSavedSync: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
     });
-    const authedRequest = vi.fn().mockRejectedValue(new Error('offline'));
+    const now = vi.spyOn(performance, 'now').mockReturnValue(10);
+    const authedRequest = vi.fn(() => {
+      now.mockReturnValue(35);
+      return Promise.reject(new Error('offline'));
+    });
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
@@ -632,16 +636,21 @@ describe('initClient', () => {
       http: { authedRequest },
     } as never);
 
+    const markStartup = vi.fn();
     await expect(
-      initClient({
-        sessionId,
-        baseUrl: 'https://example.com',
-        accessToken: 'token',
-        userId: '@user:example.com',
-        deviceId: 'DEVICE',
-      })
+      initClient(
+        {
+          sessionId,
+          baseUrl: 'https://example.com',
+          accessToken: 'token',
+          userId: '@user:example.com',
+          deviceId: 'DEVICE',
+        },
+        markStartup
+      )
     ).rejects.toThrow('could not safely verify the encryption storage and device identity');
 
+    expect(markStartup).toHaveBeenLastCalledWith('crypto.store.preflight.done', { durationMs: 25 });
     expect(initRustCrypto).not.toHaveBeenCalled();
     expect(startup).not.toHaveBeenCalled();
   });

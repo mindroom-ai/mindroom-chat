@@ -353,8 +353,14 @@ export const initClient = async (
     verificationMethods: ['m.sas.v1'],
   });
 
-  if (!continuity && (await serverHasDeviceIdentity(mx, session))) {
-    throw new MissingCryptoStoreError(session.userId);
+  if (!continuity) {
+    const started = markStartup ? performance.now() : 0;
+    try {
+      if (await serverHasDeviceIdentity(mx, session))
+        throw new MissingCryptoStoreError(session.userId);
+    } finally {
+      markStartup?.('crypto.store.preflight.done', { durationMs: performance.now() - started });
+    }
   }
 
   raiseSyncArchiveTimelineLimit(store);

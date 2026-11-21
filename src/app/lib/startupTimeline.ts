@@ -3,6 +3,7 @@ const PAGE_PHASES = ['js.entry', 'config.ready', 'splash.shown'] as const;
 const CLIENT_PHASES = [
   'client.init.start',
   'crypto.store.probe',
+  'crypto.store.preflight.done',
   'store.startup.done',
   'streaming.restore.done',
   'crypto.init.done',
@@ -26,23 +27,24 @@ let startupMarks: StartupMarks | undefined;
 export const getStartupMarks = () => startupMarks;
 
 const pending = new Set(names);
-const markOnce = (phase: PagePhase | ClientPhase, detail?: Detail): void => {
+const markOnce = (phase: PagePhase | ClientPhase, detail?: Detail, startTime?: number): void => {
   const name = `${PREFIX}${phase}`;
   if (!pending.delete(name)) return;
   try {
-    const { startTime } = performance.mark(name, { detail });
+    const { startTime: atMs } = performance.mark(name, { detail, startTime });
     const { timeOrigin } = performance;
     if (!Number.isFinite(timeOrigin)) return;
     startupMarks = Object.freeze({
       timeOrigin,
-      atMs: Object.freeze({ ...startupMarks?.atMs, [name]: startTime }),
+      atMs: Object.freeze({ ...startupMarks?.atMs, [name]: atMs }),
     });
   } catch {
     // Missing User Timing support must not interrupt startup.
   }
 };
 
-export const markPageStartup = (phase: PagePhase): void => markOnce(phase);
+export const markPageStartup = (phase: PagePhase, startTime?: number): void =>
+  markOnce(phase, undefined, startTime);
 export const clientStartupMarks = new WeakMap<object, MarkClientStartup>();
 
 let claimed = false;
