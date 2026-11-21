@@ -653,7 +653,7 @@ export class ModelController {
     void this.receiveResult(event).catch(() => undefined);
   };
 
-  /** After a `!model` typed in a thread, the runtime's next message there asks for its selection again. */
+  /** A joined agent's next message after a typed `!model` triggers discovery again. */
   private receiveTypedCommand(event: MatrixEvent): void {
     const relation = event.getRelation();
     if (
@@ -666,11 +666,13 @@ export class ModelController {
     const scope = this.scopes.get(JSON.stringify([event.getRoomId(), relation.event_id]));
     if (!scope?.listeners.size || scope.command) return;
     const { body } = event.getContent();
+    const sender = event.getSender();
     if (typeof body === 'string' && /^!model(\s|$)/i.test(body.trim())) {
       scope.typedCommand = true;
     } else if (
       scope.typedCommand &&
-      scope.snapshot.runtimes.some((runtime) => runtime.userId === event.getSender())
+      sender &&
+      joinedModelCandidates(this.mx, scope.room).includes(sender)
     ) {
       scope.typedCommand = false;
       this.cancelQuery(scope);

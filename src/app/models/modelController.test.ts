@@ -77,11 +77,11 @@ const setup = (lazyLoadMembers = false) => {
   const controller = getModelController(mx);
   cleanups.push(() => disposeModelController(mx));
   const snapshot = (thread = '$root') => controller.getSnapshot(room, thread);
-  const response = (request: any, changes: any = {}, identity: any = {}) => {
+  const response = (request: any, changes: any = {}, identity: any = {}, sender = router) => {
     mx.emit(ClientEvent.ReceivedToDeviceMessage, {
       message: {
         type: 'io.mindroom.models.response',
-        sender: router,
+        sender,
         content: {
           version: 1,
           request_id: request.request_id,
@@ -102,7 +102,7 @@ const setup = (lazyLoadMembers = false) => {
         identity === null
           ? null
           : {
-              sender: router,
+              sender,
               senderDevice: 'FORGED',
               senderVerified: false,
               senderCurve25519KeyBase64: 'curve',
@@ -364,7 +364,7 @@ describe('shared model discovery', () => {
     'room',
     'thread',
     'request',
-    'router-only',
+    'no-eligible-agent',
     'left-agent',
     'invited-agent',
     'foreign-agent',
@@ -383,7 +383,7 @@ describe('shared model discovery', () => {
     if (kind === 'room') changes.room_id = '!elsewhere:test';
     if (kind === 'thread') changes.thread_id = '$other';
     if (kind === 'request') changes.request_id = 'old';
-    if (kind === 'router-only') changes.agent_user_ids = [router];
+    if (kind === 'no-eligible-agent') changes.agent_user_ids = [];
     if (kind === 'left-agent') h.member(helper, 'leave');
     if (kind === 'invited-agent') h.member(helper, 'invite');
     if (kind === 'foreign-agent') {
@@ -394,6 +394,21 @@ describe('shared model discovery', () => {
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot().eligible).toBe(false);
+  });
+  it('discovers a signed runtime that is the only agent in the room', async () => {
+    const h = setup();
+    h.member(router, 'leave');
+    h.devices.set(helper, new Map([['DEVICE', h.device(helper)]]));
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), { agent_user_ids: [helper] }, undefined, helper);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      runtime: { userId: helper, deviceId: 'DEVICE' },
+    });
   });
   it('requires explicit choice between authenticated runtime devices', async () => {
     const h = setup();
@@ -618,7 +633,7 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: true });
   });
-  it('backs off and hides a revalidating button whose router lost its signed devices', async () => {
+  it('backs off and hides a button whose runtime lost its signed devices', async () => {
     const h = setup();
     await h.discover();
     const known = h.devices.get(router)!;
@@ -680,7 +695,7 @@ describe('shared model discovery', () => {
     expect(h.snapshot().error).toBeDefined();
     await vi.advanceTimersByTimeAsync(60000 + 12000);
     expect(h.snapshot().eligible).toBe(false);
-    // The join kept the router and its agent, so the room cache stays for another thread.
+    // The join kept the runtime and its agent, so the room cache stays for another thread.
     expect(h.snapshot('$second').eligible).toBe(true);
     await vi.advanceTimersByTimeAsync(60000);
     expect(h.snapshot().loading).toBe(true);
@@ -1476,7 +1491,7 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().override).toBe('fast');
     expect(h.snapshot('$other').override).toBeNull();
   });
-  it('asks again after a typed !model command is answered, and shows the new selection at once', async () => {
+  it('reprobes when the runtime or another joined agent answers a typed !model', async () => {
     const h = setup();
     await h.discover();
     expect(h.snapshot().override).toBeNull();
@@ -1496,8 +1511,12 @@ describe('model mutation acknowledgement', () => {
     await flush();
     expect(h.queued.length).toBe(asked + 1);
     message(viewer, '!model reset', '$typed2');
-    message(router, '✅ Thread model override removed.', '$answer2');
+    message(viewer, 'Something else', '$later2');
     await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    message(helper, '✅ Thread model override removed.', '$answer2');
+    await flush();
+    expect(h.queued.length).toBe(asked + 2);
     h.response(h.request(), { selection: { override: null, inherited: [] } });
     await flush();
     expect(h.snapshot().override).toBeNull();
