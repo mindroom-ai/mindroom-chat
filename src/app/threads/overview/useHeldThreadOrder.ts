@@ -78,7 +78,7 @@ const keptPlace = (rootId: string, before: readonly string[], after: readonly st
 };
 
 /** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
-const browserAnchorsScroll = (): boolean =>
+export const browserAnchorsScroll = (): boolean =>
   typeof CSS !== 'undefined' &&
   typeof CSS.supports === 'function' &&
   CSS.supports('overflow-anchor', 'auto');

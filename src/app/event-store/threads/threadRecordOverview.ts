@@ -114,6 +114,9 @@ export const filterThreadRecordsBySearch = (
   });
 };
 
+export const threadLastReplySortValue = (record: ThreadRecord): number =>
+  record.status.lastActivityTs ?? 0;
+
 export const sortThreadRecordRootIds = (
   threadRootIds: string[],
   sortBy: 'natural' | 'lastReply',
@@ -127,8 +130,8 @@ export const sortThreadRecordRootIds = (
     const b = recordMap.get(bId);
     if (!a || !b) return 0;
 
-    const aLastActivityTs = a.status.lastActivityTs ?? 0;
-    const bLastActivityTs = b.status.lastActivityTs ?? 0;
+    const aLastActivityTs = threadLastReplySortValue(a);
+    const bLastActivityTs = threadLastReplySortValue(b);
     const diff =
       sortDirection === 'asc'
         ? aLastActivityTs - bLastActivityTs

@@ -1864,6 +1864,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
+          sortMode={`${sortBy}:${sortDirection}`}
+          sortFrozen={
+            threadSortFreezeState?.controlSignature === threadIndex.threadSortControlSignature
+          }
         />
       </Box>
     );

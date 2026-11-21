@@ -34,6 +34,8 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { CompactRowKeeper } from './CompactRowKeeper';
+import { threadLastReplySortValue } from '../../event-store/threads/threadRecordOverview';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -79,6 +81,8 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
+  sortMode?: string;
+  sortFrozen?: boolean;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
@@ -324,6 +328,8 @@ export function CompactRoomView({
   focusRequest,
   filterBarShown = false,
   sectionsNow,
+  sortMode,
+  sortFrozen,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -467,6 +473,29 @@ export function CompactRoomView({
   const sectionRows = threadSections
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
+  const scope = `${room.roomId}|${sortMode}|${!!heldSections}`;
+  const applied = useRef<{ scope: string; inputs: ReadonlyMap<string, string> }>();
+  const inputs = new Map(heldSections?.flatMap(({ sortInputs }) => [...sortInputs]));
+  const previous = applied.current?.scope === scope ? applied.current.inputs : undefined;
+  for (const id of shownRootIds) {
+    const record = threadRecordMap.get(id);
+    const tie =
+      record &&
+      sortMode &&
+      (sortMode.startsWith('lastReply')
+        ? `${threadLastReplySortValue(record)}:${record.absoluteIndex}`
+        : `${record.absoluteIndex}`);
+    const sectionInput = inputs.get(id);
+    const retainsInput = sortFrozen || orderHeld;
+    const value = retainsInput ? previous?.get(id) : undefined;
+    if (value && (!heldSections || value.split(':')[0] === sectionInput?.split(':')[0]))
+      inputs.set(id, value);
+    else if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie}`);
+    else if (tie && !heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
+  }
+  useLayoutEffect(() => {
+    applied.current = { scope, inputs };
+  });
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
@@ -624,30 +653,32 @@ export function CompactRoomView({
     const count = sectionCounts.get(id) ?? 0;
     const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
-      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {soleSection ? (
-          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
-            {label}
-          </Button>
-        ) : (
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-expanded={!closed}
-            onClick={() => toggleFold(id)}
-            before={
-              <Icon
-                size="100"
-                src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-                data-directional={closed || undefined}
-              />
-            }
-          >
-            {label}
-          </Button>
-        )}
+      <div key={key} data-row-landmark={key} data-compact-section={id}>
+        <div className={css.SectionHeader} data-motion-row={key}>
+          {soleSection ? (
+            <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
+              {label}
+            </Button>
+          ) : (
+            <Button
+              size="300"
+              variant="Secondary"
+              fill="None"
+              radii="300"
+              aria-expanded={!closed}
+              onClick={() => toggleFold(id)}
+              before={
+                <Icon
+                  size="100"
+                  src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+                  data-directional={closed || undefined}
+                />
+              }
+            >
+              {label}
+            </Button>
+          )}
+        </div>
       </div>
     );
   };
@@ -687,6 +718,16 @@ export function CompactRoomView({
           }
         }}
       >
+        <CompactRowKeeper
+          scope={scope}
+          viewRef={viewRef}
+          inputs={inputs}
+          order={
+            heldSections
+              ? sectionRows
+              : [...pinnedCards, ...ordinaryCards].map((card) => card.id.threadRootId)
+          }
+        />
         {listMotion}
         {!!pinning.error && (
           <Text role="alert" size="T200">
