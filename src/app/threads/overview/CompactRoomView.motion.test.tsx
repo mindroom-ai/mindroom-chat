@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
@@ -245,6 +245,32 @@ describe('the calm compact list', () => {
 
     scroll(0);
     expect(order()).toEqual(['$a', '$b']);
+  });
+
+  it('hides the iOS scroller overflow for the pill scroll write and restores it afterward', async () => {
+    const userAgent = vi
+      .spyOn(navigator, 'userAgent', 'get')
+      .mockReturnValue(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_2 like Mac OS X) AppleWebKit/605.1.15'
+      );
+    try {
+      const { container, rerender } = render(list(['$a', '$b']));
+      const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+      view.style.overflowY = 'auto';
+      const overflowAtWrite: string[] = [];
+      view.scrollTo = (options?: ScrollToOptions | number, y?: number) => {
+        overflowAtWrite.push(view.style.overflowY);
+        view.scrollTop = typeof options === 'number' ? y ?? 0 : options?.top ?? 0;
+      };
+      scroll(30);
+      rerender(list(['$b', '$a']));
+
+      fireEvent.click(pill()!);
+      expect(overflowAtWrite).toEqual(['hidden']);
+      await waitFor(() => expect(view.style.overflowY).toBe('auto'));
+    } finally {
+      userAgent.mockRestore();
+    }
   });
 
   it('applies the offer at zero even while the pointer holds the list', () => {
