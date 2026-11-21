@@ -28,6 +28,8 @@ const QUIET: ThreadSignals = {
 };
 
 const t = ((key: string) => `t:${key}`) as unknown as TFunction;
+// An agent of the homeserver of the person who reads (`mx`): only its marker lines are tool calls.
+const AGENT = '@mindroom_helper:x';
 const mx = { getSafeUserId: () => '@me:x', getUserId: () => '@me:x' } as unknown as MatrixClient;
 
 const message = (
@@ -195,10 +197,12 @@ describe('readCaptureThreads', () => {
   });
 
   it('copies the newest edit of the reply, read again once it is edited', () => {
-    const reply = message('$reply', {
-      msgtype: 'm.text',
-      body: '🔧 `shell` [1]\nFirst **draft**',
-    });
+    const reply = message(
+      '$reply',
+      { msgtype: 'm.text', body: '🔧 `shell` [1]\nFirst **draft**' },
+      500,
+      AGENT
+    );
     const room = makeRoom({ loaded: [reply] });
     mocks.read.mockReturnValue({
       ...QUIET,
@@ -215,36 +219,48 @@ describe('readCaptureThreads', () => {
     expect(copied()).toBe('First **draft**');
     expect(copied()).toBe('First **draft**');
     reply.makeReplaced(
-      message('$edit', {
-        msgtype: 'm.text',
-        body: '* Final',
-        'm.new_content': { msgtype: 'm.text', body: '🔧 `shell` [1]\nFinal **answer**' },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-      })
+      message(
+        '$edit',
+        {
+          msgtype: 'm.text',
+          body: '* Final',
+          'm.new_content': { msgtype: 'm.text', body: '🔧 `shell` [1]\nFinal **answer**' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        },
+        500,
+        AGENT
+      )
     );
     expect(copied()).toBe('Final **answer**');
   });
 
   it("cleans the newest reply's body as the previews do: tool calls counted, lines kept", () => {
     const body = '🔧 `shell` [1]\n🔧 `read_file` [2]\nAll **green**.\n\nNext: `deploy`.';
-    const room = makeRoom({ loaded: [message('$reply', { msgtype: 'm.text', body })] });
-    mocks.read.mockReturnValue({
-      ...QUIET,
-      lastReply: {
-        eventId: '$reply',
-        senderId: '@bot:x',
-        ts: 90,
-        preview: { kind: 'text', text: 'unused' },
-      },
-    });
+    const copied = (sender: string) => {
+      const room = makeRoom({
+        loaded: [message('$reply', { msgtype: 'm.text', body }, 500, sender)],
+      });
+      mocks.read.mockReturnValue({
+        ...QUIET,
+        lastReply: {
+          eventId: '$reply',
+          senderId: sender,
+          ts: 90,
+          preview: { kind: 'text', text: 'unused' },
+        },
+      });
+      return readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW)[0]?.reply();
+    };
 
-    const [thread] = readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW);
-
-    expect(thread?.reply().replyText).toBe(
+    expect(copied(AGENT)?.replyText).toBe(
       '🔧 t:sharedUi.threadPreviews.tools · All green.\n\nNext: deploy.'
     );
     // Copy takes the reply as the app's Copy text does: as written, without the tool-call lines.
-    expect(thread?.reply().copyText).toBe('All **green**.\n\nNext: `deploy`.');
+    expect(copied(AGENT)?.copyText).toBe('All **green**.\n\nNext: `deploy`.');
+    // A person's marker lines, and those of another homeserver's agent, show as the text they
+    // are, so they are copied.
+    expect(copied('@alice:x')?.copyText).toBe(body);
+    expect(copied('@mindroom_helper:elsewhere')?.copyText).toBe(body);
   });
 
   it('says which threads are pinned, from the room state', () => {

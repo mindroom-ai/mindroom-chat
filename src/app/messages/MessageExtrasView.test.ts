@@ -81,6 +81,7 @@ describe('MessageExtras', () => {
         ]),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -105,6 +106,7 @@ describe('MessageExtras', () => {
           ]),
           htmlReactParserOptions: {},
           markerContent: {},
+          toolRows: true,
         })
       );
     });
@@ -129,6 +131,7 @@ describe('MessageExtras', () => {
         extras,
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       });
 
     act(() => {
@@ -167,6 +170,7 @@ describe('MessageExtras', () => {
         extras,
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       });
 
     act(() => {
@@ -231,6 +235,7 @@ describe('MessageExtras', () => {
         ]),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -253,6 +258,7 @@ describe('MessageExtras', () => {
         ]),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -277,6 +283,7 @@ describe('MessageExtras', () => {
         ]),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -298,6 +305,7 @@ describe('MessageExtras', () => {
         ]),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -322,6 +330,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -355,6 +364,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -384,6 +394,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -415,6 +426,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       });
 
     act(() => {
@@ -458,6 +470,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {},
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -497,6 +510,7 @@ describe('MessageExtras', () => {
           },
         },
         markerContent: {},
+        toolRows: true,
       })
     );
 
@@ -534,6 +548,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions,
         markerContent: {},
+        toolRows: true,
       });
 
     sanitizeCustomHtmlSpy.mockClear();
@@ -574,6 +589,7 @@ describe('MessageExtras', () => {
         extras: createExtras([section({ title: 'HTML', contentType: 'text/html', content })], 2),
         htmlReactParserOptions,
         markerContent: {},
+        toolRows: true,
       });
 
     act(() => {

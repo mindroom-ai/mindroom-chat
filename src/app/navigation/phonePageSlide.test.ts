@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
+import { readDeepTraceSnapshot, setDeepTraceEnabled } from '../diagnostics/deepTrace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { conversationUnderThreadAtom } from './conversationCover';
@@ -98,6 +100,28 @@ afterEach(async () => {
 });
 
 describe('slidePhonePage', () => {
+  it('records an unmatched start until the shield is removed', async () => {
+    const page = browser();
+    await setDeepTraceEnabled(true, localStorage);
+    const events = async () =>
+      (await readDeepTraceSnapshot()).events.filter(({ name }) =>
+        name.startsWith('navigation.phone_slide.')
+      );
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      expect((await events()).map(({ name }) => name)).toEqual([
+        'navigation.phone_slide.forward.start',
+      ]);
+      await page.finish();
+      expect(await events()).toMatchObject([
+        { name: 'navigation.phone_slide.forward.start' },
+        { name: 'navigation.phone_slide.forward.end', data: { duration_ms: expect.any(Number) } },
+      ]);
+    } finally {
+      await setDeepTraceEnabled(false, localStorage);
+    }
+  });
   it('slides without a view transition of the browser', async () => {
     const page = browser();
     const startViewTransition = vi.fn();

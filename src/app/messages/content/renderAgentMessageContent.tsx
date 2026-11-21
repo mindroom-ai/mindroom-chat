@@ -126,6 +126,8 @@ type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactPa
   /** The content whose tool and paste markers the body renders. */
   markerContent: Record<string, unknown>;
   metadataStatus?: ToolMetadataStatus;
+  /** Whether a tool marker draws a row: only an agent's does. */
+  toolRows: boolean;
 };
 
 /** A body with MindRoom's markers, parsed again only when that message changes. */
@@ -133,6 +135,7 @@ function AgentRenderBody({
   htmlReactParserOptions,
   markerContent,
   metadataStatus,
+  toolRows,
   ...props
 }: AgentRenderBodyProps) {
   return (
@@ -141,7 +144,8 @@ function AgentRenderBody({
       htmlReactParserOptions={useToolTraceMarkerParserOptions(
         htmlReactParserOptions,
         markerContent,
-        metadataStatus
+        metadataStatus,
+        toolRows
       )}
     />
   );
@@ -242,6 +246,9 @@ export const renderAgentMessageContent = ({
           />
         )
       : undefined;
+  // Anyone can type a tool marker, so only an agent's draws a row, as only an agent's trace counts.
+  // Content without an event is the app's own (a sub-agent's run), not something a member sent.
+  const toolRows = fromMindroomAgent || !mEvent;
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
@@ -377,6 +384,7 @@ export const renderAgentMessageContent = ({
           highlightRegex={highlightRegex}
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={renderableContent}
+          toolRows={toolRows}
           linkifyOpts={linkifyOpts}
         />
       ));
@@ -423,6 +431,7 @@ export const renderAgentMessageContent = ({
             htmlReactParserOptions={htmlReactParserOptions}
             markerContent={resolvedContent}
             metadataStatus={metadataStatus}
+            toolRows={toolRows}
             linkifyOpts={linkifyOpts}
           />
         ),
@@ -450,6 +459,7 @@ export const renderAgentMessageContent = ({
         extras={extras}
         htmlReactParserOptions={htmlReactParserOptions}
         markerContent={extrasSource}
+        toolRows={toolRows}
       />
     );
   };

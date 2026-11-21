@@ -125,11 +125,15 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let conversation = messages.filter { message in
             VoiceEcho.transcript(message, latestEdit: nil) == nil && message.content["io.mindroom.thread_summary"] == nil
         }
+        let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
             let sender = event["sender"] as? String ?? ""
             let content = effectiveContent(event, latestEdit: edit(event))
             var plain = PlainText.withToolCount(content["body"] as? String ?? "")
+            // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
+            // those lines whoever sent them, and a count shows no call and trusts no one.
+            if MindRoomAgent.hasAgentName(sender) { plain.tools += toolCallsOutOfText(content) }
             let audio = isAudio(event)
             if audio { plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0) }
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
@@ -142,7 +146,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }
         let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
         let approvals = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: now) }
-        let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
         let pendingApproval = approvals.last {
             $0.status == .pending && isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId)
         }
@@ -181,6 +184,20 @@ public struct ThreadSnapshot: Equatable, Sendable {
             entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
             latestTs: latestTs)
     }
+}
+
+/// The tool calls whose marker lines are not in the content's text: MindRoom sends a reply without the line
+/// "🔧 `tool_name` [n]" of each call, and with the number of lines before it on the call instead (`body_line`
+/// in a tool trace of version 3, as the web client's `toolPositions.ts` reads it). A call without that number
+/// had no line. A version-2 trace has every line in the text, where `PlainText` counts them.
+func toolCallsOutOfText(_ content: JSON) -> Int {
+    guard let trace = content["io.mindroom.tool_trace"] as? JSON, trace["version"] as? Int == 3,
+          let calls = trace["events"] as? [Any] else { return 0 }
+    return calls.filter { call in
+        guard let call = call as? JSON, let name = call["tool_name"] as? String, !name.isEmpty,
+              let line = call["body_line"] as? Int else { return false }
+        return line >= 0
+    }.count
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an

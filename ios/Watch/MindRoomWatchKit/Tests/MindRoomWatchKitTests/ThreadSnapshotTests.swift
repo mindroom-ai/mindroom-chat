@@ -393,6 +393,53 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(asked.focusId, "$q")
     }
 
+    /// MindRoom sends an agent's reply without the marker line of each tool call, and with the number of
+    /// lines before that line on the call instead (`body_line`, tool trace version 3).
+    func testAReplyCountsItsToolsWithTheirMarkersInItsTextOrOutOfIt() {
+        let calls: [JSON] = [["type": "tool_call_completed", "tool_name": "read_file"],
+                             ["type": "tool_call_started", "tool_name": "shell"]]
+        let placed = calls.map { $0.merging(["body_line": 2, "at": 1]) { _, new in new } }
+        // The same reply as MindRoom builds it and as Matrix holds it.
+        let built: JSON = ["msgtype": "m.text", "body": "Let me check.\n\n🔧 `read_file` [1]\n\n🔧 `shell` [2] ⏳\n\nReading done.",
+                           "io.mindroom.tool_trace": ["version": 2, "events": calls] as JSON]
+        let held: JSON = ["msgtype": "m.text", "body": "Let me check.\n\nReading done.",
+                          "io.mindroom.tool_trace": ["version": 3, "events": placed] as JSON]
+        let reply = { (sender: String, content: JSON, edit: JSON?) -> ThreadSnapshot.Message? in
+            let first = event("$reply", 2, sender: sender, inThread(content))
+            let edits = edit.map { [event("$edit", 3, sender: sender, ["m.new_content": $0,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])] } ?? []
+            return ThreadSnapshot.build(root: voiceRoot, related: [first] + edits, ownUserId: me, now: self.now).reply
+        }
+        let asBuilt = reply(agent, built, nil)
+        XCTAssertEqual(asBuilt?.tools, 2)
+        XCTAssertEqual(asBuilt?.text, "Let me check.\n\nReading done.")
+        for asHeld in [reply(agent, held, nil), reply(agent, ["msgtype": "m.text", "body": "…"], held)] {
+            XCTAssertEqual(asHeld?.tools, asBuilt?.tools)
+            XCTAssertEqual(asHeld?.text, asBuilt?.text)
+        }
+        // A reply of calls alone has no text left.
+        let callsAlone = reply(agent, ["msgtype": "m.text", "body": "", "io.mindroom.tool_trace": [
+            "version": 3, "events": calls.map { $0.merging(["body_line": 0, "at": 0]) { _, new in new } }] as JSON], nil)
+        XCTAssertEqual(callsAlone?.tools, 2)
+        XCTAssertEqual(callsAlone?.text, "")
+        // A call that had no marker has no line, and counts no more than it did.
+        let hidden = reply(agent, ["msgtype": "m.text", "body": "Done.", "io.mindroom.tool_trace": [
+            "version": 3, "events": [placed[0], calls[1], ["body_line": 0] as JSON, ["tool_name": "shell", "body_line": "1"] as JSON]] as JSON], nil)
+        XCTAssertEqual(hidden?.tools, 1)
+        // A version-2 trace counts nothing: its calls are the lines of its text.
+        XCTAssertEqual(reply(agent, ["msgtype": "m.text", "body": "Done.", "io.mindroom.tool_trace": [
+            "version": 2, "events": placed] as JSON], nil)?.tools, 0)
+        // An agent of another homeserver counts the same in its text or out of it: a count trusts nothing.
+        let elsewhere = "@mindroom_mind:elsewhere.example"
+        XCTAssertEqual(reply(elsewhere, built, nil)?.tools, 2)
+        for asHeld in [reply(elsewhere, held, nil), reply(elsewhere, ["msgtype": "m.text", "body": "…"], held)] {
+            XCTAssertEqual(asHeld?.tools, 2)
+            XCTAssertEqual(asHeld?.text, asBuilt?.text)
+        }
+        // A person has no tool trace.
+        XCTAssertEqual(reply("@anna:x", held, nil)?.tools, 0)
+    }
+
     func testUndecryptableEventsAreSkipped() {
         let encrypted = event("$enc", 4, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [encrypted], ownUserId: me, now: now)
