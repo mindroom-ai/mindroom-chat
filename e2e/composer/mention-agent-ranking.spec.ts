@@ -144,6 +144,8 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
       format: 'org.matrix.custom.html',
       formatted_body: `<a href="https://matrix.to/#/${accounts.mind.userId}">@Mind</a> check the launch numbers`,
       'm.mentions': { user_ids: [accounts.mind.userId] },
+      // The send button's default mid-turn choice (#519) rides along with every message.
+      'io.mindroom.mid_turn': 'auto',
     });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/sent-${tag}.png` });
 };
