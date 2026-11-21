@@ -4465,7 +4465,7 @@ index 26f6aa9..793e861 100644
       */
      private degradable;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..64be84d 100644
+index 8320c66..5451495 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -35,6 +35,9 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
@@ -4560,7 +4560,7 @@ index 8320c66..64be84d 100644
      /**
       * Stores the out-of-band membership events for this room. Note that
       * it still makes sense to store an empty array as the OOB status for the room is
-@@ -156,19 +186,25 @@ export class IndexedDBStore extends MemoryStore {
+@@ -156,19 +186,27 @@ export class IndexedDBStore extends MemoryStore {
       */
      _defineProperty(this, "setOutOfBandMembers", this.degradable((roomId, membershipEvents) => {
        super.setOutOfBandMembers(roomId, membershipEvents);
@@ -4574,8 +4574,11 @@ index 8320c66..64be84d 100644
 +    null, "keep"));
      _defineProperty(this, "clearOutOfBandMembers", this.degradable(roomId => {
        super.clearOutOfBandMembers(roomId);
++      // On failure the members of the room that was left stay stored. Nothing more is
++      // saved, so that a saved token from before the leave gets the leave again.
        return this.backend.clearOutOfBandMembers(roomId);
-     }, "clearOutOfBandMembers"));
+-    }, "clearOutOfBandMembers"));
++    }, "clearOutOfBandMembers", "stopSaving"));
      _defineProperty(this, "getClientOptions", this.degradable(() => {
        return this.backend.getClientOptions();
 -    }, "getClientOptions"));
@@ -4589,7 +4592,7 @@ index 8320c66..64be84d 100644
      if (!opts.indexedDB) {
        throw new Error("Missing required option: indexedDB");
      }
-@@ -233,7 +269,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -233,7 +271,7 @@ export class IndexedDBStore extends MemoryStore {
     */
    wantsSave() {
      var now = Date.now();
@@ -4598,7 +4601,7 @@ index 8320c66..64be84d 100644
    }
  
    /**
-@@ -245,10 +281,16 @@ export class IndexedDBStore extends MemoryStore {
+@@ -245,10 +283,16 @@ export class IndexedDBStore extends MemoryStore {
     */
    save() {
      var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
@@ -4619,7 +4622,7 @@ index 8320c66..64be84d 100644
    }
    /**
     * All member functions of `IndexedDBStore` that access the backend use this wrapper to
-@@ -260,18 +302,40 @@ export class IndexedDBStore extends MemoryStore {
+@@ -260,18 +304,40 @@ export class IndexedDBStore extends MemoryStore {
     *
     * @param func - The degradable work to do.
     * @param fallback - The method name for fallback.
@@ -4931,7 +4934,7 @@ index 5f58e7c..fbeba0c 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..64b9b8a 100644
+index 25be506..d33f944 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -40,6 +40,9 @@ import { type SyncUserProfile } from "../models/user.ts";
@@ -4951,8 +4954,8 @@ index 25be506..64b9b8a 100644
 +    // Fired when a save fails: the store keeps its data and tries again soon. Of the saves
 +    // that fail in a row, only the first is reported.
 +    failed: (e: Error) => void;
-+    // Fired when the store could not take a sync batch: it keeps its saved data and saves
-+    // nothing more.
++    // Fired when the store could not take a sync batch or clear a room's stored members:
++    // it keeps its saved data and saves nothing more.
 +    stopped: (e: Error) => void;
      // Fired when the IndexedDB gets closed unexpectedly, for example, if the underlying storage is removed or
      // if the user clears the database in the browser's history preferences.
@@ -5082,7 +5085,7 @@ index 25be506..64b9b8a 100644
  
      /**
       * Stores the out-of-band membership events for this room. Note that
-@@ -280,9 +328,14 @@ export class IndexedDBStore extends MemoryStore {
+@@ -280,24 +328,32 @@ export class IndexedDBStore extends MemoryStore {
      public setOutOfBandMembers = this.degradable(
          (roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void> => {
              super.setOutOfBandMembers(roomId, membershipEvents);
@@ -5098,7 +5101,12 @@ index 25be506..64b9b8a 100644
      );
  
      public clearOutOfBandMembers = this.degradable((roomId: string) => {
-@@ -292,12 +345,13 @@ export class IndexedDBStore extends MemoryStore {
+         super.clearOutOfBandMembers(roomId);
++        // On failure the members of the room that was left stay stored. Nothing more is
++        // saved, so that a saved token from before the leave gets the leave again.
+         return this.backend.clearOutOfBandMembers(roomId);
+-    }, "clearOutOfBandMembers");
++    }, "clearOutOfBandMembers", "stopSaving");
  
      public getClientOptions = this.degradable((): Promise<IStoredClientOpts | undefined> => {
          return this.backend.getClientOptions();
@@ -5114,7 +5122,7 @@ index 25be506..64b9b8a 100644
  
      /**
       * All member functions of `IndexedDBStore` that access the backend use this wrapper to
-@@ -309,18 +363,41 @@ export class IndexedDBStore extends MemoryStore {
+@@ -309,18 +365,41 @@ export class IndexedDBStore extends MemoryStore {
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.

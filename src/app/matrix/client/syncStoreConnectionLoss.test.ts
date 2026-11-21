@@ -22,9 +22,9 @@ const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase
  *
  * WebKit also aborts the transactions in flight when iOS suspends the app, on
  * a connection that stays open. A save that fails so keeps the persisted sync,
- * and is tried again soon; any write of one transaction keeps it. A full disk
- * deletes it, and so do an unreadable saved sync and a failed clear of stored
- * members on a working connection.
+ * and is tried again soon; any write of one transaction keeps it. A failed
+ * clear of stored members keeps it and stops saving. A full disk deletes it,
+ * and so does a saved sync that cannot be read.
  */
 describe('Matrix sync store after an IndexedDB failure', () => {
   let indexedDB: IDBFactory;
@@ -164,7 +164,7 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     await store.save(true);
     // Reads fall back to memory instead of failing.
     expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
-    // A clear of stored members, which deletes the data when it fails on a working connection.
+    // A clear of stored members keeps the data too.
     await store.clearOutOfBandMembers(roomId);
 
     expect(degraded).not.toHaveBeenCalled();
@@ -317,31 +317,38 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     });
   });
 
-  // A clear of stored members is two transactions. One that fails on a working connection
-  // deletes the saved data, as it always has: kept, the members of a room that was left would
-  // stay stored beside a saved token from after the leave, which the server never sends again.
-  it('clears the store when a clear of stored members fails after a save has started', async () => {
+  // WebKit aborts the clear's transaction when iOS suspends the app. The members of the room
+  // that was left stay stored; with a saved token from before the leave, the next start gets
+  // the leave again.
+  it('keeps the persisted sync and stops saving when a clear of stored members is aborted', async () => {
     const store = await savedStore();
     const degraded = vi.fn();
+    const stopped = vi.fn();
     store.on('degraded', degraded);
+    store.on('stopped', stopped);
     await storeMembers(store);
 
-    let failClear: (error: Error) => void = () => undefined;
-    vi.spyOn(store.backend, 'clearOutOfBandMembers').mockReturnValueOnce(
-      new Promise((_resolve, reject) => {
-        failClear = reject;
-      })
-    );
-    const clearing = store.clearOutOfBandMembers(roomId);
+    // The rows are deleted, and the browser then aborts the transaction.
+    const remove = IDBObjectStore.prototype.delete;
+    vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(function abortAfterDelete(
+      this: IDBObjectStore,
+      ...args: Parameters<IDBObjectStore['delete']>
+    ) {
+      const request = remove.apply(this, args);
+      const { transaction } = this;
+      request.addEventListener('success', () => transaction.abort());
+      return request;
+    });
+    await store.clearOutOfBandMembers(roomId);
     await accumulate(store, 'after-leave');
     await store.save(true);
-    const error = new DOMException('Internal error.', 'UnknownError');
-    failClear(error);
-    await clearing;
 
-    expect(degraded.mock.calls).toEqual([[error]]);
+    expect(degraded).not.toHaveBeenCalled();
+    expect(stopped).toHaveBeenCalledTimes(1);
     expect(store.wantsSave()).toBe(false);
-    await expectDatabaseCleared();
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('saved');
+    expect(await reader.getOutOfBandMembers(roomId)).toEqual(members);
   });
 
   it('keeps the persisted sync and no part of the members when storing them fails part-way', async () => {
