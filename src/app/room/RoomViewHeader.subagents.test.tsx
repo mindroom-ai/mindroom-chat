@@ -581,14 +581,14 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('waits to promote Pins until the call control collapses', async () => {
+  it.each([true, false])('freezes Pins promotion only for a call popup (%s)', async (popup) => {
     screen.size = 'Mobile';
     function CallControl() {
       const [open, setOpen] = useState(false);
       return (
         <IconButton
           aria-label="Call"
-          aria-haspopup="menu"
+          aria-haspopup={popup ? 'menu' : undefined}
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         />
@@ -602,7 +602,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       expect(call.getAttribute('aria-expanded')).toBe('true');
       pins.ids = ['$pinned:example.org'];
       rerender();
-      expect(pinsButton()).toBeNull();
+      expect(pinsButton() !== null).toBe(!popup);
       await actInDom(async () => call.click());
       expect(call.getAttribute('aria-expanded')).toBe('false');
       expect(pinsButton()).not.toBeNull();
@@ -1033,29 +1033,47 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('does not reopen the chooser when two canvases become one and then two again', () => {
-    const props = { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() };
-    const { host, rerender, unmount } = renderDomHeader(props);
-    const chooser = () => host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]');
-    const item = () =>
-      Array.from(host.querySelectorAll('button')).find((button) =>
-        button.textContent?.includes('Garden map')
-      );
-    try {
-      actInDom(() => chooser()!.click());
-      expect(item()).toBeDefined();
-      props.canvases = canvases.slice(0, 1);
-      rerender();
-      expect(item()).toBeUndefined();
-      expect(host.querySelector('button[aria-label="Show Canvas"]')).not.toBeNull();
-      props.canvases = canvases;
-      rerender();
-      expect(item()).toBeUndefined();
-      expect(chooser()?.getAttribute('aria-expanded')).toBe('false');
-    } finally {
-      unmount();
+  it.each([
+    { remaining: 1, movedFocus: false },
+    { remaining: 0, movedFocus: false },
+    { remaining: 0, movedFocus: true },
+  ])(
+    'closes the chooser with $remaining canvases and preserves focus (focus moved: $movedFocus)',
+    async ({ remaining, movedFocus }) => {
+      const props = { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() };
+      const { host, rerender, unmount } = renderDomHeader(props);
+      const chooser = () => host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]');
+      const item = () =>
+        Array.from(host.querySelectorAll('button')).find((button) =>
+          button.textContent?.includes('Garden map')
+        );
+      try {
+        const opener = chooser()!;
+        actInDom(() => opener.click());
+        const choice = item()!;
+        choice.focus();
+        expect(document.activeElement).toBe(choice);
+        props.canvases = canvases.slice(0, remaining);
+        rerender();
+        expect(item()).toBeUndefined();
+        const members = host.querySelector<HTMLButtonElement>('button[aria-label="Show Members"]')!;
+        if (movedFocus) members.focus();
+        const target = movedFocus
+          ? members
+          : remaining === 1
+          ? opener
+          : host.querySelector('[data-room-more-options]');
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        expect(document.activeElement).toBe(target);
+        props.canvases = canvases;
+        rerender();
+        expect(item()).toBeUndefined();
+        expect(chooser()?.getAttribute('aria-expanded')).toBe('false');
+      } finally {
+        unmount();
+      }
     }
-  });
+  );
 
   it("leaves a phone's menu button without a dot while only ended runs are kept", () => {
     screen.size = 'Mobile';

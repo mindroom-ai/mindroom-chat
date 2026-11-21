@@ -226,21 +226,34 @@ export function RoomViewHeader({
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const { layout, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
-  const actionRowRef = useRef<HTMLDivElement>(null);
+  const pluginRowRef = useRef<HTMLDivElement>(null);
   // Call and plugin controls can open their own popups without going through the header.
   const subscribeRowExpansion = useCallback(
     (onChange: () => void) => {
-      const row = actionRowRef.current;
-      if (!mobile || !row) return () => undefined;
+      const callGroup = callGroupRef.current;
+      const plugins = pluginRowRef.current;
+      if (!mobile || (!callGroup && !plugins)) return () => undefined;
       const observer = new MutationObserver(onChange);
-      observer.observe(row, { subtree: true, attributeFilter: ['aria-expanded'], childList: true });
+      const options = {
+        subtree: true,
+        attributeFilter: ['aria-expanded', 'aria-haspopup'],
+        childList: true,
+      };
+      if (callGroup) observer.observe(callGroup, options);
+      if (plugins) observer.observe(plugins, options);
       return () => observer.disconnect();
     },
-    [mobile]
+    [mobile, callGroupRef]
   );
+  const expandedPopup = '[aria-haspopup][aria-expanded="true"]';
   const rowExpanded = useSyncExternalStore(
     subscribeRowExpansion,
-    () => mobile && !!actionRowRef.current?.querySelector('[aria-expanded="true"]')
+    () =>
+      mobile &&
+      !!(
+        callGroupRef.current?.querySelector(expandedPopup) ||
+        pluginRowRef.current?.querySelector(expandedPopup)
+      )
   );
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
@@ -407,7 +420,7 @@ export function RoomViewHeader({
     canvasChooserLayout.current = { mobile, layout };
     if (!canvasMenuAnchor || (!layoutChanged && needsCanvasChooser)) return;
     setCanvasMenuAnchor(undefined);
-    if (layoutChanged) restoreFocusAfterDismiss(canvasMenuAnchor);
+    restoreFocusAfterDismiss(canvasMenuAnchor);
   }, [mobile, layout, canvasMenuAnchor, needsCanvasChooser, restoreFocusAfterDismiss]);
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
   const chooseCanvas = (canvasId: string, anchor?: HeaderPopupAnchor) => {
@@ -734,7 +747,6 @@ export function RoomViewHeader({
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box
-        ref={actionRowRef}
         shrink="No"
         alignItems="Center"
         gap="100"
@@ -750,7 +762,9 @@ export function RoomViewHeader({
           ref={mandatoryTailRef}
           data-room-header-mandatory-tail=""
         >
-          {rowEntries.filter(inMandatoryTail).map(drawRowEntry)}
+          <div ref={pluginRowRef} style={{ display: 'contents' }}>
+            {rowEntries.filter(inMandatoryTail).map(drawRowEntry)}
+          </div>
           {moreOptions}
         </Box>
       </Box>
