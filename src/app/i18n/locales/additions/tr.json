@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler"
+        "advancedFilters": "Gelişmiş filtreler",
+        "includeResolvedThreads": "Çözümlenen konuları dahil et",
+        "hideResolvedThreads": "Çözümlenen konuları gizle",
+        "forMeSummary": "{{summary}}. Benim için filtresi açık."
       },
       "threadPeopleFilter": {
         "label": "Kişiler",
@@ -1038,7 +1041,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Tüm uzun mesajları genişlet",
-        "collapseAllLong": "Tüm uzun mesajları daralt"
+        "collapseAllLong": "Tüm uzun mesajları daralt",
+        "showFullMessage": "Mesajın tamamını göster"
       }
     },
     "computer": {
@@ -1215,6 +1219,10 @@
   "composer": {
     "voicePausedInThisRoom": "Ses kaydı duraklatıldı — bu odanın başka bir yerindeki gönderilmemiş kaydınızı tamamlayın veya silin",
     "voiceThreadRootUnsent": "Bu sesli mesajın konusunda gönderilmiş bir ilk mesaj yok. O mesaj gönderildiğinde yeniden deneyin veya kaydı silin.",
+    "voiceIndicator": {
+      "recording": "Kaydediliyor {{time}}",
+      "paused": "Duraklatıldı {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",
@@ -1677,6 +1685,7 @@
   "threadNav": {
     "forMe": "Benim için",
     "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
+    "roomForMeHint": "Yalnızca katıldığınız veya bir ajanın sizin adınıza mesaj gönderdiği konular",
     "emptyForMe": "Henüz sizin için konu yok",
     "group": "Grupla",
     "groupHint": "Duruma göre grupla",
@@ -1709,5 +1718,9 @@
   },
   "threadActions": {
     "openBeside": "İkinci sütunda aç"
+  },
+  "roomSchedules": {
+    "thisThread": "Bu konu",
+    "elsewhereInRoom": "Bu odanın başka yerlerinde"
   }
 }

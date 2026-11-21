@@ -244,6 +244,7 @@ export type RoomTimelineProps = {
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
+  onToggleForMe?: () => void;
   onTogglePerson?: (userId: string) => void;
   onClearPeople?: () => void;
   onReset?: () => void;
@@ -1858,6 +1859,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
+        onToggleForMe={props.onToggleForMe}
         onReset={props.onReset ?? ignoreFilterChange}
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}

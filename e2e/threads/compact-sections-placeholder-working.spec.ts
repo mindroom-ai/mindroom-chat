@@ -14,6 +14,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // A pending Thinking placeholder counts as Working, but the card stays in its shown section
 // while the reader holds the order. With Needs you above Working, moving down immediately
@@ -156,21 +157,9 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
   await expect.poll(() => sectionOf(page, rootB)).toBe('working');
   expect(await orderHeld()).toBe(0);
 
-  // (c) Keep the mouse moving within the same card until the finish syncs, then let it rest.
-  const finishBox = await card(oldRoot).boundingBox();
-  if (!finishBox) throw new Error('no card to point at');
-  let nudge = 0;
-  const moveWithinCard = () => {
-    nudge = 1 - nudge;
-    return page.mouse.move(
-      finishBox.x + finishBox.width / 2 + nudge,
-      finishBox.y + finishBox.height / 2
-    );
-  };
-  await moveWithinCard();
-  await expect.poll(orderHeld).toBe(1);
-  await Promise.all([
-    sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+  // (c) Keep the mouse moving until the finish syncs, then let it rest.
+  await withMovingMouseOverCard(page, card(oldRoot), async () => {
+    await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
       msgtype: 'm.text',
       body: '* Here are the fixes.',
       'm.new_content': {
@@ -179,19 +168,10 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
         'io.mindroom.stream_status': 'completed',
       },
       'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
-    }),
-    expect
-      .poll(
-        async () => {
-          await moveWithinCard();
-          return workingHeader.textContent();
-        },
-        { timeout: 15_000 }
-      )
-      .toMatch(/· 1$/),
-  ]);
-  expect(await sectionOf(page, rootB)).toBe('working');
-  expect(await orderHeld()).toBe(1);
+    });
+    await expect(workingHeader).toHaveText(/· 1$/, { timeout: 15_000 });
+    expect(await sectionOf(page, rootB)).toBe('working');
+  });
   await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
   expect(await orderHeld()).toBe(0);
 });

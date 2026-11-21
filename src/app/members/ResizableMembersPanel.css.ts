@@ -14,3 +14,6 @@ export const MobileOverlay = style({
 });
 
 globalStyle(`${MobileOverlay} > *`, { pointerEvents: 'auto' });
+
+// The notice sits beside the drawer, not between the drawer and the edge of the viewport.
+globalStyle(`${MobileOverlay} > [data-dialog-notice-slot]`, { alignSelf: 'flex-start', order: -1 });

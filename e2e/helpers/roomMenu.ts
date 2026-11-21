@@ -3,7 +3,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 /** The widest window the app lays out as a phone (src/app/lib/hooks/useScreenSize.ts). */
 const PHONE_MAX_WIDTH = 750;
 
-/** Whether the page is as narrow as a phone, whose room header leaves its actions to the room menu. */
+/**
+ * Whether the page uses the phone layout. The room menu keeps all its entries there;
+ * promoted header icons are extra shortcuts.
+ */
 export const isPhoneLayout = (page: Page): boolean =>
   (page.viewportSize()?.width ?? Infinity) <= PHONE_MAX_WIDTH;
 
@@ -16,17 +19,25 @@ export const roomMoreOptions = (page: Page): Locator =>
   roomHeader(page).getByRole('button', { name: 'More Options', exact: true });
 
 /**
- * Opens the room's pinned messages: the header's Pinned Messages button, or on a phone the room
- * menu's entry. Returns the control focus belongs on after the list closes.
+ * Opens the room's pinned messages from the row or the room menu. Returns the opener to
+ * which focus belongs after the list closes.
  */
 export const openRoomPins = async (page: Page): Promise<Locator> => {
+  const button = roomHeader(page).getByRole('button', { name: 'Pinned Messages', exact: true });
   if (!isPhoneLayout(page)) {
-    const button = page.getByRole('button', { name: 'Pinned Messages', exact: true });
     await button.click();
     return button;
   }
-  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
-  await roomMoreOptions(page).click();
+
+  const more = roomMoreOptions(page);
+  await expect(more).toBeVisible({ timeout: 60_000 });
+  if ((await more.getAttribute('aria-expanded')) !== 'true') {
+    if (await button.isVisible()) {
+      await button.click();
+      return button;
+    }
+    await more.click();
+  }
   await page.getByRole('menuitem', { name: 'Pinned Messages', exact: true }).click();
-  return roomMoreOptions(page);
+  return more;
 };

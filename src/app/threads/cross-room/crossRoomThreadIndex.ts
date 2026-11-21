@@ -5,23 +5,13 @@ import {
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import { atom } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import type { Thread } from 'matrix-js-sdk/lib/models/thread';
-import { isThreadSummaryEvent, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
-import { isKnownRedactedEventId } from '../../matrix/eventRevision';
-import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
-import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
-import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { resolveThreadInvolvement } from '../../event-store/threads/threadInvolvement';
 import { getBundledThreadPreviews } from '../../event-store/threads/threadBundledPreviews';
+import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
-import {
-  getPreferredVisibleThreadReplyEvents,
-  hasLoadedEveryThreadReply,
-  isVisibleThreadReplyEvent,
-} from '../../event-store/threads/threadUtils';
+import { getPreferredVisibleThreadReplyEvents } from '../../event-store/threads/threadUtils';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { isThreadPinned } from '../../event-store/threads/threadPinning';
 import { isThreadResolved } from '../../event-store/threads/threadTags';
@@ -51,8 +41,7 @@ export type CrossRoomThreadIndexEntry = {
   resolvedTs?: number;
   hasAttention: boolean;
   isInvolved: boolean;
-  // Sidebar For me: involvement, agent attribution, or participation for the SDK account.
-  // After redacting your only reply, For me may still show the thread until the SDK rereads the root.
+  // For me before any sidebar pin exception.
   isForUser: boolean;
   summaryText: string;
   rootPreviewText: string;
@@ -277,143 +266,6 @@ const getContentText = (content: Record<string, unknown> | undefined): string | 
   return typeof text === 'string' ? text : undefined;
 };
 
-const hasDirectUserMention = (
-  content: Record<string, unknown> | undefined,
-  userId: string
-): boolean => {
-  const mentions = content?.['m.mentions'];
-  if (!mentions || typeof mentions !== 'object' || Array.isArray(mentions)) return false;
-
-  const mentionRecord = mentions as Record<string, unknown>;
-  const userIds = mentionRecord.user_ids;
-  return Array.isArray(userIds) && userIds.includes(userId);
-};
-
-const getRelationTypeFromContent = (
-  content: Record<string, unknown> | undefined
-): string | undefined => {
-  const relation = content?.['m.relates_to'];
-  if (!relation || typeof relation !== 'object' || Array.isArray(relation)) return undefined;
-
-  const relationRecord = relation as Record<string, unknown>;
-  return typeof relationRecord.rel_type === 'string' ? relationRecord.rel_type : undefined;
-};
-
-const isReplacementEvent = (
-  event: MatrixEvent | undefined,
-  content: Record<string, unknown> | undefined
-): boolean =>
-  event?.getRelation?.()?.rel_type === RelationType.Replace ||
-  getRelationTypeFromContent(content) === RelationType.Replace;
-
-const getPendingOwnThreadReply = (
-  room: Room,
-  threadRootId: string,
-  currentUserId: string | undefined
-): MatrixEvent | undefined => {
-  if (!currentUserId) return undefined;
-
-  return (room.relations?.getAllChildEventsForEvent(threadRootId) ?? [])
-    .filter((event) => {
-      const relation = event.getRelation?.();
-      const isDirectThreadReply =
-        event.threadRootId === threadRootId ||
-        (relation?.rel_type === RelationType.Thread && relation.event_id === threadRootId);
-      return (
-        isDirectThreadReply &&
-        event.getSender?.() === currentUserId &&
-        isPendingLocalEchoEvent(event)
-      );
-    })
-    .sort((left, right) => left.getTs() - right.getTs())
-    .at(-1);
-};
-
-const getMentionSourceContent = (
-  event: MatrixEvent | undefined,
-  content: Record<string, unknown> | undefined
-): Record<string, unknown> | undefined => {
-  const editedContent = getEditedContent(content);
-  if (editedContent && isReplacementEvent(event, content)) return editedContent;
-
-  return editedContent ?? content;
-};
-
-const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: string): boolean => {
-  const replacementEvent = event?.replacingEvent?.() ?? undefined;
-  const content = getEventContent(replacementEvent) ?? getEventContent(event);
-
-  return hasDirectUserMention(getMentionSourceContent(replacementEvent ?? event, content), userId);
-};
-
-type ThreadInvolvementInput = {
-  rootEvent?: MatrixEvent;
-  thread: Thread | null | undefined;
-  userId: string | undefined;
-  visibleReplies?: readonly MatrixEvent[];
-};
-
-export const isUserInvolvedInThread = ({
-  rootEvent,
-  thread,
-  userId,
-  visibleReplies,
-}: ThreadInvolvementInput): boolean => {
-  if (!userId) return false;
-  if (rootEvent?.getSender?.() === userId) return true;
-  if (eventDirectlyMentionsUser(rootEvent, userId)) return true;
-
-  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(
-    (event) => event.getSender?.() === userId || eventDirectlyMentionsUser(event, userId)
-  );
-};
-
-/**
- * Attribution uses the root and loaded visible replies, plus detached replies only when incomplete.
- * Read original content and skip title replies, plus detached roots, non-visible replies, and room-known redactions.
- */
-export const hasAgentPostForUser = ({
-  thread,
-  rootEvent = thread?.rootEvent,
-  userId,
-  visibleReplies,
-  room = thread?.room,
-  bundledPreviews,
-}: ThreadInvolvementInput & {
-  room?: Room;
-  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
-}): boolean => {
-  if (!userId) return false;
-  const postedForUser = (event: MatrixEvent | undefined) =>
-    !!event &&
-    isMindroomAgentUserIdForViewer(event.getSender(), userId) &&
-    event.getOriginalContent()[ORIGINAL_SENDER_KEY] === userId;
-
-  if (
-    postedForUser(rootEvent) ||
-    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(
-      (event) => postedForUser(event) && !isThreadSummaryEvent(event)
-    )
-  )
-    return true;
-  if (hasLoadedEveryThreadReply(thread)) return false;
-
-  const rootId = rootEvent?.getId() ?? thread?.id;
-  const bundled = (bundledPreviews ?? (room && getBundledThreadPreviews(room, rootEvent)))?.reply;
-  return [getThreadSummaryReply(thread), bundled].some((event) => {
-    const id = event?.getId();
-    return (
-      !!event &&
-      !!id &&
-      id !== rootId &&
-      isVisibleThreadReplyEvent(event) &&
-      !isThreadSummaryEvent(event) &&
-      postedForUser(event) &&
-      (!room || !isKnownRedactedEventId(room, id))
-    );
-  });
-};
-
 export const buildCrossRoomThreadIndexEntry = ({
   room,
   threadRootId,
@@ -442,7 +294,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   const rootPreviewText =
     getContentText(getEffectiveEventContent(resolvedRootEvent)) ?? summaryInfo?.summaryText ?? '';
   const bundledPreviews = getBundledThreadPreviews(room, resolvedRootEvent);
-  let threadRecord = buildThreadRecord({
+  const record = buildThreadRecord({
     room,
     threadRootId,
     threadRootEvent: resolvedRootEvent,
@@ -461,28 +313,25 @@ export const buildCrossRoomThreadIndexEntry = ({
       : undefined,
     currentUserId,
   });
-  threadRecord = {
-    ...threadRecord,
+  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
+  const { isInvolved, isForUser, pendingOwnFirstReplyTs } = resolveThreadInvolvement({
+    room,
+    threadRootId,
+    thread,
+    rootEvent: resolvedRootEvent,
+    userId: currentUserId,
+    visibleReplies,
+    bundledPreviews,
+    replyCount: record.status.replyCount,
+  });
+  const threadRecord = {
+    ...record,
     status: {
-      ...threadRecord.status,
+      ...record.status,
       ...roomThreadBackgroundJobs(room).get(threadRootId),
+      ...(pendingOwnFirstReplyTs !== undefined && { hasPendingSend: true }),
     },
   };
-  const pendingOwnReplyEvent =
-    threadRecord.status.replyCount === 0
-      ? getPendingOwnThreadReply(room, threadRootId, currentUserId)
-      : undefined;
-  const hasPendingOwnReply =
-    threadRecord.status.replyCount === 0 && pendingOwnReplyEvent !== undefined;
-  if (hasPendingOwnReply) {
-    threadRecord = {
-      ...threadRecord,
-      status: {
-        ...threadRecord.status,
-        hasPendingSend: true,
-      },
-    };
-  }
   const summaryText =
     threadRecord.presentation.primarySummaryText ??
     threadRecord.presentation.summaryText ??
@@ -493,9 +342,10 @@ export const buildCrossRoomThreadIndexEntry = ({
     resolvedRootEvent?.getTs?.() ??
     summaryInfo?.generatedTs ??
     0;
-  const lastActivityTs = hasPendingOwnReply
-    ? Math.max(baseLastActivityTs, pendingOwnReplyEvent.getTs())
-    : baseLastActivityTs;
+  const lastActivityTs =
+    pendingOwnFirstReplyTs !== undefined
+      ? Math.max(baseLastActivityTs, pendingOwnFirstReplyTs)
+      : baseLastActivityTs;
   const rootTs = resolvedRootEvent?.getTs?.();
   const isResolved = threadRecord.status.isResolved;
   const resolvedTs = isResolved ? resolvedTagSnapshot?.resolvedTs : undefined;
@@ -508,19 +358,10 @@ export const buildCrossRoomThreadIndexEntry = ({
   indexedEventIds.add(threadRootId);
   const rootEventId = resolvedRootEvent?.getId?.() ?? threadRecord.rootEventId;
   if (rootEventId) indexedEventIds.add(rootEventId);
-  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
   visibleReplies.forEach((event) => {
     const eventId = event.getId?.();
     if (eventId) indexedEventIds.add(eventId);
   });
-  const involvementInput = {
-    rootEvent: resolvedRootEvent,
-    thread,
-    userId: currentUserId,
-    visibleReplies,
-  };
-  const isInvolved = hasPendingOwnReply || isUserInvolvedInThread(involvementInput);
-
   return {
     key: getCrossRoomThreadIndexKey(room.roomId, threadRootId),
     roomId: room.roomId,
@@ -542,12 +383,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
     isInvolved,
-    isForUser:
-      isInvolved ||
-      hasAgentPostForUser({ ...involvementInput, room, bundledPreviews }) ||
-      (!!currentUserId &&
-        thread?.hasCurrentUserParticipated === true &&
-        thread.client?.getUserId?.() === currentUserId),
+    isForUser,
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),

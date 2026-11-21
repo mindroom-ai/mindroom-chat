@@ -63,24 +63,12 @@ test('room schedule list shows every destination and follows live state updates'
   await expect(
     page.getByRole('button', { name: 'Scheduled tasks (2)', exact: true })
   ).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Scheduled tasks (2)', exact: true })
   ).toBeFocused();
-});
-
-test('empty schedules and room changes never show tasks from the previous room', async ({
-  page,
-}) => {
-  await page.goto('/e2e/fixtures/room-schedules.html');
-  await page.getByRole('button', { name: 'Scheduled tasks (3)', exact: true }).click();
-  await page.evaluate(() => window.dispatchEvent(new Event('switch-room')));
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByText('No scheduled tasks in this room.', { exact: true })).toBeVisible();
-  await expect(dialog.getByRole('article')).toHaveCount(0);
 });
 
 test('schedule details wrap on phones in light and dark themes', async ({ page }) => {

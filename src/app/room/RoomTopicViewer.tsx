@@ -1,7 +1,6 @@
 import { type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import type { Options as FocusTrapOptions } from 'focus-trap';
 import {
   Box,
   Icon,
@@ -15,13 +14,13 @@ import {
 } from 'folds';
 import { Header, IconButton, Modal } from '../ui/glass/GlassPrimitives';
 import { PageScroll } from '../ui/page/PageScroll';
-import { stopPropagation } from '../lib/keyboard';
+import { headerDismissTrap } from '../ui/useHeaderPopup';
 import { TOPIC_TEXT_STYLE } from '../ui/styles/topicText';
 
 type RoomTopicViewerProps = {
   name: string;
   topic: string;
-  requestClose: () => void;
+  requestClose: (dismissed?: boolean) => void;
 };
 
 const VIEWER_STYLE: CSSProperties = {
@@ -34,16 +33,6 @@ const TOPIC_STYLE: CSSProperties = {
   padding: `${config.space.S200} ${config.space.S400} ${config.space.S400}`,
   ...TOPIC_TEXT_STYLE,
 };
-
-// The viewer closes on Escape, which it keeps from the room behind it, or a click outside.
-// Focus goes back to the topic line that opened it.
-const dismissOnEscapeOrOutside = (onDismiss: () => void): FocusTrapOptions => ({
-  initialFocus: false,
-  returnFocusOnDeactivate: true,
-  clickOutsideDeactivates: true,
-  escapeDeactivates: stopPropagation,
-  onDeactivate: onDismiss,
-});
 
 /**
  * The whole topic of a room, which its header shows on one line. A short topic gets a small
@@ -62,7 +51,7 @@ export function RoomTopicViewer({ name, topic, requestClose }: RoomTopicViewerPr
           {name}
         </Text>
       </Box>
-      <IconButton aria-label={closeLabel} onClick={requestClose} radii="300" size="300">
+      <IconButton aria-label={closeLabel} onClick={() => requestClose(true)} radii="300" size="300">
         <Icon src={Icons.Cross} size="100" />
       </IconButton>
     </Header>
@@ -71,7 +60,7 @@ export function RoomTopicViewer({ name, topic, requestClose }: RoomTopicViewerPr
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
-        <FocusTrap focusTrapOptions={dismissOnEscapeOrOutside(requestClose)}>
+        <FocusTrap focusTrapOptions={headerDismissTrap(requestClose)}>
           <Modal size="300" flexHeight role="dialog" aria-label={name} style={VIEWER_STYLE}>
             <PageScroll header={title}>
               <Text size="T300" priority="400" style={TOPIC_STYLE}>

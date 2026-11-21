@@ -27,6 +27,7 @@ function Composer({ log, thread = false }: { log: Log; thread?: boolean }) {
     root: () => root,
     thread,
     active: () => open,
+    offersFailed: () => false,
     phase: () => (open ? 'recording' : 'none'),
     hasContent: () => false,
     start: () => {
@@ -95,7 +96,7 @@ const setup = (children: (log: Log) => React.ReactNode, enabled = true) => {
 };
 
 describe('resolveVoiceComposer', () => {
-  it('takes the open recorder, else the focused composer, else the thread, else the room', () => {
+  it('takes the focused composer, else the thread, else the room', () => {
     const roomRoot = shownRoot();
     const composer = (thread: boolean, active: boolean, root = shownRoot()) =>
       renderHook(() =>
@@ -103,6 +104,7 @@ describe('resolveVoiceComposer', () => {
           root: () => root,
           thread,
           active: () => active,
+          offersFailed: () => false,
           phase: () => 'none',
           hasContent: () => false,
           start: () => false,
@@ -126,6 +128,38 @@ describe('resolveVoiceComposer', () => {
     fork.unmount();
   });
 
+  it("sends the account's recording, which every composer shows, from the focused one, else the thread", () => {
+    const roomRoot = shownRoot();
+    const sent: string[] = [];
+    const composer = (name: string, thread: boolean, offersFailed = false, root = shownRoot()) =>
+      renderHook(() =>
+        useVoiceComposer({
+          root: () => root,
+          thread,
+          active: () => true,
+          offersFailed: () => offersFailed,
+          phase: () => 'recording',
+          hasContent: () => false,
+          start: () => false,
+          send: () => sent.push(name),
+          focus: () => undefined,
+        })
+      );
+    const room = composer('room', false, false, roomRoot);
+    const thread = composer('thread', true);
+
+    resolveVoiceComposer(roomRoot)?.send();
+    resolveVoiceComposer(document.body)?.send();
+    expect(sent).toEqual(['room', 'thread']);
+
+    // A recording whose send failed waits in one composer: only that one acts.
+    const failed = composer('failed', false, true);
+    resolveVoiceComposer(roomRoot)?.send();
+    expect(sent).toEqual(['room', 'thread', 'failed']);
+
+    [room, thread, failed].forEach((view) => view.unmount());
+  });
+
   it('skips a composer under an inert page or side panel, and one not rendered', () => {
     const inert = document.createElement('div');
     inert.setAttribute('inert', '');
@@ -138,6 +172,7 @@ describe('resolveVoiceComposer', () => {
           root: () => root,
           thread: false,
           active: () => true,
+          offersFailed: () => false,
           phase: () => 'recording',
           hasContent: () => false,
           start: () => false,
@@ -200,6 +235,32 @@ describe('useVoiceHoldShortcut', () => {
     wait(300);
     press('keyup', space);
     expect(log).toEqual([]);
+  });
+
+  it('does nothing in a composer that went out of sight since the key went down', () => {
+    // Under a side panel that fills the room, or behind a phone's drawer: its box is inert.
+    const hide = () => act(() => document.body.setAttribute('inert', ''));
+    const { log } = setup((l) => <Composer log={l} />);
+    try {
+      // Before the delayed start of push-to-talk: nothing starts, and the release starts nothing.
+      hold();
+      hide();
+      wait(300);
+      press('keyup', space);
+      expect(log).toEqual([]);
+      act(() => document.body.removeAttribute('inert'));
+
+      // With a recording running: the release sends nothing, and the recording goes on.
+      hold();
+      press('keyup', space);
+      expect(log).toEqual(['start']);
+      hold();
+      hide();
+      press('keyup', space);
+      expect(log).toEqual(['start']);
+    } finally {
+      document.body.removeAttribute('inert');
+    }
   });
 
   it('starts nothing for held modifiers, other chords with Space, or a pending send', () => {

@@ -17,7 +17,7 @@ import {
 // sent once the panel is back beside the conversation, no read receipt goes out for a message that
 // arrives while the panel fills the room (one does once the conversation shows again), and the
 // reader is where they were in the thread. On a phone, where a panel covers the conversation, the
-// recording goes on under it too.
+// recording goes on under it too. While no composer shows the recording, the shell's pill does.
 
 test.use({
   viewport: { width: 1600, height: 1000 },
@@ -88,9 +88,17 @@ const readerPlace = async (page: Page) =>
     };
   });
 
-/** Starts a voice message in the composer; skips the test where the browser has no microphone. */
+/** The pill that shows the recording while no composer does. */
+const recordingPill = (page: Page) => page.getByTestId('live-voice-recording-indicator');
+
+/**
+ * Starts a voice message in the composer and answers the Discard of the composer's capsule; skips
+ * the test where the browser has no microphone.
+ */
 const startRecording = async (page: Page) => {
-  const discard = page.getByRole('button', { name: 'Discard voice recording' });
+  const discard = page
+    .locator('[data-room-footer="true"]')
+    .getByRole('button', { name: 'Discard voice recording' });
   await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
   const recordingError = page.getByText('Voice Recording Error', { exact: true });
   await expect(discard.or(recordingError).first()).toBeVisible({ timeout: 15_000 });
@@ -120,6 +128,7 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await fill.click();
   await expect(fill).toHaveAttribute('aria-pressed', 'true');
   await expect(discard).toBeHidden();
+  await expect(recordingPill(page)).toHaveText(/^Recording \d+:\d\d$/);
   // In the conversation's place, the panel's card keeps the gap at its start as at its ends.
   const gaps = await panelLocator(page, 'call').evaluate((panel) => {
     const style = getComputedStyle(panel);
@@ -129,6 +138,7 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await shot('filled');
   await fill.click();
   await expect(discard).toBeVisible();
+  await expect(recordingPill(page)).toHaveCount(0);
   await shot('unfolded');
 
   // A reply that arrives while the call fills the room gets no receipt, until the conversation
@@ -191,9 +201,41 @@ test('on a phone, a side panel over the conversation keeps the recording under i
     const discard = await startRecording(page);
     await openPanel(page, room, 'computer');
     await expect(discard).toBeHidden();
+    await expect(recordingPill(page)).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('phone-covered.png') });
     await closePanel(page, 'computer');
     await expect(discard).toBeVisible();
+    await expect(recordingPill(page)).toHaveCount(0);
+
+    // A bottom sheet is modal: it hides what is outside it and takes a press there for leaving.
+    // The question the pill's Discard asks is over the sheet, not outside it: Cancel and Escape
+    // close the question alone, and Discard ends the recording under the open sheet.
+    await page
+      .locator('[data-phone-top-bar]')
+      .getByRole('button', { name: /^Activity/ })
+      .tap();
+    const sheet = page.getByRole('dialog', { name: 'Activity', exact: true });
+    await expect(sheet).toBeVisible();
+    const pillDiscard = recordingPill(page).getByRole('button', {
+      name: 'Discard voice recording',
+    });
+    const question = page.getByRole('dialog', { name: 'Discard voice recording?' });
+    const cancel = question.getByRole('button', { name: 'Cancel', exact: true });
+    await pillDiscard.tap();
+    await expect(cancel).toBeFocused();
+    await page.screenshot({ path: test.info().outputPath('phone-sheet-discard-question.png') });
+    await cancel.tap();
+    await expect(question).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await pillDiscard.tap();
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(question).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await pillDiscard.tap();
+    await question.getByRole('button', { name: 'Discard', exact: true }).tap();
+    await expect(recordingPill(page)).toHaveCount(0);
+    await expect(sheet).toBeVisible();
   } finally {
     // The page's live sync may still be in a route.
     await context.unrouteAll({ behavior: 'ignoreErrors' });

@@ -1,10 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
   type PointerEvent,
+  type RefObject,
 } from 'react';
 import type { RectCords } from 'folds';
 import { tabFromCardToOpener } from '../lib/overlayFocus';
@@ -12,15 +14,55 @@ import { tabFromCardToOpener } from '../lib/overlayFocus';
 /** How a card came up: a mouse resting on its trigger, keyboard focus, or a click or tap. */
 type CardMode = 'hover' | 'focus' | 'pinned';
 
-type OpenCard = { mode: CardMode; anchor: RectCords };
-
-/** The open card with its anchor at `rect`, the same object while the trigger has not moved. */
-const anchoredAt = (current: OpenCard | undefined, rect: RectCords): OpenCard | undefined => {
-  if (!current) return current;
-  const { x, y, width, height } = current.anchor;
-  const moved = rect.x !== x || rect.y !== y || rect.width !== width || rect.height !== height;
-  return moved ? { ...current, anchor: rect } : current;
-};
+/** Follow a popup through layout changes. A getter is read each frame to follow remounted triggers. */
+export function useLiveAnchor(
+  opener: HTMLElement | (() => HTMLElement | null) | undefined,
+  onGone?: () => void,
+  contentRef?: RefObject<HTMLElement>
+): RectCords | undefined {
+  const [anchor, setAnchor] = useState<RectCords>();
+  useLayoutEffect(() => {
+    if (!opener) {
+      setAnchor(undefined);
+      return undefined;
+    }
+    let frame = 0;
+    let rect: RectCords | undefined;
+    let contentSize: string | undefined;
+    const follow = () => {
+      const trigger = typeof opener === 'function' ? opener() : opener;
+      if (onGone && (!trigger?.isConnected || trigger.getClientRects().length === 0)) {
+        onGone();
+        return;
+      }
+      const next = trigger?.getBoundingClientRect();
+      const box = contentRef?.current?.getBoundingClientRect();
+      const size = box && `${box.width}x${box.height}`;
+      const resized = size !== contentSize;
+      contentSize = size;
+      if (next) {
+        const { x, y, width, height } = next;
+        // Keep the last position on zero measurements (e.g. a hidden timeline trigger).
+        if (
+          !rect ||
+          ((x || y || width || height) &&
+            (resized ||
+              x !== rect.x ||
+              y !== rect.y ||
+              width !== rect.width ||
+              height !== rect.height))
+        ) {
+          rect = next;
+          setAnchor(next);
+        }
+      }
+      frame = requestAnimationFrame(follow);
+    };
+    follow();
+    return () => cancelAnimationFrame(frame);
+  }, [opener, onGone, contentRef]);
+  return opener ? anchor : undefined;
+}
 
 /**
  * A card a button opens, anchored to it in a PopOut: the open state, and while it is open Escape,
@@ -32,27 +74,29 @@ const anchoredAt = (current: OpenCard | undefined, rect: RectCords): OpenCard | 
 export function useAnchoredCard(closeDelayMs = 0) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState<OpenCard>();
+  const [mode, setMode] = useState<CardMode>();
   const closeTimer = useRef<number>();
 
   const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), []);
   const close = useCallback(() => {
     cancelClose();
-    setOpen(undefined);
+    setMode(undefined);
   }, [cancelClose]);
   const show = useCallback(
     (mode: CardMode) => {
       cancelClose();
-      const trigger = triggerRef.current;
-      if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
+      if (triggerRef.current) setMode(mode);
     },
     [cancelClose]
   );
+  const getTrigger = useCallback(() => triggerRef.current, []);
+  const anchor = useLiveAnchor(mode && getTrigger, undefined, cardRef);
+  const open = mode && anchor && { mode, anchor };
   // Focus reached the card: the mouse leaving must not take it, nor a close the mouse already
   // started, or the focus in it would drop to the page.
   const pin = () => {
     cancelClose();
-    setOpen((current) => current && { ...current, mode: 'pinned' });
+    setMode((current) => current && 'pinned');
   };
   const toggle = () => (open?.mode === 'pinned' ? close() : show('pinned'));
 
@@ -73,7 +117,7 @@ export function useAnchoredCard(closeDelayMs = 0) {
       }
       cancelClose();
       closeTimer.current = window.setTimeout(() => {
-        setOpen((current) => (current?.mode === 'hover' ? undefined : current));
+        setMode((current) => (current === 'hover' ? undefined : current));
       }, closeDelayMs);
     },
   };
@@ -112,31 +156,9 @@ export function useAnchoredCard(closeDelayMs = 0) {
       const target = evt.target as Node;
       if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
     };
-    // The card sits at a fixed spot, so it follows the trigger once a frame, whatever moved it: a
-    // scroll, the timeline settling as rows arrive, a line showing above it, text above it
-    // wrapping, an image loading. A card that changed size is placed again, a new anchor for folds.
-    let frame = 0;
-    let cardSize = '';
-    const follow = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      const box = cardRef.current?.getBoundingClientRect();
-      const size = box ? `${box.width}x${box.height}` : '';
-      const resized = size !== cardSize;
-      cardSize = size;
-      // A trigger not displayed measures all zeros; the card then stays where it last was.
-      const shown = rect && (rect.x || rect.y || rect.width || rect.height);
-      if (shown) {
-        setOpen((current) =>
-          resized && current ? { ...current, anchor: rect } : anchoredAt(current, rect)
-        );
-      }
-      frame = requestAnimationFrame(follow);
-    };
-    frame = requestAnimationFrame(follow);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
     };

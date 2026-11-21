@@ -82,6 +82,7 @@ describe('initClient checks the identity key of the store it opens', () => {
       return {
         startup: vi.fn().mockResolvedValue(undefined),
         destroy,
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -136,6 +137,7 @@ describe('initClient checks the identity key of the store it opens', () => {
         return {
           startup: vi.fn().mockResolvedValue(undefined),
           destroy: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(),
         } as unknown as IndexedDBStore;
       });
       vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -200,7 +202,10 @@ describe('initClient checks the identity key of the store it opens', () => {
       databases: vi.fn().mockResolvedValue([{ name: cryptoStoreName }]),
     });
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(),
+      } as unknown as IndexedDBStore;
     });
     const authedRequest = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({

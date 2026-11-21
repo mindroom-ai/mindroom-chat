@@ -34,6 +34,7 @@ const state = vi.hoisted(() => ({
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
+  restoreSentText: vi.fn(),
 }));
 
 vi.mock('folds', () => {
@@ -154,7 +155,10 @@ vi.mock('./RoomInputExtensions', () => ({
   RoomInputReplyContext: () => null,
 }));
 vi.mock('./useRoomInputSendSessionController', () => ({
-  useRoomInputSendSessionController: () => ({ startSendSession: state.startSendSession }),
+  useRoomInputSendSessionController: () => ({
+    startSendSession: state.startSendSession,
+    restoreText: state.restoreSentText,
+  }),
 }));
 vi.mock('./RoomInputReplyPreview', () => ({ RoomInputReplyPreview: () => null }));
 vi.mock('../matrix/send/roomInputUploadPreparation', () => ({
@@ -181,7 +185,7 @@ vi.mock('./useRoomInputUploadTransport', () => ({
 vi.mock('./useRoomInputVoice', () => ({
   useRoomInputVoice: () => ({
     blocksSubmit: () => false,
-    submitIfActive: async () => false,
+    sendAtPress: () => undefined,
     renderRecorder: () => null,
     microphone: null,
   }),
@@ -196,6 +200,7 @@ afterEach(() => {
   state.startSendSession.mockClear();
   state.resetEditor.mockClear();
   state.restoreEditorContent.mockClear();
+  state.restoreSentText.mockClear();
   state.commands = {};
   state.commandThread = undefined;
 });
@@ -366,14 +371,19 @@ describe('composer', () => {
       expect(await pressEnterAfterMention(typed)).toBe(false);
       expect(run).toHaveBeenCalledWith('@bob:example.org -r come in');
       expect(state.resetEditor).toHaveBeenCalled();
-      expect(state.restoreEditorContent).not.toHaveBeenCalled();
+      expect(state.restoreSentText).not.toHaveBeenCalled();
       expect(alerts()).toEqual([]);
     });
 
     it('gives the text back with the reason when the command fails', async () => {
       withInvite(vi.fn(async () => Promise.reject(new Error('You are not allowed to invite'))));
       expect(await pressEnterAfterMention(typed)).toBe(false);
-      expect(state.restoreEditorContent).toHaveBeenCalledWith(expect.anything(), typed);
+      // Through the send controller, which puts it in the editor only while that still shows the
+      // conversation the command was typed in.
+      expect(state.restoreSentText).toHaveBeenCalledWith(
+        { roomId: expect.any(String), threadId: undefined },
+        typed
+      );
       expect(JSON.stringify(alerts())).toContain('You are not allowed to invite');
     });
 

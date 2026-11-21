@@ -84,6 +84,7 @@ const makeThreadRoom = () => {
 
 const setup = async () => {
   const { RoomTimeline } = await import('../RoomTimeline');
+  const onToggleForMe = vi.fn();
   const Harness = ({ room }: { room: ReturnType<typeof makeRoom> }) => {
     const [threadFilterState, setThreadFilterState] = React.useState(
       createDefaultThreadFilterState()
@@ -98,6 +99,7 @@ const setup = async () => {
         setThreadSortFreezeState: vi.fn(),
         onSortDirectionChange: vi.fn(),
         onToggleThreadSortFreeze: vi.fn(),
+        onToggleForMe,
         onAddTag: vi.fn(),
         onRemoveTag: vi.fn(),
         onReset: vi.fn(),
@@ -134,7 +136,7 @@ const setup = async () => {
       vi.advanceTimersByTime(300);
       await flushAsyncWork(2);
     });
-  return { ...roomState, renderer: renderer!, overview, type, selectTab, settle };
+  return { ...roomState, renderer: renderer!, overview, type, selectTab, settle, onToggleForMe };
 };
 
 importBeforeTests(() => import('../RoomTimeline'));
@@ -148,6 +150,15 @@ describe('RoomTimeline filter query wiring', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('passes the For me action to the bar so it can render the button', async () => {
+    const { overview, onToggleForMe, renderer } = await setup();
+    try {
+      expect(overview().onToggleForMe).toBe(onToggleForMe);
+    } finally {
+      act(() => renderer.unmount());
+    }
   });
 
   it('applies structured DSL filters immediately without a second parse pass', async () => {

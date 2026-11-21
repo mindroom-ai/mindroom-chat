@@ -4,6 +4,7 @@ import { setFileScope } from '@vanilla-extract/css/fileScope';
 import type { createStore as CreateStore } from 'jotai';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ActiveCall } from '../calls/callStore';
+import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 
 // Every atom the app makes while its modules load, with the stack that made it. Atoms made later
 // (families, per-account factories) are keyed by what they are made for and not followed here.
@@ -32,6 +33,8 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's MindRoom settings, saved in localStorage",
   'src/app/preferences/voiceMessageSettings.ts':
     "this device's voice message speed and volume, saved in localStorage",
+  'src/app/composer/voice/savedVoiceDraft.ts':
+    'tracks restore state by user ID, so a different user never uses the previous restore',
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
   'src/app/room/threadLayout.ts':
@@ -75,6 +78,7 @@ type Loaded = {
   createStore: typeof CreateStore;
   state: typeof import('./accountState');
   drafts: typeof import('../composer/roomInputDrafts');
+  liveVoice: typeof import('../composer/voice/liveVoiceRecording');
   typing: typeof import('../matrix/state/typingMembers');
   calls: typeof import('../calls/callStore');
   agentCaller: typeof import('../calls/agent/agentCaller');
@@ -111,6 +115,7 @@ beforeAll(async () => {
     createStore: (await import('jotai')).createStore,
     state: await import('./accountState'),
     drafts: await import('../composer/roomInputDrafts'),
+    liveVoice: await import('../composer/voice/liveVoiceRecording'),
     typing: await import('../matrix/state/typingMembers'),
     calls: await import('../calls/callStore'),
     agentCaller: await import('../calls/agent/agentCaller'),
@@ -134,6 +139,14 @@ const keptAtoms = (): Map<object, string> =>
     [
       loaded.drafts.threadViewVoiceComposersAtom,
       'lists the mounted thread views, each taken out as its composer goes',
+    ],
+    [
+      loaded.liveVoice.liveVoiceCapsulesShownAtom,
+      'counts the composers showing the recording, each taken out as it goes',
+    ],
+    [
+      loaded.liveVoice.voiceDiscardsInFlightAtom,
+      'counts the Discards still deleting a disk copy, each taken out as its deletion settles',
     ],
     [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
     [
@@ -201,11 +214,11 @@ describe('forgetAccountState', () => {
   });
 
   it('puts every module-level atom an account leaves behind back to where it started', () => {
-    const { primitives, createStore, state, typing, calls } = loaded;
+    const { primitives, createStore, state, drafts, typing, calls, liveVoice } = loaded;
     const store = createStore();
     const forgotten = primitives.filter((entry) => !isKept(entry));
     // Each atom first holds something of the last account, so a forget that writes back what it
-    // finds, or a reset that keeps old entries, leaves it there. The two whose forget reads them
+    // finds, or a reset that keeps old entries, leaves it there. The three whose forget reads them
     // hold a value of the shape it reads; every other one gets an entry of its own.
     store.set(typing.roomIdToTypingMembersAtom, {
       type: 'PUT',
@@ -215,6 +228,10 @@ describe('forgetAccountState', () => {
       isTyping: () => true,
     });
     store.set(calls.activeCallAtom, runningCall().active);
+    const endRecording = vi.fn();
+    store.set(liveVoice.liveVoiceRecordingAtom, {
+      reset: endRecording,
+    } as unknown as VoiceCaptureSession);
     forgotten.forEach(({ atom, module }) => {
       if (isDeepStrictEqual(store.get(atom as never), atom.init)) {
         putValue(store, atom, leftBehind(atom.init, module));
@@ -226,10 +243,13 @@ describe('forgetAccountState', () => {
     expect(forgotten.filter((entry) => !left(entry)).map(describeAtom)).toEqual([]);
 
     state.forgetAccountState(store);
+    drafts.forgetComposerStateOfSession(store);
 
     // Each one is account state that the next account would see: list it in accountState.ts,
     // or add its module to KEPT_MODULES above with the reason it may outlive the account.
     expect(forgotten.filter(left).map(describeAtom)).toEqual([]);
+    // The recording the account was making is ended at once, which frees the microphone.
+    expect(endRecording).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the call and runs what follows its end', () => {
@@ -248,7 +268,7 @@ describe('forgetAccountState', () => {
   });
 
   it("drops the account's reply targets and staged files, which are keyed by room alone", () => {
-    const { createStore, state, drafts } = loaded;
+    const { createStore, drafts } = loaded;
     const store = createStore();
     const roomId = '!shared:example.org';
     store.set(drafts.roomIdToReplyDraftAtomFamily(roomId), {
@@ -257,7 +277,7 @@ describe('forgetAccountState', () => {
       body: 'Question',
     });
 
-    state.forgetAccountState(store);
+    drafts.forgetComposerStateOfSession(store);
 
     expect(store.get(drafts.roomIdToReplyDraftAtomFamily(roomId))).toBeUndefined();
   });

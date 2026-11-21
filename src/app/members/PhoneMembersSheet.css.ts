@@ -40,6 +40,8 @@ export const Panel = style([
     insetBlock: 0,
     insetInlineEnd: 0,
     display: 'flex',
+    // Its notice place (ui/noticeSlots.tsx) over the members.
+    flexDirection: 'column',
     inlineSize: 'min(calc(100% - 56px), 420px)',
     backgroundColor: color.Background.Container,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
@@ -61,3 +63,6 @@ export const Panel = style([
     },
   },
 ]);
+
+/** The members, in the height the sheet's notice place leaves. */
+export const Members = style({ display: 'flex', flexGrow: 1, minBlockSize: 0 });

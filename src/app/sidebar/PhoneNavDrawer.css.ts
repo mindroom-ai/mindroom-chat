@@ -89,16 +89,26 @@ export const Panel = style([
       '&[data-animate][data-open]': { transition: `transform ${SLIDE} ${EASE}` },
       [IN_PAGE_SLIDE]: { transition: 'none' },
       // A page without a list (Threads, Canvases): the rail alone.
-      '&:has(> [data-nav-slot]:empty)': { inlineSize: 'auto' },
+      '&:has([data-nav-slot]:empty)': { inlineSize: 'auto' },
     },
   },
 ]);
 
-/** Where the routed section puts its list; it takes the drawer's width beside the rail. */
+/**
+ * What the rail leaves of the panel: the drawer's notice place (ui/noticeSlots.tsx) over the
+ * section's list. Without a list it is as wide as a notice there, and nothing without one.
+ */
+export const ListColumn = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minInlineSize: 0,
+  flexGrow: 1,
+});
+
+/** Where the routed section puts its list; it takes the height the notice place leaves. */
 export const Slot = style({
   display: 'flex',
-  minInlineSize: 0,
-  // What the rail leaves of the panel.
+  minBlockSize: 0,
   flexGrow: 1,
   selectors: {
     '&:empty': { display: 'none' },
