@@ -2,6 +2,7 @@ import { EventType, type Room, type RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString } from '../../lib/hooks/useAsyncSearch';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { withoutNameDisguises } from '../../matrix/room';
+import { isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
 
 /**
  * The user name prefix MindRoom gives every agent account (MindRoom's
@@ -11,7 +12,7 @@ import { withoutNameDisguises } from '../../matrix/room';
 const AGENT_PREFIX = 'mindroom_';
 
 /** The owner keeps the old router user name, with an optional installation namespace. */
-const ROUTER_AGENT = /^router(?:_[a-z0-9]{4,32})?$/;
+const NAMESPACED_ROUTER = /^router_[a-z0-9]{4,32}$/;
 
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
@@ -40,7 +41,10 @@ const userName = (userId: string): string => {
 
 const isOwnerAccount = (userId: string): boolean => {
   const name = localpart(userId);
-  return name.startsWith(AGENT_PREFIX) && ROUTER_AGENT.test(name.slice(AGENT_PREFIX.length));
+  return (
+    isMindroomOwnerUserId(userId) ||
+    (name.startsWith(AGENT_PREFIX) && NAMESPACED_ROUTER.test(name.slice(AGENT_PREFIX.length)))
+  );
 };
 
 const startsAWord = (value: string, needle: string): boolean =>

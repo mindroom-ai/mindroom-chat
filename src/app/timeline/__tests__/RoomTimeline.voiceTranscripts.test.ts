@@ -21,6 +21,17 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 const threadId = '$root';
 const AGENT = '@mindroom_helper:example.org';
 const ROUTER = '@mindroom_router:example.org';
+const CUSTOM_AGENT = '@helper:example.org';
+
+const setRoster = (accounts: string[]) =>
+  stateEventsByTypeMock.set('io.mindroom.accounts', [
+    makeEvent('$accounts', {
+      type: 'io.mindroom.accounts',
+      stateKey: ROUTER,
+      sender: ROUTER,
+      content: { accounts },
+    }),
+  ] as never);
 
 // Its own test draws it; here only that the voice row shows it counts.
 vi.mock('../../messages/content/VoiceTranscript', async (importOriginal) => ({
@@ -35,7 +46,13 @@ importBeforeTests(() => import('../RoomTimeline'));
 const openThread = async (
   router?: string,
   sender = ROUTER,
-  { showEcho = true, voiceTs = 2_000, voiceAge = 0, echoBody = '🎤 Invented words' } = {}
+  {
+    showEcho = true,
+    voiceTs = 2_000,
+    voiceAge = 0,
+    echoBody = '🎤 Invented words',
+    joinedMembers = [AGENT],
+  } = {}
 ) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
@@ -74,7 +91,7 @@ const openThread = async (
   if (!showEcho) events.pop();
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
-  const room = makeRoom({ liveEvents: [rootEvent], joinedMembers: [AGENT] });
+  const room = makeRoom({ liveEvents: [rootEvent], joinedMembers });
   room.getThread = () =>
     ({
       rootEvent,
@@ -99,6 +116,9 @@ const transcripts = (renderer: ReturnType<typeof create>) =>
   renderer.root
     .findAll((node) => typeof node.props['data-voice-transcript'] === 'string')
     .map((node) => node.props['data-voice-transcript'] as string);
+
+const transcribingStatuses = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAllByProps({ role: 'status', 'aria-label': 'Transcribing…' });
 
 describe('a voice echo in an open thread', () => {
   afterEach(() => {
@@ -128,22 +148,26 @@ describe('a voice echo in an open thread', () => {
   });
 
   it.each([true, false])('folds a joined agent echo only when listed (%s)', async (listed) => {
-    if (listed) {
-      stateEventsByTypeMock.set('io.mindroom.accounts', [
-        makeEvent('$accounts', {
-          type: 'io.mindroom.accounts',
-          stateKey: ROUTER,
-          sender: ROUTER,
-          content: { accounts: [AGENT] },
-        }),
-      ] as never);
-    }
+    if (listed) setRoster([AGENT]);
     const renderer = await openThread(ROUTER, AGENT);
     try {
       expect(getRenderedEventIds(renderer)).toEqual(
         listed ? [threadId, '$voice'] : [threadId, '$voice', '$echo']
       );
       expect(transcripts(renderer)).toEqual(listed ? ['🎤 Invented words'] : []);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it.each([
+    ['only the owner', [ROUTER], false],
+    ['a roster-backed responder with a custom ID', [CUSTOM_AGENT], true],
+  ] as const)('shows pending with %s only if somebody answers', async (_case, joined, pending) => {
+    setRoster([CUSTOM_AGENT]);
+    const renderer = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [...joined] });
+    try {
+      expect(transcribingStatuses(renderer)).toHaveLength(pending ? 1 : 0);
     } finally {
       act(() => renderer.unmount());
     }
@@ -171,8 +195,7 @@ it('hides the transcribing skeleton 60 seconds after the voice message was sent'
     voiceTs: 3_700_000,
     voiceAge: 40_000,
   });
-  const status = () =>
-    renderer.root.findAllByProps({ role: 'status', 'aria-label': 'Transcribing…' });
+  const status = () => transcribingStatuses(renderer);
   try {
     expect(status()).toHaveLength(1);
     act(() => {

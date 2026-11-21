@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { EventStatus, MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
-import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
@@ -95,7 +95,7 @@ export const planVoiceTranscripts = ({
     // An agent event counts even if it has not decrypted.
     let latestAgentTs = -Infinity;
     for (const event of events) {
-      if (!isMindroomAgentUserIdForViewer(event.getSender(), viewerId)) continue;
+      if (!isMindroomResponderForViewer(event.getSender(), viewerId, trustedAccountIds)) continue;
       const ts = event.getTs();
       if (Number.isFinite(ts)) latestAgentTs = Math.max(latestAgentTs, ts);
     }

@@ -319,10 +319,11 @@ describe('pending voice transcription', () => {
   });
 
   it('ends on the raw-audio fallback without folding it', () => {
-    const fallback = echo('$echo', {
-      [SOURCE_KEY]: '$voice',
-      'com.mindroom.voice_raw_audio_fallback': true,
-    });
+    const fallback = echo(
+      '$echo',
+      { [SOURCE_KEY]: '$voice', 'com.mindroom.voice_raw_audio_fallback': true },
+      { sender: AGENT }
+    );
     expect(pending([voice(), fallback])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 

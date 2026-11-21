@@ -144,7 +144,7 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
@@ -930,7 +930,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     revealed: pluginRevealedRef.current,
     viewerId,
     hasJoinedAgent: [...joinedAccountIds].some((id) =>
-      isMindroomAgentUserIdForViewer(id, viewerId)
+      isMindroomResponderForViewer(id, viewerId, trustedAccountsRef.current)
     ),
     hasThreadReplies: (id) =>
       (threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 || (room.getThread(id)?.length ?? 0) > 0,
