@@ -397,9 +397,9 @@ export function CompactRoomView({
   const heldSections = useMemo(() => {
     const shown = committed.current?.scope === scope ? committed.current.sections : undefined;
     return orderHeld && threadSections && shown
-      ? holdCompactThreadSections(threadSections, shown, away, interactionHeld)
+      ? holdCompactThreadSections(threadSections, shown, interactionHeld)
       : threadSections;
-  }, [away, interactionHeld, orderHeld, scope, threadSections]);
+  }, [interactionHeld, orderHeld, scope, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
   // other sections to come back. If another section appears, such as Working below Needs you,
   // the original stays open until the hold lets go or the reader folds it.

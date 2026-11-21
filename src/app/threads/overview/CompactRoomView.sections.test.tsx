@@ -452,6 +452,19 @@ describe('the Compact room in sections', () => {
         });
     };
 
+    it('puts a leading join before survivors that are held in their old section', () => {
+      holdThenRegroup(
+        [{ id: 'working', rootIds: ['$y', '$x'] }],
+        [
+          { id: 'needsYou', rootIds: ['$x'] },
+          { id: 'working', rootIds: ['$new', '$y'] },
+        ],
+        ['$new']
+      );
+
+      expect(rows()).toEqual(['#working 2', '$new', '$y', '$x']);
+    });
+
     it('keeps the header of a section its last card left, with no count, until let go', () => {
       const release = holdThenRegroup(
         [
