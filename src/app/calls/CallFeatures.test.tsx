@@ -80,6 +80,7 @@ const runningCall = () => {
       room: { roomId: '!call:calls.test' },
       leave,
       getState: () => ({ phase: 'connected', microphone: true, camera: false, devices: {} }),
+      getResumeInputs: () => ({ microphone: true, camera: false }),
     },
   } as unknown as ActiveCall;
   return { active, leave };

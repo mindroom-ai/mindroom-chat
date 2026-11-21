@@ -49,12 +49,11 @@ export type CallDevices = Partial<Record<CallDeviceKind, string>>;
 
 type InputKind = 'microphone' | 'camera';
 
-const liveInputTrack = (publication: LocalTrackPublication | undefined) => {
-  const track = publication?.track?.mediaStreamTrack;
-  return !publication?.isMuted && track?.readyState === 'live' && track.muted === false
-    ? track
-    : undefined;
-};
+const unmutedInputTrack = (publication: LocalTrackPublication | undefined) =>
+  publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
+
+const isLiveInputTrack = (track: MediaStreamTrack | undefined) =>
+  track?.readyState === 'live' && track.muted === false;
 
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
@@ -168,7 +167,7 @@ export class RoomCall {
 
   private readonly inputTracks: Partial<Record<InputKind, MediaStreamTrack>> = {};
 
-  private readonly liveInputs: Partial<Record<InputKind, MediaStreamTrack>> = {};
+  private readonly unmutedInputs: Partial<Record<InputKind, MediaStreamTrack>> = {};
 
   private readonly toggleOps: Record<InputKind, number> = { microphone: 0, camera: 0 };
 
@@ -243,6 +242,14 @@ export class RoomCall {
 
   getState = (): CallState => this.state;
 
+  /** A rejected mute can still show On, but a reload must honor the requested Off. */
+  getResumeInputs() {
+    return {
+      microphone: this.state.microphone && this.requestedInputs.microphone,
+      camera: this.state.camera && this.requestedInputs.camera,
+    };
+  }
+
   get identity(): string {
     return `${this.mx.getSafeUserId()}:${this.mx.getDeviceId() ?? ''}`;
   }
@@ -302,7 +309,7 @@ export class RoomCall {
     previous?.removeEventListener('mute', this.refresh);
     previous?.removeEventListener('unmute', this.refresh);
     this.inputTracks[kind] = track;
-    this.liveInputs[kind] = undefined;
+    this.unmutedInputs[kind] = undefined;
     track?.addEventListener('mute', this.refresh);
     track?.addEventListener('unmute', this.refresh);
   }
@@ -316,23 +323,23 @@ export class RoomCall {
   } {
     const publication = this.inputPublication(kind);
     this.watchInputTrack(kind, publication?.track?.mediaStreamTrack);
-    const live = liveInputTrack(publication);
-    const previous = this.liveInputs[kind];
-    this.liveInputs[kind] = live;
-    if (!publication || !live) return { enabled: this.state[kind] };
-    this.captureFailures.delete(kind);
+    const track = unmutedInputTrack(publication);
+    const previous = this.unmutedInputs[kind];
+    this.unmutedInputs[kind] = track;
+    if (!publication || !track) return { enabled: this.state[kind] };
+    if (isLiveInputTrack(track)) this.captureFailures.delete(kind);
     if (this.requestedInputs[kind]) return { enabled: true };
-    // A normal mute already owns a known live track. Enforce Off when a track comes back.
-    if (previous === live && !reapplyOff) return { enabled: this.state[kind] };
+    // A normal mute already owns a known SDK-unmuted track, even while the OS mutes it.
+    if (previous === track && !reapplyOff) return { enabled: this.state[kind] };
     const op = this.toggleOps[kind];
     const muting = publication.mute().then(this.refresh, () => {
       if (
         !this.stopped &&
         op === this.toggleOps[kind] &&
         this.inputPublication(kind) === publication &&
-        liveInputTrack(publication) === live
+        unmutedInputTrack(publication) === track
       ) {
-        // Like a user-initiated mute that fails, don't show Off while sending.
+        // Keep the mute action available if LiveKit is still unmuted.
         this.update({ [kind]: true });
         this.refresh();
       }
@@ -732,10 +739,11 @@ export class RoomCall {
     if (this.stopped) return;
 
     const latest = op === this.toggleOps[kind];
-    const live = liveInputTrack(this.inputPublication(kind));
-    const failedEnable = on && (failed || (!live && (latest || this.requestedInputs[kind])));
+    const track = unmutedInputTrack(this.inputPublication(kind));
+    const failedEnable =
+      on && (failed || (!isLiveInputTrack(track) && (latest || this.requestedInputs[kind])));
     if (failedEnable) this.captureFailures.add(kind);
-    if (latest && (failedEnable || (!on && failed && live))) this.update({ [kind]: !on });
+    if (latest && (on ? failedEnable && !track : failed && track)) this.update({ [kind]: !on });
 
     // Only a superseded enable can finish publishing after the user chose Off.
     const reapplyOff = on && !latest && !this.requestedInputs[kind];
