@@ -1,6 +1,6 @@
 // App phase names live in lib/ because it is the lowest layer every caller can import.
 const PREFIX = 'mindroom.startup.';
-type PagePhase = 'js.entry' | 'config.ready' | 'splash.shown' | 'pages.loaded';
+type PagePhase = 'js.entry' | 'config.ready' | 'splash.shown' | `${'pages' | 'room'}.loaded`;
 type ClientPhase =
   | `client.init.${'start' | 'parallel.start' | 'done'}`
   | 'crypto.store.probe'
@@ -9,7 +9,7 @@ type ClientPhase =
   | 'crypto.init.done'
   | 'identity.check.done'
   | 'saved_sync.read.done'
-  | `sync.${'prepared.cache' | 'first_live'}`
+  | `sync.${'started' | 'prepared.cache' | 'first_live'}`
   | 'atoms.seeding'
   | `shell.${'committed' | 'frame'}`;
 
@@ -59,7 +59,9 @@ export const claimClientStartup = (isActive: () => boolean): MarkClientStartup |
  * saved_sync.read.done times getSavedSync and counts the rooms and event array lengths it returns,
  * including both joined state arrays. cacheHit distinguishes no saved sync from zero rooms.
  * identity.check.done times the post-open identity check; about 10 s can mean a /keys/query timeout.
- * pages.loaded marks the signed-in route import resolving, possibly before sync.prepared.cache;
+ * sync.started marks startClient resolving (after any /versions wait), before the first live sync.
+ * pages.loaded and room.loaded mark the signed-in route and room imports resolving, possibly
+ * before sync.prepared.cache; shell.committed can precede room.loaded while a room route waits.
  * atoms.seeding marks the layout effect before atom bindings seed the signed-in pages. A version
  * cache miss can also wait for /versions before the shell. splash.shown and shell.committed are
  * React commits; shell.frame is a frame opportunity, not proof of paint.

@@ -858,7 +858,7 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
   });
 
-  it('renders after cache Prepared and marks it separately from live Prepared', async () => {
+  it('marks the started client, then cache Prepared separately from live Prepared', async () => {
     const markStartup = vi.fn();
     vi.mocked(claimClientStartup).mockReturnValueOnce(markStartup);
     const client = createMockClient();
@@ -883,13 +883,18 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
+    expect(markStartup.mock.calls).toEqual([['sync.started']]);
 
     act(() => client.emitSync(SyncState.Prepared, null, { fromCache: true }));
-    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache']]);
+    expect(markStartup.mock.calls).toEqual([['sync.started'], ['sync.prepared.cache']]);
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
 
     act(() => client.emitSync(SyncState.Prepared, SyncState.Prepared, {}));
-    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache'], ['sync.first_live']]);
+    expect(markStartup.mock.calls).toEqual([
+      ['sync.started'],
+      ['sync.prepared.cache'],
+      ['sync.first_live'],
+    ]);
   });
 });

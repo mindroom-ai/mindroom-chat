@@ -529,6 +529,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     startClient(mx).then(
       () => {
         if (abandoned) return;
+        clientStartupMarks.get(mx)?.('sync.started');
         const hasRooms = hasCachedClientShell(mx);
         setSync((known) => noteStoreRestored(known, hasRooms));
         setStartup({ status: 'started', mx });

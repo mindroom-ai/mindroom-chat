@@ -75,6 +75,7 @@ const loadClientPages = () =>
   });
 const loadRoom = () =>
   import('../room/Room').then((room) => {
+    if (!roomModule) markPageStartup('room.loaded');
     roomModule = room;
     return room;
   });
