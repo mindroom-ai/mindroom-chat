@@ -160,6 +160,26 @@ describe('useHeldThreadOrder scrolling', () => {
     expect(view.scrollTop).toBe(250);
   });
 
+  it.each([
+    ['the topmost card in view', ['$a', '$b', '$d', '$e', '$f', '$c'], '$d'],
+    ['a card above the view', ['$b', '$c', '$d', '$e', '$f', '$a'], '$c'],
+  ])('anchors the stationary cards when %s moves down', (_label, live, anchor) => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 250);
+    const topOf = () =>
+      view.querySelector(`[data-scroll-anchor="${anchor}"]`)!.getBoundingClientRect().top;
+    const { rerender } = renderHook(
+      ({ order }) => useHeldThreadOrder(order, false, { current: view }),
+      { initialProps: { order: ids } }
+    );
+    const top = topOf();
+    show(live);
+    rerender({ order: live });
+    expect(writes).toEqual([150]);
+    expect(topOf()).toBe(top);
+  });
+
   it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {
     withoutScrollAnchoring();
     const ids = ['$c', '$b', '$a'];

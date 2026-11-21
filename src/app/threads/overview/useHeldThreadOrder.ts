@@ -65,16 +65,27 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
   return cards.length > 0 ? { cards, scrollTop: view.scrollTop, order } : undefined;
 };
 
-/** Whether `rootId` kept its place: every card shown before it that is still shown still is. */
-const keptPlace = (rootId: string, before: readonly string[], after: readonly string[]) => {
-  const index = new Map(after.map((id, position) => [id, position]));
-  const now = index.get(rootId);
-  if (now === undefined) return false;
-  for (const id of before) {
-    if (id === rootId) return true;
-    if ((index.get(id) ?? -1) > now) return false;
+type OrderLink = { id: string; index: number; previous: OrderLink | undefined };
+
+/** A longest increasing subsequence of old indices identifies rows that kept their relative order. */
+const stationaryRows = (before: readonly string[], after: readonly string[]) => {
+  const oldIndices = new Map(before.map((id, index) => [id, index]));
+  const tails: OrderLink[] = [];
+  for (const id of after) {
+    const index = oldIndices.get(id);
+    if (index === undefined) continue;
+    let low = 0;
+    let high = tails.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (tails[mid]!.index < index) low = mid + 1;
+      else high = mid;
+    }
+    tails[low] = { id, index, previous: tails[low - 1] };
   }
-  return true;
+  const stationary = new Set<string>();
+  for (let row = tails.at(-1); row; row = row.previous) stationary.add(row.id);
+  return stationary;
 };
 
 /** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
@@ -92,12 +103,10 @@ const browserAnchorsScroll = (): boolean =>
  * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
  * grow above the ones in view would push them down, so the list scrolls by as much and the cards
  * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
- * the list scrolls only in browsers without it (WebKit, so iOS too). It keeps the topmost card in
- * view that kept its place; a card that moved up past others (it got a reply, in the live order)
- * leaves its place to the next. It acts only on a render that finds the scroll offset where it
- * recorded the cards: a scroll since then, the reader's (whose scroll event comes at the next
- * frame) or another script's (the list reopening on a card it left from), is not a move, and the
- * cards are recorded again.
+ * the list scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost
+ * card in view from the rows that kept their relative order, even if other cards moved down.
+ * It acts only on a render that finds the scroll offset where it recorded the cards. If the
+ * reader or another script scrolled since then, it records the cards again without moving them.
  */
 export const useHeldThreadOrder = (
   liveRootIds: string[],
@@ -120,8 +129,9 @@ export const useHeldThreadOrder = (
     const before = cardsInViewRef.current;
     if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
+      const stationary = before.order === shown ? undefined : stationaryRows(before.order, shown);
       const anchor = before.cards
-        .filter(({ rootId }) => keptPlace(rootId, before.order, shown))
+        .filter(({ rootId }) => stationary?.has(rootId) ?? true)
         .map(({ rootId, top }) => ({
           top,
           card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
