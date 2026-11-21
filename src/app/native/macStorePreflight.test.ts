@@ -30,6 +30,7 @@ const metadata = () => ({
 const entitlements = () => ({
   'com.apple.security.app-sandbox': true,
   'com.apple.security.network.client': true,
+  'com.apple.security.network.server': true,
   'com.apple.security.device.microphone': true,
   'com.apple.security.device.audio-input': true,
   'com.apple.security.device.camera': true,
@@ -125,6 +126,7 @@ describe('Mac Store emitted-artifact preflight', () => {
   it.each([
     'com.apple.security.app-sandbox',
     'com.apple.security.network.client',
+    'com.apple.security.network.server',
     'com.apple.security.device.microphone',
     'com.apple.security.device.audio-input',
     'com.apple.security.device.camera',

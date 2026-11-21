@@ -59,6 +59,7 @@ export const macStoreEntitlementProblems = (entitlements, team) => {
   for (const key of [
     'com.apple.security.app-sandbox',
     'com.apple.security.network.client',
+    'com.apple.security.network.server',
     'com.apple.security.device.microphone',
     'com.apple.security.device.audio-input',
     'com.apple.security.device.camera',
