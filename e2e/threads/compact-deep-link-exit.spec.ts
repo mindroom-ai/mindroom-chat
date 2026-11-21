@@ -240,13 +240,15 @@ const measureReverseScroll = (view: Locator) =>
     };
   });
 
-test('reverse scrolling after a deep seek in mixed-height Compact cards (WebKit)', async ({
-  baseURL,
-}) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(240_000);
-  const { reader, roomId, rootIds } = await seed('reverse', true);
-  await onWebKitPage({ ...PHONE, baseURL }, async (page) => {
+const checkReverseScroll = async (
+  baseURL: string | undefined,
+  reducedMotion: 'no-preference' | 'reduce'
+) => {
+  const { reader, roomId, rootIds } = await seed(
+    reducedMotion === 'reduce' ? 'reverse_reduced' : 'reverse',
+    true
+  );
+  await onWebKitPage({ ...PHONE, baseURL, reducedMotion }, async (page) => {
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: reader.username,
@@ -287,4 +289,15 @@ test('reverse scrolling after a deep seek in mixed-height Compact cards (WebKit)
     ).toBeLessThan(1);
     await expect(early).toBeFocused();
   });
-});
+};
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  const mode = reducedMotion === 'reduce' ? ', reduced motion' : '';
+  test(`reverse scrolling after a deep seek in mixed-height Compact cards (WebKit${mode})`, async ({
+    baseURL,
+  }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(240_000);
+    await checkReverseScroll(baseURL, reducedMotion);
+  });
+}
