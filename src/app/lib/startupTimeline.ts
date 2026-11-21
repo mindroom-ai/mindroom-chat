@@ -59,7 +59,8 @@ export const claimClientStartup = (isActive: () => boolean): MarkClientStartup |
  * saved_sync.read.done times getSavedSync and counts the rooms and event array lengths it returns,
  * including both joined state arrays. cacheHit distinguishes no saved sync from zero rooms.
  * identity.check.done times the post-open identity check; about 10 s can mean a /keys/query timeout.
- * sync.started marks startClient resolving (after any /versions wait), before the first live sync.
+ * sync.started marks startClient resolving: after the cached replay (sync.prepared.cache) and the
+ * /versions check, before the first live sync. The shell does not wait for it after a cached replay.
  * pages.loaded and room.loaded mark the signed-in route and room imports resolving, possibly
  * before sync.prepared.cache; shell.committed can precede room.loaded while a room route waits.
  * atoms.seeding marks the layout effect before atom bindings seed the signed-in pages. A version

@@ -858,7 +858,7 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
   });
 
-  it('marks the started client, then cache Prepared separately from live Prepared', async () => {
+  it('marks cache Prepared, then the started client, then live Prepared', async () => {
     const markStartup = vi.fn();
     vi.mocked(claimClientStartup).mockReturnValueOnce(markStartup);
     const client = createMockClient();
@@ -874,7 +874,13 @@ describe('ClientRoot', () => {
 
     vi.mocked(useActiveSession).mockImplementation(() => currentSession);
     vi.mocked(initClient).mockResolvedValue(client as never);
-    vi.mocked(startClient).mockResolvedValue(undefined);
+    // The SDK replays the saved sync before startClient resolves.
+    let started: () => void = () => undefined;
+    vi.mocked(startClient).mockReturnValue(
+      new Promise<void>((resolve) => {
+        started = resolve;
+      })
+    );
 
     await act(async () => {
       renderer = create(renderClientRoot());
@@ -883,17 +889,23 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
-    expect(markStartup.mock.calls).toEqual([['sync.started']]);
+    expect(markStartup).not.toHaveBeenCalled();
 
     act(() => client.emitSync(SyncState.Prepared, null, { fromCache: true }));
-    expect(markStartup.mock.calls).toEqual([['sync.started'], ['sync.prepared.cache']]);
+    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache']]);
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
 
+    await act(async () => {
+      started();
+      await flushEffects();
+    });
+    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache'], ['sync.started']]);
+
     act(() => client.emitSync(SyncState.Prepared, SyncState.Prepared, {}));
     expect(markStartup.mock.calls).toEqual([
-      ['sync.started'],
       ['sync.prepared.cache'],
+      ['sync.started'],
       ['sync.first_live'],
     ]);
   });

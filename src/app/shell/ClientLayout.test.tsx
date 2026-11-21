@@ -49,14 +49,22 @@ const visit = async (path: string) => {
 afterEach(() => localStorage.clear());
 
 describe('ClientLayout', () => {
-  it('marks the signed-in shell commit with the active client', async () => {
-    const markStartup = vi.fn(() => false);
+  it('marks the signed-in shell commit, then the next frame, with the active client', async () => {
+    const markStartup = vi.fn((phase: string) => phase === 'shell.committed');
+    let frame: FrameRequestCallback | undefined;
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frame = callback;
+      return 1;
+    });
     clientStartupMarks.set(client, markStartup);
     try {
       await visit(ROOM_PATH);
-      expect(markStartup).toHaveBeenCalledWith('shell.committed');
+      expect(markStartup.mock.calls).toEqual([['shell.committed']]);
+      frame?.(0);
+      expect(markStartup.mock.calls).toEqual([['shell.committed'], ['shell.frame']]);
     } finally {
       clientStartupMarks.delete(client);
+      raf.mockRestore();
     }
   });
 
