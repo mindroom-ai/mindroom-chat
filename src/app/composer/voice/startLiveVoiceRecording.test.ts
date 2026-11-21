@@ -12,6 +12,13 @@ import {
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { clearVoiceRecordings, recoverVoiceRecording } from './voiceRecordingJournal';
 
+const native = vi.hoisted(() => ({ available: false, start: vi.fn() }));
+vi.mock('../../native/nativeVoiceRecorder', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../native/nativeVoiceRecorder')>()),
+  isNativeVoiceRecorderAvailable: () => native.available,
+  startNativeVoiceRecorder: native.start,
+}));
+
 // The account's live recording against the real journal: what each way of ending it leaves on
 // disk. An account switch keeps the record for that account; sign-out and Discard delete it.
 const USER = '@voice-live:example.org';
@@ -95,6 +102,7 @@ beforeEach(() => {
 afterEach(async () => {
   await clearVoiceRecordings(USER);
   vi.unstubAllGlobals();
+  native.available = false;
 });
 
 /** What the journal holds on disk, whoever holds its locks. */
@@ -162,4 +170,26 @@ it('parks a recording that stops on its own, on disk and locked until it is sent
   // This tab holds it: no other page load offers it a second time.
   expect(await stored()).toEqual({ recordings: 1, chunks: 1 });
   expect(await recoverable()).toHaveLength(0);
+});
+
+it("names the account to the Mac app's recorder, which an account switch stops", async () => {
+  // No web capture, as in the Mac app.
+  vi.stubGlobal('navigator', {});
+  native.available = true;
+  const recorder = Object.assign(new EventTarget(), {
+    state: 'recording',
+    mimeType: 'audio/mp4',
+    stop: vi.fn(),
+    level: () => 0,
+  });
+  native.start.mockResolvedValue(recorder);
+  const store = createStore();
+
+  expect(await startLiveVoiceRecording(store, context)).toBe(true);
+  // The native recorder keeps a recording through a reload, for this account alone.
+  expect(native.start).toHaveBeenCalledExactlyOnceWith(USER);
+
+  endVoiceRecordingsOfAccount(store);
+  expect(recorder.stop).toHaveBeenCalledOnce();
+  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
 });
