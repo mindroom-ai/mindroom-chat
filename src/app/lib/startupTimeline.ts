@@ -21,47 +21,48 @@ export type MarkClientStartup = (phase: ClientPhase, detail?: Detail) => void;
 const names = new Set([...PAGE_PHASES, ...CLIENT_PHASES].map((phase) => `${PREFIX}${phase}`));
 export const isStartupMarkName = (name: string): boolean => names.has(name);
 
-const seen = new Set<PagePhase | ClientPhase>();
+export type StartupMarks = Readonly<{ timeOrigin: number; atMs: Readonly<Record<string, number>> }>;
+let startupMarks: StartupMarks | undefined;
+export const getStartupMarks = () => startupMarks;
+
+const pending = new Set(names);
 const markOnce = (phase: PagePhase | ClientPhase, detail?: Detail): void => {
-  if (seen.has(phase)) return;
-  seen.add(phase);
+  const name = `${PREFIX}${phase}`;
+  if (!pending.delete(name)) return;
   try {
-    performance.mark(`${PREFIX}${phase}`, { detail });
+    const { startTime } = performance.mark(name, { detail });
+    const { timeOrigin } = performance;
+    if (!Number.isFinite(timeOrigin)) return;
+    startupMarks = Object.freeze({
+      timeOrigin,
+      atMs: Object.freeze({ ...startupMarks?.atMs, [name]: startTime }),
+    });
   } catch {
     // Missing User Timing support must not interrupt startup.
   }
 };
 
 export const markPageStartup = (phase: PagePhase): void => markOnce(phase);
+export const clientStartupMarks = new WeakMap<object, MarkClientStartup>();
 
 let claimed = false;
 /** Once an attempt claims the timeline, even a cancelled attempt cannot be replaced. */
-export const claimClientStartup = () => {
+export const claimClientStartup = (isActive: () => boolean): MarkClientStartup | undefined => {
   if (claimed) return undefined;
   claimed = true;
-  let active = true;
-  const mark: MarkClientStartup = (phase, detail) => {
-    if (active) markOnce(phase, detail);
-  };
-  return {
-    mark,
-    cancel: () => {
-      active = false;
-    },
+  return (phase, detail) => {
+    if (isActive()) markOnce(phase, detail);
   };
 };
 
-export const readStartupMarks = () =>
-  (globalThis.performance?.getEntriesByType?.('mark') ?? [])
+export const readStartupTimeline = () => {
+  const marks = (globalThis.performance?.getEntriesByType?.('mark') ?? [])
     .filter(({ name }) => name.startsWith(PREFIX))
     .map((entry) => ({
       name: entry.name,
       atMs: entry.startTime,
       detail: ((entry as PerformanceMark).detail ?? null) as unknown,
     }));
-
-export const readStartupTimeline = () => {
-  const marks = readStartupMarks();
   return {
     timeOrigin: globalThis.performance?.timeOrigin ?? null,
     marks,

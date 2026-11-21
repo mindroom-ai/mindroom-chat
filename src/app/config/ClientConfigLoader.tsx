@@ -1,4 +1,5 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { type ClientConfig, useOptionalClientConfig } from './useClientConfig';
 import { trimTrailingSlash } from '../lib/common';
@@ -147,11 +148,6 @@ type LoaderState =
   | { status: 'ready'; config: ClientConfig }
   | { status: 'error'; error: unknown; cached?: ClientConfig };
 
-const readyConfig = (config: ClientConfig): LoaderState => {
-  markPageStartup('config.ready');
-  return { status: 'ready', config };
-};
-
 type ClientConfigLoaderProps = {
   fallback?: () => ReactNode;
   /**
@@ -176,10 +172,14 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
   const [state, setState] = useState<LoaderState>(() => {
     // Native apps wait for a fresh configuration; the web starts from the cached one.
     const cached = Capacitor.isNativePlatform() ? undefined : readCachedClientConfig();
-    return cached ? readyConfig(cached) : { status: 'loading' };
+    return cached ? { status: 'ready', config: cached } : { status: 'loading' };
   });
   const requestRef = useRef(0);
   const startedWithCacheRef = useRef(state.status === 'ready');
+
+  useLayoutEffect(() => {
+    if (state.status === 'ready') markPageStartup('config.ready');
+  }, [state.status]);
 
   const load = useCallback((background: boolean) => {
     requestRef.current += 1;
@@ -189,7 +189,7 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
       (config) => {
         if (request !== requestRef.current) return;
         if (!background) {
-          setState(readyConfig(config));
+          setState({ status: 'ready', config });
           return;
         }
         // Operator switches (canvases off, the auto-open allowlist, error reports) apply on this load.
@@ -246,6 +246,6 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
   if (state.status === 'loading') return fallback?.() ?? null;
 
   const { cached } = state;
-  const ignore = cached ? () => setState(readyConfig(cached)) : undefined;
+  const ignore = cached ? () => setState({ status: 'ready', config: cached }) : undefined;
   return error?.(state.error, retry, ignore, authenticate) ?? null;
 }

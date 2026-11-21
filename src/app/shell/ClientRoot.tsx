@@ -1,12 +1,4 @@
-import React, {
-  ReactNode,
-  Suspense,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -64,7 +56,7 @@ import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
 import { describeKnownError } from '../lib/describeError';
-import { claimClientStartup, type MarkClientStartup } from '../lib/startupTimeline';
+import { claimClientStartup, clientStartupMarks } from '../lib/startupTimeline';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import {
   DeviceIdentityVerificationError,
@@ -78,11 +70,10 @@ import {
  */
 export const hasCachedClientShell = (mx: MatrixClient): boolean => mx.getRooms().length > 0;
 
-type StartupState = (
+type StartupState =
   | { status: 'loading'; mx?: MatrixClient }
   | { status: 'started'; mx: MatrixClient }
-  | { status: 'error'; mx?: MatrixClient; error: unknown }
-) & { markStartup?: MarkClientStartup };
+  | { status: 'error'; mx?: MatrixClient; error: unknown };
 
 /**
  * What the client's sync loop reported so far. `reported` turns on with the
@@ -390,14 +381,11 @@ type AccountProvidersProps = {
   mx: MatrixClient;
   engine: SyncEngine;
   sync: SyncProgress;
-  markStartup?: MarkClientStartup;
   children: ReactNode;
 };
 
 /** Everything the signed-in pages read from context, plus how the connection is. */
-function AccountProviders({ mx, engine, sync, markStartup, children }: AccountProvidersProps) {
-  // Inside both the /versions gate and Suspense: only commit when the shell replaces the splash.
-  useLayoutEffect(() => markStartup?.('shell.shown'), [markStartup]);
+function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps) {
   const store = useStore();
   const wouldLoseWork = useCallback(() => reloadWouldLoseWork(store, mx), [store, mx]);
   return (
@@ -446,7 +434,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const [queryClient] = useState(() => new QueryClient());
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
-  const { mx, markStartup } = startup;
+  const { mx } = startup;
 
   useEffect(() => {
     latestSession.current = session;
@@ -468,15 +456,16 @@ function ClientSession({ session, children }: ClientSessionProps) {
     let opened: MatrixClient | undefined;
     setStartup({ status: 'loading' });
     setSync(NO_SYNC_YET);
-    const timeline = claimClientStartup();
-    initClient(latestSession.current, timeline?.mark).then(
+    const markStartup = claimClientStartup(() => !abandoned);
+    initClient(latestSession.current, markStartup).then(
       (client) => {
         if (abandoned) {
           closeClient(client);
           return;
         }
         opened = client;
-        setStartup({ status: 'loading', mx: client, markStartup: timeline?.mark });
+        if (markStartup) clientStartupMarks.set(client, markStartup);
+        setStartup({ status: 'loading', mx: client });
       },
       (error: unknown) => {
         if (!abandoned) setStartup({ status: 'error', error });
@@ -484,7 +473,6 @@ function ClientSession({ session, children }: ClientSessionProps) {
     );
     return () => {
       abandoned = true;
-      timeline?.cancel();
       if (opened) closeClient(opened);
     };
   }, [session.sessionId, attempt]);
@@ -504,6 +492,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   useEffect(() => {
     if (!mx) return undefined;
+    const markStartup = clientStartupMarks.get(mx);
     const noteSyncState = (
       state: SyncState | null,
       _previous?: SyncState | null,
@@ -524,7 +513,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
       // A failure that throws before its promise exists is shown the same way.
       Promise.resolve()
         .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
-        .catch((error: unknown) => setStartup({ status: 'error', mx, markStartup, error }));
+        .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
     };
     noteSyncState(mx.getSyncState());
     mx.on(ClientEvent.Sync, noteSyncState);
@@ -533,7 +522,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
       mx.removeListener(ClientEvent.Sync, noteSyncState);
       mx.removeListener(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     };
-  }, [mx, markStartup]);
+  }, [mx]);
 
   // The deep trace's memory samples count this client's rooms and events while it runs.
   useEffect(() => (mx ? registerMatrixMemoryGauges(mx) : undefined), [mx]);
@@ -546,16 +535,16 @@ function ClientSession({ session, children }: ClientSessionProps) {
         if (abandoned) return;
         const hasRooms = hasCachedClientShell(mx);
         setSync((known) => noteStoreRestored(known, hasRooms));
-        setStartup({ status: 'started', mx, markStartup });
+        setStartup({ status: 'started', mx });
       },
       (error: unknown) => {
-        if (!abandoned) setStartup({ status: 'error', mx, markStartup, error });
+        if (!abandoned) setStartup({ status: 'error', mx, error });
       }
     );
     return () => {
       abandoned = true;
     };
-  }, [mx, markStartup]);
+  }, [mx]);
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
 
@@ -577,7 +566,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
         {mx && shellEngine && shellReady ? (
           // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
           <Suspense fallback={<StartupSplash session={session} mx={mx} />}>
-            <AccountProviders mx={mx} engine={shellEngine} sync={sync} markStartup={markStartup}>
+            <AccountProviders mx={mx} engine={shellEngine} sync={sync}>
               {children}
             </AccountProviders>
           </Suspense>

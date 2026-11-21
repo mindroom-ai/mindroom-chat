@@ -154,29 +154,34 @@ describe('iOS freeze flight recorder', () => {
     ]);
   });
 
-  it('keeps partial startup timestamps in abnormal evidence only after an existing checkpoint', () => {
+  it('keeps partial startup timestamps in abnormal evidence without rereading User Timing', async () => {
+    vi.resetModules();
+    const recorder = await import('./flightRecorder');
+    const { markPageStartup } = await import('../lib/startupTimeline');
     vi.useRealTimers();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
     vi.setSystemTime(1000);
-    dispose = installFlightRecorder(storage);
-    const name = 'mindroom.startup.client.init.start';
-    const { startTime } = performance.mark(name, { detail: { example: true } });
-    try {
-      expect(readCurrent(storage).startupMarks).toBeUndefined();
-      expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
-      vi.advanceTimersByTime(2000);
-      const startupMarks = { timeOrigin: performance.timeOrigin, atMs: { [name]: startTime } };
-      expect(readCurrent(storage).startupMarks).toEqual(startupMarks);
-      expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY, FLIGHT_RECORDER_CURRENT_KEY]);
+    dispose = recorder.installFlightRecorder(storage);
+    const name = 'mindroom.startup.js.entry';
+    markPageStartup('js.entry');
+    const [entry] = performance.getEntriesByName(name, 'mark');
+    performance.clearMarks(name);
+    if (!entry) throw new Error('Missing startup mark');
 
-      dispose();
-      const prior = makePriorSession({ startupMarks });
-      storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
-      dispose = installFlightRecorder(storage);
-      expect(buildFlightRecorderPayload().abnormalSession?.startupMarks).toEqual(startupMarks);
-    } finally {
-      performance.clearMarks(name);
-    }
+    expect(readCurrent(storage).startupMarks).toBeUndefined();
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY]);
+    vi.advanceTimersByTime(2000);
+    const startupMarks = { timeOrigin: performance.timeOrigin, atMs: { [name]: entry.startTime } };
+    expect(readCurrent(storage).startupMarks).toEqual(startupMarks);
+    expect(storage.writes).toEqual([FLIGHT_RECORDER_CURRENT_KEY, FLIGHT_RECORDER_CURRENT_KEY]);
+
+    dispose();
+    const prior = makePriorSession({ startupMarks });
+    storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
+    dispose = recorder.installFlightRecorder(storage);
+    expect(recorder.buildFlightRecorderPayload().abnormalSession?.startupMarks).toEqual(
+      startupMarks
+    );
   });
 
   it('uses one normalized bounded build version for storage and export metadata', () => {
@@ -675,6 +680,16 @@ describe('iOS freeze flight recorder', () => {
     ['malformed', '{'],
     ['oversized', 'x'.repeat(FLIGHT_RECORDER_MAX_JSON_CHARS + 1)],
     ['free-form', JSON.stringify({ privateText: 'must not persist' })],
+    [
+      'unknown startup mark',
+      JSON.stringify({
+        ...makePriorSession({
+          startupMarks: { timeOrigin: 100, atMs: { 'mindroom.startup.unknown': 10 } },
+        }),
+        detectedAt: 1000,
+        startupGapMs: 50,
+      }),
+    ],
     [
       'normally ended',
       JSON.stringify({

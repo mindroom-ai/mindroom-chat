@@ -20,9 +20,11 @@ Settings → About → Export diagnostics includes `startupTimeline` even when d
 Its `timeOrigin` is epoch milliseconds; add a `marks[].atMs` to it to compare that mark with native
 journal timestamps. Each mark has a name and optional diagnostic detail. The `phases` array lists
 elapsed milliseconds between consecutive marks, not exclusive durations: store and crypto startup
-can overlap. `saved_sync.read.done` reports `detail.cacheHit`, even for a saved sync with no rooms.
-Client marks belong to the first initialization attempt only; a retry or account switch does not fill
-missing marks. Splash and shell marks record React commits, not paints.
+can overlap. `js.entry` marks the entry module body, after static dependencies have evaluated.
+`store.startup.done` counts rooms and event-array lengths in the saved sync, before replay.
+`saved_sync.read.done` reports `detail.cacheHit`, even for a saved sync with no rooms. Client marks
+belong to the first attempt; a retry or account switch does not fill missing marks. Splash and shell
+marks record React commits, not paints.
 
 Where the flight recorder is active, its existing writes include `startupMarks` (time origin and mark
 timestamps, without details). A prior `abnormalSession` can therefore show partial startup progress.

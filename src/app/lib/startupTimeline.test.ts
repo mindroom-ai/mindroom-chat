@@ -6,13 +6,14 @@ it('exports only startup marks, with relative times for the first client attempt
   try {
     markPageStartup('js.entry');
     markPageStartup('js.entry');
-    const startup = claimClientStartup();
-    if (!startup) throw new Error('The first startup must own the timeline');
-    startup.mark('client.init.start');
-    startup.mark('saved_sync.read.done', { cacheHit: true });
-    startup.cancel();
-    startup.mark('sync.first_live');
-    expect(claimClientStartup()).toBeUndefined();
+    let active = true;
+    const mark = claimClientStartup(() => active);
+    if (!mark) throw new Error('The first startup must own the timeline');
+    mark('client.init.start');
+    mark('saved_sync.read.done', { cacheHit: true });
+    active = false;
+    mark('sync.first_live');
+    expect(claimClientStartup(() => true)).toBeUndefined();
 
     const { timeOrigin, marks, phases } = readStartupTimeline();
     expect(timeOrigin).toBe(performance.timeOrigin);

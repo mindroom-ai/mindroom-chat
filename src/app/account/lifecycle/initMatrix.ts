@@ -3,7 +3,7 @@ import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
-import type { IInvitedRoom, IKnockedRoom } from 'matrix-js-sdk/lib/sync-accumulator';
+import type { ISyncResponse, SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
 import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
@@ -89,11 +89,31 @@ type SyncArchiveStore = IndexedDBStore & {
   backend?: {
     syncAccumulator?: {
       opts?: { maxTimelineEntries?: number };
-      joinRooms?: Record<string, { _timeline?: unknown[]; _currentState?: Record<string, object> }>;
-      inviteRooms?: Record<string, IInvitedRoom>;
-      knockRooms?: Record<string, IKnockedRoom>;
+      joinRooms?: Record<string, object>;
+      accumulate?: SyncAccumulator['accumulate'];
     };
   };
+};
+
+const eventCount = (events: unknown): number => (Array.isArray(events) ? events.length : 0);
+const countSavedRooms = (rooms: ISyncResponse['rooms']) => {
+  // The SDK persists joined rooms, invites and knocks, but not leaves.
+  const joined = Object.values(rooms?.join ?? {});
+  const invited = Object.values(rooms?.invite ?? {});
+  const knocked = Object.values(rooms?.knock ?? {});
+  const counts = {
+    roomCount: joined.length + invited.length + knocked.length,
+    timelineEventCount: 0,
+    stateEventCount: 0,
+  };
+  for (const room of joined) {
+    counts.timelineEventCount += eventCount(room?.timeline?.events);
+    const state = room?.['org.matrix.msc4222.state_after'] ?? room?.state;
+    counts.stateEventCount += eventCount(state?.events);
+  }
+  for (const room of invited) counts.stateEventCount += eventCount(room?.invite_state?.events);
+  for (const room of knocked) counts.stateEventCount += eventCount(room?.knock_state?.events);
+  return counts;
 };
 
 // Observe the original promise without adding a wait to its callers.
@@ -225,7 +245,7 @@ const openedOwnStore = async (
 ): Promise<boolean> => {
   const started = markStartup ? performance.now() : 0;
   const finish = (
-    branch: 'recorded' | 'server_checked' | 'server_failed' | 'new_store',
+    branch: 'recorded' | 'server_checked' | 'server_failed' | 'new_store' | 'existing_unmarked',
     ownStore: boolean
   ): boolean => {
     markStartup?.('identity.check.done', { branch, durationMs: performance.now() - started });
@@ -236,18 +256,19 @@ const openedOwnStore = async (
   const recorded = safeRecordedDeviceIdentityKey(session.sessionId);
   if (recorded !== undefined) return finish('recorded', recorded === ownKeys.ed25519);
   // A missing store was only created after the homeserver said it has no keys for the device.
-  let branch: 'new_store' | 'server_checked' = 'new_store';
-  if (storeExisted && safeHasInitializedCryptoStore(session.sessionId)) {
+  const checkServer = storeExisted && safeHasInitializedCryptoStore(session.sessionId);
+  if (checkServer) {
     let serverKey: string | undefined;
     try {
       serverKey = await serverDeviceIdentityKey(mx, session);
     } catch {
       return finish('server_failed', true);
     }
-    branch = 'server_checked';
-    if (serverKey !== undefined && serverKey !== ownKeys.ed25519) return finish(branch, false);
+    if (serverKey !== undefined && serverKey !== ownKeys.ed25519)
+      return finish('server_checked', false);
   }
   safeMarkCryptoStoreInitialized(session.sessionId, ownKeys.ed25519);
+  const branch = checkServer ? 'server_checked' : storeExisted ? 'existing_unmarked' : 'new_store';
   return finish(branch, true);
 };
 
@@ -286,7 +307,22 @@ export const initClient = async (
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
+  let savedRoomCounts: ReturnType<typeof countSavedRooms> | undefined;
   if (markStartup) {
+    // LocalIndexedDBStoreBackend.init passes the raw saved sync here once, before accumulation.
+    const accumulator = store.backend?.syncAccumulator;
+    const accumulate = accumulator?.accumulate;
+    if (accumulator && typeof accumulate === 'function') {
+      const ownMethod = Object.hasOwn(accumulator, 'accumulate');
+      accumulator.accumulate = function (this: unknown, ...args) {
+        if (args[1]) {
+          if (ownMethod) accumulator.accumulate = accumulate;
+          else delete accumulator.accumulate;
+          savedRoomCounts = countSavedRooms(args[0]?.rooms);
+        }
+        return accumulate.apply(this, args);
+      };
+    }
     const readSavedSync = store.getSavedSync.bind(store);
     store.getSavedSync = () =>
       onCompletion(readSavedSync(), (savedSync) =>
@@ -328,33 +364,12 @@ export const initClient = async (
   // are read from the event cache meanwhile, so the rooms first show their newest saved text.
   // Finished scheduled tasks a store saved before they were left out go before the replay.
   const storeStartup = store.startup().then(() => {
+    markStartup?.('store.startup.done', savedRoomCounts);
     const sync = store.backend?.syncAccumulator;
-    if (markStartup) {
-      // Count current state once, without materializing the accumulator's replay data.
-      const joined = Object.values(sync?.joinRooms ?? {});
-      const invited = Object.values(sync?.inviteRooms ?? {});
-      const knocked = Object.values(sync?.knockRooms ?? {});
-      markStartup('store.startup.done', {
-        roomCount: joined.length + invited.length + knocked.length,
-        timelineEventCount: joined.reduce((sum, room) => sum + (room._timeline?.length ?? 0), 0),
-        stateEventCount:
-          joined.reduce(
-            (sum, room) =>
-              Object.values(room._currentState ?? {}).reduce(
-                (count, byKey) => count + Object.keys(byKey).length,
-                sum
-              ),
-            0
-          ) +
-          invited.reduce((sum, room) => sum + room.invite_state.events.length, 0) +
-          knocked.reduce((sum, room) => sum + room.knock_state.events.length, 0),
-      });
-    }
     if (sync) dropSettledScheduledTasks(sync);
     const restore = restoreStreamingRepliesFromCache(mx);
-    return markStartup
-      ? onCompletion(restore, () => markStartup('streaming.restore.done'))
-      : restore;
+    if (markStartup) onCompletion(restore, () => markStartup('streaming.restore.done'));
+    return restore;
   });
   const cryptoInit = mx.initRustCrypto({
     cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
