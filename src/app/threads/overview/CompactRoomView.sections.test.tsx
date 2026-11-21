@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
+import { Profiler } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
@@ -121,6 +122,52 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
+  it('keeps a 730-card room bounded on every commit while discovering its extent', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+    const ids = Array.from({ length: 730 }, (_, index) => `$card${index}`);
+    state.sections = [
+      { id: 'needsYou', rootIds: ids.slice(0, 40) },
+      { id: 'done', rootIds: ids.slice(40) },
+    ];
+    localStorage.setItem(`compactRoomSections:${ME}`, JSON.stringify({ on: true, folded: [] }));
+    vi.stubGlobal('ResizeObserver', class {
+      observe() {}
+      disconnect() {}
+    });
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function box(this: HTMLElement) {
+      const height = (row: HTMLElement) => row.hasAttribute('data-scroll-anchor')
+        ? 81.25 + (Number(row.dataset.scrollAnchor?.slice(5)) % 3) * 7.5
+        : Number.parseFloat(row.style.height) || 32.25;
+      if (this.dataset.compactRoomView) return new DOMRect(0, 0, 390, 810);
+      let top = 0;
+      for (let row = this.previousElementSibling; row instanceof HTMLElement; row = row.previousElementSibling) {
+        top += height(row) + 4.25;
+      }
+      return new DOMRect(0, top, 390, height(this));
+    });
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(810);
+    const commits: number[] = [];
+    try {
+      render(
+        <Profiler id="compact" onRender={() => {
+          commits.push(document.querySelectorAll('button[data-thread-root-id]').length);
+        }}>
+          {view(ids)}
+        </Profiler>
+      );
+      for (let frame = 0; frame < 75; frame += 1) act(() => vi.advanceTimersByTime(17));
+      expect(header('needsYou').textContent).toContain('· 40');
+      expect(header('done').textContent).toContain('· 690');
+      expect(document.querySelector('[data-cards-pending]')).toBeNull();
+      expect(Math.max(...commits)).toBeLessThanOrEqual(60);
+    } finally {
+      cleanup();
+      rect.mockRestore();
+      clientHeight.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
