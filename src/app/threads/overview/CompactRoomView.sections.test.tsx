@@ -286,36 +286,39 @@ describe('the Compact room in sections', () => {
   it.each([true, false])(
     'preserves focus when a section above leaves (header focused: %s)',
     (focused) => {
-      const needsYou = {
-        id: 'needsYou' as const,
-        rootIds: Array.from({ length: 24 }, (_, i) => `$need${i}`),
+      const working = {
+        id: 'working' as const,
+        rootIds: Array.from({ length: 24 }, (_, i) => `$job${i}`),
       };
-      state.sections = [{ id: 'working', rootIds: ['$working'] }, needsYou];
+      state.sections = [{ id: 'needsYou', rootIds: ['$needsYou'] }, working];
       const withOutside = (ids: string[]) => (
         <>
           <button type="button">Outside focus</button>
           {view(ids)}
         </>
       );
-      const { container, rerender } = render(withOutside(['$working', ...needsYou.rootIds]));
+      const { container, rerender } = render(withOutside(['$needsYou', ...working.rootIds]));
       const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
       scroller.scrollTop = 30;
       fireEvent.scroll(scroller);
-      const needsHeader = header('needsYou');
-      const target = focused ? needsHeader : screen.getByRole('button', { name: 'Outside focus' });
+      const workingHeader = header('working');
+      const target = focused
+        ? workingHeader
+        : screen.getByRole('button', { name: 'Outside focus' });
       act(() => target.focus());
       expect(document.activeElement).toBe(target);
+      expect(rows().filter((row) => row?.startsWith('#'))).toEqual(['#needsYou 1', '#working 24']);
 
-      state.sections = [needsYou];
-      rerender(withOutside(needsYou.rootIds));
+      state.sections = [working];
+      rerender(withOutside(working.rootIds));
       expect(document.activeElement).toBe(target);
       expect(scroller.scrollTop).toBe(30);
       if (focused) {
-        expect(header('needsYou')).toBe(needsHeader);
-        expect(header('working').textContent).toBe('thread.workflow.working · 0');
+        expect(header('working')).toBe(workingHeader);
+        expect(header('needsYou').textContent).toBe('thread.workflow.needsYou · 0');
       } else {
-        expect(document.querySelector('[data-compact-section="working"]')).toBeNull();
-        expect(document.querySelector('[data-compact-section="needsYou"] button')).toBeNull();
+        expect(document.querySelector('[data-compact-section="needsYou"]')).toBeNull();
+        expect(document.querySelector('[data-compact-section="working"] button')).toBeNull();
       }
     }
   );
