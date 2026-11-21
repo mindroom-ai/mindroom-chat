@@ -14,7 +14,7 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
-// A phone reader in the Compact room's sections (Working first, then Needs you) opens a card from
+// A phone reader in the Compact room's sections (Needs you first, then Working) opens a card from
 // either section and comes back with the thread's Back: the cards must be where they were. The
 // room was entered from a thread link, so its address asks for that card (`?focusEvent=1`); the
 // iOS app's Back puts the room's address back in the thread's place, which must not take that
@@ -84,11 +84,11 @@ const scrollTo = (page: Page, scrollTop: number) =>
     [COMPACT_VIEW, scrollTop] as const
   );
 
-/** The scroll position that shows the Needs you header just below the glass header. */
-const needsYouScrollTop = (page: Page) =>
+/** The scroll position that shows the Working header just below the glass header. */
+const workingScrollTop = (page: Page) =>
   page.evaluate((selector) => {
     const view = document.querySelector<HTMLElement>(selector)!;
-    const header = view.querySelector<HTMLElement>('[data-compact-section="needsYou"]')!;
+    const header = view.querySelector<HTMLElement>('[data-compact-section="working"]')!;
     const offset = header.getBoundingClientRect().top - view.getBoundingClientRect().top;
     return Math.round(view.scrollTop + offset - parseFloat(getComputedStyle(view).paddingTop) - 40);
   }, COMPACT_VIEW);
@@ -171,6 +171,11 @@ for (const ios of [false, true]) {
       new RegExp(`· ${NEEDS_YOU}$`)
     );
 
+    await expect(page.locator(`${COMPACT_VIEW} [data-compact-section]`).first()).toHaveAttribute(
+      'data-compact-section',
+      'needsYou'
+    );
+
     // The reader enters the room from a thread's link (a notification, Activity) and leaves that
     // thread for the room: the room's address now asks for the thread's card, near the top.
     const linked = await page
@@ -181,6 +186,10 @@ for (const ios of [false, true]) {
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await clickThreadExitButton(page);
     await expect(page).toHaveURL(/focusEvent=1/);
+    // Wait for the Back slide to finish: it can still cover the room after the URL and cards
+    // return.
+    const pageSlide = page.locator('html[data-page-slide]');
+    await expect(pageSlide).toHaveCount(0);
     await expect(card(linked!)).toBeInViewport();
 
     const visitAndReturn = async (
@@ -202,8 +211,10 @@ for (const ios of [false, true]) {
       const opened = new URL(page.url()).searchParams.get('threadId')!;
       expect(sectionIds.has(opened), `the tap opens a ${section} card`).toBe(true);
       await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
+      await expect(pageSlide).toHaveCount(0);
       await leave();
       await expect(page).not.toHaveURL(/threadId=/);
+      await expect(pageSlide).toHaveCount(0);
       await expect(card(opened)).toBeAttached();
       const after = await settledCards(page);
       if (shot && process.env.SHOTS)
@@ -216,23 +227,25 @@ for (const ios of [false, true]) {
       }
     };
 
-    await test.step('Working card, Back', async () => {
-      await visitAndReturn(120, 'working', () => clickThreadExitButton(page));
-    });
     await test.step('Needs you card, Back', async () => {
       await visitAndReturn(
-        await needsYouScrollTop(page),
+        120,
         'needsYou',
         () => clickThreadExitButton(page),
         ios ? 'needs-you-back.png' : undefined
       );
     });
-    await test.step('another Needs you card, near the bottom, Back', async () => {
-      await visitAndReturn(100_000, 'needsYou', () => clickThreadExitButton(page));
+    await test.step('Working card, Back', async () => {
+      await visitAndReturn(await workingScrollTop(page), 'working', () =>
+        clickThreadExitButton(page)
+      );
+    });
+    await test.step('another Working card, near the bottom, Back', async () => {
+      await visitAndReturn(100_000, 'working', () => clickThreadExitButton(page));
     });
     if (!ios) {
-      await test.step('Needs you card, browser Back', async () => {
-        await visitAndReturn(await needsYouScrollTop(page), 'needsYou', () => page.goBack());
+      await test.step('Working card, browser Back', async () => {
+        await visitAndReturn(await workingScrollTop(page), 'working', () => page.goBack());
       });
     }
   });

@@ -289,7 +289,7 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
-  /** The cards show in sections (Working, Needs you, Later, Done), each in its own order. */
+  /** The cards show in sections (Needs you, Working, Later, Done), each in its own order. */
   threadSections?: boolean;
   /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
   onToggleThreadSections?: () => void;
