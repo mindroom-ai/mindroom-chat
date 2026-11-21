@@ -7,14 +7,15 @@ import type { OpenRoomEventHandler } from './roomEventOpenController';
 
 type RoomTimelineMinimapOptions = {
   minimapEvents: readonly MatrixEvent[];
-  showCompactRoomView: boolean;
+  /** Only a thread shows the minimap; a room's flat timeline and its thread cards never do. */
+  inThread: boolean;
   scrollRef: RefObject<HTMLElement>;
   handleOpenEvent: OpenRoomEventHandler;
 };
 
 export const useRoomTimelineMinimap = ({
   minimapEvents,
-  showCompactRoomView,
+  inThread,
   scrollRef,
   handleOpenEvent,
 }: RoomTimelineMinimapOptions) => {
@@ -33,7 +34,7 @@ export const useRoomTimelineMinimap = ({
     queryList.addEventListener('change', handleChange);
     return () => queryList.removeEventListener('change', handleChange);
   }, []);
-  const minimapEnabled = minimapPointerFine && !showCompactRoomView;
+  const minimapEnabled = minimapPointerFine && inThread;
   const minimapItems = useMemo(
     () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents, t) : []),
     [minimapEnabled, minimapEvents, t]
