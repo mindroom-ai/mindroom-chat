@@ -92,6 +92,7 @@ vi.mock('./ThreadNavItem', () => ({
     ),
 }));
 vi.mock('./threadNav.css', () => ({
+  CategoryHeader: 'CategoryHeader',
   CategoryToggle: 'CategoryToggle',
   HeaderControls: 'HeaderControls',
   CategoryState: 'CategoryState',

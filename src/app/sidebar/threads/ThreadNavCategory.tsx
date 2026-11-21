@@ -175,7 +175,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader>
+      <NavCategoryHeader className={css.CategoryHeader}>
         {toggle}
         {!closed && (
           <div className={css.HeaderControls}>
