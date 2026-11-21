@@ -2231,6 +2231,7 @@
       "statusActive": "음성 녹음 중",
       "statusPaused": "음성 녹음 일시 중지됨",
       "statusReadyToRetry": "음성 녹음 재전송 준비됨",
+      "recoveredRecording": "복구된 녹음 · {{time}}",
       "statusSending": "음성 녹음 전송 중",
       "statusStarting": "음성 녹음 시작 중",
       "voiceRecorderDialog": {

@@ -2287,6 +2287,7 @@
       "statusActive": "Идёт запись голоса",
       "statusPaused": "Запись приостановлена",
       "statusReadyToRetry": "Запись готова к повторной отправке",
+      "recoveredRecording": "Восстановленная запись · {{time}}",
       "statusSending": "Отправка записи",
       "statusStarting": "Запуск записи",
       "voiceRecorderDialog": {

@@ -2231,6 +2231,7 @@
       "statusActive": "Spraakopname actief",
       "statusPaused": "Spraakopname gepauzeerd",
       "statusReadyToRetry": "Spraakopname kan opnieuw worden geprobeerd",
+      "recoveredRecording": "Herstelde opname · {{time}}",
       "statusSending": "Spraakopname wordt verstuurd",
       "statusStarting": "Spraakopname wordt gestart",
       "voiceRecorderDialog": {

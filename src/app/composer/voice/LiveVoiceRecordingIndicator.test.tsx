@@ -55,13 +55,13 @@ const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
     errorMessage: undefined,
     ...changes,
   };
-  // Discard ends the recording at once, as leaving the account does.
+  // Discard ends the recording at once, and deletes its disk copy.
   const discard = vi.fn();
   const session = {
     getSnapshot: () => snapshot,
     subscribe: () => () => undefined,
     canStop: () => true,
-    reset: discard,
+    discard,
   } as unknown as VoiceCaptureSession;
   return { session, discard };
 };

@@ -2231,6 +2231,7 @@
       "statusActive": "Sprachaufnahme aktiv",
       "statusPaused": "Sprachaufnahme pausiert",
       "statusReadyToRetry": "Sprachaufnahme kann erneut gesendet werden",
+      "recoveredRecording": "Wiederhergestellte Aufnahme · {{time}}",
       "statusSending": "Sprachaufnahme wird gesendet",
       "statusStarting": "Sprachaufnahme wird gestartet",
       "voiceRecorderDialog": {

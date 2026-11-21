@@ -2231,6 +2231,7 @@
       "statusActive": "Ses kaydı etkin",
       "statusPaused": "Ses kaydı duraklatıldı",
       "statusReadyToRetry": "Ses kaydı yeniden denemeye hazır",
+      "recoveredRecording": "Kurtarılan kayıt · {{time}}",
       "statusSending": "Ses kaydı gönderiliyor",
       "statusStarting": "Ses kaydı başlatılıyor",
       "voiceRecorderDialog": {

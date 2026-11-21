@@ -95,17 +95,18 @@ export const claimLiveVoiceRecording = (store: JotaiStore): VoiceCaptureSession 
 };
 
 /**
- * Ends the recording unsent, for every composer at once. The microphone is released in the same
- * call, so nothing is left for a later account exit to stop.
+ * Ends the recording unsent, for every composer at once, and its disk copy goes. The microphone
+ * is released in the same call, so nothing is left for a later account exit to stop.
  */
 export const discardLiveVoiceRecording = (store: JotaiStore): void => {
-  takeLiveVoiceRecording(store)?.reset();
+  takeLiveVoiceRecording(store)?.discard();
 };
 
 /**
  * Leaving the account ends its recordings now: the live one, and those a Send claimed that are
  * still stopping. The microphone is released at once, without waiting for the recorder to say it
- * stopped, and nothing begun under the account writes after this (`voiceAccountGuard`).
+ * stopped, and nothing begun under the account writes after this (`voiceAccountGuard`). Their
+ * disk copies stay for the account to recover later; signing out deletes them (sessionCleanup.ts).
  */
 export const endVoiceRecordingsOfAccount = (store: JotaiStore): void => {
   accountsLeft.set(store, (accountsLeft.get(store) ?? 0) + 1);

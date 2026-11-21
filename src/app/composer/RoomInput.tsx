@@ -104,7 +104,6 @@ import { useRoomInputVoice } from './useRoomInputVoice';
 import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
-import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
@@ -428,8 +427,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
-    // A voice message whose send failed survives a reload, as the dialog promises.
-    useSavedVoiceDraft(mx);
     const voice = useRoomInputVoice({
       mx,
       composer,

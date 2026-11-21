@@ -27,7 +27,7 @@ const renderInProvider = (element: React.ReactElement) =>
 /** Presses the mic: the recorder mounts for the recording, it does not start one. */
 const startRecording = () =>
   act(async () => {
-    await startLiveVoiceRecording(store);
+    await startLiveVoiceRecording(store, createTestSendContext());
   });
 
 type Listener = (event: Event) => void;
@@ -63,6 +63,13 @@ class MockMediaRecorder {
   }
 
   start() {
+    this.state = 'recording';
+  }
+
+  pause() {
+    this.state = 'paused';
+  }
+  resume() {
     this.state = 'recording';
   }
 
@@ -257,32 +264,6 @@ describe('VoiceRecorderComposer', () => {
     renderer.unmount();
   });
 
-  it('discards the live recording from its capsule without a confirmation', async () => {
-    setupSupportedRecorder();
-    let renderer!: ReactTestRenderer;
-    await act(async () => {
-      renderer = create(
-        renderInProvider(
-          React.createElement(VoiceRecorderComposer, {
-            onRetryRequest: vi.fn(),
-            onSendRecording: vi.fn(),
-            getSendContext: createTestSendContext,
-            ownsPendingVoiceDraft: true,
-          })
-        )
-      );
-    });
-    await startRecording();
-
-    await act(async () => {
-      renderer.root.findByProps({ 'aria-label': 'Discard voice recording' }).props.onClick();
-    });
-
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(JSON.stringify(renderer.toJSON())).not.toContain('Discard voice recording?');
-    renderer.unmount();
-  });
-
   it('shows retry-first upload failure controls and keeps the capsule mounted', async () => {
     setupSupportedRecorder();
     const onRetryRequest = vi.fn();
@@ -328,6 +309,51 @@ describe('VoiceRecorderComposer', () => {
     expect(onRetryRequest).toHaveBeenCalledOnce();
     expect(onSendRecording).toHaveBeenCalledOnce();
 
+    renderer.unmount();
+  });
+
+  it.each(['recording', 'paused'])('confirms discard without stopping a %s', async (phase) => {
+    setupSupportedRecorder();
+    const ref = createRef<VoiceRecorderComposerHandle>();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        renderInProvider(
+          React.createElement(VoiceRecorderComposer, {
+            ref,
+            ownsPendingVoiceDraft: true,
+            onRetryRequest: vi.fn(),
+            onSendRecording: vi.fn(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    await startRecording();
+    const click = async (name: string) => {
+      await act(async () => {
+        renderer.root
+          .findByType(VoiceRecorderComposer)
+          .findAllByType('button')
+          .find((button) => button.props['aria-label'] === name || button.props.children === name)!
+          .props.onClick();
+      });
+    };
+    if (phase === 'paused') await click('Pause voice recording');
+    await click('Discard voice recording');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Discard voice recording?');
+    expect(ref.current?.phase()).toBe(phase);
+    // Send does nothing behind the question.
+    await act(async () => {
+      expect(await ref.current?.send()).toBe(false);
+    });
+    await click('Cancel');
+    expect(ref.current?.phase()).toBe(phase);
+    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+    await click('Discard voice recording');
+    await click('Discard');
+    expect(ref.current?.phase()).toBe('idle');
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     renderer.unmount();
   });
 

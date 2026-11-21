@@ -14,6 +14,7 @@ import type {
   VoiceCaptureSession,
   VoiceCaptureSnapshot,
 } from './voiceCaptureSession';
+import { releaseVoiceRecording } from './voiceRecordingJournal';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -66,7 +67,8 @@ type UseVoiceRecorderOptions = {
 
 /**
  * One composer's view of the account's live recording (`liveVoiceRecording.ts`) and of the parked
- * draft of a failed send. Mounting or unmounting it never starts or ends a recording.
+ * draft: a failed send, or a recovered recording. Mounting or unmounting it never starts or ends
+ * a recording.
  */
 export function useVoiceRecorder({
   ownsPendingVoiceDraft,
@@ -153,6 +155,9 @@ export function useVoiceRecorder({
     if (result.status !== 'captured' || !sendRecording || !sameAccount()) {
       const { errorMessage: captureError } = session.getSnapshot();
       if (captureError && sameAccount()) store.set(liveVoiceRecordingErrorAtom, captureError);
+      // Captured, but not this account's to send any more: its disk copy waits, unlocked.
+      if (result.status === 'captured' && result.recording.recordingId)
+        releaseVoiceRecording(result.recording.recordingId);
       settle();
       notifySendStopFailure();
       return false;
@@ -175,6 +180,7 @@ export function useVoiceRecorder({
     if (claimed || !sendRecording) return false;
     return draftController.retry({
       claim: claimSendStop,
+      context: latestGetSendContextRef.current,
       sendRecording,
       onFailure: notifySendStopFailure,
     });
@@ -190,6 +196,7 @@ export function useVoiceRecorder({
     errorMessage,
     canPause,
     hasPendingSend,
+    recovered: pendingDraft?.recovered,
     pendingDuration,
     pendingWaveform,
     pause,

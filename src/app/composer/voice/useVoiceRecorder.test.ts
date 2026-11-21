@@ -29,6 +29,7 @@ import {
 } from './liveVoiceRecording';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { VOICE_RECORDER_STOP_TIMEOUT_MS } from './voiceCaptureSession';
+import * as journal from './voiceRecordingJournal';
 
 const flightRecorderMocks = vi.hoisted(() => ({
   setVoiceCaptureState: vi.fn(),
@@ -108,9 +109,9 @@ class MockMediaRecorder {
     }
   });
 
-  flushStop() {
+  flushStop(audio = 'voice') {
     this.dispatch('dataavailable', {
-      data: new Blob(['voice'], { type: this.mimeType }),
+      data: new Blob([audio], { type: this.mimeType }),
     } as BlobEvent);
     this.dispatch('stop', new Event('stop'));
   }
@@ -210,7 +211,9 @@ function Harness({
     onSendRecording,
     getSendContext: getSendContext ?? (() => createTestSendContext()),
   });
-  state.current = { ...recorder, start: () => startLiveVoiceRecording(store) };
+  // The mic button hands its composer's context over, which names the account for the journal.
+  const start = () => startLiveVoiceRecording(store, createTestSendContext());
+  state.current = { ...recorder, start };
   return null;
 }
 
@@ -1455,7 +1458,7 @@ describe('useVoiceRecorder', () => {
     const store = createStore();
     const onSendRecording = vi.fn(async () => {
       // Discard mid-retry via the production hook entry point.
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       throw new Error('upload failed twice');
     });
     onSendRecording.mockImplementationOnce(async () => {
@@ -1659,7 +1662,7 @@ describe('useVoiceRecorder', () => {
   it('does not reset a replacement capture started from delivery failure settlement', async () => {
     let replacementStart: boolean | undefined;
     const onSendStopFailure = vi.fn(async () => {
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       await Promise.resolve();
       replacementStart = await recorderState.current?.start();
     });
@@ -1731,30 +1734,108 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('does not send when recording stops without an explicit send action', async () => {
+  /** The recording's disk copy, as `startLiveVoiceRecording` hands it to the capture session. */
+  const journalRecording = () => {
+    const disk = {
+      id: crypto.randomUUID(),
+      append: vi.fn(async () => undefined),
+      release: vi.fn<() => void>(),
+      remove: vi.fn(async () => undefined),
+    };
+    const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValueOnce(disk);
+    return { disk, begin };
+  };
+
+  it('parks the audio of a recorder that stops on its own as a recovered recording', async () => {
+    const { disk, begin } = journalRecording();
     const onSendRecording = vi.fn();
     const { renderer, store } = await renderHarness({ onSendRecording });
 
     await act(async () => {
       await recorderState.current?.start();
     });
+    expect(begin).toHaveBeenCalledExactlyOnceWith(
+      TEST_USER_ID,
+      expect.any(Number),
+      expect.any(String)
+    );
 
     const recorder = MockMediaRecorder.instances[0]!;
     await act(async () => {
+      vi.advanceTimersByTime(5_000);
       recorder.state = 'inactive';
       recorder.flushStop();
-      await Promise.resolve();
     });
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(recorderState.current?.phase).toBe('idle');
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(store.get(liveVoiceRecordingErrorAtom)).toBe(
-      'Voice recording stopped unexpectedly. Please record again.'
-    );
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    const parked = store.get(pendingVoiceSendDraftAtom);
+    expect(parked).toMatchObject({ duration: 5_000, recovered: true, recordingId: disk.id });
+    expect(await parked?.file.text()).toBe('voice');
+    expect(recorderState.current).toMatchObject({ hasPendingSend: true, recovered: true });
+    // Parked, it is still this tab's: its disk copy goes once it is sent or discarded.
+    expect(disk.release).not.toHaveBeenCalled();
+    expect(disk.remove).not.toHaveBeenCalled();
 
     renderer.unmount();
+    begin.mockRestore();
+  });
+
+  it('leaves a self-stopped recording on disk, unlocked, while the draft slot is taken', async () => {
+    const { disk, begin } = journalRecording();
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const older: PendingVoiceSendDraft = {
+      file: new File(['older'], 'older.ogg', { type: 'audio/ogg' }),
+      duration: 900,
+      context: createTestSendContext(),
+    };
+    const recorder = MockMediaRecorder.instances[0]!;
+    await act(async () => {
+      store.set(pendingVoiceSendDraftAtom, older);
+      recorder.state = 'inactive';
+      recorder.flushStop();
+    });
+
+    expect(store.get(pendingVoiceSendDraftAtom)).toBe(older);
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(disk.release).toHaveBeenCalledOnce();
+    expect(disk.remove).not.toHaveBeenCalled();
+    begin.mockRestore();
+  });
+
+  it('keeps the disk copy, unlocked, when the account leaves, and deletes it on Discard', async () => {
+    MockMediaRecorder.autoStop = false;
+    const left = journalRecording();
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const emitChunk = (recorder: MockMediaRecorder) =>
+      recorder.dispatch('dataavailable', { data: new Blob(['voice']) } as BlobEvent);
+    emitChunk(MockMediaRecorder.instances[0]!);
+    // A change of account without signing out: the microphone stops, the audio waits on disk.
+    act(() => forgetComposerStateOfSession(store));
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(left.disk.append).toHaveBeenCalledOnce();
+    expect(left.disk.release).toHaveBeenCalledOnce();
+    expect(left.disk.remove).not.toHaveBeenCalled();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    left.begin.mockRestore();
+
+    const discarded = journalRecording();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    emitChunk(MockMediaRecorder.instances[1]!);
+    act(() => recorderState.current!.discard());
+    expect(discarded.disk.remove).toHaveBeenCalledOnce();
+    expect(discarded.disk.release).not.toHaveBeenCalled();
+    discarded.begin.mockRestore();
   });
 
   it('does not retain a pending send draft when no audio chunks were captured', async () => {

@@ -2259,6 +2259,7 @@
       "statusActive": "Grabación de voz activa",
       "statusPaused": "Grabación de voz en pausa",
       "statusReadyToRetry": "Grabación de voz lista para reintentar",
+      "recoveredRecording": "Grabación recuperada · {{time}}",
       "statusSending": "Enviando grabación de voz",
       "statusStarting": "Iniciando grabación de voz",
       "voiceRecorderDialog": {

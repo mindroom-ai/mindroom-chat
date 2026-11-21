@@ -2259,6 +2259,7 @@
       "statusActive": "Enregistrement vocal actif",
       "statusPaused": "Enregistrement vocal en pause",
       "statusReadyToRetry": "Enregistrement vocal prêt à être réessayé",
+      "recoveredRecording": "Enregistrement récupéré · {{time}}",
       "statusSending": "Envoi de l'enregistrement vocal",
       "statusStarting": "Démarrage de l'enregistrement vocal",
       "voiceRecorderDialog": {

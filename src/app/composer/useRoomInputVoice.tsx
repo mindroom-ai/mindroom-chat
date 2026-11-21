@@ -42,7 +42,8 @@ import {
 } from './voice/VoiceRecorderDialog';
 import { liveVoiceRecordingAtom, voiceAccountGuard } from './voice/liveVoiceRecording';
 import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
-import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
+import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
+import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -149,16 +150,20 @@ export const useRoomInputVoice = ({
   const { roomId } = composerContext;
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+  // A recovered recording has no destination yet: every composer offers it, and it is sent
+  // wherever Send is pressed. A failed send keeps the destination it was attempted at.
+  const recovered = draftBelongsToCurrentSession && !!pendingVoiceSendDraft.recovered;
   // A recording made while its thread's root was still sending belongs to that thread after.
-  const draftKey = draftBelongsToCurrentSession
-    ? voiceComposerKey({
-        ...pendingVoiceSendDraft.context,
-        threadId: confirmedVoiceThreadId(
-          pendingVoiceSendDraft.context.room,
-          pendingVoiceSendDraft.context.threadId
-        ),
-      })
-    : undefined;
+  const draftKey =
+    draftBelongsToCurrentSession && !recovered
+      ? voiceComposerKey({
+          ...pendingVoiceSendDraft.context,
+          threadId: confirmedVoiceThreadId(
+            pendingVoiceSendDraft.context.room,
+            pendingVoiceSendDraft.context.threadId
+          ),
+        })
+      : undefined;
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
   // Before the page paints: it would show the recording for a frame.
@@ -172,6 +177,7 @@ export const useRoomInputVoice = ({
   // Without one, the room's page offers it while it shows that thread: on a page with no room for
   // the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
+    recovered ||
     draftKey === composerKey ||
     (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
       !threadViewComposers.some((entry) => entry.key === draftKey));
@@ -196,17 +202,23 @@ export const useRoomInputVoice = ({
   //      Joined (Leave/Ban/etc), in which case the source room composer
   //      cannot render and the user has no way to retry/discard. Treat
   //      "not joined" the same as "not present".
+  // A recovered recording names no room, so only the first case drops it. The disk copy of a
+  // dropped draft stays, unlocked, for its account to recover on a later page load.
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
-    if (!draftBelongsToCurrentSession) {
-      setPendingVoiceSendDraft(undefined);
-      return;
-    }
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
-    if (!sourceRoom || !isJoined(sourceRoom)) {
+    if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
+      if (pendingVoiceSendDraft.recordingId)
+        releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
-  }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
+  }, [
+    draftBelongsToCurrentSession,
+    mx,
+    pendingVoiceSendDraft,
+    recovered,
+    setPendingVoiceSendDraft,
+  ]);
 
   // Where a recording goes when Send is pressed in this composer: its room, thread and reply as
   // they are then. A failed send parks the audio with this context, so a retry keeps the
@@ -219,6 +231,9 @@ export const useRoomInputVoice = ({
       }),
     [mx, getContext]
   );
+  // What the account left on disk comes back with the first composer: a failed send, or a
+  // recording that a crash or a stopped recorder cut short.
+  useSavedVoiceDraft(mx, getVoiceSendContext);
 
   const claimVoiceAutoSend = useCallback(() => {
     if (store.get(voiceAutoSendPendingAtom)) return false;
@@ -562,7 +577,7 @@ export const useRoomInputVoice = ({
   const startRecording = (): boolean => {
     if (microphoneBlocked(store.get(voiceDraftRestoresAtom))) return false;
     pauseAllMediaElements();
-    void startLiveVoiceRecording(store);
+    void startLiveVoiceRecording(store, getVoiceSendContext());
     return true;
   };
   const recorderShown = liveRecording || sendingHere || ownsPendingVoiceDraft;

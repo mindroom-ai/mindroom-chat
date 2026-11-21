@@ -2231,6 +2231,7 @@
       "statusActive": "Voice recording active",
       "statusPaused": "Voice recording paused",
       "statusReadyToRetry": "Voice recording ready to retry",
+      "recoveredRecording": "Recovered recording · {{time}}",
       "statusSending": "Sending voice recording",
       "statusStarting": "Starting voice recording",
       "voiceRecorderDialog": {

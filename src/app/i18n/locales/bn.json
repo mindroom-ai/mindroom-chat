@@ -1668,6 +1668,7 @@
       "statusActive": "ভয়েস রেকর্ডিং সক্রিয়",
       "statusPaused": "ভয়েস রেকর্ডিং বিরাম দেওয়া হয়েছে৷",
       "statusReadyToRetry": "আবার চেষ্টা করার জন্য ভয়েস রেকর্ডিং প্রস্তুত৷",
+      "recoveredRecording": "পুনরুদ্ধার করা রেকর্ডিং · {{time}}",
       "statusSending": "ভয়েস রেকর্ডিং পাঠানো হচ্ছে",
       "statusStarting": "ভয়েস রেকর্ডিং শুরু হচ্ছে",
       "voiceRecorderDialog": {

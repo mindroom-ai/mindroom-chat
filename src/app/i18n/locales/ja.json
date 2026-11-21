@@ -2231,6 +2231,7 @@
       "statusActive": "音声録音が有効です",
       "statusPaused": "音声録音が一時停止されました",
       "statusReadyToRetry": "音声録音を再試行する準備ができています",
+      "recoveredRecording": "復元された録音 · {{time}}",
       "statusSending": "音声録音を送信する",
       "statusStarting": "音声録音を開始する",
       "voiceRecorderDialog": {

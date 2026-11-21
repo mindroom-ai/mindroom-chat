@@ -2231,6 +2231,7 @@
       "statusActive": "正在录音",
       "statusPaused": "录音已暂停",
       "statusReadyToRetry": "录音准备重试",
+      "recoveredRecording": "已恢复的录音 · {{time}}",
       "statusSending": "发送录音",
       "statusStarting": "开始录音",
       "voiceRecorderDialog": {
