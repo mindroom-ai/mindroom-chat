@@ -6,9 +6,14 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { setImperativeJotaiStore } from '../lib/state/jotaiStore';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { ActiveCallTab } from './ActiveCallTab';
-import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from './callStore';
+import {
+  activeCallAtom,
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  type ActiveCall,
+} from './callStore';
 import type { CallState } from './RoomCall';
 import {
   clearCallWindowStore,
@@ -22,13 +27,13 @@ const USER = '@me:tab.test';
 const navigation = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
-  roomPath: (roomId: string) => `/home/${encodeURIComponent(roomId)}`,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:tab.test',
-    getRoom: (roomId: string) => (roomId === ORIGIN ? { roomId } : null),
+    getRoom: (roomId: string) => (roomId === ORIGIN ? originRoom : null),
+    getRooms: () => [originRoom],
   }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({
@@ -42,6 +47,8 @@ vi.mock('./callStore', async (importOriginal) => ({
 }));
 
 const ORIGIN = '!origin:tab.test';
+const ALIAS = '#planning:tab.test';
+const originRoom = { roomId: ORIGIN, getCanonicalAlias: () => ALIAS };
 const state: Pick<CallState, 'phase' | 'microphone' | 'participants'> = {
   phase: 'connected',
   microphone: true,
@@ -178,53 +185,66 @@ describe("the rail's call button", () => {
     }
   );
 
-  it.each(['waits', 'moves focus', 'navigates', 'starts a newer hand-off'] as const)(
-    'handles a late heading when the user %s',
-    async (action) => {
-      vi.useFakeTimers();
-      const target = `/home/${encodeURIComponent(ORIGIN)}?threadId=%24plan`;
-      const { container, router } = renderTab('Mobile');
-      let returned: Promise<void> | undefined;
-      navigation.navigateRoomThread.mockImplementationOnce(() => {
-        returned = router.navigate(target);
-      });
-      const menu = document.createElement('button');
-      menu.id = 'phone-nav-menu-button';
-      container.append(menu);
-      store.set(phoneNavDrawerOpenAtom, true);
-      openCall();
-      await act(async () => returned);
-      act(() => {
-        vi.runOnlyPendingTimers();
-      });
-      expect(menu).toBe(document.activeElement);
-      expect(store.get(focusHandOffAtom)?.to).toBe('panel');
+  it.each([
+    'waits',
+    'gets a canonical address',
+    'moves focus',
+    'reopens the drawer',
+    'times out',
+    'starts a newer hand-off',
+  ] as const)('handles a late heading when the user %s', async (action) => {
+    vi.useFakeTimers();
+    const target = `/home/${encodeURIComponent(ORIGIN)}?threadId=%24plan`;
+    const alias = `/home/${encodeURIComponent(ALIAS)}?threadId=%24plan`;
+    const { container, router } = renderTab(
+      'Mobile',
+      action === 'gets a canonical address' ? alias : target
+    );
+    const menu = document.createElement('button');
+    menu.id = PHONE_NAV_MENU_BUTTON_ID;
+    container.append(menu);
+    store.set(phoneNavDrawerOpenAtom, true);
+    openCall();
+    expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(menu).toBe(document.activeElement);
+    expect(store.get(focusHandOffAtom)?.to).toBe('panel');
 
-      const newer = { to: 'window', from: menu } as const;
-      if (action === 'moves focus') {
-        const elsewhere = returnButton();
-        elsewhere.focus();
-        expect(store.get(focusHandOffAtom)).toBeUndefined();
-        // Returning to the menu must not revive a cancelled hand-off.
-        menu.focus();
-      } else if (action === 'navigates') {
-        await act(async () => router.navigate('/home/another'));
-        expect(store.get(focusHandOffAtom)).toBeUndefined();
-        await act(async () => router.navigate(target));
-      } else if (action === 'starts a newer hand-off') {
-        act(() => store.set(focusHandOffAtom, newer));
-      }
-      render(
-        <Provider store={store}>
-          <LateHeading />
-        </Provider>
-      );
-      expect(document.activeElement).toBe(action === 'waits' ? screen.getByRole('heading') : menu);
-      expect(store.get(focusHandOffAtom)).toBe(
-        action === 'starts a newer hand-off' ? newer : undefined
-      );
+    const newer = { to: 'window', from: menu } as const;
+    if (action === 'moves focus') {
+      const elsewhere = returnButton();
+      elsewhere.focus();
+      expect(store.get(focusHandOffAtom)).toBeUndefined();
+      // Returning to the menu must not revive a cancelled hand-off.
+      menu.focus();
+    } else if (action === 'gets a canonical address') {
+      await act(async () => router.navigate(target, { replace: true }));
+    } else if (action === 'reopens the drawer') {
+      act(() => store.set(phoneNavDrawerOpenAtom, true));
+    } else if (action === 'times out') {
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+    } else if (action === 'starts a newer hand-off') {
+      act(() => store.set(focusHandOffAtom, newer));
     }
-  );
+    const shouldFocus = action === 'waits' || action === 'gets a canonical address';
+    if (!shouldFocus && action !== 'starts a newer hand-off') {
+      expect(store.get(focusHandOffAtom)).toBeUndefined();
+      expect(store.get(callPanelRequestAtom)).toBeUndefined();
+    }
+    render(
+      <Provider store={store}>
+        <LateHeading />
+      </Provider>
+    );
+    expect(document.activeElement).toBe(shouldFocus ? screen.getByRole('heading') : menu);
+    expect(store.get(focusHandOffAtom)).toBe(
+      action === 'starts a newer hand-off' ? newer : undefined
+    );
+  });
 
   it('can reopen an already failed call to dismiss it', () => {
     state.phase = 'failed';

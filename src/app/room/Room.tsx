@@ -75,7 +75,12 @@ import { isReturnToRoom } from '../routes/historyStack';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { callPanelRequestAtom, useCallPanel, useInCall } from '../calls/callStore';
+import {
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  useCallPanel,
+  useInCall,
+} from '../calls/callStore';
 import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import {
@@ -571,7 +576,7 @@ function RoomContent() {
     const takeRequest = () => {
       if (store.get(callPanelRequestAtom)?.roomId !== roomId) return;
       store.set(callPanelRequestAtom, undefined);
-      request('call', () => undefined);
+      if (store.get(callPanelRoomAtom) === roomId) request('call', () => undefined);
     };
     // Returning from another room sets the request before this room is shown.
     takeRequest();

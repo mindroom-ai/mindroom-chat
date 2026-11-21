@@ -515,6 +515,14 @@ describe('the side panels of a room', () => {
     expect(store.get(callPanelRequestAtom)).toBeUndefined();
   });
 
+  it('discards a call request if the call panel has since been closed', async () => {
+    await renderRoom();
+    await open('transcript');
+    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
+    expect(shown()).toEqual(['transcript']);
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
+  });
+
   it('renders again when the call docks or floats, not when the floating window moves', async () => {
     await setCallMode('floating');
     await renderRoom();
