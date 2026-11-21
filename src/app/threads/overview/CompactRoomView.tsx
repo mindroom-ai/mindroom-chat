@@ -354,7 +354,7 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While held, headers stay and cards keep their places, except cards entering Working.
+  // While held, headers stay and shown cards keep their sections and order.
   // The hook below holds no order in sections. Only hold this room's sections: the view
   // stays mounted when the next room opens under the pointer.
   const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
