@@ -1081,6 +1081,7 @@
         "schedule": "安排工作",
         "checkSchedule": "查看排程",
         "updateSchedule": "更新排程",
+        "cancelSchedule": "取消排定的工作",
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 個背景工作",

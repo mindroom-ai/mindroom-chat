@@ -196,8 +196,9 @@ it('renders nothing without jobs', () => {
 it('shows one job folded as its row on the title line, which lists it as several do', () => {
   state.jobs = [job('a')];
   render();
-  // Without the usage details, the bar's title is what it does, in words, as its row's headline.
-  expect(title()).toBe(taskName('tool a'));
+  // Without the usage details, the bar's title says it runs its task, named in words as its row's
+  // headline.
+  expect(title()).toBe(tr('mindroomUi.backgroundJobs.running', { tool: taskName('tool a') }));
   // How it stands is said apart, since its row's title is the job itself.
   expect(container.querySelector('[role="status"]')?.textContent).toBe(title());
   // With them, by its tool.

@@ -1081,6 +1081,7 @@
         "schedule": "タスクをスケジュール",
         "checkSchedule": "スケジュールを確認",
         "updateSchedule": "スケジュールを更新",
+        "cancelSchedule": "予定したタスクを取り消し",
         "use": "{{tool}} を使う"
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",

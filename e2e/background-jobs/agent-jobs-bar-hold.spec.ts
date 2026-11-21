@@ -34,6 +34,7 @@ const VIEWPORTS = [
   { name: 'desktop', viewport: { width: 1280, height: 800 }, hasTouch: false },
   { name: 'phone', viewport: { width: 390, height: 844 }, hasTouch: true },
 ];
+const RUNNING = `Running: ${SHELL_JOB}`;
 const FINISHED = `Finished: ${SHELL_JOB}`;
 const PAUSE_FINISHED = /Finished \W*pause/;
 
@@ -106,9 +107,9 @@ const expectHeldThroughPause = async (page: Page, testInfo: TestInfo, ended: num
   const shown = changes.findIndex((change) => change.label !== null);
   const seen = changes.slice(shown).map((change) => change.label);
   expect(seen, 'the jobs bar from the first call on').toEqual([
-    SHELL_JOB,
+    RUNNING,
     FINISHED,
-    SHELL_JOB,
+    RUNNING,
     FINISHED,
     null,
   ]);

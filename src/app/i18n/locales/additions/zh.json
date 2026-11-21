@@ -1081,6 +1081,7 @@
         "schedule": "安排任务",
         "checkSchedule": "查看日程",
         "updateSchedule": "更新日程",
+        "cancelSchedule": "取消计划任务",
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 个后台任务",

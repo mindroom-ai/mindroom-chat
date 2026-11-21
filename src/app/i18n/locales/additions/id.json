@@ -1081,6 +1081,7 @@
         "schedule": "Jadwalkan tugas",
         "checkSchedule": "Periksa jadwal",
         "updateSchedule": "Perbarui jadwal",
+        "cancelSchedule": "Batalkan tugas terjadwal",
         "use": "Gunakan {{tool}}"
       },
       "jobTotal_other": "{{count}} tugas latar belakang",

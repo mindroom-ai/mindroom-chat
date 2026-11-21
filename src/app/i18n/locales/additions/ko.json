@@ -1081,6 +1081,7 @@
         "schedule": "작업 예약",
         "checkSchedule": "일정 확인",
         "updateSchedule": "일정 업데이트",
+        "cancelSchedule": "예약된 작업 취소",
         "use": "{{tool}} 사용"
       },
       "jobTotal_other": "백그라운드 작업 {{count}}개",

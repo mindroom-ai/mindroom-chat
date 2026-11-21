@@ -1129,6 +1129,7 @@
         "schedule": "Programar una tarea",
         "checkSchedule": "Consultar la agenda",
         "updateSchedule": "Actualizar la agenda",
+        "cancelSchedule": "Cancelar una tarea programada",
         "use": "Usar {{tool}}"
       },
       "jobTotal_one": "{{count}} tarea en segundo plano",

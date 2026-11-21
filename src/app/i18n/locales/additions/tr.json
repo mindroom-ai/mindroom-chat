@@ -1105,6 +1105,7 @@
         "schedule": "Görev planla",
         "checkSchedule": "Planı kontrol et",
         "updateSchedule": "Planı güncelle",
+        "cancelSchedule": "Planlanmış görevi iptal et",
         "use": "{{tool}} kullan"
       },
       "jobTotal_one": "{{count}} arka plan işi",

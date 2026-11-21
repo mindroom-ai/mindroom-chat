@@ -1105,6 +1105,7 @@
         "schedule": "কাজ নির্ধারণ করুন",
         "checkSchedule": "সময়সূচি দেখুন",
         "updateSchedule": "সময়সূচি আপডেট করুন",
+        "cancelSchedule": "নির্ধারিত কাজ বাতিল করুন",
         "use": "{{tool}} ব্যবহার করুন"
       },
       "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",

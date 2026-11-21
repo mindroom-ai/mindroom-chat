@@ -1129,6 +1129,7 @@
         "schedule": "Planifier une tâche",
         "checkSchedule": "Consulter le planning",
         "updateSchedule": "Mettre à jour le planning",
+        "cancelSchedule": "Annuler une tâche planifiée",
         "use": "Utiliser {{tool}}"
       },
       "jobTotal_one": "{{count}} tâche en arrière-plan",

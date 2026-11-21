@@ -1105,6 +1105,7 @@
         "schedule": "काम शेड्यूल करें",
         "checkSchedule": "शेड्यूल देखें",
         "updateSchedule": "शेड्यूल अपडेट करें",
+        "cancelSchedule": "शेड्यूल किया काम रद्द करें",
         "use": "{{tool}} इस्तेमाल करें"
       },
       "jobTotal_one": "{{count}} बैकग्राउंड कार्य",

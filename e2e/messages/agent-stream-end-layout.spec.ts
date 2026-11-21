@@ -17,6 +17,7 @@ import {
   waitForAgentReply,
   waitForThreadEvent,
 } from '../helpers/agentStack';
+import { SHELL_JOB } from '../helpers/jobsBar';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
@@ -319,7 +320,7 @@ const watchReplyFinish = async (
   await expect(page.getByRole('status').filter({ hasText: /is typing/ })).toHaveCount(0, {
     timeout: 30_000,
   });
-  await expect(page.getByRole('region', { name: /Run a command/ })).toHaveCount(0, {
+  await expect(page.getByRole('region', { name: new RegExp(SHELL_JOB) })).toHaveCount(0, {
     timeout: 30_000,
   });
   await page.waitForTimeout(1_500);

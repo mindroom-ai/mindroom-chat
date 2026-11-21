@@ -1105,6 +1105,7 @@
         "schedule": "Schedule a task",
         "checkSchedule": "Check the schedule",
         "updateSchedule": "Update the schedule",
+        "cancelSchedule": "Cancel a scheduled task",
         "use": "Use {{tool}}"
       },
       "jobTotal_one": "{{count}} background job",

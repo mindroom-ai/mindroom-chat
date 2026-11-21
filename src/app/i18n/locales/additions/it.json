@@ -1129,6 +1129,7 @@
         "schedule": "Pianificare un’attività",
         "checkSchedule": "Controllare la pianificazione",
         "updateSchedule": "Aggiornare la pianificazione",
+        "cancelSchedule": "Annullare un’attività pianificata",
         "use": "Usare {{tool}}"
       },
       "jobTotal_one": "{{count}} attività in background",

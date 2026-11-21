@@ -27,7 +27,8 @@ const TOOL_NAME_TABLE = {
   useMessages: ['matrix_message'],
   schedule: ['schedule', 'schedule_tool_call'],
   checkSchedule: ['list_schedules'],
-  updateSchedule: ['edit_schedule', 'cancel_schedule'],
+  updateSchedule: ['edit_schedule'],
+  cancelSchedule: ['cancel_schedule'],
 } as const;
 
 const TOOL_NAMES: ReadonlyMap<string, ToolNameKey> = new Map(

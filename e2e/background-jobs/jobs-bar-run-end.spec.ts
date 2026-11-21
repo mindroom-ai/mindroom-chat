@@ -90,7 +90,7 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
 
   // Between two calls the bar stays, however long the agent thinks, and shows the call as finished.
   await publish(agent, [job('job_1')]);
-  await expect(bar).toHaveAccessibleName(SHELL_JOB, { timeout: 15_000 });
+  await expect(bar).toHaveAccessibleName(`Running: ${SHELL_JOB}`, { timeout: 15_000 });
   const runningHeight = await height();
   await publish(agent, []);
   await expect(bar).toHaveAccessibleName(`Finished: ${SHELL_JOB}`);
@@ -101,7 +101,7 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
   await expect(bar, 'the bar after a pause longer than 2 s').toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/jobs-run-end-${label}-between.png` });
   await publish(agent, [job('job_2')]);
-  await expect(bar).toHaveAccessibleName(SHELL_JOB);
+  await expect(bar).toHaveAccessibleName(`Running: ${SHELL_JOB}`);
 
   // The last call ends, then the reply finishes: the bar goes 2 s after the reply.
   await publish(agent, []);
@@ -124,7 +124,14 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
   expect(
     changes.map((change) => change.label),
     'the bar never left before the reply finished'
-  ).toEqual([null, SHELL_JOB, `Finished: ${SHELL_JOB}`, SHELL_JOB, `Finished: ${SHELL_JOB}`, null]);
+  ).toEqual([
+    null,
+    `Running: ${SHELL_JOB}`,
+    `Finished: ${SHELL_JOB}`,
+    `Running: ${SHELL_JOB}`,
+    `Finished: ${SHELL_JOB}`,
+    null,
+  ]);
   expect(
     (changes.at(-1)?.at ?? NaN) - finishSent,
     'ms from the reply’s end until the bar went'

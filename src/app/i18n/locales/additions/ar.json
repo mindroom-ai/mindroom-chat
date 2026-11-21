@@ -1201,6 +1201,7 @@
         "schedule": "جدولة مهمة",
         "checkSchedule": "مراجعة الجدول",
         "updateSchedule": "تحديث الجدول",
+        "cancelSchedule": "إلغاء مهمة مجدولة",
         "use": "استخدام ⁨{{tool}}⁩"
       },
       "jobTotal_zero": "مهام في الخلفية: ⁨{{count}}⁩",

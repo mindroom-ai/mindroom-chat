@@ -1105,6 +1105,7 @@
         "schedule": "Een taak plannen",
         "checkSchedule": "De planning bekijken",
         "updateSchedule": "De planning bijwerken",
+        "cancelSchedule": "Een geplande taak annuleren",
         "use": "{{tool}} gebruiken"
       },
       "jobTotal_one": "{{count}} achtergrondtaak",

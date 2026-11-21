@@ -1105,6 +1105,7 @@
         "schedule": "Aufgabe planen",
         "checkSchedule": "Zeitplan prüfen",
         "updateSchedule": "Zeitplan aktualisieren",
+        "cancelSchedule": "Geplante Aufgabe abbrechen",
         "use": "{{tool}} verwenden"
       },
       "jobTotal_one": "{{count}} Hintergrundaufgabe",

@@ -394,8 +394,12 @@ export function SubagentRunView({
     box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
   }, [opened]);
-  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
-  const getThread = useCallback(() => box.current?.firstElementChild, []);
+  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding), or a box
+  // that shrinks (the Usage above it opening).
+  const getThread = useCallback(
+    () => [box.current, box.current?.firstElementChild].filter((element): element is Element => !!element),
+    []
+  );
   useResizeObserver(keepEnd, getThread);
   // The card that opened it is gone, so focus moves to the way back. Before the panel's own
   // layout effect, which gives focus to the card of a sub-agent Back closed.
