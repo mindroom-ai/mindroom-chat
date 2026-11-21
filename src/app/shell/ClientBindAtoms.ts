@@ -1,6 +1,7 @@
 import React, { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { useStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { clientStartupMarks } from '../lib/startupTimeline';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useBindAtoms } from './useBindAtoms';
 import { forgetAccountState } from './accountState';
@@ -27,6 +28,7 @@ export function ClientBindAtoms({ children }: ClientBindAtomsProps) {
   // A passive effect here let the browser paint the empty first render between the splash and
   // the shell.
   useLayoutEffect(() => {
+    clientStartupMarks.get(client)?.('atoms.seeding');
     setSeededFor(client);
   }, [client]);
 

@@ -15,7 +15,8 @@ const nearBottom = (scroll: HTMLElement) =>
  * scroll area's height shrinks, the scroll position follows by the same amount, before the next
  * paint. A new width wraps every row anew, and the rows measure again over the next frames:
  * `followLatestRows` asks the timeline to keep its newest row at the bottom until the reader
- * scrolls. A reader up in the history keeps their place.
+ * scrolls. The width is read unrounded, as the timeline's ledger reads it: a row wraps anew at a
+ * change of a fraction of a pixel. A reader up in the history keeps their place.
  */
 export function useFooterBottomPin(
   scroll: HTMLElement | null,
@@ -27,7 +28,7 @@ export function useFooterBottomPin(
     if (!scroll || !probe || typeof ResizeObserver === 'undefined') return undefined;
     let inset = probe.offsetHeight;
     let viewHeight = scroll.clientHeight;
-    let viewWidth = scroll.clientWidth;
+    let viewWidth = scroll.getBoundingClientRect().width;
     // Read before the sizes change: once they have, the gap they open is not the reader's.
     let readerAtBottom = nearBottom(scroll);
     const onScroll = () => {
@@ -36,7 +37,7 @@ export function useFooterBottomPin(
     const observer = new ResizeObserver(() => {
       const nextInset = probe.offsetHeight;
       const nextViewHeight = scroll.clientHeight;
-      const nextViewWidth = scroll.clientWidth;
+      const nextViewWidth = scroll.getBoundingClientRect().width;
       const covered = nextInset - inset + (viewHeight - nextViewHeight);
       const rewrapped = nextViewWidth !== viewWidth;
       inset = nextInset;

@@ -3,6 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientEvent, SyncState } from 'matrix-js-sdk';
+import type { ISyncStateData } from 'matrix-js-sdk/lib/sync';
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { ClientRoot, hasCachedClientShell } from './ClientRoot';
 import { SpecVersions } from './SpecVersions';
@@ -17,6 +18,7 @@ import {
 import { startClient } from '../matrix/client/clientSyncPolicy';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
 import { matchesEnum } from '../lib/matchesEnum';
+import { claimClientStartup } from '../lib/startupTimeline';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -59,6 +61,11 @@ vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
+}));
+
+vi.mock('../lib/startupTimeline', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/startupTimeline')>()),
+  claimClientStartup: vi.fn(),
 }));
 
 vi.mock('../account/lifecycle/initMatrix', () => ({
@@ -148,6 +155,12 @@ vi.mock('../config/useClientConfig', () => ({
 
 let currentSession: StoredSession | undefined;
 
+type SyncHandler = (
+  current: SyncState | null,
+  previous: SyncState | null,
+  data?: ISyncStateData
+) => void;
+
 type MockClient = {
   stopClient: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
@@ -162,31 +175,28 @@ type MockClient = {
   store: {
     getSyncToken: ReturnType<typeof vi.fn>;
   };
-  emitSync: (current?: SyncState | null, previous?: SyncState | null | undefined) => void;
+  emitSync: (
+    current?: SyncState | null,
+    previous?: SyncState | null,
+    data?: ISyncStateData
+  ) => void;
 };
 
 const createMockClient = (
   options: { cachedRooms?: number; syncToken?: string | null } = {}
 ): MockClient => {
-  let syncHandler:
-    | ((current?: SyncState | null, previous?: SyncState | null | undefined) => void)
-    | undefined;
+  let syncHandler: SyncHandler | undefined;
   const cachedRooms = options.cachedRooms ?? 0;
   const syncToken = options.syncToken ?? null;
   let syncState: SyncState | null = null;
 
   return {
     stopClient: vi.fn(),
-    on: vi.fn(
-      (
-        event: string,
-        handler: (current?: SyncState | null, previous?: SyncState | null | undefined) => void
-      ) => {
-        if (matchesEnum(event, ClientEvent.Sync)) syncHandler = handler;
-      }
-    ),
+    on: vi.fn((event: string, handler: SyncHandler) => {
+      if (matchesEnum(event, ClientEvent.Sync)) syncHandler = handler;
+    }),
     once: vi.fn(),
-    removeListener: vi.fn((event: string, handler: () => void) => {
+    removeListener: vi.fn((event: string, handler: SyncHandler) => {
       if (matchesEnum(event, ClientEvent.Sync) && syncHandler === handler) {
         syncHandler = undefined;
       }
@@ -200,9 +210,9 @@ const createMockClient = (
     store: {
       getSyncToken: vi.fn(() => syncToken),
     },
-    emitSync: (current = SyncState.Syncing, previous = SyncState.Prepared) => {
+    emitSync: (current = SyncState.Syncing, previous = SyncState.Prepared, data) => {
       syncState = current;
-      syncHandler?.(current, previous);
+      syncHandler?.(current, previous, data);
     },
   };
 };
@@ -250,6 +260,7 @@ describe('ClientRoot', () => {
   });
 
   it('switches clients when the active session changes', async () => {
+    vi.mocked(claimClientStartup).mockReturnValueOnce(vi.fn());
     vi.mocked(clearSecretStorageKeys).mockClear();
     const clientA = createMockClient();
     const clientB = createMockClient();
@@ -274,7 +285,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenCalledWith(currentSession);
+    expect(initClient).toHaveBeenCalledWith(currentSession, expect.anything());
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(1);
 
     currentSession = {
@@ -291,7 +302,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(currentSession);
+    expect(initClient).toHaveBeenLastCalledWith(currentSession, undefined);
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(2);
     expect(clientA.stopClient).toHaveBeenCalledTimes(1);
     expect(clientB.stopClient).not.toHaveBeenCalled();
@@ -550,7 +561,7 @@ describe('ClientRoot', () => {
     });
 
     expect(vi.mocked(initClient)).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(currentSession);
+    expect(initClient).toHaveBeenLastCalledWith(currentSession, undefined);
   });
 
   it('uses the session-aware cleanup helper when the server logs the client out', async () => {
@@ -845,5 +856,57 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
+  });
+
+  it('marks cache Prepared, then the started client, then live Prepared', async () => {
+    const markStartup = vi.fn();
+    vi.mocked(claimClientStartup).mockReturnValueOnce(markStartup);
+    const client = createMockClient();
+
+    currentSession = {
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE_A',
+      accessToken: 'token-a',
+      lastUsedAt: 1,
+    };
+
+    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+    vi.mocked(initClient).mockResolvedValue(client as never);
+    // The SDK replays the saved sync before startClient resolves.
+    let started: () => void = () => undefined;
+    vi.mocked(startClient).mockReturnValue(
+      new Promise<void>((resolve) => {
+        started = resolve;
+      })
+    );
+
+    await act(async () => {
+      renderer = create(renderClientRoot());
+      await flushEffects();
+    });
+
+    expect(hasRenderedText(renderer, 'child')).toBe(false);
+    expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
+    expect(markStartup).not.toHaveBeenCalled();
+
+    act(() => client.emitSync(SyncState.Prepared, null, { fromCache: true }));
+    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache']]);
+    expect(hasRenderedText(renderer, 'child')).toBe(true);
+    expect(hasRenderedText(renderer, 'sync')).toBe(true);
+
+    await act(async () => {
+      started();
+      await flushEffects();
+    });
+    expect(markStartup.mock.calls).toEqual([['sync.prepared.cache'], ['sync.started']]);
+
+    act(() => client.emitSync(SyncState.Prepared, SyncState.Prepared, {}));
+    expect(markStartup.mock.calls).toEqual([
+      ['sync.prepared.cache'],
+      ['sync.started'],
+      ['sync.first_live'],
+    ]);
   });
 });

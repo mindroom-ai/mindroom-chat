@@ -9,11 +9,14 @@ import { resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
 import { getActiveSession, putSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { clientStartupMarks } from '../lib/startupTimeline';
+
+const client = {};
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 // The notice places are tested in ui/noticeSlots.test.tsx; here, where the layout puts them.
 vi.mock('../ui/noticeSlots', () => ({
   NoticeSlot: ({
@@ -46,6 +49,25 @@ const visit = async (path: string) => {
 afterEach(() => localStorage.clear());
 
 describe('ClientLayout', () => {
+  it('marks the signed-in shell commit, then the next frame, with the active client', async () => {
+    const markStartup = vi.fn((phase: string) => phase === 'shell.committed');
+    let frame: FrameRequestCallback | undefined;
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frame = callback;
+      return 1;
+    });
+    clientStartupMarks.set(client, markStartup);
+    try {
+      await visit(ROOM_PATH);
+      expect(markStartup.mock.calls).toEqual([['shell.committed']]);
+      frame?.(0);
+      expect(markStartup.mock.calls).toEqual([['shell.committed'], ['shell.frame']]);
+    } finally {
+      clientStartupMarks.delete(client);
+      raf.mockRestore();
+    }
+  });
+
   it('remembers the route a session last showed', async () => {
     putSession({
       baseUrl: 'https://matrix.example.org',
