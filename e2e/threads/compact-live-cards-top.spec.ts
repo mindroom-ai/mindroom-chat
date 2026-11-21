@@ -241,7 +241,7 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   const midBox = (await midCard.boundingBox())!;
   const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  await expect(listView(page).locator(`[data-scroll-anchor="${middle!}"]:hover`)).toHaveCount(1);
   const still = await watchVisibleRows(page);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
   const scrolled = await agentPosts(seeded, scrolledBody);
