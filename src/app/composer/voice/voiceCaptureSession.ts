@@ -83,6 +83,8 @@ export type VoiceCaptureSession = {
   pause: () => boolean;
   resume: () => boolean;
   finish: () => Promise<VoiceCaptureResult>;
+  /** Stops the recorder as when it stops on its own: the audio it has parks (`onPark`). */
+  park: () => void;
   /**
    * Ends capture now: the microphone is released at once and the audio leaves memory. Its disk
    * copy stays, unlocked, for the account to recover on a later page load.
@@ -108,8 +110,6 @@ type Generation = {
   journal?: CaptureJournal;
   /** Settles once the disk copy of a discarded recording is gone. */
   removed?: Promise<void>;
-  /** Recorded by a MediaRecorder, whose audio is journaled and parks when it stops on its own. */
-  web?: boolean;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -325,8 +325,9 @@ export const createVoiceCaptureSession = (
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    // No Send asked for this stop: the recorder stopped on its own, and its audio parks.
-    const park = !generation.sending && !!generation.web && !!onPark;
+    // No Send asked for this stop: the recorder stopped on its own or was parked, and its audio
+    // parks. The Mac app's recorder has audio only when parked: it has none when it stops itself.
+    const park = !generation.sending && !!onPark;
     if (!generation.sending && (!park || !generation.chunks.length)) {
       void journal?.remove();
       update({
@@ -460,7 +461,6 @@ export const createVoiceCaptureSession = (
       };
       generation.startedAt = now();
       if (webRecorder) {
-        generation.web = true;
         try {
           generation.journal = beginJournal?.(
             generation.startedAt,
@@ -488,12 +488,13 @@ export const createVoiceCaptureSession = (
     !!current &&
     !current.sending &&
     (current.recorder?.state === 'recording' || current.recorder?.state === 'paused');
-  const finish = (): Promise<VoiceCaptureResult> => {
+  /** Stops the recorder for a Send, which gets the audio, or to park it. */
+  const stop = (sending: boolean): Promise<VoiceCaptureResult> => {
     if (!canStop()) return Promise.resolve({ status: 'ignored' });
     const generation = current!;
     generation.elapsedMs = Math.max(0, Math.round(elapsed(generation)));
     generation.startedAt = undefined;
-    generation.sending = true;
+    if (sending) generation.sending = true;
     clearTimers(generation);
     return new Promise((resolve) => {
       // A processing subscriber can reset the session synchronously.
@@ -560,7 +561,9 @@ export const createVoiceCaptureSession = (
       publish({ phase: 'recording' });
       return isRecording(generation);
     },
-    finish,
+    finish: () => stop(true),
+    // A recorder that has not started has no audio to park: it ends.
+    park: () => void (canStop() ? stop(false) : end(false)),
     reset: () => void end(false),
     discard: async () => end(true),
   };

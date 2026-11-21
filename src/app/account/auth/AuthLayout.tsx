@@ -34,7 +34,7 @@ import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
 import { UnlistedServerCheck } from './UnlistedServerCheck';
 import { openAfterSignIn } from './completeSession';
-import { stopLiveVoiceRecording } from '../../composer/voice/liveVoiceRecording';
+import { parkLiveVoiceRecording } from '../../composer/voice/liveVoiceRecording';
 import * as css from './styles.css';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
@@ -242,9 +242,10 @@ export function AuthLayout() {
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const [discovery, retryDiscovery] = useServerDiscovery(server);
   const activeSession = useActiveSession();
-  // Add account opens these pages over a live voice recording, and nothing here shows one.
+  // Add account opens these pages over a live voice recording, and nothing here shows one: it
+  // parks, and waits as a recovered recording for the way back.
   const store = useStore();
-  useEffect(() => stopLiveVoiceRecording(store), [store]);
+  useEffect(() => parkLiveVoiceRecording(store), [store]);
   // Adding an account can be abandoned: back to where the signed-in account was.
   const returnPath = resolveAddAccountReturnPath(search, activeSession);
 

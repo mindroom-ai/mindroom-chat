@@ -564,6 +564,49 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
+  it('parks on request as when the recorder stops on its own, with its last audio', async () => {
+    const disk = {
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+    };
+    const park = vi.fn(() => true);
+    const session = createVoiceCaptureSession(() => disk, park);
+    sessions.push(session);
+
+    // Not started yet: there is no audio to park, and it ends.
+    getUserMedia.mockReturnValueOnce(new Promise(() => undefined));
+    void session.start();
+    session.park();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(park).not.toHaveBeenCalled();
+
+    await session.start();
+    vi.advanceTimersByTime(700);
+    session.park();
+    expect(latest().stop).toHaveBeenCalledOnce();
+    expect(park).not.toHaveBeenCalled();
+    latest().emitData(new Blob(['last']));
+    latest().emitStop();
+    expect(disk.append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 700);
+    expect(park).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ duration: 700, recordingId: 'recording' })
+    );
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(disk.release).not.toHaveBeenCalled();
+
+    // Not kept (the draft slot is taken): the disk copy stays, unlocked.
+    park.mockReturnValue(false);
+    await session.start();
+    session.park();
+    latest().emitData(new Blob(['more']));
+    latest().emitStop();
+    expect(disk.release).toHaveBeenCalledOnce();
+    expect(disk.remove).not.toHaveBeenCalled();
+  });
+
   it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
     const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
     const session = createVoiceCaptureSession(() => ({
@@ -752,6 +795,20 @@ describe('voice capture session on the native recorder', () => {
       expect(session.getSnapshot().phase).toBe('idle');
     }
   );
+
+  it('parks the audio of the native recorder on request, from memory', async () => {
+    const recorder = withoutWebCapture();
+    const park = vi.fn((_recording: { file: File; recordingId?: string }) => true);
+    const session = createVoiceCaptureSession(undefined, park);
+    expect(await session.start('@voice:example.org')).toBe(true);
+    session.park();
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    recorder.deliver('native voice');
+    const [parked] = park.mock.calls[0]!;
+    expect(await parked.file.text()).toBe('native voice');
+    expect(parked.recordingId).toBeUndefined();
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+  });
 
   it('records, pauses and sends through the native recorder', async () => {
     const recorder = withoutWebCapture();

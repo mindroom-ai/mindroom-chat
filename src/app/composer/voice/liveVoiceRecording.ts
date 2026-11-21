@@ -108,11 +108,12 @@ export const discardLiveVoiceRecording = async (store: JotaiStore): Promise<void
 };
 
 /**
- * Ends the recording where nothing shows it: the sign-in pages, which Add account opens over the
- * signed-in ones. The microphone is released at once; the disk copy stays for the account.
+ * Parks the recording where nothing shows it: the sign-in pages, which Add account opens over the
+ * signed-in ones. It ends as one whose recorder stopped on its own: the microphone is released
+ * and the audio waits as a recovered recording (`startLiveVoiceRecording.ts`).
  */
-export const stopLiveVoiceRecording = (store: JotaiStore): void => {
-  takeLiveVoiceRecording(store)?.reset();
+export const parkLiveVoiceRecording = (store: JotaiStore): void => {
+  store.get(liveVoiceRecordingAtom)?.park();
 };
 
 /**
@@ -123,7 +124,7 @@ export const stopLiveVoiceRecording = (store: JotaiStore): void => {
  */
 export const endVoiceRecordingsOfAccount = (store: JotaiStore): void => {
   accountsLeft.set(store, (accountsLeft.get(store) ?? 0) + 1);
-  stopLiveVoiceRecording(store);
+  takeLiveVoiceRecording(store)?.reset();
   claimedRecordings.get(store)?.forEach((session) => session.reset());
   claimedRecordings.delete(store);
   store.set(liveVoiceRecordingErrorAtom, undefined);

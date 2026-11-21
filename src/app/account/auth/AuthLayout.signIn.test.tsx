@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react';
 import { createStore, Provider } from 'jotai';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
-import type { LoginResponse } from 'matrix-js-sdk';
+import type { LoginResponse, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   deleteAfterLoginRedirectPath,
@@ -16,7 +16,11 @@ import { getLoginPath } from '../../routes/pathUtils';
 import { LOGIN_PATH } from '../../routes/paths';
 import { AuthLayout } from './AuthLayout';
 import { liveVoiceRecordingAtom } from '../../composer/voice/liveVoiceRecording';
-import type { VoiceCaptureSession } from '../../composer/voice/voiceCaptureSession';
+import { startLiveVoiceRecording } from '../../composer/voice/startLiveVoiceRecording';
+import {
+  pendingVoiceSendDraftAtom,
+  type PendingVoiceSendContext,
+} from '../../composer/roomInputDrafts';
 import { useLoginComplete } from './login/loginUtil';
 
 vi.mock('../../ui/styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
@@ -106,27 +110,6 @@ describe('the server a sign-in page names', () => {
   });
 });
 
-// Add account opens the sign-in pages from the signed-in ones, without a change of session.
-it('ends a live voice recording, which no sign-in page shows', async () => {
-  const store = createStore();
-  const reset = vi.fn();
-  store.set(liveVoiceRecordingAtom, { reset } as unknown as VoiceCaptureSession);
-  window.history.replaceState(null, '', getLoginPath('example.org'));
-  const router = createBrowserRouter([
-    { element: <AuthLayout />, children: [{ path: LOGIN_PATH, element: <p>login page</p> }] },
-  ]);
-  render(
-    <Provider store={store}>
-      <RouterProvider router={router} />
-    </Provider>
-  );
-  await act(async () => undefined);
-  // The microphone is released; reset keeps the disk copy for the account.
-  expect(reset).toHaveBeenCalledOnce();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-  router.dispose();
-});
-
 describe('signing in on the sign-in pages', () => {
   it('opens the page the person asked for before signing in', async () => {
     setAfterLoginRedirectPath('/p/example/page');
@@ -139,4 +122,63 @@ describe('signing in on the sign-in pages', () => {
     expect(await signIn()).toBe('/home/');
     expect(screen.getByText('home page')).toBeTruthy();
   });
+});
+
+// Add account opens the sign-in pages from the signed-in ones, without a change of session.
+// Last in the file: it puts the globals back, the file's own ResizeObserver with them.
+it('parks a live voice recording, which no sign-in page shows, as a recovered one', async () => {
+  // A recorder as the browser's: stopped, it hands over the audio it still holds, then says so.
+  class Recorder extends EventTarget {
+    state = 'inactive';
+
+    mimeType = 'audio/webm';
+
+    start() {
+      this.state = 'recording';
+    }
+
+    stop() {
+      this.state = 'inactive';
+      this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob(['voice']) }));
+      this.dispatchEvent(new Event('stop'));
+    }
+  }
+  const track = { stop: vi.fn() };
+  vi.stubGlobal('MediaRecorder', Recorder);
+  vi.stubGlobal('isSecureContext', true);
+  vi.stubGlobal('navigator', {
+    mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) },
+  });
+  const store = createStore();
+  const room = { roomId: '!example:example.org', name: 'Example room' } as unknown as Room;
+  const context: PendingVoiceSendContext = {
+    ownerSessionId: '@alice:example.org',
+    roomId: room.roomId,
+    room,
+    threadId: undefined,
+    replyDraft: undefined,
+    threadingEnabled: true,
+    signalBridgedRoom: false,
+  };
+  expect(await startLiveVoiceRecording(store, context)).toBe(true);
+
+  window.history.replaceState(null, '', getLoginPath('example.org'));
+  const router = createBrowserRouter([
+    { element: <AuthLayout />, children: [{ path: LOGIN_PATH, element: <p>login page</p> }] },
+  ]);
+  render(
+    <Provider store={store}>
+      <RouterProvider router={router} />
+    </Provider>
+  );
+  await act(async () => undefined);
+
+  // The microphone is released, and the audio waits for the way back to the signed-in pages.
+  expect(track.stop).toHaveBeenCalledOnce();
+  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  const parked = store.get(pendingVoiceSendDraftAtom);
+  expect(parked).toMatchObject({ recovered: true, context });
+  expect(parked?.file.size).toBe('voice'.length);
+  router.dispose();
+  vi.unstubAllGlobals();
 });
