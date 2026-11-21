@@ -113,12 +113,21 @@ afterEach(async () => {
 });
 
 const stubLocks = () => {
+  const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) =>
-        callback({ name, mode: 'exclusive' }),
+      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+        if (held.has(name)) return callback(null);
+        held.add(name);
+        try {
+          return await callback({ name, mode: 'exclusive' });
+        } finally {
+          held.delete(name);
+        }
+      },
     },
   });
+  return held;
 };
 
 it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
@@ -230,6 +239,7 @@ describe('native recording recovery on composer mount', () => {
   const getContext = () => failedDraft().context;
   const readAudio = (audio: string) => new Response(audio);
   const fetchAudio = vi.fn(() => Promise.resolve(readAudio('native voice')));
+  let held: Set<string>;
 
   beforeEach(() => {
     native.available = true;
@@ -242,7 +252,7 @@ describe('native recording recovery on composer mount', () => {
     });
     fetchAudio.mockReset().mockImplementation(async () => readAudio('native voice'));
     vi.stubGlobal('fetch', fetchAudio);
-    stubLocks();
+    held = stubLocks();
   });
 
   afterEach(async () => {
@@ -270,14 +280,18 @@ describe('native recording recovery on composer mount', () => {
     const committedWhenForgotten = vi.fn();
     const forget = native.cancel.getMockImplementation()!;
     native.cancel.mockImplementation(async (options: { id: string }) => {
-      committedWhenForgotten(committed);
+      committedWhenForgotten(committed && held.has(`mindroom-voice-recording:${options.id}`));
       await forget(options);
     });
     return committedWhenForgotten;
   };
 
-  it('offers the native audio as recovered and forgets the file after commit', async () => {
+  it('holds the UUID lock from file read through commit and cancel', async () => {
     const committedWhenForgotten = observeCommitBeforeCancel();
+    fetchAudio.mockImplementation(async () => {
+      expect(held.has(`mindroom-voice-recording:${leftover.id}`)).toBe(true);
+      return readAudio('native voice');
+    });
     const store = await reloadPage(getContext);
     const draft = store.get(reloadedAtom());
     expect(draft).toMatchObject({

@@ -47,7 +47,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('does not cancel another window’s live recording and rejects removal errors', () => {
     expect(body('cancel')).toMatch(
-      /guard .*Self\.liveRecorders\[id\] == nil \|\| Self\.liveRecorders\[id\] === self[\s\S]*?call\.reject[\s\S]*?try Self\.removeFile\(url\)[\s\S]*?catch \{ return call\.reject\("Could not remove recording"/
+      /guard Self\.liveRecorders\[id\] == nil \|\| Self\.liveRecorders\[id\] === self[\s\S]*?call\.reject[\s\S]*?try Self\.removeFile\(id\)[\s\S]*?catch \{ return call\.reject\("Could not remove recording"/
     );
     expect(body('cancel')).not.toMatch(/clearFolder|closed/);
   });
@@ -92,7 +92,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('records nothing more once its window has closed', () => {
     expect(pluginSource).toMatch(
-      /func close\(\) \{[\s\S]*?closed = true\s*discardLive\(\)\s*Self\.instances -= 1\s*if Self\.instances == 0 \{\s*Self\.clearFolder\(\)/
+      /func close\(\) \{[\s\S]*?closed = true\s*discardLive\(\)\s*Self\.instances -= 1\s*if Self\.instances == 0 \{ Self\.clearFolder\(\)/
     );
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
@@ -137,8 +137,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('lists only finished UUID audio files and their recovery metadata', () => {
     const leftover = body('listLeftovers');
-    expect(leftover).toMatch(/let userId = Self\.owners\[id\], Self\.liveRecorders\[id\] == nil/);
-    expect(leftover).toMatch(/pathExtension == "m4a"[\s\S]*isRegularFile == true[\s\S]*size > 0/);
+    expect(leftover).toMatch(
+      /Self\.owners\.compactMap \{ id, userId in\s*guard Self\.liveRecorders\[id\] == nil, let url = Self\.file\(of: id\)/
+    );
     expect(leftover).toContain('creationDate');
     expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
     expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
@@ -148,7 +149,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('invalidates pending permission and clears that account’s recordings on sign-out', () => {
     expect(body('clear')).toMatch(
-      /Self\.ownerGenerations\[userId, default: 0\] \+= 1[\s\S]*?Self\.owners\.filter\(\{ \$0\.value == userId \}\)[\s\S]*?Self\.liveRecorders\[id\]\?\.finishLive\(\)\s*Self\.discardFile\(id\)/
+      /Self\.ownerGenerations\[userId, default: 0\] \+= 1[\s\S]*?Self\.owners\.filter\(\{ \$0\.value == userId \}\)[\s\S]*?Self\.liveRecorders\[id\]\?\.finishLive\(\)\s*Self\.owners\[id\] = nil\s*try\? Self\.removeFile\(id\)/
     );
   });
 

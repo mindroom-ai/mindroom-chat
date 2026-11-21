@@ -32,11 +32,14 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private static func clearFolder() {
         try? FileManager.default.removeItem(at: folder)
+        owners.removeAll()
     }
 
-    private static func removeFile(_ url: URL) throws {
+    private static func removeFile(_ id: String) throws {
+        guard let url = file(of: id) else { return }
         do { try FileManager.default.removeItem(at: url) }
         catch CocoaError.fileNoSuchFile { /* Already removed. */ }
+        owners[id] = nil
     }
 
     /// The file of a recording; nil for an ID that is not a UUID, so no ID names a path elsewhere.
@@ -178,36 +181,27 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func cancel(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let id = call.getString("id") ?? ""
-            guard let url = Self.file(of: id), Self.liveRecorders[id] == nil || Self.liveRecorders[id] === self else {
+            guard Self.liveRecorders[id] == nil || Self.liveRecorders[id] === self else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
             if live?.id == id {
                 finishLive()
                 // Explicit live discard is not a handoff. Never offer this file even if removal fails.
-                Self.owners.removeValue(forKey: id)
+                Self.owners[id] = nil
             }
-            do { try Self.removeFile(url) }
+            do { try Self.removeFile(id) }
             catch { return call.reject("Could not remove recording", "CANCEL_FAILED") }
-            Self.owners.removeValue(forKey: id)
             call.resolve()
         }
     }
 
     /// Lists files without removing them. The new page cancels each file after saving its audio.
     @objc func listLeftovers(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { [self] in
-            let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .creationDateKey]
-            let files = (try? FileManager.default.contentsOfDirectory(
-                at: Self.folder, includingPropertiesForKeys: Array(keys)
-            )) ?? []
-            let recordings: [[String: Any]] = files.compactMap { url in
-                let id = url.deletingPathExtension().lastPathComponent
-                guard url.pathExtension == "m4a", let userId = Self.owners[id], Self.liveRecorders[id] == nil,
-                      let attrs = try? url.resourceValues(forKeys: keys), attrs.isRegularFile == true,
-                      let size = attrs.fileSize, size > 0, let start = attrs.creationDate,
-                      let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else {
-                    return nil
-                }
+        DispatchQueue.main.async {
+            let recordings: [[String: Any]] = Self.owners.compactMap { id, userId in
+                guard Self.liveRecorders[id] == nil, let url = Self.file(of: id),
+                      let start = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
+                      let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else { return nil }
                 return ["id": id, "path": url.path, "startedAt": (start.timeIntervalSince1970 * 1_000).rounded(),
                         "duration": player.duration * 1_000, "userId": userId]
             }
@@ -217,13 +211,14 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func clear(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            if let userId = call.getString("userId") {
-                Self.ownerGenerations[userId, default: 0] += 1
-                for id in Self.owners.filter({ $0.value == userId }).keys {
-                    Self.liveRecorders[id]?.finishLive()
-                    Self.discardFile(id)
-                }
+            guard let userId = call.getString("userId") else { return call.resolve() }
+            Self.ownerGenerations[userId, default: 0] += 1
+            for id in Self.owners.filter({ $0.value == userId }).keys {
+                Self.liveRecorders[id]?.finishLive()
+                Self.owners[id] = nil
+                try? Self.removeFile(id)
             }
+            if Self.owners.isEmpty { Self.clearFolder() }
             call.resolve()
         }
     }
@@ -242,15 +237,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         Self.deactivateIfIdle()
     }
 
-    private static func discardFile(_ id: String) {
-        owners.removeValue(forKey: id)
-        if let url = file(of: id) { try? removeFile(url) }
-    }
-
     private func discardLive() {
         guard let id = live?.id else { return }
         finishLive()
-        Self.discardFile(id)
+        Self.owners[id] = nil
+        try? Self.removeFile(id)
     }
 
     /// Navigation or WebContent termination ends the capture, not its file. A start still
@@ -266,10 +257,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         closed = true
         discardLive()
         Self.instances -= 1
-        if Self.instances == 0 {
-            Self.clearFolder()
-            Self.owners.removeAll()
-        }
+        if Self.instances == 0 { Self.clearFolder() }
     }
 }
 #endif

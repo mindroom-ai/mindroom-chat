@@ -428,18 +428,6 @@ export const createVoiceCaptureSession = (
         if (!owns(generation)) return false;
         setupAnalyser(generation, stream);
       }
-      const startedAt = now();
-      const startJournal = () => {
-        try {
-          generation.journal = beginJournal?.(
-            startedAt,
-            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
-            generation.native?.id
-          );
-        } catch {
-          // Storage is best effort; capture still works from memory.
-        }
-      };
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
         if (!generation.acceptsEvents || data.size === 0) return;
@@ -456,8 +444,16 @@ export const createVoiceCaptureSession = (
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      generation.startedAt = startedAt;
-      startJournal();
+      generation.startedAt = now();
+      try {
+        generation.journal = beginJournal?.(
+          generation.startedAt,
+          recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
+          generation.native?.id
+        );
+      } catch {
+        // Web capture can still send from memory; native can still recover its file.
+      }
       if (webRecorder) {
         generation.web = true;
         webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);

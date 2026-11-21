@@ -113,25 +113,17 @@ export const beginVoiceRecording = (
         if (!(await start) || !held.has(id)) return false;
         const buffer = await bytes;
         if (!buffer) return false;
-        return (
-          (await withDb((db) =>
-            change(db, async (tx) => {
-              // Sign-out can delete the meta in another tab. Do not recreate its chunks.
-              if (!(await tx.objectStore('recordings').getKey(id))) return false;
-              const chunks = tx.objectStore('chunks');
-              if (!nativeId || !(await chunks.getKey([id, seq]))) {
-                await chunks.put({
-                  id,
-                  seq,
-                  bytes: buffer,
-                  elapsedMs,
-                  type: nativeId ? mimeType : data.type,
-                });
-              }
-              return true;
-            })
-          )) === true
+        const chunk = { id, seq, bytes: buffer, elapsedMs, type: nativeId ? mimeType : data.type };
+        const committed = await withDb((db) =>
+          change(db, async (tx) => {
+            // Sign-out can delete the meta in another tab. Do not recreate its chunks.
+            if (!(await tx.objectStore('recordings').getKey(id))) return false;
+            const chunks = tx.objectStore('chunks');
+            if (!nativeId || !(await chunks.getKey([id, seq]))) await chunks.put(chunk);
+            return true;
+          })
         );
+        return committed === true;
       });
       tail = next;
       return next;
