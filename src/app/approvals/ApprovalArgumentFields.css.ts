@@ -59,7 +59,12 @@ export const Toggle = style([
   {
     alignSelf: 'flex-start',
     selectors: {
-      '&&': { height: 'auto', minBlockSize: toRem(32), paddingBlock: toRem(6), textAlign: 'start' },
+      '&&': {
+        height: 'auto',
+        minBlockSize: toRem(32),
+        paddingBlock: toRem(6),
+        textAlign: 'start',
+      },
     },
   },
   touchTarget('22px', '', { blockReach: '5px' }),
