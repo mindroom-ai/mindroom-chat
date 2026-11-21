@@ -6,4 +6,4 @@
 
 # GitHub pull request links, which a click opens in the pull request side panel, a thread's pull requests
 # with their hover cards and its worktree branch (also in its details), and the side panel itself.
-https://github.com/mindroom-ai/pull-request-client-plugin c41c9d73b901cdf8afd4dcc48d9de7d83199f964
+https://github.com/mindroom-ai/pull-request-client-plugin f10dc7bf53ad6b3252f156ab3bb7f5cd25d359d6
