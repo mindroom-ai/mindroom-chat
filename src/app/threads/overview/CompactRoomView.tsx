@@ -724,8 +724,13 @@ function CompactRoomList({
   };
 
   const margin = virtualizer.options.scrollMargin;
+  // Reduced motion sets a tiny duration globally. Geometry must not transition at all.
   const spacer = (height: number, key: string, marginBlockStart?: string) => (
-    <div key={key} aria-hidden style={{ height, marginBlockStart, overflowAnchor: 'none' }} />
+    <div
+      key={key}
+      aria-hidden
+      style={{ height, marginBlockStart, overflowAnchor: 'none', transitionProperty: 'none' }}
+    />
   );
   return (
     <Box
@@ -740,7 +745,11 @@ function CompactRoomList({
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}
         // Reserve the extent on the scroller's direct child, even during keyed gap swaps.
-        style={{ ...overlay.overviewInsetStop, minHeight: virtualizer.getTotalSize() }}
+        style={{
+          ...overlay.overviewInsetStop,
+          minHeight: virtualizer.getTotalSize(),
+          transitionProperty: 'none',
+        }}
         direction="Column"
         gap="100"
         shrink="No"
