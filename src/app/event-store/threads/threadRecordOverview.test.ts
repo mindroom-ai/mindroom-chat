@@ -236,7 +236,7 @@ describe('threadRecordOverview selectors', () => {
         threadSortFreezeState: frozenState,
         threadSortControlSignature: 'same-controls',
       })
-    ).toMatchObject({
+    ).toEqual({
       filteredIds: ['$unresolved-unread', '$streaming', '$scheduled'],
       liveOrderedIds: ['$streaming', '$unresolved-unread', '$scheduled'],
       displayOrderedIds: ['$streaming', '$unresolved-unread', '$scheduled'],

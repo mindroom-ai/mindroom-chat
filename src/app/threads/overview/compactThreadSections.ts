@@ -17,11 +17,7 @@ export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
 ];
 
 /** One section of a Compact room's cards, in its order. */
-export type CompactThreadSection = {
-  id: ThreadWorkflowBucket;
-  rootIds: string[];
-  sortInputs?: ReadonlyMap<string, string>;
-};
+export type CompactThreadSection = { id: ThreadWorkflowBucket; rootIds: string[] };
 
 type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
 
@@ -66,6 +62,10 @@ export const buildCompactThreadSections = ({
   });
 
   const listOrder: Compare = (left, right) => (places.get(left) ?? 0) - (places.get(right) ?? 0);
+  const newestFirst =
+    (tsOf: (item: ThreadRecord) => number): Compare =>
+    (left, right) =>
+      tsOf(right) - tsOf(left) || listOrder(left, right);
   const activityOf = (item: ThreadRecord) => item.status.lastActivityTs ?? 0;
   const finishedTs = new Map(
     grouped.needsYou.map((item) => {
@@ -78,12 +78,15 @@ export const buildCompactThreadSections = ({
       return [item, ts] as const;
     })
   );
-  const valueOf: Record<ThreadWorkflowBucket, (item: ThreadRecord) => number> = {
-    working: (item) =>
-      entryOf(item.threadRootId)?.rootTs ?? item.cache.oldestTs ?? activityOf(item),
-    needsYou: (item) => finishedTs.get(item) ?? 0,
-    later: (item) => -threadReturnTs(item.status, now),
-    done: (item) => entryOf(item.threadRootId)?.resolvedTs ?? activityOf(item),
+  const compares: Record<ThreadWorkflowBucket, Compare> = {
+    working: newestFirst(
+      (item) => entryOf(item.threadRootId)?.rootTs ?? item.cache.oldestTs ?? activityOf(item)
+    ),
+    needsYou: newestFirst((item) => finishedTs.get(item) ?? 0),
+    later: (left, right) =>
+      threadReturnTs(left.status, now) - threadReturnTs(right.status, now) ||
+      listOrder(left, right),
+    done: newestFirst((item) => entryOf(item.threadRootId)?.resolvedTs ?? activityOf(item)),
   };
 
   const pinRanks = new Map(pinnedRootIds.map((rootId, index) => [rootId, index] as const));
@@ -103,15 +106,7 @@ export const buildCompactThreadSections = ({
       ? [
           {
             id,
-            rootIds: grouped[id]
-              .sort(pinnedFirst((a, b) => valueOf[id](b) - valueOf[id](a) || listOrder(a, b)))
-              .map((item) => item.threadRootId),
-            sortInputs: new Map(
-              grouped[id].map((item) => [
-                item.threadRootId,
-                `${id}:${pinRanks.has(item.threadRootId) ? 'pin' : valueOf[id](item)}`,
-              ])
-            ),
+            rootIds: grouped[id].sort(pinnedFirst(compares[id])).map((item) => item.threadRootId),
           },
         ]
       : []
@@ -143,16 +138,7 @@ export const holdCompactThreadSections = (
       )
     );
     const shownSection = shown.find((section) => section.id === id);
-    if (!shownSection && members.length === 0) return [];
-    const rootIds = shownSection ? holdOrder(shownSection.rootIds, members) : members;
-    const liveInputs = live.find((section) => section.id === id)?.sortInputs;
-    const sortInputs = new Map(
-      rootIds.flatMap((rootId) => {
-        const inputs = shownIn.get(rootId) === id ? shownSection?.sortInputs : liveInputs;
-        const value = inputs?.get(rootId);
-        return value === undefined ? [] : [[rootId, value] as const];
-      })
-    );
-    return [{ id, rootIds, sortInputs }];
+    if (!shownSection) return members.length > 0 ? [{ id, rootIds: members }] : [];
+    return [{ id, rootIds: holdOrder(shownSection.rootIds, members) }];
   });
 };

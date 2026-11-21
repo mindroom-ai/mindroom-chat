@@ -1,29 +1,41 @@
 import { PureComponent, type RefObject } from 'react';
 import { browserAnchorsScroll } from './useHeldThreadOrder';
 
-type Inputs = ReadonlyMap<string, string>;
-type Props = { scope: string; order: string[]; inputs: Inputs; viewRef: RefObject<HTMLElement> };
-type Edge = { id: string; after: string; bottom?: true };
+type Props = { order: readonly string[]; viewRef: RefObject<HTMLElement> };
 
-export const chooseLandmark = (visible: string[], before: Props, after: Props): Edge[] => {
-  const previous = new Set(before.order);
-  const next = new Set(after.order);
-  const survivors = visible.filter((id) => next.has(id));
-  const lead = visible[0];
-  if (lead && next.has(lead)) {
-    const oldSlots = before.order.filter((id) => next.has(id));
-    const newSlots = after.order.filter((id) => previous.has(id));
-    const slot = oldSlots.indexOf(lead);
-    const second = oldSlots[slot + 1];
-    if (second && newSlots[slot] === second && newSlots[slot + 1] === lead)
-      return [{ id: second, after: lead, bottom: true }];
-  }
-  const unchanged = survivors.find(
-    (id) =>
-      id.startsWith('section:') ||
-      (before.inputs.has(id) && before.inputs.get(id) === after.inputs.get(id))
-  );
-  return (unchanged ? [unchanged] : survivors).map((id) => ({ id, after: id }));
+// The insertion position in the smallest possible tails gives the LIS length ending here.
+const lisEndingAt = (indices: number[]): number[] => {
+  const tails: number[] = [];
+  return indices.map((index) => {
+    let low = 0;
+    let high = tails.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (tails[mid]! < index) low = mid + 1;
+      else high = mid;
+    }
+    tails[low] = index;
+    return low + 1;
+  });
+};
+
+/** Surviving rows in every longest subsequence that preserves old order. Row IDs are unique. */
+export const rowsThatKeptPlace = (before: readonly string[], after: readonly string[]) => {
+  const oldIndex = new Map(before.map((id, i) => [id, i]));
+  const survivors = after.filter((id) => oldIndex.has(id));
+  const indices = survivors.map((id) => oldIndex.get(id)!);
+  const left = lisEndingAt(indices);
+  // Reverse and negate the indices to get the LIS length starting at each row.
+  const right = lisEndingAt(indices.map((index) => -index).reverse()).reverse();
+  const longest = left.reduce((max, rank) => Math.max(max, rank), 0);
+  const byRank = new Map<number, string | null>();
+  // A row can be on a longest subsequence if its prefix and suffix reach that length.
+  // Every longest subsequence takes one row per rank, so only a sole candidate is forced.
+  survivors.forEach((id, i) => {
+    const rank = left[i]!;
+    if (rank + right[i]! - 1 === longest) byRank.set(rank, byRank.has(rank) ? null : id);
+  });
+  return new Set([...byRank.values()].filter((id) => id !== null));
 };
 
 export const medianResidual = (values: number[]): number => {
@@ -40,17 +52,16 @@ const rowsOf = (view: HTMLElement) =>
       .map((row) => [row.dataset.scrollAnchor ?? row.dataset.rowLandmark ?? '', row] as const)
   );
 const innerTop = (view: HTMLElement) => view.getBoundingClientRect().top + view.clientTop;
-type Snapshot = { after: string; bottom?: true; y: number }[];
+type Snapshot = { id: string; y: number }[];
 
 export class CompactRowKeeper extends PureComponent<Props> {
   override getSnapshotBeforeUpdate(before: Props): Snapshot | null {
     const view = this.props.viewRef.current;
-    const { order, scope } = this.props;
+    const { order } = this.props;
     if (
       !view ||
       view.scrollTop <= 0 ||
       !browserAnchorsScroll() ||
-      scope !== before.scope ||
       (order.length === before.order.length && order.every((id, i) => id === before.order[i]))
     )
       return null;
@@ -59,14 +70,18 @@ export class CompactRowKeeper extends PureComponent<Props> {
     const start = top + (parseFloat(style.scrollPaddingTop) || 0);
     const end = top + view.clientHeight - (parseFloat(style.scrollPaddingBottom) || 0);
     const rows = rowsOf(view);
-    const visible = before.order.filter((id) => {
+    const kept = rowsThatKeptPlace(before.order, order);
+    const next = new Set(order);
+    const visible: Snapshot = [];
+    for (const id of before.order) {
+      if (!next.has(id)) continue;
       const rect = rows.get(id)?.getBoundingClientRect();
-      return rect && rect.bottom > start && rect.top < end;
-    });
-    return chooseLandmark(visible, before, this.props).flatMap(({ id, after, bottom }) => {
-      const rect = rows.get(id)?.getBoundingClientRect();
-      return rect ? [{ after, bottom, y: (bottom ? rect.bottom : rect.top) - top }] : [];
-    });
+      if (!rect || rect.bottom <= start || rect.top >= end) continue;
+      const row = { id, y: rect.top - top };
+      if (kept.has(id)) return [row];
+      visible.push(row);
+    }
+    return visible;
   }
 
   override componentDidUpdate(_before: Props, _state: unknown, snapshot: Snapshot | null): void {
@@ -75,9 +90,9 @@ export class CompactRowKeeper extends PureComponent<Props> {
     const top = innerTop(view);
     const rows = rowsOf(view);
     const residual = medianResidual(
-      snapshot.flatMap(({ after, bottom, y }) => {
-        const rect = rows.get(after)?.getBoundingClientRect();
-        return rect ? [(bottom ? rect.bottom : rect.top) - top - y] : [];
+      snapshot.flatMap(({ id, y }) => {
+        const rect = rows.get(id)?.getBoundingClientRect();
+        return rect ? [rect.top - top - y] : [];
       })
     );
     const current = view.scrollTop;

@@ -1,26 +1,18 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
-import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
+import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import { ROW_HEIGHT, standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactRoomView, type CompactRoomViewProps } from './CompactRoomView';
-import { resolveThreadSortFreezeUpdate } from './threadSortFreezeController';
-import {
-  applyFrozenThreadOrder,
-  createDefaultThreadFilterState,
-} from '../../event-store/threads/roomThreadOverviewModel';
-import { resolveThreadRecordOverviewRootIds } from '../../event-store/threads/threadRecordOverview';
+import type { CompactThreadSection } from './compactThreadSections';
 
 const ROOM_ID = '!room:example.org';
 
 const state = vi.hoisted(() => ({
   pinned: [] as string[],
-  keeper: vi.fn<(props: { order: string[]; inputs: ReadonlyMap<string, string> }) => null>(
-    () => null
-  ),
+  sections: undefined as CompactThreadSection[] | undefined,
 }));
-vi.mock('./CompactRowKeeper', () => ({ CompactRowKeeper: state.keeper }));
 
 const viewModel = (threadRootId: string): CompactThreadCardViewModel => ({
   id: { roomId: ROOM_ID, threadRootId },
@@ -68,12 +60,13 @@ vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
 // The sections read the threads' signals, whose modules load the app's translations.
-vi.mock('./useCompactThreadSections', () => ({ useCompactThreadSections: () => undefined }));
+vi.mock('./useCompactThreadSections', () => ({ useCompactThreadSections: () => state.sections }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));
 
 const room = { roomId: ROOM_ID } as unknown as Room;
+let scrollMemory: CompactRoomViewProps['compactRoomScrollStateRef'];
 const list = (
   threadRootIds: string[],
   filterBarShown = false,
@@ -85,7 +78,7 @@ const list = (
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
-    compactRoomScrollStateRef={{ current: new Map() }}
+    compactRoomScrollStateRef={scrollMemory}
     {...props}
   />
 );
@@ -102,12 +95,15 @@ const glided = () =>
 
 beforeEach(() => {
   state.pinned = [];
+  state.sections = undefined;
+  scrollMemory = { current: new Map() };
   motion = standInForListMotion();
 });
 
 afterEach(() => {
   cleanup();
   motion.restore();
+  vi.unstubAllGlobals();
 });
 
 describe('the compact thread list in motion', () => {
@@ -156,116 +152,59 @@ describe('the compact thread list in motion', () => {
   });
 });
 
-const keeper = () => state.keeper.mock.lastCall![0];
-const capture = (ids: string[], sortInputOf: (id: string) => string | undefined) => {
-  const options = {
-    activeLiveOverviewThreadRootIds: ids,
-    currentState: { controlSignature: null, orderedRootIds: [] },
-    threadSortControlSignature: 'lastReply:desc',
-    sortInputOf,
-  };
-  return resolveThreadSortFreezeUpdate(options)!;
-};
-const inputsFor = (
-  activity: Record<string, number>,
-  sortFreeze: ReturnType<typeof capture> | null = null
-) => {
-  const threadRecordMap = new Map(
-    Object.entries(activity).map(([id, ts]) => [
-      id,
-      { status: { lastActivityTs: ts, tags: [] }, absoluteIndex: 0 } as unknown as ThreadRecord,
-    ])
-  );
-  const { sortInputOf } = resolveThreadRecordOverviewRootIds({
-    threadRootIds: Object.keys(activity),
-    pinnedThreadRootIds: state.pinned,
-    threadFilterState: createDefaultThreadFilterState(),
-    searchQuery: '',
-    recordMap: threadRecordMap,
-    threadSortFreezeState: sortFreeze,
-    threadSortControlSignature: 'lastReply:desc',
+// Give the real keeper a scroll viewport and row geometry in jsdom. Native anchoring is absent,
+// so an unchanged scrollTop means the keeper left the browser's position alone.
+const scrollView = (container: HTMLElement, scrollTop: number, clientHeight: number) => {
+  vi.stubGlobal('CSS', { supports: () => true });
+  const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+  const row = '[data-scroll-anchor], [data-row-landmark]';
+  Object.defineProperties(view, {
+    clientHeight: { value: clientHeight },
+    scrollHeight: { get: () => view.querySelectorAll(row).length * ROW_HEIGHT },
   });
-  return { sortMode: 'lastReply:desc', sortFreeze, sortInputOf, threadRecordMap };
+  view.scrollTop = scrollTop;
+  const measure = motion.rects.getMockImplementation()!;
+  motion.rects.mockImplementation(function rect(this: HTMLElement) {
+    const result = measure.call(this);
+    return this.matches(row)
+      ? new DOMRect(result.left, result.top - view.scrollTop, result.width, result.height)
+      : result;
+  });
+  return view;
 };
 
-describe('comparison inputs reach the keeper with the applied order', () => {
-  it("retains the last pin's held membership until its ordinary slot applies", () => {
-    const ids = ['$a', '$b', '$p', '$c', '$d', '$e', '$f', '$g', '$h', '$i'];
-    state.pinned = ['$a', '$b', '$p'];
-    const activity = Object.fromEntries(ids.map((id, index) => [id, index]));
-    const { container, rerender } = render(list(ids, false, inputsFor(activity)));
-    fireEvent.pointerEnter(container.querySelector('[data-scroll-anchor]')!);
-    const content = container.querySelector('[data-order-held]')!;
-    expect(content).not.toBeNull();
-    state.pinned = ['$a', '$b'];
-    const live = ['$a', '$b', '$c', '$d', '$e', '$f', '$g', '$p', '$h', '$i'];
-    rerender(list(live, false, inputsFor(activity)));
-    expect(keeper().order).toEqual(ids);
-    const held = keeper().inputs;
-    fireEvent.pointerCancel(content);
-    fireEvent.pointerLeave(content);
-    expect(keeper().order).toEqual(live);
-    expect(keeper().inputs.get('$p')).not.toBe(held.get('$p'));
-    expect(keeper().inputs.get('$c')).toBe(held.get('$c'));
+describe('the Compact reading landmark', () => {
+  it('leaves the first card in view still when a Board card joins below it', () => {
+    const { container, rerender } = render(list(['$a', '$b', '$c', '$d', '$e', '$f', '$g']));
+    const view = scrollView(container, 130, 450);
+    rerender(list(['$a', '$b', '$new', '$c', '$d', '$e', '$f', '$g']));
+
+    expect(view.scrollTop).toBe(130);
   });
 
-  it('uses live inputs for 12 newcomers after freezing six incumbents', () => {
-    const ids = Array.from({ length: 6 }, (_, index) => `$old${index}`);
-    const joined = Array.from({ length: 12 }, (_, index) => `$new${index}`);
-    const activity = Object.fromEntries([...ids, ...joined].map((id, index) => [id, 40 - index]));
-    const frozen = capture(ids, inputsFor(activity).sortInputOf);
-    const { rerender } = render(list(ids, false, inputsFor(activity)));
-    rerender(list(ids, false, inputsFor(activity, frozen)));
+  it('uses a visible survivor when no row in view is in every longest subsequence', () => {
+    const { container, rerender } = render(list(['$a', '$b', '$c', '$d', '$e']));
+    const view = scrollView(container, 100, 100);
+    rerender(list(['$e', '$d', '$c', '$b', '$a']));
+
+    expect(view.scrollTop).toBe(300);
+  });
+
+  it('does not follow a shared section header into another room', () => {
+    state.sections = [
+      { id: 'working', rootIds: ['$a'] },
+      { id: 'needsYou', rootIds: ['$b', '$c', '$d'] },
+    ];
+    const { container, rerender } = render(list(['$a', '$b', '$c', '$d']));
+    const view = scrollView(container, 150, 450);
+    state.sections = [{ id: 'needsYou', rootIds: ['$e', '$f', '$g', '$h', '$i', '$j'] }];
     rerender(
-      list(applyFrozenThreadOrder(ids, [...ids, ...joined]), false, inputsFor(activity, frozen))
+      list(['$e', '$f', '$g', '$h', '$i', '$j'], false, {
+        room: { roomId: '!other:example.org' } as unknown as Room,
+      })
     );
-    const before = keeper().inputs;
-    const mover = joined[5]!;
-    const live = [mover, ...ids, ...joined.filter((id) => id !== mover)];
-    rerender(
-      list(
-        applyFrozenThreadOrder(ids, live),
-        false,
-        inputsFor({ ...activity, [mover]: 99 }, frozen)
-      )
-    );
-    expect(keeper().order[6]).toBe(mover);
-    expect(keeper().inputs.get(mover)).not.toBe(before.get(mover));
-    expect(keeper().inputs.get(joined[6]!)).toBe(before.get(joined[6]!));
-  });
 
-  it('keeps the captured key on return from a thread after the leader gets a reply', () => {
-    const ids = ['$a', '$b', '$k', '$c'];
-    const before = inputsFor({ $a: 4, $b: 3, $k: 2, $c: 1 });
-    const first = render(list(ids, false, before));
-    const liveKey = keeper().inputs.get('$k');
-    const frozen = capture(ids, before.sortInputOf);
-    first.rerender(list(ids, false, inputsFor({ $a: 4, $b: 3, $k: 2, $c: 1 }, frozen)));
-    first.unmount();
-    const activity = { $a: 4, $b: 3, $k: 6, $c: 1 };
-    const { rerender } = render(list(ids, false, inputsFor(activity, frozen)));
-    expect(keeper().inputs.get('$k')).toBe(liveKey);
-    rerender(list(['$k', '$a', '$b', '$c'], false, inputsFor(activity)));
-    expect(keeper().inputs.get('$k')).not.toBe(liveKey);
-  });
-
-  it('does not treat a captured mover as unchanged if freeze provenance was never recorded', () => {
-    const ids = ['$a', '$b', '$k', '$c'];
-    const activity = { $a: 4, $b: 3, $k: 6, $c: 1, $new: 2 };
-    const { rerender } = render(
-      list(
-        [...ids, '$new'],
-        false,
-        inputsFor(activity, {
-          controlSignature: 'lastReply:desc',
-          orderedRootIds: ids,
-        })
-      )
-    );
-    const before = keeper().inputs;
-    expect(before.has('$k')).toBe(false);
-    expect(before.has('$new')).toBe(true);
-    rerender(list(['$k', '$a', '$b', '$new', '$c'], false, inputsFor(activity)));
-    expect(keeper().inputs.has('$k')).toBe(true);
+    expect(container.querySelector('[data-compact-room-view]')).toBe(view);
+    expect(view.scrollTop).toBe(150);
   });
 });

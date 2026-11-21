@@ -35,7 +35,6 @@ import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { CompactRowKeeper } from './CompactRowKeeper';
-import type { ThreadSortFreezeState } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -81,9 +80,6 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
-  sortMode?: string;
-  sortInputOf?: (id: string) => string | undefined;
-  sortFreeze?: ThreadSortFreezeState | null;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
@@ -329,9 +325,6 @@ export function CompactRoomView({
   focusRequest,
   filterBarShown = false,
   sectionsNow,
-  sortMode,
-  sortInputOf,
-  sortFreeze,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -475,32 +468,6 @@ export function CompactRoomView({
   const sectionRows = threadSections
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
-  const scope = `${room.roomId}|${sortMode}|${!!heldSections}`;
-  const applied = useRef<{ scope: string; ties: ReadonlyMap<string, string | undefined> }>();
-  const previous = applied.current?.scope === scope ? applied.current.ties : undefined;
-  const frozen = useMemo(() => new Set(sortFreeze?.orderedRootIds), [sortFreeze]);
-  const ties = new Map<string, string | undefined>();
-  const inputs = new Map(
-    heldSections?.flatMap(({ sortInputs }) => (sortInputs ? [...sortInputs] : []))
-  );
-  for (const id of shownRootIds) {
-    // Captured IDs keep their original inputs, even across remount. Missing inputs stay unknown.
-    const tie =
-      orderHeld && previous?.has(id)
-        ? previous.get(id)
-        : frozen.has(id)
-        ? sortFreeze?.sortInputs?.get(id)
-        : sortInputOf?.(id);
-    ties.set(id, tie);
-    const sectionInput = inputs.get(id);
-    if (tie === undefined) inputs.delete(id);
-    else if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie}`);
-    // The current pin changes the rendered group; the applied tie keeps the held pin's rank.
-    else if (!heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
-  }
-  useLayoutEffect(() => {
-    applied.current = { scope, ties };
-  });
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
@@ -723,10 +690,10 @@ export function CompactRoomView({
           }
         }}
       >
+        {/* Section header IDs are shared between rooms, but their scroll landmarks are not. */}
         <CompactRowKeeper
-          scope={scope}
+          key={room.roomId}
           viewRef={viewRef}
-          inputs={inputs}
           order={
             heldSections
               ? sectionRows

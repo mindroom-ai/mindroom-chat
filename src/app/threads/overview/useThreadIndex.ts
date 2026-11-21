@@ -78,7 +78,6 @@ type ThreadIndexOrdering = {
   filteredIds: string[];
   liveOrderedIds: string[];
   displayOrderedIds: string[];
-  sortInputOf?: (id: string) => string | undefined;
 };
 
 const EMPTY_ORDERING: ThreadIndexOrdering = {

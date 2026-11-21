@@ -49,7 +49,6 @@ export interface ThreadFilterState {
 export type ThreadSortFreezeState = {
   controlSignature: string | null;
   orderedRootIds: string[];
-  sortInputs?: ReadonlyMap<string, string | undefined>;
 };
 
 export const createDefaultThreadFilterState = (): ThreadFilterState => ({

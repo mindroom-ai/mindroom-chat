@@ -114,9 +114,6 @@ export const filterThreadRecordsBySearch = (
   });
 };
 
-const threadLastReplySortValue = (record: ThreadRecord): number =>
-  record.status.lastActivityTs ?? 0;
-
 export const sortThreadRecordRootIds = (
   threadRootIds: string[],
   sortBy: 'natural' | 'lastReply',
@@ -130,8 +127,8 @@ export const sortThreadRecordRootIds = (
     const b = recordMap.get(bId);
     if (!a || !b) return 0;
 
-    const aLastActivityTs = threadLastReplySortValue(a);
-    const bLastActivityTs = threadLastReplySortValue(b);
+    const aLastActivityTs = a.status.lastActivityTs ?? 0;
+    const bLastActivityTs = b.status.lastActivityTs ?? 0;
     const diff =
       sortDirection === 'asc'
         ? aLastActivityTs - bLastActivityTs
@@ -164,7 +161,6 @@ export const resolveThreadRecordOverviewRootIds = ({
   filteredIds: string[];
   liveOrderedIds: string[];
   displayOrderedIds: string[];
-  sortInputOf: (id: string) => string | undefined;
 } => {
   const matchingIds = filterThreadRecordsBySearch(
     filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap, now),
@@ -191,13 +187,6 @@ export const resolveThreadRecordOverviewRootIds = ({
     filteredIds,
     liveOrderedIds,
     displayOrderedIds,
-    sortInputOf: (id) => {
-      const record = recordMap.get(id);
-      if (!record) return undefined;
-      const activity =
-        threadFilterState.sortBy === 'lastReply' ? threadLastReplySortValue(record) : '';
-      return `${pins.includes(id)}:${activity}:${record.absoluteIndex}`;
-    },
   };
 };
 
