@@ -393,6 +393,22 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await reader.getClientOptions()).toBeUndefined();
   });
 
+  // The failed write puts its members back into the store's memory, after the clear emptied it.
+  it('returns no members after a clear that overlapped a write of them that was aborted', async () => {
+    const store = await savedStore();
+    const degraded = vi.fn();
+    store.on('degraded', degraded);
+
+    abortNextSave('UnknownError');
+    const writing = storeMembers(store);
+    const clearing = store.clearOutOfBandMembers(roomId);
+    await Promise.all([writing, clearing]);
+
+    expect(degraded).not.toHaveBeenCalled();
+    expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+    expect(await (await startStore()).getOutOfBandMembers(roomId)).toBeNull();
+  });
+
   // Two tabs: what one of them holds in memory must not hide what the other wrote since.
   it('reads the members and client options that another store on the database left', async () => {
     const store = await startStore();
