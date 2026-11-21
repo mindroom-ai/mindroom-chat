@@ -15,7 +15,7 @@ describe('LiveKit Swift package', () => {
     const version = (identity: string) =>
       resolved.pins.find((pin) => pin.identity === identity)?.state.version;
     expect(version('client-sdk-swift')).toBe('2.19.0');
-    expect(version('webrtc-xcframework')).toBe('150.7871.04');
+    expect(version('webrtc-xcframework')).toBe('150.7871.4');
     expect(version('livekit-ffi-xcframework')).toBe('0.13.1');
   });
 
