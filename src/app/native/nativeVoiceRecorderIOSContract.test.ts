@@ -55,7 +55,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(remove).toMatch(
       /removeItem\(at: Self\.file\(of: id\)\) \}\s*catch CocoaError\.fileNoSuchFile/
     );
-    expect(remove).not.toMatch(/AVAudioPlayer|listLeftovers|try\?/);
+    expect(remove).not.toMatch(/AVAudioPlayer|listLeftovers|try\?|recoverable/);
+    expect(body('cancel')).not.toContain('recoverable');
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -74,7 +75,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(before).toMatch(
       /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading,\s*let userId = call\.getString\("userId"\), !userId\.isEmpty else \{\s*return call\.reject\("Could not start recording", "START_FAILED"\)\s*\}[\s\S]*?let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
-    expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
+    expect(before).not.toMatch(/live|setActive|AVAudioRecorder|pendingOwner = nil/);
+    expect(after).toMatch(/^\s*self\.pendingOwner = nil\s*guard granted else/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
     const finish = pluginSource.match(/private func finishLive\(\) \{[\s\S]*?\n {4}\}/)?.[0];
     expect(finish).toContain('live.recorder.stop()');
@@ -139,7 +141,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(body('stop')).toMatch(/finishLive\(\)\s*call\.resolve\(\["path":/);
     const reload = pluginSource.match(/private func pageWillLoad\(\) \{[\s\S]*?\n {4}\}/)?.[0];
     expect(reload).toMatch(
-      /generation \+= 1\s*if let live \{ owners\[live\.id\]\?\.recoverable = true \}\s*finishLive\(\)/
+      /generation \+= 1\s*if let live \{ owners\[live\.id\]\?\.recoverable = true \}\s*finishLive\(\)\s*for \(id, owner\) in owners where !owner\.recoverable \{\s*try\? removeFile\(id\)/
     );
     // In particular a successful Send followed by failed cancel must never reappear on reload.
     expect(pluginSource.match(/\.recoverable = true/g)).toHaveLength(1);
@@ -155,7 +157,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(clear).toMatch(/guard let userId = call\.getString\("userId"\)/);
     expect(clear).toMatch(/if pendingOwner == userId \{ generation \+= 1 \}/);
     expect(clear).toMatch(
-      /for \(id, owner\) in owners where owner\.userId == userId \{\s*try\? removeFile\(id\)/
+      /for \(id, owner\) in owners where owner\.userId == userId \{\s*owners\[id\]\?\.recoverable = false\s*try\? removeFile\(id\)/
     );
     expect(clear).not.toMatch(/call\.reject|removeItem|clearFolder|finishLive|discardLive/);
   });

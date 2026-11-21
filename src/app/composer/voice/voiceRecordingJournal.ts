@@ -69,6 +69,7 @@ const deleteRows = (tx: WriteTx, id: string) =>
     tx.objectStore('chunks').delete(chunksOf(id)),
   ]);
 const starts = new Map<string, Promise<boolean>>();
+const cleanupGenerations = new Map<string, number>();
 
 export const deleteVoiceRecording = async (id?: string): Promise<void> => {
   if (!id) return;
@@ -126,6 +127,7 @@ const cancelNativeCopy = (id: string) =>
 /** Transfers reload leftovers; the offer gate also verifies unlisted UUIDs by idempotent cancel. */
 export const importNativeVoiceRecordings = async (userId: string) => {
   if (!globalThis.navigator?.locks) return undefined;
+  const generation = cleanupGenerations.get(userId);
   const { recordings } = await listNativeVoiceLeftovers().catch(() => ({ recordings: [] }));
   const confirmed = new Map<string, boolean>(recordings.map(({ id }) => [id, false]));
   /* eslint-disable no-await-in-loop, no-continue */
@@ -139,6 +141,8 @@ export const importNativeVoiceRecordings = async (userId: string) => {
         const bytes = await data.arrayBuffer();
         const mimeType = 'audio/mp4';
         const chunk = { id, seq: 0, bytes, elapsedMs: duration, type: mimeType };
+        // Cleanup can finish while the native file is being read.
+        if (generation !== cleanupGenerations.get(userId)) return undefined;
         return change(db, async (tx) => {
           await tx.objectStore('chunks').add(chunk);
           try {
@@ -199,6 +203,7 @@ export const recoverVoiceRecording = async (
 };
 
 export const clearVoiceRecordings = async (userId: string): Promise<void> => {
+  cleanupGenerations.set(userId, (cleanupGenerations.get(userId) ?? 0) + 1);
   await Promise.all(starts.values());
   const deleted = await withDb((db) =>
     change(db, async (tx) => {

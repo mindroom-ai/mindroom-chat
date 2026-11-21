@@ -319,6 +319,42 @@ describe('native recording recovery on composer mount', () => {
     expect(await draft?.file.text()).toBe('native voice');
   });
 
+  it('does not restore a native recording if its byte read finishes after cleanup', async () => {
+    const journal = await import('./voiceRecordingJournal');
+    const audio = new Blob(['native voice']);
+    const bytes = await audio.arrayBuffer();
+    const response = readAudio('native voice');
+    vi.spyOn(response, 'blob').mockResolvedValue(audio);
+    fetchAudio.mockResolvedValueOnce(response);
+    let started!: () => void;
+    let resume!: (value: ArrayBuffer) => void;
+    const reading = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const paused = new Promise<ArrayBuffer>((resolve) => {
+      resume = resolve;
+    });
+    vi.spyOn(audio, 'arrayBuffer').mockImplementation(() => {
+      started();
+      return paused;
+    });
+
+    const importing = journal.importNativeVoiceRecordings(userId);
+    await reading;
+    await journal.clearVoiceRecordings(userId);
+    resume(bytes);
+    await importing;
+
+    const db = await openDB('mindroom-voice-journal', 1);
+    try {
+      expect(await db.get('recordings', leftover.id)).toBeUndefined();
+      expect(await db.count('chunks', [leftover.id, 0])).toBe(0);
+    } finally {
+      db.close();
+    }
+    expect(native.cancel).not.toHaveBeenCalled();
+  });
+
   it('keeps the native file and rolls back the chunk if the journal write fails', async () => {
     const add = IDBObjectStore.prototype.add;
     const failWrite = vi

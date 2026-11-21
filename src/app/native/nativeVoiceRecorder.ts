@@ -59,7 +59,7 @@ export class NativeVoiceRecorder extends EventTarget {
 
   private newestLevel = 0;
 
-  constructor(readonly id: string) {
+  constructor(private readonly id: string) {
     super();
   }
 

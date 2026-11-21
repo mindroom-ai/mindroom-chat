@@ -72,6 +72,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                               let newest = newest as? String, newest == call.getString("nonce") else {
                             return call.reject("The page is gone", "START_FAILED")
                         }
+                        self.pendingOwner = nil
                         guard granted else { return call.reject("Microphone access is denied", "PERMISSION_DENIED") }
                         guard AVCaptureDevice.default(for: .audio) != nil else {
                             return call.reject("No microphone", "NO_MICROPHONE")
@@ -186,6 +187,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let userId = call.getString("userId") else { return call.resolve() }
             if pendingOwner == userId { generation += 1 }
             for (id, owner) in owners where owner.userId == userId {
+                owners[id]?.recoverable = false
                 try? removeFile(id)
             }
             call.resolve()
@@ -203,12 +205,15 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         if let id = live?.id { try? removeFile(id) }
     }
 
-    /// Navigation or WebContent termination ends the capture, not its file. A start still
-    /// waiting for permission belongs to the old page and must not record.
+    /// Navigation or WebContent termination keeps the live capture's file for recovery.
+    /// A start still waiting for permission belongs to the old page and must not record.
     @objc private func pageWillLoad() {
         generation += 1
         if let live { owners[live.id]?.recoverable = true }
         finishLive()
+        for (id, owner) in owners where !owner.recoverable {
+            try? removeFile(id)
+        }
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.

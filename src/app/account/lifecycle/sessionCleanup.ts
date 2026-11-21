@@ -101,11 +101,11 @@ const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 // The old Threads page kept its filters per account; the page that replaced it keeps only a scope.
 const LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX = 'crossRoomThreadFilters:';
 
-export const clearUserUiState = (userId: string): Promise<void> => {
+export const clearUserUiState = async (userId: string): Promise<void> => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
   void clearSavedVoiceDraft(userId);
-  void clearVoiceRecordings(userId);
+  const journalCleanup = clearVoiceRecordings(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);
@@ -135,7 +135,7 @@ export const clearUserUiState = (userId: string): Promise<void> => {
     .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
     .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
-  return clearNativeVoiceRecordings(userId);
+  await Promise.allSettled([journalCleanup, clearNativeVoiceRecordings(userId)]);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {
