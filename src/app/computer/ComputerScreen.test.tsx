@@ -190,7 +190,7 @@ describe('ComputerScreen', () => {
   };
 
   it('owns one scaled noVNC connection and disposes it with its callbacks', () => {
-    const createRfb = vi.fn(() => rfb);
+    const createRfb = createRfbWithCanvas();
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
@@ -216,10 +216,13 @@ describe('ComputerScreen', () => {
     expect(rfb.background).toBe(defaultBackground);
     expect(rfb.viewOnly).toBe(true);
 
+    const { canvas } = screenElements();
+    canvas.width = 640;
+    canvas.height = 480;
     act(() => listeners.get('connect')?.(new Event('connect')));
     expect(rfb.background).toBe(defaultBackground);
     expect(backgroundAssignments).not.toHaveBeenCalled();
-    expect(onConnected).toHaveBeenCalledOnce();
+    expect(onConnected).toHaveBeenCalledExactlyOnceWith(640, 480);
 
     act(() => {
       root.render(

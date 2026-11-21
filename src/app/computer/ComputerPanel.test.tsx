@@ -150,9 +150,10 @@ const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screen
       get holdingFrame() {
         return screenPropsRef.current.holdingFrame;
       },
+      onConnected: (width, height) => screenPropsRef.current.onConnected(width, height),
       onDisconnected: (message) => screenPropsRef.current.onDisconnected(message),
     });
-    if (screensConnect) connection.onConnected();
+    if (screensConnect) connection.onConnected(300, 150);
     return () => screenDisposals();
   }, [url]);
   return <div data-testid="computer-screen" data-mode={mode} />;
@@ -630,7 +631,7 @@ describe('ComputerPanel', () => {
       expect(findButton(container, 'Resume agent')).toBeInstanceOf(HTMLButtonElement);
       expect(keyboardButton()).toBeUndefined();
 
-      act(() => screenConnections[1]!.onConnected());
+      act(() => screenConnections[1]!.onConnected(300, 150));
       expect(keyboardButton()).toBeDefined();
     });
 
@@ -920,7 +921,7 @@ describe('ComputerPanel', () => {
     expect(replacement.holdingFrame).toBe(true);
     if (phase === 'connected') {
       // Connect only means noVNC requested a framebuffer update. Nothing has painted yet.
-      act(() => replacement.onConnected());
+      act(() => replacement.onConnected(frame.width, frame.height));
       expect(container.textContent).toContain('Watch mode');
     }
 
@@ -930,6 +931,30 @@ describe('ComputerPanel', () => {
     expect(heldCanvas()).toBeNull();
     expect(replacement.holdingFrame).toBe(false);
     expect(frame).toMatchObject({ width: 0, height: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['Take control', 'size mismatch'])('drops the held frame on %s', async (cause) => {
+    vi.useFakeTimers();
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
+    renderPanel();
+
+    await advance();
+    await click(findButton(container, 'Take control'));
+    screensConnect = false;
+    await click(findButton(container, 'Resume agent'));
+    expect(heldCanvas()).toBe(frame);
+
+    const width = cause === 'size mismatch' ? frame.width + 1 : frame.width;
+    act(() => screenConnections[1]!.onConnected(width, frame.height));
+    expect(container.textContent).toContain('Watch mode');
+    if (cause === 'Take control') {
+      expect(heldCanvas()).toBe(frame);
+      await click(findButton(container, 'Take control'));
+      expect(container.textContent).toContain('You have control');
+    }
+    expect(heldCanvas()).toBeNull();
     expect(vi.getTimerCount()).toBe(0);
   });
 

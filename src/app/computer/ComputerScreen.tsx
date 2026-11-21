@@ -36,7 +36,7 @@ export type ComputerScreenProps = {
   protocols: [string, string];
   mode: 'view' | 'control';
   holdingFrame?: boolean;
-  onConnected: () => void;
+  onConnected: (width: number, height: number) => void;
   onDisconnected: (message?: string) => void;
   onPaste?: (result: PasteResult) => void;
   /** Whether the software keyboard is open: its textarea has focus. */
@@ -73,7 +73,7 @@ function ComputerScreenWithHandle(
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>();
-  const holdingFrameRef = useRef(holdingFrame);
+  const holdingFrameRef = useRef(false);
   const defaultBackgroundRef = useRef('');
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
@@ -149,7 +149,8 @@ function ComputerScreenWithHandle(
     showTouchpadPointerRef.current = touchpad.showPointer;
 
     const handleConnect = () => {
-      connectedCallbackRef.current();
+      // noVNC sizes the framebuffer before connect, even if it hasn't painted yet.
+      connectedCallbackRef.current(canvas?.width ?? 0, canvas?.height ?? 0);
       touchpad.showPointer();
     };
     const handleDisconnect = (event: Event) => {

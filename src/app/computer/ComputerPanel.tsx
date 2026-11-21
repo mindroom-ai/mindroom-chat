@@ -391,6 +391,7 @@ export function ComputerPanel({
       const nextStatus = await session.control('take');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
+      setHeldFrame(undefined);
       setReleaseNotice(undefined);
       setSendError(undefined);
     } catch (controlError) {
@@ -678,8 +679,11 @@ export function ComputerPanel({
                   mode={status?.mode ?? 'view'}
                   holdingFrame={!!heldFrame}
                   onKeyboardChange={setKeyboardOpen}
-                  onConnected={() => {
+                  onConnected={(width, height) => {
                     if (activeStreamTicketRef.current !== stream.protocols[1]) return;
+                    if (heldFrame && (heldFrame.width !== width || heldFrame.height !== height)) {
+                      setHeldFrame(undefined);
+                    }
                     connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
                     setConnected(true);
                     setPhase('ready');
