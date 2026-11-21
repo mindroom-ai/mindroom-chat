@@ -347,54 +347,18 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
 const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
   event?.getSender?.() === userId || eventDirectlyMentionsUser(event, userId);
 
-/**
- * Loaded visible replies decide involvement. If every reply is loaded, use only those.
- * Otherwise add at most the newest detached reply. For the same event ID, prefer the loaded
- * copy, then the reply from getThreadSummaryReply on its newest edit, then the root bundle's
- * reply. Skip titles, the root, non-visible replies, and IDs the room knows are redacted.
- */
-const getInvolvementReplyEvents = ({
-  thread,
-  rootEvent = thread?.rootEvent,
-  room = thread?.room,
-  loadedReplies = getPreferredVisibleThreadReplyEvents(thread),
-  bundledPreviews,
-}: {
-  thread: Thread | null | undefined;
-  rootEvent?: MatrixEvent;
-  room?: Room;
-  loadedReplies?: MatrixEvent[];
-  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
-}): MatrixEvent[] => {
-  if (hasLoadedEveryThreadReply(thread)) return loadedReplies;
-
-  const rootId = rootEvent?.getId() ?? thread?.id;
-  const retained = getThreadSummaryReply(thread);
-  const bundled = (bundledPreviews ?? (room && getBundledThreadPreviews(room, rootEvent)))?.reply;
-  const candidates = [retained, bundled?.getId() === retained?.getId() ? undefined : bundled];
-  let newest: MatrixEvent | undefined;
-  for (const event of candidates) {
-    if (!event || !isVisibleThreadReplyEvent(event) || isThreadSummaryEvent(event)) continue;
-    const id = event.getId();
-    if (!id || id === rootId || loadedReplies.some((reply) => reply.getId() === id)) continue;
-    if (room && isKnownRedactedEventId(room, id)) continue;
-    if (!newest || event.getTs() > newest.getTs()) newest = event;
-  }
-  return newest ? [...loadedReplies, newest] : loadedReplies;
-};
-
 type ThreadInvolvementInput = {
   rootEvent?: MatrixEvent;
   thread: Thread | null | undefined;
   userId: string | undefined;
-  replyEvents?: readonly MatrixEvent[];
+  visibleReplies?: readonly MatrixEvent[];
 };
 
 export const isUserInvolvedInThread = ({
   rootEvent,
   thread,
   userId,
-  replyEvents,
+  visibleReplies,
 }: ThreadInvolvementInput): boolean => {
   if (!userId) return false;
   if (eventInvolvesUser(rootEvent, userId)) return true;
@@ -409,27 +373,53 @@ export const isUserInvolvedInThread = ({
     return true;
   }
 
-  return (replyEvents ?? getInvolvementReplyEvents({ thread, rootEvent })).some((event) =>
+  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some((event) =>
     eventInvolvesUser(event, userId)
   );
 };
 
+/**
+ * Attribution uses the root and loaded visible replies, plus detached replies only when incomplete.
+ * Read original content and skip detached titles, roots, non-visible replies, and room-known redactions.
+ */
 export const hasAgentPostForUser = ({
-  rootEvent,
   thread,
+  rootEvent = thread?.rootEvent,
   userId,
-  replyEvents,
-}: ThreadInvolvementInput): boolean => {
+  visibleReplies,
+  room = thread?.room,
+  bundledPreviews,
+}: ThreadInvolvementInput & {
+  room?: Room;
+  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
+}): boolean => {
   if (!userId) return false;
   const postedForUser = (event: MatrixEvent | undefined) =>
     !!event &&
     isMindroomAgentUserIdForViewer(event.getSender(), userId) &&
     event.getOriginalContent()[ORIGINAL_SENDER_KEY] === userId;
 
-  return (
+  if (
     postedForUser(rootEvent) ||
-    (replyEvents ?? getInvolvementReplyEvents({ thread, rootEvent })).some(postedForUser)
-  );
+    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(postedForUser)
+  )
+    return true;
+  if (hasLoadedEveryThreadReply(thread)) return false;
+
+  const rootId = rootEvent?.getId() ?? thread?.id;
+  const bundled = (bundledPreviews ?? (room && getBundledThreadPreviews(room, rootEvent)))?.reply;
+  return [getThreadSummaryReply(thread), bundled].some((event) => {
+    const id = event?.getId();
+    return (
+      !!event &&
+      !!id &&
+      id !== rootId &&
+      isVisibleThreadReplyEvent(event) &&
+      !isThreadSummaryEvent(event) &&
+      postedForUser(event) &&
+      (!room || !isKnownRedactedEventId(room, id))
+    );
+  });
 };
 
 export const buildCrossRoomThreadIndexEntry = ({
@@ -535,13 +525,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     rootEvent: resolvedRootEvent,
     thread,
     userId: currentUserId,
-    replyEvents: getInvolvementReplyEvents({
-      thread,
-      rootEvent: resolvedRootEvent,
-      room,
-      loadedReplies: visibleReplies,
-      bundledPreviews,
-    }),
+    visibleReplies,
   };
 
   return {
@@ -565,7 +549,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
     isInvolved: hasPendingOwnReply || isUserInvolvedInThread(involvementInput),
-    hasAgentPostForUser: hasAgentPostForUser(involvementInput),
+    hasAgentPostForUser: hasAgentPostForUser({ ...involvementInput, room, bundledPreviews }),
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),

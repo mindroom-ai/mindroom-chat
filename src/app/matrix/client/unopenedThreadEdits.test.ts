@@ -323,56 +323,44 @@ describe('edits of unopened threads', () => {
     expect(f.card({ text: 'Thinking about it', ts: 100 })).toEqual(finished);
   });
 
-  it.each([
-    { field: 'hasAgentPostForUser', content: { [ORIGINAL_SENDER_KEY]: otherId } },
-    { field: 'isInvolved', content: { 'm.mentions': { user_ids: [otherId] } } },
-  ])(
-    'keeps $field when a live title follows a standard bundled reply',
-    async ({ field, content }) => {
-      const raw = reply();
-      const latest = {
-        ...raw,
-        sender: '@mindroom_helper:example.org',
-        content: { ...raw.content, ...content },
-      };
-      const f = fixture(() => [latest]);
-      await f.start();
-      await f.deliver([withSummary(latest)]);
-      expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
-      expect(f.thread().initialEventsFetched).toBe(false);
-      expect(indexForViewer(f)).toMatchObject({ [field]: true });
-
-      await f.deliver([title(160)]);
-      expect(f.thread().replyToEvent?.getId()).toBe('$title-160');
-      expect(f.loadedThread()).toBe(false);
-      expect(indexForViewer(f)).toMatchObject({ [field]: true });
-    }
-  );
-
-  it('keeps a live mention edit after a title despite the older bundled reply', async () => {
-    const latest = reply();
+  it('keeps agent attribution when a live title follows a standard bundled reply', async () => {
+    const raw = reply();
+    const latest = {
+      ...raw,
+      sender: '@mindroom_helper:example.org',
+      content: { ...raw.content, [ORIGINAL_SENDER_KEY]: otherId },
+    };
     const f = fixture(() => [latest]);
     await f.start();
-    await f.deliver([withSummary(latest, latest)]);
-    expect(indexForViewer(f)?.isInvolved).toBe(false);
-
-    await f.deliver([
-      message('$mention', 150, {
-        body: '* Example mention',
-        'm.new_content': {
-          msgtype: 'm.text',
-          body: 'Example mention',
-          'm.mentions': { user_ids: [otherId] },
-        },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-      }),
-    ]);
-    expect(indexForViewer(f)?.isInvolved).toBe(true);
+    await f.deliver([withSummary(latest)]);
+    expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
+    expect(f.thread().initialEventsFetched).toBe(false);
+    expect(indexForViewer(f)?.hasAgentPostForUser).toBe(true);
 
     await f.deliver([title(160)]);
     expect(f.thread().replyToEvent?.getId()).toBe('$title-160');
     expect(f.loadedThread()).toBe(false);
-    expect(indexForViewer(f)?.isInvolved).toBe(true);
+    expect(indexForViewer(f)?.hasAgentPostForUser).toBe(true);
+  });
+
+  it('never counts a detached mention, even if a stale bundle outlives its removal', async () => {
+    const raw = reply();
+    const latest = { ...raw, content: { ...raw.content, 'm.mentions': { user_ids: [otherId] } } };
+    const f = fixture(() => [latest]);
+    await f.start();
+    await f.deliver([withSummary(latest, latest)]);
+    const beforeEdit = indexForViewer(f)?.isInvolved;
+
+    await f.deliver([edit('Reply without the mention', 150)]);
+    expect(getThreadSummaryReply(f.thread())?.getContent().body).toBe('Reply without the mention');
+    expect(getThreadSummaryReply(f.thread())?.getContent()['m.mentions']).toBeUndefined();
+    // A live reply takes over the SDK summary. The root still bundles the original mention.
+    await f.deliver([{ ...reply(), event_id: '$newer', origin_server_ts: 160 }]);
+    expect(f.thread().replyToEvent?.getId()).toBe('$newer');
+    expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
+    expect(f.loadedThread()).toBe(false);
+    expect(indexForViewer(f)?.isInvolved).toBe(false);
+    expect(beforeEdit).toBe(false);
   });
 
   it('keeps a newer cached copy over the reply the device holds', async () => {

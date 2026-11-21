@@ -272,32 +272,17 @@ describe('thread involvement and agent attribution with SDK events', () => {
   });
 
   it.each(['latest event', 'reply behind the title'])(
-    'counts a direct mention in the bundled %s of an unopened thread',
+    'uses the loaded @room-only copy instead of a direct mention in the bundled %s',
     (source) => {
-      const mentioned = reply({ 'm.mentions': { user_ids: [userId], room: true } });
+      const mentioned = reply({ 'm.mentions': { user_ids: [userId] } });
       const rootEvent =
         source === 'latest event'
           ? bundledRoot(1, false, mentioned)
           : bundledRoot(2, false, title, mentioned);
-      const thread = createThread(rootEvent);
-      expect(thread.events).toHaveLength(0);
-      expect(thread.hasCurrentUserParticipated).toBe(false);
-      expect(
-        buildCrossRoomThreadIndexEntry({
-          room: thread.room,
-          threadRootId: thread.id,
-          currentUserId: userId,
-        })?.isInvolved
-      ).toBe(true);
-      expect(
-        isUserInvolvedInThread({ rootEvent, thread, userId: '@unmentioned:example.org' })
-      ).toBe(false);
-
-      // The loaded copy no longer mentions the user. Do not count the stale bundled copy.
-      const loaded = createThread(rootEvent, [
+      const thread = createThread(rootEvent, [
         new MatrixEvent(reply({ 'm.mentions': { room: true } })),
       ]);
-      expect(isUserInvolvedInThread({ rootEvent, thread: loaded, userId })).toBe(false);
+      expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(false);
     }
   );
 
@@ -334,7 +319,7 @@ describe('thread involvement and agent attribution with SDK events', () => {
     }
   );
 
-  it('uses only the newest detached reply when the SDK and the bundle name different replies', () => {
+  it('counts bundled attribution even when the SDK names a newer, unrelated reply', () => {
     const content = { ...attribution, 'm.mentions': { user_ids: [userId] } };
     const latest = { ...reply(), event_id: '$newer', origin_server_ts: 2 };
     const rootEvent = bundledRoot(2, false, latest, reply(content, agentId));
@@ -345,7 +330,7 @@ describe('thread involvement and agent attribution with SDK events', () => {
       currentUserId: userId,
     });
     expect(thread.events).toHaveLength(0);
-    expect(entry).toMatchObject({ isInvolved: false, hasAgentPostForUser: false });
+    expect(entry).toMatchObject({ isInvolved: false, hasAgentPostForUser: true });
   });
 
   it('publishes a new generation when only agent attribution changes', () => {
