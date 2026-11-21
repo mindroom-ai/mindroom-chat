@@ -21,36 +21,20 @@ export const roomMoreOptions = (page: Page): Locator =>
  */
 export const openRoomPins = async (page: Page): Promise<Locator> => {
   const button = roomHeader(page).getByRole('button', { name: 'Pinned Messages', exact: true });
+  if (!isPhoneLayout(page)) {
+    await button.click();
+    return button;
+  }
+
   const more = roomMoreOptions(page);
-  const entry = page.getByRole('menuitem', { name: 'Pinned Messages', exact: true });
-  const timeout = 1_500;
-  let opener = button;
-  // A sync or resize can move Pins between the visibility check and the click.
-  await expect(async () => {
-    if (!isPhoneLayout(page)) {
-      await button.click({ timeout });
-      opener = button;
-      return;
-    }
-    await expect(more).toBeVisible({ timeout });
-    if (
-      !(await button.isVisible()) &&
-      (await more.getAttribute('aria-expanded', { timeout })) !== 'true'
-    ) {
-      await more.click({ timeout });
-    }
-    await expect(button.or(entry).first()).toBeVisible({ timeout });
+  await expect(more).toBeVisible({ timeout: 60_000 });
+  if ((await more.getAttribute('aria-expanded')) !== 'true') {
     if (await button.isVisible()) {
-      if ((await more.getAttribute('aria-expanded', { timeout })) === 'true') {
-        await page.keyboard.press('Escape');
-        await expect(more).toHaveAttribute('aria-expanded', 'false', { timeout });
-      }
-      await button.click({ timeout });
-      opener = button;
-    } else {
-      await entry.click({ timeout });
-      opener = more;
+      await button.click();
+      return button;
     }
-  }).toPass({ timeout: 60_000 });
-  return opener;
+    await more.click();
+  }
+  await page.getByRole('menuitem', { name: 'Pinned Messages', exact: true }).click();
+  return more;
 };

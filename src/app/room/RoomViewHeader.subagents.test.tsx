@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { SubagentsIcon } from '../subagents/SubagentsIcon';
-import { MenuEntry } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { installOverlayFocus, observeLayerHost } from '../lib/overlayFocus';
 import { PhoneMembersSheet } from '../members/PhoneMembersSheet';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
@@ -28,8 +28,8 @@ import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 // The Sub-agents panel's toggle in the room header: there while the room's store holds a run of
 // a sub-agent started in the conversation on screen (the open thread, else the room's timeline,
 // which in Classic holds every thread's replies), with a badge that counts those runs still at it
-// (running, waiting for approval or paused). On phones it is an entry of the room menu, and a
-// count puts a dot on the menu's button.
+// (running, waiting for approval or paused). On phones it stays in the room menu, and its
+// count puts a dot on the menu's button only if it isn't promoted.
 
 const ROOM_ID = '!room:example.org';
 const SENDER = '@mindroom_lead:example.org';
@@ -517,12 +517,20 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       'Show Members',
       'More Options',
     ]);
+    expect(badgeOf(toggle())).toBe('1');
     expect(menuDots()).toHaveLength(0);
     openMenu();
-    expect(menuEntries()).toHaveLength(0);
-    expect(renderer?.root.findAllByType(MenuEntry).map((entry) => entry.props.label)).toEqual(
-      expect.arrayContaining(['Pinned Messages', 'Show Computer', 'Toolkit'])
-    );
+    const actionGroup = renderer?.root.findAllByType(MenuGroup)[0];
+    expect(actionGroup?.findAllByType(MenuEntry).map((entry) => entry.props.label)).toEqual([
+      'Thread filters',
+      'Show tool calls',
+      'Scheduled tasks (2)',
+      'Show Computer',
+      'Show sub-agents, 1 active',
+      'Pinned Messages',
+      'Show Members',
+      'Toolkit',
+    ]);
   });
 
   it('keeps schedules in a thread’s phone menu at the room-wide count when all tasks are elsewhere', () => {
@@ -537,28 +545,26 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     );
   });
 
-  it('moves focus to a surviving menu entry when the first thread schedule takes a row slot', async () => {
+  it('keeps the focused Pins menu entry when resizing adds a row shortcut', async () => {
     screen.size = 'Mobile';
-    const { host, rerender, unmount } = renderDomHeader({
-      hasMindroomAgents: true,
-      threadId: THREAD,
-    });
+    pins.ids = ['$pinned:example.org'];
+    const { host, resize, unmount } = renderDomHeader({}, 250);
     const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+    const rowPin = () => host.querySelector('button[aria-label="Pinned Messages"]');
     try {
+      expect(rowPin()).toBeNull();
       actInDom(() => more.click());
       const entry = Array.from(host.querySelectorAll('button')).find(
-        (button) => button.textContent === 'Scheduled tasks (0)'
+        (button) => button.textContent === 'Pinned Messages'
       )!;
       entry.focus();
       expect(document.activeElement).toBe(entry);
-      schedules.events = [schedule('orchard', THREAD)];
-      rerender();
-      expect(entry.isConnected).toBe(false);
-      expect(host.querySelector('button[aria-label="Scheduled tasks (1)"]')).not.toBeNull();
+      resize(390);
+      expect(rowPin()).not.toBeNull();
+      expect(entry.isConnected).toBe(true);
       expect(more.getAttribute('aria-expanded')).toBe('true');
-      await vi.waitFor(() =>
-        expect(document.activeElement).toBe(host.querySelector('[data-tool-calls-toggle]'))
-      );
+      await nextFrame();
+      expect(document.activeElement).toBe(entry);
     } finally {
       unmount();
     }

@@ -16,7 +16,7 @@ import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
-import { headerDismissTrap, RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
+import { RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
 import { PageHeader } from '../ui/page/Page';
 import { RoomTopicViewer } from './RoomTopicViewer';
 import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
@@ -37,7 +37,6 @@ import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
-import { firstTabbable } from '../lib/overlayFocus';
 import { getDirectPartnerId } from '../matrix/room';
 import { useParentRooms } from '../matrix/state/subRooms';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
@@ -196,10 +195,9 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 /**
  * The room header: avatar, name and topic (only the name on phones), then its actions (the Compact and
  * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
- * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
- * its row leaves out, and whether this room shows tool calls. Phones promote a few of those
- * actions when they fit alongside the name, call buttons, and room menu. The top bar's menu
- * button, not the header, leads back to the list there.
+ * calls, pinned messages, members, and the plugins' actions) and the room menu. Phones add row
+ * shortcuts for a few menu actions when they fit, without removing them from the menu. The top
+ * bar's menu button, not the header, leads back to the list there.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -254,7 +252,6 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  const menuRef = useRef<HTMLDivElement>(null);
   const focusedAction = useRef<HTMLElement>();
   const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
   const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
@@ -364,22 +361,15 @@ export function RoomViewHeader({
       });
     }
   };
-  // Removing a focused node does not always emit focusout, in the header or its portaled menu.
+  // Removing a focused header control does not always emit focusout.
   useLayoutEffect(() => {
     if (!focusedAction.current || focusedAction.current.isConnected) return;
     focusedAction.current = undefined;
-    const remainingEntry = menuRef.current && firstTabbable(menuRef.current);
-    restoreFocusAfterDismiss(remainingEntry ?? undefined);
+    restoreFocusAfterDismiss();
   });
 
-  const closeMenu = (dismissed?: boolean) => {
-    // Closing the entire menu on purpose is not losing a focused entry to promotion.
-    focusedAction.current = undefined;
-    if (dismissed) menu.dismiss();
-    else menu.close();
-  };
   const fromMenu = (act: (menuButton: HTMLButtonElement | undefined) => void) => () => {
-    closeMenu();
+    menu.close();
     act(menu.opener);
   };
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
@@ -396,8 +386,7 @@ export function RoomViewHeader({
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
 
-  // The header's actions, in the order of its row; the room menu takes, in the same order, those
-  // that do not fit (showsInRow).
+  // The header's actions, in the order both the row and the room menu use.
   const listed: (RoomHeaderEntry | false | undefined)[] = [
     viewSwitch &&
       !threadId && {
@@ -594,9 +583,8 @@ export function RoomViewHeader({
       .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
       .map((entry) => entry.id)
   );
-  const inRow = (entry: RoomHeaderEntry) =>
-    showsInRow(entry.placement, mobile, promoted.has(entry.id));
-  const rowEntries = entries.filter(inRow);
+  const inBaseRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
+  const rowEntries = entries.filter((entry) => inBaseRow(entry) || promoted.has(entry.id));
   // Plugins keep their original order on desktop and the same parent at either width. On phones
   // only mandatory plugin controls reach this group, so promotions cannot affect its measurement.
   const inMandatoryTail = ({ id }: RoomHeaderEntry) =>
@@ -607,7 +595,7 @@ export function RoomViewHeader({
     ) : (
       <Fragment key={entry.id}>{entry.row}</Fragment>
     );
-  const menuEntries = entries.filter((entry) => !inRow(entry));
+  const menuEntries = entries.filter((entry) => !inBaseRow(entry));
   // What only works in the open room, before the room's own actions in the menu.
   const roomEntries =
     menuEntries.length > 0 &&
@@ -628,11 +616,11 @@ export function RoomViewHeader({
         expanded: !!menu.opener,
         run: menu.open,
         marker: 'data-room-more-options',
-        // A dot marks what the menu holds that a button would show: join requests, active
-        // sub-agents or hidden active filters, on phones.
+        // A promoted button already shows its own badge.
         badge:
-          menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
-          cornerDot('data-room-menu-dot'),
+          menuEntries.some(
+            (entry) => !promoted.has(entry.id) && drawnByHeader(entry) && !!entry.badge
+          ) && cornerDot('data-room-menu-dot'),
       }}
     />
   );
@@ -645,9 +633,7 @@ export function RoomViewHeader({
       role="banner"
       className={css.Header}
       onFocus={({ target, currentTarget }: FocusEvent<HTMLElement>) => {
-        if (currentTarget.contains(target) || menuRef.current?.contains(target)) {
-          focusedAction.current = target;
-        }
+        if (currentTarget.contains(target)) focusedAction.current = target;
       }}
       onBlur={forgetActionFocus}
     >
@@ -734,14 +720,13 @@ export function RoomViewHeader({
         align="End"
         offset={4}
         content={
-          <FocusTrap focusTrapOptions={headerDismissTrap(closeMenu)}>
+          <FocusTrap focusTrapOptions={menu.trap}>
             <RoomActionsMenu
-              ref={menuRef}
               room={room}
               spaceId={space?.roomId}
               threadId={threadId}
               submenuSide="Left"
-              close={() => closeMenu()}
+              close={menu.close}
               showDialog={showDialog}
               onLeft={() => void navigate(sectionPath)}
               roomEntries={roomEntries}

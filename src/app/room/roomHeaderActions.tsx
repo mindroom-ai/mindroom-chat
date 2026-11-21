@@ -11,18 +11,14 @@ import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
 type HeaderActionPlacement = 'row' | 'menu' | 'auto';
 
 /**
- * `row` controls stay in the header; `auto` shows in the row on wider screens or with a phone
- * promotion. The menu takes everything else.
+ * Before phone promotions, `row` is always in the row and `auto` is there off phones.
+ * The room menu offers the rest, even when some get a phone shortcut in the row.
  */
-export const showsInRow = (
-  placement: HeaderActionPlacement,
-  phone: boolean,
-  promoted: boolean
-): boolean => placement === 'row' || (placement === 'auto' && (!phone || promoted));
+export const showsInRow = (placement: HeaderActionPlacement, phone: boolean): boolean =>
+  placement === 'row' || (placement === 'auto' && !phone);
 
 /**
- * An action of the open room's header, which the header draws: an icon button in its row, or an
- * entry of its room menu, as its placement and the screen decide (`showsInRow`).
+ * An action the open room's header draws as an icon button, a menu entry, or both on phones.
  */
 export type RoomHeaderAction = {
   /** Names it among the header's actions. */
@@ -39,7 +35,7 @@ export type RoomHeaderAction = {
    * or the room menu's button.
    */
   run: (opener: HTMLButtonElement | undefined) => void;
-  /** Drawn over its button's corner, such as a count; on phones a dot on the menu's button. */
+  /** Drawn over its button's corner, or as a dot on More Options when only in the menu. */
   badge?: ReactNode;
   /** What it opens, which its button and its menu entry announce. */
   popup?: 'menu' | 'dialog';
