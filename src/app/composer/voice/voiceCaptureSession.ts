@@ -85,7 +85,7 @@ export type VoiceCaptureSession = {
   discard: () => Promise<boolean>;
   reset: () => void;
   clearError: () => void;
-  releaseOwner: () => void;
+  releaseOwner: (offerOnStop?: boolean) => void;
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
@@ -101,6 +101,7 @@ type CaptureJournal = {
 
 type Generation = {
   journal?: CaptureJournal;
+  offerOnStop?: boolean;
   web?: boolean;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
@@ -294,7 +295,6 @@ export const createVoiceCaptureSession = (
     };
     const park = (generation.web && onPark && !generation.action) || generation.action === 'park';
     if (generation.action !== 'send' && (!park || !generation.chunks.length)) {
-      void journal?.remove();
       update({
         phase: 'idle',
         elapsedMs: 0,
@@ -305,7 +305,7 @@ export const createVoiceCaptureSession = (
       });
       generation.chunks = [];
       generation.samples = [];
-      resolve?.({ status: 'ignored' });
+      void Promise.resolve(journal?.remove()).then(() => resolve?.({ status: 'ignored' }));
       return;
     }
     if (generation.chunks.length === 0) {
@@ -315,11 +315,9 @@ export const createVoiceCaptureSession = (
       resolve?.({ status: 'failed' });
       return;
     }
+    const chunkMimeType = generation.chunks.find((chunk) => chunk.type)?.type;
     const outputMimeType =
-      generation.chunks[0]?.type ||
-      recorder.mimeType ||
-      mimeType ||
-      DEFAULT_VOICE_RECORDER_MIME_TYPE;
+      recorder.mimeType || mimeType || chunkMimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE;
     const blob = new Blob(generation.chunks, { type: outputMimeType });
     const duration = Math.max(1, Math.round(generation.elapsedMs));
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -336,7 +334,7 @@ export const createVoiceCaptureSession = (
     if (isCurrent && !released) releaseVoiceCaptureState(source);
     const recording = { file, duration, waveform, ...(journal && { recordingId: journal.id }) };
     if (park) {
-      if (!onPark?.(recording)) journal?.release();
+      if (generation.offerOnStop === false || !onPark?.(recording)) journal?.release();
       update(idleSnapshot());
       resolve?.({ status: 'ignored' });
     } else resolve?.({ status: 'captured', recording });
@@ -546,11 +544,14 @@ export const createVoiceCaptureSession = (
     clearError: () => {
       if (snapshot.errorMessage !== undefined) publish({ errorMessage: undefined });
     },
-    releaseOwner: () => {
+    releaseOwner: (offerOnStop) => {
       if (released) return;
       released = true;
       const generation = current;
-      if (onPark && generation?.web && generation.recorder && !generation.action) void stop('park');
+      if (onPark && generation?.web && generation.recorder && !generation.action) {
+        generation.offerOnStop = offerOnStop;
+        void stop('park');
+      }
       current = undefined;
       if (generation?.resolve) releaseResources(generation);
       else if (generation) retire(generation);

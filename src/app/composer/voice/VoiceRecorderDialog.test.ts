@@ -57,6 +57,13 @@ class MockMediaRecorder {
     this.state = 'recording';
   }
 
+  pause() {
+    this.state = 'paused';
+  }
+  resume() {
+    this.state = 'recording';
+  }
+
   stop() {
     this.state = 'inactive';
     this.listeners.get('dataavailable')?.forEach((listener) =>
@@ -296,6 +303,48 @@ describe('VoiceRecorderComposer', () => {
     expect(onRetryRequest).toHaveBeenCalledOnce();
     expect(onSendRecording).toHaveBeenCalledOnce();
 
+    renderer.unmount();
+  });
+
+  it.each(['recording', 'paused'])('confirms discard without stopping a %s', async (phase) => {
+    setupSupportedRecorder();
+    const ref = createRef<VoiceRecorderComposerHandle>();
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        renderInProvider(
+          React.createElement(VoiceRecorderComposer, {
+            ref,
+            active: true,
+            onClose,
+            onRetryRequest: vi.fn(),
+            onSendRecording: vi.fn(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    const click = async (name: string) => {
+      await act(async () => {
+        renderer.root
+          .findByType(VoiceRecorderComposer)
+          .findAllByType('button')
+          .find((button) => button.props['aria-label'] === name || button.props.children === name)!
+          .props.onClick();
+      });
+    };
+    if (phase === 'paused') await click('Pause voice recording');
+    await click('Discard voice recording');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Discard voice recording?');
+    expect(ref.current?.phase()).toBe(phase);
+    expect(onClose).not.toHaveBeenCalled();
+    await click('Cancel');
+    expect(ref.current?.phase()).toBe(phase);
+    await click('Discard voice recording');
+    await click('Discard');
+    expect(ref.current?.phase()).toBe('idle');
+    expect(onClose).toHaveBeenCalledOnce();
     renderer.unmount();
   });
 

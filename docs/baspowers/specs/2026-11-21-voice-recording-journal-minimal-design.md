@@ -23,23 +23,27 @@ send succeeded or the person confirmed Discard.**
   - `recordings`: meta `{id, userId, startedAt, mimeType}`, written once at start.
   - `chunks`: keyed `[id, seq]`, holding the bytes as an ArrayBuffer (WebKit refuses Blobs in
     private windows) and `elapsedMs`. `seq` is assigned synchronously in `dataavailable`. Writes are
-    serialized per recording. The first non-empty chunk's type wins over the start-time MIME.
+    serialized per recording. On recovery, the first non-empty chunk's type wins over the start-time
+  MIME. Live sends continue to prefer the recorder's MIME.
 - **Ownership.** The tab holds the Web Lock `mindroom-voice-recording:<id>` from before it writes
   the meta until the record is deleted. Without `navigator.locks` there is no journal; recording
   works from memory as today.
 - **Injection.** The capture session gets the journal injected and imports no React, jotai or
   composer code. A failed journal write never stops recording.
-- **Recovery.** After login, once per account and page, the client takes each record's lock with
-  `ifAvailable`. Each record it gets becomes a parked draft labelled "Recovered recording · m:ss",
+- **Recovery.** When a composer first mounts for the account on a page, the client takes each
+  record's lock with `ifAvailable`. Each record it gets becomes a parked draft labelled "Recovered recording · m:ss",
   with Send and Discard, in the existing `pendingVoiceSendDraftAtom` slot. It sends in whichever
   composer Send is pressed. If the slot is taken, the record stays on disk and its lock is released
   for the next page load.
 - **Self-stop and unmount.** A recorder that stops without Send or Discard, or a composer that
   unmounts while recording, parks the captured audio as a recovered draft instead of dropping it.
+  When another composer takes the mic, the displaced recording stays on disk with its lock
+  released until the next page load, without occupying the draft slot.
 - **Send.** The record is deleted after `sendRecording` resolved. A failed send keeps it. The
   existing failed-send copy (`savedVoiceDraft.ts`) stores the recording id. On restore, a journal
   record with that id is not offered a second time.
-- **Discard** keeps its confirmation, then deletes the record.
+- **Discard** asks for confirmation for both live and parked recordings. Only confirmation deletes
+  the record.
 - **Sign-out** deletes the account's records, as it already does the failed-send copy.
 
 ## Not in scope (each was a source of review rounds last time)

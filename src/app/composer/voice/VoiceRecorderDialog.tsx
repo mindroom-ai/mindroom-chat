@@ -19,6 +19,7 @@ import type { PendingVoiceSendContext } from '../roomInputDrafts';
 
 type VoiceRecorderComposerProps = {
   active: boolean;
+  recorderToken?: symbol;
   sendDisabled?: boolean;
   onClose: () => void;
   onRecordingStart?: () => void;
@@ -46,6 +47,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 > = (
   {
     active,
+    recorderToken,
     sendDisabled,
     onClose,
     onRecordingStart,
@@ -93,6 +95,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     reset,
     clearError,
   } = useVoiceRecorder({
+    recorderToken,
     onRecordingStart,
     onSendStopRequest,
     onSendStopFailure,
@@ -106,18 +109,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
-  const discardAndClose = () => {
-    if (hasPendingSend) {
-      setDiscardConfirmationOpen(true);
-      return;
-    }
-
-    void (async () => {
-      await discard();
-      onClose();
-    })();
-  };
-
   // Any user-initiated retry must clear an existing defer so a follow-up
   // failure with the same canonical message (very common: connection-dropped)
   // re-surfaces the overlay rather than getting silently hidden.
@@ -127,14 +118,14 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   }, [retry]);
 
   const submitRecording = useCallback(async (): Promise<boolean> => {
-    if (sendDisabled) return false;
+    if (sendDisabled || discardConfirmationOpen) return false;
 
     const sent = hasPendingSend ? await beginRetry() : await send();
     if (sent) {
       onClose();
     }
     return sent;
-  }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
+  }, [beginRetry, discardConfirmationOpen, hasPendingSend, onClose, send, sendDisabled]);
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -143,9 +134,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   ]);
 
   const confirmDiscardAndClose = () => {
-    discardPending();
     setDiscardConfirmationOpen(false);
-    onClose();
+    if (hasPendingSend) {
+      void discardPending();
+      onClose();
+    } else void discard().then(onClose);
   };
 
   const dismissError = () => {
@@ -328,7 +321,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               canPause={canPause}
               hasPendingSend={hasPendingSend}
               recovered={recovered}
-              onDiscard={discardAndClose}
+              onDiscard={() => setDiscardConfirmationOpen(true)}
               onPause={pause}
               onResume={resume}
             />

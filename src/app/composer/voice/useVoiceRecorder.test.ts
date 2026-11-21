@@ -17,10 +17,12 @@ import {
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
 } from './useVoiceRecorder';
 import {
+  openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
+import * as journal from './voiceRecordingJournal';
 
 const flightRecorderMocks = vi.hoisted(() => ({
   setVoiceCaptureState: vi.fn(),
@@ -100,9 +102,9 @@ class MockMediaRecorder {
     }
   });
 
-  flushStop() {
+  flushStop(audio = 'voice') {
     this.dispatch('dataavailable', {
-      data: new Blob(['voice'], { type: this.mimeType }),
+      data: new Blob([audio], { type: this.mimeType }),
     } as BlobEvent);
     this.dispatch('stop', new Event('stop'));
   }
@@ -164,6 +166,7 @@ const createTestSendContext = (
 });
 
 type HarnessProps = {
+  recorderToken?: symbol;
   onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
@@ -185,6 +188,7 @@ const recorderState = {
 const mountedRenderers = new Set<ReactTestRenderer>();
 
 function Harness({
+  recorderToken,
   onRecordingStart,
   onSendStopRequest,
   onSendStopFailure,
@@ -193,6 +197,7 @@ function Harness({
   state = recorderState,
 }: HarnessProps) {
   state.current = useVoiceRecorder({
+    recorderToken,
     onRecordingStart,
     onSendStopRequest,
     onSendStopFailure,
@@ -1268,7 +1273,7 @@ describe('useVoiceRecorder', () => {
     const store = createStore();
     const onSendRecording = vi.fn(async () => {
       // Discard mid-retry via the production hook entry point.
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       throw new Error('upload failed twice');
     });
     onSendRecording.mockImplementationOnce(async () => {
@@ -1474,7 +1479,7 @@ describe('useVoiceRecorder', () => {
   it('does not reset a replacement capture started from delivery failure settlement', async () => {
     let replacementStart: boolean | undefined;
     const onSendStopFailure = vi.fn(async () => {
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       await Promise.resolve();
       replacementStart = await recorderState.current?.start();
     });
@@ -1544,6 +1549,59 @@ describe('useVoiceRecorder', () => {
 
     renderer.unmount();
   });
+
+  it.each(['before Send', 'after Send'])(
+    'keeps a displaced thread recording off the room Send path when it stops %s',
+    async (stop) => {
+      const store = createStore();
+      const roomToken = Symbol('room');
+      const threadToken = Symbol('thread');
+      const thread = {
+        id: 'thread-audio',
+        append: vi.fn(async () => undefined),
+        release: vi.fn(),
+        remove: vi.fn(),
+      };
+      const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValueOnce(thread);
+      MockMediaRecorder.autoStop = false;
+      store.set(openVoiceRecorderAtom, threadToken);
+      const first = await renderHarness({ recorderToken: threadToken }, store);
+      await act(async () => {
+        await recorderState.current!.start();
+      });
+      const threadRecorder = MockMediaRecorder.instances[0]!;
+      store.set(openVoiceRecorderAtom, roomToken);
+      await act(async () => {
+        first.renderer.unmount();
+        if (stop === 'before Send') threadRecorder.flushStop('thread audio');
+      });
+
+      const send = vi.fn<(file: File) => void>();
+      await renderHarness({ recorderToken: roomToken, onSendRecording: send }, store);
+      await act(async () => {
+        await recorderState.current!.start();
+      });
+      await act(async () => {
+        const recorder = recorderState.current!;
+        const result = recorder.hasPendingSend ? recorder.retry() : recorder.send();
+        MockMediaRecorder.instances[1]?.flushStop('room audio');
+        expect(await result).toBe(true);
+      });
+      expect(send).toHaveBeenCalledOnce();
+      expect(await send.mock.calls[0]?.[0].text()).toBe('room audio');
+
+      store.set(openVoiceRecorderAtom, undefined);
+      if (stop === 'after Send')
+        await act(async () => {
+          threadRecorder.flushStop('thread audio');
+        });
+      expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+      expect(thread.append).toHaveBeenCalledOnce();
+      expect(thread.release).toHaveBeenCalledOnce();
+      expect(thread.remove).not.toHaveBeenCalled();
+      begin.mockRestore();
+    }
+  );
 
   it.each(['self-stop', 'unmount'])('parks without sending on %s', async (exit) => {
     const onSendRecording = vi.fn();

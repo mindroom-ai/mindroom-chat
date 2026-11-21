@@ -7,6 +7,7 @@ import type {
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
 import { deleteVoiceRecording } from './voiceRecordingJournal';
+import { clearSavedVoiceDraft } from './savedVoiceDraft';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
 
@@ -39,7 +40,7 @@ export type VoiceSendDraftController = {
       context?: () => PendingVoiceSendContext;
     }
   ) => Promise<boolean>;
-  discardPending: () => void;
+  discardPending: () => Promise<void>;
 };
 
 const getVoiceSendErrorMessage = (error: unknown): string => {
@@ -54,6 +55,11 @@ const createRetryToken = (): PendingVoiceSendInFlight => ({
   token: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
   startedAt: Date.now(),
 });
+
+const forgetDraft = async ({ context, file, recordingId }: PendingVoiceSendDraft) => {
+  await clearSavedVoiceDraft(context.ownerSessionId, recordingId ?? file.name);
+  await deleteVoiceRecording(recordingId);
+};
 
 export const createVoiceSendDraftController = (
   drafts: VoiceDraftStore
@@ -109,7 +115,7 @@ export const createVoiceSendDraftController = (
       }
       try {
         await attempt.sendRecording(draft.file, draft.duration, draft.waveform, context);
-        if (draft.recordingId) await deleteVoiceRecording(draft.recordingId);
+        await forgetDraft(draft);
         const current = drafts.read();
         if (current?.inFlight?.token === inFlight.token) {
           drafts.write(undefined);
@@ -135,9 +141,10 @@ export const createVoiceSendDraftController = (
   return {
     sendInitial,
     retry,
-    discardPending: () => {
-      void deleteVoiceRecording(drafts.read()?.recordingId);
+    discardPending: async () => {
+      const draft = drafts.read();
       drafts.write(undefined);
+      if (draft) await forgetDraft(draft);
     },
   };
 };

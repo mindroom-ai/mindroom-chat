@@ -6,6 +6,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendDraft } from '../roomInputDrafts';
 import { clearSavedVoiceDraft, useSavedVoiceDraft } from './savedVoiceDraft';
+import { createVoiceSendDraftController } from './voiceSendDraftController';
 
 const userId = '@alice:example.org';
 const room = { roomId: '!room:example.org', name: 'Harbour desk' } as Room;
@@ -159,16 +160,51 @@ describe('useSavedVoiceDraft', () => {
     });
   });
 
-  it('forgets the recording once it is sent or discarded', async () => {
-    const page = openPage();
+  it('matches the recording id before deleting a failed-send copy', async () => {
+    const { store, renderer } = openPage();
     await settle();
-    act(() => page.store.set(pendingVoiceSendDraftAtom, failedDraft()));
+    act(() => store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), recordingId: 'new' }));
     await settle();
-    act(() => page.store.set(pendingVoiceSendDraftAtom, undefined));
-    await settle();
-    act(() => page.renderer.unmount());
-
-    const store = await reloadPage();
-    expect(store.get(reloadedAtom())).toBeUndefined();
+    act(() => renderer.unmount());
+    await clearSavedVoiceDraft(userId, 'old');
+    const restored = await reloadPage();
+    expect(restored.get(reloadedAtom())?.recordingId).toBe('new');
   });
+
+  it.each(['retry', 'discard'])(
+    'forgets a failed-send copy when %s settles without a mounted composer',
+    async (action) => {
+      const page = openPage();
+      const controller = createVoiceSendDraftController({
+        read: () => page.store.get(pendingVoiceSendDraftAtom),
+        write: (draft) => page.store.set(pendingVoiceSendDraftAtom, draft),
+      });
+      await settle();
+      act(() => page.store.set(pendingVoiceSendDraftAtom, failedDraft()));
+      await settle();
+      let sent!: () => void;
+      const inFlight = new Promise<void>((resolve) => {
+        sent = resolve;
+      });
+      let result: Promise<boolean> | undefined;
+      act(() => {
+        if (action === 'retry')
+          result = controller.retry({
+            claim: () => true,
+            sendRecording: () => inFlight,
+            onFailure: vi.fn(),
+          });
+        page.renderer.unmount();
+      });
+      if (action === 'retry') {
+        sent();
+        expect(await result).toBe(true);
+      } else {
+        await controller.discardPending();
+        await settle();
+      }
+      const store = await reloadPage();
+      expect(store.get(reloadedAtom())).toBeUndefined();
+    }
+  );
 });

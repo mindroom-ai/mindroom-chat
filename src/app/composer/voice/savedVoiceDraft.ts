@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -69,16 +69,29 @@ const withDraftDb = async <T>(
 };
 
 /** Forgets the account's parked voice message. */
-export const clearSavedVoiceDraft = async (userId: string): Promise<void> => {
-  await withDraftDb((db) => db.delete('drafts', userId));
+export const clearSavedVoiceDraft = async (userId: string, match?: string): Promise<void> => {
+  await withDraftDb((db) => {
+    const tx = db.transaction('drafts', 'readwrite');
+    const remove = tx.store.get(userId).then((saved) => {
+      if (!match || match === (saved?.recordingId ?? saved?.fileName))
+        return tx.store.delete(userId);
+      return undefined;
+    });
+    return Promise.all([remove, tx.done]);
+  });
 };
 
-const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Promise<void> => {
+const saveVoiceDraft = async (
+  draft: PendingVoiceSendDraft,
+  isCurrent: () => boolean
+): Promise<void> => {
   const { context, file } = draft;
+  const userId = context.ownerSessionId;
   const audio = await file.arrayBuffer().catch(() => undefined);
   if (!audio) return;
-  await withDraftDb((db) =>
-    db.put('drafts', {
+  await withDraftDb(async (db) => {
+    if (!isCurrent()) return;
+    await db.put('drafts', {
       userId,
       recordingId: draft.recordingId,
       audio,
@@ -93,13 +106,12 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
       threadingEnabled: context.threadingEnabled,
       signalBridgedRoom: context.signalBridgedRoom,
       threadView: context.threadView,
-    })
-  );
+    });
+  });
 };
 
-// One restore per account and page; saving waits for it, so an empty composer does not erase the
-// recording before it is back.
-const restores = new Map<string, Promise<void>>();
+// Restore once per account and page.
+const restored = new Set<string>();
 
 export const useSavedVoiceDraft = (
   mx: MatrixClient,
@@ -107,71 +119,60 @@ export const useSavedVoiceDraft = (
 ): void => {
   const store = useStore();
   const draft = useAtomValue(pendingVoiceSendDraftAtom);
-  const previous = useRef<PendingVoiceSendDraft>();
   const userId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
-    if (!userId || restores.has(userId)) return;
-    restores.set(
-      userId,
-      withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
-        const slotTaken = () =>
-          !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
-        if (slotTaken()) return;
-        const room = saved && mx.getRoom(saved.roomId);
-        const id = saved?.recordingId;
-        if (
-          saved &&
-          room &&
-          (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
-        ) {
-          if (slotTaken()) {
-            if (id) releaseVoiceRecording(id);
-            return;
-          }
-          store.set(pendingVoiceSendDraftAtom, {
-            recordingId: id,
-            file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
-            duration: saved.duration,
-            waveform: saved.waveform,
-            errorMessage: saved.errorMessage,
-            context: {
-              ownerSessionId: userId,
-              roomId: saved.roomId,
-              room,
-              threadId: saved.threadId,
-              replyDraft: saved.replyDraft,
-              threadingEnabled: saved.threadingEnabled,
-              signalBridgedRoom: saved.signalBridgedRoom,
-              ...(saved.threadView && { threadView: true }),
-            },
-          });
-        } else if (getRecoveryContext) {
-          await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
-            if (slotTaken()) return false;
-            store.set(pendingVoiceSendDraftAtom, {
-              ...recording,
-              recovered: true,
-              context: getRecoveryContext(),
-            });
-            return true;
-          });
+    if (!userId || restored.has(userId)) return;
+    restored.add(userId);
+    void withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
+      const slotTaken = () =>
+        !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
+      if (slotTaken()) return;
+      const room = saved && mx.getRoom(saved.roomId);
+      const id = saved?.recordingId;
+      if (
+        saved &&
+        room &&
+        (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+      ) {
+        if (slotTaken()) {
+          if (id) releaseVoiceRecording(id);
+          return;
         }
-      })
-    );
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: id,
+          file: new File([saved.audio], saved.fileName, { type: saved.fileType }),
+          duration: saved.duration,
+          waveform: saved.waveform,
+          errorMessage: saved.errorMessage,
+          context: {
+            ownerSessionId: userId,
+            roomId: saved.roomId,
+            room,
+            threadId: saved.threadId,
+            replyDraft: saved.replyDraft,
+            threadingEnabled: saved.threadingEnabled,
+            signalBridgedRoom: saved.signalBridgedRoom,
+            ...(saved.threadView && { threadView: true }),
+          },
+        });
+      } else if (getRecoveryContext) {
+        await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
+          if (slotTaken()) return false;
+          store.set(pendingVoiceSendDraftAtom, {
+            ...recording,
+            recovered: true,
+            context: getRecoveryContext(),
+          });
+          return true;
+        });
+      }
+    });
   }, [getRecoveryContext, mx, store, userId]);
 
   useEffect(() => {
-    const before = previous.current;
-    previous.current = draft;
-    if (!userId) return;
-    void (restores.get(userId) ?? Promise.resolve()).then(() => {
-      const current = store.get(pendingVoiceSendDraftAtom);
-      if (!current)
-        return before?.context.ownerSessionId === userId ? clearSavedVoiceDraft(userId) : undefined;
-      if (current.context.ownerSessionId !== userId || current.recovered || current.inFlight)
-        return undefined;
-      return saveVoiceDraft(userId, current);
-    });
+    const owner = draft?.context.ownerSessionId;
+    if (!draft || draft.recovered || draft.inFlight || userId !== owner) return;
+    void saveVoiceDraft(draft, () => store.get(pendingVoiceSendDraftAtom) === draft);
   }, [draft, store, userId]);
 };

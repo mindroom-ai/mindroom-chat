@@ -236,7 +236,7 @@ describe('voice capture session', () => {
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.duration).toBe(400);
     expect(await result.recording.file.text()).toBe('voice');
-    expect(result.recording.file.type).toBe('audio/webm');
+    expect(result.recording.file.type).toBe(latest().mimeType);
     expect(result.recording.waveform).toEqual(Array(48).fill(512));
     expect(session.getSnapshot().phase).toBe('processing');
     expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -644,7 +644,7 @@ describe('voice capture session', () => {
     if (result.status !== 'captured') return;
     expect(result.recording.recordingId).toBe('recording');
     expect(await result.recording.file.text()).toBe('firstsecond');
-    expect(result.recording.file.type).toBe('audio/webm');
+    expect(result.recording.file.type).toBe(latest().mimeType);
   });
 
   it('discards with false and releases ordinary ownership before native stop arrives', async () => {

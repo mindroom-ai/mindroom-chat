@@ -2,6 +2,7 @@ import {
   expect,
   test,
   type Browser,
+  type BrowserContext,
   type BrowserContextOptions,
   type Page,
 } from '@playwright/test';
@@ -190,28 +191,33 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
   }
 };
 
+const openVoiceRoom = async (context: BrowserContext, world: Awaited<ReturnType<typeof seed>>) => {
+  const page = await context.newPage();
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: world.session.username,
+    password: PASSWORD,
+    showToolCalls: false,
+  });
+  await page.evaluate(
+    (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('threaded')),
+    world.roomId
+  );
+  await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
+  await expect(page.getByRole('button', { name: 'Record voice message' })).toBeEnabled({
+    timeout: 60_000,
+  });
+  return page;
+};
+
 const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, label: string) => {
   const world = await seed(label);
   const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
   await context.addInitScript(toneMicrophone);
   try {
     if (browser.browserType().name() === 'chromium') await context.grantPermissions(['microphone']);
-    const page = await context.newPage();
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: world.session.username,
-      password: PASSWORD,
-      showToolCalls: false,
-    });
-    await page.evaluate(
-      (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('threaded')),
-      world.roomId
-    );
-    const room = `/home/${encodeURIComponent(world.roomId)}`;
-    await page.goto(room);
-    await expect(page.getByRole('button', { name: 'Record voice message' })).toBeEnabled({
-      timeout: 60_000,
-    });
+    const page = await openVoiceRoom(context, world);
+    const room = page.url();
     await press(page, layout, 'Record voice message');
     // Close without running a Stop, Discard or Send handler in the page.
     await expect(page.getByText('0:05', { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -224,6 +230,7 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
     const recovered = next.getByText(/^Recovered recording · 0:0[456]$/);
     await expect(recovered).toBeVisible({ timeout: 60_000 });
     await expect(next.getByRole('button', { name: 'Discard voice recording' })).toBeVisible();
+    await expect(next.getByRole('button', { name: 'Record voice message' })).toBeDisabled();
     await press(next, layout, 'Send message');
     await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
     await expect(recovered).toHaveCount(0);
@@ -268,6 +275,36 @@ test.beforeEach(async () => {
 const TITLE = 'a voice message whose send failed is still saved after a reload';
 const CLOSED = 'a recording survives closing the page without stopping';
 const desktop = LAYOUTS[0]!;
+
+test('a live recording keeps going until Discard is confirmed', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const world = await seed('live_discard');
+  const context = await browser.newContext({ ...desktop.options, serviceWorkers: 'block' });
+  await context.addInitScript(toneMicrophone);
+  await context.grantPermissions(['microphone']);
+  try {
+    const page = await openVoiceRoom(context, world);
+    await press(page, desktop, 'Record voice message');
+    await expect(page.getByText('0:02', { exact: true })).toBeVisible({ timeout: 30_000 });
+    const prompt = page.getByText('Discard voice recording?', { exact: true });
+    await press(page, desktop, 'Discard voice recording');
+    await expect(prompt).toBeVisible();
+    await expect(page.getByText('0:04', { exact: true })).toBeVisible();
+    await press(page, desktop, 'Cancel');
+    await expect(prompt).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Pause voice recording' })).toBeEnabled();
+    await press(page, desktop, 'Discard voice recording');
+    await press(page, desktop, 'Discard');
+    const mic = page.getByRole('button', { name: 'Record voice message' });
+    await expect(mic).toBeEnabled();
+    await page.reload();
+    await expect(mic).toBeEnabled({ timeout: 60_000 });
+    await expect(page.getByText(/Recovered recording/)).toHaveCount(0);
+    expect(await voiceMessages(world)).toBe(0);
+  } finally {
+    await context.close();
+  }
+});
 
 test(`${CLOSED} (Chromium)`, async ({ browser }) => {
   test.setTimeout(180_000);

@@ -79,7 +79,7 @@ it('deletes journal audio only after a successful send, or on discard', async ()
   expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
   journal.deleteVoiceRecording.mockClear();
   store.write({ ...recording, context, recovered: true });
-  controller.discardPending();
+  await controller.discardPending();
   expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
   expect(store.read()).toBeUndefined();
 });
@@ -361,7 +361,7 @@ describe('voiceSendDraftController', () => {
       onFailure,
     });
 
-    controller.discardPending();
+    await controller.discardPending();
     gate.reject(new Error('failed'));
 
     expect(await retry).toBe(false);
