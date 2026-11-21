@@ -1557,10 +1557,10 @@ describe('useVoiceRecorder', () => {
       const roomToken = Symbol('room');
       const threadToken = Symbol('thread');
       const thread = {
-        id: 'thread-audio',
+        id: crypto.randomUUID(),
         append: vi.fn(async () => undefined),
-        release: vi.fn(),
-        remove: vi.fn(),
+        release: vi.fn<() => void>(),
+        remove: vi.fn(async () => undefined),
       };
       const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValueOnce(thread);
       MockMediaRecorder.autoStop = false;
