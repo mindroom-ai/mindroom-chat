@@ -134,9 +134,13 @@ const replyBelow = async (page: Page, room: SeededRoom) => {
 };
 
 /** At zero, only the active interaction can keep the old order. */
-const expectHeldAtTop = async (page: Page, order: string[]) => {
+const orderAtTop = async (page: Page) => {
   expect(await page.locator('[data-compact-room-view]').evaluate((view) => view.scrollTop)).toBe(0);
-  expect(await cardOrder(page)).toEqual(order);
+  return cardOrder(page);
+};
+
+const expectHeldAtTop = async (page: Page, order: string[]) => {
+  expect(await orderAtTop(page)).toEqual(order);
 };
 
 const expectCaughtUp = async (page: Page, targets: string[]) => {
@@ -153,14 +157,14 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   );
 
   // 1. Hover at the top: only the pointer can hold the old order.
-  const order = await cardOrder(page);
-  const root = order[1]!;
+  const root = (await cardOrder(page))[1]!;
   const held = cardOf(page, root);
   const box = (await held.boundingBox())!;
   const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
   expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(root);
   await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  const order = await orderAtTop(page);
   const before = await topOf(held);
   let nudge = 0;
   const moving = setInterval(() => {
@@ -181,13 +185,20 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   await expectCaughtUp(page, targets);
 
   // 2. A card's menu: open from its More button, then the pointer leaves the list.
-  const menuOrder = await cardOrder(page);
-  const menuCard = cardOf(page, menuOrder[1]!);
-  const shell = page.locator(`[data-scroll-anchor="${menuOrder[1]}"]`);
+  const menuRoot = (await cardOrder(page))[1]!;
+  const menuCard = cardOf(page, menuRoot);
+  const shell = page.locator(`[data-scroll-anchor="${menuRoot}"]`);
   await shell.hover();
   await shell.getByRole('button', { name: 'Thread options' }).click();
-  await expect(page.getByRole('menu')).toBeVisible();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
   await page.mouse.move(DESKTOP.width - 5, 5);
+  // Playwright can scroll the action button into view while opening the menu.
+  await page.locator('[data-compact-room-view]').evaluate((view) => {
+    view.scrollTo({ top: 0, behavior: 'instant' });
+  });
+  await expect(menu).toBeVisible();
+  const menuOrder = await orderAtTop(page);
   const menuTop = await topOf(menuCard);
   targets = await replyBelow(page, room);
   await expectHeldAtTop(page, menuOrder);
