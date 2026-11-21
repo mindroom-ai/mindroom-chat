@@ -6,7 +6,7 @@ import { isRecord } from '../../lib/isRecord';
 // The SDK's event mapper re-inserts the room ID of a thread's bundled latest reply, but not of a
 // bundled edit: it makes the bundle the event's replacement and decrypts it as it is, and its
 // Rust crypto takes an encrypted event without a room ID for a to-device message ("to-device event
-// was not decrypted in preprocessToDeviceMessages") and never tries it again. The message then
+// was not decrypted in processSyncChanges") and never tries it again. The message then
 // showed nothing on that device until an unbundled copy of the edit came by. This module gives
 // every bundled edit the room ID of the event it belongs to before the mapper reads it.
 

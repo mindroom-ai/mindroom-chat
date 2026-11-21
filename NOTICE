@@ -203,22 +203,41 @@ Modified dependencies
   when `npm install` or `npm ci` runs. Bas Nijholt wrote the changes. Each
   patch file is the record of what changed.
 
-  matrix-js-sdk 41.7.0 (Apache-2.0, Copyright The Matrix.org Foundation
-  C.I.C.), patches/matrix-js-sdk+41.7.0.patch modifies:
-    src/client.ts, src/sync.ts, src/@types/requests.ts,
-    src/http-api/fetch.ts, src/models/event-timeline-set.ts,
-    src/models/room.ts, src/models/thread.ts, src/rust-crypto/index.ts,
-    src/rust-crypto/rust-crypto.ts, src/store/indexeddb.ts,
+  matrix-js-sdk 45.1.0 (Apache-2.0, Copyright The Matrix.org Foundation
+  C.I.C.), patches/matrix-js-sdk+45.1.0.patch modifies:
+    src/@types/requests.ts, src/client.ts, src/event-mapper.ts,
+    src/http-api/fetch.ts, src/http-api/interface.ts,
+    src/http-api/refresh.ts, src/models/event-timeline-set.ts,
+    src/models/event-timeline.ts, src/models/event.ts,
+    src/models/read-receipt.ts, src/models/relations-container.ts,
+    src/models/relations.ts, src/models/room-receipts.ts,
+    src/models/room-state.ts, src/models/room.ts, src/models/thread.ts,
+    src/rust-crypto/PerSessionKeyBackupDownloader.ts,
+    src/rust-crypto/backup.ts, src/rust-crypto/rust-crypto.ts,
     src/store/indexeddb-backend.ts, src/store/indexeddb-local-backend.ts,
-    and the compiled files built from them: lib/client.js, lib/client.d.ts,
-    lib/sync.js, lib/sync.d.ts, lib/@types/requests.d.ts,
-    lib/http-api/fetch.js, lib/models/event-timeline-set.js(.map),
-    lib/models/room.js(.map), lib/models/room.d.ts,
-    lib/models/thread.js(.map), lib/models/thread.d.ts,
-    lib/rust-crypto/index.js, lib/rust-crypto/rust-crypto.js,
-    lib/store/indexeddb.js, lib/store/indexeddb-backend.d.ts,
-    lib/store/indexeddb-local-backend.js,
-    lib/store/indexeddb-local-backend.d.ts.
+    src/store/indexeddb.ts, src/sync.ts, src/thread-utils.ts,
+    and the compiled files built from them:
+    lib/@types/requests.d.ts, lib/client.d.ts, lib/client.js,
+    lib/event-mapper.js, lib/http-api/fetch.js,
+    lib/http-api/interface.d.ts, lib/http-api/interface.js(.map),
+    lib/http-api/refresh.d.ts, lib/http-api/refresh.js(.map),
+    lib/models/event-timeline-set.d.ts,
+    lib/models/event-timeline-set.js(.map),
+    lib/models/event-timeline.d.ts, lib/models/event-timeline.js,
+    lib/models/event.d.ts, lib/models/event.js,
+    lib/models/read-receipt.d.ts,
+    lib/models/read-receipt.js, lib/models/relations-container.js,
+    lib/models/relations.d.ts, lib/models/relations.js,
+    lib/models/room-receipts.d.ts, lib/models/room-receipts.js,
+    lib/models/room-state.js,
+    lib/models/room.d.ts, lib/models/room.js(.map),
+    lib/models/thread.d.ts, lib/models/thread.js(.map),
+    lib/rust-crypto/PerSessionKeyBackupDownloader.js,
+    lib/rust-crypto/backup.js, lib/rust-crypto/rust-crypto.js,
+    lib/store/indexeddb-backend.d.ts,
+    lib/store/indexeddb-local-backend.d.ts,
+    lib/store/indexeddb-local-backend.js, lib/store/indexeddb.js,
+    lib/sync.d.ts, lib/sync.js, lib/thread-utils.js.
 
   folds 2.7.3 (Apache-2.0), patches/folds+2.7.3.patch modifies:
     dist/index.js, dist/style.css.
