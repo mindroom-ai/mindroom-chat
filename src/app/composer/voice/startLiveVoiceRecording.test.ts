@@ -147,7 +147,7 @@ it('keeps the recording on disk, unlocked, through an account switch; sign-out d
 
 it('deletes the disk copy on a confirmed Discard', async () => {
   const store = await record();
-  discardLiveVoiceRecording(store);
+  void discardLiveVoiceRecording(store);
   expect(track.stop).toHaveBeenCalledOnce();
   await vi.waitFor(async () => expect(await stored()).toEqual({ recordings: 0, chunks: 0 }));
 });

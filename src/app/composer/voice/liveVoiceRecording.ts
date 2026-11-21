@@ -97,10 +97,11 @@ export const claimLiveVoiceRecording = (store: JotaiStore): VoiceCaptureSession 
 
 /**
  * Ends the recording unsent, for every composer at once, and its disk copy goes. The microphone
- * is released in the same call, so nothing is left for a later account exit to stop.
+ * is released in the same call, so nothing is left for a later account exit to stop. Resolves
+ * once the disk copy is gone.
  */
-export const discardLiveVoiceRecording = (store: JotaiStore): void => {
-  takeLiveVoiceRecording(store)?.discard();
+export const discardLiveVoiceRecording = async (store: JotaiStore): Promise<void> => {
+  await takeLiveVoiceRecording(store)?.discard();
 };
 
 /**

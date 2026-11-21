@@ -56,7 +56,7 @@ const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
     ...changes,
   };
   // Discard ends the recording at once, and deletes its disk copy.
-  const discard = vi.fn();
+  const discard = vi.fn<() => Promise<void>>(async () => undefined);
   const session = {
     getSnapshot: () => snapshot,
     subscribe: () => () => undefined,
@@ -172,11 +172,23 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(discard).not.toHaveBeenCalled();
     expect(pill()?.textContent).toBe('Recording 0:32');
 
+    // Confirmed, the recording ends at once. The question stays, busy, until the disk copy is
+    // gone too: a reload cannot offer the discarded audio again.
+    let removed!: () => void;
+    discard.mockReturnValue(
+      new Promise<void>((resolve) => {
+        removed = resolve;
+      })
+    );
     fireEvent.click(discardButton);
     fireEvent.click(within(question()!).getByRole('button', { name: 'Discard' }));
     expect(discard).toHaveBeenCalledOnce();
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     expect(pill()).toBeNull();
+    await act(async () => undefined);
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape', keyCode: 27 });
+    expect(question()).not.toBeNull();
+    await act(async () => removed());
     expect(question()).toBeNull();
   });
 

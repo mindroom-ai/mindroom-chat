@@ -88,8 +88,8 @@ export type VoiceCaptureSession = {
    * copy stays, unlocked, for the account to recover on a later page load.
    */
   reset: () => void;
-  /** `reset`, and the disk copy goes too: a confirmed Discard. */
-  discard: () => void;
+  /** `reset`, and the disk copy goes too: a confirmed Discard. Resolves once it is gone. */
+  discard: () => Promise<void>;
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
@@ -106,6 +106,8 @@ type CaptureJournal = {
 
 type Generation = {
   journal?: CaptureJournal;
+  /** Settles once the disk copy of a discarded recording is gone. */
+  removed?: Promise<void>;
   /** Recorded by a MediaRecorder, whose audio is journaled and parks when it stops on its own. */
   web?: boolean;
   acceptsEvents: boolean;
@@ -238,7 +240,7 @@ export const createVoiceCaptureSession = (
         clearTimeout(giveUp);
         keep();
       });
-    } else void journal?.remove();
+    } else generation.removed = journal?.remove();
     if (recorder && recorder.state !== 'inactive') {
       try {
         recorder.stop();
@@ -259,6 +261,7 @@ export const createVoiceCaptureSession = (
     current = undefined;
     if (generation) retire(generation, forget);
     publish(idleSnapshot());
+    return generation?.removed;
   };
   const sample = (generation: Generation) => {
     if (current !== generation || !generation.acceptsEvents || !generation.readLevel) return;
@@ -558,7 +561,7 @@ export const createVoiceCaptureSession = (
       return isRecording(generation);
     },
     finish,
-    reset: () => end(false),
-    discard: () => end(true),
+    reset: () => void end(false),
+    discard: async () => end(true),
   };
 };

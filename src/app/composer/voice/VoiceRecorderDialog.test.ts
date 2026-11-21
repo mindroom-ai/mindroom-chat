@@ -219,7 +219,7 @@ describe('VoiceRecorderComposer', () => {
   });
 
   afterEach(() => {
-    discardLiveVoiceRecording(store);
+    void discardLiveVoiceRecording(store);
     vi.unstubAllGlobals();
   });
 

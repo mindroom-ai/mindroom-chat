@@ -142,8 +142,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 
   const confirmDiscard = () => {
     setDiscardConfirmationOpen(false);
-    if (hasPendingSend) void discardPending();
-    else discard();
+    return hasPendingSend ? discardPending() : discard();
   };
 
   const showPendingSendError =

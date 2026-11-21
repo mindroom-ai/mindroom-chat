@@ -626,12 +626,38 @@ describe('voice capture session', () => {
     // A Discard waits for nothing: the copy goes at once, and what the recorder says is dropped.
     await session.start();
     disk.append.mockClear();
-    session.discard();
+    void session.discard();
     expect(settled()).toEqual([2, 2]);
     latest().emitData(new Blob(['discarded']));
     latest().emitStop();
     expect(disk.append).not.toHaveBeenCalled();
     expect(settled()).toEqual([2, 2]);
+  });
+
+  it('resolves a Discard once its disk copy is gone', async () => {
+    const removed = deferred<void>();
+    const session = createVoiceCaptureSession(() => ({
+      id: 'recording',
+      append: vi.fn().mockResolvedValue(undefined),
+      remove: () => removed.promise,
+      release: vi.fn(),
+    }));
+    sessions.push(session);
+    await session.start();
+    let gone = false;
+    const discarded = session.discard().then(() => {
+      gone = true;
+    });
+    // The recording ends in the same call; only the promise waits for the disk.
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(gone).toBe(false);
+    removed.resolve();
+    await discarded;
+    expect(gone).toBe(true);
   });
 
   it('stops a running recorder at once on reset, and takes nothing it says after', async () => {

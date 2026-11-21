@@ -273,7 +273,7 @@ describe('useVoiceRecorder', () => {
   afterEach(async () => {
     // No unmount ends a recording, so each test's is ended here, and a stop left waiting runs out.
     await act(async () => {
-      stores.forEach((store) => discardLiveVoiceRecording(store));
+      stores.forEach((store) => void discardLiveVoiceRecording(store));
       await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
       mountedRenderers.forEach((renderer) => renderer.unmount());
     });
@@ -351,7 +351,7 @@ describe('useVoiceRecorder', () => {
     });
     const old = MockMediaRecorder.instances[0]!;
     await act(async () => {
-      recorderState.current!.discard();
+      void recorderState.current!.discard();
     });
     const freshStream = new MockMediaStream();
     getUserMedia.mockResolvedValue(freshStream);
@@ -457,7 +457,7 @@ describe('useVoiceRecorder', () => {
     });
     act(() => renderer.unmount());
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
-    act(() => discardLiveVoiceRecording(store));
+    act(() => void discardLiveVoiceRecording(store));
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
@@ -572,7 +572,7 @@ describe('useVoiceRecorder', () => {
 
     // Discard pressed in the composer that did not start it.
     await act(async () => {
-      second.current!.discard();
+      void second.current!.discard();
     });
 
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
@@ -641,7 +641,7 @@ describe('useVoiceRecorder', () => {
     });
     const recorder = MockMediaRecorder.instances[0]!;
 
-    act(() => recorderState.current!.discard());
+    act(() => void recorderState.current!.discard());
 
     // In the same call, without the recorder saying it stopped.
     expect(recorder.stop).toHaveBeenCalledOnce();
@@ -796,7 +796,7 @@ describe('useVoiceRecorder', () => {
       await Promise.resolve();
     });
 
-    act(() => recorderState.current!.discard());
+    act(() => void recorderState.current!.discard());
 
     await act(async () => {
       rejectGetUserMedia(new DOMException('msg', 'OverconstrainedError'));
@@ -940,7 +940,7 @@ describe('useVoiceRecorder', () => {
     });
     await act(async () => {
       vi.advanceTimersByTime(300);
-      recorderState.current?.discard();
+      void recorderState.current?.discard();
     });
 
     expect(onSendRecording).not.toHaveBeenCalled();
@@ -966,7 +966,7 @@ describe('useVoiceRecorder', () => {
       sendPromise = recorderState.current!.send();
     });
     await act(async () => {
-      recorderState.current?.discard();
+      void recorderState.current?.discard();
     });
     await act(async () => {
       recorder.flushStop();
@@ -1871,7 +1871,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
     emitChunk(MockMediaRecorder.instances[1]!);
-    act(() => recorderState.current!.discard());
+    act(() => void recorderState.current!.discard());
     expect(discarded.disk.remove).toHaveBeenCalledOnce();
     expect(discarded.disk.release).not.toHaveBeenCalled();
     discarded.begin.mockRestore();
