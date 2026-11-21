@@ -8,6 +8,7 @@ import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { withdrawOwnMemberships } from './callResume';
 import { sendCallKey } from './callKeyProvider';
 import { defined } from '../../test/utils/defined';
+import { NATIVE_CALL_POLL_MS } from './nativeCallMedia';
 
 /** What the fake LiveKit modules and the device lock record, shared with the module mocks. */
 const fakes = vi.hoisted(() => ({
@@ -950,5 +951,130 @@ describe("RoomCall members' media", () => {
     expect(permissions).toHaveBeenLastCalledWith(false, allowed(OTHER_IDENTITY, CAROL_IDENTITY));
     session.setMemberships([membership(CAROL, CAROL_DEVICE)]);
     expect(permissions).toHaveBeenLastCalledWith(false, allowed(CAROL_IDENTITY));
+  });
+});
+
+const nativeFakes = vi.hoisted(() => ({
+  kind: undefined as 'web' | 'native' | undefined,
+  mac: false,
+  plugin: {
+    connect: vi.fn(async () => ({ id: 'ns1' })),
+    setKey: vi.fn(async () => undefined),
+    setMembers: vi.fn(async () => undefined),
+    setSound: vi.fn(async () => undefined),
+    setMicrophone: vi.fn(async () => undefined),
+    snapshot: vi.fn(async () => ({
+      state: 'connected' as const,
+      local: { speaking: false, microphone: false },
+      participants: [] as Array<{ identity: string; speaking: boolean; microphone: boolean }>,
+    })),
+    disconnect: vi.fn(async () => undefined),
+  },
+}));
+
+vi.mock('./callSupport', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./callSupport')>()),
+  callMediaKind: () => nativeFakes.kind,
+}));
+
+vi.mock('../native/nativeCall', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../native/nativeCall')>()),
+  getNativeCallPlugin: () => nativeFakes.plugin,
+  isMacApp: () => nativeFakes.mac,
+}));
+
+describe('RoomCall in the Mac app', () => {
+  beforeEach(() => {
+    nativeFakes.kind = 'native';
+    nativeFakes.mac = false;
+    nativeFakes.plugin.connect.mockReset().mockResolvedValue({ id: 'ns1' });
+    nativeFakes.plugin.setKey.mockReset().mockResolvedValue(undefined);
+    nativeFakes.plugin.setMembers.mockReset().mockResolvedValue(undefined);
+    nativeFakes.plugin.setSound.mockReset().mockResolvedValue(undefined);
+    nativeFakes.plugin.setMicrophone.mockReset().mockResolvedValue(undefined);
+    nativeFakes.plugin.snapshot.mockReset().mockResolvedValue({
+      state: 'connected',
+      local: { speaking: false, microphone: false },
+      participants: [],
+    });
+    nativeFakes.plugin.disconnect.mockReset().mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    nativeFakes.kind = undefined;
+    nativeFakes.mac = false;
+    vi.useRealTimers();
+  });
+
+  it('connects the plugin with the grant and makes no LiveKit room', async () => {
+    const { call } = setup();
+    await call.join();
+    expect(nativeFakes.plugin.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ url: 'wss://sfu.calls.test', token: 'jwt' })
+    );
+    expect(fakes.rooms).toHaveLength(0);
+    expect(fakes.workers).toHaveLength(0);
+    expect(call.getState().phase).toBe('connected');
+    await call.leave();
+  });
+
+  it('joins with the camera off whatever it was asked', async () => {
+    const { mx, room, session } = setup();
+    const call = new RoomCall({ mx, room, video: true });
+    await call.join();
+    expect(call.getState().camera).toBe(false);
+    expect(session.joinRTCSession).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      expect.objectContaining({ callIntent: 'audio' })
+    );
+    await call.leave();
+  });
+
+  it("hands keys to the plugin, marking this device's own", async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    emitKey(session, 5, 1, {}, OTHER_IDENTITY);
+    emitKey(session, 9, 2, joinedAs(session), OWN_IDENTITY);
+    expect(nativeFakes.plugin.setKey).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: OTHER_IDENTITY, index: 1, own: false })
+    );
+    expect(nativeFakes.plugin.setKey).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: OWN_IDENTITY, index: 2, own: true })
+    );
+    await call.leave();
+  });
+
+  it('tells the plugin the members after a membership change', async () => {
+    const { call, session } = setup();
+    await call.join();
+    session.setMemberships([membership(OTHER, OTHER_DEVICE)]);
+    expect(nativeFakes.plugin.setMembers).toHaveBeenLastCalledWith({
+      id: 'ns1',
+      identities: [OTHER_IDENTITY],
+    });
+    await call.leave();
+  });
+
+  it('fails with a connection problem when the native session is lost', async () => {
+    vi.useFakeTimers();
+    nativeFakes.plugin.snapshot.mockRejectedValue({ code: 'NOT_CONNECTED' });
+    const { call } = setup();
+    await call.join();
+    await vi.advanceTimersByTimeAsync(NATIVE_CALL_POLL_MS);
+    expect(call.getState().phase).toBe('failed');
+    expect(call.getState().problem).toBe('connection');
+    expect(nativeFakes.plugin.disconnect).toHaveBeenCalledWith({ id: 'ns1' });
+  });
+
+  it('goes on listening when the microphone is refused', async () => {
+    nativeFakes.plugin.setMicrophone.mockRejectedValue({ code: 'PERMISSION_DENIED' });
+    const { call } = setup();
+    await call.join();
+    expect(call.getState().phase).toBe('connected');
+    expect(call.getState().microphone).toBe(false);
+    expect(call.getState().problem).toBe('device');
+    await call.leave();
   });
 });

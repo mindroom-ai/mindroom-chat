@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { isNativeCallAvailable } from '../native/nativeCall';
 import { getLivekitServiceUrl } from './rtcFocus';
 
 /** Whether this browser can place calls at all. */
@@ -7,6 +8,14 @@ export const browserSupportsCalls = (): boolean =>
   typeof window !== 'undefined' &&
   typeof window.RTCPeerConnection === 'function' &&
   !!navigator.mediaDevices?.getUserMedia;
+
+/** What carries a call's media here: the browser's WebRTC, the Mac app's plugin, or nothing. */
+export type CallMediaKind = 'web' | 'native';
+
+export const callMediaKind = (): CallMediaKind | undefined => {
+  if (browserSupportsCalls()) return 'web';
+  return isNativeCallAvailable() ? 'native' : undefined;
+};
 
 /** Whether this browser can share a screen; phone browsers cannot. */
 export const browserSharesScreens = (): boolean =>

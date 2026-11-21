@@ -2,9 +2,14 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getLivekitServiceUrl } from './rtcFocus';
-import { useCallSupport, type CallSupport } from './callSupport';
+import { isNativeCallAvailable } from '../native/nativeCall';
+import { callMediaKind, useCallSupport, type CallSupport } from './callSupport';
 
 vi.mock('./rtcFocus', () => ({ getLivekitServiceUrl: vi.fn() }));
+vi.mock('../native/nativeCall', () => ({
+  isNativeCallAvailable: vi.fn(() => false),
+  isMacApp: vi.fn(() => false),
+}));
 
 /** Mounts a component that reads the support, and records what it rendered with, in order. */
 const mountReader = (mx: MatrixClient) => {
@@ -67,5 +72,50 @@ describe('useCallSupport', () => {
     expect(later.seen.at(-1)).toBe('supported');
     expect(getLivekitServiceUrl).toHaveBeenCalledTimes(2);
     later.unmount();
+  });
+});
+
+describe('callMediaKind', () => {
+  const originalWindow = globalThis.window;
+  const originalNavigator = globalThis.navigator;
+
+  afterEach(() => {
+    vi.mocked(isNativeCallAvailable).mockReturnValue(false);
+    Object.defineProperty(globalThis, 'window', { value: originalWindow, configurable: true });
+    Object.defineProperty(globalThis, 'navigator', {
+      value: originalNavigator,
+      configurable: true,
+    });
+  });
+
+  const setWebRtc = (present: boolean) => {
+    Object.defineProperty(globalThis, 'window', {
+      value: present ? { RTCPeerConnection: function RTCPeerConnection() {} } : {},
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      value: present ? { mediaDevices: { getUserMedia: vi.fn() } } : {},
+      configurable: true,
+    });
+  };
+
+  it('is web where the browser has WebRTC', () => {
+    setWebRtc(true);
+    vi.mocked(isNativeCallAvailable).mockReturnValue(false);
+    expect(callMediaKind()).toBe('web');
+    vi.mocked(isNativeCallAvailable).mockReturnValue(true);
+    expect(callMediaKind()).toBe('web');
+  });
+
+  it('is native where only the plugin is there', () => {
+    setWebRtc(false);
+    vi.mocked(isNativeCallAvailable).mockReturnValue(true);
+    expect(callMediaKind()).toBe('native');
+  });
+
+  it('is undefined with neither', () => {
+    setWebRtc(false);
+    vi.mocked(isNativeCallAvailable).mockReturnValue(false);
+    expect(callMediaKind()).toBeUndefined();
   });
 });

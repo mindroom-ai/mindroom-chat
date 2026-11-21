@@ -3,6 +3,8 @@ import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { sendCallKey } from './callKeyProvider';
 import type { CallMedia, CallMediaHost } from './callMedia';
+import { callMediaKind } from './callSupport';
+import { NativeCallMedia } from './nativeCallMedia';
 import { WebCallMedia, webCallMediaSupported } from './webCallMedia';
 import {
   chooseCallService,
@@ -193,7 +195,7 @@ export class RoomCall {
     this.state = {
       phase: 'connecting',
       microphone: options.microphone ?? true,
-      camera: options.video ?? false,
+      camera: callMediaKind() === 'native' ? false : options.video ?? false,
       screenShare: false,
       sound: true,
       audioBlocked: false,
@@ -404,7 +406,8 @@ export class RoomCall {
   async join(): Promise<void> {
     const { mx, room } = this;
     const deviceId = mx.getDeviceId();
-    if (!webCallMediaSupported(this.encrypted) || !deviceId) {
+    const native = callMediaKind() === 'native';
+    if (!deviceId || (!native && !webCallMediaSupported(this.encrypted))) {
       this.fail('browser');
       return;
     }
@@ -439,11 +442,13 @@ export class RoomCall {
 
     // The session hands over the media keys from the moment it joins; LiveKit takes the ones that
     // came before its connection when it connects.
-    const media: CallMedia = new WebCallMedia({
-      encrypted: this.encrypted,
-      roomId: room.roomId,
-      host: this.mediaHost,
-    });
+    const media: CallMedia = native
+      ? new NativeCallMedia({ encrypted: this.encrypted, host: this.mediaHost })
+      : new WebCallMedia({
+          encrypted: this.encrypted,
+          roomId: room.roomId,
+          host: this.mediaHost,
+        });
     this.media = media;
     try {
       // Announce the membership; the session shares this device's media key with the others.
