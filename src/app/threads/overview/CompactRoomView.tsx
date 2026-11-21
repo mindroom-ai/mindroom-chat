@@ -80,9 +80,12 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
+  /** A change of sort criterion or direction resets the scroll landmark. */
+  landmarkSortKey?: string;
 };
 
-// A section's header among the cards' rows; no event ID starts with it.
+// Headers among the cards' rows; their keys cannot be event IDs.
+const PINNED_HEADING_ROW = 'heading:pinned';
 const SECTION_ROW_PREFIX = 'section:';
 const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
 const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
@@ -325,6 +328,7 @@ export function CompactRoomView({
   focusRequest,
   filterBarShown = false,
   sectionsNow,
+  landmarkSortKey,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -690,14 +694,17 @@ export function CompactRoomView({
           }
         }}
       >
-        {/* Section header IDs are shared between rooms, but their scroll landmarks are not. */}
+        {/* Do not carry a landmark across rooms or an explicit sort change. */}
         <CompactRowKeeper
-          key={room.roomId}
+          key={`${room.roomId}|${landmarkSortKey ?? ''}`}
           viewRef={viewRef}
           order={
             heldSections
               ? sectionRows
-              : [...pinnedCards, ...ordinaryCards].map((card) => card.id.threadRootId)
+              : [
+                  ...(pinnedCards.length > 0 ? [PINNED_HEADING_ROW] : []),
+                  ...[...pinnedCards, ...ordinaryCards].map((card) => card.id.threadRootId),
+                ]
           }
         />
         {listMotion}
@@ -715,7 +722,7 @@ export function CompactRoomView({
             aria-label={t('threadNav.pinned')}
             data-pinned-threads="true"
           >
-            <Box alignItems="Center" gap="100">
+            <Box alignItems="Center" gap="100" data-row-landmark={PINNED_HEADING_ROW}>
               <Icon src={Icons.Pin} size="100" />
               <Text as="h2" size="L400">
                 {t('threadNav.pinned')}

@@ -3,7 +3,7 @@ import type { Room } from 'matrix-js-sdk';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
-import { ROW_HEIGHT, standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
+import { ROW_HEIGHT, ROW_WIDTH, standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactRoomView, type CompactRoomViewProps } from './CompactRoomView';
 import type { CompactThreadSection } from './compactThreadSections';
 
@@ -157,18 +157,23 @@ describe('the compact thread list in motion', () => {
 const scrollView = (container: HTMLElement, scrollTop: number, clientHeight: number) => {
   vi.stubGlobal('CSS', { supports: () => true });
   const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
-  const row = '[data-scroll-anchor], [data-row-landmark]';
+  const heading = '[data-pinned-threads] > :first-child';
+  const rows = () => [
+    ...view.querySelectorAll(`[data-scroll-anchor], [data-compact-section], ${heading}`),
+  ];
+  const height = (row: Element) => (row.matches(heading) ? 40 : ROW_HEIGHT);
   Object.defineProperties(view, {
     clientHeight: { value: clientHeight },
-    scrollHeight: { get: () => view.querySelectorAll(row).length * ROW_HEIGHT },
+    scrollHeight: { get: () => rows().reduce((total, row) => total + height(row), 0) },
   });
   view.scrollTop = scrollTop;
   const measure = motion.rects.getMockImplementation()!;
   motion.rects.mockImplementation(function rect(this: HTMLElement) {
-    const result = measure.call(this);
-    return this.matches(row)
-      ? new DOMRect(result.left, result.top - view.scrollTop, result.width, result.height)
-      : result;
+    const all = rows();
+    const index = all.indexOf(this);
+    if (index < 0) return measure.call(this);
+    const top = all.slice(0, index).reduce((total, row) => total + height(row), -view.scrollTop);
+    return new DOMRect(0, top, ROW_WIDTH, height(this));
   });
   return view;
 };
@@ -188,6 +193,37 @@ describe('the Compact reading landmark', () => {
     rerender(list(['$e', '$d', '$c', '$b', '$a']));
 
     expect(view.scrollTop).toBe(300);
+  });
+
+  it('leaves native scrolling alone when the reader reverses the sort', () => {
+    const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
+    const { container, rerender } = render(list(ids, false, { landmarkSortKey: 'lastReply:desc' }));
+    const view = scrollView(container, 100, 200);
+    rerender(list([...ids].reverse(), false, { landmarkSortKey: 'lastReply:asc' }));
+
+    expect(container.querySelector('[data-compact-room-view]')).toBe(view);
+    expect(view.querySelector('[data-scroll-anchor]')?.getAttribute('data-scroll-anchor')).toBe(
+      ids.at(-1)
+    );
+    expect(view.scrollTop).toBe(100);
+  });
+
+  it('keeps the partly visible Pinned heading still when a new pin leads the group', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    state.pinned = ['$b', '$c'];
+    const { container, rerender } = render(list(ids));
+    const view = scrollView(container, 20, 400);
+    const heading = view.querySelector('[data-pinned-threads] > :first-child');
+    expect(heading?.getBoundingClientRect().top).toBe(-20);
+    state.pinned = ['$a', '$b', '$c'];
+    rerender(list(ids));
+
+    expect(
+      view
+        .querySelector('[data-pinned-threads] [data-scroll-anchor]')
+        ?.getAttribute('data-scroll-anchor')
+    ).toBe('$a');
+    expect(heading?.getBoundingClientRect().top).toBe(-20);
   });
 
   it('does not follow a shared section header into another room', () => {

@@ -296,8 +296,10 @@ const WORKING = 3;
 type LeadPlaces = {
   /** The first row in view that does not move: a card, or a section's header. */
   row: number;
-  /** The first card in view that does not move. */
+  /** The unanimated shell of the first card in view that does not move. */
   card: number;
+  /** The same card as drawn, including any glide of its inner element. */
+  visibleCard: number;
   scrollTop: number;
   order: string[];
   /**
@@ -311,8 +313,10 @@ type LeadWatch = {
   before: LeadPlaces;
   /** The first frame that shows any change to the order. */
   first?: LeadPlaces;
-  /** The furthest the leading row or card showed from its place in any frame since. */
+  /** The furthest the leading row or card layout moved in any frame since. */
   furthest: number;
+  /** The furthest the visible card moved in any frame since, including its motion. */
+  visibleFurthest: number;
   read: () => LeadPlaces;
 };
 
@@ -348,6 +352,8 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
     const leadCard = inView.find((row) => row.hasAttribute('data-scroll-anchor') && stays(row));
     const moving = cardOf(mover);
     if (!leadRow || !leadCard || !moving) throw new Error('no row leads the view');
+    const leadMotionRow = leadCard.querySelector<HTMLElement>('[data-motion-row]');
+    if (!leadMotionRow) throw new Error('no moving element inside the leading card');
     // A card that leads the view itself moves up past the row before it, and one that trades
     // places past the card it trades with, which is another card in the page afterwards.
     const before = inView[0] === moving ? rows[rows.indexOf(moving) - 1] ?? leadRow : leadRow;
@@ -363,6 +369,7 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
       return {
         row: placeOf(leadRow),
         card: placeOf(leadCard),
+        visibleCard: leadMotionRow.getBoundingClientRect().top - edge,
         scrollTop: view.scrollTop,
         order: [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
           (row) => row.dataset.scrollAnchor ?? ''
@@ -372,7 +379,7 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
           !!now && !!(passed().compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
       };
     };
-    const watch: LeadWatch = { before: read(), furthest: 0, read };
+    const watch: LeadWatch = { before: read(), furthest: 0, visibleFurthest: 0, read };
     (window as unknown as { leadWatch: LeadWatch }).leadWatch = watch;
     const frame = () => {
       const now = read();
@@ -387,6 +394,10 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
           watch.furthest,
           Math.abs(now.row - watch.before.row),
           Math.abs(now.card - watch.before.card)
+        );
+        watch.visibleFurthest = Math.max(
+          watch.visibleFurthest,
+          Math.abs(now.visibleCard - watch.before.visibleCard)
         );
       }
       requestAnimationFrame(frame);
@@ -405,8 +416,10 @@ const watchLead = (page: Page, moverIds: string[], tradedId?: string) => {
 
 const leadWatch = (page: Page) =>
   page.evaluate(() => {
-    const { first, furthest, read } = (window as unknown as { leadWatch: LeadWatch }).leadWatch;
-    return { first, furthest, now: read() };
+    const { first, furthest, visibleFurthest, read } = (
+      window as unknown as { leadWatch: LeadWatch }
+    ).leadWatch;
+    return { first, furthest, visibleFurthest, now: read() };
   });
 
 type Move =
@@ -663,7 +676,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   }
   // The glides end.
   await page.waitForTimeout(600);
-  const { first, furthest, now } = await leadWatch(page);
+  const { first, furthest, visibleFurthest, now } = await leadWatch(page);
   if (held) {
     expect(
       first?.order.slice(0, movers.length),
@@ -680,6 +693,14 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       now.scrollTop
     }; the card that moved is ${start.moverHeight} px high`,
   });
+  const visibleMoved = (places: LeadPlaces | undefined) =>
+    places ? Math.abs(places.visibleCard - before.visibleCard) : NaN;
+  test.info().annotations.push({
+    type: 'visible leading card',
+    description: `${move}: moved ${visibleMoved(first)} px in the first frame, ${visibleMoved(
+      now
+    )} px at rest, ${visibleFurthest} px at most`,
+  });
   await shot(page, `move-${move}-2-after`);
   if (move === 'rotate') {
     // The three rows are in every longest unchanged subsequence, not the leading pair.
@@ -689,9 +710,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     return;
   }
   expect(moved(first), `${move}: what leads the view moved, in the first frame`).toBeLessThan(1);
-  // The same places in every frame since: a header's without its glide, a card's as it shows.
   expect(furthest, `${move}: what leads the view moved, in some frame`).toBeLessThan(1);
   expect(moved(now), `${move}: what leads the view moved, at rest`).toBeLessThan(1);
+  // The shell can stay in place while the card glides. Check the visible position separately.
+  expect(visibleMoved(first), `${move}: visible card moved, first frame`).toBeLessThan(1);
+  expect(visibleFurthest, `${move}: visible card moved, in some frame`).toBeLessThan(1);
+  expect(visibleMoved(now), `${move}: visible card moved, at rest`).toBeLessThan(1);
 };
 
 test.beforeEach(async () => {
