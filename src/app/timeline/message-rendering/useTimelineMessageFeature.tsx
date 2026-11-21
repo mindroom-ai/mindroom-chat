@@ -41,6 +41,7 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { TranscribingPlaceholder } from '../../messages/agent-run/TranscribingPlaceholder';
 import { ReplyCards } from '../../messages/content/ReplyCards';
 import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
@@ -348,7 +349,7 @@ const quietRunItemStyle = (node: ReactNode) =>
  * Inside a thread, the thread's title, its applied model changes and the backend's snooze-ended,
  * skill review and compaction notices render as one quiet line, not as an agent's reply: no
  * avatar, name or toolbar. A title shows only where the thread's summary plan marks it and a
- * model change only where its plan pairs the router's reply with its command (`planModelChanges`);
+ * model change only where its plan pairs the acknowledgement with its command (`planModelChanges`);
  * the others only from a MindRoom agent. A compaction notice started when its event was sent.
  */
 const readQuietMarker = (
@@ -727,7 +728,7 @@ export const useTimelineMessageFeature = ({
         htmlReactParserOptions,
         linkifyOpts,
       };
-      // The router's echo of a voice message shows under it, as its latest version says.
+      // A voice message's echo shows under it, as its latest version says.
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
       const voiceEchoId = voiceEcho?.getId() ?? '';
       if (voiceEcho) {
@@ -736,7 +737,7 @@ export const useTimelineMessageFeature = ({
           ...getPendingEdits(voiceEchoId, voiceEcho, timelineSet)
         );
       }
-      const voiceTranscript = voiceEcho && (
+      const voiceTranscript = voiceEcho ? (
         <VoiceTranscript
           content={getLatestMessageContent(
             voiceEcho,
@@ -754,7 +755,9 @@ export const useTimelineMessageFeature = ({
             />
           )}
         />
-      );
+      ) : data.voiceTranscripts.pendingVoiceIds.has(eventId) ? (
+        <TranscribingPlaceholder />
+      ) : null;
       const cards = data.replyCards?.byReply.get(eventId);
       cards?.forEach(
         (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)

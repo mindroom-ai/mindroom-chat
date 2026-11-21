@@ -31,7 +31,11 @@ vi.mock('../../messages/content/VoiceTranscript', () => ({
 importBeforeTests(() => import('../RoomTimeline'));
 
 /** A thread with a voice message and its echo, the room's state naming `router`. */
-const openThread = async (router?: string, sender = ROUTER) => {
+const openThread = async (
+  router?: string,
+  sender = ROUTER,
+  { showEcho = true, voiceTs = 2_000 } = {}
+) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
     powerLevelsContextMock.levels = { users: { [router]: 50 } };
@@ -45,7 +49,7 @@ const openThread = async (router?: string, sender = ROUTER) => {
     rootEvent,
     makeEvent('$voice', {
       threadRootId: threadId,
-      ts: 2_000,
+      ts: voiceTs,
       content: {
         msgtype: 'm.audio',
         body: 'voice.ogg',
@@ -65,6 +69,7 @@ const openThread = async (router?: string, sender = ROUTER) => {
       },
     }),
   ];
+  if (!showEcho) events.pop();
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const room = makeRoom({ liveEvents: [rootEvent], joinedMembers: [AGENT] });
@@ -143,6 +148,28 @@ describe('a voice echo in an open thread', () => {
       act(() => renderer.unmount());
     }
   });
+});
+
+it('hides the transcribing wave 60 seconds after the voice message was sent', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(100_000);
+  const renderer = await openThread(undefined, AGENT, { showEcho: false, voiceTs: 60_000 });
+  const status = () =>
+    renderer.root.findAllByProps({ role: 'status', 'aria-label': 'Transcribing…' });
+  try {
+    expect(status()).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(19_999);
+    });
+    expect(status()).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(status()).toHaveLength(0);
+  } finally {
+    act(() => renderer.unmount());
+    vi.useRealTimers();
+  }
 });
 
 describe("the router's voice echo in the room's timeline", () => {

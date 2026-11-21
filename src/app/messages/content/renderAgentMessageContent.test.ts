@@ -135,8 +135,7 @@ vi.mock('./PasteAttachmentContent', () => ({
 }));
 
 vi.mock('../agent-run/StreamingIndicator', () => ({
-  renderStreamingIndicator: () =>
-    React.createElement('span', { 'data-renderer': 'streaming' }),
+  renderStreamingIndicator: () => React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({
@@ -246,8 +245,8 @@ describe('renderAgentMessageContent', () => {
 
     const status = placeholder.root.findByProps({ role: 'status' });
 
-    expect(status.props['aria-label']).toBe('Router agent is transcribing');
-    expect(JSON.stringify(placeholder.toJSON())).toContain('Router agent is transcribing');
+    expect(status.props['aria-label']).toBe('Transcribing…');
+    expect(JSON.stringify(placeholder.toJSON())).toContain('Transcribing…');
     expect(ordinaryMessage.root.findAllByProps({ role: 'status' })).toHaveLength(0);
     expect(settledTranscript.root.findAllByProps({ role: 'status' })).toHaveLength(0);
 
@@ -1009,9 +1008,9 @@ describe('renderAgentMessageContent', () => {
 
     // What Chat's real hydration returns after downloading a file with these bytes.
     const downloaded = async (file: unknown, raw = JSON.stringify(file)) => {
-      const { hydrateLongTextSource } = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-        '../../matrix/protocol/longText'
-      );
+      const { hydrateLongTextSource } = await vi.importActual<
+        typeof import('../../matrix/protocol/longText')
+      >('../../matrix/protocol/longText');
       return hydrateLongTextSource(
         { previewContent: { body: '' }, mxcUri: `mxc://test/${raw.length}`, isV2ContentJson: true },
         async () => raw,

@@ -144,6 +144,7 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
   MINDROOM_ROUTER_STATE_EVENT,
@@ -893,12 +894,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const boundUserId = trustedRouterUserId(
-    routerBinding,
-    powerLevels,
-    roomCreators,
-    rawPowerLevels
-  );
+  const boundUserId = trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels);
   const roster = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
   const [, refreshMembership] = useForceUpdate();
   useEffect(() => {
@@ -925,12 +921,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     trustedAccountsRef.current = trustedAccountIds;
   }
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
+  const viewerId = mx.getUserId() ?? undefined;
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
     trustedAccountIds: trustedAccountsRef.current,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
+    viewerId,
+    hasJoinedAgent: [...joinedAccountIds].some((id) =>
+      isMindroomAgentUserIdForViewer(id, viewerId)
+    ),
+    hasThreadReplies: (id) =>
+      (threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 || (room.getThread(id)?.length ?? 0) > 0,
   });
   // The open thread's model changes these accounts applied: one line each at its reply, the
   // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,

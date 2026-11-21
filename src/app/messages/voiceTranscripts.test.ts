@@ -1,5 +1,5 @@
-import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { EventStatus, MatrixEvent } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   NO_VOICE_TRANSCRIPTS,
   planVoiceTranscripts,
@@ -22,13 +22,18 @@ const VOICE_CONTENT = {
   'org.matrix.msc3245.voice': {},
 };
 
-const voice = (id = '$voice', sender = PERSON, content: Record<string, unknown> = VOICE_CONTENT) =>
-  new MatrixEvent({ event_id: id, type: 'm.room.message', sender, content });
+const voice = (
+  id = '$voice',
+  sender = PERSON,
+  content: Record<string, unknown> = VOICE_CONTENT,
+  ts = Date.now()
+) =>
+  new MatrixEvent({ event_id: id, type: 'm.room.message', sender, content, origin_server_ts: ts });
 
 const echo = (
   id: string,
   extra: Record<string, unknown> = { [SOURCE_KEY]: '$voice' },
-  { sender = ROUTER, body = 'Router agent is transcribing…' } = {}
+  { sender = ROUTER, body = '🎤 Invented words' } = {}
 ) =>
   new MatrixEvent({
     event_id: id,
@@ -62,6 +67,8 @@ const plan = (
     ignored = new Set<string>(),
     revealed = new Set<string>(),
     trustedAccountIds = new Set([ROUTER]),
+    hasJoinedAgent = false,
+    hasThreadReplies = (_eventId: string): boolean => false,
   } = {}
 ) =>
   planVoiceTranscripts({
@@ -72,6 +79,9 @@ const plan = (
     trustedAccountIds,
     ignored,
     revealed,
+    viewerId: PERSON,
+    hasJoinedAgent,
+    hasThreadReplies,
   });
 
 describe('getVoiceSourceEventId', () => {
@@ -163,6 +173,9 @@ describe('planVoiceTranscripts', () => {
       trustedAccountIds: new Set(),
       ignored: new Set(),
       revealed: new Set(),
+      viewerId: PERSON,
+      hasJoinedAgent: false,
+      hasThreadReplies: () => false,
     });
     expect(result).toBe(NO_VOICE_TRANSCRIPTS);
   });
@@ -203,7 +216,7 @@ describe('planVoiceTranscripts', () => {
   });
 
   it('keeps the row of an echo whose latest version is the raw audio fallback', () => {
-    // Transcription failed: the router edits its placeholder to the voice message's fallback text.
+    // A failed transcription falls back to the voice message's attachment text.
     const echoEvent = replaceWith(echo('$echo'), {
       msgtype: 'm.text',
       body: '🎤 [Attached voice message]',
@@ -212,6 +225,11 @@ describe('planVoiceTranscripts', () => {
       'com.mindroom.voice_raw_audio_fallback': true,
     });
     expect(plan([voice(), echoEvent])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('keeps an unedited legacy placeholder in its own row', () => {
+    const placeholder = echo('$echo', undefined, { body: 'Router agent is transcribing…' });
+    expect(plan([voice(), placeholder])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
   it('pairs only the first echo naming a voice message', () => {
@@ -225,6 +243,90 @@ describe('planVoiceTranscripts', () => {
     const events = [voice(), echo('$echo')];
     expect(sameVoiceTranscriptPlan(plan(events), plan(events))).toBe(true);
     expect(sameVoiceTranscriptPlan(plan(events), NO_VOICE_TRANSCRIPTS)).toBe(false);
+  });
+});
+
+describe('pending voice transcription', () => {
+  const now = 120_000;
+  const pending = (events: MatrixEvent[]) => plan(events, { hasJoinedAgent: true });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("shows for the viewer's own fresh sent voice message without a transcript", () => {
+    const sent = voice();
+    sent.setStatus(EventStatus.SENT);
+    const result = plan([sent], { hasJoinedAgent: true, trustedAccountIds: new Set() });
+    expect([...result.pendingVoiceIds]).toEqual(['$voice']);
+    expect(sameVoiceTranscriptPlan(result, NO_VOICE_TRANSCRIPTS)).toBe(false);
+  });
+
+  it('ends when a transcript folds, even if the events loaded out of order', () => {
+    const source = voice();
+    const transcript = echo('$echo');
+    expect(pending([source]).pendingVoiceIds.has('$voice')).toBe(true);
+    const result = pending([transcript, source]);
+    expect(result.byVoiceId.get('$voice')).toBe(transcript);
+    expect(result.pendingVoiceIds.size).toBe(0);
+  });
+
+  it('folds a transcript that arrives after the indicator expires', () => {
+    const transcript = echo('$echo');
+    const old = voice('$voice', PERSON, VOICE_CONTENT, now - 60_000);
+    expect(pending([old, transcript]).byVoiceId.get('$voice')).toBe(transcript);
+  });
+
+  it('ends on a later undecryptable agent event', () => {
+    const encrypted = new MatrixEvent({
+      event_id: '$agent',
+      type: 'm.room.encrypted',
+      sender: AGENT,
+    });
+    expect(pending([voice(), encrypted])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('ends on an unfolded agent echo', () => {
+    const untrusted = echo('$echo', undefined, { sender: AGENT });
+    expect(pending([voice(), untrusted])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('ends on the raw-audio fallback without folding it', () => {
+    const fallback = echo('$echo', {
+      [SOURCE_KEY]: '$voice',
+      'com.mindroom.voice_raw_audio_fallback': true,
+    });
+    expect(pending([voice(), fallback])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('does not show without a joined agent', () => {
+    expect(plan([voice()])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('does not show if the voice message has thread replies', () => {
+    expect(
+      plan([voice()], { hasJoinedAgent: true, hasThreadReplies: (id) => id === '$voice' })
+    ).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it.each([
+    ["another person's voice", () => voice('$voice', '@alex:example.org')],
+    ['a local echo', () => voice('~room:txn')],
+    ['an old voice message', () => voice('$voice', PERSON, VOICE_CONTENT, now - 60_000)],
+    ['a future voice message', () => voice('$voice', PERSON, VOICE_CONTENT, now + 1)],
+    ['an invalid timestamp', () => voice('$voice', PERSON, VOICE_CONTENT, NaN)],
+    ['an audio file', () => voice('$voice', PERSON, { msgtype: 'm.audio', body: 'audio.ogg' })],
+    ['a redacted voice message', () => Object.assign(voice(), { isRedacted: () => true })],
+  ])('does not show for %s', (_case, source) => {
+    expect(pending([source()])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it.each([EventStatus.SENDING, EventStatus.NOT_SENT])('does not show for a %s event', (status) => {
+    const unsent = voice();
+    unsent.setStatus(status);
+    expect(pending([unsent])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 });
 

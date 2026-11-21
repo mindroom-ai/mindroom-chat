@@ -2704,9 +2704,6 @@
         "argumentsMayDifferBetweenCalls": "Аргументы разных вызовов могут отличаться.",
         "requestedBy": "Запросил(а) {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Агент маршрутизации расшифровывает речь"
-      },
       "streamingIndicator": {
         "aiIsResponding": "ИИ отвечает"
       },

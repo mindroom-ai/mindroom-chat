@@ -2620,9 +2620,6 @@
         "argumentsMayDifferBetweenCalls": "Bağımsız değişkenler çağrılar arasında farklılık gösterebilir.",
         "requestedBy": "İsteyen: {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Yönlendirici ajan sesi metne dönüştürüyor"
-      },
       "streamingIndicator": {
         "aiIsResponding": "Yapay zekâ yanıtlıyor"
       },

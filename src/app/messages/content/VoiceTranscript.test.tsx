@@ -2,12 +2,9 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VoiceTranscript } from './VoiceTranscript';
-import { ShimmerText } from '../agent-run/ShimmerText';
 
 vi.mock('./VoiceTranscript.css', () => ({
   Transcript: 'Transcript',
-  Lines: 'Lines',
-  Line: 'Line',
 }));
 
 const ECHO = { msgtype: 'm.text', 'com.mindroom.visible_router_voice_echo': true };
@@ -64,17 +61,5 @@ describe('VoiceTranscript', () => {
   it('keeps the transcript in the direction of its own text', () => {
     const root = render({ ...ECHO, body: '🎤 مرحبا' });
     expect(root.findAll((node) => node.props.dir === 'rtl').length).toBeGreaterThan(0);
-  });
-
-  it('shimmers while the router still transcribes, announced as a status', () => {
-    const root = render({ ...ECHO, body: 'Router agent is transcribing…' });
-    const status = root.find((node) => node.props.role === 'status');
-    expect(status.props['aria-label']).toBe('Transcribing…');
-    expect(status.findAllByProps({ className: 'Line' })).toHaveLength(2);
-    // The label glistens as the thinking placeholder's does, hidden from screen readers.
-    const label = status.findByType(ShimmerText);
-    expect(label.props.children).toBe('Transcribing…');
-    expect(label.findByProps({ 'aria-hidden': 'true' }).type).toBe('span');
-    expect(text(status)).not.toContain('Router agent');
   });
 });
