@@ -26,7 +26,8 @@ export const View = style([
 
 export const UpdatedOrder = style({
   position: 'sticky',
-  insetBlockStart: `calc(${topInset} + ${config.space.S300})`,
+  // The sticky row already starts after View's header and filter bar padding.
+  insetBlockStart: 0,
   flex: 'none',
   height: 0,
   display: 'flex',

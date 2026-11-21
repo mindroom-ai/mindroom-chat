@@ -569,6 +569,13 @@ const checkRelease = async (
   const pill = updatePill(page);
   await expect(pill).toBeInViewport();
   expect(await cardOrder(page)).toEqual(before);
+  const gap = await pill.evaluate((button) => {
+    const bar = document.querySelector('[data-room-thread-overview]');
+    if (!bar) throw new Error('No floating filter bar');
+    return button.getBoundingClientRect().top - bar.getBoundingClientRect().bottom;
+  });
+  expect(gap, 'gap below the floating filter bar').toBeGreaterThanOrEqual(0);
+  expect(gap, 'gap below the floating filter bar').toBeLessThanOrEqual(16);
   await shot(page, `pill-${action}`);
   const glide = await listView(page).evaluateHandle((view) => {
     let glided = false;
