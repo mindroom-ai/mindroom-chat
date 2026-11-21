@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { forwardRef } from 'react';
 import { EventEmitter } from 'node:events';
 import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, cleanup, render } from '@testing-library/react';
@@ -21,7 +22,11 @@ const mocks = vi.hoisted(() => ({
   ThreadIndicator: vi.fn((_props: Record<string, unknown>) => null),
 }));
 
-vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: mocks.ThreadIndicator }));
+vi.mock('../messages/ThreadIndicator', () => ({
+  ThreadIndicator: forwardRef<HTMLElement, Record<string, unknown>>((props) =>
+    mocks.ThreadIndicator(props)
+  ),
+}));
 // The real signals cache, over signals the test sets per thread.
 vi.mock('../threads/cross-room/threadSignals', () => ({
   SIGNAL_EVENT_LIMIT: 40,

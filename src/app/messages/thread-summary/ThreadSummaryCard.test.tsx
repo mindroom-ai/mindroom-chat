@@ -51,7 +51,6 @@ vi.mock('./ThreadSummaryCard.css', () => ({
   ThreadSummaryHeader: 'ThreadSummaryHeader',
   ThreadSummaryLabel: 'ThreadSummaryLabel',
   ThreadSummaryBody: 'ThreadSummaryBody',
-  ThreadSummaryBodyCompact: 'ThreadSummaryBodyCompact',
 }));
 
 const getNodeText = (value: ReactTestInstance | string): string => {
@@ -79,7 +78,7 @@ describe('ThreadSummaryCard', () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain('AI');
     renderer.unmount();
   });
-  it('renders compact non-interactive AI summary provenance', () => {
+  it('shows AI provenance, message count and generation time', () => {
     const renderer = create(
       React.createElement(ThreadSummaryCard, {
         summaryInfo: {
@@ -87,7 +86,6 @@ describe('ThreadSummaryCard', () => {
           messageCount: 3,
           generatedTs: 1_775_000_000_000,
         },
-        compact: true,
         renderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
       })
     );
@@ -97,8 +95,8 @@ describe('ThreadSummaryCard', () => {
     expect(text).toContain('AI summary of last 3 messages');
     expect(text).not.toContain('Generated from last 3 messages');
     expect(text).toContain('Deployment completed and health checks passed.');
-    expect(chipMock).not.toHaveBeenCalled();
-    expect(timeMock).not.toHaveBeenCalled();
+    expect(chipMock).toHaveBeenCalled();
+    expect(timeMock).toHaveBeenCalledWith({ ts: 1_775_000_000_000, compact: true });
 
     renderer.unmount();
   });
