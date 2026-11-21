@@ -270,7 +270,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const { t } = useTranslation();
   const useAuthentication = useMediaAuthentication();
   const time = useRelativeTime(row.ts, 'compact');
-  // The router posts approval cards; the row names the agent that asks, as the thread's card does.
+  // Use the approval card's named agent, not necessarily its sender, as the thread's card does.
   const asking =
     row.kind === 'approval' && row.signals.pendingApproval && room
       ? agentMember(room, row.signals.pendingApproval.approval.agentName)?.userId

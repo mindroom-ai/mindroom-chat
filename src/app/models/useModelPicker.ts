@@ -23,7 +23,8 @@ export const useModelControllerLifetime = (): void => {
  * The models the thread's picker lists for one runtime (`ModelController.runtimeModels`), as its
  * discovery last answered. Read only: it watches the scope without asking for it
  * (`ModelController.watch`), so it is empty until a composer's picker has discovered the thread's
- * catalog, while the picker shows another runtime's, and for a viewer the router answers nothing.
+ * catalog, while the picker shows another runtime's, or when the room's poster does not answer
+ * the viewer's discovery request.
  */
 export const useThreadModelCatalog = (
   room: Room,
