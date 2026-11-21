@@ -13,6 +13,7 @@ import {
   type Range,
   type VirtualItem,
 } from '@tanstack/react-virtual';
+import { isWaitingForPhonePageSlide } from '../../navigation/phonePageSlide';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import type { CompactOrderWindow } from './useHeldThreadOrder';
 
@@ -105,8 +106,8 @@ export function useCompactWindow(
   useLayoutEffect(() => {
     const view = viewRef.current;
     if (view && !virtualizer.isScrolling && (bias.current || previousRows.current !== rows)) {
-      if (bias.current) {
-        // Fold the temporary layout offset back into the scroll position only at rest.
+      if (bias.current && !isWaitingForPhonePageSlide()) {
+        // Fold at rest, but not between the tap and the slide's outgoing snapshot.
         if (view.scrollTop > 0) view.scrollTop -= bias.current;
         listRef.current?.style.removeProperty('--compact-scroll-bias');
         virtualizer.options.scrollMargin = scrollMargin;

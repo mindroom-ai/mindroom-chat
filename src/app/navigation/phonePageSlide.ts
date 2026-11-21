@@ -196,6 +196,9 @@ let playing = false;
 /** The slide from its call until it has played, waiting for its frame or playing. */
 let active: Slide | undefined;
 
+/** Whether a slide is waiting to capture the outgoing page on its next frame. */
+export const isWaitingForPhonePageSlide = (): boolean => waiting !== undefined;
+
 /**
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
  * deep after it: a thread over its room comes in from the end edge, and a thread or a room leaves
