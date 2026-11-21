@@ -213,7 +213,7 @@ describe('the calm compact list', () => {
     expect(pill()).toBeNull();
   });
 
-  it('returns to the top and hands focus to the scroller when activating the offer', () => {
+  it('applies the offer at zero even while the pointer holds the list', () => {
     const { container, rerender } = render(list(['$a', '$b']));
     const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
     view.scrollTo = (options?: ScrollToOptions | number, y?: number) => {
@@ -221,10 +221,14 @@ describe('the calm compact list', () => {
     };
     scroll(30);
     rerender(list(['$b', '$a']));
+    fireEvent.pointerEnter(row('$a')!.parentElement!);
     fireEvent.click(pill()!);
     fireEvent.scroll(view);
     expect(document.activeElement).toBe(view);
     expect(view.scrollTop).toBe(0);
+    expect(order()).toEqual(['$b', '$a']);
+    // Only the explicit activation overrides the hold, not the next live change.
+    rerender(list(['$a', '$b']));
     expect(order()).toEqual(['$b', '$a']);
   });
 });

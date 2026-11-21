@@ -579,8 +579,22 @@ const checkRelease = async (
   });
   if (action === 'tap') await pill.tap();
   else if (action === 'click') await pill.click();
-  else if (action === 'Enter') await pill.press('Enter');
-  else await scrollList(page, 0);
+  else if (action === 'Enter') {
+    await pill.focus();
+    const point = await listView(page).evaluate((view) => {
+      const bounds = view.getBoundingClientRect();
+      const card = [...view.querySelectorAll('[data-thread-root-id]')]
+        .map((element) => element.getBoundingClientRect())
+        .find((rect) => rect.top > bounds.top + bounds.height / 2 && rect.bottom < bounds.bottom);
+      if (!card) throw new Error('No card below the pill to hover');
+      return { x: card.left + card.width / 4, y: card.top + card.height / 2 };
+    });
+    await page.mouse.move(point.x, point.y);
+    await expect(page.locator('[data-thread-root-id]:hover')).toHaveCount(1);
+    await page.keyboard.press('Enter');
+    // The resting pointer normally holds for three seconds. Enter must not wait for it.
+    await expect.poll(async () => (await cardOrder(page))[0], { timeout: 1000 }).toBe(rootId);
+  } else await scrollList(page, 0);
   await expect.poll(() => listScrollTop(page)).toBe(0);
   await expect.poll(async () => (await cardOrder(page))[0]).toBe(rootId);
   await expect(pill).toHaveCount(0);

@@ -363,7 +363,9 @@ export function CompactRoomView({
   }>();
   const previous = committed.current?.scope === scope ? committed.current : undefined;
   const away = useScrolledAway(viewRef);
-  const orderHeld = !!previous && (away || pointerInside || focusHeld || !!menu);
+  const [catchUpRequested, setCatchUpRequested] = useState(false);
+  const catchUp = catchUpRequested && !away;
+  const orderHeld = !!previous && !catchUp && (away || pointerInside || focusHeld || !!menu);
   const pinning = useThreadPinning(room);
   const pinnedRootIds = useMemo(
     () => threadRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId)),
@@ -439,7 +441,9 @@ export function CompactRoomView({
   }, [away, heldSections, livePins, scope, shownRows]);
   useLayoutEffect(() => {
     committed.current = { scope, sections: heldSections, rows: shownRows, pins: shownPins };
-  }, [heldSections, scope, shownPins, shownRows]);
+    // Consume the explicit override only after the target layout has committed at the top.
+    if (catchUp) setCatchUpRequested(false);
+  }, [catchUp, heldSections, scope, shownPins, shownRows]);
   const pending = useMemo(() => {
     if (!away) return false;
     const target = threadSections
@@ -749,6 +753,7 @@ export function CompactRoomView({
               view?.focus({ preventScroll: true });
               stopFlick();
               view?.scrollTo({ top: 0, behavior: 'instant' });
+              setCatchUpRequested(true);
             }}
           />
         )}
