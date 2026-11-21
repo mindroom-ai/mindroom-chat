@@ -744,12 +744,7 @@ function CompactRoomList({
       <Box
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}
-        // Reserve the extent on the scroller's direct child, even during keyed gap swaps.
-        style={{
-          ...overlay.overviewInsetStop,
-          minHeight: virtualizer.getTotalSize(),
-          transitionProperty: 'none',
-        }}
+        style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
         shrink="No"
@@ -801,7 +796,15 @@ function CompactRoomList({
             </Text>
           </Box>
         ) : (
-          <div ref={listRef} style={{ display: 'flow-root' }}>
+          <div
+            ref={listRef}
+            style={{
+              display: 'flow-root',
+              minHeight: virtualizer.getTotalSize(),
+              transitionProperty: 'none',
+            }}
+          >
+            {/* Reserve the full extent while React swaps keyed rows and gaps on WebKit. */}
             {spacer(
               (items[0]?.start ?? margin) - margin,
               'head',
