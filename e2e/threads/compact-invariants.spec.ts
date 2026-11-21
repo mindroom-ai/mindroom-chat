@@ -27,7 +27,6 @@ import {
   sendStateEvent,
 } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
-
 const invariants = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7'] as const;
 type Invariant = (typeof invariants)[number];
 const cards = (frame: ListFrame) => frame.order.filter(([key]) => !key.startsWith('header:'));
@@ -45,7 +44,6 @@ const prefix =
     ' '
   );
 const boardOps = 'wheel reply start finish resolve pin new wheel reply resize'.split(' ');
-
 function inspect(
   a: ListFrame,
   b: ListFrame,
@@ -139,7 +137,7 @@ for (const phone of [false, true]) {
       expect(strict.every((id) => id === 'all' || invariants.some((known) => id === known))).toBe(
         true
       );
-      const enforced: Invariant[] = ['I4'];
+      const enforced: Invariant[] = ['I3', 'I4'];
       const log: string[] = [];
       const incidents: { id: Invariant; op: number; reason: string; frame?: ListFrame }[] = [];
       const started = Date.now();
