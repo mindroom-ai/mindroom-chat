@@ -7,6 +7,7 @@ import { IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
 import { OWNS_FOCUS_ATTRIBUTE } from '../../lib/overlayFocus';
+import { threadSummaryProvenance } from './threadSummaryProvenance';
 import * as css from './ThreadSummaryMarker.css';
 
 type ThreadSummaryMarkerProps = {
@@ -43,10 +44,7 @@ export function ThreadSummaryMarker({
   if (summaryInfo.isManual) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.edited');
   else if (plan?.first) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.titled');
 
-  let provenance = t('sharedUi.threadSummary.provenance');
-  if (summaryInfo.isManual) provenance = t('sharedUi.threadSummary.manual');
-  else if (typeof summaryInfo.messageCount === 'number')
-    provenance = t('sharedUi.threadSummary.provenanceCount', { count: summaryInfo.messageCount });
+  const provenance = threadSummaryProvenance(t, summaryInfo);
 
   const previous = plan?.previousSummaryText && (
     <Trans

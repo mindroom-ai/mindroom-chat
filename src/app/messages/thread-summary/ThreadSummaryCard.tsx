@@ -10,8 +10,6 @@ import * as css from './ThreadSummaryCard.css';
 
 type ThreadSummaryCardProps = {
   summaryInfo: ThreadSummaryInfo;
-  /** Thread badges and overview rows: a single provenance line, no chip and no time. */
-  compact?: boolean;
   /** The summary notice was edited. */
   edited?: boolean;
   renderBody: (props: { body: string; customBody?: string }) => ReactNode;
@@ -21,28 +19,15 @@ type ThreadSummaryCardProps = {
  * A thread title (`io.mindroom.thread_summary` notice) rendered as a card: who wrote it (an
  * agent's model or a person editing it by hand) and how many messages it covers.
  */
-export function ThreadSummaryCard({
-  summaryInfo,
-  compact,
-  edited,
-  renderBody,
-}: ThreadSummaryCardProps) {
+export function ThreadSummaryCard({ summaryInfo, edited, renderBody }: ThreadSummaryCardProps) {
   const { t } = useTranslation();
-  // The timeline card follows the pointer like the other glass cards; compact rows sit inside one.
-  const glassRef = useGlassHighlight<HTMLElement>(undefined, !compact);
+  const glassRef = useGlassHighlight<HTMLElement>();
   const { isManual, summaryText, messageCount, generatedTs } = summaryInfo;
   const hasCount = typeof messageCount === 'number' && messageCount > 0;
 
-  let label: string;
-  if (isManual) {
-    label = t('sharedUi.threadSummary.manual');
-  } else if (compact && hasCount) {
-    label = t('sharedUi.threadSummary.provenanceCount', { count: messageCount });
-  } else {
-    label = compact
-      ? t('sharedUi.threadSummary.provenance')
-      : t('mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary');
-  }
+  const label = isManual
+    ? t('sharedUi.threadSummary.manual')
+    : t('mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary');
 
   return (
     // A group, not a region landmark: a timeline holds many summaries under the same name.
@@ -60,16 +45,16 @@ export function ThreadSummaryCard({
           <Icon size="50" src={Icons.Bulb} aria-hidden="true" />
           {label}
         </Text>
-        {!compact && !isManual && hasCount && (
+        {!isManual && hasCount && (
           <Chip as="span" size="400" radii="Pill" variant="SurfaceVariant" aria-disabled="true">
             <Text size="T200">
               {t('sharedUi.threadSummary.provenanceCount', { count: messageCount })}
             </Text>
           </Chip>
         )}
-        {!compact && typeof generatedTs === 'number' && <Time ts={generatedTs} compact />}
+        {typeof generatedTs === 'number' && <Time ts={generatedTs} compact />}
       </div>
-      <MessageTextBody className={compact ? css.ThreadSummaryBodyCompact : css.ThreadSummaryBody}>
+      <MessageTextBody className={css.ThreadSummaryBody}>
         {renderBody({ body: summaryText ?? '' })}
         {edited && <MessageEditedContent />}
       </MessageTextBody>

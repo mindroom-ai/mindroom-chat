@@ -264,7 +264,12 @@ for (const engine of ['chromium', 'webkit'] as const) {
             filterState: createDefaultThreadFilterState(),
           });
           await page.goto(`/home/${encodeURIComponent(roomId)}`);
-          await expect(page.getByRole('group').filter({ hasText: TITLE }).first()).toBeVisible();
+          await expect(
+            page
+              .getByTestId('room-virtual-inner')
+              .getByRole('button', { name: new RegExp(TITLE) })
+              .and(page.locator(`[data-thread-root-id="${rootId}"]`))
+          ).toBeVisible();
           await page.screenshot({ path: testInfo.outputPath('threads-light.png') });
           await page.evaluate(() => {
             const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
