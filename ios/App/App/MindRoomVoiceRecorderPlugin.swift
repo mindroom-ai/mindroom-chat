@@ -2,6 +2,7 @@
 import Accelerate
 import AVFoundation
 import Capacitor
+import UIKit
 
 /// Records voice messages for the Mac app, whose WebKit has no media capture
 /// (`src/app/native/nativeVoiceRecorder.ts`). Each recording has an ID and a file of its own, so a
@@ -36,21 +37,27 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         UUID(uuidString: id).map { folder.appendingPathComponent("\($0.uuidString).m4a") }
     }
 
-    /// This page's recordings whose writer is not done, by ID: each holds its lock.
-    private var writing: [String: Recording] = [:]
+    /// This page's recordings by ID (main queue), until it forgets them or goes: the one that
+    /// captures, and those that ended, whose audio it can still ask for.
+    private var recordings: [String: Recording] = [:]
     /// Its window closed: it records nothing more.
     private var closed = false
     /// The page loads begun: a start asked before the newest one records nothing.
     private var generation = 0
 
     override public func load() {
-        NotificationCenter.default.addObserver(
+        let center = NotificationCenter.default
+        center.addObserver(
             self, selector: #selector(pageWillLoad), name: .capacitorWebViewNavigationStarted,
             object: bridge?.webView
         )
-        NotificationCenter.default.addObserver(
+        center.addObserver(
             self, selector: #selector(pageWillLoad), name: .capacitorWebViewTerminated,
             object: bridge?.webView
+        )
+        // The app quits: what is being written is finished as far as there is time.
+        center.addObserver(
+            self, selector: #selector(pageWillLoad), name: UIApplication.willTerminateNotification, object: nil
         )
     }
 
@@ -76,19 +83,20 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         guard AVCaptureDevice.default(for: .audio) != nil else {
                             return call.reject("No microphone", "NO_MICROPHONE")
                         }
-                        self.writing.values.forEach { $0.end() }
+                        self.recordings.values.forEach { $0.end() }
                         let id = UUID().uuidString
                         try? FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-                        guard let lock = Self.file(of: id).flatMap(RecordingLock.init) else {
+                        guard let lock = Self.file(of: id).flatMap({ RecordingLock($0, create: true) }) else {
                             return call.reject("Could not start recording", "START_FAILED")
                         }
-                        guard let recording = try? Recording(lock: lock) else {
+                        // Whose it is stands on disk before anything is recorded.
+                        guard lock.write(owner: call.getString("owner") ?? ""),
+                              let recording = try? Recording(lock: lock) else {
                             // What a failed start wrote goes, under its lock.
                             _ = lock.delete()
                             return call.reject("Could not start recording", "START_FAILED")
                         }
-                        self.writing[id] = recording
-                        recording.whenDone { [weak self] _, _ in self?.writing[id] = nil }
+                        self.recordings[id] = recording
                         call.resolve(["id": id])
                     }
                 }
@@ -124,42 +132,48 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    /// Ends the recording and resolves its path once its file is finished whole. A file that lost
-    /// audio it could not write is finished too and rejects `INCOMPLETE`.
+    /// Ends the recording, also one that ended by itself, and resolves its path once its file is
+    /// finished. `incomplete`: the file lost audio it could not write, or, after 3 s, is not
+    /// finished yet (a writer that hangs is not waited for) and holds what is on disk by then.
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
-            guard let recording = capturing(call) else { return }
-            recording.end()
-            recording.whenDone { whole, _ in
-                guard whole else { return call.reject("The recording is incomplete", "INCOMPLETE") }
-                call.resolve(["path": recording.url.path])
+            guard let recording = recordings[call.getString("id") ?? ""] else {
+                return call.reject("No such recording", "NOT_RECORDING")
             }
+            var answered = false
+            let answer = { (whole: Bool) in
+                guard !answered else { return }
+                answered = true
+                call.resolve(["path": recording.url.path, "incomplete": !whole])
+            }
+            recording.end()
+            recording.whenDone { whole, _ in answer(whole) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { answer(false) }
         }
     }
 
-    /// Deletes the file of the given ID, the only way a recording leaves the disk: one this page
-    /// still writes once its writer is done (it ends first), any other while no window or process
-    /// writes or lists it (else `BUSY`). Resolves once the file is gone.
+    /// Deletes the file of the given ID, the only way a recording leaves the disk: one of this page
+    /// once its writer is done (it ends first), any other while no window or process writes or
+    /// lists it (else `BUSY`). Resolves once the file is gone.
     @objc func forget(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let id = call.getString("id") ?? ""
             guard let file = Self.file(of: id) else { return call.reject("Not a recording ID", "INVALID_ID") }
-            let delete = { (lock: RecordingLock) in
+            let delete = { (lock: RecordingLock?) in
+                guard let lock else { return call.reject("The recording is being written", "BUSY") }
                 lock.delete() ? call.resolve() : call.reject("Could not delete the recording", "DELETE_FAILED")
             }
-            if let recording = writing[id] {
-                recording.end()
-                recording.whenDone { _, lock in delete(lock) }
-            } else if let lock = RecordingLock(file) {
-                delete(lock)
-            } else {
-                call.reject("The recording is being written", "BUSY")
+            guard let recording = recordings.removeValue(forKey: id) else {
+                return delete(RecordingLock(file, create: true))
             }
+            recording.end()
+            recording.whenDone { _, lock in delete(lock ?? RecordingLock(file, create: true)) }
         }
     }
 
     /// The recordings no window or process is writing: stopped ones, and those a page that went or
-    /// an app that was killed left. Each stays listed until `forget`.
+    /// an app that was killed left, each with the account that recorded it. Each stays listed
+    /// until `forget`.
     @objc func orphans(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let urls = (try? FileManager.default.contentsOfDirectory(
@@ -167,10 +181,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             )) ?? []
             let recordings: [[String: Any]] = urls.compactMap { url in
                 let id = url.deletingPathExtension().lastPathComponent
-                // The lock first: the file is read under it, so it is neither written on nor deleted.
+                // The lock first, and only one its writer made: the file is read under it, so it
+                // is neither written on nor deleted.
                 guard Self.file(of: id)?.lastPathComponent == url.lastPathComponent,
-                      let startedAt = RecordingLock(url)?.startedAt else { return nil }
-                return ["id": id, "path": url.path, "startedAt": startedAt]
+                      let lock = RecordingLock(url, create: false), let startedAt = lock.startedAt else { return nil }
+                return ["id": id, "path": url.path, "startedAt": startedAt, "owner": lock.owner]
             }
             call.resolve(["recordings": recordings])
         }
@@ -179,16 +194,17 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     /// The recording of the call's ID while it captures; else the call is rejected `NOT_RECORDING`:
     /// the recording ended, also by itself.
     private func capturing(_ call: CAPPluginCall) -> Recording? {
-        if let recording = writing[call.getString("id") ?? ""], recording.capturing { return recording }
+        if let recording = recordings[call.getString("id") ?? ""], recording.capturing { return recording }
         call.reject("No such recording", "NOT_RECORDING")
         return nil
     }
 
-    /// The page is going, or its process ended (main queue): it records nothing more, its files
-    /// stay, and a start that waits on the prompt ends.
+    /// The page is going, its process ended, or the app quits (main queue): it records nothing
+    /// more, its files stay, and a start that waits on the prompt ends.
     @objc private func pageWillLoad() {
         generation += 1
-        writing.values.forEach { $0.end() }
+        recordings.values.forEach { $0.end() }
+        recordings = [:]
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
@@ -200,16 +216,17 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
 /// The exclusive `flock` on a recording's `.lock` file beside it, held by whoever writes the file,
 /// lists it or deletes it. This object alone owns the descriptor and closes it once; the kernel
-/// drops the lock of a process that dies.
+/// drops the lock of a process that dies. The lock file holds the account that recorded.
 private final class RecordingLock {
     let file: URL
     private let lockFile: URL
     private let descriptor: Int32
 
-    /// nil while it is held elsewhere, by this process too.
-    init?(_ file: URL) {
+    /// nil while it is held elsewhere, by this process too; without `create` (a listing makes no
+    /// files) also when there is none.
+    init?(_ file: URL, create: Bool) {
         let lockFile = file.deletingPathExtension().appendingPathExtension("lock")
-        let descriptor = open(lockFile.path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        let descriptor = open(lockFile.path, O_RDWR | O_NOFOLLOW | O_CLOEXEC | (create ? O_CREAT : 0), 0o600)
         guard descriptor >= 0 else { return nil }
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             Darwin.close(descriptor)
@@ -219,6 +236,18 @@ private final class RecordingLock {
     }
 
     deinit { Darwin.close(descriptor) }
+
+    /// The account that recorded, as `write(owner:)` put it; empty when there is none.
+    var owner: String {
+        var bytes = [UInt8](repeating: 0, count: 1_024)
+        let count = pread(descriptor, &bytes, bytes.count, 0)
+        return String(decoding: bytes.prefix(max(count, 0)), as: UTF8.self)
+    }
+
+    func write(owner: String) -> Bool {
+        let bytes = Array(owner.utf8)
+        return pwrite(descriptor, bytes, bytes.count, 0) == bytes.count
+    }
 
     /// When the file was made, in ms since 1970; nil unless it is a regular file, not a link.
     var startedAt: Int? {
@@ -237,36 +266,43 @@ private final class RecordingLock {
     }
 }
 
-/// One recording: the microphone through `AVAudioEngine` into an AAC `.m4a` that `AVAssetWriter`
-/// writes in fragments of a second, so a killed app leaves a file that plays up to its last fragment.
-/// It ends by itself when its device changes or is interrupted, or when the file cannot be written,
-/// and holds its lock until its writer is done: finished or failed.
+/// One recording: the microphone through `AVAudioEngine`, converted at the tap to 16 kHz mono,
+/// into an AAC `.m4a` that `AVAssetWriter` writes in fragments of a second, so a killed app leaves
+/// a file that plays up to its last fragment. A changed device is tapped anew. It ends by itself
+/// when it is interrupted or the file cannot be written, and holds its lock until its writer is
+/// done: finished or failed.
 private final class Recording {
+    /// What the writer is given, whatever the device delivers.
+    private static let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
+    /// About 5 s that the writer did not take: it is not keeping up.
+    private static let backlog = 5 * 16_000
+
     var url: URL { writer.outputURL }
     /// It captures (main queue): until `end`.
     private(set) var capturing = true
     /// The page paused it (main queue): the engine starts again only for a resume.
     private var paused = false
-    /// The format of the first tap (main queue).
-    private var firstFormat: AVAudioFormat?
     /// Held until the writer is done (main queue).
     private var lock: RecordingLock?
-    private var waiters: [(Bool, RecordingLock) -> Void] = []
+    /// Whether the file holds all that was recorded, once the writer is done (main queue).
+    private var whole: Bool?
+    private var waiters: [(Bool, RecordingLock?) -> Void] = []
     private let engine = AVAudioEngine()
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
     private var observers: [NSObjectProtocol] = []
     private var readiness: NSKeyValueObservation?
-    /// The appends, the level and the end of the file, in turn.
+    /// The writer, the file's times and its end, in turn: it may wait for the disk.
     private let queue = DispatchQueue(label: "chat.mindroom.voice-recorder")
     /// What the file takes (queue): buffers; after the capture ended only those it holds; nothing.
     private enum Phase { case open, closing, sealed }
     private var phase = Phase.open
-    /// The length taken in, the next buffer's time (queue): exact at any rate, and a pause leaves
-    /// no gap.
+    /// The length written, the next buffer's time (queue): a pause leaves no gap.
     private var written = CMTime.zero
-    /// Buffers the writer was not ready for yet, oldest first (queue).
-    private var pending: [CMSampleBuffer] = []
+    /// Guards the two below: the tap and the level never wait for the writer.
+    private let shared = NSLock()
+    /// Buffers the writer has not taken yet, oldest first.
+    private var pending: [AVAudioPCMBuffer] = []
     private var newestLevel: Float = 0
 
     init(lock: RecordingLock) throws {
@@ -307,7 +343,7 @@ private final class Recording {
         let center = NotificationCenter.default
         observers = [
             center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
-                DispatchQueue.main.async { self?.retap() }
+                DispatchQueue.main.async { self?.retap(again: true) }
             },
             center.addObserver(forName: AVAudioSession.interruptionNotification, object: session, queue: nil) { [weak self] _ in
                 DispatchQueue.main.async { self?.end() }
@@ -317,25 +353,22 @@ private final class Recording {
         try engine.start()
     }
 
-    /// Taps the microphone in the format it has now (main queue). The writer reads every buffer as
-    /// the first one's format, without a word: a later device's other format is converted to it.
+    /// Taps the microphone in the format its hardware has now (main queue).
     private func tap() throws {
         let node = engine.inputNode
-        let format = node.outputFormat(forBus: 0)
+        // Not the node's output format, which can still be the one of the device before.
+        let format = node.inputFormat(forBus: 0)
         // An input without a rate or a channel records nothing.
         guard format.sampleRate > 0, format.channelCount > 0 else { throw CocoaError(.fileWriteUnknown) }
-        let first = firstFormat ?? format
-        firstFormat = first
-        let converter = format == first ? nil : AVAudioConverter(from: format, to: first)
-        guard format == first || converter != nil else { throw CocoaError(.fileWriteUnknown) }
-        // Each channel takes the same one of the new device, or its last: left to match the two
-        // channel layouts, the converter gives silence where it cannot.
-        converter?.channelMap = (0..<first.channelCount).map { NSNumber(value: min($0, format.channelCount - 1)) }
+        // Made for the format of the buffers that come, and again when that changes.
+        var converter: AVAudioConverter?
         node.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
-            guard let self else { return }
-            guard let converter else { return self.append(buffer) }
-            guard let converted = Self.convert(buffer, with: converter) else { return self.queue.sync { self.fail() } }
-            if converted.frameLength > 0 { self.append(converted) }
+            if converter?.inputFormat != buffer.format {
+                converter = AVAudioConverter(from: buffer.format, to: Self.format)
+                // By channel number: matched by layout, some devices come out silent.
+                converter?.channelMap = [0]
+            }
+            self?.take(converter.flatMap { Self.convert(buffer, with: $0) })
         }
     }
 
@@ -354,21 +387,40 @@ private final class Recording {
         return status == .error ? nil : converted
     }
 
+    /// A buffer of the tap, as 16 kHz mono (its thread): the level is its RMS, and the writer's
+    /// queue takes it from `pending`. nil, or more than the writer keeps up with, ends the
+    /// recording, keeping what the writer took.
+    private func take(_ buffer: AVAudioPCMBuffer?) {
+        var rms: Float = 0
+        if let buffer, let samples = buffer.floatChannelData?[0] {
+            vDSP_rmsqv(samples, 1, &rms, vDSP_Length(buffer.frameLength))
+        }
+        let taken = shared.withLock {
+            guard let buffer, pending.reduce(0, { $0 + Int($1.frameLength) }) < Self.backlog else { return false }
+            newestLevel = min(rms, 1)
+            if buffer.frameLength > 0 { pending.append(buffer) }
+            return true
+        }
+        queue.async { [self] in taken ? drain() : fail() }
+    }
+
     /// The device changed, and the engine stopped itself (main queue): the recording goes on from
-    /// the new one, at once unless it is paused, and ends only when that one cannot be recorded.
-    private func retap() {
+    /// the new one, at once unless it is paused. A device still switching has no format for a
+    /// moment: it is asked once `again`, and the recording ends only when it cannot be recorded.
+    private func retap(again: Bool) {
         guard capturing else { return }
         engine.inputNode.removeTap(onBus: 0)
         do {
             try tap()
             if !paused { try engine.start() }
         } catch {
-            end()
+            guard again else { return end() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.retap(again: false) }
         }
     }
 
     /// The level of the newest buffer, linear from 0 to 1.
-    var level: Float { queue.sync { newestLevel } }
+    var level: Float { shared.withLock { newestLevel } }
 
     func pause() {
         paused = true
@@ -381,9 +433,9 @@ private final class Recording {
     }
 
     /// Calls `done` (main queue) once the writer is done, with whether the file holds all that was
-    /// recorded and with the lock, still held then. Not for a recording that is done.
-    func whenDone(_ done: @escaping (Bool, RecordingLock) -> Void) {
-        waiters.append(done)
+    /// recorded, and with the lock while it is still held: for the first callers, not after.
+    func whenDone(_ done: @escaping (Bool, RecordingLock?) -> Void) {
+        if let whole { done(whole, nil) } else { waiters.append(done) }
     }
 
     /// Ends the capture (main queue), once: the microphone goes now, and the file is finished with
@@ -395,8 +447,8 @@ private final class Recording {
         queue.async { [self] in
             if phase == .open { phase = .closing }
             drain()
-            queue.asyncAfter(deadline: .now() + 2) { [self] in seal(whole: false) }
         }
+        queue.asyncAfter(deadline: .now() + 2) { [self] in seal(whole: false) }
     }
 
     /// The one way the microphone goes (main queue): the tap, the engine, then the audio session.
@@ -407,51 +459,40 @@ private final class Recording {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    private func append(_ buffer: AVAudioPCMBuffer) {
-        queue.sync {
-            guard phase == .open else { return }
-            if let samples = buffer.floatChannelData?[0] {
-                var rms: Float = 0
-                vDSP_rmsqv(samples, 1, &rms, vDSP_Length(buffer.frameLength))
-                newestLevel = min(rms, 1)
-            }
-            // The engine reuses its buffer: the sample buffer holds a copy of the samples.
-            let rate = CMTimeScale(buffer.format.sampleRate)
-            var timing = CMSampleTimingInfo(
-                duration: CMTime(value: 1, timescale: rate), presentationTimeStamp: written, decodeTimeStamp: .invalid
-            )
-            var sample: CMSampleBuffer?
-            guard CMSampleBufferCreate(
-                      allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false,
-                      makeDataReadyCallback: nil, refcon: nil, formatDescription: buffer.format.formatDescription,
-                      sampleCount: CMItemCount(buffer.frameLength), sampleTimingEntryCount: 1,
-                      sampleTimingArray: &timing, sampleSizeEntryCount: 0, sampleSizeArray: nil,
-                      sampleBufferOut: &sample
-                  ) == noErr, let sample,
-                  CMSampleBufferSetDataBufferFromAudioBufferList(
-                      sample, blockBufferAllocator: kCFAllocatorDefault,
-                      blockBufferMemoryAllocator: kCFAllocatorDefault, flags: 0, bufferList: buffer.audioBufferList
-                  ) == noErr else { return fail() }
-            written = CMTimeAdd(written, CMTime(value: CMTimeValue(buffer.frameLength), timescale: rate))
-            pending.append(sample)
-            drain()
-            // About 5 s of buffers the writer did not take: it is not keeping up.
-            if pending.count > 64 { fail() }
-        }
-    }
-
     /// Gives the writer the buffers it is ready for (queue); the last one after the capture ended
     /// finishes the file.
     private func drain() {
         guard phase != .sealed else { return }
-        while let sample = pending.first, input.isReadyForMoreMediaData, input.append(sample) {
-            pending.removeFirst()
+        while input.isReadyForMoreMediaData, let buffer = shared.withLock({ pending.first }) {
+            guard let sample = sample(of: buffer), input.append(sample) else { return fail() }
+            shared.withLock { _ = pending.removeFirst() }
         }
         if writer.status != .writing {
             fail()
-        } else if phase == .closing, pending.isEmpty {
+        } else if phase == .closing, shared.withLock({ pending.isEmpty }) {
             seal(whole: true)
         }
+    }
+
+    /// The buffer for the writer, at the time the file has reached (queue), which moves on.
+    private func sample(of buffer: AVAudioPCMBuffer) -> CMSampleBuffer? {
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: 16_000), presentationTimeStamp: written, decodeTimeStamp: .invalid
+        )
+        var sample: CMSampleBuffer?
+        guard CMSampleBufferCreate(
+                  allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false,
+                  makeDataReadyCallback: nil, refcon: nil, formatDescription: buffer.format.formatDescription,
+                  sampleCount: CMItemCount(buffer.frameLength), sampleTimingEntryCount: 1,
+                  sampleTimingArray: &timing, sampleSizeEntryCount: 0, sampleSizeArray: nil,
+                  sampleBufferOut: &sample
+              ) == noErr, let sample,
+              CMSampleBufferSetDataBufferFromAudioBufferList(
+                  sample, blockBufferAllocator: kCFAllocatorDefault,
+                  blockBufferMemoryAllocator: kCFAllocatorDefault, flags: 0, bufferList: buffer.audioBufferList
+              ) == noErr else { return nil }
+        written = CMTimeAdd(written, CMTime(value: CMTimeValue(buffer.frameLength), timescale: 16_000))
+        return sample
     }
 
     /// The file takes no more (queue): the recording ends, keeping what the writer took.
@@ -465,7 +506,7 @@ private final class Recording {
     private func seal(whole: Bool) {
         guard phase != .sealed else { return }
         phase = .sealed
-        pending = []
+        shared.withLock { pending = [] }
         guard writer.status == .writing else { return done(false) }
         input.markAsFinished()
         writer.finishWriting { [self] in done(whole && writer.status == .completed) }
@@ -473,10 +514,10 @@ private final class Recording {
 
     private func done(_ whole: Bool) {
         DispatchQueue.main.async { [self] in
-            guard let lock else { return }
+            self.whole = whole
             waiters.forEach { $0(whole, lock) }
             waiters = []
-            self.lock = nil
+            lock = nil
         }
     }
 }

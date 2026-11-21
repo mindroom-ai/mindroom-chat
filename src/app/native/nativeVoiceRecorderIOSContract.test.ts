@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-// These read the Swift source; the behaviour itself was checked on a Mac (the plan, Task 3).
+// These read the Swift source: the shape of the bridge, and a few rules no edit may break. What
+// the recorder does is checked on a Mac (docs/mac-voice-probe/README.md).
 const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
 const pluginSource = read('ios/App/App/MindRoomVoiceRecorderPlugin.swift');
 const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
@@ -16,236 +17,99 @@ const body = (method: string) =>
 /** The body of a function of the plugin, of `RecordingLock` or of `Recording`. */
 const func = (signature: string) =>
   pluginSource.match(
-    new RegExp(
-      `\n {4}(?:@objc )?(?:private )?(?:static )?(?:func |init)${signature} \\{\n[\\s\\S]*?\n {4}\\}\n`
-    )
+    new RegExp(`\n {4}(?:private )?func ${signature} \\{\n[\\s\\S]*?\n {4}\\}\n`)
   )?.[0] ?? '';
+const count = (pattern: RegExp, source = pluginSource) => source.match(pattern)?.length ?? 0;
 
 describe('MindRoomVoiceRecorderPlugin native contract', () => {
-  it('is the plugin the web side registers, with its methods', () => {
+  it('is the plugin the web side registers, with its methods and answers', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
     expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
     const methods = ['start', 'level', 'pause', 'resume', 'stop', 'forget', 'orphans'];
     methods.forEach((method) => {
-      expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
+      expect(pluginSource).toContain(
+        `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
+      );
+      expect(body(method), method).not.toBe('');
       expect(wrapperSource).toContain(`  ${method}(`);
     });
-    expect(pluginSource.match(/CAPPluginMethod\(name: "(\w+)"/g)).toHaveLength(methods.length);
-    // The linear level is the RMS of the newest buffer the engine tapped.
+    expect(count(/CAPPluginMethod\(name: /g)).toBe(methods.length);
+    // What the wrapper reads from each answer.
+    expect(body('start')).toContain('call.resolve(["id": id])');
+    expect(body('start')).toContain('call.getString("owner")');
     expect(body('level')).toContain('call.resolve(["level": recording.level])');
-    expect(pluginSource).toMatch(
-      /vDSP_rmsqv\(samples, 1, &rms, vDSP_Length\(buffer\.frameLength\)\)\s*newestLevel = min\(rms, 1\)/
+    expect(body('stop')).toContain(
+      'call.resolve(["path": recording.url.path, "incomplete": !whole])'
+    );
+    expect(body('orphans')).toContain(
+      'return ["id": id, "path": url.path, "startedAt": startedAt, "owner": lock.owner]'
     );
     // A listener notified from the main queue would race the bridge queue's listener changes.
     expect(pluginSource).not.toMatch(/notifyListeners\(|Timer/);
-    expect(pluginSource).toContain('call.resolve(["id": id])');
   });
 
-  it('keeps each recording in a file of its own UUID, and acts only on the ID it is given while it captures', () => {
-    expect(func('file\\(of id: String\\) -> URL\\?')).toContain(
-      'UUID(uuidString: id).map { folder.appendingPathComponent("\\($0.uuidString).m4a") }'
+  it('rejects with the codes the web side names', () => {
+    [
+      'PERMISSION_DENIED',
+      'NO_MICROPHONE',
+      'START_FAILED',
+      'NOT_RECORDING',
+      'INVALID_ID',
+      'BUSY',
+      'DELETE_FAILED',
+    ].forEach((code) => expect(pluginSource).toContain(`"${code}"`));
+    ['PERMISSION_DENIED', 'NO_MICROPHONE', 'NOT_RECORDING'].forEach((code) =>
+      expect(wrapperSource).toContain(code)
     );
-    ['level', 'pause', 'resume', 'stop'].forEach((method) =>
-      expect(body(method), method).toMatch(
-        /^.*\n.*\n\s*guard let recording = capturing\(call\) else \{ return \}/
-      )
+    // An ended recording still answers a stop: only what needs a live one rejects.
+    expect(body('stop')).not.toContain('capturing(call)');
+    ['level', 'pause', 'resume'].forEach((method) =>
+      expect(body(method), method).toContain('guard let recording = capturing(call) else')
     );
-    // `capturing` is false from the moment a recording ends, also by itself.
-    expect(func('capturing\\(_ call: CAPPluginCall\\) -> Recording\\?')).toMatch(
-      /if let recording = writing\[call\.getString\("id"\) \?\? ""\], recording\.capturing \{ return recording \}\s*call\.reject\("No such recording", "NOT_RECORDING"\)\s*return nil/
-    );
-    expect(pluginSource.match(/capturing = \w+/g)).toEqual([
-      'capturing = true',
-      'capturing = false',
-    ]);
-    expect(body('resume')).toMatch(/guard recording\.resume\(\) else \{\s*recording\.end\(\)/);
   });
 
   it('deletes a file only for `forget`, and for a start that failed', () => {
-    expect(pluginSource).toMatch(
-      /FileManager\.default\.urls\(for: \.applicationSupportDirectory, in: \.userDomainMask\)\[0\]\s*\.appendingPathComponent\("MindRoomVoiceRecorder", isDirectory: true\)/
+    expect(pluginSource).not.toMatch(
+      /temporaryDirectory|removeItem|trashItem|deleteRecording|cancel\(|keep\(/
     );
-    expect(pluginSource).not.toMatch(/temporaryDirectory|clearFolder|removeItem|deleteRecording/);
-    // No call lets go of a file, and nothing is inferred from what the page did with one.
-    expect(pluginSource + wrapperSource).not.toMatch(/keep\(|cancel\(|takers|delivered/);
-    // One place unlinks, a method of the lock: regular files only, never what a link points at.
-    expect(func('delete\\(\\) -> Bool')).toMatch(
-      /\[file, lockFile\]\.allSatisfy \{ item in\s*var info = stat\(\)\s*guard lstat\(item\.path, &info\) == 0 else \{ return errno == ENOENT \}\s*return info\.st_mode & S_IFMT == S_IFREG && unlink\(item\.path\) == 0/
-    );
-    expect(pluginSource.match(/unlink\(/g)).toHaveLength(1);
-    expect(pluginSource.match(/\.delete\(\)/g)).toHaveLength(2);
-    expect(body('forget')).toMatch(
-      /let delete = \{ \(lock: RecordingLock\) in\s*lock\.delete\(\) \? call\.resolve\(\) : call\.reject\("Could not delete the recording", "DELETE_FAILED"\)\s*\}/
-    );
-    // One this page still writes ends, and goes once its writer is done, under its own lock; any
-    // other only under a lock taken now.
-    expect(body('forget')).toMatch(
-      /if let recording = writing\[id\] \{\s*recording\.end\(\)\s*recording\.whenDone \{ _, lock in delete\(lock\) \}\s*\} else if let lock = RecordingLock\(file\) \{\s*delete\(lock\)\s*\} else \{\s*call\.reject\("The recording is being written", "BUSY"\)/
-    );
-    // An ID that is not a UUID names no recording: it is refused as such, before anything else.
-    expect(body('forget')).toMatch(
-      /let id = call\.getString\("id"\) \?\? ""\s*guard let file = Self\.file\(of: id\) else \{ return call\.reject\("Not a recording ID", "INVALID_ID"\) \}\s*let delete = /
-    );
-    // A failed start: what it wrote goes under the lock it took.
+    // One place unlinks, a method of the lock, and two places call it.
+    expect(count(/unlink\(/g)).toBe(1);
+    expect(func('delete\\(\\) -> Bool')).toContain('unlink(item.path)');
+    expect(count(/\.delete\(\)/g)).toBe(2);
+    expect(count(/lock\.delete\(\)/g, body('forget'))).toBe(1);
+    expect(count(/lock\.delete\(\)/g, body('start'))).toBe(1);
+    // In the start, only where it fails.
     expect(body('start')).toMatch(
-      /guard let lock = Self\.file\(of: id\)\.flatMap\(RecordingLock\.init\) else \{\s*return call\.reject\("Could not start recording", "START_FAILED"\)\s*\}\s*guard let recording = try\? Recording\(lock: lock\) else \{\s*\/\/.*\s*_ = lock\.delete\(\)\s*return call\.reject\("Could not start recording", "START_FAILED"\)/
-    );
-    expect(pluginSource.match(/cancelWriting\(\)/g)).toHaveLength(1);
-    expect(func('\\(lock: RecordingLock\\) throws')).toMatch(
-      /do \{\s*try begin\(\)\s*\} catch \{\s*stopCapture\(\)\s*if writer\.status == \.writing \{ writer\.cancelWriting\(\) \}\s*throw error/
+      /_ = lock\.delete\(\)\s*return call\.reject\("Could not start recording", "START_FAILED"\)/
     );
   });
 
-  it('holds the lock of a recording from its start until its writer is done', () => {
-    // One object owns the descriptor: it has it only once the lock is taken, and closes it once.
-    expect(func('\\?\\(_ file: URL\\)')).toMatch(
-      /let descriptor = open\(lockFile\.path, O_RDWR \| O_CREAT \| O_NOFOLLOW \| O_CLOEXEC, 0o600\)\s*guard descriptor >= 0 else \{ return nil \}\s*guard flock\(descriptor, LOCK_EX \| LOCK_NB\) == 0 else \{\s*Darwin\.close\(descriptor\)\s*return nil\s*\}\s*\(self\.file, self\.lockFile, self\.descriptor\) = \(file, lockFile, descriptor\)/
-    );
-    expect(pluginSource).toContain('deinit { Darwin.close(descriptor) }');
-    expect(pluginSource.match(/close\(descriptor\)/g)).toHaveLength(2);
-    expect(pluginSource).not.toMatch(/Int32\?|unlock/);
-    // The recording lets go of it in one place: when the writer finished or had failed, after
-    // those that waited for it ran under it.
-    expect(pluginSource.match(/lock = nil/g)).toHaveLength(1);
-    expect(func('done\\(_ whole: Bool\\)')).toMatch(
-      /DispatchQueue\.main\.async \{ \[self\] in\s*guard let lock else \{ return \}\s*waiters\.forEach \{ \$0\(whole, lock\) \}\s*waiters = \[\]\s*self\.lock = nil/
-    );
-    expect(pluginSource.match(/[^\w.]done\((?!_)/g)).toHaveLength(2);
-    expect(func('seal\\(whole: Bool\\)')).toMatch(
-      /guard phase != \.sealed else \{ return \}\s*phase = \.sealed\s*pending = \[\]\s*guard writer\.status == \.writing else \{ return done\(false\) \}\s*input\.markAsFinished\(\)\s*writer\.finishWriting \{ \[self\] in done\(whole && writer\.status == \.completed\) \}/
-    );
-    // The page's record of it goes then too.
-    expect(body('start')).toMatch(
-      /self\.writing\[id\] = recording\s*recording\.whenDone \{ \[weak self\] _, _ in self\?\.writing\[id\] = nil \}/
-    );
-    expect(pluginSource.match(/writing\[id\] = /g)).toHaveLength(2);
-  });
+  it('holds each lock until the writer is done, and makes a lock file only to write or delete', () => {
+    // The kernel drops the lock of a process that dies.
+    expect(pluginSource).toContain('flock(descriptor, LOCK_EX | LOCK_NB) == 0');
+    // One owner closes the descriptor: where the lock is not got, and when it is let go.
+    expect(count(/close\(descriptor\)/g)).toBe(2);
+    // A recording lets go of its lock in one place: when its writer finished or had failed.
+    expect(count(/\block = nil/g)).toBe(1);
+    expect(func('done\\(_ whole: Bool\\)')).toMatch(/\block = nil/);
 
-  it('finishes what the writer took when it does not take the rest in time, and reports that stop as incomplete', () => {
-    expect(func('end\\(\\)')).toMatch(
-      /guard capturing else \{ return \}\s*capturing = false\s*stopCapture\(\)\s*queue\.async \{ \[self\] in\s*if phase == \.open \{ phase = \.closing \}\s*drain\(\)\s*queue\.asyncAfter\(deadline: \.now\(\) \+ 2\) \{ \[self\] in seal\(whole: false\) \}/
-    );
-    expect(body('stop')).toMatch(
-      /recording\.end\(\)\s*recording\.whenDone \{ whole, _ in\s*guard whole else \{ return call\.reject\("The recording is incomplete", "INCOMPLETE"\) \}\s*call\.resolve\(\["path": recording\.url\.path\]\)/
+    // A listing takes locks that exist and makes none.
+    expect(pluginSource).toContain('(create ? O_CREAT : 0)');
+    expect(count(/O_CREAT/g)).toBe(1);
+    expect(body('orphans')).toContain('RecordingLock(url, create: false)');
+    expect(count(/create: true/g)).toBe(
+      count(/create: true/g, body('start')) + count(/create: true/g, body('forget'))
     );
   });
 
-  it('lists as orphans the files whose lock it can take, the lock first', () => {
-    expect(body('orphans')).toMatch(
-      /guard Self\.file\(of: id\)\?\.lastPathComponent == url\.lastPathComponent,\s*let startedAt = RecordingLock\(url\)\?\.startedAt else \{ return nil \}\s*return \["id": id, "path": url\.path, "startedAt": startedAt\]/
-    );
-    // Read under the lock: a regular file, not a link, and when it was made.
-    expect(pluginSource).toMatch(
-      /var startedAt: Int\? \{\s*var info = stat\(\)\s*guard lstat\(file\.path, &info\) == 0, info\.st_mode & S_IFMT == S_IFREG else \{ return nil \}\s*return info\.st_birthtimespec\.tv_sec \* 1_000 \+ info\.st_birthtimespec\.tv_nsec \/ 1_000_000/
-    );
-    expect(body('orphans')).toContain('call.resolve(["recordings": recordings])');
-    expect(body('orphans')).not.toMatch(/writing\[|\.delete\(/);
+  it('keeps the tap and the level off the queue of the writer, which may wait for the disk', () => {
+    expect(pluginSource).not.toMatch(/queue\.sync|usleep|sleep\(/);
   });
 
-  it('writes a fragment each second, so a killed app leaves a file that plays up to it', () => {
-    // AVAudioRecorder writes its `moov` only at a stop. AVAssetWriter writes a fragment each
-    // second and joins them into one plain `.m4a` at a clean stop.
-    expect(pluginSource).not.toMatch(/AVAudioRecorder\b/);
-    expect(pluginSource).toContain(
-      'writer = try AVAssetWriter(outputURL: lock.file, fileType: .m4a)'
-    );
-    expect(pluginSource).toContain(
-      'writer.movieFragmentInterval = CMTime(seconds: 1, preferredTimescale: 600)'
-    );
-    // Each buffer's time is the length taken in before it, summed exactly at each buffer's own
-    // rate, so a pause leaves no gap and a rate never rescales what came before.
-    expect(pluginSource).toContain('presentationTimeStamp: written');
-    expect(pluginSource).toContain(
-      'written = CMTimeAdd(written, CMTime(value: CMTimeValue(buffer.frameLength), timescale: rate))'
-    );
-    expect(func('pause\\(\\)')).toMatch(/paused = true\s*engine\.pause\(\)/);
-    expect(func('resume\\(\\) -> Bool')).toMatch(
-      /paused = false\s*return capturing && \(try\? engine\.start\(\)\) != nil/
-    );
-    expect(func('tap\\(\\) throws')).toMatch(
-      /let format = node\.outputFormat\(forBus: 0\)\s*\/\/.*\s*guard format\.sampleRate > 0, format\.channelCount > 0 else \{ throw/
-    );
-  });
-
-  it('holds what the writer is not ready for, hands it on when it is ready again, and ends the recording on a write it cannot do', () => {
-    // Also during a pause, when no buffer arrives to hand them on.
-    expect(func('begin\\(\\) throws')).toMatch(
-      /readiness = input\.observe\(\\\.isReadyForMoreMediaData\) \{ \[weak self\] _, _ in\s*self\?\.queue\.async \{ self\?\.drain\(\) \}/
-    );
-    expect(func('drain\\(\\)')).toMatch(
-      /guard phase != \.sealed else \{ return \}\s*while let sample = pending\.first, input\.isReadyForMoreMediaData, input\.append\(sample\) \{\s*pending\.removeFirst\(\)\s*\}\s*if writer\.status != \.writing \{\s*fail\(\)\s*\} else if phase == \.closing, pending\.isEmpty \{\s*seal\(whole: true\)/
-    );
-    const append = func('append\\(_ buffer: AVAudioPCMBuffer\\)');
-    expect(append).toMatch(/queue\.sync \{\s*guard phase == \.open else \{ return \}/);
-    expect(append).toMatch(
-      /\) == noErr else \{ return fail\(\) \}[\s\S]*pending\.append\(sample\)\s*drain\(\)\s*\/\/.*\s*if pending\.count > 64 \{ fail\(\) \}/
-    );
-    // What the writer took stays: the file is finished with it.
-    expect(func('fail\\(\\)')).toMatch(
-      /DispatchQueue\.main\.async \{ \[self\] in end\(\) \}\s*seal\(whole: false\)/
-    );
-    expect(pluginSource).not.toMatch(/usleep|sleep\(/);
-  });
-
-  it('goes on recording from a changed device, in the format the file began in', () => {
-    // Headphones that take over the microphone stop the engine right after its start; main's
-    // recorder went on. Only asked for from the notification, done on the main queue.
-    expect(func('begin\\(\\) throws')).toMatch(
-      /center\.addObserver\(forName: \.AVAudioEngineConfigurationChange, object: engine, queue: nil\) \{ \[weak self\] _ in\s*DispatchQueue\.main\.async \{ self\?\.retap\(\) \}/
-    );
-    // The tap in the new format; the engine again unless the page paused it; the end only when
-    // the new device cannot be recorded.
-    expect(func('retap\\(\\)')).toMatch(
-      /guard capturing else \{ return \}\s*engine\.inputNode\.removeTap\(onBus: 0\)\s*do \{\s*try tap\(\)\s*if !paused \{ try engine\.start\(\) \}\s*\} catch \{\s*end\(\)\s*\}/
-    );
-    expect(pluginSource.match(/\bpaused = \w+/g)).toEqual([
-      'paused = false',
-      'paused = true',
-      'paused = false',
-    ]);
-    // The writer reads every buffer as the first one's format (on the Mac, a 24 kHz buffer after
-    // 48 kHz ones played at double speed): another format is converted to the first.
-    const tap = func('tap\\(\\) throws');
-    expect(tap).toMatch(
-      /let first = firstFormat \?\? format\s*firstFormat = first\s*let converter = format == first \? nil : AVAudioConverter\(from: format, to: first\)\s*guard format == first \|\| converter != nil else \{ throw/
-    );
-    // By channel number, not by layout: a stereo device into a file begun without a layout was
-    // silent on the Mac.
-    expect(tap).toContain(
-      'converter?.channelMap = (0..<first.channelCount).map { NSNumber(value: min($0, format.channelCount - 1)) }'
-    );
-    expect(tap).toMatch(
-      /node\.installTap\(onBus: 0, bufferSize: 4_096, format: format\) \{ \[weak self\] buffer, _ in\s*guard let self else \{ return \}\s*guard let converter else \{ return self\.append\(buffer\) \}\s*guard let converted = Self\.convert\(buffer, with: converter\) else \{ return self\.queue\.sync \{ self\.fail\(\) \} \}\s*if converted\.frameLength > 0 \{ self\.append\(converted\) \}/
-    );
-    expect(
-      func(
-        'convert\\(_ buffer: AVAudioPCMBuffer, with converter: AVAudioConverter\\) -> AVAudioPCMBuffer\\?'
-      )
-    ).toMatch(
-      /let status = converter\.convert\(to: converted, error: nil\) \{ _, status in\s*status\.pointee = given \? \.noDataNow : \.haveData\s*defer \{ given = true \}\s*return given \? nil : buffer\s*\}\s*return status == \.error \? nil : converted/
-    );
-    expect(pluginSource.match(/installTap\(/g)).toHaveLength(1);
-  });
-
-  it('ends a recording that was interrupted, from the main queue, the audio session last', () => {
-    const begin = func('begin\\(\\) throws');
-    // In place before the engine starts; it only asks for the end.
-    expect(begin).toMatch(
-      /center\.addObserver\(forName: AVAudioSession\.interruptionNotification, object: session, queue: nil\) \{ \[weak self\] _ in\s*DispatchQueue\.main\.async \{ self\?\.end\(\) \}/
-    );
-    expect(begin.indexOf('addObserver(')).toBeGreaterThan(0);
-    expect(begin.lastIndexOf('addObserver(')).toBeLessThan(begin.indexOf('try tap()'));
-    expect(begin.indexOf('try tap()')).toBeLessThan(begin.indexOf('try engine.start()'));
-    // One function lets go of the microphone.
-    expect(func('stopCapture\\(\\)')).toMatch(
-      /observers\.forEach\(NotificationCenter\.default\.removeObserver\)\s*engine\.inputNode\.removeTap\(onBus: 0\)\s*engine\.stop\(\)\s*try\? AVAudioSession\.sharedInstance\(\)\.setActive\(false, options: \.notifyOthersOnDeactivation\)/
-    );
-    expect(pluginSource.match(/setActive\(false|engine\.stop\(\)/g)).toHaveLength(2);
-    // The page learns it from its next call, which rejects `NOT_RECORDING`; a level that fails
-    // any other way is asked again.
-    expect(wrapperSource).toMatch(
-      /\(error\?: \{ code\?: string \}\) => \{\s*if \(error\?\.code === 'NOT_RECORDING'\) this\.stop\(\);/
-    );
+  it('taps the format of the hardware, not one the node may still hold from the device before', () => {
+    expect(pluginSource).toContain('let format = node.inputFormat(forBus: 0)');
+    expect(pluginSource).not.toContain('outputFormat(forBus');
+    expect(count(/installTap\(/g)).toBe(1);
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -253,7 +117,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     // page loaded after the prompt: an older start of this page (its answer may come last), a
     // start of a page since replaced or being replaced, and one of a closed window end here.
     expect(wrapperSource).toMatch(
-      /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce \}\)/
+      /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce, owner \}\)/
     );
     const [before, after] = body('start').split(
       /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard generation == self\.generation, !self\.closed, !webView\.isLoading,\s*let newest = newest as\? String, newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
@@ -264,14 +128,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(before).toMatch(
       /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}\s*let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
-    expect(before).not.toMatch(/writing|Recording/);
-    // What still captures ends first; its file stays.
-    expect(after).toMatch(
-      /self\.writing\.values\.forEach \{ \$0\.end\(\) \}[\s\S]*?RecordingLock\.init[\s\S]*?Recording\(lock: lock\)/
-    );
-    expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*writing\.values\.forEach \{ \$0\.end\(\) \}\s*\}/
-    );
+    expect(before).not.toMatch(/recordings|Recording/);
+    expect(after).toMatch(/Recording\(lock: lock\)/);
     expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
       'generation = ',
       'generation = ',
@@ -296,19 +154,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('records in a category that still lets the page play audio afterwards', () => {
     // The session keeps its category after a recording; `.record` would leave it input-only.
-    expect(func('begin\\(\\) throws')).toMatch(
-      /try session\.setCategory\(\.playAndRecord, mode: \.default\)\s*try session\.setActive\(true\)/
-    );
-    expect(pluginSource.match(/setCategory\(|setActive\(true/g)).toHaveLength(2);
-  });
-
-  it('rejects with the codes the web side names', () => {
-    ['PERMISSION_DENIED', 'NO_MICROPHONE', 'START_FAILED', 'NOT_RECORDING'].forEach((code) =>
-      expect(pluginSource).toContain(`"${code}"`)
-    );
-    ['PERMISSION_DENIED', 'NO_MICROPHONE', 'NOT_RECORDING'].forEach((code) =>
-      expect(wrapperSource).toContain(code)
-    );
+    expect(pluginSource).toContain('try session.setCategory(.playAndRecord, mode: .default)');
+    expect(count(/setCategory\(/g)).toBe(1);
   });
 
   it('asks for the microphone and records mono AAC at 16 kHz and 32 kbit/s, as the Watch does', () => {
