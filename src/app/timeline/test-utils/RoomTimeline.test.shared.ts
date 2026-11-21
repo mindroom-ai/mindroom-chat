@@ -1263,6 +1263,7 @@ const makeEvent = (
     getServerAggregatedRelation: () => undefined,
     getStateKey: () => opts.stateKey,
     getTs: () => opts.ts ?? 0,
+    localTimestamp,
     getLocalAge: () => Date.now() - localTimestamp,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',

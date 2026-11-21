@@ -162,16 +162,18 @@ export const useVoiceTranscriptPlan = (
     for (const event of input.events) {
       const id = event.getId();
       if (id && plan.pendingVoiceIds.has(id)) {
-        nextExpiry = Math.min(nextExpiry, Date.now() + (TRANSCRIBING_MS - event.getLocalAge()));
+        nextExpiry = Math.min(nextExpiry, event.localTimestamp + TRANSCRIBING_MS);
       }
     }
   }
-  const [, refresh] = useForceUpdate();
+  const [expiryTick, refresh] = useForceUpdate();
   useEffect(() => {
+    // If the clock moved back, the same deadline may still need another timer.
+    void expiryTick;
     if (!Number.isFinite(nextExpiry)) return undefined;
     const timer = setTimeout(refresh, Math.max(0, nextExpiry - Date.now()));
     return () => clearTimeout(timer);
-  }, [nextExpiry, refresh]);
+  }, [nextExpiry, expiryTick, refresh]);
   return last.current;
 };
 

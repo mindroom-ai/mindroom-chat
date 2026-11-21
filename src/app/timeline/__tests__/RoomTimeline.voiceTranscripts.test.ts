@@ -405,6 +405,32 @@ it('hides the transcribing skeleton 60 seconds after the voice message was sent'
   }
 });
 
+it('reschedules expiry if the clock moves back while the hint is pending', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(100_000);
+  const { renderer } = await openThread(undefined, AGENT, { showEcho: false, voiceAge: 40_000 });
+  try {
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+      vi.setSystemTime(105_000);
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(4_999);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(0);
+  } finally {
+    act(() => renderer.unmount());
+    vi.useRealTimers();
+  }
+});
+
 it('does not show pending for a voice root whose unloaded replies are bundled', async () => {
   const { RoomTimeline } = await import('../RoomTimeline');
   const voice = makeEvent('$voice', {
