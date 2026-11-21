@@ -64,7 +64,8 @@ export const ThreadIndicatorTitle = style({ fontWeight: 600 });
 export const ThreadIndicatorMetadata = style({
   ...inlineRow,
   gap: config.space.S100,
-  verticalAlign: 'middle',
+  // The count's text sits on the title's baseline.
+  verticalAlign: 'baseline',
   whiteSpace: 'nowrap',
 });
 
@@ -117,7 +118,8 @@ export const ThreadIndicatorLabel = style({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   selectors: {
-    [`${ThreadIndicatorTitled} &`]: { fontWeight: 500 },
+    // After a bold title the count takes the regular weight, so it doesn't read as part of the title.
+    [`${ThreadIndicatorTitled} &`]: { fontWeight: 400 },
   },
 });
 
