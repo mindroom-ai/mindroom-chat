@@ -176,6 +176,38 @@ describe('the Compact room in sections', () => {
     expect(pill()).toBeNull();
   });
 
+  it('restores the stored fold when a departed section returns while scrolled', () => {
+    localStorage.setItem(
+      `compactRoomSections:${ME}`,
+      JSON.stringify({ on: true, folded: ['done'] })
+    );
+    const done = { id: 'done' as const, rootIds: ['$done'] };
+    state.sections = [done];
+    const { container, rerender } = render(view(done.rootIds));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    expect(rows()).toEqual(['#done 1', '$done']);
+
+    const other = [
+      { id: 'needsYou' as const, rootIds: ['$needs'] },
+      { id: 'later' as const, rootIds: ['$later'] },
+    ];
+    state.sections = [...other, done];
+    rerender(view(['$needs', '$later', '$done']));
+    expect(rows()).toContain('$done');
+
+    state.sections = other;
+    rerender(view(['$needs', '$later']));
+    expect(rows()).toEqual(['#needsYou 1', '$needs', '#later 1', '$later']);
+
+    state.sections = [...other, { id: 'done', rootIds: ['$newDone'] }];
+    rerender(view(['$needs', '$later', '$newDone']));
+    expect(header('done').getAttribute('aria-expanded')).toBe('false');
+    expect(rows()).toEqual(['#needsYou 1', '$needs', '#later 1', '$later', '#done 1']);
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
   it('offers changed folded header counts, but not a reorder within a folded section', () => {
     const ids = ['$a', '$b', '$c', '$d'];
     state.sections = [

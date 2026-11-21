@@ -406,7 +406,7 @@ export function CompactRoomView({
   const heldOpen = soleSection
     ? heldSections?.[0]?.id
     : orderHeld && heldOpenRef.current?.roomId === room.roomId
-    ? heldOpenRef.current.id
+    ? heldSections?.find(({ id }) => id === heldOpenRef.current?.id)?.id
     : undefined;
   useLayoutEffect(() => {
     heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
