@@ -429,7 +429,9 @@ describe('deep diagnostic trace storage failure', () => {
         const fail = () => {
           throw new DOMException('private failure detail', 'UnknownError');
         };
-        // fake-indexeddb's own way to run a request, here one that fails.
+        // fake-indexeddb's own way to run a request, here one that fails (a private method of
+        // its transaction, as of fake-indexeddb 6.2.5): its `error` event reaches idb's listeners
+        // as a browser's does.
         type Internals = { _execRequestAsync: (work: object) => IDBRequest<IDBValidKey> };
         return (this.transaction as unknown as Internals)._execRequestAsync({
           source: this,

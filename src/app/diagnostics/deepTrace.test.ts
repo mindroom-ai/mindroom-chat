@@ -244,10 +244,8 @@ describe('opt-in deep diagnostic trace', () => {
   it('records a sync store failure with the code of its error', async () => {
     await setDeepTraceEnabled(true, storage);
 
-    // An error with the name of a DOMException, which in a browser is an Error too.
-    const failure = (name: string) => Object.assign(new Error('private detail'), { name });
-    recordSyncStoreFailure('failed', failure('UnknownError'));
-    recordSyncStoreFailure('degraded', failure('QuotaExceededError'));
+    recordSyncStoreFailure('failed', new DOMException('private detail', 'UnknownError'));
+    recordSyncStoreFailure('degraded', new DOMException('private detail', 'QuotaExceededError'));
 
     const snapshot = await readDeepTraceSnapshot();
     expect(snapshot.events).toContainEqual(

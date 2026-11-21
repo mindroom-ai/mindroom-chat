@@ -602,7 +602,10 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit): string 
 };
 
 const getErrorCode = (value: unknown): number => {
-  const name = value instanceof Error ? value.name : typeof value;
+  // A DOMException is an Error in browsers, though not in every runtime.
+  const isError =
+    value instanceof Error || (typeof DOMException === 'function' && value instanceof DOMException);
+  const name = isError ? (value as Error).name : typeof value;
   return (
     {
       AbortError: 1,
@@ -623,8 +626,10 @@ const getErrorCode = (value: unknown): number => {
 };
 
 /**
- * The Matrix sync store kept its saved data and skipped an operation that failed ('failed'), or
- * deleted its saved data and stopped saving ('degraded'). `error_code` is `getErrorCode`'s.
+ * The Matrix sync store kept its saved data and skipped an operation that failed ('failed'; of
+ * the saves that fail in a row, the first), or stopped saving ('degraded'): with code 12 the
+ * disk was full and it deleted its saved data, otherwise it could not take a sync batch and
+ * kept them. `error_code` is `getErrorCode`'s.
  */
 export const recordSyncStoreFailure = (outcome: 'failed' | 'degraded', error: unknown): void =>
   recordDeepTraceEvent(
