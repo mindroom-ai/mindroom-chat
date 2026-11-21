@@ -35,20 +35,17 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private static func removeFile(_ id: String, discard: Bool = false) throws {
-        guard let url = file(of: id) else { return }
-        let plugin = recordings[id]?.plugin
-        plugin?.finishLive()
+        guard let recording = recordings[id] else { return }
+        recording.plugin?.finishLive()
         // Sign-out and explicit live discard must not reappear on remove error.
-        if discard || plugin != nil { recordings[id] = nil }
-        do { try FileManager.default.removeItem(at: url) }
+        if discard || recording.plugin != nil { recordings[id] = nil }
+        do { try FileManager.default.removeItem(at: file(of: id)) }
         catch CocoaError.fileNoSuchFile { /* Already removed. */ }
         recordings[id] = nil
     }
 
-    /// The file of a recording; nil for an ID that is not a UUID, so no ID names a path elsewhere.
-    private static func file(of id: String) -> URL? {
-        UUID(uuidString: id) == nil ? nil : folder.appendingPathComponent("\(id).m4a")
-    }
+    // Called only with a UUID generated here or looked up in recordings.
+    private static func file(of id: String) -> URL { folder.appendingPathComponent("\(id).m4a") }
 
     private var live: (id: String, recorder: AVAudioRecorder)?
     /// Its window closed: it records nothing more.
@@ -93,9 +90,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         }
                         self.discardLive()
                         let id = UUID().uuidString
-                        guard let url = Self.file(of: id) else {
-                            return call.reject("Could not start recording", "START_FAILED")
-                        }
+                        let url = Self.file(of: id)
                         let session = AVAudioSession.sharedInstance()
                         // `live` is set only once it records, so a failed attempt cleans up from here.
                         var attempt: AVAudioRecorder?
@@ -191,7 +186,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func listLeftovers(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             let recordings: [[String: Any]] = Self.recordings.compactMap { id, recording in
-                guard recording.plugin == nil, let url = Self.file(of: id),
+                let url = Self.file(of: id)
+                guard recording.plugin == nil,
                       let start = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
                       let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else { return nil }
                 return ["id": id, "path": url.path, "startedAt": (start.timeIntervalSince1970 * 1_000).rounded(),

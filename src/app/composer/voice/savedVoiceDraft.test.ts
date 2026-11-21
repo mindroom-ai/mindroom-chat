@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { openDB } from 'idb';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
@@ -333,6 +334,12 @@ describe('native recording recovery on composer mount', () => {
         expect(committedWhenForgotten).toHaveBeenCalledExactlyOnceWith(true);
       } else {
         expect(offer).not.toHaveBeenCalled();
+        const db = await openDB('mindroom-voice-journal', 1);
+        try {
+          expect(await db.count('chunks', [leftover.id, 0])).toBe(1);
+        } finally {
+          db.close();
+        }
         const next = await reloadPage(getContext);
         expect(await next.get(reloadedAtom())?.file.text()).toBe('native voice');
         expect(committedWhenForgotten).toHaveBeenCalledExactlyOnceWith(true);

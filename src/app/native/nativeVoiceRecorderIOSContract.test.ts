@@ -36,7 +36,8 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('keeps each recording in a file of its own ID, a UUID, and acts only on the ID it is given', () => {
     expect(pluginSource).toContain('"\\(id).m4a"');
-    expect(pluginSource).toContain('UUID(uuidString: id)');
+    expect(body('start')).toContain('let id = UUID().uuidString');
+    expect(pluginSource).toContain('guard let recording = recordings[id] else { return }');
     ['level', 'pause', 'resume', 'stop'].forEach((method) =>
       expect(body(method), method).toMatch(
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
@@ -138,7 +139,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('lists only finished UUID audio files and their recovery metadata', () => {
     const leftover = body('listLeftovers');
     expect(leftover).toMatch(
-      /Self\.recordings\.compactMap \{ id, recording in\s*guard recording\.plugin == nil, let url = Self\.file\(of: id\)/
+      /Self\.recordings\.compactMap \{ id, recording in\s*let url = Self\.file\(of: id\)\s*guard recording\.plugin == nil,/
     );
     expect(leftover).toContain('creationDate');
     expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
