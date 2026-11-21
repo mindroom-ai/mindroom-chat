@@ -93,16 +93,22 @@ const seed = async (name: string) => {
   return { session, roomId };
 };
 
-const voiceMessages = async (world: Awaited<ReturnType<typeof seed>>): Promise<number> => {
-  const page = await matrixFetch<{ chunk: { type: string; content: { msgtype?: string } }[] }>(
+const voiceEvents = async (world: Awaited<ReturnType<typeof seed>>) => {
+  type Event = {
+    type: string;
+    content: { msgtype?: string; info?: { duration?: number }; url?: string };
+  };
+  const page = await matrixFetch<{ chunk: Event[] }>(
     HOMESERVER,
     `/rooms/${encodeURIComponent(world.roomId)}/messages?dir=b&limit=100`,
     { accessToken: world.session.accessToken }
   );
   return page.chunk.filter(
     (event) => event.type === 'm.room.message' && event.content.msgtype === 'm.audio'
-  ).length;
+  );
 };
+const voiceMessages = async (world: Awaited<ReturnType<typeof seed>>) =>
+  (await voiceEvents(world)).length;
 
 const press = async (page: Page, layout: Layout, name: string) => {
   const button = page.getByRole('button', { name, exact: true });
@@ -184,11 +190,100 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
   }
 };
 
+const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(label);
+  const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
+  await context.addInitScript(toneMicrophone);
+  try {
+    if (browser.browserType().name() === 'chromium') await context.grantPermissions(['microphone']);
+    const page = await context.newPage();
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: world.session.username,
+      password: PASSWORD,
+      showToolCalls: false,
+    });
+    await page.evaluate(
+      (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('threaded')),
+      world.roomId
+    );
+    const room = `/home/${encodeURIComponent(world.roomId)}`;
+    await page.goto(room);
+    await expect(page.getByRole('button', { name: 'Record voice message' })).toBeEnabled({
+      timeout: 60_000,
+    });
+    await press(page, layout, 'Record voice message');
+    // Close without running a Stop, Discard or Send handler in the page.
+    await expect(page.getByText('0:05', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(600);
+    await page.close();
+    expect(await voiceMessages(world)).toBe(0);
+
+    const next = await context.newPage();
+    await next.goto(room);
+    const recovered = next.getByText(/^Recovered recording · 0:0[456]$/);
+    await expect(recovered).toBeVisible({ timeout: 60_000 });
+    await expect(next.getByRole('button', { name: 'Discard voice recording' })).toBeVisible();
+    await press(next, layout, 'Send message');
+    await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
+    await expect(recovered).toHaveCount(0);
+
+    const [voice] = await voiceEvents(world);
+    expect(voice?.content.info?.duration).toBeGreaterThanOrEqual(3_900);
+    expect(voice?.content.info?.duration).toBeLessThan(7_500);
+    const media = voice!.content.url!.slice('mxc://'.length);
+    const download = await fetch(`${HOMESERVER}/_matrix/client/v1/media/download/${media}`, {
+      headers: { Authorization: `Bearer ${world.session.accessToken}` },
+    });
+    expect(download.ok).toBe(true);
+    const file = Buffer.from(await download.arrayBuffer()).toString('base64');
+    const duration = await next.evaluate(async (base64) => {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      const audio = new AudioContext();
+      try {
+        return (await audio.decodeAudioData(bytes.buffer)).duration;
+      } finally {
+        await audio.close();
+      }
+    }, file);
+    expect(duration).toBeGreaterThan(3.9);
+    expect(duration).toBeLessThan(7.5);
+
+    await next.reload();
+    await expect(next.getByRole('button', { name: 'Record voice message' })).toBeEnabled({
+      timeout: 60_000,
+    });
+    await expect(next.getByText(/Recovered recording/)).toHaveCount(0);
+    await expect(next.getByText('Voice send failed', { exact: true })).toHaveCount(0);
+    expect(await voiceMessages(world)).toBe(1);
+  } finally {
+    await context.close();
+  }
+};
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'a voice message whose send failed is still saved after a reload';
+const CLOSED = 'a recording survives closing the page without stopping';
+const desktop = LAYOUTS[0]!;
+
+test(`${CLOSED} (Chromium)`, async ({ browser }) => {
+  test.setTimeout(180_000);
+  await recordingSurvivesClosedPage(browser, desktop, 'kill_c');
+});
+
+test(`${CLOSED} (WebKit)`, async () => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(180_000);
+  const browser = await launchWebKit();
+  try {
+    await recordingSurvivesClosedPage(browser, desktop, 'kill_w');
+  } finally {
+    await browser.close();
+  }
+});
 
 for (const layout of LAYOUTS) {
   test(`${TITLE} (Chromium, ${layout.name})`, async ({ browser }) => {
