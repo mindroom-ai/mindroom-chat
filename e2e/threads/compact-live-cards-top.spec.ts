@@ -136,7 +136,68 @@ const cardOrder = (page: Page) =>
     .locator(CARDS)
     .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
 
-const topOf = (card: Locator) => card.evaluate((element) => element.getBoundingClientRect().top);
+const HOLD_FRAMES = 24;
+
+/** Start before the sync arrives, then sample through the same number of frames after it. */
+const expectHeldArrival = async (
+  view: Locator,
+  id: string,
+  count: number,
+  point: { x: number; y: number },
+  label: string,
+  arrive: () => Promise<string>
+) => {
+  const watch = await view.evaluateHandle(
+    (scroller, { id, count, point, frames }) => {
+      const selector = `[data-thread-root-id="${CSS.escape(id)}"]:not([inert] *)`;
+      const top = () => scroller.querySelector(selector)?.getBoundingClientRect().top;
+      const before = top();
+      if (before === undefined) throw new Error('Held card is not mounted before the arrival');
+      const scrollBefore = scroller.scrollTop;
+      const sample = async () => {
+        let maxDisplacement = 0;
+        let missingFrames = 0;
+        let missedPointerFrames = 0;
+        let afterArrival = 0;
+        while (afterArrival < frames) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const now = top();
+          if (now === undefined) missingFrames += 1;
+          else maxDisplacement = Math.max(maxDisplacement, Math.abs(now - before));
+          const hit = document.elementFromPoint(point.x, point.y)?.closest(selector);
+          if (!hit) missedPointerFrames += 1;
+          if (scroller.getAttribute('data-compact-card-count') === String(count)) {
+            afterArrival += 1;
+          }
+        }
+        return {
+          maxDisplacement,
+          missingFrames,
+          missedPointerFrames,
+          scrollBefore,
+          scrollAfter: scroller.scrollTop,
+        };
+      };
+      return { result: sample() };
+    },
+    { id, count, point, frames: HOLD_FRAMES }
+  );
+  try {
+    const arrival = await arrive();
+    // The new card can be outside the mounted window.
+    await expect(view).toHaveAttribute('data-compact-card-count', String(count));
+    const result = await watch.evaluate(({ result }) => result);
+    test.info().annotations.push({ type: 'held card', description: JSON.stringify(result) });
+    expect(result.scrollBefore).toBeGreaterThan(0);
+    expect(result.missingFrames, `${label}: held card unmounted`).toBe(0);
+    expect(result.maxDisplacement, `${label}: the card under the pointer moved`).toBeLessThan(1);
+    expect(result.missedPointerFrames, `${label}: pointer left the held card`).toBe(0);
+    return arrival;
+  } finally {
+    await watch.dispose();
+  }
+};
 
 const scrollList = (page: Page, top: number) =>
   page.evaluate((scrollTop) => {
@@ -275,26 +336,10 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
   await expect(page.locator('[data-order-held]')).toHaveCount(1);
-  const before = await topOf(midCard);
-  const scrolledBefore = await listScrollTop(page);
-  expect(scrolledBefore).toBeGreaterThan(0);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
-  const scrolled = await agentPosts(seeded, scrolledBody);
-  // The new card is outside this window. Wait for it to join the logical list before measuring.
-  await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT + 3));
-  // The logical count can update before the anchor and the row motion settle.
-  await expect
-    .poll(async () => Math.abs((await topOf(midCard)) - before), {
-      message: `${label}: the card under the pointer moved`,
-    })
-    .toBeLessThan(1);
-  const moved = (await topOf(midCard)) - before;
-  const scrolledAfter = await listScrollTop(page);
-  test.info().annotations.push({
-    type: 'held card',
-    description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
-  });
-  expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
+  const scrolled = await expectHeldArrival(view, middle!, THREAD_COUNT + 3, pointer, label, () =>
+    agentPosts(seeded, scrolledBody)
+  );
   await shot(page, `${label}-4-held-scrolled`);
   await page.mouse.move(5, 795);
   await scrollList(page, 0);
