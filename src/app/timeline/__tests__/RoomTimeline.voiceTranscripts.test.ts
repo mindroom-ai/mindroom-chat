@@ -18,7 +18,6 @@ import {
   makeRoom,
   makeTimeline,
   matrixClientMock,
-  pluginRowHiddenMock,
   roomTimelineVirtualizerState,
   powerLevelsContextMock,
   threadRenderStateMock,
@@ -301,17 +300,6 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
-  it('keeps pending when a plugin hides the later agent row', async () => {
-    pluginRowHiddenMock.test = (event) => event.eventId === '$echo';
-    const { renderer } = await openThread(undefined, AGENT);
-    try {
-      expect(getRenderedEventIds(renderer)).not.toContain('$echo');
-      expect(transcribingStatuses(renderer)).toHaveLength(1);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
   it.each([
     ['names no router', undefined],
     ['names another account', '@mindroom_router_lab1:example.org'],
@@ -345,32 +333,6 @@ it('hides the transcribing skeleton 60 seconds after the voice message was sent'
       vi.advanceTimersByTime(1);
     });
     expect(status()).toHaveLength(0);
-  } finally {
-    act(() => renderer.unmount());
-    vi.useRealTimers();
-  }
-});
-
-it('reschedules expiry if the clock moves back while the hint is pending', async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(100_000);
-  const { renderer } = await openThread(undefined, AGENT, { showEcho: false, voiceAge: 40_000 });
-  try {
-    expect(transcribingStatuses(renderer)).toHaveLength(1);
-    act(() => {
-      vi.advanceTimersByTime(10_000);
-      vi.setSystemTime(105_000);
-      vi.advanceTimersByTime(10_000);
-    });
-    expect(transcribingStatuses(renderer)).toHaveLength(1);
-    act(() => {
-      vi.advanceTimersByTime(4_999);
-    });
-    expect(transcribingStatuses(renderer)).toHaveLength(1);
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(transcribingStatuses(renderer)).toHaveLength(0);
   } finally {
     act(() => renderer.unmount());
     vi.useRealTimers();

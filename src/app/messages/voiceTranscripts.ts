@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { EventStatus, MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
-import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
-import { isThreadSummaryContent } from '../matrix/protocol/threadSummary';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
@@ -41,9 +39,10 @@ const TRANSCRIBING_MS = 60_000;
  * message is not loaded here or is no voice message, one the route or a jump opened
  * (`revealed`), and a second echo naming the same voice message.
  *
- * The viewer's own recent voice messages can show a pending indicator when alone with a
- * responder, until a transcript, a later drawn agent event or a thread reply arrives, or the
- * message ages out. A mentions-only room may show the hint for up to 60 seconds without an answer.
+ * The viewer's own recent voice messages can show a pending indicator when a responder is joined
+ * and there is no folded transcript or thread reply. It can last up to 60 seconds without an
+ * answer (other people in the room, mentions-only mode or voice off), or end early on any later
+ * responder event in the timeline.
  */
 export const planVoiceTranscripts = ({
   events,
@@ -54,7 +53,6 @@ export const planVoiceTranscripts = ({
   viewerId,
   expectsAnswer,
   hasThreadReplies,
-  isHidden,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
@@ -64,7 +62,6 @@ export const planVoiceTranscripts = ({
   viewerId: string | undefined;
   expectsAnswer: boolean;
   hasThreadReplies: (event: MatrixEvent) => boolean;
-  isHidden: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
   const echoes =
@@ -124,9 +121,7 @@ export const planVoiceTranscripts = ({
       }
     }
     if (pending.size > 0) {
-      // The room window may draw newest first. A drawn event need not have decrypted to count;
-      // an echo folded under another voice message, a state change (joins, profile edits) and a
-      // thread title (which the timeline may hide as a repeat) are not an answer.
+      // The room window may draw newest first. Compare server timestamps, not row order.
       let latestAgentTs = oldestVoiceTs;
       for (const event of events) {
         const ts = event.getTs();
@@ -135,12 +130,7 @@ export const planVoiceTranscripts = ({
         if (
           !sender ||
           ignored.has(sender) ||
-          !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
-          isRowlessTimelineEvent(event) ||
-          event.getStateKey() !== undefined ||
-          hiddenEventIds.has(event.getId() ?? '') ||
-          isThreadSummaryContent(getContent(event)) ||
-          isHidden(event)
+          !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds)
         )
           continue;
         latestAgentTs = ts;
@@ -183,14 +173,12 @@ export const useVoiceTranscriptPlan = (
       }
     }
   }
-  const [expiryTick, refresh] = useForceUpdate();
+  const [, refresh] = useForceUpdate();
   useEffect(() => {
-    // If the clock moved back, the same deadline may still need another timer.
-    void expiryTick;
     if (!Number.isFinite(nextExpiry)) return undefined;
     const timer = setTimeout(refresh, Math.max(0, nextExpiry - Date.now()));
     return () => clearTimeout(timer);
-  }, [nextExpiry, expiryTick, refresh]);
+  }, [nextExpiry, refresh]);
   return last.current;
 };
 

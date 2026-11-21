@@ -78,7 +78,6 @@ const plan = (
     trustedAccountIds = new Set([ROUTER]),
     expectsAnswer = false,
     hasThreadReplies = (_event: MatrixEvent): boolean => false,
-    isHidden = (_event: MatrixEvent): boolean => false,
   } = {}
 ) =>
   planVoiceTranscripts({
@@ -92,7 +91,6 @@ const plan = (
     viewerId: PERSON,
     expectsAnswer,
     hasThreadReplies,
-    isHidden,
   });
 
 describe('getVoiceSourceEventId', () => {
@@ -187,7 +185,6 @@ describe('planVoiceTranscripts', () => {
       viewerId: PERSON,
       expectsAnswer: false,
       hasThreadReplies: () => false,
-      isHidden: () => false,
     });
     expect(result).toBe(NO_VOICE_TRANSCRIPTS);
   });
@@ -298,24 +295,6 @@ describe('pending voice transcription', () => {
     expect(pending([old, transcript]).byVoiceId.get('$voice')).toBe(transcript);
   });
 
-  it('keeps pending when an agent edits its earlier reply after the voice message', () => {
-    const reply = new MatrixEvent({
-      event_id: '$reply',
-      type: 'm.room.message',
-      sender: AGENT,
-      origin_server_ts: now - 1,
-      content: { msgtype: 'm.text', body: 'Invented words' },
-    });
-    const edit = new MatrixEvent({
-      event_id: '$edit',
-      type: 'm.room.message',
-      sender: AGENT,
-      origin_server_ts: now + 1,
-      content: { 'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' } },
-    });
-    expect([...pending([reply, voice(), edit]).pendingVoiceIds]).toEqual(['$voice']);
-  });
-
   it.each(['m.room.message', 'm.room.encrypted'])('ends on a later drawn %s event', (type) => {
     const reply = new MatrixEvent({
       event_id: '$agent',
@@ -339,44 +318,6 @@ describe('pending voice transcription', () => {
     expect([...pending([later, reply, earlier]).pendingVoiceIds]).toEqual(['$later']);
   });
 
-  it("keeps a second voice message pending when the first one's transcript folds after it", () => {
-    const first = voice('$voice', PERSON, VOICE_CONTENT, now - 10);
-    const second = voice('$second', PERSON, VOICE_CONTENT, now - 5);
-    const result = plan([first, second, echo('$echo', undefined, { sender: AGENT })], {
-      expectsAnswer: true,
-      trustedAccountIds: new Set([ROUTER, AGENT]),
-    });
-    expect(result.byVoiceId.has('$voice')).toBe(true);
-    expect([...result.pendingVoiceIds]).toEqual(['$second']);
-  });
-
-  it('keeps pending when a later agent event is a state change, such as a profile edit', () => {
-    const profile = new MatrixEvent({
-      event_id: '$member',
-      type: 'm.room.member',
-      state_key: AGENT,
-      sender: AGENT,
-      origin_server_ts: now + 1,
-      content: { membership: 'join', displayname: 'Helper' },
-    });
-    expect([...pending([voice(), profile]).pendingVoiceIds]).toEqual(['$voice']);
-  });
-
-  it('keeps pending when the agent posts a thread title after the voice message', () => {
-    const title = new MatrixEvent({
-      event_id: '$title',
-      type: 'm.room.message',
-      sender: AGENT,
-      origin_server_ts: now + 1,
-      content: {
-        msgtype: 'm.notice',
-        body: 'Invented title',
-        'io.mindroom.thread_summary': { version: 1 },
-      },
-    });
-    expect([...pending([voice(), title]).pendingVoiceIds]).toEqual(['$voice']);
-  });
-
   it('ends on an unfolded agent echo', () => {
     const untrusted = echo('$echo', undefined, { sender: AGENT });
     expect(pending([voice(), untrusted])).toBe(NO_VOICE_TRANSCRIPTS);
@@ -397,20 +338,6 @@ describe('pending voice transcription', () => {
     const getTs = vi.spyOn(reply, 'getTs');
     expect(pending([stale, reply])).toBe(NO_VOICE_TRANSCRIPTS);
     expect(getTs).not.toHaveBeenCalled();
-  });
-
-  it('only checks visibility for agent rows newer than a pending voice candidate', () => {
-    const earlierReply = new MatrixEvent({
-      event_id: '$earlier',
-      type: 'm.room.message',
-      sender: AGENT,
-      origin_server_ts: now - 1,
-    });
-    const laterReply = echo('$later', {}, { sender: AGENT });
-    const isHidden = vi.fn(() => false);
-    const result = plan([earlierReply, voice(), laterReply], { expectsAnswer: true, isHidden });
-    expect(result).toBe(NO_VOICE_TRANSCRIPTS);
-    expect(isHidden.mock.calls).toEqual([[laterReply]]);
   });
 
   it('does not show without a joined agent', () => {

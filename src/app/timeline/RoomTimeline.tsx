@@ -954,9 +954,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     expectsAnswer: room.getJoinedMembers().some(({ userId }) =>
       isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)
     ),
-    isHidden: (event) =>
-      approvalTimeline.hiddenEventIds.has(event.getId() ?? '') ||
-      (event.isRedacted() ? !showHiddenEvents : isHiddenByPlugin(event)),
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (
