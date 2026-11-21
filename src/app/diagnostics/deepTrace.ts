@@ -678,7 +678,20 @@ const startGlobalCapture = (target: Runtime): void => {
   const pointerDown = (event: PointerEvent) => {
     const action = classifyFlightRecorderAction(event.target);
     setFlightRecorderLastAction(action);
+    // The slide's input shield is a pseudo-element: its pointer target is the stage itself.
+    const slide = document.documentElement.dataset.pageSlide;
+    const slideDetails =
+      action.kind === 'surface' &&
+      action.surface === 'app' &&
+      (slide === 'forward' || slide === 'back')
+        ? {
+            phone_slide_back: slide === 'back',
+            phone_slide_stage_hit:
+              event.target instanceof Element && event.target.hasAttribute('data-phone-stage'),
+          }
+        : undefined;
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
+      ...slideDetails,
       primary: event.isPrimary,
       pointer_count: event.pointerType === 'touch' ? 1 : 0,
     });

@@ -366,6 +366,30 @@ describe('opt-in deep diagnostic trace', () => {
     expect(JSON.stringify(snapshot)).not.toContain('fake.js');
   });
 
+  it('records whether a surface tap hit the phone stage during a slide', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const stage = document.createElement('div');
+    stage.setAttribute('data-phone-stage', '');
+    const child = stage.appendChild(document.createElement('div'));
+    document.body.append(stage);
+    try {
+      document.documentElement.dataset.pageSlide = 'back';
+      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      child.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      delete document.documentElement.dataset.pageSlide;
+      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const { events } = await readDeepTraceSnapshot();
+      expect(
+        events
+          .filter(({ name }) => name === 'interaction.pointer.surface.app')
+          .map(({ data }) => [data?.phone_slide_back, data?.phone_slide_stage_hit])
+      ).toEqual([[true, true], [true, false], [undefined, undefined]]);
+    } finally {
+      delete document.documentElement.dataset.pageSlide;
+      stage.remove();
+    }
+  });
+
   it('captures range-control interactions through the categorical allowlist', async () => {
     await setDeepTraceEnabled(true, storage);
     const range = document.createElement('input');
