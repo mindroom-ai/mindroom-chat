@@ -1059,7 +1059,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expandir todas as mensagens longas",
-        "collapseAllLong": "Recolher todas as mensagens longas"
+        "collapseAllLong": "Recolher todas as mensagens longas",
+        "showFullMessage": "Mostrar mensagem completa"
       }
     },
     "computer": {

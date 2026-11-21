@@ -1017,7 +1017,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "長いメッセージをすべて展開",
-        "collapseAllLong": "長いメッセージをすべて折りたたむ"
+        "collapseAllLong": "長いメッセージをすべて折りたたむ",
+        "showFullMessage": "メッセージ全体を表示"
       }
     },
     "computer": {

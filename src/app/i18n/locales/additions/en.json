@@ -1038,7 +1038,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expand all long messages",
-        "collapseAllLong": "Collapse all long messages"
+        "collapseAllLong": "Collapse all long messages",
+        "showFullMessage": "Show full message"
       }
     },
     "computer": {

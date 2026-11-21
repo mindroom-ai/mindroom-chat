@@ -1038,7 +1038,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Tüm uzun mesajları genişlet",
-        "collapseAllLong": "Tüm uzun mesajları daralt"
+        "collapseAllLong": "Tüm uzun mesajları daralt",
+        "showFullMessage": "Mesajın tamamını göster"
       }
     },
     "computer": {
