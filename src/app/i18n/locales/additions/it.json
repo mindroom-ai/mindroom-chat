@@ -1250,6 +1250,10 @@
   "composer": {
     "voicePausedInThisRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata altrove in questa stanza",
     "voiceThreadRootUnsent": "Il thread di questo messaggio vocale non ha un primo messaggio inviato. Riprova quando quel messaggio sarà inviato, oppure elimina la registrazione.",
+    "voiceIndicator": {
+      "recording": "Registrazione {{time}}",
+      "paused": "In pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",

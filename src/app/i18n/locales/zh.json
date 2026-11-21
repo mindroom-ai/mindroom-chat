@@ -2230,7 +2230,6 @@
       "resumeRecording": "继续录音",
       "statusActive": "正在录音",
       "statusPaused": "录音已暂停",
-      "statusProcessing": "处理录音",
       "statusReadyToRetry": "录音准备重试",
       "recoveredRecording": "已恢复的录音 · {{time}}",
       "statusSending": "发送录音",

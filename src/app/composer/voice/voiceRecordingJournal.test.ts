@@ -103,6 +103,16 @@ it('sign-out removes only this account’s records, including a recording still 
   expect(offer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ recordingId: other.id }));
 });
 
+it('keeps a chunk still being written when the lock is given up', async () => {
+  const recording = begin();
+  const written = recording.append(0, new Blob(['queued']), 1_000);
+  releaseVoiceRecording(recording.id);
+  await written;
+  const offer = vi.fn((_draft: { file: File }) => true);
+  await recoverVoiceRecording(USER, undefined, offer);
+  expect(await offer.mock.calls[0]![0].file.text()).toBe('queued');
+});
+
 it('does not journal on browsers without Web Locks', () => {
   vi.stubGlobal('navigator', {});
   expect(beginVoiceRecording(USER, Date.now(), 'audio/ogg')).toBeUndefined();

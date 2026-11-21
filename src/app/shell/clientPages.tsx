@@ -28,6 +28,7 @@ import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
 import { usePluginPage } from '../plugins/PluginPageRoute';
 import { MembersOverlayFollowsNavigation } from '../members/useMembersDrawer';
+import { LiveVoiceRecordingIndicator } from '../composer/voice/LiveVoiceRecordingIndicator';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
 // without the code of every signed-in screen; the signed-in client starts its account while
@@ -89,6 +90,8 @@ export function SignedInChrome() {
                 <Outlet />
               </Suspense>
             </ClientLayout>
+            {/* A voice message being recorded belongs to the account, not to a page. */}
+            <LiveVoiceRecordingIndicator />
           </FloatingCardsContext.Provider>
         </NavigationProvider>
       </ClientShell>
