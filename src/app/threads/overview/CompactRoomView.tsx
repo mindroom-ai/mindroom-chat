@@ -486,7 +486,7 @@ function CompactRoomList({
   useLayoutEffect(() => {
     if (
       pendingFocus &&
-      (focusCompactCard(cardButton(pendingFocus)) || !shownRootIds.includes(pendingFocus))
+      (focusCompactCard(cardButton(pendingFocus), true) || !shownRootIds.includes(pendingFocus))
     ) {
       setPendingFocus(undefined);
     }

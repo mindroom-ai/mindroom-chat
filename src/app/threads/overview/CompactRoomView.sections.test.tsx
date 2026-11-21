@@ -497,7 +497,8 @@ describe('the Compact room in sections', () => {
       if (this.hasAttribute('data-compact-room-view')) return new DOMRect(0, 0, 300, 800);
       const wrapper = this.closest<HTMLElement>('[data-index]');
       const viewport = this.closest<HTMLElement>('[data-compact-room-view]');
-      if (!wrapper || !viewport) return new DOMRect();
+      if (!viewport) return new DOMRect();
+      if (!wrapper) return new DOMRect(0, -viewport.scrollTop, 300, 0);
       let top = -viewport.scrollTop;
       let prior = wrapper.previousElementSibling as HTMLElement | null;
       while (prior) {

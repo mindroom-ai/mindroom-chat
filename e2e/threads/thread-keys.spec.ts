@@ -8,6 +8,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 
 // Into a thread and out of it by keyboard, in a Compact room against the disposable homeserver of
 // `just hs-up` (or a slot of scripts/e2e-slot.sh). Alt and the right arrow goes one level in (the
@@ -65,12 +66,14 @@ const openOrchard = async (
 ): Promise<string[]> => {
   const me = await registerDisposableUser(`thread_keys_${tag}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, me.accessToken, { name: 'Orchard' });
+  const roots: string[] = [];
   for (const topic of topics) {
     // eslint-disable-next-line no-await-in-loop
     const rootId = await sendRoomMessage(HOMESERVER, me.accessToken, roomId, {
       msgtype: 'm.text',
       body: topic,
     });
+    roots.push(rootId);
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(HOMESERVER, me.accessToken, roomId, {
       msgtype: 'm.text',
@@ -92,8 +95,18 @@ const openOrchard = async (
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await setRoomCompact(page, true);
-  await expect(cards(page)).toHaveCount(topics.length, { timeout: 30_000 });
-  return cardOrder(page);
+  const view = page.locator(COMPACT_VIEW);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(topics.length), {
+    timeout: 30_000,
+  });
+  const mounted = await cardOrder(page);
+  if (mounted.length === topics.length) return mounted;
+  const order = (await walkCompactCards(view, roots)).map(({ id }) => id);
+  expect(order).toHaveLength(topics.length);
+  await view.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  return order;
 };
 
 test('the keyboard goes into a thread and out again, and between the cards', async ({ page }) => {
@@ -282,6 +295,14 @@ test('a thread left far down a long list hands the focus to its card', async ({ 
   const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
   const order = await openOrchard(page, 'long', 1280, topics);
   const deep = order[27] ?? '';
+  const first = order[0] ?? '';
+  const last = order.at(-1) ?? '';
+  await expect(card(page, last)).toHaveCount(0);
+  await card(page, first).focus();
+  await page.keyboard.press('End');
+  await expect(card(page, last)).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(card(page, first)).toBeFocused();
 
   // Opened by its address, as from a link: the list has no place of the reader's to open on.
   const address = new URL(page.url());

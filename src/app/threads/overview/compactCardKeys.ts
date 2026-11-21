@@ -22,7 +22,7 @@ const navigationIn = (root: HTMLElement | null) => {
 export const KEY_FOCUS_ATTRIBUTE = 'data-key-focus';
 
 /** Moves the keyboard's focus to `card`, and shows it there. False without a card. */
-export const focusCompactCard = (card: HTMLElement | undefined): boolean => {
+export const focusCompactCard = (card: HTMLElement | undefined, preventScroll = false): boolean => {
   if (!card) return false;
   card.setAttribute(KEY_FOCUS_ATTRIBUTE, '');
   // Until the focus moves on: a window that loses the focus blurs the card too, which keeps it.
@@ -32,7 +32,7 @@ export const focusCompactCard = (card: HTMLElement | undefined): boolean => {
     card.removeEventListener('blur', onBlur);
   };
   card.addEventListener('blur', onBlur);
-  card.focus();
+  card.focus({ preventScroll });
   return true;
 };
 
