@@ -14,6 +14,14 @@ import {
   stripRedactedRelationsFromRawEvent,
 } from '../../matrix/eventRevision';
 
+/** Receipt age is stale on replay; let the SDK use the event's server timestamp. */
+export const withoutCachedEventAge = <T extends Partial<IEvent> | undefined>(raw: T): T => {
+  if (raw?.unsigned?.age === undefined) return raw;
+  const unsigned = { ...raw.unsigned };
+  delete unsigned.age;
+  return { ...raw, unsigned };
+};
+
 export type RedactedRelationTarget = {
   eventId: string;
   eventType: string;
@@ -34,7 +42,9 @@ const setSerializedReplacement = (
       ? { ...(unsigned['m.relations'] as Record<string, unknown>) }
       : {};
 
-  aggregatedRelations[RelationType.Replace] = cloneRawEvent(replacementRawEvent);
+  aggregatedRelations[RelationType.Replace] = cloneRawEvent(
+    withoutCachedEventAge(replacementRawEvent)
+  );
   unsigned['m.relations'] = aggregatedRelations;
   return {
     ...targetRawEvent,
@@ -427,7 +437,7 @@ export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Part
 
     if (isStandaloneSameSenderReplace(mEvent, eventById)) return;
 
-    serializedEvents.set(eventId, cloneRawEvent(rawEvent));
+    serializedEvents.set(eventId, cloneRawEvent(withoutCachedEventAge(rawEvent)));
   });
 
   eventById.forEach((mEvent, eventId) => {

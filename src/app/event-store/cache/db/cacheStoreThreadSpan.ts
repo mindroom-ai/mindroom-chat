@@ -1,4 +1,5 @@
 import type { IEvent } from 'matrix-js-sdk';
+import { withoutCachedEventAge } from '../eventCacheEditUtils';
 import { openCacheStore } from './cacheStoreDb';
 import {
   EVENTS_BY_SCOPE_TS_INDEX,
@@ -62,7 +63,7 @@ export const loadCachedThreadEventsInSpan = async (
           (request.result as CachedEventRecord[]).forEach(({ rawEvent }) => {
             // An older build could save another room's events under this room's thread scopes.
             if (rawEvent.event_id !== scope && !isOtherRoomEvent(rawEvent, roomId)) {
-              events.push(rawEvent);
+              events.push(withoutCachedEventAge(rawEvent));
             }
           });
         };
