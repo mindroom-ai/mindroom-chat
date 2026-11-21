@@ -525,3 +525,34 @@ passed `s0` 17/17 both ways: web 445 Hz rms=0.3578, web2 879 Hz rms=0.3494).
 - **Store entitlement**: `network.server: needed`.
 - **iOS exclusion**: verified locally (`generic/platform=iOS` build succeeded; zero LiveKit frameworks in `Debug-iphoneos`).
 - **SDK API names**: every API name in the design compiled unchanged against LiveKit Swift SDK 2.19.0. Probe-only adjustments: injected the test tone via `AudioManager.shared.capturePostProcessingDelegate` (default voice processing kept enabled), handled interleaved stereo PCM in the probe's `AudioRenderer` (`48000 Hz`, 2 ch interleaved int16), ad hoc signed the probe bundle for dyld library validation, and launched via `open -n` for TCC.
+
+## Mac verification results
+
+Date: 2026-11-21. Environment: macOS 26.5.2 (25F84), Xcode 26.6 (17F113). Real `MindRoomCall`
+Capacitor plugin driven from the loaded `WKWebView` via `window.Capacitor.nativePromise` against
+local `livekit-server` 1.13.11 and headless Chromium (`livekit-client` 2.24.1).
+
+| Step | Result | Observed |
+|---|---|---|
+| `call` (encrypted) | PASS | Web heard 445 Hz rms=0.346 (11/14); Mac heard 879 Hz rms=0.3485 (11/11); `.playAndRecord`; after disconnect `engineRunning=false`, `liveSessions=0`. |
+| `call` (unencrypted) | PASS | Web heard 445 Hz rms=0.3459 (11/15); Mac heard 880 Hz rms=0.3498 (11/11); after disconnect `engineRunning=false`, `liveSessions=0`. |
+| `call` (sandboxed Store, with `network.server`) | PASS | Web heard 445 Hz rms=0.3457 (11/14); Mac heard 879 Hz rms=0.3504 (11/11); after disconnect `engineRunning=false`, `liveSessions=0`. |
+| `mute` | PASS | Web heard 445 Hz rms=0.3458 (s1..5); after `setMicrophone(false)` snapshot `local.microphone=false` and web dropped to `rms=0.0000` (s6..9); after `setMicrophone(true)` snapshot `local.microphone=true` and web returned to 445 Hz rms=0.3463 (s10..14); after disconnect `engineRunning=false`. |
+| `late-joiner` | PASS | Browser peer joined 6 s after Mac; Mac heard 880 Hz rms=0.358 (s4..16) and web heard 445 Hz rms=0.3459 (s1..13) without another `setMembers` call; after disconnect `engineRunning=false`. |
+| `non-member` | PASS | Before peer added to `setMembers`: Mac silent (s1..7, `rms=0.0000`) and web had no subscription; after `setMembers` included peer: Mac heard 880 Hz rms=0.3500 (s9..18) and web heard 445 Hz rms=0.3459; after disconnect `engineRunning=false`. |
+| `sound-off` | PASS | Remote audio track `volume` was `[0.0]` after `setSound(false)` and `[1.0]` after `setSound(true)`; after disconnect `engineRunning=false`. |
+| `reload-in-call` | PASS | `webView.reload()` during call stopped engine (`engineRunning=false`, `liveSessions=0`); old `id` `snapshot` rejected `NOT_CONNECTED`; fresh `connect` on reloaded page succeeded; after disconnect `engineRunning=false`. |
+| `reload-under-prompt` | PASS | Fresh bundle ID; `setMicrophone(true)`, `webView.reload()` before Allow clicked; after Allow: `engineRunning=false`, `liveSessions=0`, `hasMicPub=false`. |
+| `twice` | PASS | Two `connect` calls 50 ms apart: first rejected `START_FAILED`, second resolved with `id`, `liveSessions=1`; after disconnect `engineRunning=false`, `liveSessions=0`. |
+| `stale-nonce` | PASS | Rejected `START_FAILED`; `engineRunning=false`, `liveSessions=0`. |
+| `bad-token` | PASS | Rejected `CONNECT_FAILED`; `engineRunning=false`, `liveSessions=0`. |
+| `close-window` | PASS | `requestSceneSessionDestruction` during call ended session (`engineRunning=false`, `liveSessions=0`). |
+| `voice-message` | PASS | Recorded 2.236 s 16 kHz mono AAC `.m4a` (`afinfo`) during active call; Mac continued hearing 880 Hz (rms=0.3516) and web continued hearing 445 Hz (rms=0.3458) throughout; after disconnect `engineRunning=false`. |
+
+### Left for a person at the Mac
+
+On a build with the lid open or an external microphone: a call with a MindRoom agent and a call
+with a browser, in an encrypted and an unencrypted room, heard both ways; no echo on speakers;
+AirPods as input and output; the microphone indicator goes out after Leave, after closing the
+window and after a reload; the camera, device and transcript controls are absent; a video ring is
+answered with audio.
