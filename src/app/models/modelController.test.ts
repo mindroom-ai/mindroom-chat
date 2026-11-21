@@ -377,7 +377,7 @@ describe('persisted room catalogs', () => {
     expect(reloaded.snapshot('$new').eligible).toBe(false);
   });
 
-  it.each(['{', JSON.stringify({ version: 2, rooms: [['!room:test', [cachedCatalog]]] })])(
+  it.each(['{', JSON.stringify({ version: 2, rooms: { '!room:test': [cachedCatalog] } })])(
     'ignores unreadable storage %s',
     (raw) => {
       values.set(key, raw);
@@ -386,7 +386,7 @@ describe('persisted room catalogs', () => {
   );
 
   it('ignores an otherwise valid blob that exceeds the byte cap', () => {
-    const raw = JSON.stringify({ version: 1, rooms: [['!room:test', [cachedCatalog]]] });
+    const raw = JSON.stringify({ version: 1, rooms: { '!room:test': [cachedCatalog] } });
     values.set(key, raw.padEnd(256 * 1024 + 1));
     expect(setup().snapshot().eligible).toBe(false);
   });
@@ -404,10 +404,7 @@ describe('persisted room catalogs', () => {
       key,
       JSON.stringify({
         version: 1,
-        rooms: [
-          ['!room:test', invalidCatalogs],
-          ['!other:test', [cachedCatalog]],
-        ],
+        rooms: { '!room:test': invalidCatalogs, '!other:test': [cachedCatalog] },
       })
     );
     expect(setup().snapshot().eligible).toBe(false);
@@ -432,8 +429,8 @@ describe('persisted room catalogs', () => {
     }
     await setup(false, viewer, '!room0:test').discover();
     await setup(false, viewer, '!room64:test').discover();
-    const stored = JSON.parse(values.get(key) ?? 'null') as { rooms: unknown[] } | null;
-    expect(stored?.rooms).toHaveLength(64);
+    const stored = JSON.parse(values.get(key)!) as { rooms: Record<string, unknown> };
+    expect(Object.keys(stored.rooms)).toHaveLength(64);
     expect(setup(false, viewer, '!room64:test').snapshot().eligible).toBe(true);
     expect(setup(false, viewer, '!room0:test').snapshot().eligible).toBe(true);
     expect(setup(false, viewer, '!room1:test').snapshot().eligible).toBe(false);
@@ -516,7 +513,7 @@ describe('persisted room catalogs', () => {
   it('ignores duplicate runtime IDs on read', () => {
     values.set(
       key,
-      JSON.stringify({ version: 1, rooms: [['!room:test', [cachedCatalog, cachedCatalog]]] })
+      JSON.stringify({ version: 1, rooms: { '!room:test': [cachedCatalog, cachedCatalog] } })
     );
     expect(setup().snapshot().models).toEqual(cachedCatalog.models);
   });

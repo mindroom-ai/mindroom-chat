@@ -20,7 +20,6 @@ export const ROOM_CATALOG_LIMIT = 64;
 const STORAGE_VERSION = 1;
 // At most 512 KiB as UTF-16, leaving most of the shared origin quota for other features.
 const STORAGE_CHAR_LIMIT = 256 * 1024;
-type RoomCatalogs = Map<string, RoomCatalog[]>;
 
 const parseRoomCatalog = (value: unknown): RoomCatalog | undefined => {
   if (!isRecord(value) || !isRecord(value.runtime)) return undefined;
@@ -32,18 +31,17 @@ const parseRoomCatalog = (value: unknown): RoomCatalog | undefined => {
     override: null,
     inherited: value.inherited,
   });
-  return (
-    payload && {
-      runtime: { id: JSON.stringify([userId, deviceId, curveKey]), userId, deviceId, curveKey },
-      agentUserIds: payload.agent_user_ids,
-      models: payload.models,
-      inherited: payload.selection.inherited,
-    }
-  );
+  if (!payload) return undefined;
+  return {
+    runtime: { id: JSON.stringify([userId, deviceId, curveKey]), userId, deviceId, curveKey },
+    agentUserIds: payload.agent_user_ids,
+    models: payload.models,
+    inherited: payload.selection.inherited,
+  };
 };
 
-const decodeRoomCatalogs = (raw: string | null | undefined): RoomCatalogs => {
-  const rooms: RoomCatalogs = new Map();
+const decodeRoomCatalogs = (raw: string | null | undefined) => {
+  const rooms = new Map<string, RoomCatalog[]>();
   if (!raw) return rooms;
   let stored: unknown;
   try {
@@ -51,13 +49,10 @@ const decodeRoomCatalogs = (raw: string | null | undefined): RoomCatalogs => {
   } catch {
     return rooms;
   }
-  if (!isRecord(stored) || stored.version !== STORAGE_VERSION || !Array.isArray(stored.rooms))
+  if (!isRecord(stored) || stored.version !== STORAGE_VERSION || !isRecord(stored.rooms))
     return rooms;
-  for (const entry of stored.rooms.slice(-ROOM_CATALOG_LIMIT) as unknown[]) {
-    if (!Array.isArray(entry)) continue;
-    const [roomId, rawCatalogs]: unknown[] = entry;
-    if (typeof roomId !== 'string' || !roomId.startsWith('!') || !Array.isArray(rawCatalogs))
-      continue;
+  for (const [roomId, rawCatalogs] of Object.entries(stored.rooms).slice(-ROOM_CATALOG_LIMIT)) {
+    if (!roomId.startsWith('!') || !Array.isArray(rawCatalogs)) continue;
     const catalogs = new Map<string, RoomCatalog>();
     for (const value of rawCatalogs.slice(0, 256) as unknown[]) {
       const catalog = parseRoomCatalog(value);
@@ -68,19 +63,19 @@ const decodeRoomCatalogs = (raw: string | null | undefined): RoomCatalogs => {
   return rooms;
 };
 
-const encodeRoomCatalogs = (rooms: RoomCatalogs): string | null => {
-  const start = `{"version":${STORAGE_VERSION},"rooms":[`;
+const encodeRoomCatalogs = (rooms: Map<string, RoomCatalog[]>): string | null => {
+  const start = `{"version":${STORAGE_VERSION},"rooms":{`;
   const budget = STORAGE_CHAR_LIMIT - start.length - 2;
   const entries: string[] = [];
   let remaining = budget;
-  for (const room of [...rooms].reverse()) {
-    const entry = JSON.stringify(room);
+  for (const [roomId, catalogs] of [...rooms].reverse()) {
+    const entry = `${JSON.stringify(roomId)}:${JSON.stringify(catalogs)}`;
     if (entry.length > budget) continue;
     if (entry.length > remaining) break;
     entries.push(entry);
     remaining -= entry.length + 1;
   }
-  return entries.length ? `${start}${entries.reverse().join(',')}]}` : null;
+  return entries.length ? `${start}${entries.reverse().join(',')}}}` : null;
 };
 
 /** Read once per lifetime. Tabs keep independent display seeds; the last writer wins. */

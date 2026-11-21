@@ -203,13 +203,11 @@ export class ModelController {
     const single = kept.length === 1 ? kept[0] : undefined;
     return {
       kept,
-      snapshot: {
-        eligible: kept.length > 0,
-        // A chooser needs the thread's own catalogs, not the room's display seed.
-        runtimes: single ? [single.runtime] : [],
-        models: single?.models ?? [],
-        inherited: single && everyAgentJoined(this.mx, room, single) ? single.inherited : [],
-      },
+      eligible: kept.length > 0,
+      // A chooser needs the thread's own catalogs, not the room's display seed.
+      runtimes: single ? [single.runtime] : [],
+      models: single?.models ?? [],
+      inherited: single && everyAgentJoined(this.mx, room, single) ? single.inherited : [],
     };
   }
 
@@ -227,11 +225,11 @@ export class ModelController {
           this.scopes.delete(stale[0]);
         }
       }
-      const seed = this.roomSeed(room, threadId);
+      const { kept, ...seed } = this.roomSeed(room, threadId);
       scope = {
         room,
         threadId,
-        snapshot: { ...emptySnapshot(), ...seed.snapshot },
+        snapshot: { ...emptySnapshot(), ...seed },
         listeners: new Set(),
         watchers: new Set(),
         typedCommands: new Set(),
@@ -239,7 +237,7 @@ export class ModelController {
         generation: 0,
         needsRefresh: false,
         failures: 0,
-        kept: seed.kept,
+        kept,
       };
       this.scopes.set(key, scope);
     }
@@ -365,7 +363,7 @@ export class ModelController {
       query.hydrating = false;
       // Recheck the display seed once the whole roster is available, not on intermediate joins.
       if (hydrating && scope.kept && !scope.catalogs.size && !scope.snapshot.runtime) {
-        const { kept, snapshot } = this.roomSeed(scope.room, scope.threadId);
+        const { kept, ...snapshot } = this.roomSeed(scope.room, scope.threadId);
         scope.kept = kept;
         if (snapshot.eligible || scope.snapshot.eligible) this.publish(scope, snapshot);
         if (!this.currentQuery(query)) return;
