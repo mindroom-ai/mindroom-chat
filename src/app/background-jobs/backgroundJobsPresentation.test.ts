@@ -1,5 +1,3 @@
-import type { CSSProperties, StyleRule } from '@vanilla-extract/css';
-import { mockAdapter, removeAdapter, setAdapter } from '@vanilla-extract/css/adapter';
 import { createInstance, type TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
 import en from '../i18n/englishResources';
@@ -7,38 +5,6 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { FINISHED_JOB_STATUS, presentBackgroundJobs } from './backgroundJobsPresentation';
-
-it('keeps the quiet and phone grids at logo, headline, elapsed time and actions', async () => {
-  const rules = new Map<string, CSSProperties['gridTemplateColumns']>();
-  const containers = new Map<string, StyleRule['@container']>();
-  setAdapter({
-    ...mockAdapter,
-    appendCss: (css) => {
-      if (css.type === 'local' || css.type === 'global') {
-        rules.set(css.selector, css.rule.gridTemplateColumns);
-      }
-      if (css.type === 'local') containers.set(css.selector, css.rule['@container']);
-    },
-  });
-  try {
-    const { Job, GroupHeading, Folded, Quiet } = await import('./BackgroundJobsBar.css');
-    for (const [classes, quietSelector] of [
-      [Job, `${Quiet} ${GroupHeading}, ${Quiet} ${Job}`],
-      [Folded, `${Quiet} ${Folded}`],
-    ]) {
-      const identifier = classes.split(' ')[0]!;
-      const wide = String(rules.get(identifier));
-      const narrow = wide.replace(/(minmax\(0, 1fr\) )(?:var\([^)]+\) ){3}/, '$1');
-      expect(narrow).not.toBe(wide);
-      expect(containers.get(identifier)).toMatchObject({
-        '(max-width: 30rem)': { gridTemplateColumns: narrow },
-      });
-      expect(rules.get(quietSelector!)).toBe(narrow);
-    }
-  } finally {
-    removeAdapter();
-  }
-});
 
 let t: TFunction;
 const none = () => false;

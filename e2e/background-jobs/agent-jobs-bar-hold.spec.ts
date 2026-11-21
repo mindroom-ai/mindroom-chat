@@ -38,11 +38,7 @@ const FINISHED = `Finished: ${SHELL_JOB}`;
 const PAUSE_FINISHED = /Finished \W*pause/;
 
 /** When the homeserver received the edit that finished the reply, by the same clock as the page's. */
-const replyEndedAt = async (
-  stack: AgentStack,
-  roomId: string,
-  replyId: string
-): Promise<number> => {
+const replyEndedAt = async (stack: AgentStack, roomId: string, replyId: string): Promise<number> => {
   const { chunk } = await matrixFetch<{ chunk: MatrixEvent[] }>(
     stack.homeserver,
     `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=200`,
@@ -294,14 +290,9 @@ for (const { name, viewport, hasTouch } of VIEWPORTS) {
         );
         await askInThread(stack, rootId, stack.agents.helper, 'Helper', `#pause ${word}`);
         try {
-          const reply = await waitForAgentReply(
-            stack,
-            rootId,
-            (body) => PAUSE_FINISHED.test(body),
-            {
-              timeout: 120_000,
-            }
-          );
+          const reply = await waitForAgentReply(stack, rootId, (body) => PAUSE_FINISHED.test(body), {
+            timeout: 120_000,
+          });
           const ended = await replyEndedAt(stack, stack.rooms.lobby, reply.event_id);
           await expectHeldThroughPause(page, testInfo, ended);
           const scoutNow = await waitForThreadEvent(

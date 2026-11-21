@@ -20,7 +20,7 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
-import { presentBackgroundJobs, type BackgroundJobsBarItem } from './backgroundJobsPresentation';
+import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
 import { BackgroundJobRow, BackgroundJobsSummary } from './BackgroundJobRow';
 import {
   type BackgroundJobCancelRequest,
