@@ -40,10 +40,10 @@ export const normalizeFlightRecorderBuildVersion = (value: string): string =>
     .replace(/[^A-Za-z0-9._+-]/g, '_')
     .slice(0, 128) || 'unknown';
 const FLIGHT_RECORDER_BUILD_VERSION = normalizeFlightRecorderBuildVersion(APP_BUILD_VERSION);
-type RouteClass = (typeof routes)[number];
-export type VoiceCaptureState = (typeof voices)[number];
-export type FlightRecorderActionKind = (typeof actionKinds)[number];
-export type FlightRecorderActionSurface = (typeof actionSurfaces)[number];
+type RouteClass = typeof routes[number];
+export type VoiceCaptureState = typeof voices[number];
+export type FlightRecorderActionKind = typeof actionKinds[number];
+export type FlightRecorderActionSurface = typeof actionSurfaces[number];
 export type FlightRecorderLastAction = {
   at: number;
   kind: FlightRecorderActionKind;
@@ -105,7 +105,7 @@ const lastActionIsValid = (value: unknown): value is FlightRecorderLastAction =>
       Object.keys(action).length === 3 &&
       number(action.at) &&
       actionKinds.includes(action.kind as FlightRecorderActionKind) &&
-      storedActionSurfaces.includes(action.surface as (typeof storedActionSurfaces)[number])
+      storedActionSurfaces.includes(action.surface as typeof storedActionSurfaces[number])
   );
 };
 const eventIsValid = (value: unknown): value is FlightEvent => {
