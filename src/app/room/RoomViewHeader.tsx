@@ -163,6 +163,10 @@ const cornerDot = (marker: `data-${string}`) => (
   />
 );
 
+// Menu entries use More Options as their popup's opener, not the row shortcut.
+const openedFromRow = (opener?: HTMLButtonElement) =>
+  opener?.isConnected === true && !opener.hasAttribute('data-room-more-options');
+
 /** The room's list, which the room menu's Leave goes to once the room is left. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
   if (spacePathId) return getSpacePath(spacePathId);
@@ -429,7 +433,7 @@ export function RoomViewHeader({
       row: (
         <RoomSchedulesButton
           total={displayedScheduleCount}
-          open={schedulesOpen}
+          open={schedulesOpen && openedFromRow(schedules?.opener)}
           onOpen={openSchedules}
         />
       ),
@@ -444,7 +448,6 @@ export function RoomViewHeader({
       canvases.length > 0 && {
         id: 'canvas',
         placement: 'auto',
-        phoneEligible: true,
         row: (
           <CanvasHeaderButton
             canvases={canvases}
@@ -452,7 +455,7 @@ export function RoomViewHeader({
             onOpen={onCanvasOpen}
             onClose={onCanvasClose}
             chooser={{
-              open: !!canvasMenu.opener,
+              open: openedFromRow(canvasMenu.opener),
               onOpen: canvasMenu.open,
             }}
           />
@@ -478,7 +481,6 @@ export function RoomViewHeader({
       icon: Icons.Monitor,
       // A button once the computer was shown, until then an entry of the room menu.
       placement: computerShown || computerOpen ? 'auto' : 'menu',
-      phoneEligible: true,
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
@@ -520,9 +522,8 @@ export function RoomViewHeader({
       label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
       icon: Icons.Pin,
       placement: 'auto',
-      phoneEligible: true,
       popup: 'dialog',
-      expanded: !!pins.opener,
+      expanded: openedFromRow(pins.opener),
       run: pins.open,
     },
     {
@@ -530,7 +531,6 @@ export function RoomViewHeader({
       label: membersEntryLabel,
       icon: Icons.User,
       placement: 'auto',
-      phoneEligible: true,
       shortcut: 'members',
       focusFallback: () => headerFocusTarget(),
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
@@ -580,7 +580,7 @@ export function RoomViewHeader({
   const promoted = selectPhoneHeaderActions(
     slots,
     entries
-      .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
+      .filter((entry) => entry.placement === 'auto' && entry.phoneEligible !== false)
       .map((entry) => entry.id)
   );
   const inBaseRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
@@ -633,6 +633,7 @@ export function RoomViewHeader({
       role="banner"
       className={css.Header}
       onFocus={({ target, currentTarget }: FocusEvent<HTMLElement>) => {
+        // Track header controls only, not entries in the portaled menu.
         if (currentTarget.contains(target)) focusedAction.current = target;
       }}
       onBlur={forgetActionFocus}

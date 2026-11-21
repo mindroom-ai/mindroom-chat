@@ -18,10 +18,10 @@ import {
 // comes from the start edge: below the top bar, at the drawer's height, as wide as the drawer, over
 // a dimmed room. The scrim, Escape, a swipe toward the end edge, the menu button and a room picked
 // in the search put it away; closed after a keyboard opened it, it gives the focus back to the
-// room's Members button; while it is out a swipe from the start edge brings out no drawer. It
-// rounds only its corner over the page, as the drawer does, with the page card's radius. 390 by 844
-// (and 744 by 1133 for the corner) with touch, in Chromium with real touches and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// button that opened it (Members or More Options); while it is out a swipe from the start edge
+// brings out no drawer. It rounds only its corner over the page, as the drawer does, with the page
+// card's radius. 390 by 844 (and 744 by 1133 for the corner) with touch, in Chromium with real
+// touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // PHONE_MEMBERS_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'phone-members-sheet-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -255,6 +255,20 @@ for (const engine of ENGINES) {
           await page.keyboard.press('Escape');
           await expectSheetAway(page, 'Escape puts the sheet away');
           await expect(opener, 'the focus goes back to Show Members').toBeFocused();
+
+          const more = banner(page).getByRole('button', { name: 'More Options', exact: true });
+          await more.focus();
+          await page.keyboard.press('Enter');
+          await page
+            .getByRole('menu')
+            .filter({ hasText: 'Leave Room' })
+            .getByRole('menuitem', { name: 'Show Members', exact: true })
+            .focus();
+          await page.keyboard.press('Enter');
+          await expectSheetOut(page, 'Enter on Show Members in the room menu slides the sheet in');
+          await page.keyboard.press('Escape');
+          await expectSheetAway(page, 'Escape puts the sheet away');
+          await expect(more, 'the focus goes back to More Options').toBeFocused();
         }
       } finally {
         await context.close();

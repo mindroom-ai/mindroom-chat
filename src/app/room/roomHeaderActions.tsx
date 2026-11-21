@@ -61,7 +61,7 @@ type RoomHeaderControls = {
 };
 
 export type RoomHeaderEntry = (RoomHeaderAction | RoomHeaderControls) & {
-  /** Eligible for phone promotion if there is room; only applies to `auto`. */
+  /** Only applies to `auto` actions in the phone promotion priority list. Defaults to true. */
   phoneEligible?: boolean;
 };
 

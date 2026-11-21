@@ -297,13 +297,17 @@ const buttons = (match: (node: ReactTestInstance) => boolean): ReactTestInstance
 const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
+const popupOpener = (button: ReactTestInstance) => ({
+  isConnected: true,
+  getBoundingClientRect: () => new DOMRect(),
+  hasAttribute: (name: string) => Object.hasOwn(button.props, name),
+});
+
 const openMenu = () => {
   const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
   if (!more) throw new Error('no More Options button');
   act(() => {
-    more.props.onClick({
-      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
-    });
+    more.props.onClick({ currentTarget: popupOpener(more) });
   });
 };
 
@@ -589,9 +593,7 @@ describe("the room header's actions", () => {
     const [pinsButton] = buttons((node) => node.props['aria-label'] === 'Pinned Messages');
     expect(pinsButton?.props['aria-expanded']).toBe(false);
     act(() => {
-      pinsButton?.props.onClick({
-        currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
-      });
+      pinsButton?.props.onClick({ currentTarget: popupOpener(pinsButton) });
     });
     expect(byData('data-pin-list')).toHaveLength(1);
     expect(

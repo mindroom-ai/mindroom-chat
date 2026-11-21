@@ -571,6 +571,49 @@ describe("the Sub-agents panel's toggle in the room header", () => {
   });
 
   it.each([
+    ['Pinned Messages', 'Unpin Message'],
+    ['Canvases', 'Garden map'],
+    ['Scheduled tasks (1)', 'Close'],
+  ])('only marks the %s shortcut expanded when it opened the popup', (label, popupButton) => {
+    screen.size = 'Mobile';
+    pins.ids = ['$pinned:example.org'];
+    schedules.events = [schedule('orchard', THREAD)];
+    const { host, unmount } = renderDomHeader({
+      hasMindroomAgents: label === 'Scheduled tasks (1)',
+      canvases: label === 'Canvases' ? canvases : [],
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+    });
+    const findPopupButton = () =>
+      Array.from(document.querySelectorAll('button')).find(
+        (button) =>
+          button.getAttribute('aria-label') === popupButton ||
+          button.textContent?.startsWith(popupButton)
+      );
+    try {
+      const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+      const shortcut = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+      expect(shortcut.getAttribute('aria-expanded')).toBe('false');
+      actInDom(() => more.click());
+      const entry = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === label
+      )!;
+      actInDom(() => entry.click());
+      const openedFromMenu = findPopupButton()!;
+      expect(openedFromMenu).toBeInstanceOf(HTMLButtonElement);
+      expect(shortcut.getAttribute('aria-expanded')).toBe('false');
+      pressEscape(openedFromMenu);
+      expect(openedFromMenu.isConnected).toBe(false);
+
+      actInDom(() => shortcut.click());
+      expect(findPopupButton()).toBeInstanceOf(HTMLButtonElement);
+      expect(shortcut.getAttribute('aria-expanded')).toBe('true');
+    } finally {
+      unmount();
+    }
+  });
+
+  it.each([
     { size: 'Mobile', scope: 'room timeline', keepsEmptyClock: false },
     { size: 'Desktop', scope: 'open thread', keepsEmptyClock: true },
     { size: 'Tablet', scope: 'open thread', keepsEmptyClock: true },

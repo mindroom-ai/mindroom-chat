@@ -3,7 +3,10 @@ import { expect, type Locator, type Page } from '@playwright/test';
 /** The widest window the app lays out as a phone (src/app/lib/hooks/useScreenSize.ts). */
 const PHONE_MAX_WIDTH = 750;
 
-/** Whether the page is as narrow as a phone, whose room header can overflow actions into the menu. */
+/**
+ * Whether the page uses the phone layout. The room menu keeps all its entries there;
+ * promoted header icons are extra shortcuts.
+ */
 export const isPhoneLayout = (page: Page): boolean =>
   (page.viewportSize()?.width ?? Infinity) <= PHONE_MAX_WIDTH;
 
@@ -16,7 +19,7 @@ export const roomMoreOptions = (page: Page): Locator =>
   roomHeader(page).getByRole('button', { name: 'More Options', exact: true });
 
 /**
- * Opens the room's pinned messages from the row or the overflow menu. Returns the opener to
+ * Opens the room's pinned messages from the row or the room menu. Returns the opener to
  * which focus belongs after the list closes.
  */
 export const openRoomPins = async (page: Page): Promise<Locator> => {

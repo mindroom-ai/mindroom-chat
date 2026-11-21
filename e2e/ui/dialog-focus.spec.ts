@@ -211,7 +211,19 @@ const CASES: Case[] = [
     screens: ['desktop', 'phone'],
     open: byButton('Pinned Messages'),
   },
+  {
+    name: 'Pinned Messages from the room menu',
+    from: 'room',
+    screens: ['phone'],
+    open: fromRoomMenu('Pinned Messages'),
+  },
   { name: 'members', from: 'room', screens: ['phone'], open: byButton('Show Members') },
+  {
+    name: 'members from the room menu',
+    from: 'room',
+    screens: ['phone'],
+    open: fromRoomMenu('Show Members'),
+  },
   {
     name: 'member profile',
     from: 'room',
