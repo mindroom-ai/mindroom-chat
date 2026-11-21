@@ -176,6 +176,22 @@ describe('planModelChanges', () => {
     });
   });
 
+  it('keeps a command addressed to another trusted runtime, even after a text-only edit', () => {
+    const sender = '@mindroom_helper:example.org';
+    const command = picked('set', 'fast');
+    const otherAck = ack(result({ runtime_user_id: sender }), { sender });
+    const options = { trustedAccountIds: new Set([ROUTER, sender]) };
+    expect(plan([command, otherAck], options)).toBe(NO_MODEL_CHANGES);
+    replaceWith(command, { msgtype: 'm.text', body: '!MODEL fast' });
+    expect(plan([command, otherAck], options)).toBe(NO_MODEL_CHANGES);
+  });
+
+  it('keeps a command addressed to a different device of the same runtime account', () => {
+    expect(plan([picked('set', 'fast'), ack(result({ runtime_device_id: 'OTHER' }))])).toBe(
+      NO_MODEL_CHANGES
+    );
+  });
+
   it('pairs a model named reset when the router set it', () => {
     const made = plan([typed('!model reset'), ack(result({ model: 'reset', override: 'reset' }))]);
     expect(made.byAckId.get('$ack')).toMatchObject({ operation: 'set', model: 'reset' });

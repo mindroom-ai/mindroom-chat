@@ -51,13 +51,29 @@ const RESET_ARGUMENTS = new Set(['reset', 'clear']);
  * Whether a message, as its row shows it, is the change `result` says was applied and
  * nothing else: its text is the command with its one argument (the model's exact reference for a
  * set, `reset` or `clear` for a reset; a model with one of those names is a set, as the backend
- * decides), and the picker's structured operation, when it carries one, says the same. So the
- * text the row hides is never more than the line says.
+ * decides). A picker's structured command must agree with the result's change and runtime,
+ * even when a text-only edit no longer carries the structured content.
  */
-const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelectionResult) => {
-  if (MODEL_SELECTION in content) {
-    const selection = content[MODEL_SELECTION] as { operation?: unknown; model?: unknown } | null;
-    if (selection?.operation !== result.operation || selection.model !== result.model) return false;
+const isAppliedCommand = (
+  command: MatrixEvent,
+  content: Record<string, unknown>,
+  result: ModelSelectionResult
+) => {
+  for (const version of [command.getOriginalContent<Record<string, unknown>>(), content]) {
+    if (!(MODEL_SELECTION in version)) continue;
+    const selection = version[MODEL_SELECTION] as {
+      operation?: unknown;
+      model?: unknown;
+      runtime_user_id?: unknown;
+      runtime_device_id?: unknown;
+    } | null;
+    if (
+      selection?.operation !== result.operation ||
+      selection.model !== result.model ||
+      selection.runtime_user_id !== result.runtime_user_id ||
+      selection.runtime_device_id !== result.runtime_device_id
+    )
+      return false;
   }
   const argument =
     typeof content.body === 'string'
@@ -148,7 +164,7 @@ export const planModelChanges = ({
       isMindroomAgentUserId(senderId) ||
       (command.isEncrypted() && !ack.isEncrypted()) ||
       threadRootOf(command) !== result.thread_id ||
-      !isAppliedCommand(getContent(command), result)
+      !isAppliedCommand(command, getContent(command), result)
     )
       return;
     hiddenEventIds.add(result.command_event_id);
