@@ -114,7 +114,7 @@ export const filterThreadRecordsBySearch = (
   });
 };
 
-export const threadLastReplySortValue = (record: ThreadRecord): number =>
+const threadLastReplySortValue = (record: ThreadRecord): number =>
   record.status.lastActivityTs ?? 0;
 
 export const sortThreadRecordRootIds = (
@@ -164,6 +164,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   filteredIds: string[];
   liveOrderedIds: string[];
   displayOrderedIds: string[];
+  sortInputOf: (id: string) => string | undefined;
 } => {
   const matchingIds = filterThreadRecordsBySearch(
     filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap, now),
@@ -190,6 +191,13 @@ export const resolveThreadRecordOverviewRootIds = ({
     filteredIds,
     liveOrderedIds,
     displayOrderedIds,
+    sortInputOf: (id) => {
+      const record = recordMap.get(id);
+      if (!record) return undefined;
+      const activity =
+        threadFilterState.sortBy === 'lastReply' ? threadLastReplySortValue(record) : '';
+      return `${pins.includes(id)}:${activity}:${record.absoluteIndex}`;
+    },
   };
 };
 

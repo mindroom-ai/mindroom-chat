@@ -148,7 +148,8 @@ export const holdCompactThreadSections = (
     const liveInputs = live.find((section) => section.id === id)?.sortInputs;
     const sortInputs = new Map(
       rootIds.flatMap((rootId) => {
-        const value = shownSection?.sortInputs?.get(rootId) ?? liveInputs?.get(rootId);
+        const inputs = shownIn.get(rootId) === id ? shownSection?.sortInputs : liveInputs;
+        const value = inputs?.get(rootId);
         return value === undefined ? [] : [[rootId, value] as const];
       })
     );

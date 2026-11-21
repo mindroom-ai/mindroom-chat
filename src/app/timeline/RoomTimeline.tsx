@@ -577,6 +577,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   useFooterBottomPin(scrollElement, footerProbeRef, followLatestRows);
   useThreadSortFreezeController({
     activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
+    sortInputOf: (threadIndex.showCompactRoomView
+      ? threadIndex.compactOverviewOrdering
+      : threadIndex.normalOverviewOrdering
+    ).sortInputOf,
     setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
     threadId,
     threadSortControlSignature: threadIndex.threadSortControlSignature,
@@ -1865,8 +1869,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
           sortMode={`${sortBy}:${sortDirection}`}
-          sortFrozen={
+          sortInputOf={threadIndex.compactOverviewOrdering.sortInputOf}
+          sortFreeze={
             threadSortFreezeState?.controlSignature === threadIndex.threadSortControlSignature
+              ? threadSortFreezeState
+              : null
           }
         />
       </Box>

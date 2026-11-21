@@ -35,7 +35,7 @@ import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { CompactRowKeeper } from './CompactRowKeeper';
-import { threadLastReplySortValue } from '../../event-store/threads/threadRecordOverview';
+import type { ThreadSortFreezeState } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -82,7 +82,8 @@ export type CompactRoomViewProps = {
    */
   sectionsNow?: number;
   sortMode?: string;
-  sortFrozen?: boolean;
+  sortInputOf?: (id: string) => string | undefined;
+  sortFreeze?: ThreadSortFreezeState | null;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
@@ -329,7 +330,8 @@ export function CompactRoomView({
   filterBarShown = false,
   sectionsNow,
   sortMode,
-  sortFrozen,
+  sortInputOf,
+  sortFreeze,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -474,25 +476,27 @@ export function CompactRoomView({
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   const scope = `${room.roomId}|${sortMode}|${!!heldSections}`;
-  const applied = useRef<{ scope: string; ties: ReadonlyMap<string, string> }>();
+  const applied = useRef<{ scope: string; ties: ReadonlyMap<string, string | undefined> }>();
   const previous = applied.current?.scope === scope ? applied.current.ties : undefined;
-  const ties = new Map<string, string>();
+  const frozen = useMemo(() => new Set(sortFreeze?.orderedRootIds), [sortFreeze]);
+  const ties = new Map<string, string | undefined>();
   const inputs = new Map(
     heldSections?.flatMap(({ sortInputs }) => (sortInputs ? [...sortInputs] : []))
   );
   for (const id of shownRootIds) {
-    const record = threadRecordMap.get(id);
-    const live =
-      record &&
-      sortMode &&
-      `${sortMode.startsWith('lastReply') ? threadLastReplySortValue(record) : ''}:${
-        record.absoluteIndex
-      }`;
-    const tie = ((sortFrozen || orderHeld) && previous?.get(id)) || live;
-    if (tie) ties.set(id, tie);
+    // Captured IDs keep their original inputs, even across remount. Missing inputs stay unknown.
+    const tie =
+      orderHeld && previous?.has(id)
+        ? previous.get(id)
+        : frozen.has(id)
+        ? sortFreeze?.sortInputs?.get(id)
+        : sortInputOf?.(id);
+    ties.set(id, tie);
     const sectionInput = inputs.get(id);
-    if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie ?? 'unknown'}`);
-    else if (tie && !heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
+    if (tie === undefined) inputs.delete(id);
+    else if (sectionInput !== undefined) inputs.set(id, `${sectionInput}:${tie}`);
+    // The current pin changes the rendered group; the applied tie keeps the held pin's rank.
+    else if (!heldSections) inputs.set(id, `${pinnedRootIds.includes(id)}:${tie}`);
   }
   useLayoutEffect(() => {
     applied.current = { scope, ties };

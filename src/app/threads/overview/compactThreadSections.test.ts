@@ -101,6 +101,9 @@ describe('buildCompactThreadSections', () => {
     expect(held.get('$a')).toBe('needsYou:10');
     expect(held.get('$pin')).toBe('needsYou:pin');
     expect(values(live).get('$a')).toBe('needsYou:30');
+    const opaque = holdCompactThreadSections(live, [{ id: 'needsYou', rootIds: ['$a', '$b'] }]);
+    expect(values(opaque).has('$a')).toBe(false);
+    expect(values(opaque).get('$pin')).toBe('needsYou:pin');
   });
 
   it('puts the cards in Working, Needs you, Later and Done, as the workflow tabs count them', () => {
