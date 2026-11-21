@@ -10,14 +10,14 @@ import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
 import { MAudio } from '../../src/app/messages/content/MsgTypeRenderers';
+import { TranscribingPlaceholder } from '../../src/app/messages/agent-run/TranscribingPlaceholder';
 import { VoiceTranscript } from '../../src/app/messages/content/VoiceTranscript';
 import {
   MATRIX_AUDIO_DETAILS_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
 } from '../../src/app/matrix/types/common';
 
-// A voice message with the router's transcript under its player, settled and still pending.
-// Placeholder data only.
+// Settled and pending voice messages, with placeholder data only.
 const dark = new URLSearchParams(window.location.search).get('theme') === 'dark';
 applyThemeToDom(dark ? DarkTheme : LightTheme);
 document.body.style.cssText = `margin:24px; background:${dark ? '#1a1a1a' : '#fff'};`;
@@ -37,9 +37,23 @@ const echo = { msgtype: MsgType.Text, 'com.mindroom.visible_router_voice_echo': 
 const cases = [
   {
     name: 'Transcribed voice message',
-    body: '🎤 Remind me to water the ferns on Thursday, and add oat milk to the shopping list.',
+    transcript: (
+      <VoiceTranscript
+        content={{ ...echo, body: '🎤 Remind me to water the ferns on Thursday.' }}
+        senderName="Helper"
+      />
+    ),
   },
-  { name: 'Voice message being transcribed', body: 'Router agent is transcribing…' },
+  { name: 'Voice message being transcribed', transcript: <TranscribingPlaceholder /> },
+  {
+    name: 'Historical router transcript',
+    transcript: (
+      <VoiceTranscript
+        content={{ ...echo, body: '🎤 Add oat milk to the list.' }}
+        senderName="Router"
+      />
+    ),
+  },
 ];
 
 createRoot(document.getElementById('root')!).render(
@@ -49,10 +63,10 @@ createRoot(document.getElementById('root')!).render(
     >
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 560 }}>
-          {cases.map(({ name, body }) => (
+          {cases.map(({ name, transcript }) => (
             <section key={name} aria-label={name}>
               <MAudio content={voice} renderAsFile={() => <div>Unsupported audio</div>} />
-              <VoiceTranscript content={{ ...echo, body }} senderName="Router" />
+              {transcript}
             </section>
           ))}
         </div>

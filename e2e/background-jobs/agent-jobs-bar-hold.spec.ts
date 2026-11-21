@@ -136,10 +136,9 @@ const publishedMode = async (stack: AgentStack, roomId: string): Promise<string 
 };
 
 /**
- * A room of the tester's whose agents answer in its main timeline. The router joins first, with
- * the power to write the room's state, so it publishes the mode when the helper joins and again
- * when the room's admin sends `!thread_mode room`. Every member may publish its jobs as state, as
- * in the rooms MindRoom creates.
+ * A room of the tester's whose helper answers in its main timeline. The helper can write the
+ * room's state, so it publishes the mode after joining and again when the room's admin sends
+ * `!thread_mode room`. Every member may publish its jobs as state, as in rooms MindRoom creates.
  */
 const createMainTimelineRoom = async (stack: AgentStack): Promise<string> => {
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
@@ -151,36 +150,18 @@ const createMainTimelineRoom = async (stack: AgentStack): Promise<string> => {
       body: JSON.stringify({
         name: `Build desk ${uniqueWord('main')}`,
         preset: 'private_chat',
-        invite: [stack.agents.router],
+        invite: [stack.agents.helper],
         power_level_content_override: {
-          users: { [stack.agents.router]: 100 },
+          users: { [stack.agents.helper]: 50 },
           events: { 'io.mindroom.background_jobs': 0 },
         },
       }),
     }
   );
-  const joined = async () =>
-    Object.keys(
-      (
-        await matrixFetch<{ joined: Record<string, unknown> }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/joined_members`,
-          { accessToken: stack.tester.accessToken }
-        )
-      ).joined
-    );
-  await expect
-    .poll(joined, { timeout: 60_000, message: 'the router joins' })
-    .toContain(stack.agents.router);
-  await matrixFetch(stack.homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
-    method: 'POST',
-    accessToken: stack.tester.accessToken,
-    body: JSON.stringify({ user_id: stack.agents.helper }),
-  });
   await expect
     .poll(() => publishedMode(stack, roomId), {
       timeout: 120_000,
-      message: 'the router publishes the thread mode once the helper joined',
+      message: 'the helper publishes the thread mode after joining',
     })
     .toBe('thread');
   await sendRoomMessage(stack.homeserver, stack.tester.accessToken, roomId, {

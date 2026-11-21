@@ -7,8 +7,8 @@ import {
   joinRoom,
   matrixFetch,
   registerAgentAccount,
-  sendMessageEdit,
   sendRoomMessage,
+  sendStateEvent,
 } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -16,22 +16,19 @@ import {
 } from '../helpers/disposableAccounts';
 
 // Reply quotes in a thread, with the relations the MindRoom backend sends. A voice message gets a
-// transcript from the router and an answer from an agent, and the backend sends both as genuine
-// replies to the voice message, so the answer sits below the transcript, not below what it
-// replies to. Its quote would repeat the voice message right above, so it shows none. A reply to
-// the voice message after an unrelated message still quotes it.
+// transcript and answer from the same agent. They are both genuine replies to the voice
+// message, but the transcript folds into it, so the immediately following answer needs no
+// quote. A reply to the voice message after an unrelated message still quotes it.
 // Set REPLY_QUOTES_SCREENSHOT to a path to save a picture of the thread.
 
 const PASSWORD = 'reply-quotes-password';
 const VOICE_CLIP = new URL('../fixtures/agent-call-question.wav', import.meta.url);
 
-const register = async (username: string): Promise<string> => {
-  const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
+const register = (username: string) =>
+  matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
     method: 'POST',
     body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
   });
-  return body.access_token;
-};
 
 const uploadVoiceClip = async (accessToken: string): Promise<string> => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=voice.wav`, {
@@ -75,20 +72,40 @@ test('an agent answer to a voice message quotes it only when other messages sit 
   );
 
   const username = `quotes_${Date.now().toString(36)}`;
-  const token = await register(username);
-  const router = await registerAgentAccount(HOMESERVER, 'router');
+  const { access_token: token, user_id: readerId } = await register(username);
+  const owner = await registerAgentAccount(HOMESERVER, 'router');
   const helper = await registerAgentAccount(HOMESERVER, 'helper');
-  const roomId = await createPrivateRoom(HOMESERVER, token, {
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(helper.userId)}/displayname`, {
+    method: 'PUT',
+    accessToken: helper.accessToken,
+    body: JSON.stringify({ displayname: 'Helper' }),
+  });
+  const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
     name: 'Reply Quotes',
     topic: 'Reply quotes in a thread',
-    invite: [router.userId, helper.userId],
+    invite: [readerId, helper.userId],
   });
-  await joinRoom(HOMESERVER, router.accessToken, roomId);
+  await joinRoom(HOMESERVER, token, roomId);
   await joinRoom(HOMESERVER, helper.accessToken, roomId);
+  await sendStateEvent(HOMESERVER, owner.accessToken, roomId, 'io.mindroom.router', '', {
+    user_id: owner.userId,
+  });
+  await sendStateEvent(
+    HOMESERVER,
+    owner.accessToken,
+    roomId,
+    'io.mindroom.accounts',
+    owner.userId,
+    { accounts: [helper.userId, owner.userId].sort() }
+  );
   const send = (accessToken: string, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, accessToken, roomId, content, 'reply-quotes');
 
   const rootId = await send(token, { msgtype: 'm.text', body: 'Starting a new job today' });
+  await signIn(page, username);
+  await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
+  const row = (eventId: string) => page.locator(`[data-message-id="${eventId}"]`).first();
+  await expect(row(rootId)).toBeVisible({ timeout: 120_000 });
   const voiceId = await send(token, {
     msgtype: 'm.audio',
     body: 'Voice message',
@@ -98,20 +115,20 @@ test('an agent answer to a voice message quotes it only when other messages sit 
     'org.matrix.msc3245.voice': {},
     'm.relates_to': inThread(rootId, rootId, true),
   });
-  // The router posts a placeholder that replies to the voice message, then edits in the transcript.
-  const transcriptId = await send(router.accessToken, {
+  const pending = row(voiceId).getByRole('status', { name: 'Transcribing…' });
+  await expect(pending).toBeVisible({ timeout: 30_000 });
+  const transcriptId = await send(helper.accessToken, {
     msgtype: 'm.text',
-    body: '🎤 Transcribing…',
+    body: "🎤 It's my first day on the job.",
     'com.mindroom.visible_router_voice_echo': true,
+    'com.mindroom.voice_source_event_id': voiceId,
+    'com.mindroom.original_sender': readerId,
     'm.relates_to': inThread(rootId, voiceId, false),
   });
-  await sendMessageEdit(
-    HOMESERVER,
-    router.accessToken,
-    roomId,
-    transcriptId,
-    "🎤 It's my first day on the job."
-  );
+  await expect(row(voiceId)).toContainText("It's my first day on the job.");
+  await expect(row(voiceId)).toContainText('Transcribed by Helper');
+  await expect(pending).toHaveCount(0);
+  await expect(page.locator(`[data-message-id="${transcriptId}"]`)).toHaveCount(0);
   const answerId = await send(helper.accessToken, {
     msgtype: 'm.text',
     body: 'Congratulations on the first day!',
@@ -128,15 +145,10 @@ test('an agent answer to a voice message quotes it only when other messages sit 
     'm.relates_to': inThread(rootId, voiceId, false),
   });
 
-  await signIn(page, username);
-  await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
-  const row = (eventId: string) => page.locator(`[data-message-id="${eventId}"]`).first();
   const quoteOfVoice = (eventId: string) => row(eventId).locator(`[data-event-id="${voiceId}"]`);
   await expect(row(laterId)).toContainText('Back to your first day', { timeout: 120_000 });
-  await expect(row(transcriptId)).toContainText("It's my first day on the job.", {
-    timeout: 60_000,
-  });
   await expect(row(asideId)).toBeVisible();
+  await expect(row(answerId)).toBeVisible();
 
   // The later reply comes after an unrelated message, so it quotes the voice message.
   await expect(quoteOfVoice(laterId)).toBeVisible({ timeout: 30_000 });
@@ -147,7 +159,6 @@ test('an agent answer to a voice message quotes it only when other messages sit 
     await row(voiceId).scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot });
   }
-  // The transcript sits right below the voice message and the answer right below the transcript.
-  await expect(quoteOfVoice(transcriptId)).toHaveCount(0);
+  // The answer immediately follows the voice message with its folded transcript.
   await expect(quoteOfVoice(answerId)).toHaveCount(0);
 });
