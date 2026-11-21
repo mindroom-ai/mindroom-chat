@@ -1,5 +1,12 @@
 import React from 'react';
-import { MatrixEvent, RoomMember, RoomMemberEvent, RoomState, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEvent,
+  RoomEvent,
+  RoomMember,
+  RoomMemberEvent,
+  RoomState,
+  type Room,
+} from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
@@ -164,7 +171,7 @@ const changeMembership = (joined: string[], userId: string, membership: 'join' |
     ([name]) => name === RoomMemberEvent.Membership
   )?.[1] as ((event: MatrixEvent, member: RoomMember, oldMembership: string) => void) | undefined;
   if (!listener) throw new Error('No membership listener');
-  act(() => listener(event, member, oldMembership));
+  listener(event, member, oldMembership);
 };
 
 const transcripts = (renderer: ReturnType<typeof create>) =>
@@ -216,10 +223,10 @@ describe('a voice echo in an open thread', () => {
     const { renderer } = await openThread(ROUTER, CUSTOM_AGENT, { joinedMembers });
     try {
       expect(getRenderedEventIds(renderer)).toContain('$echo');
-      changeMembership(joinedMembers, CUSTOM_AGENT, 'join');
+      await act(async () => changeMembership(joinedMembers, CUSTOM_AGENT, 'join'));
       expect(getRenderedEventIds(renderer)).not.toContain('$echo');
       expect(transcripts(renderer)).toEqual(['🎤 Invented words']);
-      changeMembership(joinedMembers, CUSTOM_AGENT, 'leave');
+      await act(async () => changeMembership(joinedMembers, CUSTOM_AGENT, 'leave'));
       expect(getRenderedEventIds(renderer)).toContain('$echo');
     } finally {
       act(() => renderer.unmount());
@@ -304,15 +311,43 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
+  it('blocks pending if the room summary counts an unloaded joined member', async () => {
+    const { renderer, room } = await openThread(undefined, AGENT, { showEcho: false });
+    try {
+      expect(transcribingStatuses(renderer)).toHaveLength(1);
+      vi.spyOn(room, 'getJoinedMemberCount').mockReturnValue(3);
+      await act(async () => room.__listeners.get(RoomEvent.Summary)?.());
+      expect(transcribingStatuses(renderer)).toHaveLength(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('scans joined people once for a batch of membership changes', async () => {
+    const joinedMembers = [VIEWER, AGENT];
+    const { renderer, room } = await openThread(undefined, AGENT, { showEcho: false, joinedMembers });
+    try {
+      const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
+      await act(async () => {
+        changeMembership(joinedMembers, '@alex:example.org', 'join');
+        changeMembership(joinedMembers, '@sam:example.org', 'join');
+      });
+      expect(getJoinedMembers).toHaveBeenCalledTimes(1);
+      expect(transcribingStatuses(renderer)).toHaveLength(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it('updates the pending hint when another person joins or leaves', async () => {
     const joinedMembers = [VIEWER, AGENT];
     const person = '@alex:example.org';
     const { renderer } = await openThread(undefined, AGENT, { showEcho: false, joinedMembers });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(1);
-      changeMembership(joinedMembers, person, 'join');
+      await act(async () => changeMembership(joinedMembers, person, 'join'));
       expect(transcribingStatuses(renderer)).toHaveLength(0);
-      changeMembership(joinedMembers, person, 'leave');
+      await act(async () => changeMembership(joinedMembers, person, 'leave'));
       expect(transcribingStatuses(renderer)).toHaveLength(1);
     } finally {
       act(() => renderer.unmount());

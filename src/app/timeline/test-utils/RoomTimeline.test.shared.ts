@@ -1432,6 +1432,7 @@ const makeRoom = ({
     getEventReadUpTo: (): string | null | undefined => undefined,
     getLiveTimeline: () => roomLiveTimeline,
     getJoinedMembers: () => joinedMembers.map((userId) => ({ userId })),
+    getJoinedMemberCount: () => joinedMembers.length,
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,

@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   Direction,
+  RoomEvent,
   RoomMemberEvent,
   type MatrixEvent,
   type Room,
@@ -944,15 +945,29 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   useLayoutEffect(() => {
     // People joining or leaving can change the hint, but not the trusted set.
     const updateOnlyPerson = () => {
-      const people = room
-        .getJoinedMembers()
-        .filter(
-          ({ userId }) =>
-            userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
-        );
-      setViewerIsOnlyPerson(people.length === 1 && people[0]?.userId === viewerId);
+      const joined = room.getJoinedMembers();
+      const people = joined.filter(
+        ({ userId }) =>
+          userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
+      );
+      const mindroomCount = joined.length - people.length;
+      setViewerIsOnlyPerson(
+        people.length === 1 && people[0]?.userId === viewerId &&
+        room.getJoinedMemberCount() - mindroomCount === 1
+      );
     };
     updateOnlyPerson();
+    // Read the member list and summary once the SDK has finished changing both.
+    let scanQueued = false;
+    const queueScan = () => {
+      if (scanQueued) return;
+      scanQueued = true;
+      queueMicrotask(() => {
+        if (!scanQueued) return;
+        scanQueued = false;
+        updateOnlyPerson();
+      });
+    };
     const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
       if (
         member.roomId !== room.roomId ||
@@ -968,11 +983,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ) {
         refreshMembership();
       }
-      updateOnlyPerson();
+      queueScan();
     };
     mx.on(RoomMemberEvent.Membership, onMembership);
+    room.on(RoomEvent.Summary, queueScan);
     return () => {
+      scanQueued = false;
       mx.removeListener(RoomMemberEvent.Membership, onMembership);
+      room.removeListener(RoomEvent.Summary, queueScan);
     };
   }, [mx, room, boundUserId, rosterAccountIds, viewerId, isResponder, refreshMembership]);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
