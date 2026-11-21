@@ -124,7 +124,7 @@ describe('the Compact room in sections', () => {
   it('keeps Working promotions in place while scrolled but applies folds and leaves', () => {
     state.sections = [
       { id: 'needsYou', rootIds: ['$a', '$b'] },
-      { id: 'done', rootIds: ['$c'] },
+      { id: 'later', rootIds: ['$c'] },
     ];
     const { container, rerender } = render(view(['$a', '$b', '$c']));
     const scrollView = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
@@ -133,21 +133,21 @@ describe('the Compact room in sections', () => {
     state.sections = [
       { id: 'working', rootIds: ['$b'] },
       { id: 'needsYou', rootIds: ['$a'] },
-      { id: 'done', rootIds: ['$c'] },
+      { id: 'later', rootIds: ['$c'] },
     ];
     rerender(view(['$a', '$b', '$c']));
-    expect(rows()).toEqual(['#needsYou 2', '$a', '$b', '#done 1', '$c']);
+    expect(rows()).toEqual(['#needsYou 2', '$a', '$b', '#later 1', '$c']);
     fireEvent.click(header('needsYou'));
-    expect(rows()).toEqual(['#needsYou 2', '#done 1', '$c']);
+    expect(rows()).toEqual(['#needsYou 2', '#later 1', '$c']);
     state.sections = [
       { id: 'working', rootIds: ['$b'] },
-      { id: 'done', rootIds: ['$c'] },
+      { id: 'later', rootIds: ['$c'] },
     ];
     rerender(view(['$b', '$c']));
-    expect(rows()).toEqual(['#needsYou 1', '#done 1', '$c']);
+    expect(rows()).toEqual(['#needsYou 1', '#later 1', '$c']);
     scrollView.scrollTop = 0;
     fireEvent.scroll(scrollView);
-    expect(rows()).toEqual(['#working 1', '$b', '#done 1', '$c']);
+    expect(rows()).toEqual(['#working 1', '$b', '#later 1', '$c']);
   });
 
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
@@ -259,7 +259,9 @@ describe('the Compact room in sections', () => {
       state.sections = initial;
       const rootIds = initial.flatMap(({ rootIds: ids }) => ids);
       const { rerender } = render(view(rootIds));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });
@@ -454,7 +456,9 @@ describe('the Compact room in sections', () => {
 
     it('holds no section of the room before when the next room opens under the pointer', () => {
       const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });
@@ -479,7 +483,9 @@ describe('the Compact room in sections', () => {
     it('shows a new thread under its own header, which comes with it', () => {
       state.sections = [{ id: 'needsYou', rootIds: ['$a'] }];
       const { rerender } = render(view(['$a']));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });

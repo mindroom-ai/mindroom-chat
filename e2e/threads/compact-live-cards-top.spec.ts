@@ -9,10 +9,12 @@ import { loginWithPassword } from '../helpers/auth';
 
 import { createRoom } from '../helpers/createRoom';
 import {
+  createDefaultThreadFilterState,
   joinRoom,
-  redactEvent,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
+  sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
@@ -446,10 +448,6 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
-  // The second card in view trades places with the first: flat, at the list's top, and in
-  // sections, at the top of Needs you, whose cards the newest reply leads.
-  const trades = move === 'swap' || move === 'sections-swap';
-  const inView = trades || move === 'in-view' || move === 'rotate' || move === 'under';
   // The cards that move, the first reply first. One: the oldest thread's, far below the view, or
   // one in view, the card after the one that leads it, three cards below that one, or the one
   // that leads it. Several, as a held order is let go: the three oldest threads', the
@@ -518,12 +516,25 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   await expect(updatePill(page)).toBeVisible();
 };
 
-const openScrolled = async (page: Page, seeded: Seeded) => {
+const openScrolled = async (page: Page, seeded: Seeded, hideResolved = false) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: seeded.reader.username,
     password: PASSWORD,
   });
+  if (hideResolved) {
+    await seedRoomOverviewState({
+      page,
+      roomId: seeded.roomId,
+      userId: seeded.reader.userId,
+      viewMode: 'compact',
+      filterState: {
+        ...createDefaultThreadFilterState(),
+        resolved: 'exclude',
+        searchQuery: '-is:resolved',
+      },
+    });
+  }
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   await expectRoomCompact(page, true, 60_000);
   await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
@@ -562,10 +573,8 @@ const checkRelease = async (
     };
     sample();
     return {
-      read: () => {
-        cancelAnimationFrame(frame);
-        return glided;
-      },
+      read: () => glided,
+      stop: () => cancelAnimationFrame(frame),
     };
   });
   if (action === 'tap') await pill.tap();
@@ -577,6 +586,7 @@ const checkRelease = async (
   await expect(pill).toHaveCount(0);
   if (action !== 'scroll') await expect(listView(page)).toBeFocused();
   await expect.poll(() => glide.evaluate(({ read }) => read())).toBe(true);
+  await glide.evaluate(({ stop }) => stop());
   await glide.dispose();
 };
 
@@ -645,10 +655,17 @@ test.describe('Compact order stays calm while scrolled', () => {
   test('removing a card above preserves the visible rows', async ({ page }) => {
     test.setTimeout(180_000);
     const seeded = await seed('leave');
-    await openScrolled(page, seeded);
+    await openScrolled(page, seeded, true);
     const newest = seeded.rootIds.at(-1) ?? '';
     const still = await watchVisibleRows(page);
-    await redactEvent(HOMESERVER, seeded.reader.accessToken, seeded.roomId, newest);
+    await sendStateEvent(
+      HOMESERVER,
+      seeded.reader.accessToken,
+      seeded.roomId,
+      'com.mindroom.thread.tags',
+      JSON.stringify([newest, 'resolved']),
+      { set_by: seeded.reader.userId, set_at: new Date().toISOString() }
+    );
     await expect(cardOf(page, newest)).toHaveCount(0, { timeout: 30_000 });
     await page.waitForTimeout(600);
     await still();

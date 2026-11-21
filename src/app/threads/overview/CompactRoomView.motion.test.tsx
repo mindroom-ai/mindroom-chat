@@ -216,8 +216,8 @@ describe('the calm compact list', () => {
   it('returns to the top and hands focus to the scroller when activating the offer', () => {
     const { container, rerender } = render(list(['$a', '$b']));
     const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
-    view.scrollTo = ({ top }: ScrollToOptions) => {
-      view.scrollTop = top ?? 0;
+    view.scrollTo = (options?: ScrollToOptions | number, y?: number) => {
+      view.scrollTop = typeof options === 'number' ? y ?? 0 : options?.top ?? 0;
     };
     scroll(30);
     rerender(list(['$b', '$a']));

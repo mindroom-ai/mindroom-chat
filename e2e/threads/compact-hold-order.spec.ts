@@ -139,8 +139,12 @@ const replyBelow = async (page: Page, room: SeededRoom) => {
   return targets;
 };
 
-/** After the reader lets go, the threads that got replies lead the list. */
+/** Interaction releases alone do not apply the updated order below the top. */
 const expectCaughtUp = async (page: Page, targets: string[]) => {
+  await expect(page.getByRole('button', { name: 'Show updated order' })).toBeVisible();
+  await page.locator('[data-compact-room-view]').evaluate((view) => {
+    view.scrollTop = 0;
+  });
   await expect
     .poll(async () => (await cardOrder(page)).slice(0, 3).sort())
     .toEqual([...targets].sort());
@@ -168,7 +172,7 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(
     order[12]
   );
-  // Leaving the list lets the new order in.
+  // Leaving the list releases the pointer hold; the scroll hold stays until the top.
   await page.mouse.move(DESKTOP.width - 5, 5);
   await expectCaughtUp(page, targets);
 
