@@ -275,6 +275,7 @@ vi.mock('../../threads/overview/CompactRoomView.css', () => ({
   CardMenuButton: 'CardMenuButton',
   CardShell: 'CardShell',
   CardMotion: 'CardMotion',
+  UpdatedOrder: 'UpdatedOrder',
   Cards: 'Cards',
   EmptyState: 'EmptyState',
   View: 'View',
