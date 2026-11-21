@@ -462,9 +462,9 @@ export function CompactRoomView({
   const shownRows = useHeldThreadOrder(calmRows, orderHeld && !heldSections && !away, viewRef);
   useLayoutEffect(() => {
     committed.current = { scope, sections: heldSections, rows: shownRows, pins: shownPins };
-    // Consume the explicit override only after the target layout has committed at the top.
-    if (catchUp) setCatchUpRequested(false);
-  }, [catchUp, heldSections, scope, shownPins, shownRows]);
+    // Consume the explicit override on the next commit, even if scrolling did not reach the top.
+    if (catchUpRequested) setCatchUpRequested(false);
+  }, [catchUpRequested, heldSections, scope, shownPins, shownRows]);
   const pending = useMemo(() => {
     if (!away) return false;
     const target = threadSections

@@ -232,6 +232,21 @@ describe('the calm compact list', () => {
     expect(pill()).toBeNull();
   });
 
+  it('does not override a later pointer hold if catch-up could not scroll to the top', () => {
+    const { container, rerender } = render(list(['$a', '$b']));
+    const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    view.scrollTo = () => undefined;
+    scroll(30);
+    rerender(list(['$b', '$a']));
+    fireEvent.pointerEnter(row('$a')!.parentElement!);
+    fireEvent.click(pill()!);
+    expect(view.scrollTop).toBe(30);
+    expect(pill()).not.toBeNull();
+
+    scroll(0);
+    expect(order()).toEqual(['$a', '$b']);
+  });
+
   it('applies the offer at zero even while the pointer holds the list', () => {
     const { container, rerender } = render(list(['$a', '$b']));
     const view = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
