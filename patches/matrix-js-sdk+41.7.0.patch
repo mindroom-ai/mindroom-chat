@@ -2869,10 +2869,20 @@ diff --git a/node_modules/matrix-js-sdk/lib/@types/requests.d.ts b/node_modules/
      to?: string;
      limit?: number;
 diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
-index 80ea382..2ba4e1b 100644
+index 80ea382..213e328 100644
 --- a/node_modules/matrix-js-sdk/src/client.ts
 +++ b/node_modules/matrix-js-sdk/src/client.ts
-@@ -1226,6 +1226,9 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -1174,7 +1174,8 @@ export type ClientEventHandlerMap = {
+     [ClientEvent.AccountData]: (event: MatrixEvent, lastEvent?: MatrixEvent) => void;
+     [ClientEvent.Room]: (room: Room) => void;
+     [ClientEvent.DeleteRoom]: (roomId: string) => void;
+-    [ClientEvent.SyncUnexpectedError]: (error: Error) => void;
++    /** `fromCache`: the error was thrown while the saved sync was replayed. */
++    [ClientEvent.SyncUnexpectedError]: (error: Error, fromCache?: boolean) => void;
+     [ClientEvent.ClientWellKnown]: (data: IClientWellKnown) => void;
+     [ClientEvent.ReceivedVoipEvent]: (event: MatrixEvent) => void;
+     [ClientEvent.TurnServers]: (servers: ITurnServer[]) => void;
+@@ -1226,6 +1227,9 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
  
      public scheduler?: MatrixScheduler;
      public clientRunning = false;
@@ -2882,7 +2892,7 @@ index 80ea382..2ba4e1b 100644
      public timelineSupport = false;
      public urlPreviewCache: { [key: string]: Promise<IPreviewUrlResponse> } = {};
      public identityServer?: IIdentityServerProvider;
-@@ -1491,35 +1494,37 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -1491,35 +1495,37 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
              this.syncApi.stop();
          }
  
@@ -2935,19 +2945,19 @@ index 80ea382..2ba4e1b 100644
 +        };
 +        const threadSupportPending = discoverThreadSupport();
 +        this.threadSupportPending = threadSupportPending;
- 
--        this.syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
++
 +        // Saved rooms must become usable even while server discovery is stalled.
 +        // Reuse this exact replay when normal sync starts, so live data never races it.
 +        if (syncApi instanceof SyncApi) await syncApi.restoreFromCache();
 +        await threadSupportPending;
 +        if (!isCurrent()) return;
-+
+ 
+-        this.syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
 +        syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
  
          if (this.clientOpts.clientWellKnownPollPeriod !== undefined) {
              this.clientWellKnownIntervalID = setInterval(() => {
-@@ -5014,6 +5019,14 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5014,6 +5020,14 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          const room = this.getRoom(eventTimeline.getRoomId()!);
          const threadListType = eventTimeline.getTimelineSet().threadListType;
          const thread = eventTimeline.getTimelineSet().thread;
@@ -2962,7 +2972,8 @@ index 80ea382..2ba4e1b 100644
  
          // TODO: we should implement a backoff (as per scrollback()) to deal more
          // nicely with HTTP errors.
-@@ -5119,7 +5132,10 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5118,8 +5132,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+ 
                      const timelineSet = eventTimeline.getTimelineSet();
                      timelineSet.addEventsToTimeline(matrixEvents, backwards, false, eventTimeline, token);
 +                    // MindRoom: /threads pages never overlap, so its next_batch is the list's place even when the
@@ -2974,7 +2985,7 @@ index 80ea382..2ba4e1b 100644
  
                      // if we've hit the end of the timeline, we need to stop trying to
                      // paginate. We need to keep the 'forwards' token though, to make sure
-@@ -5164,13 +5180,15 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5164,13 +5181,15 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
  
                      const newToken = res.next_batch;
  
@@ -2993,7 +3004,7 @@ index 80ea382..2ba4e1b 100644
                      }
                      this.processAggregatedTimelineEvents(timelineSet.room, matrixEvents);
  
-@@ -5178,7 +5196,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5178,7 +5197,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
                      // paginate. We need to keep the 'forwards' token though, to make sure
                      // we can recover from gappy syncs.
                      if (backwards && !newToken) {
@@ -3002,7 +3013,7 @@ index 80ea382..2ba4e1b 100644
                      }
                      return Boolean(newToken);
                  })
-@@ -6877,7 +6895,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -6877,7 +6896,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          eventType?: EventType | string | null,
          opts: IRelationsRequestOpts = { dir: Direction.Backward },
      ): Promise<IRelationsResponse> {
@@ -3012,7 +3023,7 @@ index 80ea382..2ba4e1b 100644
          if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
              params = replaceParam("dir", "org.matrix.msc3715.dir", params);
          }
-@@ -6906,6 +6925,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -6906,6 +6926,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          });
          return this.http.authedRequest(Method.Get, path, undefined, undefined, {
              prefix: ClientPrefix.V1,
@@ -3480,10 +3491,20 @@ index 83c2a44..f8b3b89 100644
      private addThreadedEvents;
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/client.d.ts b/node_modules/matrix-js-sdk/lib/client.d.ts
-index 9df5083..299339d 100644
+index 9df5083..876ca5c 100644
 --- a/node_modules/matrix-js-sdk/lib/client.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/client.d.ts
-@@ -847,6 +847,8 @@ export declare class MatrixClient extends TypedEventEmitter<EmittedEvents, Clien
+@@ -810,7 +810,8 @@ export type ClientEventHandlerMap = {
+     [ClientEvent.AccountData]: (event: MatrixEvent, lastEvent?: MatrixEvent) => void;
+     [ClientEvent.Room]: (room: Room) => void;
+     [ClientEvent.DeleteRoom]: (roomId: string) => void;
+-    [ClientEvent.SyncUnexpectedError]: (error: Error) => void;
++    /** `fromCache`: the error was thrown while the saved sync was replayed. */
++    [ClientEvent.SyncUnexpectedError]: (error: Error, fromCache?: boolean) => void;
+     [ClientEvent.ClientWellKnown]: (data: IClientWellKnown) => void;
+     [ClientEvent.ReceivedVoipEvent]: (event: MatrixEvent) => void;
+     [ClientEvent.TurnServers]: (servers: ITurnServer[]) => void;
+@@ -847,6 +848,8 @@ export declare class MatrixClient extends TypedEventEmitter<EmittedEvents, Clien
      private readonly legacyPickleKey?;
      scheduler?: MatrixScheduler;
      clientRunning: boolean;
@@ -3493,7 +3514,7 @@ index 9df5083..299339d 100644
      urlPreviewCache: {
          [key: string]: Promise<IPreviewUrlResponse>;
 diff --git a/node_modules/matrix-js-sdk/lib/sync.d.ts b/node_modules/matrix-js-sdk/lib/sync.d.ts
-index 2dd8c1f..a736247 100644
+index 2dd8c1f..cae4486 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/sync.d.ts
 @@ -85,10 +85,12 @@ export declare class SyncApi {
@@ -3509,19 +3530,18 @@ index 2dd8c1f..a736247 100644
      private storeIsInvalid;
      private presence?;
      /**
-@@ -163,6 +165,11 @@ export declare class SyncApi {
+@@ -163,6 +165,10 @@ export declare class SyncApi {
      private storeClientOptions;
      private getFilter;
      private savedSyncPromise?;
 +    /** The token of the saved sync that the replay read: null without one, or when reading it failed. */
 +    private savedSyncToken?;
-+    private savedSyncReplayFailed;
 +    /** Replay saved rooms once, independently of network startup. */
 +    restoreFromCache(): Promise<void>;
      /**
       * Main entry point
       */
-@@ -195,6 +202,7 @@ export declare class SyncApi {
+@@ -195,6 +201,7 @@ export declare class SyncApi {
       */
      setPresence(presence?: SetPresence): void;
      private onSyncError;
@@ -3530,7 +3550,7 @@ index 2dd8c1f..a736247 100644
       * Process data returned from a sync response and propagate it
       * into the model objects
 diff --git a/node_modules/matrix-js-sdk/lib/sync.js b/node_modules/matrix-js-sdk/lib/sync.js
-index 2741877..b40f0a6 100644
+index 2741877..79b5e55 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.js
 +++ b/node_modules/matrix-js-sdk/lib/sync.js
 @@ -30,7 +30,7 @@ limitations under the License.
@@ -3578,17 +3598,16 @@ index 2741877..b40f0a6 100644
      // Number of consecutive failed /sync requests
      _defineProperty(this, "storeIsInvalid", false);
      // flag set if the store needs to be cleared before we can start
-@@ -230,6 +247,9 @@ export class SyncApi {
+@@ -230,6 +247,8 @@ export class SyncApi {
        };
      }));
      _defineProperty(this, "savedSyncPromise", void 0);
 +    /** The token of the saved sync that the replay read: null without one, or when reading it failed. */
 +    _defineProperty(this, "savedSyncToken", void 0);
-+    _defineProperty(this, "savedSyncReplayFailed", false);
      /**
       * Event handler for the 'online' event
       * This event is generally unreliable and precise behaviour
-@@ -576,12 +596,30 @@ export class SyncApi {
+@@ -576,12 +595,30 @@ export class SyncApi {
      return false;
    }
    /**
@@ -3620,7 +3639,7 @@ index 2741877..b40f0a6 100644
        _this5.running = true;
        _this5.abortController = new AbortController();
        (_globalThis$window = globalThis.window) === null || _globalThis$window === void 0 || (_globalThis$window$ad = _globalThis$window.addEventListener) === null || _globalThis$window$ad === void 0 || _globalThis$window$ad.call(_globalThis$window, "online", _this5.onOnline, false);
-@@ -590,22 +628,11 @@ export class SyncApi {
+@@ -590,22 +627,11 @@ export class SyncApi {
          return _this5.doSync({});
        }
  
@@ -3648,7 +3667,7 @@ index 2741877..b40f0a6 100644
  
        // We need to do one-off checks before we can begin the /sync loop.
        // These are:
-@@ -646,6 +673,9 @@ export class SyncApi {
+@@ -646,6 +672,9 @@ export class SyncApi {
            firstSyncFilter = JSON.stringify(initialFilter.getDefinition());
          }
  
@@ -3658,21 +3677,7 @@ index 2741877..b40f0a6 100644
          // Send this first sync request here so we can then wait for the saved
          // sync data to finish processing before we process the results of this one.
          _this5.currentSyncRequest = _this5.doSyncRequest({
-@@ -656,6 +686,13 @@ export class SyncApi {
-       // Now wait for the saved sync to finish...
-       _this5.syncOpts.logger.debug("Waiting for saved sync before starting sync processing...");
-       yield _this5.savedSyncPromise;
-+      if (_this5.savedSyncReplayFailed) {
-+        var _this5$currentSyncReq;
-+        // Part of the saved sync is missing here: sync from the start, not since its token.
-+        (_this5$currentSyncReq = _this5.currentSyncRequest) === null || _this5$currentSyncReq === void 0 || _this5$currentSyncReq.catch(() => {});
-+        _this5.currentSyncRequest = undefined;
-+        _this5.client.store.setSyncToken(null);
-+      }
-       // process the first sync request and continue syncing with the normal filterId
-       return _this5.doSync({
-         filter: filterId
-@@ -669,6 +706,7 @@ export class SyncApi {
+@@ -669,6 +698,7 @@ export class SyncApi {
    stop() {
      var _globalThis$window2, _globalThis$window2$r, _this$abortController2;
      this.syncOpts.logger.debug("SyncApi.stop");
@@ -3680,11 +3685,11 @@ index 2741877..b40f0a6 100644
      // It is necessary to check for the existance of
      // globalThis.window AND globalThis.window.removeEventListener.
      // Some platforms (e.g. React Native) register globalThis.window,
-@@ -725,12 +763,13 @@ export class SyncApi {
+@@ -725,12 +755,13 @@ export class SyncApi {
          yield _this6.processSyncResponse(syncEventData, data);
        } catch (e) {
          _this6.syncOpts.logger.error("Error processing cached sync", e);
-+        _this6.savedSyncReplayFailed = true;
++        _this6.client.emit(ClientEvent.SyncUnexpectedError, e, true);
        }
  
        // Don't emit a prepared if we've bailed because the store is invalid:
@@ -3695,7 +3700,7 @@ index 2741877..b40f0a6 100644
          _this6.updateSyncState(SyncState.Prepared, syncEventData);
        }
      })();
-@@ -773,6 +812,15 @@ export class SyncApi {
+@@ -773,6 +804,15 @@ export class SyncApi {
          try {
            yield _this7.processSyncResponse(syncEventData, data);
          } catch (e) {
@@ -3711,7 +3716,7 @@ index 2741877..b40f0a6 100644
            // log the exception with stack if we have it, else fall back
            // to the plain description
            _this7.syncOpts.logger.error("Caught /sync error", e);
-@@ -928,6 +976,29 @@ export class SyncApi {
+@@ -928,6 +968,29 @@ export class SyncApi {
      })();
    }
  
@@ -3741,7 +3746,7 @@ index 2741877..b40f0a6 100644
    /**
     * Process data returned from a sync response and propagate it
     * into the model objects
-@@ -938,9 +1009,14 @@ export class SyncApi {
+@@ -938,9 +1001,14 @@ export class SyncApi {
    processSyncResponse(syncEventData, data) {
      var _this9 = this;
      return _asyncToGenerator(function* () {
@@ -3757,7 +3762,7 @@ index 2741877..b40f0a6 100644
        // data looks like:
        // {
        //    next_batch: $token,
-@@ -1061,19 +1137,7 @@ export class SyncApi {
+@@ -1061,19 +1129,7 @@ export class SyncApi {
        }
  
        // handle to-device events
@@ -3778,7 +3783,7 @@ index 2741877..b40f0a6 100644
          processToDeviceMessages(receivedToDeviceMessages, client);
        } else {
          // no more to-device events: we can stop polling with a short timeout.
-@@ -1138,7 +1202,9 @@ export class SyncApi {
+@@ -1138,7 +1194,9 @@ export class SyncApi {
            // room::decryptCriticalEvent is in charge of decrypting all the events
            // required for a client to function properly
            var timelineEvents = _this9.mapSyncEventsFormat(joinObj.timeline, room, false);
@@ -3789,7 +3794,7 @@ index 2741877..b40f0a6 100644
            var accountDataEvents = _this9.mapSyncEventsFormat(joinObj.account_data);
            var stickyEvents = _this9.mapSyncEventsFormat(joinObj.msc4354_sticky);
  
-@@ -1176,6 +1242,13 @@ export class SyncApi {
+@@ -1176,6 +1234,13 @@ export class SyncApi {
              }
            }
            var unreadThreadNotifications = (_joinObj$UNREAD_THREA = joinObj[UNREAD_THREAD_NOTIFICATIONS.name]) !== null && _joinObj$UNREAD_THREA !== void 0 ? _joinObj$UNREAD_THREA : joinObj[UNREAD_THREAD_NOTIFICATIONS.altName];
@@ -3803,7 +3808,7 @@ index 2741877..b40f0a6 100644
            if (unreadThreadNotifications) {
              // This mirrors the logic above for rooms: take the *total* notification count from
              // the server for unencrypted rooms or is it's zero. Any threads not present in this
-@@ -1418,7 +1491,11 @@ export class SyncApi {
+@@ -1418,7 +1483,11 @@ export class SyncApi {
        }
  
        // Handle one_time_keys_count and unused fallback keys
@@ -3816,14 +3821,14 @@ index 2741877..b40f0a6 100644
      })();
    }
  
-@@ -1812,4 +1889,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
+@@ -1812,4 +1881,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
      client.emit(ClientEvent.ReceivedToDeviceMessage, processedEvent);
    });
  }
 -//# sourceMappingURL=sync.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/src/sync.ts b/node_modules/matrix-js-sdk/src/sync.ts
-index e731161..2616593 100644
+index e731161..4f23f14 100644
 --- a/node_modules/matrix-js-sdk/src/sync.ts
 +++ b/node_modules/matrix-js-sdk/src/sync.ts
 @@ -26,7 +26,7 @@ limitations under the License.
@@ -3869,13 +3874,12 @@ index e731161..2616593 100644
      private storeIsInvalid = false; // flag set if the store needs to be cleared before we can start
      private presence?: SetPresence;
  
-@@ -695,11 +711,36 @@ export class SyncApi {
+@@ -695,11 +711,35 @@ export class SyncApi {
      };
  
      private savedSyncPromise?: Promise<void>;
 +    /** The token of the saved sync that the replay read: null without one, or when reading it failed. */
 +    private savedSyncToken?: Promise<string | null>;
-+    private savedSyncReplayFailed = false;
 +
 +    /** Replay saved rooms once, independently of network startup. */
 +    public restoreFromCache(): Promise<void> {
@@ -3906,7 +3910,7 @@ index e731161..2616593 100644
          this.running = true;
          this.abortController = new AbortController();
  
-@@ -710,26 +751,11 @@ export class SyncApi {
+@@ -710,26 +750,11 @@ export class SyncApi {
              return this.doSync({});
          }
  
@@ -3938,7 +3942,7 @@ index e731161..2616593 100644
  
          // We need to do one-off checks before we can begin the /sync loop.
          // These are:
-@@ -771,6 +797,9 @@ export class SyncApi {
+@@ -771,6 +796,9 @@ export class SyncApi {
                  firstSyncFilter = JSON.stringify(initialFilter.getDefinition());
              }
  
@@ -3948,20 +3952,7 @@ index e731161..2616593 100644
              // Send this first sync request here so we can then wait for the saved
              // sync data to finish processing before we process the results of this one.
              this.currentSyncRequest = this.doSyncRequest({ filter: firstSyncFilter }, savedSyncToken);
-@@ -779,6 +808,12 @@ export class SyncApi {
-         // Now wait for the saved sync to finish...
-         this.syncOpts.logger.debug("Waiting for saved sync before starting sync processing...");
-         await this.savedSyncPromise;
-+        if (this.savedSyncReplayFailed) {
-+            // Part of the saved sync is missing here: sync from the start, not since its token.
-+            this.currentSyncRequest?.catch(() => {});
-+            this.currentSyncRequest = undefined;
-+            this.client.store.setSyncToken(null as unknown as string);
-+        }
-         // process the first sync request and continue syncing with the normal filterId
-         return this.doSync({ filter: filterId });
-     }
-@@ -788,6 +823,7 @@ export class SyncApi {
+@@ -788,6 +816,7 @@ export class SyncApi {
       */
      public stop(): void {
          this.syncOpts.logger.debug("SyncApi.stop");
@@ -3969,11 +3960,11 @@ index e731161..2616593 100644
          // It is necessary to check for the existance of
          // globalThis.window AND globalThis.window.removeEventListener.
          // Some platforms (e.g. React Native) register globalThis.window,
-@@ -845,12 +881,13 @@ export class SyncApi {
+@@ -845,12 +874,13 @@ export class SyncApi {
              await this.processSyncResponse(syncEventData, data);
          } catch (e) {
              this.syncOpts.logger.error("Error processing cached sync", e);
-+            this.savedSyncReplayFailed = true;
++            this.client.emit(ClientEvent.SyncUnexpectedError, e as Error, true);
          }
  
          // Don't emit a prepared if we've bailed because the store is invalid:
@@ -3984,7 +3975,7 @@ index e731161..2616593 100644
              this.updateSyncState(SyncState.Prepared, syncEventData);
          }
      }
-@@ -893,6 +930,18 @@ export class SyncApi {
+@@ -893,6 +923,18 @@ export class SyncApi {
              try {
                  await this.processSyncResponse(syncEventData, data);
              } catch (e) {
@@ -4003,7 +3994,7 @@ index e731161..2616593 100644
                  // log the exception with stack if we have it, else fall back
                  // to the plain description
                  this.syncOpts.logger.error("Caught /sync error", e);
-@@ -1062,6 +1111,26 @@ export class SyncApi {
+@@ -1062,6 +1104,26 @@ export class SyncApi {
          return false;
      }
  
@@ -4030,7 +4021,7 @@ index e731161..2616593 100644
      /**
       * Process data returned from a sync response and propagate it
       * into the model objects
-@@ -1072,6 +1141,14 @@ export class SyncApi {
+@@ -1072,6 +1134,14 @@ export class SyncApi {
      private async processSyncResponse(syncEventData: ISyncStateData, data: ISyncResponse): Promise<void> {
          const client = this.client;
  
@@ -4045,7 +4036,7 @@ index e731161..2616593 100644
          // data looks like:
          // {
          //    next_batch: $token,
-@@ -1187,23 +1264,7 @@ export class SyncApi {
+@@ -1187,23 +1257,7 @@ export class SyncApi {
          }
  
          // handle to-device events
@@ -4070,7 +4061,7 @@ index e731161..2616593 100644
              processToDeviceMessages(receivedToDeviceMessages, client);
          } else {
              // no more to-device events: we can stop polling with a short timeout.
-@@ -1268,7 +1329,9 @@ export class SyncApi {
+@@ -1268,7 +1322,9 @@ export class SyncApi {
                  // room::decryptCriticalEvent is in charge of decrypting all the events
                  // required for a client to function properly
                  const timelineEvents = this.mapSyncEventsFormat(joinObj.timeline, room, false);
@@ -4081,7 +4072,7 @@ index e731161..2616593 100644
                  const accountDataEvents = this.mapSyncEventsFormat(joinObj.account_data);
                  const stickyEvents = this.mapSyncEventsFormat(joinObj.msc4354_sticky);
  
-@@ -1316,6 +1379,13 @@ export class SyncApi {
+@@ -1316,6 +1372,13 @@ export class SyncApi {
  
                  const unreadThreadNotifications =
                      joinObj[UNREAD_THREAD_NOTIFICATIONS.name] ?? joinObj[UNREAD_THREAD_NOTIFICATIONS.altName!];
@@ -4095,7 +4086,7 @@ index e731161..2616593 100644
                  if (unreadThreadNotifications) {
                      // This mirrors the logic above for rooms: take the *total* notification count from
                      // the server for unencrypted rooms or is it's zero. Any threads not present in this
-@@ -1583,8 +1653,11 @@ export class SyncApi {
+@@ -1583,8 +1646,11 @@ export class SyncApi {
          }
  
          // Handle one_time_keys_count and unused fallback keys
@@ -4305,21 +4296,20 @@ index 6ce0bac..97b0189 100644
  
    /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
-index 26f6aa9..c597f53 100644
+index 26f6aa9..1f547f0 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
-@@ -24,6 +24,10 @@ export declare class IndexedDBStore extends MemoryStore {
+@@ -24,6 +24,9 @@ export declare class IndexedDBStore extends MemoryStore {
       */
      readonly backend: IIndexedDBBackend;
      private startedUp;
 +    private degraded;
 +    private savesStopped;
 +    private failedSaves;
-+    private unclearedMembers;
      private syncTs;
      private userModifiedMap;
      private emitter;
-@@ -56,7 +60,7 @@ export declare class IndexedDBStore extends MemoryStore {
+@@ -56,7 +59,7 @@ export declare class IndexedDBStore extends MemoryStore {
       */
      constructor(opts: IOpts);
      /** Re-exports `TypedEventEmitter.on` */
@@ -4328,20 +4318,8 @@ index 26f6aa9..c597f53 100644
      /**
       * @returns Resolved when loaded from indexed db.
       */
-@@ -124,8 +128,9 @@ export declare class IndexedDBStore extends MemoryStore {
-      * watch for failures after initial store startup, including `QuotaExceededError` as
-      * free disk space changes, etc.
-      *
--     * When IndexedDB fails via any of these paths, we degrade this back to a `MemoryStore`
--     * in place so that the current operation and all future ones are in-memory only.
-+     * When IndexedDB fails via any of these paths because the storage is full, we degrade this
-+     * back to a `MemoryStore` in place so that the current operation and all future ones are
-+     * in-memory only. Any other failure skips the one operation and keeps the saved data.
-      *
-      * @param func - The degradable work to do.
-      * @param fallback - The method name for fallback.
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..c338f55 100644
+index 8320c66..c877f22 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -35,6 +35,9 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
@@ -4354,30 +4332,24 @@ index 8320c66..c338f55 100644
  
  export class IndexedDBStore extends MemoryStore {
    static exists(indexedDB, dbName) {
-@@ -77,6 +80,12 @@ export class IndexedDBStore extends MemoryStore {
+@@ -77,6 +80,10 @@ export class IndexedDBStore extends MemoryStore {
      super(opts);
      _defineProperty(this, "backend", void 0);
      _defineProperty(this, "startedUp", false);
 +    _defineProperty(this, "degraded", false);
-+    // No more saves: the store is degraded, or its accumulator missed a sync batch.
++    // No more saves: the store is degraded, or the saved sync would no longer match what follows it.
 +    _defineProperty(this, "savesStopped", false);
 +    _defineProperty(this, "failedSaves", 0);
-+    // Rooms whose stored members a failed clear left behind; the next save that succeeds tries again.
-+    _defineProperty(this, "unclearedMembers", new Set());
      _defineProperty(this, "syncTs", 0);
      // Records the last-modified-time of each user at the last point we saved
      // the database, such that we can derive the set if users that have been
-@@ -133,10 +142,30 @@ export class IndexedDBStore extends MemoryStore {
+@@ -133,10 +140,21 @@ export class IndexedDBStore extends MemoryStore {
          // note that we've saved this version of the user
          this.userModifiedMap[u.userId] = u.getLastModifiedTime();
        }
 -      return this.backend.syncToDatabase(userTuples);
 +      return this.backend.syncToDatabase(userTuples).then(() => {
 +        this.failedSaves = 0;
-+        for (var roomId of this.unclearedMembers) {
-+          this.backend.clearOutOfBandMembers(roomId).catch(() => {});
-+        }
-+        this.unclearedMembers.clear();
 +      }, e => {
 +        // These users were not saved after all.
 +        for (var [userId] of userTuples) delete this.userModifiedMap[userId];
@@ -4389,30 +4361,24 @@ index 8320c66..c338f55 100644
      }, null));
      _defineProperty(this, "setSyncData", this.degradable(syncData => {
 -      return this.backend.setSyncData(syncData);
-+      return this.backend.setSyncData(syncData).catch(e => {
-+        // The accumulator missed this batch, or holds part of it, so a later save would
-+        // persist a token ahead of its data. The last saved sync stays as it is.
-+        if (this.savesStopped) return;
-+        this.savesStopped = true;
-+        logger.error("IndexedDBStore could not take a sync batch; no longer saving", e);
-+        this.emitter.emit("degraded", e);
-+      });
++      // The accumulator missed this batch, or holds part of it, so a later save would
++      // persist a token ahead of its data.
++      return this.backend.setSyncData(syncData).catch(e => this.stopSaving(e));
      }, "setSyncData"));
      /**
       * Returns the out-of-band membership events for this room that
-@@ -160,7 +189,10 @@ export class IndexedDBStore extends MemoryStore {
+@@ -160,7 +178,9 @@ export class IndexedDBStore extends MemoryStore {
      }, "setOutOfBandMembers"));
      _defineProperty(this, "clearOutOfBandMembers", this.degradable(roomId => {
        super.clearOutOfBandMembers(roomId);
 -      return this.backend.clearOutOfBandMembers(roomId);
-+      return this.backend.clearOutOfBandMembers(roomId).catch(e => {
-+        this.unclearedMembers.add(roomId);
-+        throw e;
-+      });
++      // The members stay stored: with a saved token from before the room was left, the
++      // next start gets the leave again.
++      return this.backend.clearOutOfBandMembers(roomId).catch(e => this.stopSaving(e));
      }, "clearOutOfBandMembers"));
      _defineProperty(this, "getClientOptions", this.degradable(() => {
        return this.backend.getClientOptions();
-@@ -233,7 +265,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -233,7 +253,7 @@ export class IndexedDBStore extends MemoryStore {
     */
    wantsSave() {
      var now = Date.now();
@@ -4421,7 +4387,7 @@ index 8320c66..c338f55 100644
    }
  
    /**
-@@ -245,7 +277,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -245,18 +265,26 @@ export class IndexedDBStore extends MemoryStore {
     */
    save() {
      var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
@@ -4430,7 +4396,16 @@ index 8320c66..c338f55 100644
        return this.reallySave();
      }
      return Promise.resolve();
-@@ -255,8 +287,9 @@ export class IndexedDBStore extends MemoryStore {
+   }
++  /** Keeps the last saved sync as it is and saves nothing more. */
++  stopSaving(e) {
++    if (this.savesStopped) return;
++    this.savesStopped = true;
++    logger.error("IndexedDBStore no longer saving; its saved sync stays as it is", e);
++    this.emitter.emit("degraded", e);
++  }
+   /**
+    * All member functions of `IndexedDBStore` that access the backend use this wrapper to
     * watch for failures after initial store startup, including `QuotaExceededError` as
     * free disk space changes, etc.
     *
@@ -4442,7 +4417,7 @@ index 8320c66..c338f55 100644
     *
     * @param func - The degradable work to do.
     * @param fallback - The method name for fallback.
-@@ -269,9 +302,24 @@ export class IndexedDBStore extends MemoryStore {
+@@ -269,9 +297,24 @@ export class IndexedDBStore extends MemoryStore {
        for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
          args[_key] = arguments[_key];
        }
@@ -4467,47 +4442,6 @@ index 8320c66..c338f55 100644
          logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
          _this.emitter.emit("degraded", e);
          try {
-@@ -329,32 +377,25 @@ export class IndexedDBStore extends MemoryStore {
-       }
-     })();
-   }
-+  // Once degraded, the database is deleted: the to-device queue and the user profiles are
-+  // kept in memory too.
-   saveToDeviceBatches(batches) {
--    return this.backend.saveToDeviceBatches(batches);
-+    return this.degraded ? super.saveToDeviceBatches(batches) : this.backend.saveToDeviceBatches(batches);
-   }
-   getOldestToDeviceBatch() {
--    return this.backend.getOldestToDeviceBatch();
-+    return this.degraded ? super.getOldestToDeviceBatch() : this.backend.getOldestToDeviceBatch();
-   }
-   removeToDeviceBatch(id) {
--    return this.backend.removeToDeviceBatch(id);
-+    return this.degraded ? super.removeToDeviceBatch(id) : this.backend.removeToDeviceBatch(id);
-   }
-   getUserProfile(userId) {
--    var _this4 = this;
--    return _asyncToGenerator(function* () {
--      return _this4.backend.getUserProfile(userId);
--    })();
-+    return this.degraded ? super.getUserProfile(userId) : this.backend.getUserProfile(userId);
-   }
-   storeUserProfiles(userProfiles) {
--    var _this5 = this;
--    return _asyncToGenerator(function* () {
--      return _this5.backend.storeUserProfiles(userProfiles);
--    })();
-+    return this.degraded ? super.storeUserProfiles(userProfiles) : this.backend.storeUserProfiles(userProfiles);
-   }
-   removeUserProfiles(userIds) {
--    var _this6 = this;
--    return _asyncToGenerator(function* () {
--      return _this6.backend.removeUserProfiles(userIds);
--    })();
-+    return this.degraded ? super.removeUserProfiles(userIds) : this.backend.removeUserProfiles(userIds);
-   }
- }
- 
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 index 5f58e7c..a4f065d 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
@@ -4668,7 +4602,7 @@ index 5f58e7c..a4f065d 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..265db25 100644
+index 25be506..013e586 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -40,6 +40,9 @@ import { type SyncUserProfile } from "../models/user.ts";
@@ -4685,8 +4619,8 @@ index 25be506..265db25 100644
  type EventHandlerMap = {
      // Fired when an IDB command fails on a degradable path, and the store falls back to MemoryStore
      // This signals the potential for data volatility.
-+    // Also fired when the store could not take a sync batch: it keeps its saved data and
-+    // saves nothing more.
++    // Also fired when the store could not take a sync batch or clear the stored members of a
++    // room: it keeps its saved data and saves nothing more.
      degraded: (e: Error) => void;
 +    // Fired when an IDB command fails on a degradable path and the store keeps its data: the
 +    // command is skipped, and a failed save is tried again soon. Of the saves that fail in a
@@ -4695,20 +4629,18 @@ index 25be506..265db25 100644
      // Fired when the IndexedDB gets closed unexpectedly, for example, if the underlying storage is removed or
      // if the user clears the database in the browser's history preferences.
      closed: () => void;
-@@ -71,6 +80,12 @@ export class IndexedDBStore extends MemoryStore {
+@@ -71,6 +80,10 @@ export class IndexedDBStore extends MemoryStore {
      public readonly backend: IIndexedDBBackend;
  
      private startedUp = false;
 +    private degraded = false;
-+    // No more saves: the store is degraded, or its accumulator missed a sync batch.
++    // No more saves: the store is degraded, or the saved sync would no longer match what follows it.
 +    private savesStopped = false;
 +    private failedSaves = 0;
-+    // Rooms whose stored members a failed clear left behind; the next save that succeeds tries again.
-+    private unclearedMembers = new Set<string>();
      private syncTs = 0;
      // Records the last-modified-time of each user at the last point we saved
      // the database, such that we can derive the set if users that have been
-@@ -120,7 +135,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -120,7 +133,7 @@ export class IndexedDBStore extends MemoryStore {
      }
  
      /** Re-exports `TypedEventEmitter.on` */
@@ -4717,7 +4649,7 @@ index 25be506..265db25 100644
          this.emitter.on(event, handler);
      }
  
-@@ -220,7 +235,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -220,7 +233,7 @@ export class IndexedDBStore extends MemoryStore {
       */
      public wantsSave(): boolean {
          const now = Date.now();
@@ -4726,7 +4658,7 @@ index 25be506..265db25 100644
      }
  
      /**
-@@ -231,7 +246,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -231,7 +244,7 @@ export class IndexedDBStore extends MemoryStore {
       *     (or immediately if no write is performed)
       */
      public save(force = false): Promise<void> {
@@ -4735,7 +4667,7 @@ index 25be506..265db25 100644
              return this.reallySave();
          }
          return Promise.resolve();
-@@ -253,11 +268,34 @@ export class IndexedDBStore extends MemoryStore {
+@@ -253,13 +266,35 @@ export class IndexedDBStore extends MemoryStore {
              this.userModifiedMap[u.userId] = u.getLastModifiedTime();
          }
  
@@ -4743,10 +4675,6 @@ index 25be506..265db25 100644
 +        return this.backend.syncToDatabase(userTuples).then(
 +            () => {
 +                this.failedSaves = 0;
-+                for (const roomId of this.unclearedMembers) {
-+                    this.backend.clearOutOfBandMembers(roomId).catch(() => {});
-+                }
-+                this.unclearedMembers.clear();
 +            },
 +            (e) => {
 +                // These users were not saved after all.
@@ -4761,30 +4689,34 @@ index 25be506..265db25 100644
  
      public setSyncData = this.degradable((syncData: ISyncResponse): Promise<void> => {
 -        return this.backend.setSyncData(syncData);
-+        return this.backend.setSyncData(syncData).catch((e) => {
-+            // The accumulator missed this batch, or holds part of it, so a later save would
-+            // persist a token ahead of its data. The last saved sync stays as it is.
-+            if (this.savesStopped) return;
-+            this.savesStopped = true;
-+            logger.error("IndexedDBStore could not take a sync batch; no longer saving", e);
-+            this.emitter.emit("degraded", e as Error);
-+        });
++        // The accumulator missed this batch, or holds part of it, so a later save would
++        // persist a token ahead of its data.
++        return this.backend.setSyncData(syncData).catch((e) => this.stopSaving(e));
      }, "setSyncData");
  
++    /** Keeps the last saved sync as it is and saves nothing more. */
++    private stopSaving(e: unknown): void {
++        if (this.savesStopped) return;
++        this.savesStopped = true;
++        logger.error("IndexedDBStore no longer saving; its saved sync stays as it is", e);
++        this.emitter.emit("degraded", e as Error);
++    }
++
      /**
-@@ -287,7 +325,10 @@ export class IndexedDBStore extends MemoryStore {
+      * Returns the out-of-band membership events for this room that
+      * were previously loaded.
+@@ -287,7 +322,9 @@ export class IndexedDBStore extends MemoryStore {
  
      public clearOutOfBandMembers = this.degradable((roomId: string) => {
          super.clearOutOfBandMembers(roomId);
 -        return this.backend.clearOutOfBandMembers(roomId);
-+        return this.backend.clearOutOfBandMembers(roomId).catch((e) => {
-+            this.unclearedMembers.add(roomId);
-+            throw e;
-+        });
++        // The members stay stored: with a saved token from before the room was left, the
++        // next start gets the leave again.
++        return this.backend.clearOutOfBandMembers(roomId).catch((e) => this.stopSaving(e));
      }, "clearOutOfBandMembers");
  
      public getClientOptions = this.degradable((): Promise<IStoredClientOpts | undefined> => {
-@@ -304,8 +345,9 @@ export class IndexedDBStore extends MemoryStore {
+@@ -304,8 +341,9 @@ export class IndexedDBStore extends MemoryStore {
       * watch for failures after initial store startup, including `QuotaExceededError` as
       * free disk space changes, etc.
       *
@@ -4796,7 +4728,7 @@ index 25be506..265db25 100644
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.
-@@ -318,9 +360,24 @@ export class IndexedDBStore extends MemoryStore {
+@@ -318,9 +356,24 @@ export class IndexedDBStore extends MemoryStore {
          const fallbackFn = fallback ? (super[fallback] as (...args: A) => Promise<R>) : null;
  
          return (async (...args) => {
@@ -4821,46 +4753,6 @@ index 25be506..265db25 100644
                  logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
                  this.emitter.emit("degraded", e as Error);
                  try {
-@@ -374,28 +431,30 @@ export class IndexedDBStore extends MemoryStore {
-         }
-     }
- 
-+    // Once degraded, the database is deleted: the to-device queue and the user profiles are
-+    // kept in memory too.
-     public saveToDeviceBatches(batches: ToDeviceBatchWithTxnId[]): Promise<void> {
--        return this.backend.saveToDeviceBatches(batches);
-+        return this.degraded ? super.saveToDeviceBatches(batches) : this.backend.saveToDeviceBatches(batches);
-     }
- 
-     public getOldestToDeviceBatch(): Promise<IndexedToDeviceBatch | null> {
--        return this.backend.getOldestToDeviceBatch();
-+        return this.degraded ? super.getOldestToDeviceBatch() : this.backend.getOldestToDeviceBatch();
-     }
- 
-     public removeToDeviceBatch(id: number): Promise<void> {
--        return this.backend.removeToDeviceBatch(id);
-+        return this.degraded ? super.removeToDeviceBatch(id) : this.backend.removeToDeviceBatch(id);
-     }
- 
--    public async getUserProfile(userId: string): Promise<SyncUserProfile | undefined> {
--        return this.backend.getUserProfile(userId);
-+    public getUserProfile(userId: string): Promise<SyncUserProfile | undefined> {
-+        return this.degraded ? super.getUserProfile(userId) : this.backend.getUserProfile(userId);
-     }
- 
--    public async storeUserProfiles(userProfiles: Map<string, SyncUserProfile>): Promise<void> {
--        return this.backend.storeUserProfiles(userProfiles);
-+    public storeUserProfiles(userProfiles: Map<string, SyncUserProfile>): Promise<void> {
-+        return this.degraded ? super.storeUserProfiles(userProfiles) : this.backend.storeUserProfiles(userProfiles);
-     }
- 
--    public async removeUserProfiles(userIds: string[]): Promise<void> {
--        return this.backend.removeUserProfiles(userIds);
-+    public removeUserProfiles(userIds: string[]): Promise<void> {
-+        return this.degraded ? super.removeUserProfiles(userIds) : this.backend.removeUserProfiles(userIds);
-     }
- }
- 
 diff --git a/node_modules/matrix-js-sdk/lib/thread-utils.js b/node_modules/matrix-js-sdk/lib/thread-utils.js
 index 25cc1ff..f9683ae 100644
 --- a/node_modules/matrix-js-sdk/lib/thread-utils.js

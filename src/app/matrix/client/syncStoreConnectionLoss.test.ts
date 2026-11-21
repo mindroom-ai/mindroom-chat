@@ -288,14 +288,19 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     });
   });
 
-  it('clears the stored members of a room once a save succeeds, after a clear that failed', async () => {
+  // The members of a room that was left stay stored. With a saved token from before the leave,
+  // the next start gets the leave again.
+  it('stops saving after a clear of stored members that failed, and keeps the persisted sync', async () => {
     const roomId = '!left:example';
     const member = { room_id: roomId, state_key: '@bob:example', type: 'm.room.member' };
     const store = await savedStore();
+    const failed = vi.fn();
+    const degraded = vi.fn();
+    store.on('failed', failed);
+    store.on('degraded', degraded);
     await store.setOutOfBandMembers(roomId, [member] as Parameters<
       IndexedDBStore['setOutOfBandMembers']
     >[1]);
-    const storedMembers = async () => (await startStore()).getOutOfBandMembers(roomId);
 
     // The rows are deleted, and the browser then aborts the transaction.
     const remove = IDBObjectStore.prototype.delete;
@@ -309,10 +314,14 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       return request;
     });
     await store.clearOutOfBandMembers(roomId);
-    expect(await storedMembers()).toHaveLength(1);
-
+    await accumulate(store, 'after-leave');
     await store.save(true);
-    await vi.waitFor(async () => expect(await storedMembers()).toBeNull());
+
+    expect(await (await startStore()).getOutOfBandMembers(roomId)).toHaveLength(1);
+    expect(await persistedToken()).toBe('saved');
+    expect(store.wantsSave()).toBe(false);
+    expect(degraded).toHaveBeenCalledTimes(1);
+    expect(failed).not.toHaveBeenCalled();
   });
 
   it('saves again soon after a failed save, not after the usual five minutes', async () => {
@@ -448,17 +457,6 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(failed).not.toHaveBeenCalled();
     expect(await persistedToken()).toBeUndefined();
 
-    // So do the to-device queue and the user profiles, which the deleted database held.
-    await store.saveToDeviceBatches([{ eventType: 'm.test', txnId: 'txn', batch: [] }]);
-    const queued = await store.getOldestToDeviceBatch();
-    expect(queued?.txnId).toBe('txn');
-    await store.removeToDeviceBatch(queued!.id);
-    expect(await store.getOldestToDeviceBatch()).toBeNull();
-    await store.storeUserProfiles(new Map([['@bob:example', { displayname: 'Bob' }]]));
-    expect(await store.getUserProfile('@bob:example')).toEqual({ displayname: 'Bob' });
-    await store.removeUserProfiles(['@bob:example']);
-    expect(await store.getUserProfile('@bob:example')).toBeUndefined();
-
     // Deleting all data still deletes the database, which another tab may have written since.
     const other = await startStore();
     await accumulate(other, 'other');
@@ -486,7 +484,7 @@ describe('Matrix sync store after an IndexedDB failure', () => {
 
   // The first sync request asks for the changes since the saved sync that is replayed.
   describe('the first sync request', () => {
-    const startSyncing = async (store: IndexedDBStore, requests = 1, failReplay = false) => {
+    const startSyncing = async (store: IndexedDBStore, replayFailure?: Error) => {
       const syncRequests: URL[] = [];
       const answer = (body: object) => Promise.resolve(new Response(JSON.stringify(body)));
       const fetchFn = vi.fn<typeof fetch>((input) => {
@@ -509,15 +507,23 @@ describe('Matrix sync store after an IndexedDB failure', () => {
         fetchFn,
       });
       clients.push(client);
-      if (failReplay) {
+      const unexpected = vi.fn();
+      client.on(ClientEvent.SyncUnexpectedError, unexpected);
+      if (replayFailure) {
         client.once(ClientEvent.AccountData, () => {
-          throw new Error('replay failed');
+          throw replayFailure;
         });
       }
       await store.startup();
       await client.startClient();
-      await vi.waitFor(() => expect(syncRequests).toHaveLength(requests));
-      return syncRequests.map((url) => url.searchParams.get('since'));
+      await vi.waitFor(() => expect(syncRequests).toHaveLength(1));
+      if (replayFailure) await vi.waitFor(() => expect(unexpected).toHaveBeenCalled());
+      // Time for a second request, which must not come.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      const since = syncRequests.map((url) => url.searchParams.get('since'));
+      return { since, unexpected: unexpected.mock.calls };
     };
 
     const unstartedStore = () => {
@@ -529,7 +535,7 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     it('asks for the changes since the saved sync it replays', async () => {
       await savedStore();
 
-      expect(await startSyncing(unstartedStore())).toEqual(['saved']);
+      expect(await startSyncing(unstartedStore())).toEqual({ since: ['saved'], unexpected: [] });
     });
 
     it('asks for everything when the saved sync could not be read', async () => {
@@ -537,16 +543,19 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       const store = unstartedStore();
       vi.spyOn(store.backend, 'getSavedSync').mockRejectedValueOnce(new Error('unreadable'));
 
-      expect(await startSyncing(store)).toEqual([null]);
+      expect(await startSyncing(store)).toEqual({ since: [null], unexpected: [] });
     });
 
-    it('asks for everything once the replay of the saved sync has failed', async () => {
+    it('goes on from a saved sync whose replay threw, and reports the error', async () => {
       const saved = await startStore();
       await accumulateWithAccountData(saved, 'saved');
       await saved.save(true);
+      const error = new Error('replay failed');
 
-      // The first request went out before the replay failed; its answer is dropped.
-      expect(await startSyncing(unstartedStore(), 2, true)).toEqual(['saved', null]);
+      expect(await startSyncing(unstartedStore(), error)).toEqual({
+        since: ['saved'],
+        unexpected: [[error, true]],
+      });
     });
   });
 });

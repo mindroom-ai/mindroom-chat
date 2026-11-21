@@ -19,6 +19,7 @@ import {
   isDeepTraceRecording,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
+  recordSavedReplayFailure,
   recordSyncStoreFailure,
   setDeepTraceEnabled,
   traceDeepDiagnosticFetch,
@@ -253,6 +254,18 @@ describe('opt-in deep diagnostic trace', () => {
     );
     expect(snapshot.events).toContainEqual(
       expect.objectContaining({ name: 'storage.sync_store.degraded', data: { error_code: 12 } })
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('private');
+  });
+
+  it('records a failed replay of the saved sync with the code of its error', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    recordSavedReplayFailure(new TypeError('private detail'));
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({ name: 'sync.saved_replay.failed', data: { error_code: 7 } })
     );
     expect(JSON.stringify(snapshot)).not.toContain('private');
   });

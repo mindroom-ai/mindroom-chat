@@ -258,6 +258,7 @@ const STATIC_EVENT_NAMES = new Set([
   'storage.indexeddb_loss_reload',
   'storage.sync_store.degraded',
   'storage.sync_store.failed',
+  'sync.saved_replay.failed',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -628,12 +629,20 @@ const getErrorCode = (value: unknown): number => {
 /**
  * The Matrix sync store kept its saved data and skipped an operation that failed ('failed'; of
  * the saves that fail in a row, the first), or stopped saving ('degraded'): with code 12 the
- * disk was full and it deleted its saved data, otherwise it could not take a sync batch and
- * kept them. `error_code` is `getErrorCode`'s.
+ * disk was full and it deleted its saved data, otherwise it could not take a sync batch or
+ * clear a left room's stored members, and kept them. `error_code` is `getErrorCode`'s.
  */
 export const recordSyncStoreFailure = (outcome: 'failed' | 'degraded', error: unknown): void =>
   recordDeepTraceEvent(
     `storage.sync_store.${outcome}`,
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
+
+/** The replay of the saved sync threw at start; the client went on with what it had replayed. */
+export const recordSavedReplayFailure = (error: unknown): void =>
+  recordDeepTraceEvent(
+    'sync.saved_replay.failed',
     { error_code: getErrorCode(error) },
     { flush: true }
   );

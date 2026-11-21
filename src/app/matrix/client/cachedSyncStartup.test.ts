@@ -11,8 +11,14 @@ import {
 } from 'matrix-js-sdk';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { recordSavedReplayFailure } from '../../diagnostics/deepTrace';
 import { writeCachedSpecVersions } from '../cachedSpecVersions';
 import { startClient } from './clientSyncPolicy';
+
+vi.mock('../../diagnostics/deepTrace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../diagnostics/deepTrace')>()),
+  recordSavedReplayFailure: vi.fn(),
+}));
 
 const BASE_URL = 'https://matrix.example';
 const USER_ID = '@alice:example';
@@ -88,7 +94,7 @@ describe('cached Matrix startup', () => {
     return client;
   };
 
-  const restoreCachedRoom = async (events: IEvent[]) => {
+  const restoreCachedRoom = async (events: IEvent[], replayFailure?: Error) => {
     const request = vi.fn<typeof fetch>(
       () =>
         new Promise(() => {
@@ -123,9 +129,24 @@ describe('cached Matrix startup', () => {
     client.on(ClientEvent.Sync, (_state, _previous, data) => {
       if (data) syncEvents.push(data);
     });
+    if (replayFailure) {
+      client.once(ClientEvent.Room, () => {
+        throw replayFailure;
+      });
+    }
     await startClient(client);
     return { client, request, syncEvents };
   };
+
+  it('records a saved sync whose replay threw in the diagnostics trace', async () => {
+    const error = new Error('replay failed');
+    const { client } = await restoreCachedRoom([recentMessage], error);
+
+    await vi.waitFor(() => expect(client.getSyncState()).toBe(SyncState.Prepared), {
+      timeout: 500,
+    });
+    expect(vi.mocked(recordSavedReplayFailure).mock.calls).toEqual([[error]]);
+  });
 
   it.each([
     ['reaction', reaction],
