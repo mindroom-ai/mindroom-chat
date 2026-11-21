@@ -495,12 +495,6 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await agentStartsOn(seeded, mover);
     await expect(cardOf(page, mover)).toHaveAccessibleName(/Agent streaming/, { timeout: 30_000 });
   } else {
-    if (movers.length > 1) {
-      // Hold with the pointer while the batch arrives, then leave the list while still scrolled.
-      const box = (await cardOf(page, shown[1] ?? '').boundingBox())!;
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await expect(page.locator('[data-order-held]')).toHaveCount(1);
-    }
     for (const [index, rootId] of movers.entries()) {
       const text = `Found it: cause ${index + 1} is in the exporter.`;
       // eslint-disable-next-line no-await-in-loop
@@ -514,6 +508,20 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   await still();
   expect(await cardOrder(page)).toEqual(before);
   await expect(updatePill(page)).toBeVisible();
+  if (move === 'release') {
+    // A natural return to zero must keep the pointer hold until the pointer leaves.
+    const box = (await cardOf(page, shown[1] ?? '').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 4, box.y + box.height / 2);
+    await scrollList(page, 0);
+    await expect(updatePill(page)).toHaveCount(0, { timeout: 1000 });
+    expect(await listScrollTop(page)).toBe(0);
+    await expect(page.locator('[data-order-held]')).toHaveCount(1, { timeout: 1000 });
+    expect(await cardOrder(page)).toEqual(before);
+    await page.mouse.move(5, 795);
+    await expect
+      .poll(async () => (await cardOrder(page)).slice(0, movers.length))
+      .toEqual([...movers].reverse());
+  }
 };
 
 const openScrolled = async (page: Page, seeded: Seeded, hideResolved = false) => {

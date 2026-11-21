@@ -87,12 +87,6 @@ const topOf = (card: Locator) =>
     (element) => (element.closest('[data-scroll-anchor]') ?? element).getBoundingClientRect().top
   );
 
-/** Scrolls the card to the middle of the list, clear of the filter bar and the composer. */
-const centerCard = (card: Locator) =>
-  card.evaluate((element) =>
-    (element.closest('[data-scroll-anchor]') ?? element).scrollIntoView({ block: 'center' })
-  );
-
 /** The root ID of the card under a point. */
 const cardAt = (page: Page, point: { x: number; y: number }) =>
   page.evaluate(
@@ -139,12 +133,13 @@ const replyBelow = async (page: Page, room: SeededRoom) => {
   return targets;
 };
 
-/** Interaction releases alone do not apply the updated order below the top. */
+/** At zero, only the active interaction can keep the old order. */
+const expectHeldAtTop = async (page: Page, order: string[]) => {
+  expect(await page.locator('[data-compact-room-view]').evaluate((view) => view.scrollTop)).toBe(0);
+  expect(await cardOrder(page)).toEqual(order);
+};
+
 const expectCaughtUp = async (page: Page, targets: string[]) => {
-  await expect(page.getByRole('button', { name: 'Show updated order' })).toBeVisible();
-  await page.locator('[data-compact-room-view]').evaluate((view) => {
-    view.scrollTop = 0;
-  });
   await expect
     .poll(async () => (await cardOrder(page)).slice(0, 3).sort())
     .toEqual([...targets].sort());
@@ -157,36 +152,45 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
     { timeout: 60_000 }
   );
 
-  // 1. Hover: the card twelve from the top stays under the pointer.
+  // 1. Hover at the top: only the pointer can hold the old order.
   const order = await cardOrder(page);
-  const held = cardOf(page, order[12]!);
-  await centerCard(held);
+  const root = order[1]!;
+  const held = cardOf(page, root);
   const box = (await held.boundingBox())!;
   const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
-  expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(order[12]);
+  expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(root);
   await expect(page.locator('[data-order-held]')).toHaveCount(1);
   const before = await topOf(held);
-  let targets = await replyBelow(page, room);
-  expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
-  expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(
-    order[12]
-  );
-  // Leaving the list releases the pointer hold; the scroll hold stays until the top.
+  let nudge = 0;
+  const moving = setInterval(() => {
+    nudge = 1 - nudge;
+    page.mouse.move(pointer.x + nudge, pointer.y).catch(() => undefined);
+  }, 750);
+  let targets: string[];
+  try {
+    targets = await replyBelow(page, room);
+    await expectHeldAtTop(page, order);
+    expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
+    expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(root);
+  } finally {
+    clearInterval(moving);
+  }
+  // Leaving the list releases the pointer hold.
   await page.mouse.move(DESKTOP.width - 5, 5);
   await expectCaughtUp(page, targets);
 
   // 2. A card's menu: open from its More button, then the pointer leaves the list.
   const menuOrder = await cardOrder(page);
-  const menuCard = cardOf(page, menuOrder[12]!);
-  await centerCard(menuCard);
-  const shell = page.locator(`[data-scroll-anchor="${menuOrder[12]}"]`);
+  const menuCard = cardOf(page, menuOrder[1]!);
+  const shell = page.locator(`[data-scroll-anchor="${menuOrder[1]}"]`);
   await shell.hover();
   await shell.getByRole('button', { name: 'Thread options' }).click();
   await expect(page.getByRole('menu')).toBeVisible();
   await page.mouse.move(DESKTOP.width - 5, 5);
   const menuTop = await topOf(menuCard);
   targets = await replyBelow(page, room);
+  await expectHeldAtTop(page, menuOrder);
   expect(
     Math.abs((await topOf(menuCard)) - menuTop),
     `${engine}: card with menu moved`
@@ -201,10 +205,9 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   // Tab only between fields and links, not buttons, so this runs in Chromium.
   if (engine !== 'chromium') return;
   const focusOrder = await cardOrder(page);
-  const focusCard = cardOf(page, focusOrder[12]!);
-  await centerCard(focusCard);
+  const focusCard = cardOf(page, focusOrder[2]!);
   // Tab from the card above: keyboard focus, as a keyboard user reaches the card.
-  await cardOf(page, focusOrder[11]!).focus();
+  await cardOf(page, focusOrder[1]!).focus();
   for (let step = 0; step < 8; step += 1) {
     // eslint-disable-next-line no-await-in-loop
     await page.keyboard.press('Tab');
@@ -215,6 +218,7 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   expect(await focusCard.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
   const focusTop = await topOf(focusCard);
   targets = await replyBelow(page, room);
+  await expectHeldAtTop(page, focusOrder);
   expect(
     Math.abs((await topOf(focusCard)) - focusTop),
     `${engine}: focused card moved`
