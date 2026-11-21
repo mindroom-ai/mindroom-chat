@@ -5,6 +5,7 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -77,6 +78,7 @@ export function RoomSchedulesOverlay({
   onOpenThread,
 }: RoomSchedulesOverlayProps) {
   const centerX = useCenterX(headerRef);
+  const dismissed = useRef(false);
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter
@@ -90,12 +92,13 @@ export function RoomSchedulesOverlay({
           focusTrapOptions={{
             initialFocus: false,
             returnFocusOnDeactivate: true,
-            setReturnFocus: returnFocusTo,
+            setReturnFocus: returnFocusTo ? () => dismissed.current && returnFocusTo() : undefined,
             clickOutsideDeactivates: true,
             onDeactivate: onClose,
             // Escape closes the list only; the room's own Escape (mark as read) must not see it.
             escapeDeactivates: (event: KeyboardEvent) => {
               event.stopPropagation();
+              dismissed.current = true;
               return true;
             },
           }}
@@ -104,7 +107,10 @@ export function RoomSchedulesOverlay({
             roomId={roomId}
             tasks={tasks}
             openThreadId={openThreadId}
-            onClose={onClose}
+            onClose={() => {
+              dismissed.current = true;
+              onClose();
+            }}
             onOpenThread={(threadId) => {
               onClose();
               onOpenThread(threadId);

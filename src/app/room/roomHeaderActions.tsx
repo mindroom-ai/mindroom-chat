@@ -4,6 +4,7 @@ import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
+import { setOverlayOpenerFallback } from '../lib/overlayFocus';
 import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
 
 /** Where an action of the room header shows: see `showsInRow`. */
@@ -51,6 +52,8 @@ export type RoomHeaderAction = {
   popup?: 'menu' | 'dialog';
   /** Whether what its button opens is open. */
   expanded?: boolean;
+  /** A fallback for a panel that restores focus through the overlay manager. */
+  focusFallback?: () => HTMLElement | false;
   /** The keyboard shortcut for the same action, shown in its button's tooltip. */
   shortcut?: ShortcutId;
   /** A data attribute its button and its menu entry carry. */
@@ -82,7 +85,19 @@ export function HeaderActionButton({
 }: {
   action: Omit<RoomHeaderAction, 'id' | 'placement'>;
 }) {
-  const { label, icon, active, pressed, run, badge, popup, expanded, shortcut, marker } = action;
+  const {
+    label,
+    icon,
+    active,
+    pressed,
+    run,
+    badge,
+    popup,
+    expanded,
+    focusFallback,
+    shortcut,
+    marker,
+  } = action;
   return (
     <TooltipProvider
       position="Bottom"
@@ -104,9 +119,10 @@ export function HeaderActionButton({
           aria-pressed={pressed}
           aria-haspopup={popup}
           aria-expanded={expanded}
-          onClick={(event: MouseEvent<HTMLButtonElement>) =>
-            run(popup ? headerPopupAnchor(event.currentTarget) : undefined)
-          }
+          onClick={(event: MouseEvent<HTMLButtonElement>) => {
+            if (focusFallback) setOverlayOpenerFallback(event.currentTarget, focusFallback);
+            run(popup ? headerPopupAnchor(event.currentTarget) : undefined);
+          }}
           className={headerActionButton}
           style={badge ? { position: 'relative' } : undefined}
           {...shortcutAttributes(shortcut)}

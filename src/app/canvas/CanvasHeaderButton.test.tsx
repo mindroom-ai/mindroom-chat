@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
-import { Scroll, Text } from 'folds';
+import { Scroll, Text, type RectCords } from 'folds';
 import { describe, expect, it, vi } from 'vitest';
-import { CanvasHeaderButton } from './CanvasHeaderButton';
+import { CanvasHeaderButton, CanvasMenu } from './CanvasHeaderButton';
 import { Trigger } from './CanvasHeaderButton.css';
 import type { CanvasListEntry } from './canvasIndexStore';
 
@@ -48,20 +48,49 @@ const anchorEvent = {
   currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 32, height: 32 }) },
 };
 
-type Props = React.ComponentProps<typeof CanvasHeaderButton>;
+type Props = Omit<React.ComponentProps<typeof CanvasHeaderButton>, 'chooser'>;
+
+/** Mount both controls with the state supplied by a parent, as in the room header. */
+function Controls(props: Props) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const several = props.canvases.length > 1;
+  useEffect(() => {
+    if (!several) setAnchor(undefined);
+  }, [several]);
+  return (
+    <>
+      <CanvasHeaderButton
+        {...props}
+        chooser={{ open: !!anchor, onOpen: (opener) => setAnchor(opener.getBoundingClientRect()) }}
+      />
+      {several && (
+        <CanvasMenu
+          anchor={anchor}
+          canvases={props.canvases}
+          openCanvasId={props.openCanvasId}
+          onChoose={(id) => {
+            setAnchor(undefined);
+            if (id === props.openCanvasId) props.onClose();
+            else props.onOpen(id);
+          }}
+          requestClose={() => setAnchor(undefined)}
+        />
+      )}
+    </>
+  );
+}
 
 const render = (props: Partial<Props> = {}) => {
   const handlers = { onOpen: vi.fn(), onClose: vi.fn() };
   const all: Props = { canvases: [budget], ...handlers, ...props };
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<CanvasHeaderButton {...all} />);
+    renderer = create(<Controls {...all} />);
   });
   return {
     renderer,
     ...handlers,
-    update: (next: Partial<Props>) =>
-      act(() => renderer.update(<CanvasHeaderButton {...all} {...next} />)),
+    update: (next: Partial<Props>) => act(() => renderer.update(<Controls {...all} {...next} />)),
   };
 };
 

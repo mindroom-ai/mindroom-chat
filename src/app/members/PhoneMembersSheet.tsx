@@ -11,6 +11,7 @@ import {
 import { useSwipeAway } from '../navigation/useSwipeAway';
 import { useInert } from '../lib/hooks/useInert';
 import { hasOpenOverlay } from '../lib/openOverlay';
+import { markOverlayDismissed } from '../lib/overlayFocus';
 import { usePanelPresence } from '../ui/panels/panelPresence';
 import * as css from './PhoneMembersSheet.css';
 
@@ -70,10 +71,13 @@ export function PhoneMembersSheet({
   // command palette over it, a menu inside it): that one closes.
   useEffect(() => {
     if (!out) return undefined;
+    // If the sheet came back before its exit finished, forget the previous dismissal.
+    markOverlayDismissed(panelRef.current, false);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || hasOpenOverlay(panelRef.current)) return;
       event.preventDefault();
       event.stopPropagation();
+      markOverlayDismissed(panelRef.current);
       onCloseRef.current();
     };
     window.addEventListener('keydown', onKeyDown, true);

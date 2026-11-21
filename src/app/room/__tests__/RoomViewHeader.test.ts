@@ -222,6 +222,7 @@ vi.mock('../../rooms/archive/ArchiveRoomMenuItem', () => ({
 vi.mock('../../canvas/CanvasHeaderButton', () => ({
   CanvasHeaderButton: (props: Record<string, unknown>) =>
     React.createElement('mock-canvas-header-button', props),
+  CanvasMenu: () => null,
 }));
 
 vi.mock('../../navigation/useRoomViewMode', () => ({
@@ -486,7 +487,7 @@ describe('RoomViewHeader', () => {
         onPanelToggle,
       });
       const button = await membersControl(renderer, 'Show Members');
-      await act(async () => button.props.onClick());
+      await act(async () => button.props.onClick({ currentTarget: {} }));
       expect(onPanelToggle).toHaveBeenCalledWith('members');
       act(() => renderer.unmount());
     }
@@ -523,7 +524,7 @@ describe('RoomViewHeader', () => {
       const onPanelToggle = vi.fn();
       const { renderer } = await renderHeader(0, { shownPanel: 'canvas', onPanelToggle });
       const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
-      await act(async () => button.props.onClick());
+      await act(async () => button.props.onClick({ currentTarget: {} }));
       expect(onPanelToggle).toHaveBeenCalledWith('members');
       act(() => renderer.unmount());
     }
@@ -668,6 +669,7 @@ describe('RoomViewHeader', () => {
         openCanvasId: '$canvas',
         onOpen: onCanvasOpen,
         onClose: onCanvasClose,
+        chooser: { open: false, onOpen: expect.any(Function) },
       });
       act(() => renderer.unmount());
     });

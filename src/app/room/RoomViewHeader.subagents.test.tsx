@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
 import { act as actInDom } from 'react-dom/test-utils';
@@ -12,6 +12,8 @@ import type { SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFr
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { SubagentsIcon } from '../subagents/SubagentsIcon';
 import { MenuEntry } from '../ui/MenuEntry';
+import { installOverlayFocus, observeLayerHost } from '../lib/overlayFocus';
+import { PhoneMembersSheet } from '../members/PhoneMembersSheet';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // The Sub-agents panel's toggle in the room header: there while the room's store holds a run of
@@ -187,7 +189,7 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
 };
 
 // jsdom does not lay out controls, including the buttons checked by the real focus trap.
-const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390) => {
+const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () => ReactNode) => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal(
     'ResizeObserver',
@@ -203,6 +205,7 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390) => {
     .spyOn(HTMLElement.prototype, 'getClientRects')
     .mockReturnValue([box] as unknown as DOMRectList);
   const host = document.createElement('div');
+  host.id = 'root';
   document.body.append(host);
   const root = createRoot(host);
   const rerender = () =>
@@ -210,6 +213,7 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390) => {
       root.render(
         <Provider>
           <RoomViewHeader openThreadId={THREAD} {...props} />
+          {extra?.()}
         </Provider>
       )
     );
@@ -642,7 +646,11 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     expect(onCanvasOpen).toHaveBeenCalledWith('$drawing-1:example.org');
   });
 
-  it.each([false, true])('restores focus after Escape (clock demoted: %s)', async (demote) => {
+  it.each([
+    { demote: false, dismiss: 'Escape' },
+    { demote: true, dismiss: 'Escape' },
+    { demote: true, dismiss: 'Close' },
+  ])('restores clock focus on $dismiss (clock demoted: $demote)', async ({ demote, dismiss }) => {
     screen.size = 'Mobile';
     schedules.events = [schedule('orchard', THREAD), schedule('seeds', null)];
     const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
@@ -666,7 +674,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         expect(clock.isConnected).toBe(false);
         expect(close.isConnected).toBe(true);
       }
-      pressEscape(close);
+      if (dismiss === 'Escape') pressEscape(close);
+      else actInDom(() => close.click());
       expect(document.querySelector('[role="dialog"]')).toBeNull();
       const target = demote ? host.querySelector('[data-room-more-options]') : clock;
       await vi.waitFor(() => expect(document.activeElement).toBe(target));
@@ -675,58 +684,195 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each([false, true])('restores focus after Escape (canvas demoted: %s)', async (demote) => {
-    screen.size = 'Mobile';
-    const { host, unmount } = renderDomHeader(
-      { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
-      280
-    );
+  it.each([
+    { demote: false, dismiss: 'Escape' },
+    { demote: true, dismiss: 'Escape' },
+    { demote: true, dismiss: 'choosing a canvas' },
+  ])(
+    'restores chooser focus on $dismiss (canvas demoted: $demote)',
+    async ({ demote, dismiss }) => {
+      screen.size = 'Mobile';
+      const { host, unmount } = renderDomHeader(
+        { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
+        280
+      );
+      try {
+        const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+        opener.focus();
+        actInDom(() => opener.click());
+        const item = Array.from(host.querySelectorAll('button')).find((button) =>
+          button.textContent?.includes('Garden map')
+        )!;
+        item.focus();
+        if (demote) actInDom(() => run('running'));
+        expect(opener.isConnected).toBe(!demote);
+        expect(item.isConnected).toBe(true);
+        if (dismiss === 'Escape') pressEscape(item);
+        else actInDom(() => item.click());
+        expect(item.isConnected).toBe(false);
+        const target = demote ? host.querySelector('[data-room-more-options]') : opener;
+        await vi.waitFor(() => expect(document.activeElement).toBe(target));
+      } finally {
+        unmount();
+      }
+    }
+  );
+
+  it.each(['Escape', 'Close'])(
+    'returns focus to More Options on %s after unpinning the last message',
+    async (dismiss) => {
+      screen.size = 'Mobile';
+      pins.ids = ['$pinned:example.org'];
+      const { host, rerender, unmount } = renderDomHeader({});
+      try {
+        const opener = host.querySelector<HTMLButtonElement>(
+          'button[aria-label="Pinned Messages"]'
+        )!;
+        opener.focus();
+        actInDom(() => opener.click());
+        const unpin = host.querySelector<HTMLButtonElement>(
+          '[role="dialog"] button[aria-label="Unpin Message"]'
+        )!;
+        unpin.focus();
+        await actInDom(async () => {
+          unpin.click();
+        });
+        rerender();
+        expect(opener.isConnected).toBe(false);
+        const close = host.querySelector<HTMLButtonElement>(
+          '[role="dialog"] button[aria-label="Close"]'
+        )!;
+        expect(document.activeElement).toBe(close);
+        if (dismiss === 'Escape') pressEscape(close);
+        else actInDom(() => close.click());
+        expect(close.isConnected).toBe(false);
+        await vi.waitFor(() =>
+          expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+        );
+      } finally {
+        unmount();
+      }
+    }
+  );
+
+  it.each(['Escape', 'scrim click'])(
+    'only restores sheet focus on explicit dismissal (%s) after the Members opener is lost',
+    async (dismiss) => {
+      screen.size = 'Mobile';
+      let opened = false;
+      const slot = document.createElement('div');
+      document.body.append(slot);
+      const stopFocus = installOverlayFocus();
+      observeLayerHost(slot);
+      const header = renderDomHeader(
+        {
+          onPanelToggle: () => {
+            opened = true;
+            header.rerender();
+          },
+        },
+        250,
+        () =>
+          opened && (
+            <PhoneMembersSheet
+              slot={slot}
+              onClose={() => {
+                opened = false;
+                header.rerender();
+              }}
+            >
+              <button type="button">View member</button>
+            </PhoneMembersSheet>
+          )
+      );
+      try {
+        const opener = header.host.querySelector<HTMLButtonElement>(
+          'button[aria-label="Show Members"]'
+        )!;
+        opener.focus();
+        actInDom(() => {
+          opener.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+          opener.click();
+        });
+        const member = slot.querySelector<HTMLButtonElement>('button')!;
+        await vi.waitFor(() => expect(document.activeElement).toBe(member));
+        actInDom(() => run('running'));
+        expect(opener.isConnected).toBe(false);
+        const outside = document.createElement('button');
+        header.host.append(outside);
+        if (dismiss === 'Escape') pressEscape(member);
+        else {
+          outside.focus();
+          const scrim = slot.querySelector<HTMLElement>('[aria-hidden="true"]')!;
+          actInDom(() => scrim.click());
+        }
+        expect(member.isConnected).toBe(false);
+        const target =
+          dismiss === 'Escape' ? header.host.querySelector('[data-room-more-options]') : outside;
+        await vi.waitFor(() => expect(document.activeElement).toBe(target));
+      } finally {
+        stopFocus();
+        header.unmount();
+        slot.remove();
+      }
+    }
+  );
+
+  it('keeps More Options and plugin row buttons mounted while the room menu crosses the breakpoint', async () => {
+    const { host, rerender, unmount } = renderDomHeader({
+      pluginPanels: [
+        { id: 'notes', label: 'Notes', placement: 'auto', icon: Icons.Bulb },
+        { id: 'toolkit', label: 'Toolkit', placement: 'row', icon: Icons.Bulb },
+      ],
+    });
+    const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+    const plugin = host.querySelector<HTMLButtonElement>('button[aria-label="Toolkit"]')!;
     try {
-      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
-      opener.focus();
-      actInDom(() => opener.click());
-      const item = Array.from(host.querySelectorAll('button')).find((button) =>
-        button.textContent?.includes('Garden map')
+      more.focus();
+      actInDom(() => more.click());
+      expect(more.getAttribute('aria-expanded')).toBe('true');
+      screen.size = 'Mobile';
+      rerender();
+      expect(host.querySelector('[data-room-more-options]')).toBe(more);
+      expect(host.querySelector('button[aria-label="Toolkit"]')).toBe(plugin);
+      const leave = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Leave Room'
       )!;
-      item.focus();
-      if (demote) actInDom(() => run('running'));
-      expect(opener.isConnected).toBe(!demote);
-      expect(item.isConnected).toBe(true);
-      pressEscape(item);
-      expect(item.isConnected).toBe(false);
-      const target = demote ? host.querySelector('[data-room-more-options]') : opener;
-      await vi.waitFor(() => expect(document.activeElement).toBe(target));
+      leave.focus();
+      pressEscape(leave);
+      expect(more.getAttribute('aria-expanded')).toBe('false');
+      await vi.waitFor(() => expect(document.activeElement).toBe(more));
     } finally {
       unmount();
     }
   });
 
-  it('returns focus to More Options after Escape when the last pinned message is unpinned', async () => {
-    screen.size = 'Mobile';
-    pins.ids = ['$pinned:example.org'];
-    const { host, rerender, unmount } = renderDomHeader({});
-    try {
-      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Pinned Messages"]')!;
-      opener.focus();
-      actInDom(() => opener.click());
-      const unpin = host.querySelector<HTMLButtonElement>(
-        '[role="dialog"] button[aria-label="Unpin Message"]'
-      )!;
-      unpin.focus();
-      await actInDom(async () => {
-        unpin.click();
-      });
-      rerender();
-      expect(opener.isConnected).toBe(false);
-      const close = host.querySelector<HTMLButtonElement>(
-        '[role="dialog"] button[aria-label="Close"]'
-      )!;
-      expect(document.activeElement).toBe(close);
-      pressEscape(close);
-      expect(close.isConnected).toBe(false);
-      await vi.waitFor(() =>
-        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+  it('does not resurrect a desktop canvas chooser dismissed after rotating to phone', () => {
+    const { host, rerender, unmount } = renderDomHeader({
+      canvases,
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+    });
+    const menuItem = () =>
+      Array.from(host.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Garden map')
       );
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+      actInDom(() => opener.click());
+      expect(menuItem()).toBeDefined();
+      screen.size = 'Mobile';
+      rerender();
+      const item = menuItem();
+      expect(item).toBeDefined();
+      item!.focus();
+      pressEscape(item!);
+      screen.size = 'Desktop';
+      rerender();
+      expect(menuItem()).toBeUndefined();
+      expect(
+        host.querySelector('button[aria-label="Canvases"]')?.getAttribute('aria-expanded')
+      ).toBe('false');
     } finally {
       unmount();
     }

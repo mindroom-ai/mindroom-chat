@@ -425,7 +425,7 @@ describe("the room header's side panel controls", () => {
     renderHeader({ shownPanel: 'members', onPanelToggle });
     const [hide] = buttons((node) => node.props['aria-label'] === 'Hide Members');
     act(() => {
-      hide?.props.onClick();
+      hide?.props.onClick({ currentTarget: document.createElement('button') });
     });
     expect(onPanelToggle).toHaveBeenCalledWith('members');
 
