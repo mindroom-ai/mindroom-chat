@@ -47,6 +47,7 @@ const echo = (
     event_id: id,
     type: 'm.room.message',
     sender,
+    origin_server_ts: Date.now() + 1,
     content: { msgtype: 'm.text', body, [ECHO_KEY]: true, ...extra },
   });
 
@@ -299,8 +300,17 @@ describe('pending voice transcription', () => {
       event_id: '$agent',
       type: 'm.room.encrypted',
       sender: AGENT,
+      origin_server_ts: now + 1,
     });
     expect(pending([voice(), encrypted])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it('ends when a later agent event is drawn, regardless of the order of the rows', () => {
+    const earlier = voice('$earlier', PERSON, VOICE_CONTENT, now - 10);
+    const later = voice('$later', PERSON, VOICE_CONTENT, now + 10, 0);
+    const reply = new MatrixEvent({ sender: AGENT, origin_server_ts: now });
+    expect([...pending([earlier, reply, later]).pendingVoiceIds]).toEqual(['$later']);
+    expect([...pending([later, reply, earlier]).pendingVoiceIds]).toEqual(['$later']);
   });
 
   it('ends on an unfolded agent echo', () => {

@@ -91,14 +91,21 @@ export const planVoiceTranscripts = ({
   });
   const pendingVoiceIds = new Set<string>();
   if (viewerId && hasJoinedAgent) {
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-      const event = events[i];
-      if (!event) continue;
-      const sender = event.getSender();
+    // The room window may draw newest first. Compare server timestamps, not row order.
+    // An agent event counts even if it has not decrypted.
+    let latestAgentTs = -Infinity;
+    for (const event of events) {
+      if (!isMindroomAgentUserIdForViewer(event.getSender(), viewerId)) continue;
+      const ts = event.getTs();
+      if (Number.isFinite(ts)) latestAgentTs = Math.max(latestAgentTs, ts);
+    }
+    for (const event of events) {
+      if (event.getSender() !== viewerId) continue;
+      const ts = event.getTs();
+      if (!Number.isFinite(ts) || ts < latestAgentTs) continue;
       const id = event.getId();
       const age = event.getLocalAge();
       if (
-        sender === viewerId &&
         isConfirmedMatrixEventId(id) &&
         (!event.status || event.status === EventStatus.SENT) &&
         age >= 0 &&
@@ -116,8 +123,6 @@ export const planVoiceTranscripts = ({
           pendingVoiceIds.add(id);
         }
       }
-      // Any later agent event, even one that hasn't decrypted, ends the local indication.
-      if (isMindroomAgentUserIdForViewer(sender, viewerId)) break;
     }
   }
   return byVoiceId.size === 0 && pendingVoiceIds.size === 0
