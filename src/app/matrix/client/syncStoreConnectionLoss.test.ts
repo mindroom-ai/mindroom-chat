@@ -324,6 +324,23 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(failed).not.toHaveBeenCalled();
   });
 
+  // On leaving a room whose members were never stored. Upstream throws on the missing cursor.
+  it('goes on saving after a clear of stored members on a room that has none', async () => {
+    const store = await savedStore();
+    const failed = vi.fn();
+    const degraded = vi.fn();
+    store.on('failed', failed);
+    store.on('degraded', degraded);
+
+    await store.clearOutOfBandMembers('!never-loaded:example');
+    await accumulate(store, 'after-leave');
+    await store.save(true);
+
+    expect(await persistedToken()).toBe('after-leave');
+    expect(degraded).not.toHaveBeenCalled();
+    expect(failed).not.toHaveBeenCalled();
+  });
+
   it('saves again soon after a failed save, not after the usual five minutes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     const store = await savedStore();

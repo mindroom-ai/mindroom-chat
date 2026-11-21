@@ -4134,7 +4134,7 @@ index d8a2081..f16cacd 100644
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..97b0189 100644
+index 6ce0bac..9b23ed0 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 @@ -96,8 +96,16 @@ function txnAsPromise(txn) {
@@ -4156,7 +4156,21 @@ index 6ce0bac..97b0189 100644
      };
    });
  }
-@@ -324,7 +332,9 @@ export class LocalIndexedDBStoreBackend {
+@@ -314,17 +322,21 @@ export class LocalIndexedDBStoreBackend {
+       var store = readTx.objectStore("oob_membership_events");
+       var roomIndex = store.index("room");
+       var roomRange = IDBKeyRange.only(roomId);
+-      var minStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "next")).then(cursor => (cursor === null || cursor === void 0 ? void 0 : cursor.primaryKey)[1]);
+-      var maxStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "prev")).then(cursor => (cursor === null || cursor === void 0 ? void 0 : cursor.primaryKey)[1]);
++      var minStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "next")).then(cursor => cursor === null || cursor === void 0 ? void 0 : cursor.primaryKey[1]);
++      var maxStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "prev")).then(cursor => cursor === null || cursor === void 0 ? void 0 : cursor.primaryKey[1]);
+       var _yield$Promise$all = yield Promise.all([minStateKeyProm, maxStateKeyProm]),
+         _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2),
+         minStateKey = _yield$Promise$all2[0],
+         maxStateKey = _yield$Promise$all2[1];
++      // No cursor: nothing is stored for this room, so there is nothing to delete.
++      if (minStateKey === undefined || maxStateKey === undefined) return;
+       var writeTx = _this3.db.transaction(["oob_membership_events"], "readwrite");
        var writeStore = writeTx.objectStore("oob_membership_events");
        var membersKeyRange = IDBKeyRange.bound([roomId, minStateKey], [roomId, maxStateKey]);
        logger.log("LL: Deleting all users + marker in storage for room ".concat(roomId, ", with key range:"), [roomId, minStateKey], [roomId, maxStateKey]);
@@ -4167,7 +4181,7 @@ index 6ce0bac..97b0189 100644
      })();
    }
  
-@@ -405,60 +415,66 @@ export class LocalIndexedDBStoreBackend {
+@@ -405,60 +417,66 @@ export class LocalIndexedDBStoreBackend {
          return _this4.syncToDatabasePromise;
        }
        userTuples.unshift(..._this4.pendingUserPresenceData);
@@ -4264,7 +4278,7 @@ index 6ce0bac..97b0189 100644
    }
  
    /**
-@@ -466,21 +482,17 @@ export class LocalIndexedDBStoreBackend {
+@@ -466,21 +484,17 @@ export class LocalIndexedDBStoreBackend {
     * Users with the same 'userId' will be replaced.
     * Presence events should be the event in its raw form (not the Event
     * object)
@@ -4443,7 +4457,7 @@ index 8320c66..c877f22 100644
          _this.emitter.emit("degraded", e);
          try {
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..a4f065d 100644
+index 5f58e7c..fdf05e5 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 @@ -95,8 +95,14 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
@@ -4463,7 +4477,24 @@ index 5f58e7c..a4f065d 100644
          };
      });
  }
-@@ -339,7 +345,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -323,12 +329,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+         const roomRange = IDBKeyRange.only(roomId);
+ 
+         const minStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "next")).then(
+-            (cursor) => (<IDBValidKey[]>cursor?.primaryKey)[1],
++            (cursor) => (<IDBValidKey[] | undefined>cursor?.primaryKey)?.[1],
+         );
+         const maxStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "prev")).then(
+-            (cursor) => (<IDBValidKey[]>cursor?.primaryKey)[1],
++            (cursor) => (<IDBValidKey[] | undefined>cursor?.primaryKey)?.[1],
+         );
+         const [minStateKey, maxStateKey] = await Promise.all([minStateKeyProm, maxStateKeyProm]);
++        // No cursor: nothing is stored for this room, so there is nothing to delete.
++        if (minStateKey === undefined || maxStateKey === undefined) return;
+ 
+         const writeTx = this.db!.transaction(["oob_membership_events"], "readwrite");
+         const writeStore = writeTx.objectStore("oob_membership_events");
+@@ -339,7 +347,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              [roomId, minStateKey],
              [roomId, maxStateKey],
          );
@@ -4474,7 +4505,7 @@ index 5f58e7c..a4f065d 100644
      }
  
      /**
-@@ -420,60 +428,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -420,60 +430,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              return this.syncToDatabasePromise;
          }
          userTuples.unshift(...this.pendingUserPresenceData);
@@ -4570,7 +4601,7 @@ index 5f58e7c..a4f065d 100644
      }
  
      /**
-@@ -481,21 +491,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -481,21 +493,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
       * Users with the same 'userId' will be replaced.
       * Presence events should be the event in its raw form (not the Event
       * object)
