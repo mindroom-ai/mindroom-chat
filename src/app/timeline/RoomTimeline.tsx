@@ -895,7 +895,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     [drawnSecretRequestIds]
   );
   // Fold only messages from the bound account or joined accounts it vouches for.
-  const routerBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  // The SDK may redact and re-emit the same state event object.
+  const bindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBinding = bindingEvent?.isRedacted() ? undefined : bindingEvent;
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
@@ -903,7 +905,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
     [routerBinding, powerLevels, roomCreators, rawPowerLevels]
   );
-  const roster = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
+  const rosterEvent = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
+  const roster = rosterEvent?.isRedacted() ? undefined : rosterEvent;
   const rosterAccountIds = useMemo(
     () => boundRoomRoster(boundUserId, roster),
     [boundUserId, roster]

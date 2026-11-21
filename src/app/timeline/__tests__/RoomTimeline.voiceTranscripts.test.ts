@@ -1,5 +1,5 @@
 import React from 'react';
-import { MatrixEvent, RoomMember, RoomMemberEvent, RoomState } from 'matrix-js-sdk';
+import { MatrixEvent, RoomMember, RoomMemberEvent, RoomState, type Room } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
@@ -60,6 +60,10 @@ const setRoster = (accounts: string[]) => {
 
 // Exercise the real keyed state hook against the SDK's room state and event emitter.
 vi.doUnmock('../../matrix/hooks/useStateEvent');
+vi.doMock('../../matrix/hooks/useRoomCreators', () => {
+  const creators = new Set<string>();
+  return { useRoomCreators: () => creators };
+});
 const makeRoomWithState = (...args: Parameters<typeof makeRoom>) => {
   const room = makeRoom(...args);
   Object.assign(room.getLiveTimeline(), { getState: () => roomState });
@@ -216,6 +220,30 @@ describe('a voice echo in an open thread', () => {
       expect(getRenderedEventIds(renderer)).not.toContain('$echo');
       expect(transcripts(renderer)).toEqual(['🎤 Invented words']);
       changeMembership(joinedMembers, CUSTOM_AGENT, 'leave');
+      expect(getRenderedEventIds(renderer)).toContain('$echo');
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it.each([
+    ['binding', 'io.mindroom.router', ''],
+    ['roster', 'io.mindroom.accounts', ROUTER],
+  ])('shows a folded echo again when its %s is redacted in place', async (_case, type, key) => {
+    setRoster([CUSTOM_AGENT]);
+    const { renderer, room } = await openThread(ROUTER, CUSTOM_AGENT, {
+      joinedMembers: [VIEWER, CUSTOM_AGENT],
+    });
+    try {
+      expect(getRenderedEventIds(renderer)).not.toContain('$echo');
+      const state = roomState.getStateEvents(type, key)!;
+      const redaction = new MatrixEvent({ type: 'm.room.redaction', event_id: '$redaction' });
+      act(() => {
+        state.makeRedacted(redaction, room as unknown as Room);
+        // The SDK emits the same object again when redacting current state.
+        roomState.setStateEvents([state]);
+      });
+      expect(state.isRedacted()).toBe(true);
       expect(getRenderedEventIds(renderer)).toContain('$echo');
     } finally {
       act(() => renderer.unmount());
