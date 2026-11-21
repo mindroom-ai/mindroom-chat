@@ -585,7 +585,10 @@ function CompactRoomList({
     scrollRef: viewRef,
     contentRef,
     ready: shownRootIds.length > 0,
-    mountedAnchor: restoreTarget && modelByRootId.has(restoreTarget) ? restoreTarget : undefined,
+    anchorLayout:
+      restoreTarget && modelByRootId.has(restoreTarget)
+        ? items.find(({ key }) => key === restoreTarget)?.start ?? 0
+        : undefined,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount

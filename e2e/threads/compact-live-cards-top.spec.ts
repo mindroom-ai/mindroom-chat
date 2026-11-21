@@ -267,12 +267,12 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   const scrolled = await agentPosts(seeded, scrolledBody);
   // The new card is outside this window. Wait for it to join the logical list before measuring.
   await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT + 3));
-  await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      })
-  );
+  // The logical count can update before the anchor and the row motion settle.
+  await expect
+    .poll(async () => Math.abs((await topOf(midCard)) - before), {
+      message: `${label}: the card under the pointer moved`,
+    })
+    .toBeLessThan(1);
   const moved = (await topOf(midCard)) - before;
   const scrolledAfter = await listScrollTop(page);
   test.info().annotations.push({

@@ -11,6 +11,8 @@ type ScrollAnchor = {
 
 export type ScrollAnchorSnapshot = {
   scrollTop: number;
+  /** Explicit address placement follows its target through hydration until reader input. */
+  address?: true;
   /** The rows that were in view, so the list can reopen on them after rows reorder. */
   anchors: ScrollAnchor[];
 };
@@ -115,8 +117,8 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
-  /** A requested anchor can mount after the first window, even if its extent stays the same. */
-  mountedAnchor?: string;
+  /** The requested anchor can move as the window hydrates without changing the list extent. */
+  anchorLayout?: number;
 };
 
 /**
@@ -134,7 +136,7 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-  mountedAnchor,
+  anchorLayout,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -156,12 +158,15 @@ export function useScrollAnchorMemory({
       };
     }
     const state = restoreRef.current;
+    const address = state.snapshot?.address === true;
+    const readerInputs = ['wheel', 'pointerdown', 'touchstart', 'keydown'];
 
     let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
+      readerInputs.forEach((type) => view.removeEventListener(type, stopFollowing));
     };
     const handleScroll = () => {
       if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
@@ -179,9 +184,9 @@ export function useScrollAnchorMemory({
       // thread sorting first, and stay where they land.
       if (
         snapshot.scrollTop <= 0 ||
-        view.scrollTop !== state.lastAppliedScrollTop ||
+        (!address && view.scrollTop !== state.lastAppliedScrollTop) ||
         !placement ||
-        !keepsRowOrder(state.rowOrder, rowOrder)
+        (!address && !keepsRowOrder(state.rowOrder, rowOrder))
       ) {
         stopFollowing();
         return;
@@ -197,12 +202,15 @@ export function useScrollAnchorMemory({
     observer = new ResizeObserver(restore);
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
-    view.addEventListener('scroll', handleScroll);
+    if (address)
+      readerInputs.forEach((type) => view.addEventListener(type, stopFollowing, { passive: true }));
+    else view.addEventListener('scroll', handleScroll);
     return () => {
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
+      readerInputs.forEach((type) => view.removeEventListener(type, stopFollowing));
     };
-  }, [contentRef, memory, memoryKey, mountedAnchor, ready, restarts, scrollRef]);
+  }, [anchorLayout, contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;

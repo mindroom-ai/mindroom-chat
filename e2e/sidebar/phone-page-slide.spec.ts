@@ -168,7 +168,7 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (test: string, extraThreads = 0) => {
+const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
   const username = `pps_${test}_${RUN}`;
   const reader = await matrixFetch<{ access_token: string; user_id: string }>(
     HOMESERVER,
@@ -211,7 +211,7 @@ const seed = async (test: string, extraThreads = 0) => {
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  const batchSize = Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
+  const batchSize = concurrency ?? Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
   if (!Number.isSafeInteger(batchSize) || batchSize < 1)
     throw new Error('PAGE_SLIDE_SEED_CONCURRENCY must be a positive integer');
   // Send roots in order so their timestamps are stable; batch the replies and resolutions.
@@ -502,7 +502,7 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
   test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
   test.setTimeout(240_000);
   const threadCount = Number(process.env.PAGE_SLIDE_THREADS ?? 250);
-  const { username, userId, roomId } = await seed('long', threadCount);
+  const { username, userId, roomId } = await seed('long', threadCount, 1);
   await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
     await seedRoomOverviewState({
       page,

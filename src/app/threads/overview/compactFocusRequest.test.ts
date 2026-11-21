@@ -6,6 +6,7 @@ const ROOM_ID = '!room:example.org';
 const CARD = '$card';
 const focusedPlace = (key: string): ScrollAnchorSnapshot => ({
   scrollTop: 1,
+  address: true,
   anchors: [{ key, offset: 160 }],
 });
 const leftAtTop: ScrollAnchorSnapshot = { scrollTop: 0, anchors: [{ key: '$top', offset: 0 }] };

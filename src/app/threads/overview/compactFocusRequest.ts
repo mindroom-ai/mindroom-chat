@@ -5,6 +5,7 @@ const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
 
 const focusedPlace = (eventId: string): ScrollAnchorSnapshot => ({
   scrollTop: 1,
+  address: true,
   anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
 });
 

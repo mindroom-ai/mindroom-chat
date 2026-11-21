@@ -202,10 +202,24 @@ for (const ios of [false, true]) {
       const sectionIds = new Set(
         section === 'working' ? roots.slice(0, WORKING) : roots.slice(WORKING)
       );
-      const target = Object.keys(before.offsets).find((key) => sectionIds.has(key));
-      if (!target) throw new Error(`no ${section} card in view at ${scrollTop}`);
-      const box = await card(target).boundingBox();
-      await page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      // The room footer can cover a card entirely inside the raw scroll clip.
+      const target = await view.evaluate(
+        (scroller, candidates) => {
+          for (const id of candidates) {
+            const button = scroller.querySelector(
+              `button[data-thread-root-id="${CSS.escape(id)}"]`
+            );
+            if (!button) continue;
+            const { x, y, width, height } = button.getBoundingClientRect();
+            const point = { x: x + width / 2, y: y + height / 2 };
+            if (button.contains(document.elementFromPoint(point.x, point.y))) return point;
+          }
+          return undefined;
+        },
+        Object.keys(before.offsets).filter((key) => sectionIds.has(key))
+      );
+      if (!target) throw new Error(`no tappable ${section} card in view at ${scrollTop}`);
+      await page.touchscreen.tap(target.x, target.y);
       await expect(page).toHaveURL(/threadId=/);
       const opened = new URL(page.url()).searchParams.get('threadId')!;
       expect(sectionIds.has(opened), `the tap opens a ${section} card`).toBe(true);

@@ -267,6 +267,27 @@ describe('useScrollAnchorMemory', () => {
     expect(observers.size).toBe(0);
   });
 
+  it('follows an explicit address through layout scroll until the reader intervenes', () => {
+    const keys = rowKeys(20);
+    const layout = createLayout(keys);
+    const memory: ScrollAnchorMemory = new Map([
+      ['list', { scrollTop: 1, address: true, anchors: [{ key: 'row-10', offset: 40 }] }],
+    ]);
+    mount(memory, layout);
+    expect(layout.offsetOf('row-10')).toBe(40);
+
+    scrollReaderTo(layout, 10); // A native layout clamp, without a reader gesture.
+    layout.setRows(['new', ...keys]);
+    resize(layout.content);
+    expect(layout.offsetOf('row-10')).toBe(40);
+
+    layout.view.dispatchEvent(new Event('wheel'));
+    scrollReaderTo(layout, 100);
+    layout.setRows(keys);
+    resize(layout.content);
+    expect(layout.view.scrollTop).toBe(100);
+  });
+
   it('follows its rows while they move together', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);

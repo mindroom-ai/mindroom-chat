@@ -118,11 +118,20 @@ export function useCompactWindow(
     const view = viewRef.current;
     if (!view) return undefined;
     const doc = view.ownerDocument;
+    let dragging = false;
     const start = (event: Event) => {
       const card = (event.target as Element).closest<HTMLElement>('[data-scroll-anchor]');
-      if (card && view.contains(card)) setGestureId(card.dataset.scrollAnchor);
+      if (card && view.contains(card)) {
+        dragging = event.type === 'dragstart';
+        setGestureId(card.dataset.scrollAnchor);
+      }
     };
-    const end = () => setGestureId(undefined);
+    const end = (event: Event) => {
+      // Starting a native drag cancels the pointer, not the drag.
+      if (dragging && event.type !== 'dragend') return;
+      dragging = false;
+      setGestureId(undefined);
+    };
     const starts = ['pointerdown', 'dragstart'];
     const ends = ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'dragend'];
     starts.forEach((type) => view.addEventListener(type, start, true));
