@@ -162,9 +162,10 @@ export const Actions = style({
 });
 
 /**
- * An answer button grows with a label that wraps in a narrow list, instead of keeping its fixed
- * height and spilling the label's lines over the button above and the one below. A long word,
- * such as a path, wraps too rather than run past the button's sides.
+ * A row's answer button, or a footer button, grows with a label that wraps in a narrow list (a
+ * long option, a long translation) instead of keeping its fixed height and spilling the label's
+ * lines over the button above and the one below. A long word, such as a path, wraps too rather
+ * than run past the button's sides.
  */
 export const ActionButton = style({
   selectors: {
