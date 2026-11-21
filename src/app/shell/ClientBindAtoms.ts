@@ -11,7 +11,7 @@ type ClientBindAtomsProps = { children: ReactNode };
  * Seeds the account-wide atoms (rooms, invites, unread counts, ...) from the
  * active Matrix client. Children render only once the seeding effects of that
  * client ran, so no page ever reads atoms that still hold another account.
- * When the account's pages go, everything they kept for it goes too
+ * When the account's pages go, their transient page state goes too
  * (`accountState.ts`); this runs before the pages' own cleanups.
  */
 export function ClientBindAtoms({ children }: ClientBindAtomsProps) {

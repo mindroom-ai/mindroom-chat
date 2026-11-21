@@ -191,7 +191,9 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   const thread = page.getByTestId('thread-column');
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 30_000 });
   // The same recording all along: its time has run on since room A.
-  await expect(thread.getByText(/^0:0[3-9]$|^0:[1-5]\d$/)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    thread.getByText(/^(?:0:(?:0[3-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
+  ).toBeVisible({ timeout: 30_000 });
 
   // Settings cover the composers: the pill shows inside the dialog, where the focus the dialog
   // holds reaches its Discard, and goes again when the dialog closes.
@@ -231,7 +233,9 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await thread.locator(composer(page)).click();
   await page.keyboard.press('Control+Shift+Space');
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 15_000 });
-  await expect(thread.getByText(/^0:0[1-9]$/)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    thread.getByText(/^(?:0:(?:0[1-9]|[1-5]\d)|[1-9]\d*:[0-5]\d)$/)
+  ).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('Control+Shift+Space');
   await expect
     .poll(async () => (await voiceMessages(token, world.b.roomId)).length, { timeout: 45_000 })

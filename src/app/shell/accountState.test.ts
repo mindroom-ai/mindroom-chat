@@ -210,7 +210,7 @@ describe('forgetAccountState', () => {
   });
 
   it('puts every module-level atom an account leaves behind back to where it started', () => {
-    const { primitives, createStore, state, typing, calls, liveVoice } = loaded;
+    const { primitives, createStore, state, drafts, typing, calls, liveVoice } = loaded;
     const store = createStore();
     const forgotten = primitives.filter((entry) => !isKept(entry));
     // Each atom first holds something of the last account, so a forget that writes back what it
@@ -239,6 +239,7 @@ describe('forgetAccountState', () => {
     expect(forgotten.filter((entry) => !left(entry)).map(describeAtom)).toEqual([]);
 
     state.forgetAccountState(store);
+    drafts.forgetComposerStateOfSession(store);
 
     // Each one is account state that the next account would see: list it in accountState.ts,
     // or add its module to KEPT_MODULES above with the reason it may outlive the account.
@@ -263,7 +264,7 @@ describe('forgetAccountState', () => {
   });
 
   it("drops the account's reply targets and staged files, which are keyed by room alone", () => {
-    const { createStore, state, drafts } = loaded;
+    const { createStore, drafts } = loaded;
     const store = createStore();
     const roomId = '!shared:example.org';
     store.set(drafts.roomIdToReplyDraftAtomFamily(roomId), {
@@ -272,7 +273,7 @@ describe('forgetAccountState', () => {
       body: 'Question',
     });
 
-    state.forgetAccountState(store);
+    drafts.forgetComposerStateOfSession(store);
 
     expect(store.get(drafts.roomIdToReplyDraftAtomFamily(roomId))).toBeUndefined();
   });

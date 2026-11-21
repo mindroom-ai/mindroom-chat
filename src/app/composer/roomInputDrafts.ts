@@ -18,6 +18,7 @@ import {
 } from '../lib/safeLocalStorage';
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
+import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
 import { endVoiceRecordingsOfAccount, liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
@@ -467,4 +468,16 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   endVoiceRecordingsOfAccount(store);
+};
+
+// Only logout or a different Matrix user ends the account's voice work, not a route unmount.
+export const watchComposerAccount = (store: JotaiStore): (() => void) => {
+  let userId = getActiveSession()?.userId;
+  return subscribeToSessionStore(() => {
+    const next = getActiveSession()?.userId;
+    if (next === userId) return;
+    const previous = userId;
+    userId = next;
+    if (previous !== undefined) forgetComposerStateOfSession(store);
+  });
 };

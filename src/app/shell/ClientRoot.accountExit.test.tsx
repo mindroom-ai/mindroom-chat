@@ -6,11 +6,12 @@ import { createStore, Provider } from 'jotai';
 import { ClientRoot } from './ClientRoot';
 import { ClientBindAtoms } from './ClientBindAtoms';
 import { useActiveSession } from '../matrix/session/useSessionStore';
-import type { StoredSession } from '../matrix/session/sessions';
+import { putSession, type StoredSession } from '../matrix/session/sessions';
 import {
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   voiceAutoSendPendingAtom,
+  watchComposerAccount,
 } from '../composer/roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { agentCallFailureAtom } from '../calls/agent/agentCaller';
@@ -82,14 +83,14 @@ vi.mock('../event-store/engine', () => ({
 
 const ROOM_ID = '!shared:example.org';
 
-const sessionFor = (name: string): StoredSession => ({
-  sessionId: `session-${name}`,
-  baseUrl: 'https://example.org',
-  userId: `@${name}:example.org`,
-  deviceId: `DEVICE_${name}`,
-  accessToken: `token-${name}`,
-  lastUsedAt: 1,
-});
+const sessionFor = (name: string): StoredSession =>
+  putSession({
+    baseUrl: 'https://example.org',
+    userId: `@${name}:example.org`,
+    deviceId: `DEVICE_${name}`,
+    accessToken: `token-${name}`,
+    lastUsedAt: 1,
+  });
 
 type Listener = (...args: unknown[]) => void;
 
@@ -134,6 +135,7 @@ describe('ClientRoot when an account session ends', () => {
   let renderer: ReactTestRenderer | undefined;
   let active: StoredSession | undefined;
   let store: ReturnType<typeof createStore>;
+  let stopWatching: () => void;
 
   const tree = () => (
     <Provider store={store}>
@@ -149,6 +151,12 @@ describe('ClientRoot when an account session ends', () => {
 
   beforeEach(() => {
     store = createStore();
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    stopWatching = watchComposerAccount(store);
     vi.mocked(useActiveSession).mockImplementation(() => active);
     vi.mocked(startClient).mockResolvedValue(undefined);
   });
@@ -157,6 +165,8 @@ describe('ClientRoot when an account session ends', () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     active = undefined;
+    stopWatching();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 

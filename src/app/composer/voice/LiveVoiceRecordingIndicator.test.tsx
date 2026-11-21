@@ -347,6 +347,31 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
   });
 
+  it('reaches Discard by Tab from the command palette search field', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    store.set(commandPaletteOpenAtom, 'all');
+    render(
+      <Provider store={store}>
+        {composer()}
+        <CommandPaletteRenderer />
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    const search = screen.getByRole('combobox', { name: 'Command palette' });
+    expect(document.activeElement).toBe(search);
+    // From All, Shift+Tab wraps to the last category as before.
+    fireEvent.keyDown(search, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('tab', { name: 'Actions', selected: true })).toBeTruthy();
+    fireEvent.keyDown(search, { key: 'Tab' });
+    expect(document.activeElement).toBe(
+      within(screen.getByRole('dialog', { name: 'Command palette' })).getByRole('button', {
+        name: 'Discard voice recording',
+      })
+    );
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
+  });
+
   it('discards a live recording without closing the command palette', () => {
     const store = createStore();
     const { session, discard } = recordingSession();
