@@ -41,7 +41,6 @@ declare global {
     compactRecorder: { take: () => ListFrame[]; board: boolean };
   }
 }
-
 export const installListRecorder = (page: Page) =>
   page.addInitScript(
     ({ compact, board, live }) => {
@@ -169,7 +168,7 @@ export const installListRecorder = (page: Page) =>
             const translate = child
               ?.getAnimations()
               .map(({ effect }) => (effect as KeyframeEffect | null)?.getKeyframes()[0]?.translate)
-              .find((value) => typeof value === 'string');
+              .find((value): value is string => typeof value === 'string');
             const dy = parseFloat(translate?.split(' ')[1] ?? '');
             visible.push({
               key: id,
