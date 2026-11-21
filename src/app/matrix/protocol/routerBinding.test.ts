@@ -124,9 +124,9 @@ describe('trustedRoomAccountIds', () => {
     'trusts no one without a binding that ordinary members cannot write',
     (event) => {
       const bound = trustedRouterUserId(event, { state_default: 0, users_default: 0 });
-      expect(trustedRoomAccountIds(bound, boundRoomRoster(bound, roster()), new Set([AGENT]), new Set())).toEqual(
-        new Set()
-      );
+      expect(
+        trustedRoomAccountIds(bound, boundRoomRoster(bound, roster()), new Set([AGENT]), new Set())
+      ).toEqual(new Set());
     }
   );
 

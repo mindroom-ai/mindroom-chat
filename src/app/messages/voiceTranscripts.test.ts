@@ -333,7 +333,10 @@ describe('pending voice transcription', () => {
 
   it('does not show if the voice message has thread replies', () => {
     expect(
-      plan([voice()], { hasJoinedAgent: true, hasThreadReplies: (event) => event.getId() === '$voice' })
+      plan([voice()], {
+        hasJoinedAgent: true,
+        hasThreadReplies: (event) => event.getId() === '$voice',
+      })
     ).toBe(NO_VOICE_TRANSCRIPTS);
   });
 

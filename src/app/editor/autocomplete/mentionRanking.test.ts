@@ -70,7 +70,9 @@ describe('filterAndOrderMentionCandidates', () => {
 
   it('offers a possible namespaced owner last, even when it spoke last', () => {
     expect(
-      names(filterAndOrderMentionCandidates([routerLab, scout, mind], [routerLab.userId, mind.userId]))
+      names(
+        filterAndOrderMentionCandidates([routerLab, scout, mind], [routerLab.userId, mind.userId])
+      )
     ).toEqual(['Mind', 'Scout', 'Router Lab']);
   });
 

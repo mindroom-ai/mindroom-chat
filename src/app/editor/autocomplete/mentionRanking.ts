@@ -95,8 +95,11 @@ export const filterAndOrderMentionCandidates = <T extends MentionCandidate>(
 ): T[] => {
   const recency = new Map(senders.map((userId, index) => [userId, index]));
   const recent = (member: T): number => recency.get(member.userId) ?? senders.length;
-  const possibleOwner = (member: T) => Number(POSSIBLE_NAMESPACED_OWNER.test(localpart(member.userId)));
+  const possibleOwner = (member: T) =>
+    Number(POSSIBLE_NAMESPACED_OWNER.test(localpart(member.userId)));
   return members
     .filter((member) => !isMindroomOwnerUserId(member.userId))
-    .sort((left, right) => possibleOwner(left) - possibleOwner(right) || recent(left) - recent(right));
+    .sort(
+      (left, right) => possibleOwner(left) - possibleOwner(right) || recent(left) - recent(right)
+    );
 };

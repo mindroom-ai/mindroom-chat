@@ -904,7 +904,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     [routerBinding, powerLevels, roomCreators, rawPowerLevels]
   );
   const roster = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
-  const rosterAccountIds = useMemo(() => boundRoomRoster(boundUserId, roster), [boundUserId, roster]);
+  const rosterAccountIds = useMemo(
+    () => boundRoomRoster(boundUserId, roster),
+    [boundUserId, roster]
+  );
   const [membershipRevision, refreshMembership] = useForceUpdate();
   const joinedAccountIds = useMemo(() => {
     void membershipRevision;
@@ -914,7 +917,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   }, [room, membershipRevision, rosterAccountIds]);
   const trustedAccountsRef = useRef<ReadonlySet<string>>(new Set());
   const trustedAccountIds = useMemo(() => {
-    const next = trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet);
+    const next = trustedRoomAccountIds(
+      boundUserId,
+      rosterAccountIds,
+      joinedAccountIds,
+      ignoredUsersSet
+    );
     const previous = trustedAccountsRef.current;
     if (next.size === previous.size && [...next].every((id) => previous.has(id))) return previous;
     trustedAccountsRef.current = next;
@@ -933,14 +941,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   useLayoutEffect(() => {
     // People joining or leaving can change the hint, but not the trusted set.
     const updateOnlyPerson = () => {
-      const people = room.getJoinedMembers().filter(({ userId }) =>
-        userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
-      );
+      const people = room
+        .getJoinedMembers()
+        .filter(
+          ({ userId }) =>
+            userId === viewerId || (!isMindroomOwnerUserId(userId) && !isResponder(userId))
+        );
       setViewerIsOnlyPerson(people.length === 1 && people[0]?.userId === viewerId);
     };
     updateOnlyPerson();
     const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
-      if (member.roomId !== room.roomId || (member.membership === 'join') === (previous === 'join')) {
+      if (
+        member.roomId !== room.roomId ||
+        (member.membership === 'join') === (previous === 'join')
+      ) {
         return;
       }
       const { userId } = member;

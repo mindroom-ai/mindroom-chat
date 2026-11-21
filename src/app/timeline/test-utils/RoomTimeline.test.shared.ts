@@ -1244,7 +1244,8 @@ const makeEvent = (
   } = {}
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
-  const localTimestamp = typeof unsigned.age === 'number' ? Date.now() - unsigned.age : opts.ts ?? 0;
+  const localTimestamp =
+    typeof unsigned.age === 'number' ? Date.now() - unsigned.age : opts.ts ?? 0;
   return {
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
