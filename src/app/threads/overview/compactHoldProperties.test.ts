@@ -41,7 +41,6 @@ it('holds flat survivors, admits exactly the live membership and is idempotent',
     }
   });
 });
-
 it('keeps survivors in their old sections and puts joins in their live sections', () => {
   examples((shown, live, group) => {
     const sections = (ids: string[]): CompactThreadSection[] => {
@@ -67,7 +66,6 @@ it('keeps survivors in their old sections and puts joins in their live sections'
     expect(holdCompactThreadSections(target, held)).toEqual(held);
   });
 });
-
 // Main lets a survivor whose live group changed anchor a join in its old group.
 it.fails('a section join with no live predecessor there leads its section', () => {
   examples((shown, live) => {
