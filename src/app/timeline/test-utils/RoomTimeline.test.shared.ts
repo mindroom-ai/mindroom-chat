@@ -566,7 +566,12 @@ vi.mock('../../matrix/hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
-  useStateEvent: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType)?.[0],
+  useStateEvent: (_room: unknown, eventType: string, key?: string | null) => {
+    const events = stateEventsByTypeMock.get(eventType);
+    if (key === null) return undefined;
+    if (key === undefined) return events?.[0];
+    return events?.find((event) => (event as MatrixEvent).getStateKey() === key);
+  },
 }));
 vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
@@ -1307,6 +1312,7 @@ const makeTimeline = (
 };
 
 const makeRoom = ({
+  joinedMembers = [],
   liveEvents = [],
   liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
@@ -1317,6 +1323,7 @@ const makeRoom = ({
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
   findEventById?: (eventId: string) => ReturnType<typeof makeEvent> | undefined;
+  joinedMembers?: string[];
   threads?: Array<{ id?: string; rootEvent?: ReturnType<typeof makeEvent> | undefined }>;
 } = {}) => {
   const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
@@ -1421,6 +1428,7 @@ const makeRoom = ({
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: (): string | null | undefined => undefined,
     getLiveTimeline: () => roomLiveTimeline,
+    getJoinedMembers: () => joinedMembers.map((userId) => ({ userId })),
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,

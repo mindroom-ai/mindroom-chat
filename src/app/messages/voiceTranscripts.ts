@@ -9,7 +9,7 @@ import {
 } from '../matrix/protocol/transcribingPlaceholder';
 
 /**
- * The router's voice echoes a timeline draws under the voice messages they transcribe, whose own
+ * The voice echoes a timeline draws under the voice messages they transcribe, whose own
  * rows hide: `byVoiceId` maps each voice message's ID to its echo.
  */
 export type VoiceTranscriptPlan = {
@@ -23,10 +23,9 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 };
 
 /**
- * Which router voice echoes of `events` show under their voice message instead of their row. An
- * echo moves when the room's router sent it (`routerUserId`, which the room's state names and
- * `trustedRouterUserId` trusts; no other agent or account, none while it names none, and none
- * the viewer ignores), it names its voice message (`getVoiceSourceEventId`, read from the version
+ * Which voice echoes of `events` show under their voice message instead of their row. An echo
+ * moves when a trusted account sent it (the room's binding or a joined account from its roster,
+ * excluding ignored accounts), it names its voice message (`getVoiceSourceEventId`, read from the version
  * its row shows, `getContent`, which counts only the sender's own edits), that version is a
  * transcript rather than the fallback text of a failed transcription (`isVoiceRawAudioFallback`)
  * and holds all of it rather than a preview of a long-text sidecar (`hasLongTextMetadata`),
@@ -39,24 +38,28 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 export const planVoiceTranscripts = ({
   events,
   getContent,
-  routerUserId,
+  trustedAccountIds,
   ignored,
   revealed,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  routerUserId: string | undefined;
+  trustedAccountIds: ReadonlySet<string>;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
-  if (!routerUserId || ignored.has(routerUserId)) return NO_VOICE_TRANSCRIPTS;
-  const echoes = events.filter(
-    (event) =>
+  if (trustedAccountIds.size === 0) return NO_VOICE_TRANSCRIPTS;
+  const echoes = events.filter((event) => {
+    const sender = event.getSender();
+    return (
       isVisibleRouterVoiceEcho(event.getOriginalContent()) &&
       !event.isRedacted() &&
-      event.getSender() === routerUserId
-  );
+      !!sender &&
+      trustedAccountIds.has(sender) &&
+      !ignored.has(sender)
+    );
+  });
   if (echoes.length === 0) return NO_VOICE_TRANSCRIPTS;
   const byId = new Map(events.map((event) => [event.getId(), event]));
   const hiddenEventIds = new Set<string>();

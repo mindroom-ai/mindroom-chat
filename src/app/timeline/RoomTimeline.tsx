@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -13,12 +14,19 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  RoomMemberEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+} from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
@@ -136,7 +144,12 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
+import {
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+  trustedRoomAccountIds,
+  trustedRouterUserId,
+} from '../matrix/protocol/routerBinding';
 import {
   InlineSecretRequestsContext,
   useDrawnSecretRequestIds,
@@ -875,23 +888,47 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
-  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
-  // Only from the router the room's state names, read again when that state or the levels change.
-  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  // Fold only messages from the bound account or joined accounts it vouches for.
+  const routerBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const routerUserId = trustedRouterUserId(
-    voiceRouterBinding,
+  const boundUserId = trustedRouterUserId(
+    routerBinding,
     powerLevels,
     roomCreators,
     rawPowerLevels
   );
+  const roster = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
+  const [, refreshMembership] = useForceUpdate();
+  useEffect(() => {
+    const onMembership = (_event: MatrixEvent, member: RoomMember) => {
+      if (member.roomId === room.roomId) refreshMembership();
+    };
+    mx.on(RoomMemberEvent.Membership, onMembership);
+    return () => {
+      mx.removeListener(RoomMemberEvent.Membership, onMembership);
+    };
+  }, [mx, room.roomId, refreshMembership]);
+  const joinedAccountIds = new Set(room.getJoinedMembers().map((member) => member.userId));
+  const trustedAccountIds = trustedRoomAccountIds(
+    boundUserId,
+    roster,
+    joinedAccountIds,
+    ignoredUsersSet
+  );
+  const trustedAccountsRef = useRef(trustedAccountIds);
+  if (
+    trustedAccountIds.size !== trustedAccountsRef.current.size ||
+    [...trustedAccountIds].some((id) => !trustedAccountsRef.current.has(id))
+  ) {
+    trustedAccountsRef.current = trustedAccountIds;
+  }
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
-    routerUserId,
+    trustedAccountIds: trustedAccountsRef.current,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });
@@ -904,7 +941,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
-    routerUserId,
+    routerUserId: boundUserId,
     ignored: ignoredUsersSet,
     keeps: (id) =>
       pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),

@@ -9,6 +9,7 @@ import {
 import { getVoiceSourceEventId } from '../matrix/protocol/transcribingPlaceholder';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 
+const AGENT = '@mindroom_helper:example.org';
 const ROUTER = '@mindroom_router:example.org';
 const PERSON = '@sam:example.org';
 const ECHO_KEY = 'com.mindroom.visible_router_voice_echo';
@@ -57,14 +58,18 @@ const replaceWith = (
 
 const plan = (
   events: MatrixEvent[],
-  { ignored = new Set<string>(), revealed = new Set<string>(), routerUserId = ROUTER } = {}
+  {
+    ignored = new Set<string>(),
+    revealed = new Set<string>(),
+    trustedAccountIds = new Set([ROUTER]),
+  } = {}
 ) =>
   planVoiceTranscripts({
     events,
     // As the timeline reads a row: the latest replacement by the event's own sender.
     getContent: (event) =>
       getLatestMessageContent(event, getEditedEvent(event.getId() ?? '', event, undefined)),
-    routerUserId,
+    trustedAccountIds,
     ignored,
     revealed,
   });
@@ -136,19 +141,26 @@ describe('planVoiceTranscripts', () => {
     expect(plan([voice(), echo('$echo', undefined, { sender })])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
-  it('pairs an echo from whichever account the room names as its router', () => {
+  it('pairs a trusted answering agent echo', () => {
+    const echoEvent = echo('$echo', undefined, { sender: AGENT });
+    const result = plan([voice(), echoEvent], { trustedAccountIds: new Set([ROUTER, AGENT]) });
+    expect(result.byVoiceId.get('$voice')).toBe(echoEvent);
+    expect([...result.hiddenEventIds]).toEqual(['$echo']);
+  });
+
+  it('pairs an echo from whichever account the room binds', () => {
     const sender = '@mindroom_router_lab1:example.org';
     const echoEvent = echo('$echo', undefined, { sender });
-    expect(plan([voice(), echoEvent], { routerUserId: sender }).byVoiceId.get('$voice')).toBe(
-      echoEvent
-    );
+    expect(
+      plan([voice(), echoEvent], { trustedAccountIds: new Set([sender]) }).byVoiceId.get('$voice')
+    ).toBe(echoEvent);
   });
 
   it('keeps every row while the room names no trusted router', () => {
     const result = planVoiceTranscripts({
       events: [voice(), echo('$echo')],
       getContent: (event) => event.getContent(),
-      routerUserId: undefined,
+      trustedAccountIds: new Set(),
       ignored: new Set(),
       revealed: new Set(),
     });

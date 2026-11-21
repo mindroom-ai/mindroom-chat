@@ -19,6 +19,7 @@ import {
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const threadId = '$root';
+const AGENT = '@mindroom_helper:example.org';
 const ROUTER = '@mindroom_router:example.org';
 
 // Its own test draws it; here only that the voice row shows it counts.
@@ -29,8 +30,8 @@ vi.mock('../../messages/content/VoiceTranscript', () => ({
 
 importBeforeTests(() => import('../RoomTimeline'));
 
-/** A thread with a voice message and the router's echo of it, the room's state naming `router`. */
-const openThread = async (router?: string) => {
+/** A thread with a voice message and its echo, the room's state naming `router`. */
+const openThread = async (router?: string, sender = ROUTER) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
     powerLevelsContextMock.levels = { users: { [router]: 50 } };
@@ -55,7 +56,7 @@ const openThread = async (router?: string) => {
     makeEvent('$echo', {
       threadRootId: threadId,
       ts: 3_000,
-      sender: ROUTER,
+      sender,
       content: {
         msgtype: 'm.text',
         body: '🎤 Invented words',
@@ -66,7 +67,7 @@ const openThread = async (router?: string) => {
   ];
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
-  const room = makeRoom({ liveEvents: [rootEvent] });
+  const room = makeRoom({ liveEvents: [rootEvent], joinedMembers: [AGENT] });
   room.getThread = () =>
     ({
       rootEvent,
@@ -92,7 +93,7 @@ const transcripts = (renderer: ReturnType<typeof create>) =>
     .findAll((node) => typeof node.props['data-voice-transcript'] === 'string')
     .map((node) => node.props['data-voice-transcript'] as string);
 
-describe("the router's voice echo in an open thread", () => {
+describe('a voice echo in an open thread', () => {
   afterEach(() => {
     stateEventsByTypeMock.clear();
     powerLevelsContextMock.levels = {};
@@ -103,6 +104,28 @@ describe("the router's voice echo in an open thread", () => {
     try {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$voice']);
       expect(transcripts(renderer)).toEqual(['🎤 Invented words']);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it.each([true, false])('folds a joined agent echo only when listed (%s)', async (listed) => {
+    if (listed) {
+      stateEventsByTypeMock.set('io.mindroom.accounts', [
+        makeEvent('$accounts', {
+          type: 'io.mindroom.accounts',
+          stateKey: ROUTER,
+          sender: ROUTER,
+          content: { accounts: [AGENT] },
+        }),
+      ] as never);
+    }
+    const renderer = await openThread(ROUTER, AGENT);
+    try {
+      expect(getRenderedEventIds(renderer)).toEqual(
+        listed ? [threadId, '$voice'] : [threadId, '$voice', '$echo']
+      );
+      expect(transcripts(renderer)).toEqual(listed ? ['🎤 Invented words'] : []);
     } finally {
       act(() => renderer.unmount());
     }
