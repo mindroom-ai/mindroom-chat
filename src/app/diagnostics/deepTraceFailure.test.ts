@@ -461,6 +461,39 @@ describe('deep diagnostic trace storage failure', () => {
     }
   });
 
+  it('leaves no unhandled rejection when the read at activation is aborted', async () => {
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const get = IDBObjectStore.prototype.get;
+      vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementationOnce(function abortRead(
+        this: IDBObjectStore,
+        ...args: Parameters<IDBObjectStore['get']>
+      ) {
+        const request = get.apply(this, args);
+        this.transaction.abort();
+        return request;
+      });
+
+      expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+      expect(trace.getDeepTraceRuntimeStatus()).toBe('memory-only');
+      // Node reports a rejection nothing handled after the turn that rejected it.
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      vi.restoreAllMocks();
+      await trace.setDeepTraceEnabled(false, storage);
+      dispose();
+    }
+  });
+
   it('writes a failed batch at once for an export that waited on it', async () => {
     const actual = await vi.importActual<typeof import('idb')>('idb');
     let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;

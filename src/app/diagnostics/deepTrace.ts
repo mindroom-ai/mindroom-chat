@@ -630,9 +630,9 @@ const getErrorCode = (value: unknown): number => {
 /**
  * What a failure did to the Matrix sync store's saved data. 'failed': a save failed, the data is
  * kept and the save is tried again (of the saves that fail in a row, only the first is recorded).
- * 'stopped': the saved sync could not be read or a sync batch not taken, the data is kept and
- * nothing more is saved. 'degraded': another write failed or the disk was full (code 12), the
- * data is deleted. `error_code` is `getErrorCode`'s.
+ * 'stopped': a sync batch could not be taken, the data is kept and nothing more is saved.
+ * 'degraded': the data is deleted, because the saved sync could not be read, a clear of a
+ * room's stored members failed, or the disk was full (code 12). `error_code` is `getErrorCode`'s.
  */
 export const recordSyncStoreFailure = (
   outcome: 'failed' | 'stopped' | 'degraded',
@@ -988,7 +988,9 @@ const markUnavailable = (target: Runtime): void => {
 
 const verifyDatabaseWritable = async (): Promise<void> => {
   const db = await getDatabase();
-  const current = (await db.get(META_STORE, STATS_KEY)) ?? EMPTY_STATS;
+  // Not `db.get`: it leaves `tx.done` unobserved, which an aborted read rejects.
+  const tx = db.transaction(META_STORE, 'readonly');
+  const [current = EMPTY_STATS] = await Promise.all([tx.store.get(STATS_KEY), tx.done]);
   await db.put(
     META_STORE,
     { ...current, droppedEventCount: current.droppedEventCount ?? 0 },
