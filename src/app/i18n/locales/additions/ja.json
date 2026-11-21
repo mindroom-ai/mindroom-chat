@@ -431,7 +431,8 @@
         "voiceKey": "音声メッセージ, マイク, 録音, プッシュトゥトーク, Control, Ctrl, Shift, スペース, キーボードショートカット",
         "emoji": "絵文字, ステッカー, パック, カスタム絵文字",
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
-        "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断"
+        "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
+        "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -1062,6 +1063,27 @@
       },
       "stopTask": "タスクを停止",
       "stopTaskFor": "タスクを停止：{{tool}}",
+      "stopStepFailed": "「{{step}}」を停止できませんでした。もう一度お試しください。",
+      "toolNames": {
+        "readFile": "ファイルを読む",
+        "writeFile": "ファイルに書き込む",
+        "editFile": "ファイルを編集",
+        "searchFiles": "ファイル内を検索",
+        "browseFiles": "ファイルを確認",
+        "runCommand": "コマンドを実行",
+        "openPage": "ウェブページを開く",
+        "searchWeb": "ウェブを検索",
+        "useBrowser": "ブラウザを使う",
+        "checkMemory": "メモリを確認",
+        "updateMemory": "メモリを更新",
+        "deleteMemory": "メモリを削除",
+        "useMessages": "Matrix メッセージを使う",
+        "schedule": "タスクをスケジュール",
+        "checkSchedule": "スケジュールを確認",
+        "updateSchedule": "スケジュールを更新",
+        "cancelSchedule": "予定したタスクを取り消し",
+        "use": "{{tool}} を使う"
+      },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
       "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
     },
@@ -1096,7 +1118,10 @@
       "toolCallsNote": "ツール呼び出し",
       "tokensSplit": "入力 {{input}} · 出力 {{output}}",
       "costNested": "+{{cost}} (ネスト)",
-      "costOwn": "この実行"
+      "costOwn": "この実行",
+      "showUsageDetails": "使用量の詳細を表示",
+      "showUsageDetailsDescription": "サブエージェントとバックグラウンドジョブに、ツール呼び出し、トークン、コストと、それぞれが今していることを表示します。",
+      "usage": "使用量"
     },
     "models": {
       "modelPicker": {

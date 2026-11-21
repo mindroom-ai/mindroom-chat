@@ -440,7 +440,8 @@
         "voiceKey": "spraakbericht, microfoon, opnemen, push-to-talk, Control, Ctrl, Shift, spatiebalk, sneltoets",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
-        "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken"
+        "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
+        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -1086,6 +1087,27 @@
       },
       "stopTask": "Taak stoppen",
       "stopTaskFor": "Taak stoppen: {{tool}}",
+      "stopStepFailed": "Kon “{{step}}” niet stoppen. Probeer het opnieuw.",
+      "toolNames": {
+        "readFile": "Een bestand lezen",
+        "writeFile": "Een bestand schrijven",
+        "editFile": "Een bestand bewerken",
+        "searchFiles": "Bestanden doorzoeken",
+        "browseFiles": "Bestanden bekijken",
+        "runCommand": "Een opdracht uitvoeren",
+        "openPage": "Een webpagina openen",
+        "searchWeb": "Op het web zoeken",
+        "useBrowser": "De browser gebruiken",
+        "checkMemory": "Het geheugen raadplegen",
+        "updateMemory": "Het geheugen bijwerken",
+        "deleteMemory": "Een herinnering verwijderen",
+        "useMessages": "Matrix-berichten gebruiken",
+        "schedule": "Een taak plannen",
+        "checkSchedule": "De planning bekijken",
+        "updateSchedule": "De planning bijwerken",
+        "cancelSchedule": "Een geplande taak annuleren",
+        "use": "{{tool}} gebruiken"
+      },
       "jobTotal_one": "{{count}} achtergrondtaak",
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
@@ -1127,7 +1149,10 @@
       "toolCallsNote": "toolaanroepen",
       "tokensSplit": "{{input}} in · {{output}} uit",
       "costNested": "+{{cost}} genest",
-      "costOwn": "deze run"
+      "costOwn": "deze run",
+      "showUsageDetails": "Gebruiksdetails tonen",
+      "showUsageDetailsDescription": "Toont toolaanroepen, tokens en kosten bij subagenten en achtergrondtaken, en wat elk nu doet.",
+      "usage": "Gebruik"
     },
     "models": {
       "modelPicker": {

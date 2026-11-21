@@ -19,6 +19,8 @@ import {
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { runTotals, usageTexts } from './runUsage';
@@ -173,10 +175,12 @@ export function SubagentsPanel({
     [mx, openMention, room.roomId, useAuthentication]
   );
   const title = t('mindroomUi.subagents.title');
-  // Under the title: how many are at it, then what every run of the conversation used.
+  // Under the title: how many are at it, then what every run of the conversation used, which only
+  // the usage details show.
   const language = useAppLanguageCode();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const totals = useMemo(() => runTotals(runs.map(({ meta }) => meta.usage)), [runs]);
-  const { calls, tokens, cost } = usageTexts(totals, t, language);
+  const { calls, tokens, cost } = usageTexts(details ? totals : {}, t, language);
   const subtitle = [
     active > 0 && t('mindroomUi.subagents.count', { count: active }),
     calls?.labelled,

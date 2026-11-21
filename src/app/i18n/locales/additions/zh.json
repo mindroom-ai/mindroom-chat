@@ -431,7 +431,8 @@
         "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Control, Ctrl, Shift, 空格键, 键盘快捷键",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
-        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
+        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
+        "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -1062,6 +1063,27 @@
       },
       "stopTask": "停止任务",
       "stopTaskFor": "停止任务：{{tool}}",
+      "stopStepFailed": "无法停止“{{step}}”，请重试。",
+      "toolNames": {
+        "readFile": "读取文件",
+        "writeFile": "写入文件",
+        "editFile": "编辑文件",
+        "searchFiles": "搜索文件",
+        "browseFiles": "浏览文件",
+        "runCommand": "运行命令",
+        "openPage": "打开网页",
+        "searchWeb": "搜索网页",
+        "useBrowser": "使用浏览器",
+        "checkMemory": "查看记忆",
+        "updateMemory": "更新记忆",
+        "deleteMemory": "删除记忆",
+        "useMessages": "使用 Matrix 消息",
+        "schedule": "安排任务",
+        "checkSchedule": "查看日程",
+        "updateSchedule": "更新日程",
+        "cancelSchedule": "取消计划任务",
+        "use": "使用 {{tool}}"
+      },
       "jobTotal_other": "{{count}} 个后台任务",
       "jobTotalFinished_other": "{{count}} 个后台任务已完成"
     },
@@ -1096,7 +1118,10 @@
       "toolCallsNote": "工具调用",
       "tokensSplit": "输入 {{input}} · 输出 {{output}}",
       "costNested": "+{{cost}} 嵌套",
-      "costOwn": "本次运行"
+      "costOwn": "本次运行",
+      "showUsageDetails": "显示用量详情",
+      "showUsageDetailsDescription": "在子智能体和后台任务上显示工具调用、令牌和费用，以及每个任务当前在做什么。",
+      "usage": "用量"
     },
     "models": {
       "modelPicker": {

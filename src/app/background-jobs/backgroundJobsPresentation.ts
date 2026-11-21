@@ -3,11 +3,13 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { runToolCall, type ToolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
+import { plainToolName } from './toolNames';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
   // The job's own name, for its row, its Stop button and errors.
   name: string;
+  plainName?: string;
   // Its row says it waits for approval.
   waiting: boolean;
   // Its cancel was sent from this client, or requested anywhere else.
@@ -71,12 +73,14 @@ export const FINISHED_JOB_STATUS = 'finished';
 
 const joinJob = (
   job: BackgroundJob,
-  { runs, toolCallFor }: BackgroundJobLookups
+  { runs, toolCallFor }: BackgroundJobLookups,
+  details: boolean
 ): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = runOfJob(runs, job);
     // A job the bar holds after it ended is done, though its run's last frame may not be in yet.
-    const activity = run && job.status !== FINISHED_JOB_STATUS ? runToolCall(run) : undefined;
+    const activity =
+      details && run && job.status !== FINISHED_JOB_STATUS ? runToolCall(run) : undefined;
     return {
       agent: run?.meta.agent ?? job.tool,
       ...(run ? { run } : {}),
@@ -126,7 +130,9 @@ export const presentBackgroundJobs = (
   t: TFunction,
   // The view's live jobs, listed or not; more than listed when the agents list only their newest.
   total = jobs.length,
-  lookups = NO_LOOKUPS
+  lookups = NO_LOOKUPS,
+  // Whether the reader shows the usage details (`showUsageDetails`), which name a tool job by its tool.
+  details = true
 ): BackgroundJobsBarModel | null => {
   const [first] = jobs;
   if (!first) return null;
@@ -138,9 +144,11 @@ export const presentBackgroundJobs = (
     if (finished) state = 'finished';
     else if (stopping) state = 'stopping';
     else if (awaitingApproval(job)) state = 'waiting';
+    const name = jobName(job, t);
     return {
       jobId: job.jobId,
-      name: jobName(job, t),
+      name,
+      ...(!details && job.kind !== 'subagent' ? { plainName: plainToolName(name, t) } : {}),
       waiting: !finished && awaitingApproval(job),
       stopping,
       finished,
@@ -149,7 +157,7 @@ export const presentBackgroundJobs = (
       threadId: job.threadId,
       startedAt: Date.parse(job.startedAt),
       depth: 0,
-      ...joinJob(job, lookups),
+      ...joinJob(job, lookups, details),
     };
   });
   const subagents = nest(
@@ -177,7 +185,7 @@ export const presentBackgroundJobs = (
     else title = t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
     return { title, heading: title, items, groups, summary };
   }
-  const tool = items[0]!.name;
+  const tool = items[0]!.plainName ?? items[0]!.name;
   const heading = finished
     ? t('mindroomUi.backgroundJobs.jobTotalFinished', { count: 1 })
     : t('mindroomUi.backgroundJobs.jobTotal', { count: 1 });

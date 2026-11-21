@@ -16,6 +16,8 @@ import {
 } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { useAgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { type RunLine, type ToolActivity, runLine } from './runActivity';
@@ -86,8 +88,7 @@ const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | 
 };
 
 /** The line a card shows for its run (`runLine`), with the texts it needs. */
-const useRunLine = (run: SubagentRun): { line: RunLine; failed: boolean } => {
-  const { t } = useTranslation();
+const runLineOf = (run: SubagentRun, t: TFunction): { line: RunLine; failed: boolean } => {
   const { meta, docs } = run;
   const reason = meta.result?.trim() ? previewText(meta.result, t) : undefined;
   return { line: runLine(run, runPreview(meta, docs, t), reason), failed: isFailedRun(meta) };
@@ -137,11 +138,17 @@ function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
 /**
  * A card's third line, labelled by what it shows: Now and the call it makes, Needs approval and
  * the call that waits, Result and the start of what it wrote, or how it ended and why. Without
- * any (older MindRoom) it is the text line it was, unlabelled.
+ * any (older MindRoom) it is the text line it was, unlabelled. Without the usage details
+ * (`showUsageDetails`) a run at work has none: its status says how it stands, and only how a run
+ * ended (its result, or why it failed or stopped) is shown.
  */
 function RunLineText({ run }: { run: SubagentRun }) {
   const { t } = useTranslation();
-  const { line, failed } = useRunLine(run);
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
+  // A run at work (running, waiting or paused) shows its call or what it wrote; without the usage
+  // details it has no line, so neither is read.
+  if (!details && isActiveSubagentStatus(run.meta.status)) return null;
+  const { line, failed } = runLineOf(run, t);
   if (line.kind === 'plain') {
     return (
       <Text
@@ -174,12 +181,17 @@ function RunLineText({ run }: { run: SubagentRun }) {
   );
 }
 
-/** A sub-agent's calls, tokens and cost over all its turns (`runTotals`), each left out while unknown, then its time. */
+/**
+ * A sub-agent's calls, tokens and cost over all its turns (`runTotals`), each left out while
+ * unknown, then its time; its time alone without the usage details.
+ */
 function RunStats({ node, now }: { node: SubagentNode; now: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const time = useRunTime(latestTurn(node).meta, now);
-  const texts = usageTexts(runTotals(node.turns.map(({ run }) => run.meta.usage)), t, language);
+  const totals = runTotals(details ? node.turns.map(({ run }) => run.meta.usage) : []);
+  const texts = usageTexts(totals, t, language);
   return (
     <Text as="span" size="T200" priority="300" className={css.Stats}>
       {(['calls', 'tokens', 'cost'] as const).map((key) => {
@@ -209,7 +221,8 @@ export const nodeTitle = (node: SubagentNode, agentName: string): string =>
 
 /**
  * A sub-agent another one started, inside its card: on an elbow from it, its logo, title, and its
- * time or that it waits for approval, then its labelled line.
+ * time, or that it waits for approval; how it stands beside its time when it is paused, or running
+ * without the usage details, which leave out its line. Then its labelled line.
  */
 function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: number }) {
   const run = latestTurn(node);
@@ -217,6 +230,10 @@ function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: n
   const agent = useAgentProfile(room, meta.agent);
   const time = useRunTime(meta, now);
   const first = node.turns[0].run.meta;
+  // A paused run's time stands still, so it says why beside it; without the usage details, which
+  // leave out its line, a running one says it runs.
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
+  const statusBeside = meta.status === 'paused' || (meta.status === 'running' && !details);
   return (
     <span className={css.NestedRun} data-subagent-nested={node.id}>
       <RunLogo
@@ -245,13 +262,12 @@ function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: n
         data-subagent-nested-time=""
       >
         {meta.status === 'awaiting_approval' && <RunStatus meta={meta} loud />}
-        {/* A paused run's time stands still, so it says why beside it. */}
-        {meta.status === 'paused' && (
+        {statusBeside && (
           <>
             <RunStatus meta={meta} /> {time}
           </>
         )}
-        {meta.status !== 'awaiting_approval' && meta.status !== 'paused' && time}
+        {meta.status !== 'awaiting_approval' && !statusBeside && time}
       </Text>
       <span className={css.NestedLine}>
         <RunLineText run={run} />
@@ -273,7 +289,8 @@ type CardProps = {
  * title its first turn's call named (else that turn's task) in bold, then the agent, the model its
  * newest turn ran on, how it stands and how many turns it took, then a line labelled by what it
  * shows (`RunLineText`). The sub-agents it started follow inside it, then what it used and its
- * time. Pressing it opens the sub-agent.
+ * time. Without the usage details (`showUsageDetails`) it shows nothing it used; its model stays.
+ * Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,

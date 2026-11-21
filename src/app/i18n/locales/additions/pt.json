@@ -449,7 +449,8 @@
         "voiceKey": "mensagem de voz, microfone, gravar, pressionar para falar, Control, Ctrl, Shift, Espaço, atalho de teclado",
         "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
-        "midTurn": "redirecionar, fila, automático, agente, resposta, interromper"
+        "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
+        "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -1110,6 +1111,27 @@
       },
       "stopTask": "Parar tarefa",
       "stopTaskFor": "Parar tarefa: {{tool}}",
+      "stopStepFailed": "Não foi possível parar “{{step}}”. Tente novamente.",
+      "toolNames": {
+        "readFile": "Ler um ficheiro",
+        "writeFile": "Escrever um ficheiro",
+        "editFile": "Editar um ficheiro",
+        "searchFiles": "Pesquisar ficheiros",
+        "browseFiles": "Percorrer ficheiros",
+        "runCommand": "Executar um comando",
+        "openPage": "Abrir uma página web",
+        "searchWeb": "Pesquisar na web",
+        "useBrowser": "Usar o navegador",
+        "checkMemory": "Consultar a memória",
+        "updateMemory": "Atualizar a memória",
+        "deleteMemory": "Eliminar uma memória",
+        "useMessages": "Usar mensagens do Matrix",
+        "schedule": "Agendar uma tarefa",
+        "checkSchedule": "Consultar o agendamento",
+        "updateSchedule": "Atualizar o agendamento",
+        "cancelSchedule": "Cancelar uma tarefa agendada",
+        "use": "Usar {{tool}}"
+      },
       "jobTotal_one": "{{count}} tarefa em segundo plano",
       "jobTotal_many": "{{count}} tarefas em segundo plano",
       "jobTotal_other": "{{count}} tarefas em segundo plano",
@@ -1158,7 +1180,10 @@
       "toolCallsNote": "chamadas de ferramentas",
       "tokensSplit": "{{input}} entrada · {{output}} saída",
       "costNested": "+{{cost}} aninhados",
-      "costOwn": "esta execução"
+      "costOwn": "esta execução",
+      "showUsageDetails": "Mostrar detalhes de utilização",
+      "showUsageDetailsDescription": "Mostra as chamadas de ferramentas, os tokens e o custo dos subagentes e das tarefas em segundo plano, e o que cada um faz agora.",
+      "usage": "Utilização"
     },
     "models": {
       "modelPicker": {

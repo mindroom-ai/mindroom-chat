@@ -560,6 +560,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'showUsageDetails',
+    page: 'chats',
+    group: 'settings.general.messages.sectionTitle',
+    labelKey: 'mindroomUi.subagents.showUsageDetails',
+    descriptionKey: 'mindroomUi.subagents.showUsageDetailsDescription',
+    keywordsKey: `${KEYWORDS}.usage`,
+    scope: 'account',
+  },
+  {
     id: 'mediaAutoLoad',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',

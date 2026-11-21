@@ -449,7 +449,8 @@
         "voiceKey": "mensaje de voz, micrófono, grabar, pulsar para hablar, Control, Ctrl, Mayús, Shift, Espacio, atajo de teclado",
         "emoji": "emoji, stickers, paquetes, emoji personalizados",
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
-        "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir"
+        "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
+        "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -1110,6 +1111,27 @@
       },
       "stopTask": "Detener tarea",
       "stopTaskFor": "Detener tarea: {{tool}}",
+      "stopStepFailed": "No se pudo detener «{{step}}». Inténtalo de nuevo.",
+      "toolNames": {
+        "readFile": "Leer un archivo",
+        "writeFile": "Escribir un archivo",
+        "editFile": "Editar un archivo",
+        "searchFiles": "Buscar en archivos",
+        "browseFiles": "Revisar archivos",
+        "runCommand": "Ejecutar un comando",
+        "openPage": "Abrir una página web",
+        "searchWeb": "Buscar en la web",
+        "useBrowser": "Usar el navegador",
+        "checkMemory": "Consultar la memoria",
+        "updateMemory": "Actualizar la memoria",
+        "deleteMemory": "Eliminar un recuerdo",
+        "useMessages": "Usar mensajes de Matrix",
+        "schedule": "Programar una tarea",
+        "checkSchedule": "Consultar la agenda",
+        "updateSchedule": "Actualizar la agenda",
+        "cancelSchedule": "Cancelar una tarea programada",
+        "use": "Usar {{tool}}"
+      },
       "jobTotal_one": "{{count}} tarea en segundo plano",
       "jobTotal_many": "{{count}} tareas en segundo plano",
       "jobTotal_other": "{{count}} tareas en segundo plano",
@@ -1158,7 +1180,10 @@
       "toolCallsNote": "llamadas a herramientas",
       "tokensSplit": "{{input}} entrada · {{output}} salida",
       "costNested": "+{{cost}} anidados",
-      "costOwn": "esta ejecución"
+      "costOwn": "esta ejecución",
+      "showUsageDetails": "Mostrar detalles de uso",
+      "showUsageDetailsDescription": "Muestra las llamadas a herramientas, los tokens y el coste en los subagentes y las tareas en segundo plano, y lo que hace cada uno ahora.",
+      "usage": "Uso"
     },
     "models": {
       "modelPicker": {

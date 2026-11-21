@@ -16,6 +16,8 @@ import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelative
 import { formatWorkDuration } from '../lib/time';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { RunLogo } from '../subagents/RunLogo';
 import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
@@ -197,6 +199,8 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
  * a tool job's headline is its tool already). Then its calls, tokens and cost, its time, and its
  * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
  * opens its run, from anywhere on the row.
+ * Without the usage details (`showUsageDetails`) it shows neither the line under the headline nor
+ * the numbers, and a tool job's headline is its tool in plain words.
  * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
  * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
@@ -211,6 +215,7 @@ export function BackgroundJobRow({
   folded,
 }: RowProps) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
   const modelLabel = meta?.model && getAiRunCompactModelLabel(meta.model);
@@ -219,13 +224,13 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = described || name;
+  const headline = item.subagent ? described || name : item.plainName ?? name;
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const detail = (described && meta) || tool || doing;
+  const detail = details && ((described && meta) || tool || doing);
   const headlineTitle = meta?.task || item.name;
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">
@@ -326,18 +331,19 @@ export function BackgroundJobRow({
           </span>
         )}
       </span>
-      {[calls, tokens, cost].map((cell, index) => (
-        <span
-          // The columns are fixed: calls, tokens, cost.
-          // eslint-disable-next-line react/no-array-index-key
-          key={index}
-          className={css.Stat}
-          title={cell?.title}
-          data-job-stat={['calls', 'tokens', 'cost'][index]}
-        >
-          {cell?.text}
-        </span>
-      ))}
+      {details &&
+        [calls, tokens, cost].map((cell, index) => (
+          <span
+            // The columns are fixed: calls, tokens, cost.
+            // eslint-disable-next-line react/no-array-index-key
+            key={index}
+            className={css.Stat}
+            title={cell?.title}
+            data-job-stat={['calls', 'tokens', 'cost'][index]}
+          >
+            {cell?.text}
+          </span>
+        ))}
       <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
       <span className={folded ? css.FoldedActions : css.Actions}>
         {folded && onOpen && <OpenButton name={headline} onOpen={onOpen} />}
