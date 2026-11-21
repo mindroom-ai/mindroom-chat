@@ -98,7 +98,7 @@ export type VoiceCaptureOptions = {
   journal?: VoiceCaptureJournal;
   /**
    * Takes audio that was not sent, instead of dropping it: of a recording the person discarded
-   * (`discarded`, for its Undo), of a recorder that stopped by itself, and of a session that was
+   * (`discarded`, to be deleted), of a recorder that stopped by itself, and of a session that was
    * reset or released while it held audio.
    */
   keep?: (recording: CapturedVoiceRecording, discarded: boolean) => void;

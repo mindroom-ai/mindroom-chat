@@ -751,7 +751,7 @@ describe('voice capture session with a journal', () => {
     expect(await result.recording.file.text()).toBe('onetwo');
   });
 
-  it('gives a discard all it recorded for its Undo when its composer goes before the recorder stopped', async () => {
+  it('gives a discard all it recorded, to be deleted, when its composer goes before the recorder stopped', async () => {
     const journal = newJournal();
     const keep = vi.fn();
     const session = capture({ journal, keep });
@@ -930,7 +930,7 @@ describe('voice capture session that keeps unsent audio', () => {
     expect(await recording.file.text()).toBe('so far');
   });
 
-  it('keeps a discarded recording for its Undo', async () => {
+  it('hands over a discarded recording, to be deleted from disk', async () => {
     const keep = vi.fn();
     const session = capture({ keep });
     await session.start();
