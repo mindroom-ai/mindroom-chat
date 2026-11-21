@@ -62,6 +62,16 @@ Sparkle (Mac app updater)
   Copyright 2015 Orson Peters) and SUSignatureVerifier.m (BSD-style,
   Copyright 2011 Mark Hamlin). License text: licenses/Sparkle-MIT.txt.
 
+LiveKit (Mac app calls)
+  LiveKit Swift SDK 2.19.0, Copyright 2023 LiveKit, Inc., Apache License 2.0
+  (https://github.com/livekit/client-sdk-swift), with the binaries it pins:
+  LiveKitWebRTC 150.7871.04 (https://github.com/livekit/webrtc-xcframework, a
+  build of WebRTC, BSD 3-Clause, Copyright The WebRTC project authors, with the
+  third-party parts its license file names) and LiveKitFFI 0.13.1
+  (https://github.com/livekit/rust-sdks, Apache License 2.0, and the Rust
+  crates it links). The Mac apps link them unmodified through Swift Package
+  Manager. License texts: licenses/LiveKit-notices.txt.
+
 noVNC
   @novnc/novnc 1.7.0, Copyright (C) The noVNC authors, Mozilla Public License
   2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.
