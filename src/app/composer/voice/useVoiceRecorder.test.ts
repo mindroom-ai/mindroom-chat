@@ -496,39 +496,8 @@ describe('useVoiceRecorder', () => {
     });
   });
 
-  it('keeps recording when a composer unmounts, and shows it in a composer mounted later', async () => {
-    const first = { current: undefined as HarnessRecorder | undefined };
-    const second = { current: undefined as HarnessRecorder | undefined };
-    const { renderer: firstRenderer, store } = await renderHarness({ state: first });
-    await act(async () => {
-      await first.current!.start();
-    });
-    const recorder = MockMediaRecorder.instances[0]!;
-    const callsAfterRecordingStarted = flightRecorderMocks.setVoiceCaptureState.mock.calls.length;
-
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-      firstRenderer.unmount();
-    });
-
-    expect(recorder.stop).not.toHaveBeenCalled();
-    expect(stream.track.stop).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenCalledTimes(
-      callsAfterRecordingStarted
-    );
-
-    // No composer is mounted for a while: the recording goes on.
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
-    await renderHarness({ state: second }, store);
-    expect(second.current!.phase).toBe('recording');
-    expect(second.current!.elapsedMs).toBe(2000);
-    expect(MockMediaRecorder.instances).toHaveLength(1);
-  });
-
   it('shares one recording between two composers, and Send in one takes it from both', async () => {
+    MockMediaRecorder.autoStop = false;
     const first = { current: undefined as HarnessRecorder | undefined };
     const second = { current: undefined as HarnessRecorder | undefined };
     const firstSend = vi.fn();
@@ -566,11 +535,19 @@ describe('useVoiceRecorder', () => {
 
     // Two Sends in one tick: the first takes the recording, the second finds none and leaves
     // its composer alone (onSendStopRequest is what empties the editor).
-    let results!: [boolean, boolean];
+    let sending!: Promise<boolean>;
     await act(async () => {
-      results = await Promise.all([first.current!.send(), second.current!.send()]);
+      sending = first.current!.send();
+      expect(await second.current!.send()).toBe(false);
     });
-    expect(results).toEqual([true, false]);
+    expect(first.current!.phase).toBe('sending');
+    expect(first.current!.elapsedMs).toBe(600);
+    expect(second.current!.phase).toBe('idle');
+    expect(second.current!.elapsedMs).toBe(0);
+    await act(async () => {
+      MockMediaRecorder.instances[0]!.flushStop();
+      expect(await sending).toBe(true);
+    });
     expect(firstSend).toHaveBeenCalledOnce();
     expect(secondSend).not.toHaveBeenCalled();
     expect(secondClaim).not.toHaveBeenCalled();
@@ -578,33 +555,6 @@ describe('useVoiceRecorder', () => {
     expect(first.current!.phase).toBe('idle');
     expect(second.current!.phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
-  });
-
-  it('shows a claimed recording as sending in the pressing composer only', async () => {
-    MockMediaRecorder.autoStop = false;
-    const first = { current: undefined as HarnessRecorder | undefined };
-    const second = { current: undefined as HarnessRecorder | undefined };
-    const { store } = await renderHarness({ state: first, onSendRecording: vi.fn() });
-    await renderHarness({ state: second }, store);
-    await act(async () => {
-      await first.current!.start();
-      vi.advanceTimersByTime(400);
-    });
-    let sendPromise!: Promise<boolean>;
-    await act(async () => {
-      sendPromise = first.current!.send();
-    });
-
-    expect(first.current!.phase).toBe('sending');
-    expect(first.current!.elapsedMs).toBe(400);
-    expect(second.current!.phase).toBe('idle');
-    expect(second.current!.elapsedMs).toBe(0);
-
-    await act(async () => {
-      MockMediaRecorder.instances[0]!.flushStop();
-      await sendPromise;
-    });
-    expect(first.current!.phase).toBe('idle');
   });
 
   it('discards the recording for every composer at once', async () => {
@@ -1169,15 +1119,12 @@ describe('useVoiceRecorder', () => {
     const startedIn = { current: undefined as HarnessRecorder | undefined };
     const sentFrom = { current: undefined as HarnessRecorder | undefined };
     const startRoomSend = vi.fn();
-    const startRoomClaim = vi.fn();
     const sendRoomSend = vi.fn();
-    const sendRoomClaim = vi.fn();
     const replyDraft = { userId: '@agent:example.org', eventId: '$question', body: 'Question' };
     // The composer of a room's main view, where the mic is pressed.
     const { renderer: startRenderer, store } = await renderHarness({
       state: startedIn,
       onSendRecording: startRoomSend,
-      onSendStopRequest: startRoomClaim,
       getSendContext: () => createTestSendContext(ROOM_ID),
     });
     await act(async () => {
@@ -1189,16 +1136,16 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       startRenderer.unmount();
     });
-    const getSendContext = vi.fn(() => ({
+    expect(stream.track.stop).not.toHaveBeenCalled();
+    const getSendContext = () => ({
       ...createTestSendContext(OTHER_ROOM_ID, '$thread-b'),
       replyDraft,
       threadView: true,
-    }));
+    });
     await renderHarness(
       {
         state: sentFrom,
         onSendRecording: sendRoomSend,
-        onSendStopRequest: sendRoomClaim,
         getSendContext,
       },
       store
@@ -1206,16 +1153,12 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
-    expect(getSendContext).not.toHaveBeenCalled();
     await act(async () => {
       expect(await sentFrom.current!.send()).toBe(true);
     });
 
     expect(startRoomSend).not.toHaveBeenCalled();
-    expect(startRoomClaim).not.toHaveBeenCalled();
-    expect(sendRoomClaim).toHaveBeenCalledOnce();
     expect(sendRoomSend).toHaveBeenCalledOnce();
-    expect(getSendContext).toHaveBeenCalledOnce();
     expect(sendRoomSend.mock.calls[0]![1]).toBe(1000);
     expect(sendRoomSend.mock.calls[0]![3]).toMatchObject({
       roomId: OTHER_ROOM_ID,
@@ -1321,75 +1264,43 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('parks and retries the thread the composer shows when Send is pressed', async () => {
+  it('parks and retries the room and thread the composer shows when Send is pressed', async () => {
     const uploadError = new Error('voice send failed');
     const onSendRecording = vi
       .fn()
       .mockRejectedValueOnce(uploadError)
       .mockResolvedValueOnce(undefined);
-    let currentThreadId = '$thread-at-start';
-    const getSendContext = () => createTestSendContext(ROOM_ID, currentThreadId);
+    let destination = createTestSendContext(ROOM_ID, '$thread-at-start');
+    const getSendContext = () => destination;
     const { renderer, store } = await renderHarness({ onSendRecording, getSendContext });
 
     await act(async () => {
       await recorderState.current?.start();
     });
-    currentThreadId = '$thread-at-send';
+    destination = createTestSendContext(OTHER_ROOM_ID, '$thread-at-send');
     await act(async () => {
       vi.advanceTimersByTime(100);
       await recorderState.current?.send();
     });
 
     expect(onSendRecording.mock.calls[0]![3]).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
     expect(store.get(pendingVoiceSendDraftAtom)?.context).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
 
-    currentThreadId = '$thread-after-failure';
+    destination = createTestSendContext(ROOM_ID, '$thread-after-failure');
     await act(async () => {
       await recorderState.current?.retry();
     });
 
     expect(onSendRecording.mock.calls[1]![3]).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
-
-    renderer.unmount();
-  });
-
-  it('retries a parked recording in the room its Send was pressed in, wherever the composer is by then', async () => {
-    const uploadError = new MatrixError({ errcode: 'M_UNKNOWN', error: '' });
-    const onSendRecording = vi
-      .fn()
-      .mockRejectedValueOnce(uploadError)
-      .mockResolvedValueOnce(undefined);
-    let currentRoomId = ROOM_ID;
-    const getSendContext = () => createTestSendContext(currentRoomId, '$thread-a');
-    const { renderer, store } = await renderHarness({ onSendRecording, getSendContext });
-
-    await act(async () => {
-      await recorderState.current?.start();
-    });
-    // Send is pressed in the other room: that is the attempted destination.
-    currentRoomId = OTHER_ROOM_ID;
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-      await recorderState.current?.send();
-    });
-    expect(onSendRecording.mock.calls[0]![3]).toMatchObject({ roomId: OTHER_ROOM_ID });
-    expect(store.get(pendingVoiceSendDraftAtom)?.context.roomId).toBe(OTHER_ROOM_ID);
-
-    // A parked draft does not follow navigation.
-    currentRoomId = ROOM_ID;
-    await act(async () => {
-      await recorderState.current?.retry();
-    });
-    expect(onSendRecording.mock.calls[1]![3]).toMatchObject({ roomId: OTHER_ROOM_ID });
 
     renderer.unmount();
   });

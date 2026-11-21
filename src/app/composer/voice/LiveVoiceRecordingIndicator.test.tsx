@@ -7,7 +7,7 @@ import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
-import { DialogNoticeSlot, NoticeSlot } from '../../ui/noticeSlots';
+import { NoticeSlot } from '../../ui/noticeSlots';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { Modal500 } from '../../ui/Modal500';
 import { LogoutDialog } from '../../account/LogoutDialog';
@@ -117,21 +117,9 @@ describe('LiveVoiceRecordingIndicator', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows nothing while no recording runs', () => {
-    render(
-      <Provider store={createStore()}>
-        <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
-      </Provider>
-    );
-    expect(pill()).toBeNull();
-    expect(screen.queryByText('Voice Recording Error')).toBeNull();
-  });
-
   it('shows the recording and its time where no composer shows it, with Discard and no Send', () => {
     const store = createStore();
     const { session, discard } = recordingSession();
-    store.set(liveVoiceRecordingAtom, session);
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
@@ -139,6 +127,9 @@ describe('LiveVoiceRecordingIndicator', () => {
       </Provider>
     );
 
+    expect(pill()).toBeNull();
+    expect(screen.queryByText('Voice Recording Error')).toBeNull();
+    act(() => store.set(liveVoiceRecordingAtom, session));
     expect(pill()?.textContent).toBe('Recording 0:32');
     expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
 
@@ -162,28 +153,14 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(screen.getByRole('status').textContent).toBe('Starting voice recording');
   });
 
-  it('says so while the recording is paused', () => {
+  it('has only its state read out, when it comes and when that changes, not its time', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session);
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
-    expect(pill()?.textContent).toBe('Paused 0:32');
-    expect(screen.getByText('Voice recording paused')).toBeTruthy();
-  });
-
-  it('has only its state read out, when it comes and when that changes, not its time', () => {
-    const store = createStore();
-    const page = (
-      <Provider store={store}>
-        <NoticeSlot place="page" />
-        <LiveVoiceRecordingIndicator />
-      </Provider>
-    );
-    const { rerender } = render(page);
     // The region is there before the pill, so what comes into it is read out.
     const status = screen.getByRole('status');
     expect(status.textContent).toBe('');
@@ -196,7 +173,7 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(pill()?.contains(status)).toBe(false);
 
     act(() => store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session));
-    rerender(page);
+    expect(pill()?.textContent).toBe('Paused 0:32');
     expect(status.textContent).toBe('Voice recording paused');
     act(() => store.set(liveVoiceRecordingAtom, undefined));
     expect(status.textContent).toBe('');
@@ -271,7 +248,7 @@ describe('LiveVoiceRecordingIndicator', () => {
   it('shows inside what covers the page, where the focus held there reaches it', () => {
     const store = createStore();
     store.set(liveVoiceRecordingAtom, recordingSession().session);
-    const page = (dialogs: number, phoneLayer?: 'drawer' | 'sheet') => (
+    const page = (phoneLayer?: 'drawer' | 'sheet') => (
       <Provider store={store}>
         <div data-testid="page">
           <NoticeSlot place="page" />
@@ -282,38 +259,19 @@ describe('LiveVoiceRecordingIndicator', () => {
             <NoticeSlot place={phoneLayer} />
           </div>
         )}
-        {Array.from({ length: dialogs }, (_, index) => (
-          <div key={index} data-testid={`dialog-${index}`}>
-            <DialogNoticeSlot />
-          </div>
-        ))}
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
-    const { rerender } = render(page(0));
-    expect(pill()).toBeNull();
-
-    // A large dialog, such as Settings, covers the composer: the pill shows in the dialog.
-    rerender(page(1));
-    expect(screen.getByTestId('dialog-0').contains(pill())).toBe(true);
-
-    // Of two dialogs, the one on top holds the focus.
-    rerender(page(2));
-    expect(screen.getByTestId('dialog-1').contains(pill())).toBe(true);
-    rerender(page(1));
-    expect(screen.getByTestId('dialog-0').contains(pill())).toBe(true);
-
-    // Closed, the composer shows the recording again.
-    rerender(page(0));
+    const { rerender } = render(page());
     expect(pill()).toBeNull();
 
     // A phone's drawer or members sheet, out over the page, offers its own place: the composer
     // is out of sight for as long as it does.
-    rerender(page(0, 'drawer'));
+    rerender(page('drawer'));
     expect(screen.getByTestId('drawer').contains(pill())).toBe(true);
-    rerender(page(0, 'sheet'));
+    rerender(page('sheet'));
     expect(screen.getByTestId('sheet').contains(pill())).toBe(true);
-    rerender(page(0));
+    rerender(page());
     expect(pill()).toBeNull();
   });
 

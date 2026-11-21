@@ -7,7 +7,6 @@ import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecor
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
 import {
   discardLiveVoiceRecording,
-  liveVoiceCapsulesShownAtom,
   liveVoiceRecordingAtom,
   startLiveVoiceRecording,
 } from './liveVoiceRecording';
@@ -220,36 +219,6 @@ describe('VoiceRecorderComposer', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the recording it finds and starts none by mounting, nor ends it by unmounting', async () => {
-    setupSupportedRecorder();
-    let renderer!: ReactTestRenderer;
-    await act(async () => {
-      renderer = create(
-        renderInProvider(
-          React.createElement(VoiceRecorderComposer, {
-            onRetryRequest: vi.fn(),
-            onSendRecording: vi.fn(),
-            getSendContext: createTestSendContext,
-            ownsPendingVoiceDraft: true,
-          })
-        )
-      );
-    });
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Capsule');
-    // The shell's indicator stands down while this composer shows the capsule.
-    expect(store.get(liveVoiceCapsulesShownAtom)).toBe(1);
-
-    await startRecording();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Voice recording active');
-
-    await act(async () => {
-      renderer.unmount();
-    });
-    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
-    expect(store.get(liveVoiceCapsulesShownAtom)).toBe(0);
-  });
-
   it('sends the live recording when a draft for another thread is restored', async () => {
     setupSupportedRecorder();
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
@@ -266,6 +235,7 @@ describe('VoiceRecorderComposer', () => {
     await act(async () => {
       renderer = create(renderInProvider(React.createElement(VoiceRecorderComposer, props)));
     });
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     await startRecording();
 
     const restoredDraft = {

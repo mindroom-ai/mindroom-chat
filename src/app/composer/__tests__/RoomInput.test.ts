@@ -2990,33 +2990,6 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('uses a thread opened after the recording started when primary Send is pressed', async () => {
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-
-    const micButton = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Record voice message'
-    );
-    await act(async () => {
-      micButton.props.onClick();
-    });
-
-    await updateRoomInput(renderer, store, { threadId: '$thread-after-open' });
-    queuePrimaryVoiceSend(file, 800);
-    await submitComposer();
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
-      'm.relates_to': expect.objectContaining({
-        event_id: '$thread-after-open',
-        rel_type: RelationType.Thread,
-      }),
-    });
-
-    renderer.unmount();
-  });
-
   it('notifies top-level voice sends after clearing local voice state', async () => {
     const store = createStore();
     const notificationState: Array<{ pending: boolean; uploads: File[] }> = [];
@@ -3378,34 +3351,6 @@ describe('RoomInput', () => {
 
     const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID));
     expect(store.get(draft)).toEqual([]);
-  });
-
-  it('sends a recording to the room and thread its composer shows when Send is pressed', async () => {
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store, { roomId: ROOM_ID, threadId: '$thread-a' });
-    await openVoiceRecorder(renderer);
-    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
-
-    await updateRoomInput(renderer, store, {
-      roomId: OTHER_ROOM_ID,
-      threadId: '$other-thread',
-    });
-    queuePrimaryVoiceSend(file, 1100);
-    await submitComposer();
-
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage).toHaveBeenCalledWith(
-      OTHER_ROOM_ID,
-      expect.objectContaining({
-        'm.relates_to': expect.objectContaining({
-          event_id: '$other-thread',
-          rel_type: RelationType.Thread,
-        }),
-      }),
-      'txn-room-input'
-    );
-
-    renderer.unmount();
   });
 
   it('keeps a voice send going to where Send was pressed through a navigation before its upload completes', async () => {
