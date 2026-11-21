@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { hasOpenOverlay } from '../lib/openOverlay';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
@@ -726,7 +727,9 @@ const startGlobalCapture = (target: Runtime): void => {
     const surface =
       action.kind === 'surface' && event.target instanceof Element ? event.target : undefined;
     const conversation = surface && liveElement('[data-conversation-behind-panel]');
+    // Own-frame plugin panels have no shared DOM wrapper to sample.
     const panel = surface && liveElement('[data-testid="resizable-plugin-panel"]');
+    const appRoot = surface && document.getElementById('root');
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
       ...slideDetails,
       ...(surface
@@ -736,11 +739,14 @@ const startGlobalCapture = (target: Runtime): void => {
               surface.closest(SURFACE_HIT_TEST_SELECTOR)?.getAttribute('data-testid') ?? null,
             ...(slide === '' ? { phone_slide_waiting: true } : undefined),
             blocking_portal: hasBlockingPortalOverlay(),
+            open_overlay: hasOpenOverlay(),
+            hit_outside_app_root: appRoot ? !appRoot.contains(surface) : null,
             plugin_panel_open: !!liveElement('[data-plugin-panel-open]'),
             plugin_panel_inert: panel ? !!panel.closest('[inert]') : null,
             conversation_inert: conversation ? !!conversation.closest('[inert]') : null,
-            conversation_behind_panel:
-              conversation?.getAttribute('data-conversation-behind-panel') === 'true',
+            conversation_behind_panel: conversation
+              ? conversation.getAttribute('data-conversation-behind-panel') === 'true'
+              : null,
           }
         : undefined),
       primary: event.isPrimary,

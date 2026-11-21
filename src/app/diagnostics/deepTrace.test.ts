@@ -451,6 +451,39 @@ describe('opt-in deep diagnostic trace', () => {
     }
   });
 
+  it('distinguishes a body-portaled menu backdrop from an app surface', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const root = document.createElement('div');
+    root.id = 'root';
+    const layer = document.createElement('div');
+    const backdrop = layer.appendChild(document.createElement('div'));
+    const menu = layer.appendChild(document.createElement('div'));
+    menu.setAttribute('role', 'menu');
+    document.body.append(root, layer);
+    try {
+      backdrop.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      layer.remove();
+      root.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      const { events } = await readDeepTraceSnapshot();
+      expect(events.filter(({ name }) => name === 'interaction.pointer.surface.app')).toMatchObject(
+        [
+          { data: { blocking_portal: false, open_overlay: true, hit_outside_app_root: true } },
+          {
+            data: {
+              blocking_portal: false,
+              open_overlay: false,
+              hit_outside_app_root: false,
+              conversation_behind_panel: null,
+            },
+          },
+        ]
+      );
+    } finally {
+      layer.remove();
+      root.remove();
+    }
+  });
+
   it('captures range-control interactions through the categorical allowlist', async () => {
     await setDeepTraceEnabled(true, storage);
     const range = document.createElement('input');

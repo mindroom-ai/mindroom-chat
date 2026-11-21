@@ -231,9 +231,13 @@ export const slidePhonePage = (change: Change): void => {
     delete root.dataset.pageSlideHeld;
     finish();
     if (trace) {
-      recordDeepTraceEvent(`navigation.phone_slide.${trace.direction}.end`, {
-        duration_ms: Math.round(performance.now() - trace.startedAt),
-      });
+      try {
+        recordDeepTraceEvent(`navigation.phone_slide.${trace.direction}.end`, {
+          duration_ms: Math.round(performance.now() - trace.startedAt),
+        });
+      } catch {
+        // A diagnostics failure must not escape slide cleanup.
+      }
     }
   };
   const run = (sliding: boolean) => {
