@@ -82,25 +82,25 @@ const stopClientRuntime = (mx: MatrixClient): void => {
   mx.stopClient();
 };
 
-const clearSessionScopedUiState = (
+const clearSessionScopedUiState = async (
   session: Pick<SessionCleanupContext, 'sessionId' | 'baseUrl' | 'userId'>,
   clearUserScopedState = true
-): void => {
+): Promise<void> => {
   const { sessionId, baseUrl, userId } = session;
   removeCachedSpecVersions(baseUrl, userId);
   forgetCloudflareAccessToken(baseUrl);
-  if (clearUserScopedState) {
-    try {
-      clearNavToActivePathStore(userId);
-      clearUserUiState(userId);
-    } catch {
-      // Local UI cleanup is best effort and must not retain account credentials.
-    }
-  }
   try {
     clearSessionUiState(sessionId);
   } catch {
     // Continue with Matrix stores and credential removal.
+  }
+  if (clearUserScopedState) {
+    try {
+      clearNavToActivePathStore(userId);
+      await clearUserUiState(userId);
+    } catch {
+      // Local UI cleanup is best effort and must not retain account credentials.
+    }
   }
 };
 
@@ -137,7 +137,7 @@ const deleteSessionLocalData = async (
   mx?: MatrixClient,
   clearUserScopedState = true
 ): Promise<void> => {
-  clearSessionScopedUiState(session, clearUserScopedState);
+  const clearUi = clearSessionScopedUiState(session, clearUserScopedState);
 
   const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
   const rustCryptoStoreNames = mx ? [] : await getAllSessionRustCryptoDbNames(session);
@@ -146,6 +146,7 @@ const deleteSessionLocalData = async (
   // must not prevent crypto, sync, native, and credential cleanup from
   // running; reloading will also release this tab's remaining DB handles.
   await Promise.allSettled([
+    clearUi,
     mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
@@ -241,7 +242,7 @@ export const removeCurrentClientSessionAndReload = async (
     clearSessionScopedNativeState(identity.sessionId);
     await clearFetchedAvatars(identity.userId);
   }
-  clearSessionScopedUiState(identity, clearUserScopedState);
+  await clearSessionScopedUiState(identity, clearUserScopedState);
   reloadAppAt(nextHref);
 };
 

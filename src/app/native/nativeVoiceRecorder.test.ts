@@ -1,10 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  importNativeVoiceRecordings,
-  isNativeVoiceRecorderAvailable,
-  startNativeVoiceRecorder,
-} from './nativeVoiceRecorder';
+import { isNativeVoiceRecorderAvailable, startNativeVoiceRecorder } from './nativeVoiceRecorder';
 
 const plugin = vi.hoisted(() => ({
   start: vi.fn(),
@@ -12,7 +8,6 @@ const plugin = vi.hoisted(() => ({
   resume: vi.fn(),
   stop: vi.fn(),
   cancel: vi.fn(),
-  takeLeftover: vi.fn(),
   level: vi.fn(),
 }));
 vi.mock('@capacitor/core', () => ({
@@ -25,6 +20,7 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: vi.fn(() => plugin),
 }));
 
+const USER = '@voice:example.org';
 const PATH = '/tmp/voice-recorder/a.m4a';
 const stubFetch = (response: Partial<Response> | Promise<Response>) => {
   const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
@@ -88,13 +84,15 @@ describe('native voice recorder', () => {
     ['START_FAILED', 'NotReadableError'],
   ])('names a %s start failure %s', async (code, name) => {
     plugin.start.mockRejectedValue({ code, message: 'native' });
-    await expect(startNativeVoiceRecorder()).rejects.toMatchObject({ name });
+    await expect(startNativeVoiceRecorder(USER)).rejects.toMatchObject({ name });
   });
 
   it('records on the start after a failed one', async () => {
     plugin.start.mockRejectedValueOnce({ code: 'START_FAILED' });
-    await expect(startNativeVoiceRecorder()).rejects.toMatchObject({ name: 'NotReadableError' });
-    const recorder = await startNativeVoiceRecorder();
+    await expect(startNativeVoiceRecorder(USER)).rejects.toMatchObject({
+      name: 'NotReadableError',
+    });
+    const recorder = await startNativeVoiceRecorder(USER);
     expect(recorder.state).toBe('recording');
   });
 
@@ -105,8 +103,8 @@ describe('native voice recorder', () => {
       asked.push([options.nonce, page.mindroomVoiceStart]);
       return { id: 'a' };
     });
-    await startNativeVoiceRecorder();
-    await startNativeVoiceRecorder();
+    await startNativeVoiceRecorder(USER);
+    await startNativeVoiceRecorder(USER);
     const [[older, olderOnPage], [newer, newerOnPage]] = asked as [
       [string, string],
       [string, string]
@@ -115,10 +113,11 @@ describe('native voice recorder', () => {
     expect(older).not.toBe(newer);
     expect(newer).toMatch(/^[0-9a-f-]{36}$/);
     expect(page.mindroomVoiceStart).toBe(newer);
+    expect(plugin.start).toHaveBeenLastCalledWith({ nonce: newer, userId: USER });
   });
 
   it('starts recording audio/mp4 and reads the newest level', async () => {
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     expect([recorder.state, recorder.mimeType, recorder.level()]).toEqual([
       'recording',
       'audio/mp4',
@@ -129,7 +128,7 @@ describe('native voice recorder', () => {
   });
 
   it('asks for no level while paused, and keeps the newest when the native level fails', async () => {
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     recorder.pause();
     expect(recorder.level()).toBe(0);
     expect(plugin.level).not.toHaveBeenCalled();
@@ -142,7 +141,7 @@ describe('native voice recorder', () => {
   });
 
   it('pauses and resumes at once', async () => {
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     recorder.pause();
     expect(recorder.state).toBe('paused');
     expect(plugin.pause).toHaveBeenCalledWith({ id: 'a' });
@@ -155,7 +154,7 @@ describe('native voice recorder', () => {
     'ends the recording when a native %s fails',
     async (method) => {
       plugin[method].mockRejectedValue({ code: 'NOT_RECORDING' });
-      const recorder = await startNativeVoiceRecorder();
+      const recorder = await startNativeVoiceRecorder(USER);
       const { seen } = watch(recorder);
       recorder[method]();
       await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
@@ -169,25 +168,31 @@ describe('native voice recorder', () => {
     stubFetch(audio());
     const pausing = deferred<void>();
     plugin.pause.mockReturnValue(pausing.promise);
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     const { seen } = watch(recorder);
     recorder.pause();
     recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop']));
     pausing.reject({ code: 'NOT_RECORDING' });
     await vi.waitFor(() => expect(plugin.pause).toHaveBeenCalledOnce());
     await Promise.resolve();
     expect(seen).toHaveLength(2);
-    expect(plugin.cancel).toHaveBeenCalledOnce();
+    expect(plugin.cancel).not.toHaveBeenCalled();
   });
 
-  it('delivers the recording, deletes it, then reports the stop', async () => {
+  it('deletes a normal stopped recording only after its copy commits', async () => {
     const fetchMock = stubFetch(audio());
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     const { seen, chunks } = watch(recorder);
-    recorder.stop();
+    const commit = deferred<boolean>();
+    const persist = vi.fn(() => commit.promise);
+    recorder.stop(persist);
     expect(recorder.state).toBe('inactive');
-    recorder.stop();
+    recorder.stop(persist);
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledOnce());
+    expect(plugin.cancel).not.toHaveBeenCalled();
+    expect(seen).toEqual([]);
+    commit.resolve(true);
     await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
     expect(plugin.stop.mock.calls).toEqual([[{ id: 'a' }]]);
     expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
@@ -197,46 +202,31 @@ describe('native voice recorder', () => {
     expect(await chunks[0]!.text()).toBe('voice');
   });
 
-  it('takes leftover audio through the same local file URL without stopping a recording', async () => {
-    const fetchMock = stubFetch({ ...audio(), ok: false, status: 0 });
-    plugin.takeLeftover.mockResolvedValue({
-      recordings: [{ id: 'a', path: PATH, startedAt: 1_700_000_000_000, duration: 2_400 }],
-    });
-    const persist = vi.fn(async (_recording: { id: string; data: Blob }) => true);
-    await importNativeVoiceRecordings(persist);
-
-    expect(plugin.takeLeftover).toHaveBeenCalledExactlyOnceWith();
-    expect(plugin.stop).not.toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-      `capacitor://localhost/_capacitor_file_${PATH}`,
-      { signal: expect.any(AbortSignal) }
-    );
-    expect(persist).toHaveBeenCalledExactlyOnceWith({
-      id: 'a',
-      startedAt: 1_700_000_000_000,
-      duration: 2_400,
-      data: expect.any(Blob),
-    });
-    expect(await persist.mock.calls[0]?.[0].data.text()).toBe('voice');
-    expect(plugin.cancel).toHaveBeenCalledExactlyOnceWith({ id: 'a' });
+  it('does not deliver a stopped copy if cancel fails', async () => {
+    stubFetch(audio());
+    plugin.cancel.mockRejectedValueOnce(new Error('File is busy'));
+    const recorder = await startNativeVoiceRecorder(USER);
+    const { seen } = watch(recorder);
+    recorder.stop(async () => true);
+    await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
   });
 
   it('delivers a local file that WebKit answers with status 0', async () => {
     stubFetch({ ...audio(), ok: false, status: 0 });
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     const { seen, chunks } = watch(recorder);
     recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop']));
     expect(await chunks[0]!.text()).toBe('voice');
   });
 
   it('leaves the next recording alone when a slow stop settles late', async () => {
     const reading = deferred<Response>();
     stubFetch(reading.promise);
-    const first = await startNativeVoiceRecorder();
-    first.stop();
+    const first = await startNativeVoiceRecorder(USER);
+    first.stop(async () => true);
     plugin.start.mockResolvedValue({ id: 'b' });
-    const second = await startNativeVoiceRecorder();
+    const second = await startNativeVoiceRecorder(USER);
     reading.resolve(audio() as Response);
     await vi.waitFor(() => expect(plugin.cancel).toHaveBeenCalledOnce());
     expect(plugin.stop.mock.calls).toEqual([[{ id: 'a' }]]);
@@ -262,10 +252,10 @@ describe('native voice recorder', () => {
   ])('reports a stop without audio when %s', async (_name, fail) => {
     stubFetch(audio());
     fail();
-    const recorder = await startNativeVoiceRecorder();
+    const recorder = await startNativeVoiceRecorder(USER);
     const { seen } = watch(recorder);
-    recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
-    expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
+    recorder.stop(async () => true);
+    await vi.waitFor(() => expect(seen).toEqual(['stop']));
+    expect(plugin.cancel).not.toHaveBeenCalled();
   });
 });

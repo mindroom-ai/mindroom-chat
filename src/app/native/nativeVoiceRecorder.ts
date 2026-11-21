@@ -2,18 +2,25 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { randomUuid } from '../lib/randomUuid';
 
 /** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
- *  start({ nonce }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
+ *  start({ nonce, userId }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
  *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections
- *  carry `code`. takeLeftover lists finished files, with timestamps and durations in ms. */
-type NativeVoiceLeftover = { id: string; path: string; startedAt: number; duration: number };
+ *  carry `code`. listLeftovers lists finished files, with timestamps and durations in ms. */
+type NativeVoiceLeftover = {
+  id: string;
+  path: string;
+  startedAt: number;
+  duration: number;
+  userId: string;
+};
 type MindRoomVoiceRecorderPlugin = {
-  start(options: { nonce: string }): Promise<{ id: string }>;
+  start(options: { nonce: string; userId: string }): Promise<{ id: string }>;
   level(options: { id: string }): Promise<{ level: number }>;
   pause(options: { id: string }): Promise<void>;
   resume(options: { id: string }): Promise<void>;
   stop(options: { id: string }): Promise<{ path: string }>;
   cancel(options: { id: string }): Promise<void>;
-  takeLeftover(): Promise<{ recordings: NativeVoiceLeftover[] }>;
+  clear(options: { userId: string }): Promise<void>;
+  listLeftovers(): Promise<{ recordings: NativeVoiceLeftover[] }>;
 };
 
 const START_ERROR_NAMES: Record<string, string> = {
@@ -35,7 +42,17 @@ export const isNativeVoiceRecorderAvailable = (): boolean =>
   Capacitor.getPlatform() === 'ios' &&
   Capacitor.isPluginAvailable('MindRoomVoiceRecorder');
 
-const readVoiceFile = async (path: string): Promise<Blob | undefined> => {
+export const clearNativeVoiceRecordings = async (userId: string): Promise<void> => {
+  if (isNativeVoiceRecorderAvailable())
+    await getVoiceRecorderPlugin()
+      .clear({ userId })
+      .catch(() => undefined);
+};
+
+export const listNativeVoiceLeftovers = () => getVoiceRecorderPlugin().listLeftovers();
+export const cancelNativeVoiceRecording = (id: string) => getVoiceRecorderPlugin().cancel({ id });
+
+export const readNativeVoiceFile = async (path: string): Promise<Blob | undefined> => {
   const response = await fetch(Capacitor.convertFileSrc(path), {
     signal: AbortSignal.timeout(5_000),
   });
@@ -43,27 +60,6 @@ const readVoiceFile = async (path: string): Promise<Blob | undefined> => {
   if (!response.ok && response.status !== 0) return undefined;
   const data = await response.blob();
   return data.size > 0 ? data : undefined;
-};
-
-/** Hands off one file at a time. Only a committed copy lets us delete the native file. */
-export const importNativeVoiceRecordings = async (
-  persist: (recording: Omit<NativeVoiceLeftover, 'path'> & { data: Blob }) => Promise<boolean>
-): Promise<void> => {
-  const plugin = getVoiceRecorderPlugin();
-  const leftovers = await plugin.takeLeftover().catch(() => undefined);
-  if (!leftovers) return;
-  /* eslint-disable no-await-in-loop */
-  for (const { path, ...recording } of leftovers.recordings) {
-    try {
-      const data = await readVoiceFile(path);
-      if (data && (await persist({ ...recording, data }))) {
-        await plugin.cancel({ id: recording.id });
-      }
-    } catch {
-      // Keep the file on failure so the next page can try again.
-    }
-  }
-  /* eslint-enable no-await-in-loop */
 };
 
 /** The part of `MediaRecorder` the voice capture session drives, over the native recorder. */
@@ -74,7 +70,7 @@ export class NativeVoiceRecorder extends EventTarget {
 
   private newestLevel = 0;
 
-  constructor(private readonly id: string) {
+  constructor(readonly id: string) {
     super();
   }
 
@@ -101,13 +97,20 @@ export class NativeVoiceRecorder extends EventTarget {
     this.transition('recording', (plugin) => plugin.resume({ id: this.id }));
   }
 
-  /** Raises `dataavailable` (an Event with `data: Blob`) when there is audio, then `stop`. */
-  stop(): void {
+  /** Offers audio only after the caller commits its copy and native deletion succeeds. */
+  stop(persist?: (data: Blob) => Promise<boolean>, ready?: Promise<boolean>): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    this.deliver()
+    this.deliver(persist, ready)
       .catch(() => undefined)
-      .finally(() => this.end());
+      .finally(() => this.dispatchEvent(new Event('stop')));
+  }
+
+  discard(): void {
+    this.state = 'inactive';
+    cancelNativeVoiceRecording(this.id)
+      .catch(() => undefined)
+      .finally(() => this.dispatchEvent(new Event('stop')));
   }
 
   private transition(
@@ -119,35 +122,35 @@ export class NativeVoiceRecorder extends EventTarget {
     // A transition the native recorder refuses would leave a wrong duration: end the recording.
     call(getVoiceRecorderPlugin()).catch(() => {
       if (this.state === 'inactive') return;
-      this.state = 'inactive';
-      this.end();
+      this.discard();
     });
   }
 
-  private async deliver(): Promise<void> {
+  private async deliver(
+    persist?: (data: Blob) => Promise<boolean>,
+    ready?: Promise<boolean>
+  ): Promise<void> {
+    await ready;
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
-    const data = await readVoiceFile(path);
-    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
-  }
-
-  /** Every way out, once (`state` is `inactive` by then): the native side deletes the file. */
-  private end(): void {
-    getVoiceRecorderPlugin()
-      .cancel({ id: this.id })
-      .catch(() => undefined);
-    this.dispatchEvent(new Event('stop'));
+    const data = await readNativeVoiceFile(path);
+    if (!data) return;
+    if (persist) {
+      if (!(await persist(data))) return;
+      await cancelNativeVoiceRecording(this.id);
+    }
+    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 }
 
 /** Asks for the microphone and starts recording. Rejects with an Error named as getUserMedia
  *  names it. */
-export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> => {
+export const startNativeVoiceRecorder = async (userId: string): Promise<NativeVoiceRecorder> => {
   // The plugin reads this name back from the page after the microphone prompt, and records only
   // for the newest start of the page that is still loaded.
   const nonce = randomUuid();
   Object.assign(globalThis, { mindroomVoiceStart: nonce });
   try {
-    const { id } = await getVoiceRecorderPlugin().start({ nonce });
+    const { id } = await getVoiceRecorderPlugin().start({ nonce, userId });
     return new NativeVoiceRecorder(id);
   } catch (error) {
     const { code, message } = error as { code?: string; message?: string };

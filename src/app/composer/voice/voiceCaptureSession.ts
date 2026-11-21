@@ -2,6 +2,7 @@ import { isNativeApp } from '../../native/nativeSso';
 import {
   isNativeVoiceRecorderAvailable,
   startNativeVoiceRecorder,
+  type NativeVoiceRecorder,
 } from '../../native/nativeVoiceRecorder';
 import {
   analyserRmsToMatrixPoint,
@@ -77,7 +78,7 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: () => Promise<boolean>;
+  start: (userId?: string) => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
@@ -94,13 +95,15 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 
 type CaptureJournal = {
   id: string;
-  append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;
+  ready?: Promise<boolean>;
+  append: (seq: number, data: Blob, elapsedMs: number) => Promise<boolean | void>;
   remove: () => Promise<void>;
   release: () => void;
 };
 
 type Generation = {
   journal?: CaptureJournal;
+  native?: NativeVoiceRecorder;
   offerOnStop?: boolean;
   web?: boolean;
   acceptsEvents: boolean;
@@ -136,7 +139,11 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
   });
 
 export const createVoiceCaptureSession = (
-  beginJournal?: (startedAt: number, mimeType: string) => CaptureJournal | undefined,
+  beginJournal?: (
+    startedAt: number,
+    mimeType: string,
+    nativeId?: string
+  ) => CaptureJournal | undefined,
   onPark?: (recording: CapturedVoiceRecording) => boolean
 ): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
@@ -211,14 +218,19 @@ export const createVoiceCaptureSession = (
     generation.detach = undefined;
     if (generation.recorder && generation.recorder.state !== 'inactive') {
       try {
-        generation.recorder.stop();
+        if (generation.native) generation.native.discard();
+        else generation.recorder.stop();
       } catch {
         /* Tracks still release below. */
       }
     }
     releaseResources(generation);
     generation.recorder = undefined;
-    if (generation.chunks.length) generation.journal?.release();
+    if (
+      generation.chunks.length ||
+      (generation.native && generation.action && generation.action !== 'discard')
+    )
+      generation.journal?.release();
     else void generation.journal?.remove();
     generation.chunks = [];
     generation.samples = [];
@@ -287,6 +299,8 @@ export const createVoiceCaptureSession = (
     generation.recorder = undefined;
     const journal = generation.journal;
     generation.journal = undefined;
+    const cleanupJournal = () =>
+      generation.native && generation.action !== 'discard' ? journal?.release() : journal?.remove();
     const resolve = generation.resolve;
     generation.resolve = undefined;
     const isCurrent = current === generation;
@@ -305,12 +319,17 @@ export const createVoiceCaptureSession = (
       });
       generation.chunks = [];
       generation.samples = [];
-      void Promise.resolve(journal?.remove()).then(() => resolve?.({ status: 'ignored' }));
+      void Promise.resolve(cleanupJournal()).then(() => resolve?.({ status: 'ignored' }));
       return;
     }
     if (generation.chunks.length === 0) {
-      void journal?.remove();
-      update({ phase: 'idle', errorMessage: 'No audio data was captured.' });
+      void cleanupJournal();
+      update({
+        phase: 'idle',
+        errorMessage: generation.native
+          ? 'Could not save voice recording. Reload to recover it.'
+          : 'No audio data was captured.',
+      });
       generation.samples = [];
       resolve?.({ status: 'failed' });
       return;
@@ -339,7 +358,7 @@ export const createVoiceCaptureSession = (
       resolve?.({ status: 'ignored' });
     } else resolve?.({ status: 'captured', recording });
   };
-  const start = async () => {
+  const start = async (userId = '') => {
     if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
     released = false;
     if (current) retire(current);
@@ -370,12 +389,12 @@ export const createVoiceCaptureSession = (
       let webRecorder: MediaRecorder | undefined;
       let mimeType: string | undefined;
       if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder();
+        const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
-          nativeRecorder.stop();
+          nativeRecorder.discard();
           return false;
         }
-        recorder = nativeRecorder;
+        recorder = generation.native = nativeRecorder;
         generation.recorder = recorder;
         generation.readLevel = () => analyserRmsToMatrixPoint(nativeRecorder.level());
       } else {
@@ -414,7 +433,8 @@ export const createVoiceCaptureSession = (
         try {
           generation.journal = beginJournal?.(
             startedAt,
-            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
+            generation.native?.id
           );
         } catch {
           // Storage is best effort; capture still works from memory.
@@ -424,11 +444,9 @@ export const createVoiceCaptureSession = (
         const { data } = event as BlobEvent;
         if (!generation.acceptsEvents || data.size === 0) return;
         const seq = generation.chunks.length;
-        // The native recorder delivers the whole file on stop, including when it parks.
-        if (native && seq === 0 && generation.action !== 'discard') startJournal();
-
         generation.chunks.push(data);
-        void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
+        if (!native)
+          void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
       generation.finishStop = onStop;
@@ -439,9 +457,9 @@ export const createVoiceCaptureSession = (
         recorder.removeEventListener?.('stop', onStop);
       };
       generation.startedAt = startedAt;
+      startJournal();
       if (webRecorder) {
         generation.web = true;
-        startJournal();
         webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
       }
       startTimers(generation);
@@ -478,7 +496,20 @@ export const createVoiceCaptureSession = (
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
       try {
-        if (generation.recorder!.state !== 'inactive') generation.recorder!.stop();
+        const native = generation.native;
+        if (native && action === 'discard') native.discard();
+        else if (native) {
+          const journal = generation.journal;
+          // Claim the UUID before native stop makes the file visible to other windows.
+          native.stop(
+            beginJournal &&
+              (async (data) =>
+                generation.acceptsEvents &&
+                (await journal?.append(0, data, generation.elapsedMs)) === true &&
+                generation.acceptsEvents),
+            journal?.ready
+          );
+        } else if (generation.recorder!.state !== 'inactive') generation.recorder!.stop();
         if (!generation.acceptsEvents) return;
         generation.stopTimer = setTimeout(() => {
           recordDeepTraceEvent('voice.capture.stop_timeout', {

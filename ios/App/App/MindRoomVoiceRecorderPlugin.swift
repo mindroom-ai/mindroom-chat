@@ -16,8 +16,15 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "resume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "takeLeftover", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "listLeftovers", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clear", returnType: CAPPluginReturnPromise)
     ]
+
+    // Shared by the windows on the main queue; nothing survives app restart.
+    private static var liveRecorders: [String: MindRoomVoiceRecorderPlugin] = [:]
+    private static var owners: [String: String] = [:]
+    private static var ownerGenerations: [String: Int] = [:]
+    private static var instances = 0
 
     private static var folder: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("voice-recorder")
@@ -25,6 +32,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private static func clearFolder() {
         try? FileManager.default.removeItem(at: folder)
+    }
+
+    private static func removeFile(_ url: URL) throws {
+        do { try FileManager.default.removeItem(at: url) }
+        catch CocoaError.fileNoSuchFile { /* Already removed. */ }
     }
 
     /// The file of a recording; nil for an ID that is not a UUID, so no ID names a path elsewhere.
@@ -40,7 +52,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     override public func load() {
         // A recording left behind when the app quit.
-        Self.clearFolder()
+        if Self.instances == 0 { Self.clearFolder() }
+        Self.instances += 1
         NotificationCenter.default.addObserver(
             self, selector: #selector(pageWillLoad), name: .capacitorWebViewNavigationStarted,
             object: bridge?.webView
@@ -57,6 +70,10 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard !self.closed, let webView = self.bridge?.webView, !webView.isLoading else {
                 return call.reject("The page is gone", "START_FAILED")
             }
+            guard let userId = call.getString("userId"), !userId.isEmpty else {
+                return call.reject("No recording owner", "START_FAILED")
+            }
+            let ownerGeneration = Self.ownerGenerations[userId, default: 0]
             let generation = self.generation
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
@@ -66,6 +83,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                     // that failed and left the page), and one of a closed window record nothing.
                     webView.evaluateJavaScript("window.mindroomVoiceStart") { newest, _ in
                         guard generation == self.generation, !self.closed, !webView.isLoading,
+                              ownerGeneration == Self.ownerGenerations[userId, default: 0],
                               let newest = newest as? String, newest == call.getString("nonce") else {
                             return call.reject("The page is gone", "START_FAILED")
                         }
@@ -95,10 +113,12 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                             recorder.isMeteringEnabled = true
                             guard recorder.record() else { throw CocoaError(.fileWriteUnknown) }
                             self.live = (id, recorder)
+                            Self.liveRecorders[id] = self
+                            Self.owners[id] = userId
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
-                            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                            Self.deactivateIfIdle()
                             return call.reject("Could not start recording", "START_FAILED")
                         }
                         call.resolve(["id": id])
@@ -158,17 +178,23 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func cancel(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let id = call.getString("id") ?? ""
-            if live?.id == id {
-                discardLive()
-            } else if let url = Self.file(of: id) {
-                try? FileManager.default.removeItem(at: url)
+            guard let url = Self.file(of: id), Self.liveRecorders[id] == nil || Self.liveRecorders[id] === self else {
+                return call.reject("No such recording", "NOT_RECORDING")
             }
+            if live?.id == id {
+                finishLive()
+                // Explicit live discard is not a handoff. Never offer this file even if removal fails.
+                Self.owners.removeValue(forKey: id)
+            }
+            do { try Self.removeFile(url) }
+            catch { return call.reject("Could not remove recording", "CANCEL_FAILED") }
+            Self.owners.removeValue(forKey: id)
             call.resolve()
         }
     }
 
     /// Lists files without removing them. The new page cancels each file after saving its audio.
-    @objc func takeLeftover(_ call: CAPPluginCall) {
+    @objc func listLeftovers(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .creationDateKey]
             let files = (try? FileManager.default.contentsOfDirectory(
@@ -176,32 +202,55 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             )) ?? []
             let recordings: [[String: Any]] = files.compactMap { url in
                 let id = url.deletingPathExtension().lastPathComponent
-                guard url.pathExtension == "m4a", UUID(uuidString: id) != nil, id != live?.id,
+                guard url.pathExtension == "m4a", let userId = Self.owners[id], Self.liveRecorders[id] == nil,
                       let attrs = try? url.resourceValues(forKeys: keys), attrs.isRegularFile == true,
                       let size = attrs.fileSize, size > 0, let start = attrs.creationDate,
                       let player = try? AVAudioPlayer(contentsOf: url), player.duration > 0 else {
                     return nil
                 }
                 return ["id": id, "path": url.path, "startedAt": (start.timeIntervalSince1970 * 1_000).rounded(),
-                        "duration": player.duration * 1_000]
+                        "duration": player.duration * 1_000, "userId": userId]
             }
             call.resolve(["recordings": recordings])
+        }
+    }
+
+    @objc func clear(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if let userId = call.getString("userId") {
+                Self.ownerGenerations[userId, default: 0] += 1
+                for id in Self.owners.filter({ $0.value == userId }).keys {
+                    Self.liveRecorders[id]?.finishLive()
+                    Self.discardFile(id)
+                }
+            }
+            call.resolve()
+        }
+    }
+
+    private static func deactivateIfIdle() {
+        if liveRecorders.isEmpty {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
 
     private func finishLive() {
         guard let live else { return }
         live.recorder.stop()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         self.live = nil
+        Self.liveRecorders.removeValue(forKey: live.id)
+        Self.deactivateIfIdle()
+    }
+
+    private static func discardFile(_ id: String) {
+        owners.removeValue(forKey: id)
+        if let url = file(of: id) { try? removeFile(url) }
     }
 
     private func discardLive() {
-        guard let live else { return }
-        self.live = nil
-        live.recorder.stop()
-        live.recorder.deleteRecording()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        guard let id = live?.id else { return }
+        finishLive()
+        Self.discardFile(id)
     }
 
     /// Navigation or WebContent termination ends the capture, not its file. A start still
@@ -213,9 +262,14 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
     func close() {
+        guard !closed else { return }
         closed = true
-        pageWillLoad()
-        Self.clearFolder()
+        discardLive()
+        Self.instances -= 1
+        if Self.instances == 0 {
+            Self.clearFolder()
+            Self.owners.removeAll()
+        }
     }
 }
 #endif

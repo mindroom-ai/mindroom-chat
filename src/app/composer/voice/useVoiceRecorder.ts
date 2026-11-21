@@ -53,9 +53,9 @@ export function useVoiceRecorder({
   }, [recorderToken, store]);
   const [capture] = useState(() =>
     createVoiceCaptureSession(
-      (startedAt, mimeType) => {
+      (startedAt, mimeType, nativeId) => {
         const userId = sendBindingAtStartRef.current?.context.ownerSessionId;
-        return userId ? beginVoiceRecording(userId, startedAt, mimeType) : undefined;
+        return userId ? beginVoiceRecording(userId, startedAt, mimeType, nativeId) : undefined;
       },
       (recording) => {
         const context = sendBindingAtStartRef.current?.context;
@@ -129,7 +129,7 @@ export function useVoiceRecorder({
       sendRecording: latestOnSendRecordingRef.current,
       context: latestGetSendContextRef.current(),
     };
-    return capture.start();
+    return capture.start(sendBindingAtStartRef.current.context.ownerSessionId);
   }, [capture, hasPendingSend, phase]);
 
   const send = useCallback(async (): Promise<boolean> => {

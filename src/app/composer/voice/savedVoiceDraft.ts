@@ -4,8 +4,8 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isJoined } from '../../matrix/state/roomList';
 import {
-  importNativeVoiceRecordings,
   isNativeVoiceRecorderAvailable,
+  listNativeVoiceLeftovers,
 } from '../../native/nativeVoiceRecorder';
 import {
   openVoiceRecorderAtom,
@@ -17,9 +17,9 @@ import {
 } from '../roomInputDrafts';
 import {
   holdVoiceRecording,
+  importNativeVoiceRecordings,
   recoverVoiceRecording,
   releaseVoiceRecording,
-  storeFinishedVoiceRecording,
 } from './voiceRecordingJournal';
 
 /**
@@ -130,19 +130,39 @@ export const useSavedVoiceDraft = (
   useEffect(() => {
     if (!userId || restored.has(userId)) return;
     restored.add(userId);
-    void withDraftDb((db) => db.get('drafts', userId)).then(async (saved) => {
+    void (async () => {
       const slotTaken = () =>
         !!(store.get(pendingVoiceSendDraftAtom) || store.get(openVoiceRecorderAtom));
       if (slotTaken()) return;
+      const native = isNativeVoiceRecorderAvailable();
+      const skip =
+        native && globalThis.navigator?.locks
+          ? await importNativeVoiceRecordings(userId, slotTaken).catch(() => undefined)
+          : new Set<string>();
+      if (!skip || slotTaken()) return;
+      // Another window can stop a live recording after the initial native list.
+      const canOffer = native
+        ? async (id: string) =>
+            !skip.has(id) &&
+            (await listNativeVoiceLeftovers().catch(() => undefined))?.recordings.every(
+              (file) => file.id !== id
+            ) === true
+        : undefined;
+      const saved = await withDraftDb((db) => db.get('drafts', userId));
       const savedRoom = saved && mx.getRoom(saved.roomId);
       const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
       const id = saved?.recordingId;
       if (
         saved &&
         room &&
-        (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+        (!id || (!native && !globalThis.navigator?.locks) || (await holdVoiceRecording(id)))
       ) {
-        if (slotTaken()) {
+        const current = native && id ? await withDraftDb((db) => db.get('drafts', userId)) : saved;
+        if (
+          (id && canOffer && !(await canOffer(id))) ||
+          slotTaken() ||
+          current?.recordingId !== id
+        ) {
           if (id) releaseVoiceRecording(id);
           return;
         }
@@ -164,22 +184,22 @@ export const useSavedVoiceDraft = (
           },
         });
       } else if (getRecoveryContext) {
-        if (globalThis.navigator?.locks && isNativeVoiceRecorderAvailable()) {
-          await importNativeVoiceRecordings((recording) =>
-            slotTaken() ? Promise.resolve(false) : storeFinishedVoiceRecording(userId, recording)
-          );
-        }
-        await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
-          if (slotTaken()) return false;
-          store.set(pendingVoiceSendDraftAtom, {
-            ...recording,
-            recovered: true,
-            context: getRecoveryContext(),
-          });
-          return true;
-        });
+        await recoverVoiceRecording(
+          userId,
+          room ? id : undefined,
+          (recording) => {
+            if (slotTaken()) return false;
+            store.set(pendingVoiceSendDraftAtom, {
+              ...recording,
+              recovered: true,
+              context: getRecoveryContext(),
+            });
+            return true;
+          },
+          canOffer
+        );
       }
-    });
+    })();
   }, [getRecoveryContext, mx, store, userId]);
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
 import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearVoiceRecordings } from '../../composer/voice/voiceRecordingJournal';
+import { clearNativeVoiceRecordings } from '../../native/nativeVoiceRecorder';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentRoomsStore } from '../../navigation/recentRooms';
@@ -100,7 +101,7 @@ const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 // The old Threads page kept its filters per account; the page that replaced it keeps only a scope.
 const LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX = 'crossRoomThreadFilters:';
 
-export const clearUserUiState = (userId: string): void => {
+export const clearUserUiState = (userId: string): Promise<void> => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
   void clearSavedVoiceDraft(userId);
@@ -108,7 +109,10 @@ export const clearUserUiState = (userId: string): void => {
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);
-  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
+  removeStorageItemSafe(
+    getSafeLocalStorage(),
+    `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`
+  );
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);
   clearRecentThreadsStore(userId);
@@ -134,6 +138,7 @@ export const clearUserUiState = (userId: string): void => {
     .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
     .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
+  return clearNativeVoiceRecordings(userId);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {

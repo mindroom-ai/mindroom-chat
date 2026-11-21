@@ -128,6 +128,7 @@ const capture = () => {
 class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
   mimeType = 'audio/mp4';
+  id = 'native-id';
   level = () => 0.25;
   pause = vi.fn(() => {
     this.state = 'paused';
@@ -135,11 +136,19 @@ class NativeRecorder extends EventTarget {
   resume = vi.fn(() => {
     this.state = 'recording';
   });
-  stop = vi.fn(() => {
+  private persist?: (data: Blob) => Promise<boolean>;
+  stop = vi.fn((persist?: (data: Blob) => Promise<boolean>) => {
     this.state = 'inactive';
+    this.persist = persist;
   });
-  deliver(body = 'voice') {
-    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob([body]) }));
+  discard = vi.fn(() => {
+    this.state = 'inactive';
+    this.dispatchEvent(new Event('stop'));
+  });
+  async deliver(body = 'voice') {
+    const data = new Blob([body]);
+    if (!this.persist || (await this.persist(data)))
+      this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
     this.dispatchEvent(new Event('stop'));
   }
 }
@@ -626,24 +635,28 @@ describe('voice capture session', () => {
 
   it('parks native audio in the journal when its composer unmounts', async () => {
     const recorder = withoutWebCapture();
-    const append = vi.fn(async (_seq: number, _data: Blob, _duration: number) => undefined);
+    const append = vi.fn(async (_seq: number, _data: Blob, _duration: number) => true);
     const begin = vi.fn(() => ({
-      id: 'native-journal',
+      id: recorder.id,
+      ready: Promise.resolve(true),
       append,
       remove: vi.fn(),
       release: vi.fn(),
     }));
     const park = vi.fn((_recording: { file: File; duration: number }) => true);
     const session = createVoiceCaptureSession(begin, park);
-    expect(await session.start()).toBe(true);
+    expect(await session.start('@voice:example.org')).toBe(true);
+    expect(native.start).toHaveBeenCalledExactlyOnceWith('@voice:example.org');
+    expect(begin).toHaveBeenCalledExactlyOnceWith(expect.any(Number), 'audio/mp4', recorder.id);
     vi.advanceTimersByTime(1_800);
 
     session.releaseOwner(true);
+    await Promise.resolve();
     expect(recorder.stop).toHaveBeenCalledOnce();
-    recorder.deliver('native voice');
+    await recorder.deliver('native voice');
 
     expect(park).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ duration: 1_800, recordingId: 'native-journal' })
+      expect.objectContaining({ duration: 1_800, recordingId: recorder.id })
     );
     expect(append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 1_800);
     expect(await append.mock.calls[0]?.[1].text()).toBe('native voice');
@@ -752,7 +765,7 @@ describe('voice capture session on the native recorder', () => {
     vi.advanceTimersByTime(5000);
     const finished = session.finish();
     expect(recorder.stop).toHaveBeenCalledOnce();
-    recorder.deliver();
+    await recorder.deliver();
     const result = await finished;
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.duration).toBe(250);
@@ -773,7 +786,7 @@ describe('voice capture session on the native recorder', () => {
     session.reset();
     gate.resolve(recorder);
     expect(await started).toBe(false);
-    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(recorder.discard).toHaveBeenCalledOnce();
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
@@ -782,7 +795,7 @@ describe('voice capture session on the native recorder', () => {
     const session = capture();
     await session.start();
     const discarded = session.discard();
-    recorder.deliver();
+    await recorder.deliver();
     expect(await discarded).toBe(false);
     expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
   });
@@ -794,13 +807,15 @@ describe('voice capture session on the native recorder', () => {
     const failed = session.finish();
     vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
     expect((await failed).status).toBe('failed');
-    expect(session.getSnapshot().errorMessage).toBe('No audio data was captured.');
+    expect(session.getSnapshot().errorMessage).toBe(
+      'Could not save voice recording. Reload to recover it.'
+    );
     const second = withoutWebCapture();
     expect(await session.start()).toBe(true);
-    first.deliver('old');
+    await first.deliver('old');
     expect(session.getSnapshot().phase).toBe('recording');
     const finished = session.finish();
-    second.deliver('new');
+    await second.deliver('new');
     const result = await finished;
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(await result.recording.file.text()).toBe('new');

@@ -1558,7 +1558,8 @@ describe('useVoiceRecorder', () => {
       const threadToken = Symbol('thread');
       const thread = {
         id: crypto.randomUUID(),
-        append: vi.fn(async () => undefined),
+        ready: Promise.resolve(true),
+        append: vi.fn(async () => true),
         release: vi.fn<() => void>(),
         remove: vi.fn(async () => undefined),
       };
