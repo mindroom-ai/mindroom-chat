@@ -411,16 +411,15 @@ export function CompactRoomView({
   const sectionsShown = !!heldSections;
   const flatOrderHeld = orderHeld && !sectionsShown;
   const shownRows = useHeldThreadOrder(listedRows, flatOrderHeld, viewRef);
-  // A held flat sort resets the keeper when the new order shows, not when the sort changes.
-  const flatSortRef = useRef<{ roomId: string; sortKey: string | undefined }>();
-  const flatSort = flatSortRef.current;
-  const shownSortKey =
-    flatOrderHeld && flatSort?.roomId === room.roomId ? flatSort.sortKey : landmarkSortKey;
+  // A flat hold can keep the order from a prior sort or from Sections until release.
+  const orderModeRef = useRef<{ roomId: string; mode: string }>();
+  const previousMode = orderModeRef.current;
+  const liveMode = sectionsShown ? 'sections' : `flat:${landmarkSortKey ?? ''}`;
+  const shownMode =
+    flatOrderHeld && previousMode?.roomId === room.roomId ? previousMode.mode : liveMode;
   useLayoutEffect(() => {
-    flatSortRef.current = sectionsShown
-      ? undefined
-      : { roomId: room.roomId, sortKey: shownSortKey };
-  }, [room.roomId, sectionsShown, shownSortKey]);
+    orderModeRef.current = { roomId: room.roomId, mode: shownMode };
+  }, [room.roomId, shownMode]);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
@@ -708,7 +707,7 @@ export function CompactRoomView({
       >
         {/* Do not carry a landmark across rooms, sort changes, or a switch to or from Sections. */}
         <CompactRowKeeper
-          key={`${room.roomId}|${shownSortKey ?? ''}|${sectionsShown}`}
+          key={`${room.roomId}|${shownMode}|${sectionsShown}`}
           viewRef={viewRef}
           order={
             heldSections

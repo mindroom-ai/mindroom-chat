@@ -272,6 +272,29 @@ describe('the Compact reading landmark', () => {
     expect(view.scrollTop).toBe(100);
   });
 
+  it('leaves native scrolling alone when releasing the order after turning Sections off', () => {
+    const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
+    const reversed = [...ids].reverse();
+    state.sections = [{ id: 'needsYou', rootIds: reversed }];
+    const props = { landmarkSortKey: 'lastReply:asc' };
+    const { container, rerender } = render(list(ids, false, props));
+    const view = scrollView(container, 100, 200);
+    expect(view.querySelector('[data-compact-section="needsYou"]')).not.toBeNull();
+    expect(cardOrder(view)).toEqual(reversed);
+    fireEvent.pointerEnter(view.querySelector('[data-scroll-anchor]')!);
+    expect(view.querySelector('[data-order-held]')).not.toBeNull();
+
+    state.sections = undefined;
+    rerender(list(ids, false, props));
+    expect(view.querySelector('[data-compact-section]')).toBeNull();
+    expect(cardOrder(view)).toEqual(reversed);
+    expect(view.scrollTop).toBe(100);
+
+    releasePointer(view);
+    expect(cardOrder(view)).toEqual(ids);
+    expect(view.scrollTop).toBe(100);
+  });
+
   it.each(['the view', 'an ancestor'])('keeps its landmark with %s inert', (inertTarget) => {
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f', '$g'];
     const { container, rerender } = render(list(ids));
