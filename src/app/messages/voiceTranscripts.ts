@@ -49,7 +49,7 @@ export const planVoiceTranscripts = ({
   ignored,
   revealed,
   viewerId,
-  hasJoinedAgent,
+  expectsAnswer,
   hasThreadReplies,
   isHidden,
 }: {
@@ -59,7 +59,7 @@ export const planVoiceTranscripts = ({
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
   viewerId: string | undefined;
-  hasJoinedAgent: boolean;
+  expectsAnswer: boolean;
   hasThreadReplies: (event: MatrixEvent) => boolean;
   isHidden: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
@@ -92,7 +92,7 @@ export const planVoiceTranscripts = ({
     hiddenEventIds.add(echoId);
   });
   const pendingVoiceIds = new Set<string>();
-  if (viewerId && hasJoinedAgent) {
+  if (viewerId && expectsAnswer) {
     // The room window may draw newest first. Compare server timestamps, not row order.
     // An agent event counts even if it has not decrypted.
     let latestAgentTs = -Infinity;

@@ -76,7 +76,7 @@ const plan = (
     ignored = new Set<string>(),
     revealed = new Set<string>(),
     trustedAccountIds = new Set([ROUTER]),
-    hasJoinedAgent = false,
+    expectsAnswer = false,
     hasThreadReplies = (_event: MatrixEvent): boolean => false,
   } = {}
 ) =>
@@ -89,7 +89,7 @@ const plan = (
     ignored,
     revealed,
     viewerId: PERSON,
-    hasJoinedAgent,
+    expectsAnswer,
     hasThreadReplies,
     isHidden: () => false,
   });
@@ -184,7 +184,7 @@ describe('planVoiceTranscripts', () => {
       ignored: new Set(),
       revealed: new Set(),
       viewerId: PERSON,
-      hasJoinedAgent: false,
+      expectsAnswer: false,
       hasThreadReplies: () => false,
       isHidden: () => false,
     });
@@ -261,7 +261,7 @@ describe('planVoiceTranscripts', () => {
 
 describe('pending voice transcription', () => {
   const now = 120_000;
-  const pending = (events: MatrixEvent[]) => plan(events, { hasJoinedAgent: true });
+  const pending = (events: MatrixEvent[]) => plan(events, { expectsAnswer: true });
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -272,7 +272,7 @@ describe('pending voice transcription', () => {
   it("shows for the viewer's own fresh sent voice message without a transcript", () => {
     const sent = voice();
     sent.setStatus(EventStatus.SENT);
-    const result = plan([sent], { hasJoinedAgent: true, trustedAccountIds: new Set() });
+    const result = plan([sent], { expectsAnswer: true, trustedAccountIds: new Set() });
     expect([...result.pendingVoiceIds]).toEqual(['$voice']);
     expect(sameVoiceTranscriptPlan(result, NO_VOICE_TRANSCRIPTS)).toBe(false);
   });
@@ -336,7 +336,7 @@ describe('pending voice transcription', () => {
   it('does not show if the voice message has thread replies', () => {
     expect(
       plan([voice()], {
-        hasJoinedAgent: true,
+        expectsAnswer: true,
         hasThreadReplies: (event) => event.getId() === '$voice',
       })
     ).toBe(NO_VOICE_TRANSCRIPTS);
