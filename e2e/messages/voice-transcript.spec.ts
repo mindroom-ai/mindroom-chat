@@ -13,7 +13,9 @@ test('a voice message shows its transcript or a status while it transcribes', as
   await expect(done.getByText('🎤', { exact: false })).toHaveCount(0);
 
   const pending = page.getByRole('region', { name: 'Voice message being transcribed' });
-  await expect(pending.getByRole('status', { name: 'Transcribing…' })).toBeVisible();
+  const status = pending.getByRole('status', { name: 'Transcribing…' });
+  await expect(status).toBeVisible();
+  await expect(status.locator('span[aria-hidden="true"] > span:empty')).toHaveCount(2);
   await expect(pending.getByText('Router agent', { exact: false })).toHaveCount(0);
 
   const historical = page.getByRole('region', { name: 'Historical router transcript' });

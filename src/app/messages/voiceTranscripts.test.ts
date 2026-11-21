@@ -227,9 +227,11 @@ describe('planVoiceTranscripts', () => {
     expect(plan([voice(), echoEvent])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
-  it('keeps an unedited legacy placeholder in its own row', () => {
+  it('folds a trusted legacy placeholder under the voice message it names', () => {
     const placeholder = echo('$echo', undefined, { body: 'Router agent is transcribing…' });
-    expect(plan([voice(), placeholder])).toBe(NO_VOICE_TRANSCRIPTS);
+    const result = plan([voice(), placeholder]);
+    expect(result.byVoiceId.get('$voice')).toBe(placeholder);
+    expect(result.hiddenEventIds.has('$echo')).toBe(true);
   });
 
   it('pairs only the first echo naming a voice message', () => {

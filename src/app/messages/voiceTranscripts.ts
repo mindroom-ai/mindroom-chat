@@ -7,7 +7,6 @@ import { isVoiceMessageContent } from './content/voiceMessageContent';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
   getVoiceSourceEventId,
-  isTranscribingPlaceholder,
   isVisibleRouterVoiceEcho,
   isVoiceRawAudioFallback,
 } from '../matrix/protocol/transcribingPlaceholder';
@@ -32,8 +31,8 @@ const TRANSCRIBING_MS = 60_000;
  * moves when a trusted account sent it (the room's binding or a joined account from its roster,
  * excluding ignored accounts), it names its voice message (`getVoiceSourceEventId`, from
  * the version its row shows, `getContent`, which counts only the sender's own edits), that
- * version is a transcript rather than an old placeholder or the raw-audio fallback, and it
- * holds all of the transcript rather than a preview of a long-text sidecar,
+ * version is a transcript or a legacy placeholder rather than the raw-audio fallback, and
+ * holds all of the text rather than a preview of a long-text sidecar,
  * and that message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays
  * as voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other
  * echo keeps its row as before: one from an older backend without the name, one whose voice
@@ -81,12 +80,7 @@ export const planVoiceTranscripts = ({
     const echoContent = getContent(echo);
     const voiceId = getVoiceSourceEventId(echoContent);
     if (!echoId || !voiceId || revealed.has(echoId) || byVoiceId.has(voiceId)) return;
-    if (
-      isTranscribingPlaceholder(echoContent) ||
-      isVoiceRawAudioFallback(echoContent) ||
-      hasLongTextMetadata(echoContent)
-    )
-      return;
+    if (isVoiceRawAudioFallback(echoContent) || hasLongTextMetadata(echoContent)) return;
     const voice = byId.get(voiceId);
     const voiceSender = voice?.getSender();
     if (!voice || voice.isRedacted() || !voiceSender || ignored.has(voiceSender)) return;

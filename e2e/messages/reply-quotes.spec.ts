@@ -117,6 +117,7 @@ test('an agent answer to a voice message quotes it only when other messages sit 
   });
   const pending = row(voiceId).getByRole('status', { name: 'Transcribing…' });
   await expect(pending).toBeVisible({ timeout: 30_000 });
+  await expect(pending.locator('span[aria-hidden="true"] > span:empty')).toHaveCount(2);
   const transcriptId = await send(helper.accessToken, {
     msgtype: 'm.text',
     body: "🎤 It's my first day on the job.",

@@ -40,8 +40,7 @@ import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
-import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
-import { TranscribingPlaceholder } from '../../messages/agent-run/TranscribingPlaceholder';
+import { VoiceTranscript, VoiceTranscriptPending } from '../../messages/content/VoiceTranscript';
 import { ReplyCards } from '../../messages/content/ReplyCards';
 import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
@@ -756,7 +755,7 @@ export const useTimelineMessageFeature = ({
           )}
         />
       ) : data.voiceTranscripts.pendingVoiceIds.has(eventId) ? (
-        <TranscribingPlaceholder />
+        <VoiceTranscriptPending />
       ) : null;
       const cards = data.replyCards?.byReply.get(eventId);
       cards?.forEach(

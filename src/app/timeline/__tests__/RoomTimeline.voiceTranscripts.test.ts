@@ -23,7 +23,8 @@ const AGENT = '@mindroom_helper:example.org';
 const ROUTER = '@mindroom_router:example.org';
 
 // Its own test draws it; here only that the voice row shows it counts.
-vi.mock('../../messages/content/VoiceTranscript', () => ({
+vi.mock('../../messages/content/VoiceTranscript', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../messages/content/VoiceTranscript')>()),
   VoiceTranscript: ({ content }: { content: { body: string } }) =>
     React.createElement('p', { 'data-voice-transcript': content.body }),
 }));
@@ -34,7 +35,7 @@ importBeforeTests(() => import('../RoomTimeline'));
 const openThread = async (
   router?: string,
   sender = ROUTER,
-  { showEcho = true, voiceTs = 2_000 } = {}
+  { showEcho = true, voiceTs = 2_000, echoBody = '🎤 Invented words' } = {}
 ) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
@@ -63,7 +64,7 @@ const openThread = async (
       sender,
       content: {
         msgtype: 'm.text',
-        body: '🎤 Invented words',
+        body: echoBody,
         'com.mindroom.visible_router_voice_echo': true,
         'com.mindroom.voice_source_event_id': '$voice',
       },
@@ -114,6 +115,17 @@ describe('a voice echo in an open thread', () => {
     }
   });
 
+  it('folds a source-linked legacy placeholder into the voice row', async () => {
+    const echoBody = 'Router agent is transcribing…';
+    const renderer = await openThread(ROUTER, ROUTER, { echoBody });
+    try {
+      expect(getRenderedEventIds(renderer)).toEqual([threadId, '$voice']);
+      expect(transcripts(renderer)).toEqual([echoBody]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
   it.each([true, false])('folds a joined agent echo only when listed (%s)', async (listed) => {
     if (listed) {
       stateEventsByTypeMock.set('io.mindroom.accounts', [
@@ -150,7 +162,7 @@ describe('a voice echo in an open thread', () => {
   });
 });
 
-it('hides the transcribing wave 60 seconds after the voice message was sent', async () => {
+it('hides the transcribing skeleton 60 seconds after the voice message was sent', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(100_000);
   const renderer = await openThread(undefined, AGENT, { showEcho: false, voiceTs: 60_000 });

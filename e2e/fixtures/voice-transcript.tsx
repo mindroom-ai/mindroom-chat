@@ -10,8 +10,10 @@ import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
 import { MAudio } from '../../src/app/messages/content/MsgTypeRenderers';
-import { TranscribingPlaceholder } from '../../src/app/messages/agent-run/TranscribingPlaceholder';
-import { VoiceTranscript } from '../../src/app/messages/content/VoiceTranscript';
+import {
+  VoiceTranscript,
+  VoiceTranscriptPending,
+} from '../../src/app/messages/content/VoiceTranscript';
 import {
   MATRIX_AUDIO_DETAILS_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
@@ -44,7 +46,7 @@ const cases = [
       />
     ),
   },
-  { name: 'Voice message being transcribed', transcript: <TranscribingPlaceholder /> },
+  { name: 'Voice message being transcribed', transcript: <VoiceTranscriptPending /> },
   {
     name: 'Historical router transcript',
     transcript: (
