@@ -118,6 +118,7 @@ jobs:
           e2e/composer/long-composer-message.live.spec.ts
           e2e/room/rooms.live.spec.ts
           e2e/shell/smoke.live.spec.ts
+          e2e/threads/compact-invariants.spec.ts
           e2e/threads/threads.live.spec.ts
       - name: Keep the report of a failed run
         if: failure()

@@ -36,17 +36,12 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
         nav.done = frame.y;
         if (target && !fullyVisible(frame).some((row) => row.key === target))
           report('I6', 'linked card not fully inside the readable viewport');
-        if (
-          !target &&
-          (from.y <= 1
-            ? frame.y > 1
-            : !rows(frame).some((row) =>
-                rows(from).some(
-                  (old) =>
-                    old.key === row.key && old.key !== moved && !changed(old.painted, row.painted)
-                )
-              ))
-        )
+        const witness = rows(frame).some((row) =>
+          rows(from).some(
+            (old) => old.key === row.key && old.key !== moved && !changed(old.painted, row.painted)
+          )
+        );
+        if (!target && (from.y <= 1 ? frame.y > 1 : !witness))
           report('I6', 'Back did not restore a surviving witness');
       }
       if (winner && frame.replySeen && !frame.pending && frame.order[0]?.[0] !== winner) {
@@ -68,12 +63,8 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       const now = new Map(rows(b).map((row) => [row.key, row]));
       const first = old.find((row) => now.has(row.key));
       const next = first && now.get(first.key)!;
-      const stationary = !!(
-        first &&
-        next &&
-        unchanged &&
-        !changed(first.top + a.y, next.top + b.y)
-      );
+      const worldDelta = first && next ? next.top + b.y - first.top - a.y : Infinity;
+      const stationary = unchanged && Math.abs(worldDelta) <= 1;
       if (fresh || scope) {
         direction = undefined;
         active = false;
@@ -111,7 +102,8 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
             report('I6', 'more than one effective write for a placement request');
         } else if (
           undo ||
-          (stationary &&
+          (!fresh &&
+            stationary &&
             motion.some((w) => changed(w.before, nav!.done!) && !changed(w.after, nav!.done!)))
         ) {
           report('I6', 'a write reclaimed a completed placement offset');
@@ -150,13 +142,8 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
       if (calm) {
         const survivors = a.order.filter(([key]) => keys.has(key));
         const oldKeys = new Set(survivors.map(([key]) => key));
-        if (
-          !same(
-            survivors,
-            b.order.filter(([key]) => oldKeys.has(key))
-          )
-        )
-          report('I1', 'calm survivor order/group changed');
+        const after = b.order.filter(([key]) => oldKeys.has(key));
+        if (!same(survivors, after)) report('I1', 'calm survivor order/group changed');
         if (b.reattached.some((key) => oldKeys.has(key)))
           report('I1', 'calm survivor detached and reattached');
         const clamp = b.max < a.max && a.y > b.max && !changed(b.y, b.max) ? a.y - b.y : 0;
@@ -166,13 +153,11 @@ export function compactOracle(report: (id: Invariant, reason: string) => void) {
         let affected = false;
         for (const row of old) {
           if (before && now.has(before.key)) {
-            const between = (frame: ListFrame, index: Map<string, number>) =>
-              index.has(row.key)
-                ? frame.order.slice(index.get(before!.key)! + 1, index.get(row.key))
-                : [];
+            const from = a.order.slice(oldAt.get(before.key)! + 1, oldAt.get(row.key));
+            const to = b.order.slice(newAt.get(before.key)! + 1, newAt.get(row.key));
             affected ||=
               changed(before.height, now.get(before.key)!.height) ||
-              (keys.has(row.key) && !same(between(a, oldAt), between(b, newAt)));
+              (keys.has(row.key) && !same(from, to));
           } else if (before) affected = true;
           if (now.has(row.key) || !keys.has(row.key)) before = row;
           if (!keys.has(row.key) || affected) {

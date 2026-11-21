@@ -232,26 +232,19 @@ for (const phone of [false, true]) {
           delivery = response.event_id;
         };
         const send = async (body: string, root?: string, pending = false) => {
-          delivery = await sendRoomMessage(
-            hs,
-            root ? agent.accessToken : reader.accessToken,
-            roomId,
-            {
-              msgtype: 'm.text',
-              body,
-              ...(root
-                ? {
-                    'm.relates_to': {
-                      rel_type: 'm.thread',
-                      event_id: root,
-                      is_falling_back: true,
-                      'm.in_reply_to': { event_id: root },
-                    },
-                  }
-                : {}),
-              ...(pending ? { 'io.mindroom.stream_status': 'pending' } : {}),
-            }
-          );
+          const relation = {
+            rel_type: 'm.thread',
+            event_id: root,
+            is_falling_back: true,
+            'm.in_reply_to': { event_id: root },
+          };
+          const token = root ? agent.accessToken : reader.accessToken;
+          delivery = await sendRoomMessage(hs, token, roomId, {
+            msgtype: 'm.text',
+            body,
+            'm.relates_to': root ? relation : undefined,
+            'io.mindroom.stream_status': pending ? 'pending' : undefined,
+          });
           return delivery;
         };
         const add = async (label: string) => {
