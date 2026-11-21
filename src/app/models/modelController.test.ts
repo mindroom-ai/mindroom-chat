@@ -148,7 +148,12 @@ const setup = (lazyLoadMembers = false) => {
     mx.emit(ClientEvent.Event, event);
     return event;
   };
-  const message = (sender: string, body: string, id: string) =>
+  const message = (
+    sender: string,
+    body: string,
+    id: string,
+    reply?: { eventId: string; isFallback: boolean }
+  ) =>
     mx.emit(
       ClientEvent.Event,
       new MatrixEvent({
@@ -159,7 +164,14 @@ const setup = (lazyLoadMembers = false) => {
         content: {
           msgtype: 'm.text',
           body,
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+          'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: '$root',
+            ...(reply && {
+              'm.in_reply_to': { event_id: reply.eventId },
+              is_falling_back: reply.isFallback,
+            }),
+          },
         },
       })
     );
@@ -1491,35 +1503,43 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().override).toBe('fast');
     expect(h.snapshot('$other').override).toBeNull();
   });
-  it('reprobes when the runtime or another joined agent answers a typed !model', async () => {
+  it('waits for a joined agent result for the typed !model, even from another runtime', async () => {
     const h = setup();
     await h.discover();
     expect(h.snapshot().override).toBeNull();
-    const { message } = h;
     const asked = h.queued.length;
-    message(viewer, '!model fast', '$typed');
+    h.message(viewer, '!model fast', '$typed');
+    h.message(helper, 'Something else', '$unrelated');
     await flush();
     expect(h.queued.length).toBe(asked);
-    message(router, '✅ This thread now uses `fast`.', '$answer');
+    h.ack({ command_event_id: '$older' }, { event_id: '$oldAnswer' });
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    h.ack({ command_event_id: '$typed', runtime_user_id: helper }, { sender: helper });
     await flush();
     expect(h.queued.length).toBe(asked + 1);
     h.response(h.request(), { selection: { override: 'fast', inherited: [] } });
     await flush();
     expect(h.snapshot().override).toBe('fast');
-    // Another message of the runtime asks nothing more.
-    message(router, 'Something else', '$later');
+    h.message(helper, 'Something else', '$later');
     await flush();
     expect(h.queued.length).toBe(asked + 1);
-    message(viewer, '!model reset', '$typed2');
-    message(viewer, 'Something else', '$later2');
+  });
+
+  it('reprobes on a genuine legacy reply to /model, not a thread fallback', async () => {
+    const h = setup();
+    await h.discover();
+    const asked = h.queued.length;
+    h.message(viewer, '/model fast', '$typed');
+    h.message(helper, 'Something else', '$unrelated', { eventId: '$typed', isFallback: true });
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    h.message(helper, 'This thread now uses fast.', '$answer', {
+      eventId: '$typed',
+      isFallback: false,
+    });
     await flush();
     expect(h.queued.length).toBe(asked + 1);
-    message(helper, '✅ Thread model override removed.', '$answer2');
-    await flush();
-    expect(h.queued.length).toBe(asked + 2);
-    h.response(h.request(), { selection: { override: null, inherited: [] } });
-    await flush();
-    expect(h.snapshot().override).toBeNull();
   });
   it('shows the first answer before its window ends, and follows a !model typed inside it', async () => {
     const h = setup();
@@ -1531,7 +1551,7 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot()).toMatchObject({ eligible: true, override: null, loading: true });
     const asked = h.queued.length;
     h.message(viewer, '!model fast', '$typed');
-    h.message(router, '✅ This thread now uses `fast`.', '$answer');
+    h.ack({ command_event_id: '$typed' });
     await flush();
     expect(h.queued.length).toBe(asked + 1);
     h.response(h.request(), { selection: { override: 'fast', inherited: [] } });

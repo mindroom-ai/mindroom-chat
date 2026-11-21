@@ -74,8 +74,8 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
-  /** A `!model` typed in the thread, whose answer changes the selection without a result. */
-  typedCommand?: boolean;
+  /** Event ID of a model command typed in the thread and awaiting an answer. */
+  typedCommand?: string;
   query?: Query;
   command?: Command;
   send?: Command;
@@ -653,31 +653,43 @@ export class ModelController {
     void this.receiveResult(event).catch(() => undefined);
   };
 
-  /** A joined agent's next message after a typed `!model` triggers discovery again. */
+  /** A joined agent's answer to a typed model command triggers discovery again. */
   private receiveTypedCommand(event: MatrixEvent): void {
     const relation = event.getRelation();
     if (
       !this.active() ||
       event.getType() !== 'm.room.message' ||
+      event.isRedacted() ||
       relation?.rel_type !== 'm.thread' ||
       !relation.event_id
     )
       return;
     const scope = this.scopes.get(JSON.stringify([event.getRoomId(), relation.event_id]));
     if (!scope?.listeners.size || scope.command) return;
-    const { body } = event.getContent();
-    const sender = event.getSender();
-    if (typeof body === 'string' && /^!model(\s|$)/i.test(body.trim())) {
-      scope.typedCommand = true;
-    } else if (
-      scope.typedCommand &&
-      sender &&
-      joinedModelCandidates(this.mx, scope.room).includes(sender)
-    ) {
-      scope.typedCommand = false;
-      this.cancelQuery(scope);
-      this.refresh(scope.room, scope.threadId);
+    const content = event.getContent<Record<string, unknown>>();
+    const { body } = content;
+    const eventId = event.getId();
+    if (eventId && typeof body === 'string' && /^[!/]model(\s|$)/i.test(body.trim())) {
+      scope.typedCommand = eventId;
+      return;
     }
+    const { typedCommand } = scope;
+    const sender = event.getSender();
+    if (!typedCommand || !sender || !joinedModelCandidates(this.mx, scope.room).includes(sender))
+      return;
+    if (MODEL_RESULT in content) {
+      const result = parseModelSelectionResult(content[MODEL_RESULT]);
+      if (
+        result?.command_event_id !== typedCommand ||
+        result.room_id !== scope.room.roomId ||
+        result.thread_id !== relation.event_id ||
+        result.runtime_user_id !== sender
+      )
+        return;
+    } else if (relation.is_falling_back || event.replyEventId !== typedCommand) return;
+    scope.typedCommand = undefined;
+    this.cancelQuery(scope);
+    this.refresh(scope.room, scope.threadId);
   }
 
   private async receiveResult(event: MatrixEvent): Promise<void> {
