@@ -7,6 +7,8 @@ import { atom } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { resolveThreadInvolvement } from '../../event-store/threads/threadInvolvement';
+import { getBundledThreadPreviews } from '../../event-store/threads/threadBundledPreviews';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
 import { getPreferredVisibleThreadReplyEvents } from '../../event-store/threads/threadUtils';
@@ -39,7 +41,7 @@ export type CrossRoomThreadIndexEntry = {
   resolvedTs?: number;
   hasAttention: boolean;
   isInvolved: boolean;
-  // The shared thread record’s For me decision, before any sidebar pin exception.
+  // For me before any sidebar pin exception.
   isForUser: boolean;
   summaryText: string;
   rootPreviewText: string;
@@ -291,10 +293,12 @@ export const buildCrossRoomThreadIndexEntry = ({
     tagSnapshot === undefined ? getRoomThreadTagSnapshotMap(room).get(threadRootId) : tagSnapshot;
   const rootPreviewText =
     getContentText(getEffectiveEventContent(resolvedRootEvent)) ?? summaryInfo?.summaryText ?? '';
+  const bundledPreviews = getBundledThreadPreviews(room, resolvedRootEvent);
   const record = buildThreadRecord({
     room,
     threadRootId,
     threadRootEvent: resolvedRootEvent,
+    bundledPreviews,
     summaryInfo,
     rootPreviewText,
     scheduledStatus: scheduledStatus ?? getRoomThreadScheduledStatusMap(room).get(threadRootId),
@@ -309,8 +313,17 @@ export const buildCrossRoomThreadIndexEntry = ({
       : undefined,
     currentUserId,
   });
-  const { involvement } = record;
-  const pendingOwnFirstReplyTs = involvement?.pendingOwnFirstReplyTs;
+  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
+  const { isInvolved, isForUser, pendingOwnFirstReplyTs } = resolveThreadInvolvement({
+    room,
+    threadRootId,
+    thread,
+    rootEvent: resolvedRootEvent,
+    userId: currentUserId,
+    visibleReplies,
+    bundledPreviews,
+    replyCount: record.status.replyCount,
+  });
   const threadRecord = {
     ...record,
     status: {
@@ -345,7 +358,6 @@ export const buildCrossRoomThreadIndexEntry = ({
   indexedEventIds.add(threadRootId);
   const rootEventId = resolvedRootEvent?.getId?.() ?? threadRecord.rootEventId;
   if (rootEventId) indexedEventIds.add(rootEventId);
-  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
   visibleReplies.forEach((event) => {
     const eventId = event.getId?.();
     if (eventId) indexedEventIds.add(eventId);
@@ -370,8 +382,8 @@ export const buildCrossRoomThreadIndexEntry = ({
       : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
-    isInvolved: involvement?.isInvolved ?? false,
-    isForUser: involvement?.isForUser ?? false,
+    isInvolved,
+    isForUser,
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),

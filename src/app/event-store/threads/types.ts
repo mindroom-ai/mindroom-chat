@@ -101,8 +101,6 @@ export type HydratedThreadCachePage = {
 
 export type ThreadRecord = ThreadId & {
   rootEventId?: string;
-  /** The current account's involvement and For me match, before any list-specific pinning. */
-  involvement?: { isInvolved: boolean; isForUser: boolean; pendingOwnFirstReplyTs?: number };
   presentation: ThreadPresentationSnapshot;
   status: ThreadStatusSnapshot;
   cache: ThreadCacheCoverage;

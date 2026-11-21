@@ -14,7 +14,10 @@ import {
   getPreferredVisibleThreadReplyEvents,
   hasLoadedEveryThreadReply,
   isVisibleThreadReplyEvent,
+  getVisibleThreadMessageCount,
 } from './threadUtils';
+import { getThreadReplyCount } from './threadRecord';
+import { roomThreadListIsListed } from './roomThreadList';
 
 const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: string): boolean => {
   const replacement: unknown = event?.replacingEvent?.()?.getContent?.();
@@ -28,7 +31,7 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
   );
 };
 
-export const getPendingOwnThreadReply = (
+const getPendingOwnThreadReply = (
   room: Room,
   threadRootId: string,
   currentUserId: string | undefined
@@ -55,7 +58,7 @@ type ThreadInvolvementInput = {
   rootEvent?: MatrixEvent;
   thread: Thread | null | undefined;
   userId: string | undefined;
-  visibleReplies?: readonly MatrixEvent[];
+  visibleReplies?: MatrixEvent[];
 };
 
 export const isUserInvolvedInThread = ({
@@ -120,11 +123,32 @@ export const hasAgentPostForUser = ({
 };
 
 /** For me is broader than involvement, which also controls Following and Activity. */
-export const resolveThreadInvolvement = (
-  input: Parameters<typeof hasAgentPostForUser>[0],
-  pendingOwnFirstReplyTs: number | undefined
-) => {
-  const { thread, userId } = input;
+export const resolveThreadInvolvement = ({
+  room,
+  threadRootId,
+  userId,
+  thread = room.getThread(threadRootId),
+  rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId),
+  visibleReplies = getPreferredVisibleThreadReplyEvents(thread),
+  bundledPreviews,
+  replyCount,
+}: Omit<ThreadInvolvementInput, 'thread'> & {
+  thread?: Thread | null;
+  room: Room;
+  threadRootId: string;
+  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
+  replyCount?: number;
+}) => {
+  const liveReplyCount =
+    replyCount ??
+    (thread && roomThreadListIsListed(room)
+      ? getVisibleThreadMessageCount(thread, undefined, visibleReplies)
+      : (rootEvent && getThreadReplyCount(room, rootEvent)) ?? 0);
+  const pendingOwnFirstReplyTs =
+    liveReplyCount === 0
+      ? getPendingOwnThreadReply(room, threadRootId, userId)?.getTs()
+      : undefined;
+  const input = { room, rootEvent, thread, userId, visibleReplies, bundledPreviews };
   const isInvolved = pendingOwnFirstReplyTs !== undefined || isUserInvolvedInThread(input);
   // After redacting your only reply, the SDK may still count you until it rereads the root.
   const isForUser =
@@ -134,4 +158,16 @@ export const resolveThreadInvolvement = (
       thread?.hasCurrentUserParticipated === true &&
       thread.client?.getUserId?.() === userId);
   return { isInvolved, isForUser, pendingOwnFirstReplyTs };
+};
+
+/** One read per root for a synchronous filter pass, including workflow counts. */
+export const createThreadForMeMatcher = (room: Room, userId = room.myUserId) => {
+  const matches = new Map<string, boolean>();
+  return (threadRootId: string): boolean => {
+    const cached = matches.get(threadRootId);
+    if (cached !== undefined) return cached;
+    const { isForUser } = resolveThreadInvolvement({ room, threadRootId, userId });
+    matches.set(threadRootId, isForUser);
+    return isForUser;
+  };
 };
