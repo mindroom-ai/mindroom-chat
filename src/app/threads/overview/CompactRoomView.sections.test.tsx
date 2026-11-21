@@ -76,9 +76,9 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
-const view = (threadRootIds: string[], sections = true) => (
+const view = (threadRootIds: string[], sections = true, activeRoom = room) => (
   <CompactRoomView
-    room={room}
+    room={activeRoom}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
@@ -554,6 +554,59 @@ describe('the Compact room in sections', () => {
 
     expect(rows()).toEqual(['$streaming', '$job']);
     expect(state.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+});
+
+describe('Compact order when the view switches under the pointer', () => {
+  const hold = () => {
+    const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+    act(() => {
+      fireEvent.pointerEnter(list);
+    });
+  };
+
+  it('starts a flat room in its live order and holds that order on the next update', () => {
+    const { rerender } = render(view(['$a', '$b'], false));
+    hold();
+    rerender(view(['$b', '$a'], false));
+    expect(rows()).toEqual(['$a', '$b']);
+
+    const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+    rerender(view(['$d', '$c'], false, nextRoom));
+    expect(rows()).toEqual(['$d', '$c']);
+    rerender(view(['$c', '$d'], false, nextRoom));
+    expect(rows()).toEqual(['$d', '$c']);
+  });
+
+  it('switches from Sections to flat using only the rows left after folding', () => {
+    state.sections = [
+      { id: 'working', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$done', '$b', '$a'];
+    const { rerender } = render(view(ids));
+    hold();
+    expect(rows()).toEqual(['#working 2', '$a', '$b', '#done 1']);
+
+    rerender(view(ids, false));
+    // The folded card is a newcomer, so it leads, while $a and $b keep their shown order.
+    expect(rows()).toEqual(['$done', '$a', '$b']);
+  });
+
+  it('switches from flat to live Sections, then holds those sections on the next update', () => {
+    const ids = ['$a', '$b', '$c'];
+    const { rerender } = render(view(ids, false));
+    hold();
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$b', '$a'] },
+      { id: 'working', rootIds: ['$c'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 2', '$b', '$a', '#working 1', '$c']);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$c', '$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$b', '$a', '#working 0', '$c']);
   });
 });
 
