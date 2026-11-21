@@ -59,7 +59,10 @@ describe('useHeldThreadOrder', () => {
 describe('useHeldThreadOrder scrolling', () => {
   const CARD = 100;
 
-  /** A list scrolled `scrollTop` down, its cards `CARD` px tall in the order `ids`. */
+  const SECTION_HEADER = 32;
+  const sectionOfRow = (id: string) => (id.startsWith('#') ? id : undefined);
+
+  /** A list scrolled `scrollTop` down, with optional section headers in the order `ids`. */
   const list = (ids: string[], scrollTop: number) => {
     const view = document.createElement('div');
     let offset = scrollTop;
@@ -72,18 +75,24 @@ describe('useHeldThreadOrder scrolling', () => {
       },
     });
     view.getBoundingClientRect = () => ({ top: 0, bottom: 400 } as DOMRect);
-    const show = (shownIds: string[]) =>
+    const show = (shownIds: string[]) => {
+      let rowTop = 0;
       view.replaceChildren(
         ...shownIds.map((id) => {
-          const card = document.createElement('div');
-          card.setAttribute('data-scroll-anchor', id);
-          card.getBoundingClientRect = () => {
-            const top = [...view.children].indexOf(card) * CARD - offset;
-            return { top, bottom: top + CARD } as DOMRect;
+          const row = document.createElement('div');
+          const isHeader = sectionOfRow(id) !== undefined;
+          if (!isHeader) row.setAttribute('data-scroll-anchor', id);
+          const height = isHeader ? SECTION_HEADER : CARD;
+          const start = rowTop;
+          rowTop += height;
+          row.getBoundingClientRect = () => {
+            const top = start - offset;
+            return { top, bottom: top + height } as DOMRect;
           };
-          return card;
+          return row;
         })
       );
+    };
     show(ids);
     return {
       view,
@@ -158,6 +167,47 @@ describe('useHeldThreadOrder scrolling', () => {
     rerender({ live });
     expect(writes).toEqual([]);
     expect(view.scrollTop).toBe(250);
+  });
+
+  it.each([
+    ['the topmost card in view', ['$a', '$b', '$d', '$e', '$f', '$c'], '$d'],
+    ['a card above the view', ['$b', '$c', '$d', '$e', '$f', '$a'], '$c'],
+  ])('anchors the stationary cards when %s moves down', (_label, live, anchor) => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 250);
+    const topOf = () =>
+      view.querySelector(`[data-scroll-anchor="${anchor}"]`)!.getBoundingClientRect().top;
+    const { rerender } = renderHook(
+      ({ order }) => useHeldThreadOrder(order, false, { current: view }),
+      { initialProps: { order: ids } }
+    );
+    const top = topOf();
+    show(live);
+    rerender({ order: live });
+    expect(writes).toEqual([150]);
+    expect(topOf()).toBe(top);
+  });
+
+  it('anchors the topmost card when the card just above moves down into a new section', () => {
+    withoutScrollAnchoring();
+    const later = ['#later', '$c', '$d', '$e', '$f'];
+    const ids = ['#needsYou', '$a', '$b', ...later];
+    const { view, show, writes } = list(ids, SECTION_HEADER + CARD + 10);
+    const topOfB = () =>
+      view.querySelector('[data-scroll-anchor="$b"]')!.getBoundingClientRect().top;
+    const { rerender } = renderHook(
+      ({ order }) => useHeldThreadOrder(order, false, { current: view }, sectionOfRow),
+      { initialProps: { order: ids } }
+    );
+    expect(topOfB()).toBe(-10);
+
+    // A and B swap relative order, but only A changed sections. B should still anchor.
+    const order = ['#needsYou', '$b', '#working', '$a', ...later];
+    show(order);
+    rerender({ order });
+    expect(topOfB()).toBe(-10);
+    expect(writes).toEqual([SECTION_HEADER + 10]);
   });
 
   it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {

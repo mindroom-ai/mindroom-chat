@@ -1,4 +1,11 @@
-import { type ForwardedRef, forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  type ForwardedRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, isApplePlatform, type PasteResult } from './computerClipboard';
@@ -13,6 +20,7 @@ export type RfbClient = {
   clipboardPasteFrom(text: string): void;
   sendKey(keysym: number, code: string | null, down?: boolean): void;
   scaleViewport: boolean;
+  background: string;
   viewOnly: boolean;
   focusOnClick: boolean;
 };
@@ -27,7 +35,8 @@ export type ComputerScreenProps = {
   url: string;
   protocols: [string, string];
   mode: 'view' | 'control';
-  onConnected: () => void;
+  holdingFrame?: boolean;
+  onConnected: (width: number, height: number) => void;
   onDisconnected: (message?: string) => void;
   onPaste?: (result: PasteResult) => void;
   /** Whether the software keyboard is open: its textarea has focus. */
@@ -36,6 +45,7 @@ export type ComputerScreenProps = {
 };
 
 export type ComputerScreenHandle = {
+  captureFrame(): HTMLCanvasElement | undefined;
   /**
    * Opens the software keyboard while in control. Call it from the tap's own handler: iOS shows
    * the keyboard only for a focus that runs inside the user's gesture.
@@ -51,6 +61,7 @@ function ComputerScreenWithHandle(
     url,
     protocols,
     mode,
+    holdingFrame = false,
     onConnected,
     onDisconnected,
     onPaste,
@@ -62,6 +73,8 @@ function ComputerScreenWithHandle(
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
   const rfbRef = useRef<RfbClient>();
+  const holdingFrameRef = useRef(false);
+  const defaultBackgroundRef = useRef('');
   const connectedCallbackRef = useRef(onConnected);
   const disconnectedCallbackRef = useRef(onDisconnected);
   const pasteCallbackRef = useRef(onPaste);
@@ -86,6 +99,22 @@ function ComputerScreenWithHandle(
   useImperativeHandle(
     ref,
     () => ({
+      captureFrame: () => {
+        try {
+          const canvas = targetRef.current?.querySelector('canvas');
+          if (!canvas?.width || !canvas.height) return undefined;
+          const frame = canvas.ownerDocument.createElement('canvas');
+          frame.width = canvas.width;
+          frame.height = canvas.height;
+          const context = frame.getContext('2d');
+          if (!context) return undefined;
+          context.drawImage(canvas, 0, 0);
+          return frame;
+        } catch {
+          // A failed snapshot must not stop the release.
+          return undefined;
+        }
+      },
       openKeyboard: () => {
         if (modeRef.current !== 'control') return;
         keyboardInputRef.current?.focus({ preventScroll: true });
@@ -110,6 +139,8 @@ function ComputerScreenWithHandle(
     // which a dropped stream does before the screen unmounts.
     const canvas = target.querySelector('canvas');
     rfb.scaleViewport = true;
+    defaultBackgroundRef.current = rfb.background;
+    if (holdingFrameRef.current) rfb.background = 'transparent';
     rfbRef.current = rfb;
 
     // Read through refs, so a change of mode never reconnects the stream.
@@ -118,8 +149,8 @@ function ComputerScreenWithHandle(
     showTouchpadPointerRef.current = touchpad.showPointer;
 
     const handleConnect = () => {
-      connectedCallbackRef.current();
-      // In control already: the screen has its first frame now.
+      // noVNC sizes the framebuffer before connect, even if it hasn't painted yet.
+      connectedCallbackRef.current(canvas?.width ?? 0, canvas?.height ?? 0);
       touchpad.showPointer();
     };
     const handleDisconnect = (event: Event) => {
@@ -201,6 +232,13 @@ function ComputerScreenWithHandle(
       releaseNoVncCapture(canvas);
     };
   }, [binaryProtocol, createRfb, ticketProtocol, url]);
+
+  useLayoutEffect(() => {
+    // Change the background in the same paint as the panel's held layer.
+    holdingFrameRef.current = holdingFrame;
+    const rfb = rfbRef.current;
+    if (rfb) rfb.background = holdingFrame ? 'transparent' : defaultBackgroundRef.current;
+  }, [holdingFrame]);
 
   useEffect(() => {
     // Watching, nothing is typed: the keyboard closes.

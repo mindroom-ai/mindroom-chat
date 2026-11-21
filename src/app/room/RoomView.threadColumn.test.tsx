@@ -76,9 +76,11 @@ vi.mock('../event-store/engine/engineContext', () => ({
     clearRoomFocus: () => undefined,
   }),
 }));
+const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
     viewMode: 'compact',
+    handleToggleForMe: toggleForMe,
     effectiveThreadId: state.thread,
     handleExitThread: () => undefined,
     handleThreadRootDeleted: state.rootDeleted,
@@ -338,6 +340,12 @@ const tree = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Deskto
 const renderView = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) =>
   render(tree(props, screenSize));
 const rerenderView = (rerender: (ui: ReactNode) => void) => rerender(tree());
+it('passes the For me action from the room to its timeline', () => {
+  state.thread = undefined;
+  renderView();
+  expect(state.main?.onToggleForMe).toBe(toggleForMe);
+});
+
 const column = () => screen.queryByTestId('thread-view');
 const draftAtom = (threadId?: string) =>
   roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@alice:example.org', room.roomId, threadId));

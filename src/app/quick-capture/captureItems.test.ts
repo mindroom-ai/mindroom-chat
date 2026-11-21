@@ -64,7 +64,7 @@ describe('buildCaptureItems', () => {
     expect(result).toEqual(['fresh']);
   });
 
-  it('lists a resolved thread that asked something after the resolve as open, however old', () => {
+  it('lists a resolved thread with a newer approval as open, however old', () => {
     const old = { resolved: true, resolvedTs: NOW - 2 * RESOLVED_SHOWN_MS };
     const result = ids([
       thread('quiet', old),
@@ -103,7 +103,7 @@ describe('buildCaptureItems', () => {
     expect(
       chip({ streaming: true, unread: true, resolved: true, resolvedTs: NOW })
     ).toBeUndefined();
-    // Asked after the resolve: the signals call that waiting.
+    // A pending approval asked after the resolve still waits.
     expect(
       chip({ streaming: true, needsYou: true, unread: true, resolved: true, resolvedTs: NOW })
     ).toBe('needs-you');

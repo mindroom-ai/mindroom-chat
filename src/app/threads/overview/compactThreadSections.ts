@@ -8,10 +8,10 @@ import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadInd
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { holdOrder } from './useHeldThreadOrder';
 
-/** The sections in the order they show: Working on top, then as the workflow tabs. */
+/** The sections in workflow-tab order, with Needs you first. */
 export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
-  'working',
   'needsYou',
+  'working',
   'later',
   'done',
 ];
@@ -118,10 +118,7 @@ export const buildCompactThreadSections = ({
  * the sections shown before (`shown`) stays in the section it showed in, at its place there
  * (`holdOrder`), and each of those sections stays, emptied or not, so no header comes or goes
  * under the pointer. A thread new to the list takes its section in `live`, whose header comes
- * with it, and joins that section where the live order puts it. So does a thread `live` puts under
- * Working, such as one whose agent posted its "Thinking..." placeholder (it already streams): the
- * reader usually just asked, and a pointer resting on a list that fills the view would otherwise
- * keep it under Needs you for as long as it rests.
+ * with it, and joins that section where the live order puts it.
  */
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
@@ -132,10 +129,7 @@ export const holdCompactThreadSections = (
   );
   return COMPACT_THREAD_SECTION_ORDER.flatMap((id) => {
     const members = live.flatMap((section) =>
-      section.rootIds.filter(
-        (rootId) =>
-          (section.id === 'working' ? section.id : shownIn.get(rootId) ?? section.id) === id
-      )
+      section.rootIds.filter((rootId) => (shownIn.get(rootId) ?? section.id) === id)
     );
     const shownSection = shown.find((section) => section.id === id);
     if (!shownSection) return members.length > 0 ? [{ id, rootIds: members }] : [];

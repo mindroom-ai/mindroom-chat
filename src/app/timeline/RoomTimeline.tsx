@@ -244,6 +244,7 @@ export type RoomTimelineProps = {
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
+  onToggleForMe?: () => void;
   onTogglePerson?: (userId: string) => void;
   onClearPeople?: () => void;
   onReset?: () => void;
@@ -252,7 +253,7 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
-  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
+  /** Compact shows its cards in sections (Needs you, Working, Later, Done). */
   threadSections?: boolean;
   /** The Compact filter bar's switch for `threadSections`. */
   onToggleThreadSections?: () => void;
@@ -1858,6 +1859,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
+        onToggleForMe={props.onToggleForMe}
         onReset={props.onReset ?? ignoreFilterChange}
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}

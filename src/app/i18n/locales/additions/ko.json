@@ -992,7 +992,10 @@
         "threadFiltersActive": "스레드 필터 (사용 중)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "고급 필터"
+        "advancedFilters": "고급 필터",
+        "includeResolvedThreads": "해결된 스레드 포함",
+        "hideResolvedThreads": "해결된 스레드 숨기기",
+        "forMeSummary": "{{summary}}. 나를 위한 스레드 필터가 켜져 있습니다."
       },
       "threadPeopleFilter": {
         "label": "참여자",
@@ -1017,7 +1020,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "긴 메시지 모두 펼치기",
-        "collapseAllLong": "긴 메시지 모두 접기"
+        "collapseAllLong": "긴 메시지 모두 접기",
+        "showFullMessage": "전체 메시지 보기"
       }
     },
     "computer": {
@@ -1639,9 +1643,10 @@
     }
   },
   "threadNav": {
-    "layout": "스레드 배치",
-    "layoutRecent": "최근",
-    "layoutSections": "섹션",
+    "forMe": "나를 위한 스레드",
+    "forMeHint": "내가 참여했거나, 에이전트가 나를 대신해 글을 올렸거나, 내가 고정한 스레드만 표시",
+    "roomForMeHint": "내가 참여했거나 에이전트가 나를 대신해 글을 올린 스레드만 표시",
+    "emptyForMe": "아직 나를 위한 스레드가 없습니다",
     "group": "그룹",
     "groupHint": "상태별로 그룹화",
     "sections": {

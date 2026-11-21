@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useId,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import {
   ExpandAllInitContext,
@@ -152,6 +153,7 @@ export function CollapsibleMessage({
   measurementKey,
   onInitialExpandConsumed,
 }: CollapsibleMessageProps) {
+  const { t } = useTranslation();
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
   const measurementKeyRef = useRef(measurementKey);
@@ -366,7 +368,9 @@ export function CollapsibleMessage({
 
   const showToggle = !isExempt && overflowing;
   const isCollapsed = showToggle && !expanded;
-  const toggleLabel = expanded ? 'Show less' : 'Show full message';
+  const toggleLabel = expanded
+    ? t('mindroomUi.notices.showLess')
+    : t('mindroomUi.threads.mindroomRoomTimeline.showFullMessage');
   const shouldLoadFullContent = effectiveExpanded || loadFullContent;
   const renderedChildren =
     typeof children === 'function'
