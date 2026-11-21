@@ -1054,31 +1054,30 @@ describe('ThreadContextBanner rendering', () => {
     const title = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
     // The banner's node, in a slot as wide as `width()` says when it is measured (no padding or
-    // margins here), and what `others` gives for the other elements.
-    const bannerOf =
-      (width: () => number, others: (element: React.ReactElement) => unknown = () => null) =>
-      (element: React.ReactElement) =>
-        (element.props as Record<string, unknown>)['data-thread-context-banner']
-          ? {
-              focus: vi.fn(),
-              contains: () => true,
-              getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
-              parentElement: {
-                get clientWidth() {
-                  return width();
-                },
+    // margins unless `getComputedStyle` gives them), and null for the other elements.
+    const bannerOf = (width: () => number) => (element: React.ReactElement) =>
+      (element.props as Record<string, unknown>)['data-thread-context-banner']
+        ? {
+            focus: vi.fn(),
+            contains: () => true,
+            getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
+            parentElement: {
+              get clientWidth() {
+                return width();
               },
-            }
-          : others(element);
+            },
+          }
+        : null;
     const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.find(
         (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
       ).props.className as string;
     // The menu the banner opens on a right click, as a collapsed pill offers it.
-    const contextMenuOf = (renderer: ReturnType<typeof renderBanner>) => {
+    const contextMenuOf = async (renderer: ReturnType<typeof renderBanner>) => {
       const banner = renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
       const target = { contains: () => true };
-      act(() => {
+      // Async, so the lazy menu has rendered before its props are read.
+      await act(async () => {
         banner.props.onContextMenu({
           currentTarget: target,
           target,
@@ -1205,6 +1204,46 @@ describe('ThreadContextBanner rendering', () => {
       expect(rootStyleChanged.callbacks).toHaveLength(0);
     });
 
+    it("takes the slot's padding and the banner's margins off the slot's width", () => {
+      // 36rem is 576 px: a 600 px slot with 8 px of padding leaves a 592 px box, and the banner's
+      // 8 px margins on either side a 576 px banner, just wide enough.
+      vi.stubGlobal('getComputedStyle', (element: object) => {
+        if ('clientWidth' in element) return { paddingLeft: '0px', paddingRight: '8px' };
+        if ('focus' in element) return { marginLeft: '8px', marginRight: '8px' };
+        return { fontSize: '16px' };
+      });
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 600)
+      );
+      expect(tagPills(wide)).toHaveLength(2);
+      wide.unmount();
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 599)
+      );
+      expect(tagPills(narrow)).toHaveLength(0);
+      narrow.unmount();
+    });
+
+    it('keeps its layout while its slot has no width, and measures again once it has', () => {
+      let width = 646;
+      const resized = stubObserver('ResizeObserver');
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      expect(tagPills(banner)).toHaveLength(2);
+      // Hidden: no width, which says nothing about the banner's.
+      width = 0;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(2);
+      width = 330;
+      resized.run();
+      expect(tagPills(banner)).toHaveLength(0);
+      banner.unmount();
+    });
+
     it('keeps a phone compact where its banner is wider than 36rem', () => {
       // A 750 px phone has 710 px of banner, more than a tablet's 646 px that keeps the tags.
       screenSize = ScreenSize.Mobile;
@@ -1246,15 +1285,16 @@ describe('ThreadContextBanner rendering', () => {
       sideways.unmount();
     });
 
-    it('gives a collapsed pill the menu of its width, whether it was ever expanded or not', () => {
+    it('gives a collapsed pill the menu of its width, whether it was ever expanded or not', async () => {
       store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
       // Opened collapsed in a narrow pane: More lists the tags at its top.
       const narrow = renderBanner(
         TITLE,
         bannerOf(() => 330)
       );
-      expect(contextMenuOf(narrow).tagsAtTop).toBe(true);
-      act(() => contextMenuOf(narrow).onClose());
+      const menu = await contextMenuOf(narrow);
+      expect(menu.tagsAtTop).toBe(true);
+      act(() => menu.onClose());
       // Expanded, it is compact; collapsed again, its menu is the same.
       act(() => {
         narrow.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick();
@@ -1264,7 +1304,7 @@ describe('ThreadContextBanner rendering', () => {
       act(() =>
         store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true })
       );
-      expect(contextMenuOf(narrow).tagsAtTop).toBe(true);
+      expect((await contextMenuOf(narrow)).tagsAtTop).toBe(true);
       narrow.unmount();
 
       // Opened collapsed in a wide one: the tags keep their own item.
@@ -1272,7 +1312,7 @@ describe('ThreadContextBanner rendering', () => {
         TITLE,
         bannerOf(() => 646)
       );
-      expect(contextMenuOf(wide).tagsAtTop).toBe(false);
+      expect((await contextMenuOf(wide)).tagsAtTop).toBe(false);
       wide.unmount();
     });
 

@@ -100,7 +100,8 @@ const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
  * Whether the banner is narrower than COMPACT_BANNER_REM. Measured from the banner's slot, the
  * width the banner has expanded, so a collapsed pill gets the same answer; again as the slot
  * resizes and as Page Zoom changes the root's font size. A hidden slot (no width) keeps the last
- * answer. Not measured while `skip`.
+ * answer. Not measured while `skip`. Assumes the parent is the block slot from
+ * `threadBannerSlotStyle`, whose width does not depend on the banner's.
  */
 const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
   const [narrow, setNarrow] = useState(false);
@@ -129,15 +130,15 @@ const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
   return narrow;
 };
 
-// A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
-// buttons, after them in the tab order too. In rem, since Page Zoom scales the root font size and
-// so the buttons, while the banner keeps its px width.
+// A compact banner's row narrower than this (a small phone, a narrow pane, Page Zoom) gives the
+// title the row under its buttons, after them in the tab order too. In rem, since Page Zoom scales
+// the root font size and so the buttons, while the banner keeps its px width.
 const NARROW_PHONE_ROW_REM = 19;
 
 type RowLayout = 'row' | 'stacked' | 'narrow';
 
 /**
- * A phone's title row:
+ * A compact banner's title row:
  * - `narrow`: too narrow to hold the title beside its buttons, which take the line above it.
  * - `stacked`: when the title, beside the buttons side by side, is at least as tall as the buttons
  *   one above the other, they stack and the title gets their width; the card gets no taller.
