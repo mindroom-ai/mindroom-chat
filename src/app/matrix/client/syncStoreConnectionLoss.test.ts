@@ -375,38 +375,37 @@ describe('Matrix sync store after an IndexedDB failure', () => {
   });
 
   // Each is one transaction, so an abort (as when iOS suspends the app) stores no part of it.
-  // The store that was given the value goes on returning it.
   it.each([
-    [
-      'members',
-      storeMembers,
-      (store: IndexedDBStore) => store.getOutOfBandMembers(roomId),
-      members,
-    ],
-    [
-      'client options',
-      (store: IndexedDBStore) => store.storeClientOptions({ lazyLoadMembers: true }),
-      (store: IndexedDBStore) => store.getClientOptions(),
-      { lazyLoadMembers: true },
-    ],
-  ])(
-    'keeps the persisted sync when a write of %s is aborted',
-    async (_what, write, read, given) => {
-      const store = await savedStore();
-      const degraded = vi.fn();
-      store.on('degraded', degraded);
+    ['members', storeMembers],
+    ['client options', (store: IndexedDBStore) => store.storeClientOptions({})],
+  ])('keeps the persisted sync when a write of %s is aborted', async (_what, write) => {
+    const store = await savedStore();
+    const degraded = vi.fn();
+    store.on('degraded', degraded);
 
-      abortNextSave('UnknownError');
-      await write(store);
+    abortNextSave('UnknownError');
+    await write(store);
 
-      expect(degraded).not.toHaveBeenCalled();
-      expect(await read(store)).toEqual(given);
-      const reader = await startStore();
-      expect(await reader.getSavedSyncToken()).toBe('saved');
-      expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
-      expect(await reader.getClientOptions()).toBeUndefined();
-    }
-  );
+    expect(degraded).not.toHaveBeenCalled();
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('saved');
+    expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
+    expect(await reader.getClientOptions()).toBeUndefined();
+  });
+
+  // Two tabs: what one of them holds in memory must not hide what the other wrote since.
+  it('reads the members and client options that another store on the database left', async () => {
+    const store = await startStore();
+    const other = await startStore();
+    await storeMembers(store);
+    await store.storeClientOptions({ lazyLoadMembers: false });
+
+    await other.clearOutOfBandMembers(roomId);
+    await other.storeClientOptions({ lazyLoadMembers: true });
+
+    expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+    expect(await store.getClientOptions()).toEqual({ lazyLoadMembers: true });
+  });
 
   it('clears the store when the storage is full during a clear of stored members', async () => {
     const store = await savedStore();
