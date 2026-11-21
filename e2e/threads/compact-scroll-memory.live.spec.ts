@@ -8,6 +8,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 const THREAD_COUNT = 40;
 const COMPACT_VIEW = '[data-compact-room-view="true"]:not([inert] *)';
@@ -127,11 +128,7 @@ const setUpCompactRoom = async (page: Page) => {
   return { homeserver, session, runTag, roomId, roots };
 };
 
-test('the compact overview keeps its cards in place when threads re-sort during a thread visit', async ({
-  page,
-}) => {
-  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
-  test.slow();
+const checkBackRestore = async (page: Page) => {
   const { homeserver, session, runTag, roomId, roots } = await setUpCompactRoom(page);
 
   const promoted = new Set<string>();
@@ -196,7 +193,21 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await page.setViewportSize({ width: 390, height: 844 });
     await visitThreadAndReturn(1200, () => page.goBack());
   });
-});
+};
+
+for (const reducedWebKit of [false, true]) {
+  const mode = reducedWebKit ? ' (WebKit, reduced motion)' : '';
+  test(`the compact overview keeps its cards in place when threads re-sort during a thread visit${mode}`, async ({
+    page,
+    baseURL,
+  }) => {
+    test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+    test.skip(reducedWebKit && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.slow();
+    if (reducedWebKit) await onWebKitPage({ baseURL, reducedMotion: 'reduce' }, checkBackRestore);
+    else await checkBackRestore(page);
+  });
+}
 
 test('the compact overview a focus address opened stays where the reader left it', async ({
   page,
