@@ -161,6 +161,21 @@ export const Actions = style({
   paddingBlockStart: space.S100,
 });
 
+/**
+ * An answer button grows with a label that wraps in a narrow list, instead of keeping its fixed
+ * height and spilling the label's lines over the button above and the one below.
+ */
+export const ActionButton = style({
+  selectors: {
+    '&&': {
+      height: 'auto',
+      minBlockSize: toRem(32),
+      paddingBlock: toRem(6),
+      textAlign: 'start',
+    },
+  },
+});
+
 export const Footer = style({
   ...strip,
   columnGap: space.S200,

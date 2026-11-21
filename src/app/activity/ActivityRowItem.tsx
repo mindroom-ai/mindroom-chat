@@ -135,6 +135,7 @@ function RowActions({
         size="300"
         variant="Primary"
         radii="300"
+        className={css.ActionButton}
         disabled={busy || !room}
         onClick={run(
           () => (room ? acceptInvite(mx, room) : Promise.reject()),
@@ -149,6 +150,7 @@ function RowActions({
         variant="Secondary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(() => declineInvite(mx, row.roomId), t('activity.actions.declined'))}
       >
@@ -167,6 +169,7 @@ function RowActions({
               variant="Success"
               fill="Soft"
               radii="300"
+              className={css.ActionButton}
               disabled={busy}
               onClick={run(
                 () => answerApproval(mx, roomId, record, 'approved'),
@@ -183,6 +186,7 @@ function RowActions({
         variant="Secondary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(
           () => answerApproval(mx, roomId, record, 'denied'),
@@ -197,6 +201,7 @@ function RowActions({
         variant="Secondary"
         fill="None"
         radii="300"
+        className={css.ActionButton}
         onClick={(event: MouseEvent) => {
           event.stopPropagation();
           onDetails();
@@ -215,6 +220,7 @@ function RowActions({
         variant="Primary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(
           () => answerQuestion(mx, room, threadId, question, option.key),
