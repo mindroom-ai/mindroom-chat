@@ -465,69 +465,83 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       const scroller = document.querySelector<HTMLElement>(selector)!;
       scroller.scrollTop = scroller.scrollHeight * 0.6;
     }, view);
-    const read = (scroller: Element) => {
-      const { top, bottom } = scroller.getBoundingClientRect();
-      const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
-        .map((row) => ({
-          id: row.dataset.threadRootId,
-          text: row.textContent,
-          rect: row.getBoundingClientRect(),
-        }))
-        .filter(({ rect }) => rect.top >= top + 80 && rect.bottom <= bottom - 80)
-        .map(({ id, text, rect }) => ({
-          id,
-          text,
-          y: rect.top - top,
-          x: rect.x,
-          width: rect.width,
-          height: rect.height,
-        }));
-      return {
-        nodes: scroller.closest('[data-page-slide-copy], [data-phone-stage]')!.querySelectorAll('*')
-          .length,
-        scrollTop: scroller.scrollTop,
-        scrollHeight: scroller.scrollHeight,
-        visible,
+    const live = await before.evaluate((scroller, shooting) => {
+      const read = (scroller: Element) => {
+        const { top, bottom } = scroller.getBoundingClientRect();
+        const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
+          .map((row) => ({
+            id: row.dataset.threadRootId,
+            text: row.textContent,
+            rect: row.getBoundingClientRect(),
+          }))
+          .filter(({ rect }) => rect.top >= top + 80 && rect.bottom <= bottom - 80)
+          .map(({ id, text, rect }) => ({
+            id,
+            text,
+            y: rect.top - top,
+            x: rect.x,
+            width: rect.width,
+            height: rect.height,
+          }));
+        return {
+          nodes: scroller
+            .closest('[data-page-slide-copy], [data-phone-stage]')!
+            .querySelectorAll('*').length,
+          scrollTop: scroller.scrollTop,
+          scrollHeight: scroller.scrollHeight,
+          visible,
+        };
       };
-    };
-    const live = await before.evaluate(read);
+
+      let tap: number | undefined;
+      document.addEventListener(
+        'click',
+        () => {
+          tap = performance.now();
+        },
+        { capture: true, once: true }
+      );
+      document.addEventListener('animationstart', (event) => {
+        if (event.animationName !== 'phone-page-under-out' || tap === undefined) return;
+        const frameMs = performance.now() - tap;
+        const copy = document.querySelector('[data-page-slide-copy] [data-compact-room-view]');
+        const capture = window as unknown as {
+          snapshot?: { frameMs: number; layout: ReturnType<typeof read> };
+        };
+        if (copy && !capture.snapshot) capture.snapshot = { frameMs, layout: read(copy) };
+      });
+      if (shooting) {
+        // Keep the held copy around long enough for a screenshot even on a slow renderer.
+        const clock: Window = window;
+        const later = clock.setTimeout.bind(clock);
+        clock.setTimeout = (handler, delay, ...args: unknown[]) =>
+          later(
+            handler,
+            delay === 2_000 && !!document.documentElement.dataset.pageSlide ? 120_000 : delay,
+            ...args
+          );
+      }
+      return read(scroller);
+    }, !!SHOTS);
     expect(live.nodes).toBeGreaterThan(6_000);
     expect(live.scrollTop).toBeGreaterThan(10_000);
     expect(live.visible.length).toBeGreaterThan(2);
 
-    await page.evaluate(() => {
-      document.addEventListener('click', () => performance.mark('card-tap'), {
-        capture: true,
-        once: true,
-      });
-      document.addEventListener('animationstart', (event) => {
-        if (event.animationName === 'phone-page-under-out') performance.mark('first-slide-frame');
-      });
-    });
     const opened = live.visible[Math.floor(live.visible.length / 2)]!;
     await page.touchscreen.tap(
       opened.x + opened.width / 2,
       opened.y + opened.height / 2 + (await before.boundingBox())!.y
     );
-    const still = page.locator(`[data-page-slide-copy] ${view}`);
-    await expect(still).toHaveCount(1);
-    await page.waitForFunction(
-      (time) =>
-        document
-          .getAnimations()
-          .some(
-            (animation) =>
-              (animation as CSSAnimation).animationName === 'phone-page-under-out' &&
-              animation.currentTime === time
-          ),
-      HELD_AT_MS
-    );
-    const snapshot = await still.evaluate(read);
-    const frameMs = await page.evaluate(() => {
-      const tap = performance.getEntriesByName('card-tap')[0]?.startTime;
-      const frame = performance.getEntriesByName('first-slide-frame')[0]?.startTime;
-      return frame !== undefined && tap !== undefined ? frame - tap : null;
-    });
+    const { frameMs, layout: snapshot } = await page
+      .waitForFunction(
+        () => {
+          type Capture = { frameMs: number; layout: typeof live };
+          return (window as unknown as { snapshot?: Capture }).snapshot!;
+        },
+        undefined,
+        { timeout: 30_000 }
+      )
+      .then((capture) => capture.jsonValue());
     console.log('Compact slide:', { frameMs, liveNodes: live.nodes, copyNodes: snapshot.nodes });
     if (SHOTS) {
       await page
