@@ -136,9 +136,8 @@ vi.mock('folds', async () => {
     OverlayBackdrop: () => reactModule.createElement('div', { 'data-testid': 'backdrop' }),
     OverlayCenter: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', { 'data-testid': 'overlay-center' }, children),
-    Modal: reactModule.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-      ({ children, ...props }, ref) => reactModule.createElement('div', { ...props, ref }, children)
-    ),
+    Modal: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      reactModule.createElement('div', { 'data-testid': 'modal', ...props }, children),
     Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
       reactModule.createElement('div', props, children),
     Input: ({
@@ -260,11 +259,6 @@ const renderRenderer = (open: CommandPaletteTab | undefined) => {
   return { renderer, store };
 };
 
-const findDialog = (renderer: ReturnType<typeof create>) =>
-  renderer.root.find(
-    (node) => node.type === 'div' && node.props['data-testid'] === 'command-palette-dialog'
-  );
-
 const findCloseButtons = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll(
     (node) => node.type === 'button' && node.props['aria-label'] === 'Close command palette'
@@ -280,17 +274,20 @@ describe('CommandPaletteRenderer', () => {
 
   it('renders the dialog shell while the shared open atom names a tab', () => {
     const { renderer } = renderRenderer('all');
-    const modal = findDialog(renderer);
+    const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
 
     expect(useCommandPaletteSourceMock).toHaveBeenCalledTimes(1);
     expect(renderer.root.findAllByProps({ 'data-testid': 'overlay' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-testid': 'command-palette-dialog' })).toHaveLength(
+      1
+    );
     expect(modal.props.flexHeight).toBe(true);
   });
 
   it('uses a rounded mobile bottom-sheet layout with dynamic viewport units', () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = renderRenderer('all');
-    const modal = findDialog(renderer);
+    const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
     const sheetContainer = renderer.root.find(
       (node) =>
         node.type === 'div' &&
@@ -327,7 +324,7 @@ describe('CommandPaletteRenderer', () => {
   it('resets local query state after close and reopen', async () => {
     const { renderer, store } = renderRenderer('all');
     const getInput = () => renderer.root.findByType('input');
-    const getDialog = () => findDialog(renderer);
+    const getDialog = () => renderer.root.findByProps({ 'data-testid': 'command-palette-dialog' });
 
     await act(async () => {
       getInput().props.onChange({

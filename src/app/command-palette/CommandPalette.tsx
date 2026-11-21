@@ -491,9 +491,12 @@ export function CommandPalette({
 
     const plainTab = event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey;
     if (plainTab && !event.shiftKey && (page || tab === COMMAND_PALETTE_TABS.at(-1))) {
+      // The glass Modal around the dialog holds its notice slot, beside the dialog itself.
       const noticeButton = event.currentTarget
         .closest('[role="dialog"]')
-        ?.querySelector<HTMLButtonElement>('[data-dialog-notice-slot] button:not(:disabled)');
+        ?.parentElement?.querySelector<HTMLButtonElement>(
+          '[data-dialog-notice-slot] button:not(:disabled)'
+        );
       if (noticeButton) {
         event.preventDefault();
         event.stopPropagation?.();

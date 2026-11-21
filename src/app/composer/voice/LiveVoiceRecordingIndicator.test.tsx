@@ -142,7 +142,10 @@ describe('LiveVoiceRecordingIndicator', () => {
 
   it('says the recording is starting while the microphone is requested', () => {
     const store = createStore();
-    store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'requesting', elapsedMs: 0 }).session);
+    store.set(
+      liveVoiceRecordingAtom,
+      recordingSession({ phase: 'requesting', elapsedMs: 0 }).session
+    );
     render(
       <Provider store={store}>
         <NoticeSlot place="page" />
@@ -322,10 +325,10 @@ describe('LiveVoiceRecordingIndicator', () => {
     fireEvent.keyDown(search, { key: 'Tab', shiftKey: true });
     expect(screen.getByRole('tab', { name: 'Actions', selected: true })).toBeTruthy();
     fireEvent.keyDown(search, { key: 'Tab' });
+    // The palette's glass shell holds the dialog and, beside it, the notice slot.
+    const shell = screen.getByRole('dialog', { name: 'Command palette' }).parentElement!;
     expect(document.activeElement).toBe(
-      within(screen.getByRole('dialog', { name: 'Command palette' })).getByRole('button', {
-        name: 'Discard voice recording',
-      })
+      within(shell).getByRole('button', { name: 'Discard voice recording' })
     );
     expect(store.get(commandPaletteOpenAtom)).toBe('all');
   });
@@ -345,7 +348,9 @@ describe('LiveVoiceRecordingIndicator', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: 'Command palette' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard voice recording' }));
+    fireEvent.click(
+      within(dialog.parentElement!).getByRole('button', { name: 'Discard voice recording' })
+    );
     expect(discard).toHaveBeenCalledOnce();
     expect(pill()).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Command palette' })).toBe(dialog);
