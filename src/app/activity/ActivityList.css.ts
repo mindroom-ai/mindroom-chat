@@ -163,7 +163,8 @@ export const Actions = style({
 
 /**
  * An answer button grows with a label that wraps in a narrow list, instead of keeping its fixed
- * height and spilling the label's lines over the button above and the one below.
+ * height and spilling the label's lines over the button above and the one below. A long word,
+ * such as a path, wraps too rather than run past the button's sides.
  */
 export const ActionButton = style({
   selectors: {
@@ -172,6 +173,7 @@ export const ActionButton = style({
       minBlockSize: toRem(32),
       paddingBlock: toRem(6),
       textAlign: 'start',
+      overflowWrap: 'anywhere',
     },
   },
 });

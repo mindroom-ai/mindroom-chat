@@ -14,7 +14,7 @@ import { getMemberAvatarMxc, getMemberRawDisplayName, withoutNameDisguises } fro
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
 import { useMessagePreview } from '../plugins/messageRenderers';
-import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
   threadIndexReplyPreview,
@@ -227,7 +227,7 @@ function RowActions({
           t('activity.actions.answered', { label: option.label })
         )}
       >
-        <Text size="B300" {...ownDirectionLine}>
+        <Text size="B300" {...ownDirectionBlock}>
           {option.label}
         </Text>
       </Button>
