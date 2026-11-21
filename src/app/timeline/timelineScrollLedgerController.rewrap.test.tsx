@@ -2,18 +2,29 @@
 import { useLayoutEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { afterEach, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 
 type Rect = { width: number; height: number };
+type Instance = {
+  scrollElement: object;
+  elementsCache: Map<number, Element>;
+  indexFromElement: (row: Element) => number;
+  resizeItem: (index: number, size: number) => void;
+};
 type Options = {
   measureElement: (
     element: Element,
     entry: ResizeObserverEntry | undefined,
     instance: object
   ) => number;
-  observeElementRect: (instance: object, onRect: (rect: Rect) => void) => void;
+  observeElementRect: (instance: Instance, onRect: (rect: Rect) => void) => void;
 };
+type Correction = (
+  item: { end: number; index: number },
+  delta: number,
+  instance: { scrollOffset: number; scrollDirection: 'backward'; scrollElement: object }
+) => boolean;
 
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without them */
 const virtualizer = vi.hoisted(() => ({
@@ -32,7 +43,9 @@ vi.mock('@tanstack/react-virtual', () => ({
     return virtualizer;
   },
   measureElement: () => 0,
-  observeElementRect: (_instance: unknown, onRect: unknown) => {
+  // As virtual-core: it reads the rect once itself, then its observer reports.
+  observeElementRect: (_instance: unknown, onRect: (rect: Rect) => void) => {
+    onRect({ width: 700, height: 800 });
     virtualizer.reportRect = onRect;
   },
 }));
@@ -43,23 +56,22 @@ vi.mock('./scrollQuiescence', () => ({
   waitForScrollQuiescence: () => new Promise<void>(() => {}),
 }));
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
 /**
  * The ledger of a room of 40 rows whose reader is at the newest one, the commits it rendered, and
- * whether each took its rows as wrapped anew. `report` is one report of virtual-core's row
- * observer: the newest row, 22 px taller.
+ * whether each took its rows as wrapped anew.
+ * - `reportRows` is one report of virtual-core's row observer: the newest row, 22 px taller.
+ * - `reportScrollArea` is one report of its observer of the scroll area, whose width is `width`.
+ *   `mountedRowPx` is the height of the one mounted row, the newest, which virtual-core has at 22.
  */
 const mount = () => {
   // Outside act(), React schedules ordinary updates the way a browser does.
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
-  const frames: (() => void)[] = [];
-  vi.stubGlobal('requestAnimationFrame', (frame: () => void) => frames.push(frame));
+  const layout = { width: 700, mountedRowPx: 22 };
   const scrollElement = {
     scrollTop: 3400,
+    // A width that crosses no whole pixel keeps this.
     offsetWidth: 700,
+    getBoundingClientRect: () => ({ width: layout.width }),
     addEventListener() {},
     removeEventListener() {},
   };
@@ -87,80 +99,133 @@ const mount = () => {
   const root = createRoot(document.createElement('div'));
   flushSync(() => root.render(<Harness />));
   const options = virtualizer.options as Options;
-  const instance = { scrollElement };
-  let reportRect: (rect: Rect) => void = () => {};
+  const correct = (row: { end: number; index: number }, delta: number): boolean =>
+    (virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction)(row, delta, {
+      scrollOffset: scrollElement.scrollTop,
+      // While the reader scrolls back no correction is written: the ledger takes a row's above them.
+      scrollDirection: 'backward',
+      scrollElement,
+    });
+  // The observer's callback returns, and the microtasks it queued run before the paint.
+  const callbackReturns = async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+  const mountedRow = {
+    isConnected: true,
+    getBoundingClientRect: () => ({ height: layout.mountedRowPx }),
+  } as unknown as Element;
+  const resized: [number, number][] = [];
+  let cachedRowPx = 22;
+  const instance: Instance = {
+    scrollElement,
+    elementsCache: new Map([[39, mountedRow]]),
+    indexFromElement: () => 39,
+    // As virtual-core: a row at a new size asks whether to correct the scroll position.
+    resizeItem: (index, size) => {
+      resized.push([index, size]);
+      if (size !== cachedRowPx)
+        expect(correct({ end: 4000, index }, size - cachedRowPx)).toBe(false);
+      cachedRowPx = size;
+    },
+  };
   options.observeElementRect(instance, () => {});
-  reportRect = virtualizer.reportRect as typeof reportRect;
-  const report = async (row = { end: 4000, index: 39 }) => {
-    options.measureElement(document.createElement('div'), {} as ResizeObserverEntry, instance);
-    const correction = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as (
-      item: { end: number; index: number },
-      delta: number,
-      instance: { scrollOffset: number; scrollDirection: 'backward'; scrollElement: object }
-    ) => boolean;
-    const scrollOffset = scrollElement.scrollTop;
-    // While the reader scrolls back no correction is written: the ledger takes a row's above them.
-    expect(correction(row, 22, { scrollOffset, scrollDirection: 'backward', scrollElement })).toBe(
-      false
-    );
-    // The observer's callback returns, and the microtasks it queued run before the paint.
-    await Promise.resolve();
-    await Promise.resolve();
+  const reportRect = virtualizer.reportRect as (rect: Rect) => void;
+  const reportScrollArea = async () => {
+    reportRect({ width: Math.round(layout.width), height: 800 });
+    await callbackReturns();
+  };
+  const reportRows = async (row = { end: 4000, index: 39 }) => {
+    options.measureElement(mountedRow, {} as ResizeObserverEntry, instance);
+    expect(correct(row, 22)).toBe(false);
+    await callbackReturns();
   };
   commits.length = 0;
   return {
     commits,
-    frames,
-    report,
-    reportRect,
-    scrollElement,
+    layout,
+    reportRows,
+    reportScrollArea,
+    resized,
     unmount: () => flushSync(() => root.unmount()),
   };
 };
 
-it('renders rows that wrapped anew with the scroll area before the paint, at the new height', async () => {
-  const { commits, report, scrollElement, unmount } = mount();
+it('renders rows that wrapped anew at the new height when the rows are reported first', async () => {
+  const { commits, layout, reportRows, reportScrollArea, unmount } = mount();
   // The newest row grows on its own (an image loads): no row moves, and nothing renders.
-  await report();
+  await reportRows();
   expect(commits).toEqual([]);
 
-  // A splitter narrows the room: the rows wrap anew in the layout that resized the scroll area.
-  scrollElement.offsetWidth = 640;
-  await report();
+  // A splitter narrows the room: the rows wrap anew in the layout that resized the scroll area,
+  // and the browser reports both in one pass, the rows first.
+  layout.width = 640;
+  await reportRows();
   expect(commits).toEqual([true]);
+  await reportScrollArea();
 
-  // Rows that change size on their own afterwards, even in a later pass of that frame, did not.
-  await report();
+  // Rows that change size on their own in a later pass of that frame did not wrap anew.
+  await reportRows();
   expect(commits).toEqual([true]);
   unmount();
 });
 
+it('measures the rows itself when the scroll area is reported first', async () => {
+  const { commits, layout, reportRows, reportScrollArea, resized, unmount } = mount();
+  // The newest row wrapped to two lines in the layout that narrowed the scroll area.
+  layout.width = 640;
+  layout.mountedRowPx = 44;
+  await reportScrollArea();
+  expect(resized).toEqual([[39, 44]]);
+  expect(commits).toEqual([true]);
+
+  // The rows' observer reports that row in the same pass: virtual-core has its size already.
+  // A row it reports in a later pass changed size on its own.
+  await reportRows();
+  expect(commits).toEqual([true]);
+  unmount();
+});
+
+it('leaves the list alone for rows reported in a later pass than the scroll area', async () => {
+  const { commits, layout, reportRows, reportScrollArea, resized, unmount } = mount();
+  // The scroll area narrows and no mounted row changes height with it.
+  layout.width = 640;
+  await reportScrollArea();
+  expect(resized).toEqual([[39, 22]]);
+  expect(commits).toEqual([]);
+
+  // A row measured in a later pass of the same frame, before any animation frame: a list that
+  // changed size there would leave the observers of the scroll content unreported.
+  await reportRows();
+  expect(commits).toEqual([]);
+  unmount();
+});
+
+it('sees a new width that crosses no whole pixel', async () => {
+  const { commits, layout, reportRows, reportScrollArea, unmount } = mount();
+  // 0.2 px narrower, at the same rounded width: a word no longer fits its line.
+  layout.width = 699.90625;
+  await reportRows();
+  expect(commits).toEqual([true]);
+  await reportScrollArea();
+  layout.width = 700.109375;
+  layout.mountedRowPx = 44;
+  await reportScrollArea();
+  expect(commits).toEqual([true, true]);
+  unmount();
+});
+
 it('takes the rows of a later render as they are', async () => {
-  const { commits, report, scrollElement, unmount } = mount();
-  await report();
+  const { commits, layout, reportRows, unmount } = mount();
+  await reportRows();
   // A row above the reader wraps anew, and the ledger takes its growth: it renders in a later
   // task, after the paint, when the rows of that report are no longer the ones being rendered.
-  scrollElement.offsetWidth = 640;
-  await report({ end: 3000, index: 20 });
+  layout.width = 640;
+  await reportRows({ end: 3000, index: 20 });
   expect(commits).toEqual([]);
   await new Promise((resolve) => {
     setTimeout(resolve, 50);
   });
   expect(commits).toEqual([false]);
-  unmount();
-});
-
-it('forgets a new width whose frame reported no row', async () => {
-  const { commits, frames, report, reportRect, scrollElement, unmount } = mount();
-  await report();
-  reportRect({ width: 700, height: 800 });
-  scrollElement.offsetWidth = 640;
-  reportRect({ width: 640, height: 800 });
-  expect(frames).toHaveLength(1);
-  frames.forEach((frame) => frame());
-
-  // A row that grows in a later frame is reported alone: the content keeps its size in that pass.
-  await report();
-  expect(commits).toEqual([]);
   unmount();
 });
