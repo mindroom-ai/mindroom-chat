@@ -505,7 +505,7 @@
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
         "connection": "La connessione della chiamata si è interrotta.",
-        "device": "Impossibile usare il microfono o la fotocamera.",
+        "device": "Non è stato possibile usare un microfono, una fotocamera o un altoparlante.",
         "untrustedService": "Questa chiamata usa un servizio di chiamata che il tuo homeserver non offre, quindi non puoi partecipare da qui."
       },
       "devices": {

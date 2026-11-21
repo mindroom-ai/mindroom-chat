@@ -1039,13 +1039,15 @@ describe('the minimized bar', () => {
     renderPanel({ frame: frame(true) });
 
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
-    expect(within(bar).getByText('Your microphone or camera could not be used.')).toBeTruthy();
+    expect(
+      within(bar).getByText('A microphone, camera or speaker could not be used.')
+    ).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Turn On Microphone' })).toBeTruthy();
     cleanup();
 
     // Expanded, the notice over the stage says the same.
     renderPanel({ frame: frame() });
-    const said = screen.getByText('Your microphone or camera could not be used.');
+    const said = screen.getByText('A microphone, camera or speaker could not be used.');
     expect(said.closest('[role="status"]')).not.toBeNull();
   });
 

@@ -485,7 +485,7 @@
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
         "connection": "Koneksi panggilan terputus.",
-        "device": "Mikrofon atau kamera Anda tidak dapat digunakan.",
+        "device": "Mikrofon, kamera, atau speaker tidak dapat digunakan.",
         "untrustedService": "Panggilan ini berjalan di layanan panggilan yang tidak disediakan homeserver Anda, jadi Anda tidak dapat bergabung dari sini."
       },
       "devices": {

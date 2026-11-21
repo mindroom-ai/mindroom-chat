@@ -505,7 +505,7 @@
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
         "connection": "A ligação da chamada perdeu-se.",
-        "device": "Não foi possível usar o seu microfone ou a sua câmara.",
+        "device": "Não foi possível usar um microfone, uma câmara ou um altifalante.",
         "untrustedService": "Esta chamada usa um serviço de chamadas que o seu servidor não oferece, por isso não pode participar a partir daqui."
       },
       "devices": {

@@ -495,7 +495,7 @@
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
         "connection": "Aramanın bağlantısı koptu.",
-        "device": "Mikrofonunuz veya kameranız kullanılamadı.",
+        "device": "Mikrofon, kamera veya hoparlör kullanılamadı.",
         "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız."
       },
       "devices": {
