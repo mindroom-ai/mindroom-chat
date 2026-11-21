@@ -261,6 +261,7 @@ describe('thread involvement and agent attribution with SDK events', () => {
       compactViewRequested: true,
       visibleThreadRootIds: ['$root'],
       compactThreadRootIds: ['$root'],
+      compactThreadRootEventMap: new Map([['$root', cachedRoot]]),
       normalThreadRecordMap: recordMap,
       compactThreadRecordMap: recordMap,
       threadFilterState: state,

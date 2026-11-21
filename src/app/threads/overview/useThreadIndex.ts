@@ -142,6 +142,7 @@ export type ResolveThreadIndexSnapshotOptions = {
   compactViewRequested: boolean;
   visibleThreadRootIds: string[];
   compactThreadRootIds: string[];
+  compactThreadRootEventMap?: ReadonlyMap<string, MatrixEvent>;
   normalThreadRecordMap: Map<string, ThreadRecord>;
   compactThreadRecordMap: Map<string, ThreadRecord>;
   threadFilterState: ThreadFilterState;
@@ -227,6 +228,7 @@ export const resolveThreadIndexSnapshot = ({
   compactViewRequested,
   visibleThreadRootIds,
   compactThreadRootIds,
+  compactThreadRootEventMap,
   normalThreadRecordMap,
   compactThreadRecordMap,
   threadFilterState,
@@ -238,7 +240,9 @@ export const resolveThreadIndexSnapshot = ({
   now = Date.now(),
 }: ResolveThreadIndexSnapshotOptions): ThreadIndexSnapshot => {
   const isForUser =
-    !threadId && threadFilterState.forMe ? createThreadForMeMatcher(room) : undefined;
+    !threadId && threadFilterState.forMe
+      ? createThreadForMeMatcher(room, undefined, compactThreadRootEventMap)
+      : undefined;
   const searchQuery = threadFilterState.freeText;
   const showCompactRoomView = compactViewRequested && compactThreadRootIds.length > 0;
   const threadRecordMap = showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap;
@@ -713,6 +717,7 @@ export const useThreadIndex = ({
         compactViewRequested,
         visibleThreadRootIds: visibleThreadRootData.ids,
         compactThreadRootIds: compactThreadRootData.ids,
+        compactThreadRootEventMap,
         normalThreadRecordMap,
         compactThreadRecordMap,
         threadFilterState: requestedThreadFilterState,
@@ -730,6 +735,7 @@ export const useThreadIndex = ({
       compactViewRequested,
       visibleThreadRootData.ids,
       compactThreadRootData.ids,
+      compactThreadRootEventMap,
       normalThreadRecordMap,
       compactThreadRecordMap,
       requestedThreadFilterState,

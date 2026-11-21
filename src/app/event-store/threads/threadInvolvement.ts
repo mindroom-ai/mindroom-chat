@@ -128,7 +128,8 @@ export const resolveThreadInvolvement = ({
   threadRootId,
   userId,
   thread = room.getThread(threadRootId),
-  rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId),
+  fallbackRootEvent,
+  rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId) ?? fallbackRootEvent,
   visibleReplies = getPreferredVisibleThreadReplyEvents(thread),
   bundledPreviews,
   replyCount,
@@ -136,6 +137,7 @@ export const resolveThreadInvolvement = ({
   thread?: Thread | null;
   room: Room;
   threadRootId: string;
+  fallbackRootEvent?: MatrixEvent;
   bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
   replyCount?: number;
 }) => {
@@ -161,12 +163,21 @@ export const resolveThreadInvolvement = ({
 };
 
 /** One read per root for a synchronous filter pass, including workflow counts. */
-export const createThreadForMeMatcher = (room: Room, userId = room.myUserId) => {
+export const createThreadForMeMatcher = (
+  room: Room,
+  userId = room.myUserId,
+  fallbackRootEventMap?: ReadonlyMap<string, MatrixEvent>
+) => {
   const matches = new Map<string, boolean>();
   return (threadRootId: string): boolean => {
     const cached = matches.get(threadRootId);
     if (cached !== undefined) return cached;
-    const { isForUser } = resolveThreadInvolvement({ room, threadRootId, userId });
+    const { isForUser } = resolveThreadInvolvement({
+      room,
+      threadRootId,
+      userId,
+      fallbackRootEvent: fallbackRootEventMap?.get(threadRootId),
+    });
     matches.set(threadRootId, isForUser);
     return isForUser;
   };
