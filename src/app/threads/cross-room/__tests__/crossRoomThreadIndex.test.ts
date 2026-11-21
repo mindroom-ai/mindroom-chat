@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
-import type { MatrixEvent } from 'matrix-js-sdk';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { createClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
   applyCrossRoomThreadIndexBatch,
@@ -111,6 +110,79 @@ const makeRoom = ({
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
   } as unknown as Room;
 };
+
+describe('isUserInvolvedInThread with SDK events', () => {
+  const roomId = '!room:example.org';
+  const userId = '@me:example.org';
+  const otherId = '@someone:example.org';
+  const message = (eventId: string, content: Record<string, unknown> = {}, sender = otherId) => ({
+    event_id: eventId,
+    room_id: roomId,
+    type: 'm.room.message',
+    sender,
+    origin_server_ts: 1,
+    content: { msgtype: 'm.text', body: 'Example message', ...content },
+  });
+  const reply = (content: Record<string, unknown> = {}) =>
+    message('$reply', {
+      ...content,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    });
+  const createThread = (root: MatrixEvent, events: MatrixEvent[] = []) => {
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    const room = new Room(roomId, client, userId, { timelineSupport: true });
+    return room.createThread('$root', root, events, false);
+  };
+  const bundledRoot = (count: number) =>
+    new MatrixEvent({
+      ...message('$root'),
+      unsigned: {
+        'm.relations': {
+          'm.thread': { count, current_user_participated: true, latest_event: reply() },
+        },
+      },
+    } satisfies IEvent);
+
+  it('counts a root posted on behalf of the user', () => {
+    const rootEvent = new MatrixEvent(message('$root', { 'com.mindroom.original_sender': userId }));
+    expect(isUserInvolvedInThread({ rootEvent, thread: undefined, userId })).toBe(true);
+  });
+
+  it('counts a visible reply posted on behalf of the user', () => {
+    const rootEvent = new MatrixEvent(message('$root'));
+    const thread = createThread(rootEvent, [
+      new MatrixEvent(reply({ 'com.mindroom.original_sender': userId })),
+    ]);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(true);
+  });
+
+  it('does not count attribution to a different user', () => {
+    const attribution = { 'com.mindroom.original_sender': '@requester:example.org' };
+    const rootEvent = new MatrixEvent(message('$root', attribution));
+    const thread = createThread(rootEvent, [new MatrixEvent(reply(attribution))]);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(false);
+  });
+
+  it('uses bundled participation when the SDK has not loaded all the replies', () => {
+    const rootEvent = bundledRoot(3);
+    const thread = createThread(rootEvent);
+    expect(thread.hasCurrentUserParticipated).toBe(true);
+    expect(thread.events).toHaveLength(0);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(true);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId: '@different:example.org' })).toBe(
+      false
+    );
+  });
+
+  it('does not let a stale bundle override a complete timeline with no involved replies', () => {
+    const rootEvent = bundledRoot(1);
+    const thread = createThread(rootEvent, [rootEvent, new MatrixEvent(reply())]);
+    expect(thread.events.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(thread.hasCurrentUserParticipated).toBe(true);
+    expect(isUserInvolvedInThread({ rootEvent, thread, userId })).toBe(false);
+  });
+});
 
 describe('crossRoomThreadIndex', () => {
   it('builds entries from root preview and summary text only', () => {

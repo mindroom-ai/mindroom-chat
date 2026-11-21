@@ -10,9 +10,13 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
+import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
-import { getPreferredVisibleThreadReplyEvents } from '../../event-store/threads/threadUtils';
+import {
+  getPreferredVisibleThreadReplyEvents,
+  hasLoadedEveryThreadReply,
+} from '../../event-store/threads/threadUtils';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { isThreadPinned } from '../../event-store/threads/threadPinning';
 import { isThreadResolved } from '../../event-store/threads/threadTags';
@@ -334,6 +338,11 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
   return hasDirectUserMention(getMentionSourceContent(replacementEvent ?? event, content), userId);
 };
 
+const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
+  event?.getSender?.() === userId ||
+  getEventContent(event)?.[ORIGINAL_SENDER_KEY] === userId ||
+  eventDirectlyMentionsUser(event, userId);
+
 export const isUserInvolvedInThread = ({
   rootEvent,
   thread,
@@ -344,12 +353,20 @@ export const isUserInvolvedInThread = ({
   userId: string | undefined;
 }): boolean => {
   if (!userId) return false;
-  if (rootEvent?.getSender?.() === userId) return true;
-  if (eventDirectlyMentionsUser(rootEvent, userId)) return true;
+  if (eventInvolvesUser(rootEvent, userId)) return true;
 
-  const visibleReplies = getPreferredVisibleThreadReplyEvents(thread);
-  return visibleReplies.some(
-    (event) => event.getSender?.() === userId || eventDirectlyMentionsUser(event, userId)
+  // The bundle is for this SDK account. If all replies are present, trust the visible events
+  // instead: a redaction of an earlier reply need not refresh the SDK's bundled flag.
+  if (
+    thread?.hasCurrentUserParticipated &&
+    thread.client.getUserId() === userId &&
+    !hasLoadedEveryThreadReply(thread)
+  ) {
+    return true;
+  }
+
+  return getPreferredVisibleThreadReplyEvents(thread).some((event) =>
+    eventInvolvesUser(event, userId)
   );
 };
 
