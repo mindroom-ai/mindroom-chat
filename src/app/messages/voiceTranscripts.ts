@@ -123,7 +123,9 @@ export const planVoiceTranscripts = ({
       }
     }
     if (pending.size > 0) {
-      // The room window may draw newest first. A drawn event need not have decrypted to count.
+      // The room window may draw newest first. A drawn event need not have decrypted to count;
+      // an echo folded under another voice message and a state change (joins, profile edits) do
+      // not draw an agent row.
       let latestAgentTs = oldestVoiceTs;
       for (const event of events) {
         const ts = event.getTs();
@@ -134,6 +136,8 @@ export const planVoiceTranscripts = ({
           ignored.has(sender) ||
           !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
           isRowlessTimelineEvent(event) ||
+          event.getStateKey() !== undefined ||
+          hiddenEventIds.has(event.getId() ?? '') ||
           isHidden(event)
         )
           continue;

@@ -339,6 +339,29 @@ describe('pending voice transcription', () => {
     expect([...pending([later, reply, earlier]).pendingVoiceIds]).toEqual(['$later']);
   });
 
+  it("keeps a second voice message pending when the first one's transcript folds after it", () => {
+    const first = voice('$voice', PERSON, VOICE_CONTENT, now - 10);
+    const second = voice('$second', PERSON, VOICE_CONTENT, now - 5);
+    const result = plan([first, second, echo('$echo', undefined, { sender: AGENT })], {
+      expectsAnswer: true,
+      trustedAccountIds: new Set([ROUTER, AGENT]),
+    });
+    expect(result.byVoiceId.has('$voice')).toBe(true);
+    expect([...result.pendingVoiceIds]).toEqual(['$second']);
+  });
+
+  it('keeps pending when a later agent event is a state change, such as a profile edit', () => {
+    const profile = new MatrixEvent({
+      event_id: '$member',
+      type: 'm.room.member',
+      state_key: AGENT,
+      sender: AGENT,
+      origin_server_ts: now + 1,
+      content: { membership: 'join', displayname: 'Helper' },
+    });
+    expect([...pending([voice(), profile]).pendingVoiceIds]).toEqual(['$voice']);
+  });
+
   it('ends on an unfolded agent echo', () => {
     const untrusted = echo('$echo', undefined, { sender: AGENT });
     expect(pending([voice(), untrusted])).toBe(NO_VOICE_TRANSCRIPTS);
