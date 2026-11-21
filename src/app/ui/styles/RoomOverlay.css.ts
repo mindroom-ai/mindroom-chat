@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { config } from 'folds';
 import { Viewport } from '../InsetScrollbar.css';
-import { glassFlat, glassFloating, glassSurface } from './Glass.css';
+import { glassFadeDown, glassFlat, glassFloating, glassSurface } from './Glass.css';
 import { shortViewport } from './shortViewport';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
@@ -83,13 +83,17 @@ export const DockBars = style({
   pointerEvents: 'none',
 });
 globalStyle(`${DockBars} > *`, { pointerEvents: 'auto' });
-export const Overview = style({
-  position: 'absolute',
-  insetInline: 0,
-  top: headerInset,
-  zIndex: 5,
-  display: 'flow-root',
-});
+export const Overview = style([
+  glassFadeDown,
+  {
+    position: 'absolute',
+    insetInline: 0,
+    top: headerInset,
+    // Holds the fade behind the bar but above the timeline.
+    zIndex: 5,
+    display: 'flow-root',
+  },
+]);
 export const Scroll = style([
   Viewport,
   {
