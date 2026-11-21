@@ -68,6 +68,7 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
+  /** The cached-catalog seed waits for a probe that sees the full member roster. */
   seedDeferred: boolean;
   /** Recent event IDs of model commands typed in the thread and awaiting answers. */
   typedCommands: Set<string>;
