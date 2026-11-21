@@ -137,13 +137,10 @@ class NativeRecorder extends EventTarget {
     this.state = 'recording';
   });
   private persist?: (data: Blob) => Promise<boolean>;
-  stop = vi.fn((persist?: (data: Blob) => Promise<boolean>) => {
+  stop = vi.fn((persist?: 'discard' | ((data: Blob) => Promise<boolean>)) => {
     this.state = 'inactive';
-    this.persist = persist;
-  });
-  discard = vi.fn(() => {
-    this.state = 'inactive';
-    this.dispatchEvent(new Event('stop'));
+    if (persist === 'discard') this.dispatchEvent(new Event('stop'));
+    else this.persist = persist;
   });
   async deliver(body = 'voice') {
     const data = new Blob([body]);
@@ -786,7 +783,7 @@ describe('voice capture session on the native recorder', () => {
     session.reset();
     gate.resolve(recorder);
     expect(await started).toBe(false);
-    expect(recorder.discard).toHaveBeenCalledOnce();
+    expect(recorder.stop).toHaveBeenCalledExactlyOnceWith('discard');
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
@@ -807,9 +804,7 @@ describe('voice capture session on the native recorder', () => {
     const failed = session.finish();
     vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
     expect((await failed).status).toBe('failed');
-    expect(session.getSnapshot().errorMessage).toBe(
-      'Could not save voice recording. Reload to recover it.'
-    );
+    expect(session.getSnapshot().errorMessage).toBe('No audio data was captured.');
     const second = withoutWebCapture();
     expect(await session.start()).toBe(true);
     await first.deliver('old');

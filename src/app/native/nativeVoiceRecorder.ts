@@ -87,19 +87,12 @@ export class NativeVoiceRecorder extends EventTarget {
   }
 
   /** With persistence, offer the audio only after commit and native removal. */
-  stop(persist?: (data: Blob) => Promise<boolean>, ready?: Promise<boolean>): void {
+  stop(persist?: 'discard' | ((data: Blob) => Promise<boolean>), ready?: Promise<boolean>): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    this.end(this.deliver(persist, ready));
-  }
-
-  discard(): void {
-    this.state = 'inactive';
-    this.end(cancelNativeVoiceRecording(this.id));
-  }
-
-  private end(work: Promise<void>): void {
-    work.catch(() => undefined).finally(() => this.dispatchEvent(new Event('stop')));
+    const stopped =
+      persist === 'discard' ? cancelNativeVoiceRecording(this.id) : this.deliver(persist, ready);
+    stopped.catch(() => undefined).finally(() => this.dispatchEvent(new Event('stop')));
   }
 
   private transition(
@@ -110,8 +103,7 @@ export class NativeVoiceRecorder extends EventTarget {
     this.state = state;
     // A transition the native recorder refuses would leave a wrong duration: end the recording.
     call(getVoiceRecorderPlugin()).catch(() => {
-      if (this.state === 'inactive') return;
-      this.discard();
+      this.stop('discard');
     });
   }
 

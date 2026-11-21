@@ -420,6 +420,29 @@ describe('native recording recovery on composer mount', () => {
     expect(afterDiscard.get(reloadedAtom())).toBeUndefined();
   });
 
+  it('confirms unlisted durable audio can be deleted natively without another list', async () => {
+    const journal = await import('./voiceRecordingJournal');
+    const recording = journal.beginVoiceRecording(
+      userId,
+      leftover.startedAt,
+      'audio/mp4',
+      leftover.id
+    )!;
+    await recording.append(0, new Blob(['journal audio']), leftover.duration);
+    recording.release();
+    native.listLeftovers.mockResolvedValueOnce({ recordings: [] });
+    native.cancel.mockRejectedValueOnce(new Error('File is busy'));
+
+    const first = await reloadPage(getContext);
+    expect(first.get(reloadedAtom())).toBeUndefined();
+    expect(native.listLeftovers).toHaveBeenCalledOnce();
+    expect(native.cancel).toHaveBeenCalledExactlyOnceWith({ id: leftover.id });
+    expect(fetchAudio).not.toHaveBeenCalled();
+
+    const second = await reloadPage(getContext);
+    expect(await second.get(reloadedAtom())?.file.text()).toBe('journal audio');
+  });
+
   it('does not read another account’s native audio', async () => {
     native.listLeftovers.mockResolvedValue({
       recordings: [{ ...leftover, userId: '@other:example.org' }],

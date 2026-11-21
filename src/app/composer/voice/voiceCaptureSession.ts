@@ -90,8 +90,9 @@ export type VoiceCaptureSession = {
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
-type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
-  Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume'> &
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'> &
+  Pick<NativeVoiceRecorder, 'stop'> & { id?: string };
 
 type CaptureJournal = {
   id: string;
@@ -103,9 +104,7 @@ type CaptureJournal = {
 
 type Generation = {
   journal?: CaptureJournal;
-  native?: NativeVoiceRecorder;
   offerOnStop?: boolean;
-  web?: boolean;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -211,26 +210,32 @@ export const createVoiceCaptureSession = (
     if (generation.stopTimer !== undefined) clearTimeout(generation.stopTimer);
     generation.stopTimer = undefined;
   };
+  const stopRecorder = (generation: Generation, discard: boolean) => {
+    const { recorder, journal, elapsedMs } = generation;
+    if (!recorder || recorder.state === 'inactive') return;
+    if (!recorder.id) recorder.stop();
+    else if (discard) recorder.stop('discard');
+    else {
+      const persist = async (data: Blob) =>
+        generation.acceptsEvents &&
+        (await journal?.append(0, data, elapsedMs)) === true &&
+        generation.acceptsEvents;
+      recorder.stop(beginJournal && persist, journal?.ready);
+    }
+  };
   const retire = (generation: Generation) => {
     generation.acceptsEvents = false;
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
-    if (generation.recorder && generation.recorder.state !== 'inactive') {
-      try {
-        if (generation.native) generation.native.discard();
-        else generation.recorder.stop();
-      } catch {
-        /* Tracks still release below. */
-      }
+    try {
+      stopRecorder(generation, true);
+    } catch {
+      /* Tracks still release below. */
     }
     releaseResources(generation);
     generation.recorder = undefined;
-    if (
-      generation.chunks.length ||
-      (generation.native && generation.action && generation.action !== 'discard')
-    )
-      generation.journal?.release();
+    if (generation.chunks.length) generation.journal?.release();
     else void generation.journal?.remove();
     generation.chunks = [];
     generation.samples = [];
@@ -299,15 +304,13 @@ export const createVoiceCaptureSession = (
     generation.recorder = undefined;
     const journal = generation.journal;
     generation.journal = undefined;
-    const cleanupJournal = () =>
-      generation.native && generation.action !== 'discard' ? journal?.release() : journal?.remove();
     const resolve = generation.resolve;
     generation.resolve = undefined;
     const isCurrent = current === generation;
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    const park = (generation.web && onPark && !generation.action) || generation.action === 'park';
+    const park = (!recorder.id && onPark && !generation.action) || generation.action === 'park';
     if (generation.action !== 'send' && (!park || !generation.chunks.length)) {
       update({
         phase: 'idle',
@@ -319,17 +322,12 @@ export const createVoiceCaptureSession = (
       });
       generation.chunks = [];
       generation.samples = [];
-      void Promise.resolve(cleanupJournal()).then(() => resolve?.({ status: 'ignored' }));
+      void Promise.resolve(journal?.remove()).then(() => resolve?.({ status: 'ignored' }));
       return;
     }
     if (generation.chunks.length === 0) {
-      void cleanupJournal();
-      update({
-        phase: 'idle',
-        errorMessage: generation.native
-          ? 'Could not save voice recording. Reload to recover it.'
-          : 'No audio data was captured.',
-      });
+      void journal?.remove();
+      update({ phase: 'idle', errorMessage: 'No audio data was captured.' });
       generation.samples = [];
       resolve?.({ status: 'failed' });
       return;
@@ -391,10 +389,10 @@ export const createVoiceCaptureSession = (
       if (native) {
         const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
-          nativeRecorder.discard();
+          nativeRecorder.stop('discard');
           return false;
         }
-        recorder = generation.native = nativeRecorder;
+        recorder = nativeRecorder;
         generation.recorder = recorder;
         generation.readLevel = () => analyserRmsToMatrixPoint(nativeRecorder.level());
       } else {
@@ -449,15 +447,12 @@ export const createVoiceCaptureSession = (
         generation.journal = beginJournal?.(
           generation.startedAt,
           recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
-          generation.native?.id
+          recorder.id
         );
       } catch {
         // Web capture can still send from memory; native can still recover its file.
       }
-      if (webRecorder) {
-        generation.web = true;
-        webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
-      }
+      webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
@@ -492,20 +487,7 @@ export const createVoiceCaptureSession = (
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
       try {
-        const native = generation.native;
-        if (native && action === 'discard') native.discard();
-        else if (native) {
-          const journal = generation.journal;
-          // Claim the UUID before native stop makes the file visible to other windows.
-          native.stop(
-            beginJournal &&
-              (async (data) =>
-                generation.acceptsEvents &&
-                (await journal?.append(0, data, generation.elapsedMs)) === true &&
-                generation.acceptsEvents),
-            journal?.ready
-          );
-        } else if (generation.recorder!.state !== 'inactive') generation.recorder!.stop();
+        stopRecorder(generation, action === 'discard');
         if (!generation.acceptsEvents) return;
         generation.stopTimer = setTimeout(() => {
           recordDeepTraceEvent('voice.capture.stop_timeout', {

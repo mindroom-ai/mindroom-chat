@@ -47,9 +47,10 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('does not cancel another window’s live recording and rejects removal errors', () => {
     expect(body('cancel')).toMatch(
-      /guard Self\.liveRecorders\[id\] == nil \|\| Self\.liveRecorders\[id\] === self[\s\S]*?call\.reject[\s\S]*?try Self\.removeFile\(id\)[\s\S]*?catch \{ return call\.reject\("Could not remove recording"/
+      /let plugin = Self\.recordings\[id\]\?\.plugin\s*guard plugin == nil \|\| plugin === self[\s\S]*?call\.reject[\s\S]*?try Self\.removeFile\(id\)[\s\S]*?catch \{ return call\.reject\("Could not remove recording"/
     );
     expect(body('cancel')).not.toMatch(/clearFolder|closed/);
+    expect(pluginSource).toContain('catch CocoaError.fileNoSuchFile');
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -66,7 +67,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     // read before the prompt: a page load begun under it, also one that fails and leaves the old
     // page with its name, ends the start.
     expect(before).toMatch(
-      /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}[\s\S]*?let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
+      /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading,\s*let userId = call\.getString\("userId"\), !userId\.isEmpty else \{\s*return call\.reject\("Could not start recording", "START_FAILED"\)\s*\}[\s\S]*?let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
     expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
@@ -81,12 +82,11 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
       'generation = ',
       'generation += ',
     ]);
-    ['capacitorWebViewNavigationStarted', 'capacitorWebViewTerminated'].forEach((name) =>
-      expect(pluginSource).toMatch(
-        new RegExp(
-          `selector: #selector\\(pageWillLoad\\), name: \\.${name},\\s*object: bridge\\?\\.webView`
-        )
-      )
+    expect(pluginSource).toContain(
+      '[.capacitorWebViewNavigationStarted, .capacitorWebViewTerminated]'
+    );
+    expect(pluginSource).toMatch(
+      /for name in pageEvents \{\s*NotificationCenter\.default\.addObserver\(self, selector: #selector\(pageWillLoad\), name: name, object: bridge\?\.webView\)/
     );
   });
 
@@ -138,18 +138,18 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('lists only finished UUID audio files and their recovery metadata', () => {
     const leftover = body('listLeftovers');
     expect(leftover).toMatch(
-      /Self\.owners\.compactMap \{ id, userId in\s*guard Self\.liveRecorders\[id\] == nil, let url = Self\.file\(of: id\)/
+      /Self\.recordings\.compactMap \{ id, recording in\s*guard recording\.plugin == nil, let url = Self\.file\(of: id\)/
     );
     expect(leftover).toContain('creationDate');
     expect(leftover).toMatch(/AVAudioPlayer\(contentsOf: url\)[\s\S]*player\.duration > 0/);
     expect(leftover).toContain('["id": id, "path": url.path, "startedAt":');
-    expect(leftover).toContain('"userId": userId');
+    expect(leftover).toContain('"userId": recording.owner');
     expect(leftover).toContain('"duration":');
   });
 
   it('invalidates pending permission and clears that account’s recordings on sign-out', () => {
     expect(body('clear')).toMatch(
-      /Self\.ownerGenerations\[userId, default: 0\] \+= 1[\s\S]*?Self\.owners\.filter\(\{ \$0\.value == userId \}\)[\s\S]*?Self\.liveRecorders\[id\]\?\.finishLive\(\)\s*Self\.owners\[id\] = nil\s*try\? Self\.removeFile\(id\)/
+      /Self\.ownerGenerations\[userId, default: 0\] \+= 1[\s\S]*?for \(id, recording\) in Self\.recordings where recording\.owner == userId \{\s*try\? Self\.removeFile\(id, discard: true\)/
     );
   });
 

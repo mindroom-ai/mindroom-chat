@@ -87,21 +87,25 @@ export const beginVoiceRecording = (
   const id = nativeId ?? crypto.randomUUID();
   const start = holdVoiceRecording(id).then(async (locked) => {
     if (!locked) return false;
-    const stored = await withDb(
-      async (db) =>
-        (nativeId && (await db.getKey('recordings', id))) ||
-        db.add('recordings', { id, userId, startedAt, mimeType })
-    );
+    const stored = await withDb(async (db) => {
+      if (nativeId && (await db.getKey('recordings', id))) return id;
+      return db.add('recordings', { id, userId, startedAt, mimeType });
+    });
     if (!stored) releaseVoiceRecording(id);
     return !!stored;
   });
   starts.set(id, start);
   void start.then(() => starts.delete(id));
-  let tail: Promise<unknown> = start;
+  let tail = start;
   return {
     id,
     ready: start,
-    remove: () => deleteVoiceRecording(id),
+    remove: async () => {
+      if (nativeId && !(await start)) return;
+      // A successful native append must survive a failed or interrupted handoff.
+      if (nativeId && tail !== start && (await tail)) releaseVoiceRecording(id);
+      else await deleteVoiceRecording(id);
+    },
     release: () => {
       void tail.then(async () => {
         if (await start) releaseVoiceRecording(id);
@@ -131,15 +135,20 @@ export const beginVoiceRecording = (
   };
 };
 
-/** Keep still-native IDs out of both recovery paths until the native copy is gone. */
-export const importNativeVoiceRecordings = async (userId: string, slotTaken: () => boolean) => {
-  const { recordings } = await listNativeVoiceLeftovers();
-  const skip = new Set<string>();
+const nativeDeleted = (id: string) =>
+  cancelNativeVoiceRecording(id)
+    .then(() => true)
+    .catch(() => false);
+
+/** Transfers leftovers; a durable draft can verify unlisted UUIDs with idempotent cancel. */
+export const importNativeVoiceRecordings = async (userId: string) => {
+  if (!globalThis.navigator?.locks) return undefined;
+  const { recordings } = await listNativeVoiceLeftovers().catch(() => ({ recordings: [] }));
+  const transferred = new Map<string, boolean>();
   /* eslint-disable no-await-in-loop, no-continue */
   for (const { id, startedAt, duration, userId: owner } of recordings) {
     if (owner !== userId) continue;
-    skip.add(id);
-    if (slotTaken()) continue;
+    transferred.set(id, false);
     const journal = beginVoiceRecording(userId, startedAt, 'audio/mp4', id);
     if (!journal || !(await journal.ready)) continue;
     try {
@@ -149,25 +158,23 @@ export const importNativeVoiceRecordings = async (userId: string, slotTaken: () 
       if (file) {
         const data = await readNativeVoiceFile(file.path);
         if (!data || !(await journal.append(0, data, duration))) continue;
-        await cancelNativeVoiceRecording(id);
       }
-      skip.delete(id);
+      transferred.set(id, !file || (await nativeDeleted(id)));
     } catch {
-      // The next page retries; this one must not offer the still-native recording.
+      // A failed handoff stays off this page.
     } finally {
       journal.release();
     }
   }
   /* eslint-enable no-await-in-loop, no-continue */
-  return skip;
+  return (id: string) => transferred.get(id) ?? nativeDeleted(id);
 };
 
 type Recovered = { recordingId: string; file: File; duration: number };
 export const recoverVoiceRecording = async (
   userId: string,
   skipId: string | undefined,
-  offer: (recording: Recovered) => boolean,
-  canOffer?: (id: string) => Promise<boolean>
+  offer: (recording: Recovered) => boolean | Promise<boolean>
 ): Promise<void> => {
   if (!globalThis.navigator?.locks) return;
   await withDb(async (db) => {
@@ -184,9 +191,8 @@ export const recoverVoiceRecording = async (
           await deleteVoiceRecording(id);
           continue;
         }
-        if (canOffer && !(await canOffer(id))) continue;
         const type = chunks[0]?.type || mimeType;
-        accepted = offer({
+        accepted = await offer({
           recordingId: id,
           file: new File(
             chunks.map((c) => c.bytes),
@@ -195,7 +201,7 @@ export const recoverVoiceRecording = async (
           ),
           duration: Math.max(1, Math.round(last.elapsedMs)),
         });
-        return;
+        if (accepted) return;
       } finally {
         if (!accepted) releaseVoiceRecording(id);
       }

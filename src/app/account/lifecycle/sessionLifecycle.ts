@@ -89,11 +89,6 @@ const clearSessionScopedUiState = async (
   const { sessionId, baseUrl, userId } = session;
   removeCachedSpecVersions(baseUrl, userId);
   forgetCloudflareAccessToken(baseUrl);
-  try {
-    clearSessionUiState(sessionId);
-  } catch {
-    // Continue with Matrix stores and credential removal.
-  }
   if (clearUserScopedState) {
     try {
       clearNavToActivePathStore(userId);
@@ -101,6 +96,11 @@ const clearSessionScopedUiState = async (
     } catch {
       // Local UI cleanup is best effort and must not retain account credentials.
     }
+  }
+  try {
+    clearSessionUiState(sessionId);
+  } catch {
+    // Continue with Matrix stores and credential removal.
   }
 };
 
