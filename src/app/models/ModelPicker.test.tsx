@@ -644,7 +644,7 @@ describe('composer model picker', () => {
     }
   });
 
-  it('shows an explicit readable chooser when multiple runtimes answer', async () => {
+  it('keeps the verified runtime chooser usable while refreshing', async () => {
     const secondRuntime = {
       ...runtime,
       id: 'runtime-two',
@@ -654,6 +654,7 @@ describe('composer model picker', () => {
     const state = createState({
       runtimes: [runtime, secondRuntime],
       runtime: undefined,
+      loading: true,
       canMutate: false,
       models: [],
     });
@@ -662,12 +663,63 @@ describe('composer model picker', () => {
     const chooser = container.querySelector('select[aria-label="Runtime"]') as HTMLSelectElement;
     expect(chooser.textContent).toContain('@runtime:example.org on DESKTOP');
     expect(chooser.textContent).toContain('@second-runtime:example.org on MOBILE');
+    expect(container.textContent).not.toContain('No matching models');
 
     act(() => {
       chooser.value = 'runtime-two';
       chooser.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(state.chooseRuntime).toHaveBeenCalledWith('runtime-two');
+  });
+
+  it('shows only loading status while discovery has no models to list', async () => {
+    const state = createState({
+      models: [],
+      inherited: [],
+      runtime: undefined,
+      canMutate: false,
+      loading: true,
+      error: 'Previous discovery failed.',
+    });
+    await open(state);
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading models');
+    expect(container.textContent).not.toContain('No matching models');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(options()).toHaveLength(0);
+    expect(list()).toBe(document.activeElement);
+  });
+
+  it('shows a cached catalog without presenting it as the current choice', async () => {
+    await open(createState({ runtime: undefined, loading: true, canMutate: false }));
+
+    expect(trigger().hasAttribute('aria-labelledby')).toBe(false);
+    expect(trigger().hasAttribute('data-effort')).toBe(false);
+    expect(options().length).toBeGreaterThan(0);
+    expect(options().every((row) => row.getAttribute('aria-selected') === 'false')).toBe(true);
+  });
+
+  it('renders distinct option IDs for cached keys with and without a lone surrogate', async () => {
+    const models = ['\uD800', '\\ud800'].map((key) => ({
+      key,
+      display_name: 'Stored model',
+      provider: 'local',
+      id: 'model',
+    }));
+    await open(createState({ models, runtime: undefined, canMutate: false }));
+
+    expect(new Set(options().map(({ id }) => id)).size).toBe(3);
+  });
+
+  it('keeps cached models searchable during discovery without enabling changes', async () => {
+    await open(createState({ models: longCatalog(), loading: true, canMutate: false }));
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Loading models');
+    input(search(), 'studio-model-6');
+    expect(options()).toEqual([optionNamed('Studio model 6')]);
+    expect(options()[0]?.getAttribute('aria-disabled')).toBe('true');
+    input(search(), 'no such model');
+    expect(container.textContent).toContain('No matching models');
   });
 
   it('refreshes on opening and keeps dismissal available while a command is pending', async () => {
