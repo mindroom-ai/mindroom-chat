@@ -1164,10 +1164,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
-  // Rows that wrapped anew as the scroll area's width changed (a splitter's drag) are reported in
-  // the pass that reports the scroll area, so the content may change size there: that render takes
-  // the new height, and the pins that follow it keep the newest row above the composer in the
-  // frame that shows the new width (`unrenderedRewrap`).
+  // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
   const heldList =
