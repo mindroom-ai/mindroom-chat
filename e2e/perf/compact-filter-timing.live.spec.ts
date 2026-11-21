@@ -30,9 +30,8 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
  * first screenful show its result, that is until that frame has been painted (the next task
  * after it); the search's 300 ms pause in typing is not counted. Every change runs FILTER_ROUNDS
  * (default 3) times; the median of each must stay within FILTER_BUDGET_MS (default 100) and no
- * single run above twice that. The rest of the list must follow within FILTER_COMPLETE_BUDGET_MS
- * (default 1000), and in Chromium no task between the press and the whole list may take longer
- * than FILTER_BUDGET_MS.
+ * single run above twice that. In Chromium no task between the press and the result may take
+ * longer than FILTER_BUDGET_MS. Offscreen cards mount only when scrolled into view.
  *
  * Then, once every engine has had its idle run, FILTER_AGENTS (default 8) agents stream replies
  * in threads of their own, an edit a second each, and the Unresolved toggle is timed again on each
@@ -49,7 +48,6 @@ const THREADS = Number(process.env.FILTER_THREADS ?? 600);
 const ROUNDS = Number(process.env.FILTER_ROUNDS ?? 3);
 const BUDGET_MS = Number(process.env.FILTER_BUDGET_MS ?? 100);
 const BUSY_BUDGET_MS = Number(process.env.FILTER_BUSY_BUDGET_MS ?? 150);
-const COMPLETE_BUDGET_MS = Number(process.env.FILTER_COMPLETE_BUDGET_MS ?? 1000);
 const AGENTS = Number(process.env.FILTER_AGENTS ?? 8);
 const PROFILE = process.env.FILTER_PROFILE === '1';
 const ENGINES = (process.env.FILTER_ENGINES ?? 'chromium,webkit').split(',');
@@ -179,23 +177,21 @@ const startAgents = (
 
 /**
  * What a timed change must show. `first`: the list starts with these cards (a screenful) and the
- * count says `count`; the change counts as shown then. `count` alone: the list holds that many
- * cards. `resolved`, `resolvedAtLeast`: resolved cards in the list. `selector`: an element there.
+ * logical count says `count`; the change counts as shown then. While new threads arrive, `hidden`
+ * is the difference from the filter bar's room total. `selector`: a control in the new state.
  */
 type Expect = {
   first?: string[];
   count?: number;
-  resolved?: number;
-  resolvedAtLeast?: number;
+  hidden?: number;
   selector?: string;
 };
-type Timing = { shown?: number; complete?: number; longestTask?: number; error?: string };
+type Timing = { shown?: number; longestTask?: number; error?: string };
 
 /**
  * Installed before the app. `arm(expect)` starts a timing at the next press or keydown: `shown`
  * when the frame after the list shows `expect` has been painted (the next task after it),
- * `complete` when the list holds all `expect.count` cards, and the longest task in between
- * (Chromium only).
+ * and the longest task during the change (Chromium only).
  */
 const instrument = () => {
   const state: { timing?: Timing } = {};
@@ -213,44 +209,45 @@ const instrument = () => {
     [...document.querySelectorAll('[data-compact-room-view="true"] [data-thread-root-id]')].map(
       (card) => card.getAttribute('data-thread-root-id') ?? ''
     );
-  const resolved = () =>
-    document.querySelectorAll(
-      '[data-compact-room-view="true"] [data-thread-root-id][data-attention-state="resolved"]'
-    ).length;
+  const total = () =>
+    Number(
+      document
+        .querySelector('[data-room-thread-overview] [data-thread-count] [data-reserve]')
+        ?.getAttribute('data-reserve') ?? Number.NaN
+    );
   const counted = () =>
     Number(
-      document.querySelector('[data-room-thread-overview] [data-thread-count]')?.textContent?.trim()
+      document.querySelector('[data-compact-room-view]')?.getAttribute('data-compact-card-count') ??
+        Number.NaN
     );
   const arm = (expected: Expect) => {
     const timing: Timing = {};
     state.timing = timing;
     const shownNow = () => {
       const ids = cardIds();
-      if (expected.first && expected.first.some((id, index) => ids[index] !== id)) return false;
-      if (expected.count !== undefined && counted() !== expected.count) return false;
-      if (expected.count === 0 && ids.length > 0) return false;
-      if (expected.resolved !== undefined && resolved() !== expected.resolved) return false;
-      if (expected.resolvedAtLeast !== undefined && resolved() < expected.resolvedAtLeast)
-        return false;
+      const count = counted();
+      if (expected.first?.some((id, index) => ids[index] !== id)) return false;
+      if (expected.count !== undefined && count !== expected.count) return false;
+      if (expected.hidden !== undefined && total() - count !== expected.hidden) return false;
+      if (count === 0 ? ids.length !== 0 : ids.length === 0) return false;
       if (expected.selector !== undefined && !document.querySelector(expected.selector))
         return false;
       return true;
     };
-    const completeNow = () =>
-      expected.count === undefined ? true : cardIds().length === expected.count;
     const start = () => {
       document.removeEventListener('pointerdown', start, true);
       document.removeEventListener('keydown', start, true);
       // Not the event's timeStamp: WebKit stamps synthesized pointer events from another clock.
       const startedAt = performance.now();
-      let shownSeen = false;
       const finish = () => {
-        timing.complete = performance.now() - startedAt;
         timing.longestTask = Math.round(
           Math.max(
             0,
             ...longTasks
-              .filter((task) => task.start + task.duration >= startedAt)
+              .filter(
+                (task) =>
+                  task.start + task.duration >= startedAt && task.start <= startedAt + timing.shown!
+              )
               .map((task) => task.duration)
           )
         );
@@ -259,22 +256,19 @@ const instrument = () => {
         if (performance.now() - startedAt > 15_000) {
           timing.error = `${
             cardIds().length
-          } cards (${resolved()} resolved), count ${counted()}; expected ${JSON.stringify({
+          } mounted, ${counted()} listed of ${total()}; expected ${JSON.stringify({
             ...expected,
             first: expected.first?.length,
           })}`;
           return;
         }
-        if (!shownSeen && shownNow()) {
-          shownSeen = true;
+        if (shownNow()) {
           // The frame that shows the result is painted before the next task runs.
           setTimeout(() => {
             timing.shown = performance.now() - startedAt;
+            // Long tasks are reported after they end; read them a moment later.
+            setTimeout(finish, 50);
           }, 0);
-        }
-        if (shownSeen && completeNow()) {
-          // Long tasks are reported after they end; read them a moment later.
-          setTimeout(finish, 50);
           return;
         }
         requestAnimationFrame(check);
@@ -305,7 +299,7 @@ const timeChange = async (
       const { timing } = (window as unknown as { __filterTiming: FilterTiming }).__filterTiming
         .state;
       if (timing?.error) return timing;
-      return timing?.complete === undefined || timing.shown === undefined ? false : timing;
+      return timing?.longestTask === undefined || timing.shown === undefined ? false : timing;
     },
     undefined,
     { timeout: 20_000, polling: 100 }
@@ -314,7 +308,6 @@ const timeChange = async (
   if (result.error !== undefined) throw new Error(result.error);
   return {
     shown: Math.round(result.shown ?? Number.NaN),
-    complete: Math.round(result.complete ?? Number.NaN),
     longestTask: result.longestTask ?? 0,
   };
 };
@@ -443,34 +436,37 @@ test.describe('compact filter timing', () => {
         await expect(view).toBeVisible({ timeout: 120_000 });
         // Compact opens with resolved threads hidden; the timing starts with every thread shown.
         await showResolvedThreads(page);
-        await expect
-          .poll(() => cards.count(), { timeout: 180_000, message: 'all threads listed' })
-          .toBe(total);
+        await expect(view, 'all threads listed').toHaveAttribute(
+          'data-compact-card-count',
+          String(total),
+          { timeout: 180_000 }
+        );
         const overview = page.locator('[data-room-thread-overview]');
         const count = overview.locator('[data-thread-count]');
-        // The count reads N+ until the room's thread list has paged to its end.
+        // The filter bar still shows the full count, not the mounted window.
         await expect(count).toHaveText(String(total), { timeout: 120_000 });
         // The seeded filter state opens the advanced filters; the timing starts simple.
         const modeSwitchButton = overview.locator('[data-thread-filter-mode-switch]');
         if ((await modeSwitchButton.getAttribute('aria-pressed')) === 'true') {
           await modeSwitchButton.click();
         }
-        await expect(overview.locator('[data-simple-unresolved-toggle]')).toBeVisible();
+        const unresolved = overview.locator('[data-simple-unresolved-toggle]');
+        await expect(unresolved).toBeVisible();
         await page.mouse.move(1, 1);
         // Let the list settle (cache writes, receipts) before timing it.
         await wait(3_000);
-        // The list's order, and which of its threads are resolved: what each change must show.
-        const order = await cards.evaluateAll((elements) =>
-          elements.map((element) => ({
-            id: element.getAttribute('data-thread-root-id') ?? '',
-            resolved: element.getAttribute('data-attention-state') === 'resolved',
-          }))
-        );
-        expect(order.filter((card) => card.resolved)).toHaveLength(RESOLVED);
-        const everyThread = order.map((card) => card.id);
-        const unresolvedThreads = order.filter((card) => !card.resolved).map((card) => card.id);
-        // A screenful of cards at 1280x800 is about eight.
-        const showing = (ids: string[]): Expect => ({ first: ids.slice(0, 10), count: ids.length });
+        const topIds = () =>
+          cards.evaluateAll((elements) =>
+            elements.slice(0, 6).map((card) => card.getAttribute('data-thread-root-id') ?? '')
+          );
+        const showingAll: Expect = { first: await topIds(), count: total };
+        await unresolved.click();
+        await expect(view).toHaveAttribute('data-compact-card-count', String(total - RESOLVED));
+        const showingUnresolved: Expect = { first: await topIds(), count: total - RESOLVED };
+        expect(showingAll.first).not.toHaveLength(0);
+        expect(showingUnresolved.first).not.toHaveLength(0);
+        await unresolved.click();
+        await expect(view).toHaveAttribute('data-compact-card-count', String(total));
 
         const cdp = engine === 'chromium' && PROFILE ? await context.newCDPSession(page) : null;
         const profiled = async <T>(name: string, run: () => Promise<T>) => {
@@ -487,23 +483,18 @@ test.describe('compact filter timing', () => {
           return result;
         };
 
-        const unresolved = overview.locator('[data-simple-unresolved-toggle]');
         const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
-        const timings: Record<
-          string,
-          { shown: number[]; complete: number[]; longestTask: number[] }
-        > = {};
+        const timings: Record<string, { shown: number[]; longestTask: number[] }> = {};
         const record = async (
           name: string,
           expected: Expect,
           act: () => Promise<void>,
           pauseMs = 0
         ) => {
-          const entry = (timings[name] ??= { shown: [], complete: [], longestTask: [] });
+          const entry = (timings[name] ??= { shown: [], longestTask: [] });
           const label = `${name.replace(/\W+/g, '-')}-${entry.shown.length}`;
           const timing = await profiled(label, () => timeChange(page, expected, act));
           entry.shown.push(timing.shown - pauseMs);
-          entry.complete.push(timing.complete - pauseMs);
           entry.longestTask.push(timing.longestTask);
           await page.mouse.move(1, 1);
           await wait(500);
@@ -520,12 +511,12 @@ test.describe('compact filter timing', () => {
         for (let round = 0; round < ROUNDS; round += 1) {
           await record(
             'unresolved on',
-            { ...showing(unresolvedThreads), resolved: 0, selector: UNRESOLVED_ON },
+            { ...showingUnresolved, resolved: 0, selector: UNRESOLVED_ON },
             clickIn(unresolved)
           );
           await record(
             'unresolved off',
-            { ...showing(everyThread), selector: UNRESOLVED_OFF },
+            { ...showingAll, selector: UNRESOLVED_OFF },
             clickIn(unresolved)
           );
         }
@@ -533,14 +524,14 @@ test.describe('compact filter timing', () => {
           await record(
             'advanced filters',
             {
-              ...showing(everyThread),
+              ...showingAll,
               selector: '[data-room-thread-overview] [data-thread-tab="all"]',
             },
             clickIn(modeSwitch)
           );
           await record(
             'simple filters',
-            { ...showing(everyThread), selector: UNRESOLVED_OFF },
+            { ...showingAll, selector: UNRESOLVED_OFF },
             clickIn(modeSwitch)
           );
         }
@@ -550,13 +541,13 @@ test.describe('compact filter timing', () => {
           await focusTab('working');
           await record(
             'tab working',
-            { ...showing([]), selector: '[data-thread-tab="working"][aria-pressed="true"]' },
+            { count: 0, selector: '[data-thread-tab="working"][aria-pressed="true"]' },
             choose
           );
           await focusTab('all');
           await record(
             'tab all',
-            { ...showing(everyThread), selector: '[data-thread-tab="all"][aria-pressed="true"]' },
+            { ...showingAll, selector: '[data-thread-tab="all"][aria-pressed="true"]' },
             choose
           );
         }
@@ -566,13 +557,8 @@ test.describe('compact filter timing', () => {
         await search.click();
         for (let round = 0; round < ROUNDS; round += 1) {
           // The search applies after a 300 ms pause in typing; the time after it counts.
-          await record('search, no match', showing([]), () => page.keyboard.press('q'), 300);
-          await record(
-            'search cleared',
-            showing(everyThread),
-            () => page.keyboard.press('Backspace'),
-            300
-          );
+          await record('search, no match', { count: 0 }, () => page.keyboard.press('q'), 300);
+          await record('search cleared', showingAll, () => page.keyboard.press('Backspace'), 300);
         }
         await modeSwitch.click();
         await expect(unresolved).toBeVisible();
@@ -584,7 +570,6 @@ test.describe('compact filter timing', () => {
             {
               shown: entry.shown,
               median: median(entry.shown),
-              complete: entry.complete,
               longestTask: entry.longestTask,
             },
           ])
@@ -598,8 +583,7 @@ test.describe('compact filter timing', () => {
         results.push(result);
         busyRuns.push({
           result,
-          // Their threads are new, unresolved cards at the top, so resolved ones show again
-          // within the first screenful.
+          // New threads are unresolved and may push all resolved cards out of the window.
           measure: async () => {
             const busy: number[] = [];
             for (let round = 0; round < ROUNDS * 2; round += 1) {
@@ -607,8 +591,8 @@ test.describe('compact filter timing', () => {
                 timeChange(
                   page,
                   round % 2 === 0
-                    ? { resolved: 0, selector: UNRESOLVED_ON }
-                    : { resolvedAtLeast: 1, selector: UNRESOLVED_OFF },
+                    ? { hidden: RESOLVED, selector: UNRESOLVED_ON }
+                    : { hidden: 0, selector: UNRESOLVED_OFF },
                   clickIn(unresolved)
                 )
               );
@@ -651,13 +635,9 @@ test.describe('compact filter timing', () => {
         expect
           .soft(Math.max(...entry.shown), `${engine} ${name}: shown, slowest (ms)`)
           .toBeLessThanOrEqual(BUDGET_MS * 2);
-        // The rest of the list follows without blocking the page for long (Chromium reports it).
         expect
           .soft(Math.max(...entry.longestTask), `${engine} ${name}: longest task (ms)`)
           .toBeLessThanOrEqual(BUDGET_MS);
-        expect
-          .soft(Math.max(...entry.complete), `${engine} ${name}: every card listed (ms)`)
-          .toBeLessThanOrEqual(COMPLETE_BUDGET_MS);
       }
       const busy = result.busy as { values: number[]; median: number };
       expect

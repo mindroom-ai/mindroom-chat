@@ -8,9 +8,10 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 const THREAD_COUNT = 40;
-const COMPACT_VIEW = '[data-compact-room-view="true"]';
+const COMPACT_VIEW = '[data-compact-room-view="true"]:not([inert] *)';
 
 type Session = Awaited<ReturnType<typeof loginToMatrix>>;
 
@@ -45,13 +46,22 @@ const settledCardLayout = (page: Page): Promise<CardLayout> =>
   page.evaluate(async (selector) => {
     const view = document.querySelector<HTMLElement>(selector);
     if (!view) return { offsets: {}, headerHeight: 0, scrollTop: -1 };
-    let previous = view.scrollTop;
+    const layout = () =>
+      [
+        view.scrollTop,
+        ...Array.from(view.querySelectorAll('button[data-thread-root-id]'), (card) => {
+          const rect = card.getBoundingClientRect();
+          return `${card.getAttribute('data-thread-root-id')}:${rect.top}:${rect.bottom}`;
+        }),
+      ].join(',');
+    let previous = layout();
     for (let stableFrames = 0, frames = 0; stableFrames < 5 && frames < 120; frames += 1) {
       await new Promise((resolve) => {
         requestAnimationFrame(resolve);
       });
-      stableFrames = view.scrollTop === previous ? stableFrames + 1 : 0;
-      previous = view.scrollTop;
+      const current = layout();
+      stableFrames = current === previous ? stableFrames + 1 : 0;
+      previous = current;
     }
     const { top, bottom } = view.getBoundingClientRect();
     const offsets: Record<string, number> = {};
@@ -71,7 +81,10 @@ const settledCardLayout = (page: Page): Promise<CardLayout> =>
 const scrollOverviewTo = (page: Page, scrollTop: number) =>
   page.evaluate(
     ([selector, top]) => {
-      document.querySelector<HTMLElement>(selector)!.scrollTop = top;
+      const view = document.querySelector<HTMLElement>(selector)!;
+      // Model the reader taking control before advancing to an exact pixel offset.
+      view.dispatchEvent(new WheelEvent('wheel', { deltaY: top - view.scrollTop }));
+      view.scrollTop = top;
     },
     [COMPACT_VIEW, scrollTop] as const
   );
@@ -115,13 +128,10 @@ const setUpCompactRoom = async (page: Page) => {
   return { homeserver, session, runTag, roomId, roots };
 };
 
-test('the compact overview keeps its cards in place when threads re-sort during a thread visit', async ({
-  page,
-}) => {
-  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
-  test.slow();
+const checkBackRestore = async (page: Page, form: 'all' | 'desktop' | 'mobile' = 'all') => {
   const { homeserver, session, runTag, roomId, roots } = await setUpCompactRoom(page);
 
+  const promoted = new Set<string>();
   // Opens the first card below the header and, while the thread is open, gets
   // replies in it and in the thread at the bottom of the list, so both sort
   // above the cards in view. Leaving the thread, the cards below the opened
@@ -134,11 +144,11 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     const opened = inView[openedIndex]!;
     const below = inView.slice(openedIndex + 1);
     expect(below.length).toBeGreaterThan(openedIndex + 1);
-    const lastRootId = await page
-      .locator(`${COMPACT_VIEW} button[data-thread-root-id]`)
-      .last()
-      .getAttribute('data-thread-root-id');
-    expect(inView).not.toContain(lastRootId);
+    // Pick a seeded older thread that has not already moved up in a previous step.
+    const lastRootId = roots.find((id) => !promoted.has(id) && !inView.includes(id))!;
+    expect(lastRootId).toBeTruthy();
+    promoted.add(lastRootId);
+    promoted.add(opened);
     // A locator click first scrolls a card the header overlaps, which would
     // move the overview before it is left; a reader's tap does not.
     const card = await page
@@ -148,16 +158,13 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(opened)}`));
     const reply = `Reply while open ${runTag} ${scrollTop}`;
     // Sent first, so the open thread's reply showing means both have synced.
-    await sendThreadReply(homeserver, session, roomId, lastRootId!, `Elsewhere ${reply}`);
+    await sendThreadReply(homeserver, session, roomId, lastRootId, `Elsewhere ${reply}`);
     await sendThreadReply(homeserver, session, roomId, opened, reply);
     await expect(page.getByText(reply, { exact: true })).toBeVisible();
 
     await leave();
     await expect(page).not.toHaveURL(/threadId=/);
     await expect(page.locator(COMPACT_VIEW)).toBeVisible();
-    const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
-    await expect(cards.nth(0)).toHaveAttribute('data-thread-root-id', opened);
-    await expect(cards.nth(1)).toHaveAttribute('data-thread-root-id', lastRootId!);
     const { offsets: after } = await settledCardLayout(page);
     for (const rootId of below) {
       expect(
@@ -165,24 +172,64 @@ test('the compact overview keeps its cards in place when threads re-sort during 
         `card ${roots.indexOf(rootId)} moved from ${before[rootId]} to ${after[rootId]}`
       ).toBeLessThanOrEqual(1);
     }
+    await scrollOverviewTo(page, 0);
+    const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
+    await expect(cards.nth(0)).toHaveAttribute('data-thread-root-id', opened);
+    await expect(cards.nth(1)).toHaveAttribute('data-thread-root-id', lastRootId);
   };
 
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await expect(page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`).first()).toBeVisible();
 
-  await test.step('desktop browser Back', async () => {
-    await visitThreadAndReturn(900, () => page.goBack());
-  });
+  if (form !== 'mobile') {
+    await test.step('desktop browser Back', async () => {
+      await visitThreadAndReturn(900, () => page.goBack());
+    });
 
-  await test.step('desktop thread exit button', async () => {
-    await visitThreadAndReturn(1500, () => clickThreadExitButton(page));
-  });
+    await test.step('desktop thread exit button', async () => {
+      await visitThreadAndReturn(1500, () => clickThreadExitButton(page));
+    });
+  }
+  if (form !== 'desktop') {
+    await test.step('mobile browser Back', async () => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await visitThreadAndReturn(1200, () => page.goBack());
+    });
+  }
+};
 
-  await test.step('mobile browser Back', async () => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await visitThreadAndReturn(1200, () => page.goBack());
+for (const reducedWebKit of [false, true]) {
+  const mode = reducedWebKit ? ' (WebKit, reduced motion)' : '';
+  test(`the compact overview keeps its cards in place when threads re-sort during a thread visit${mode}`, async ({
+    page,
+    baseURL,
+  }) => {
+    test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+    test.skip(reducedWebKit && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.slow();
+    if (reducedWebKit)
+      await onWebKitPage({ baseURL, reducedMotion: 'reduce' }, (webkitPage) =>
+        checkBackRestore(webkitPage, 'desktop')
+      );
+    else await checkBackRestore(page);
   });
-});
+}
+
+test.fixme(
+  'the compact overview keeps its cards in place on mobile Back (WebKit, reduced motion)',
+  {
+    annotation: {
+      type: 'known failure',
+      description:
+        'Pre-existing WebKit reduced-motion mobile Back shifts the card by 90 px on main.',
+    },
+  },
+  async ({ baseURL }) => {
+    await onWebKitPage({ baseURL, reducedMotion: 'reduce' }, (page) =>
+      checkBackRestore(page, 'mobile')
+    );
+  }
+);
 
 test('the compact overview a focus address opened stays where the reader left it', async ({
   page,

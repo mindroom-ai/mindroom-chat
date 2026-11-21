@@ -22,7 +22,7 @@ import {
 // set to a directory, it saves the phone screen right after the Back from a Needs you card there.
 const PASSWORD = 'sections-scroll-spec-password';
 const RUN = Date.now().toString(36);
-const COMPACT_VIEW = '[data-compact-room-view="true"]';
+const COMPACT_VIEW = '[data-compact-room-view="true"]:not([inert] *)';
 const WORKING = 14;
 const NEEDS_YOU = 10;
 const FAKE_IOS_KEY = 'sections-scroll-fake-ios';
@@ -79,19 +79,24 @@ const settledCards = (
 const scrollTo = (page: Page, scrollTop: number) =>
   page.evaluate(
     ([selector, value]) => {
-      document.querySelector<HTMLElement>(selector)!.scrollTop = value;
+      const view = document.querySelector<HTMLElement>(selector)!;
+      // Model the reader taking control before advancing to an exact pixel offset.
+      view.dispatchEvent(new WheelEvent('wheel', { deltaY: value - view.scrollTop }));
+      view.scrollTop = value;
     },
     [COMPACT_VIEW, scrollTop] as const
   );
 
 /** The scroll position that shows the Working header just below the glass header. */
-const workingScrollTop = (page: Page) =>
-  page.evaluate((selector) => {
+const workingScrollTop = async (page: Page) => {
+  await expect(page.locator(COMPACT_VIEW)).not.toHaveAttribute('data-cards-pending', 'true');
+  return page.evaluate((selector) => {
     const view = document.querySelector<HTMLElement>(selector)!;
     const header = view.querySelector<HTMLElement>('[data-compact-section="working"]')!;
     const offset = header.getBoundingClientRect().top - view.getBoundingClientRect().top;
     return Math.round(view.scrollTop + offset - parseFloat(getComputedStyle(view).paddingTop) - 40);
   }, COMPACT_VIEW);
+};
 
 const clickThreadExitButton = (page: Page) =>
   page.evaluate(() => {
@@ -152,7 +157,10 @@ for (const ios of [false, true]) {
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     const card = (rootId: string) =>
       page.locator(`${COMPACT_VIEW} [data-thread-root-id="${rootId}"]`).first();
-    await expect(card(roots[0]!)).toBeAttached({ timeout: 60_000 });
+    const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(roots.length), {
+      timeout: 60_000,
+    });
 
     // An agent starts on the first WORKING threads while the reader watches, as MindRoom does.
     for (const rootId of roots.slice(0, WORKING)) {
@@ -167,9 +175,10 @@ for (const ios of [false, true]) {
       new RegExp(`· ${WORKING}$`),
       { timeout: 30_000 }
     );
-    await expect(page.locator('[data-compact-section="needsYou"]')).toHaveText(
-      new RegExp(`· ${NEEDS_YOU}$`)
-    );
+    const needsYou = '[data-compact-section="needsYou"]';
+    await expect(view.locator(needsYou)).toHaveText(new RegExp(`· ${NEEDS_YOU}$`));
+    await scrollTo(page, 0);
+    await expect(view.locator(needsYou)).toBeInViewport();
 
     await expect(page.locator(`${COMPACT_VIEW} [data-compact-section]`).first()).toHaveAttribute(
       'data-compact-section',
@@ -191,6 +200,7 @@ for (const ios of [false, true]) {
     const pageSlide = page.locator('html[data-page-slide]');
     await expect(pageSlide).toHaveCount(0);
     await expect(card(linked!)).toBeInViewport();
+    await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
 
     const visitAndReturn = async (
       scrollTop: number,
@@ -203,10 +213,24 @@ for (const ios of [false, true]) {
       const sectionIds = new Set(
         section === 'working' ? roots.slice(0, WORKING) : roots.slice(WORKING)
       );
-      const target = Object.keys(before.offsets).find((key) => sectionIds.has(key));
-      if (!target) throw new Error(`no ${section} card in view at ${scrollTop}`);
-      const box = await card(target).boundingBox();
-      await page.touchscreen.tap(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      // The room footer can cover a card entirely inside the raw scroll clip.
+      const target = await view.evaluate(
+        (scroller, candidates) => {
+          for (const id of candidates) {
+            const button = scroller.querySelector(
+              `button[data-thread-root-id="${CSS.escape(id)}"]`
+            );
+            if (!button) continue;
+            const { x, y, width, height } = button.getBoundingClientRect();
+            const point = { x: x + width / 2, y: y + height / 2 };
+            if (button.contains(document.elementFromPoint(point.x, point.y))) return point;
+          }
+          return undefined;
+        },
+        Object.keys(before.offsets).filter((key) => sectionIds.has(key))
+      );
+      if (!target) throw new Error(`no tappable ${section} card in view at ${scrollTop}`);
+      await page.touchscreen.tap(target.x, target.y);
       await expect(page).toHaveURL(/threadId=/);
       const opened = new URL(page.url()).searchParams.get('threadId')!;
       expect(sectionIds.has(opened), `the tap opens a ${section} card`).toBe(true);
@@ -216,6 +240,7 @@ for (const ios of [false, true]) {
       await expect(page).not.toHaveURL(/threadId=/);
       await expect(pageSlide).toHaveCount(0);
       await expect(card(opened)).toBeAttached();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
       const after = await settledCards(page);
       if (shot && process.env.SHOTS)
         await page.screenshot({ path: `${process.env.SHOTS}/${shot}` });

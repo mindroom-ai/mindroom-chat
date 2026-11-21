@@ -7,7 +7,9 @@ import { useCompactBlocks } from './useCompactBlocks';
 
 const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
 const groups = [ids];
-const height = (id: string) => (Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5);
+let width = 390;
+const height = (id: string) =>
+  (Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1);
 const gap = 4.25;
 const clientHeight = 480;
 
@@ -43,6 +45,7 @@ const getHeight = (row: HTMLElement) =>
     : height(row.dataset.scrollAnchor);
 
 beforeEach(() => {
+  width = 390;
   vi.useFakeTimers();
   vi.stubGlobal(
     'ResizeObserver',
@@ -58,7 +61,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
   ) {
-    if (this.hasAttribute('data-view')) return new DOMRect(0, 0, 390, clientHeight);
+    if (this.hasAttribute('data-view')) return new DOMRect(0, 0, width, clientHeight);
     let top = 0 - (this.parentElement?.parentElement?.scrollTop ?? 0);
     for (
       let row = this.previousElementSibling;
@@ -67,7 +70,7 @@ beforeEach(() => {
     ) {
       top += getHeight(row) + gap;
     }
-    return new DOMRect(0, top, 390, getHeight(this));
+    return new DOMRect(0, top, width, getHeight(this));
   });
 });
 
@@ -112,4 +115,46 @@ it('measures the tail in blocks, then remounts evicted rows without shifting the
   around('$row24', 12 * 199.25);
   around('$row0', 0);
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
+});
+
+const tick = (frames: number) => {
+  for (let i = 0; i < frames; i += 1) {
+    act(() => {
+      vi.advanceTimersByTime(17);
+    });
+  }
+};
+
+it('remeasures the evicted cards after the width changes', () => {
+  const { container } = render(<List memory={new Map()} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  const space = () =>
+    Number.parseFloat(view.querySelector<HTMLElement>('[data-compact-spacer]')!.style.height);
+  tick(12);
+  expect(space()).toBe(7168.75);
+  width = 320;
+  resize();
+  tick(12);
+  expect(space()).toBe(10602.25);
+});
+
+it('retains a native drag source through pointercancel and evicts it after dragend', () => {
+  const { container } = render(<List memory={new Map()} />);
+  const scroller = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  const first = scroller.querySelector('[data-scroll-anchor="$row0"]')!;
+  first.dispatchEvent(new Event('dragstart', { bubbles: true }));
+  const cancel = new Event('pointercancel', { bubbles: true });
+  Object.defineProperty(cancel, 'pointerId', { value: 1 });
+  first.dispatchEvent(cancel);
+  const move = (top: number) =>
+    act(() => {
+      scroller.scrollTop = top;
+      scroller.dispatchEvent(new Event('scroll'));
+    });
+  move(6000);
+  expect(first.isConnected).toBe(true);
+  first.dispatchEvent(new Event('dragend', { bubbles: true }));
+  move(4300);
+  expect(first.isConnected).toBe(false);
 });

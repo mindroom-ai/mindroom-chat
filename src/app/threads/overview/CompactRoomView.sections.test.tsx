@@ -76,13 +76,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
+const viewMemory: ScrollAnchorMemory = new Map();
 const view = (threadRootIds: string[], sections = true) => (
   <CompactRoomView
     room={room}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
-    compactRoomScrollStateRef={{ current: new Map() }}
+    compactRoomScrollStateRef={{ current: viewMemory }}
     sectionsNow={sections ? NOW : undefined}
   />
 );
@@ -103,6 +104,7 @@ const header = (id: string) => {
 };
 
 beforeEach(() => {
+  viewMemory.clear();
   state.pinned = [];
   state.enabled = [];
   state.sections = [
@@ -672,17 +674,18 @@ describe('a focus request on the mounted Compact room', () => {
   });
 
   const memory: ScrollAnchorMemory = new Map();
-  const at = (focusRequest?: CompactFocusRequest) => {
+  const at = (focusRequest?: CompactFocusRequest, ids = cards, indexPending = false) => {
     // What the room does as it renders the address.
     if (focusRequest) takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
     return (
       <CompactRoomView
         room={room}
-        threadRootIds={cards}
+        threadRootIds={ids}
         threadRecordMap={new Map()}
         onThreadClick={vi.fn()}
         compactRoomScrollStateRef={{ current: memory }}
         focusRequest={focusRequest}
+        indexPending={indexPending}
       />
     );
   };
@@ -721,6 +724,28 @@ describe('a focus request on the mounted Compact room', () => {
     // A thread opened beside the list closes: its entry gives way to the pin's address.
     rerender(at({ eventId: '$card1', entryKey: 'replaced' }));
     expect(scrollTop).toBe(500);
+  });
+
+  it('leaves the first restore unconsumed until the saved anchor hydrates', () => {
+    memory.clear();
+    memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$card7', offset: 83 }] });
+    const { rerender } = render(at(undefined, cards.slice(0, 4), true));
+    expect(scrollTop).toBe(0);
+    rerender(at(undefined, [cards[1]!, cards[0]!, ...cards.slice(2)]));
+    expect(topOf('$card7')).toBe(83);
+  });
+
+  it('places cached addresses during a pending index read, without replaying A on POP', () => {
+    memory.clear();
+    const a = { eventId: '$card6', entryKey: 'A' };
+    const { rerender } = render(at(a, cards, true));
+    expect(topOf(a.eventId)).toBe(160);
+    rerender(at({ eventId: '$card8', entryKey: 'B', pushed: true }, cards, true));
+    expect(topOf('$card8')).toBe(160);
+    scrollTop = 250;
+    fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+    rerender(at(a));
+    expect(scrollTop).toBe(250);
   });
 
   it('keeps the place the list was left at for a card in view', () => {

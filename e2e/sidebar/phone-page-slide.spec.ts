@@ -168,7 +168,7 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (test: string, extraThreads = 0) => {
+const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
   const username = `pps_${test}_${RUN}`;
   const reader = await matrixFetch<{ access_token: string; user_id: string }>(
     HOMESERVER,
@@ -211,7 +211,7 @@ const seed = async (test: string, extraThreads = 0) => {
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  const batchSize = Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
+  const batchSize = concurrency ?? Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
   if (!Number.isSafeInteger(batchSize) || batchSize < 1)
     throw new Error('PAGE_SLIDE_SEED_CONCURRENCY must be a positive integer');
   // Send roots in order so their timestamps are stable; batch the replies and resolutions.
@@ -497,12 +497,12 @@ test('webkit: a held copy keeps clips and pictures through stage growth', async 
   });
 });
 
-// The real guard: a seeded room with thousands of live nodes must not double its DOM.
+// The copy must keep the scrolled screen and the space for unmounted cards.
 test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
   test.setTimeout(240_000);
   const threadCount = Number(process.env.PAGE_SLIDE_THREADS ?? 250);
-  const { username, userId, roomId } = await seed('long', threadCount);
+  const { username, userId, roomId } = await seed('long', threadCount, 1);
   await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
     await seedRoomOverviewState({
       page,
@@ -522,14 +522,28 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
     const before = page.locator(`[data-phone-stage] > [data-phone-page] ${view}`);
     // The original example includes a root with no replies, which older history may omit.
     await expect
-      .poll(() => before.locator(cards).count(), { timeout: 90_000 })
+      .poll(async () => Number(await before.getAttribute('data-compact-card-count')), {
+        timeout: 90_000,
+      })
       .toBeGreaterThanOrEqual(threadCount);
-    await expect(before).not.toHaveAttribute('data-cards-pending', 'true');
-    const scroll = () =>
-      before.evaluate((view) => {
-        view.scrollTop = view.scrollHeight * 0.6;
-      });
-    await scroll();
+    const first = before.locator(cards).first();
+    await expect(first).toBeInViewport();
+    const firstId = await first.getAttribute('data-thread-root-id');
+    await before.evaluate((scroller) => {
+      scroller.scrollTop = scroller.scrollHeight * 0.6;
+    });
+    await expect(before.locator(`[data-thread-root-id="${firstId}"]`)).toHaveCount(0);
+    await expect
+      .poll(() =>
+        before.evaluate((scroller, selector) => {
+          const { top, bottom } = scroller.getBoundingClientRect();
+          return Array.from(scroller.querySelectorAll(selector)).filter((card) => {
+            const rect = card.getBoundingClientRect();
+            return rect.top >= top + 80 && rect.bottom <= bottom - 80;
+          }).length;
+        }, cards)
+      )
+      .toBeGreaterThan(2);
     const settleCards = () =>
       expect
         .poll(() =>
@@ -552,50 +566,7 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       });
       await takeSlides(page, 'the held slide');
     };
-    const point = await before.evaluate((scroller) => {
-      const { x, y, width, height } = scroller.getBoundingClientRect();
-      const middle = x + width / 2;
-      const target = [0, 20, -20]
-        .map((offset) => y + height / 2 + offset)
-        .find((at) => document.elementFromPoint(middle, at)?.closest('[data-thread-root-id]'));
-      if (target === undefined) throw new Error('No card at the middle of the scroller');
-      return { x: middle, y: target };
-    });
-    await page.evaluate(() => {
-      let tap: number | undefined;
-      document.addEventListener(
-        'click',
-        () => {
-          tap = performance.now();
-        },
-        { capture: true, once: true }
-      );
-      document.addEventListener(
-        'animationstart',
-        (event) => {
-          const timing = window as unknown as { firstFrameMs?: number };
-          if (event.animationName === 'phone-page-under-out' && tap !== undefined)
-            timing.firstFrameMs ??= performance.now() - tap;
-        },
-        true
-      );
-    });
-    await page.touchscreen.tap(point.x, point.y);
-    const frameMs = await page
-      .waitForFunction(
-        () => (window as unknown as { firstFrameMs?: number }).firstFrameMs!,
-        undefined,
-        { timeout: 30_000 }
-      )
-      .then((time) => time.jsonValue());
-    await expect(threadColumn(page)).toBeVisible();
-    await finishSlide();
-    await threadBack(page).tap();
-    await expect(threadColumn(page)).toBeHidden();
-    await finishSlide();
-    await expect(before).not.toHaveAttribute('data-cards-pending', 'true');
-    await scroll();
-    await settleCards();
+
     const initial = await before.evaluate((scroller, shooting) => {
       const read = (scroller: Element) => {
         const { top, bottom, left, right } = scroller.getBoundingClientRect();
@@ -630,9 +601,11 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
 
       type Layout = ReturnType<typeof read>;
       let live: Layout | undefined;
+      let tap: number | undefined;
       document.addEventListener(
         'click',
         () => {
+          tap = performance.now();
           live = read(scroller);
         },
         { capture: true, once: true }
@@ -646,9 +619,10 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
         if (event.animationName !== 'phone-page-under-out' || !live) return;
         const copy = document.querySelector('[data-page-slide-copy] [data-compact-room-view]');
         const capture = window as unknown as {
-          snapshot?: { layout: Layout; live: Layout };
+          snapshot?: { layout: Layout; live: Layout; frameMs: number };
         };
-        if (copy && !capture.snapshot) capture.snapshot = { layout: read(copy), live };
+        if (copy && tap !== undefined && !capture.snapshot)
+          capture.snapshot = { frameMs: performance.now() - tap, layout: read(copy), live };
       });
       if (shooting) {
         // Keep the held copy around for screenshots. 2_000 matches PLAY_MS in phonePageSlide.ts.
@@ -663,8 +637,7 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       }
       return read(scroller);
     }, !!SHOTS);
-    expect(initial.nodes).toBeGreaterThan(6_000);
-    expect(initial.scrollTop).toBeGreaterThan(10_000);
+    expect(initial.scrollTop).toBeGreaterThan(initial.height * 2);
     expect(initial.visible.length).toBeGreaterThan(2);
     expect(initial.visible.every(({ title }) => !!title)).toBe(true);
 
@@ -678,10 +651,14 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       viewBox.x + opened.x + opened.width / 2,
       viewBox.y + opened.y + opened.height / 2
     );
-    const { layout: snapshot, live } = await page
+    const {
+      layout: snapshot,
+      live,
+      frameMs,
+    } = await page
       .waitForFunction(
         () => {
-          type Capture = { layout: typeof initial; live: typeof initial };
+          type Capture = { layout: typeof initial; live: typeof initial; frameMs: number };
           return (window as unknown as { snapshot?: Capture }).snapshot!;
         },
         undefined,
@@ -717,6 +694,23 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       .then((count) => count.jsonValue());
     expect(backNodes).toBeLessThan(2_000);
     await expect(threadColumn(page)).toBeHidden();
+    await finishSlide();
+    // Back restores the screen the reader left, without another scroll from the test.
+    const anchors = live.visible.filter(
+      ({ id, y, height }) => id !== opened.id && y >= 80 && y + height <= live.height - 80
+    );
+    expect(anchors.length).toBeGreaterThanOrEqual(2);
+    await expect
+      .poll(() =>
+        before.evaluate((scroller, rows) => {
+          const top = scroller.getBoundingClientRect().top;
+          return rows.every(({ id, y }) => {
+            const row = scroller.querySelector(`[data-thread-root-id="${CSS.escape(id!)}"]`);
+            return row && Math.abs(row.getBoundingClientRect().top - top - y) <= 2;
+          });
+        }, anchors)
+      )
+      .toBe(true);
     console.log('Compact back slide:', { copyNodes: backNodes });
   });
 });

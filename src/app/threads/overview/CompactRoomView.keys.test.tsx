@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { runShortcut } from '../../shortcuts/useShortcut';
@@ -108,6 +108,29 @@ describe('the thread keys on the compact thread list', () => {
     expect(resolveKeys()).toBe(true);
     expect(state.setResolved).toHaveBeenLastCalledWith('$c', false);
     expect(document.activeElement).toBe(card('$b'));
+  });
+
+  it('materializes the logical End before focusing it, and returns to the pinned Home', () => {
+    vi.useFakeTimers();
+    try {
+      const ids = Array.from({ length: 96 }, (_, index) => `$card${index}`);
+      state.pinned = ['$card90'];
+      render(list('!keyboard:example.org', ids));
+      const first = card('$card90');
+      first.focus();
+      expect(card('$card95')).toBeNull();
+      fireEvent.keyDown(first, { key: 'End' });
+      for (let i = 0; i < 12; i += 1) {
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+      }
+      expect(document.activeElement).toBe(card('$card95'));
+      fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+      expect(document.activeElement).toBe(first);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the keys from the open thread, and changes nothing, on a pinned card', () => {
