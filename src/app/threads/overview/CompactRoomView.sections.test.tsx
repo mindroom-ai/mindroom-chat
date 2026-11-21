@@ -470,19 +470,21 @@ describe('the Compact room in sections', () => {
   });
 
   it('shows the header of the section a mounted card moves to while cards still mount', () => {
-    const working = Array.from({ length: 100 }, (_unused, index) => `$w${index}`);
-    state.sections = [{ id: 'working', rootIds: ['$a', ...working] }];
-    const { rerender } = render(view(['$a', ...working]));
+    const waiting = Array.from({ length: 100 }, (_unused, index) => `$waiting${index}`);
+    const ids = ['$a', ...waiting];
+    state.sections = [{ id: 'needsYou', rootIds: ids }];
+    const { rerender } = render(view(ids));
     expect(rows()).toContain('$a');
 
-    // $a finishes before the rest of the cards have mounted: it opens a Needs you section.
+    // $a starts working below the Needs you cards before the rest of those cards mount.
     state.sections = [
-      { id: 'needsYou', rootIds: ['$a'] },
-      { id: 'working', rootIds: working },
+      { id: 'needsYou', rootIds: waiting },
+      { id: 'working', rootIds: ['$a'] },
     ];
-    rerender(view(['$a', ...working]));
+    rerender(view(ids));
 
-    expect(rows().slice(0, 2)).toEqual(['#needsYou 1', '$a']);
+    expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
+    expect(rows().slice(-2)).toEqual(['#working 1', '$a']);
   });
 
   it('mounts the first screenful on the way back from a card in folded Done', () => {
