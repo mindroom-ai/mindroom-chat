@@ -96,7 +96,6 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
 const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
 type ThreadActionsMenuState = {
-  roomId: string;
   rootId: string;
   anchor: RectCords;
   trigger?: HTMLElement;
@@ -162,7 +161,6 @@ const CompactThreadCardRow = React.memo(
 
     const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
       onOpenMenu({
-        roomId,
         rootId,
         viewModel,
         anchor: { x, y, width: 0, height: 0 },
@@ -208,7 +206,6 @@ const CompactThreadCardRow = React.memo(
           event.preventDefault();
           event.stopPropagation();
           onOpenMenu({
-            roomId,
             rootId,
             viewModel,
             anchor: event.currentTarget.getBoundingClientRect(),
@@ -294,7 +291,6 @@ const CompactThreadCardRow = React.memo(
                     aria-expanded={menuOpen}
                     onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
                       onOpenMenu({
-                        roomId,
                         rootId,
                         viewModel,
                         anchor: event.currentTarget.getBoundingClientRect(),
@@ -628,6 +624,8 @@ function CompactRoomList({
         : compactFocusPlace(focusRequest, view));
     if (place) {
       view.scrollTop += card.getBoundingClientRect().top - viewport.top - place.anchors[0]!.offset;
+      // Keep the new range around the placed card even before the native scroll event.
+      virtualizer.scrollOffset = view.scrollTop;
     }
     const { top, bottom } = card.getBoundingClientRect();
     if (top <= viewport.bottom && bottom >= viewport.top) {
@@ -747,8 +745,7 @@ function CompactRoomList({
         onFocus={(event: React.FocusEvent<HTMLDivElement>) => {
           setFocusInside(isKeyboardFocus(event.target));
           setFocusedId(
-            event.target.closest<HTMLElement>('[data-motion-row]')?.dataset.motionRow ??
-              event.target.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor
+            event.target.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor
           );
         }}
         onBlur={(event: React.FocusEvent<HTMLDivElement>) => {

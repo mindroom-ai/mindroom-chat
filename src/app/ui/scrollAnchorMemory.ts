@@ -170,6 +170,7 @@ export function useScrollAnchorMemory({
     };
     const handleScroll = () => {
       if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
+      else if (state.placedRows.length) releaseAnchors?.();
     };
     const restore = () => {
       const { snapshot } = state;
@@ -193,7 +194,7 @@ export function useScrollAnchorMemory({
       }
       if (Math.abs(view.scrollTop - placement.scrollTop) >= 0.5)
         view.scrollTop = placement.scrollTop;
-      if (placement.rows.length) releaseAnchors?.();
+      else if (placement.rows.length) releaseAnchors?.();
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;

@@ -80,7 +80,7 @@ export function useCompactWindow(
     },
     [indexes, keepKey]
   );
-  const virtualizer = useVirtualizer({
+  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
     getScrollElement: () => viewRef.current,
     getItemKey,
@@ -110,7 +110,7 @@ export function useCompactWindow(
     const view = viewRef.current;
     if (!virtualizer.isScrolling && bias && view) {
       // Fold the temporary layout offset back into the scroll position only at rest.
-      view.scrollTop -= bias;
+      if (view.scrollTop > 0) view.scrollTop -= bias;
       listRef.current?.style.removeProperty('--compact-scroll-bias');
       setBias(0);
     }
