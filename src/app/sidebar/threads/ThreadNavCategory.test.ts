@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
@@ -92,12 +92,11 @@ vi.mock('./ThreadNavItem', () => ({
     ),
 }));
 vi.mock('./threadNav.css', () => ({
-  CategoryHeader: 'CategoryHeader',
   CategoryToggle: 'CategoryToggle',
   HeaderControls: 'HeaderControls',
   CategoryState: 'CategoryState',
   HeaderToggle: 'HeaderToggle',
-  HeaderTooltip: 'HeaderTooltip',
+  HeaderToggleLabel: 'HeaderToggleLabel',
 }));
 vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
   getThreadSignalsReader: () => ({ read: readSignals }),
@@ -390,13 +389,15 @@ describe('ThreadNavCategory', () => {
   it.each([
     ['Group', 'Group by status'],
     ['For me', 'Only threads you take part in, that an agent posted for you, or that you pinned'],
-  ])('describes the %s toggle before its tooltip opens on keyboard focus', (name, description) => {
+  ])('gives %s an accessible toggle name and a separate reveal label', (name, description) => {
     render(categoryTree());
     const toggle = screen.getByRole('button', { name, description });
-    expect(screen.queryByRole('tooltip')).toBeNull();
+    const label = within(toggle).getByText(name, { selector: 'span' });
+    expect(label.getAttribute('aria-hidden')).toBe('true');
+    expect(label.classList.contains('HeaderToggleLabel')).toBe(true);
     toggle.focus();
     fireEvent.keyUp(toggle, { key: 'Tab' });
-    expect(screen.getByRole('tooltip').textContent).toBe(description);
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   it('shows a distinct empty state when For me hides every thread', () => {

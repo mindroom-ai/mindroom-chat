@@ -2,8 +2,7 @@ import { useCallback, useId, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, Icons, type IconSrc, Text, Tooltip } from 'folds';
-import { TooltipProvider } from '../../ui/directional';
+import { Button, Icon, Icons, type IconSrc, Text } from 'folds';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -59,30 +58,19 @@ function HeaderToggle({
       <span id={hintId} hidden>
         {hint}
       </span>
-      <TooltipProvider
-        position="Bottom"
-        align="End"
-        offset={6}
-        tooltip={
-          <Tooltip className={css.HeaderTooltip}>
-            <Text size="T200">{hint}</Text>
-          </Tooltip>
-        }
+      <button
+        type="button"
+        className={css.HeaderToggle}
+        aria-label={label}
+        aria-describedby={hintId}
+        aria-pressed={pressed}
+        onClick={onClick}
       >
-        {(triggerRef) => (
-          <button
-            ref={triggerRef}
-            type="button"
-            className={css.HeaderToggle}
-            aria-label={label}
-            aria-describedby={hintId}
-            aria-pressed={pressed}
-            onClick={onClick}
-          >
-            <Icon size="50" src={icon} aria-hidden />
-          </button>
-        )}
-      </TooltipProvider>
+        <Icon size="50" src={icon} aria-hidden />
+        <span className={css.HeaderToggleLabel} aria-hidden>
+          {label}
+        </span>
+      </button>
     </>
   );
 }
@@ -187,7 +175,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader className={css.CategoryHeader}>
+      <NavCategoryHeader>
         {toggle}
         {!closed && (
           <div className={css.HeaderControls}>

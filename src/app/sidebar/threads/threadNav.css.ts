@@ -1,22 +1,50 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 import { Segment, Segments } from '../../ui/styles/Segmented.css';
 
-export const CategoryHeader = style({ flexWrap: 'wrap' });
-export const CategoryToggle = style({ flexShrink: 0 });
-export const HeaderControls = style([Segments, { maxInlineSize: '100%' }]);
+// The title's button grows into spare space; on reveal the controls can shrink, not the title.
+export const CategoryToggle = style({ flexShrink: 0, whiteSpace: 'nowrap' });
+export const HeaderControls = style([Segments, { flexShrink: 1 }]);
+
+const revealToggle = '&:hover, &:focus-visible';
+const reducedMotion = '(prefers-reduced-motion: reduce)';
 
 export const HeaderToggle = style([
   Segment,
   {
     display: 'grid',
-    placeItems: 'center',
-    flexShrink: 0,
+    alignItems: 'center',
+    gridTemplateColumns: 'auto minmax(0, 0fr)',
+    columnGap: 0,
+    transition: transition(['grid-template-columns', 'column-gap'], motion.duration.Slow),
+    '@media': {
+      '(hover: hover)': {
+        selectors: {
+          [revealToggle]: {
+            gridTemplateColumns: 'auto minmax(0, 1fr)',
+            columnGap: config.space.S200,
+          },
+        },
+      },
+      [reducedMotion]: { transition: 'none' },
+    },
   },
 ]);
 
-export const HeaderTooltip = style({ maxInlineSize: toRem(260) });
+export const HeaderToggleLabel = style({
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  opacity: 0,
+  transition: transition(['opacity'], motion.duration.Slow),
+  '@media': {
+    '(hover: hover)': {
+      selectors: { [`${HeaderToggle}:hover &, ${HeaderToggle}:focus-visible &`]: { opacity: 1 } },
+    },
+    [reducedMotion]: { transition: 'none' },
+  },
+});
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,
