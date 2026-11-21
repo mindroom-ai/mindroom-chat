@@ -60,7 +60,8 @@ export const planVoiceTranscripts = ({
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
   viewerId: string | undefined;
-  expectsAnswer: boolean;
+  /** Whether someone joined may answer; asked only once a fresh own voice message exists. */
+  expectsAnswer: () => boolean;
   hasThreadReplies: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
@@ -92,34 +93,32 @@ export const planVoiceTranscripts = ({
     hiddenEventIds.add(echoId);
   });
   const pending = new Map<string, number>();
-  if (viewerId && expectsAnswer) {
+  if (viewerId) {
     let oldestVoiceTs = Infinity;
     for (const event of events) {
       if (event.getSender() !== viewerId) continue;
       const ts = event.getTs();
       if (!Number.isFinite(ts)) continue;
       const id = event.getId();
-      const age = event.getLocalAge();
       if (
         isConfirmedMatrixEventId(id) &&
         (!event.status || event.status === EventStatus.SENT) &&
-        age >= 0 &&
-        age < TRANSCRIBING_MS &&
         !event.isRedacted() &&
         !byVoiceId.has(id) &&
         event.getType() === 'm.room.message'
       ) {
         const content = getContent(event);
-        if (
-          content.msgtype === MsgType.Audio &&
-          isVoiceMessageContent(content) &&
-          !hasThreadReplies(event)
-        ) {
+        const age =
+          content.msgtype === MsgType.Audio && isVoiceMessageContent(content)
+            ? event.getLocalAge()
+            : -1;
+        if (age >= 0 && age < TRANSCRIBING_MS && !hasThreadReplies(event)) {
           pending.set(id, ts);
           oldestVoiceTs = Math.min(oldestVoiceTs, ts);
         }
       }
     }
+    if (pending.size > 0 && !expectsAnswer()) pending.clear();
     if (pending.size > 0) {
       // The room window may draw newest first. Compare server timestamps, not row order.
       let latestAgentTs = oldestVoiceTs;
@@ -173,12 +172,13 @@ export const useVoiceTranscriptPlan = (
       }
     }
   }
-  const [, refresh] = useForceUpdate();
+  // Each firing re-arms while still pending (an early timer or a clock moved back), so it ends.
+  const [tick, refresh] = useForceUpdate();
   useEffect(() => {
     if (!Number.isFinite(nextExpiry)) return undefined;
     const timer = setTimeout(refresh, Math.max(0, nextExpiry - Date.now()));
     return () => clearTimeout(timer);
-  }, [nextExpiry, refresh]);
+  }, [nextExpiry, refresh, tick]);
   return last.current;
 };
 

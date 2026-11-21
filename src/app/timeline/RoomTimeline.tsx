@@ -914,19 +914,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     void rosterAccountIds;
     return new Set(room.getJoinedMembers().map((member) => member.userId));
   }, [room, membershipRevision, rosterAccountIds]);
-  const trustedAccountsRef = useRef<ReadonlySet<string>>(new Set());
-  const trustedAccountIds = useMemo(() => {
-    const next = trustedRoomAccountIds(
-      boundUserId,
-      rosterAccountIds,
-      joinedAccountIds,
-      ignoredUsersSet
-    );
-    const previous = trustedAccountsRef.current;
-    if (next.size === previous.size && [...next].every((id) => previous.has(id))) return previous;
-    trustedAccountsRef.current = next;
-    return next;
-  }, [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]);
+  const trustedAccountIds = useMemo(
+    () => trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet),
+    [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]
+  );
   const viewerId = mx.getUserId() ?? undefined;
   useLayoutEffect(() => {
     const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
@@ -951,9 +942,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    expectsAnswer: room
-      .getJoinedMembers()
-      .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
+    expectsAnswer: () =>
+      room
+        .getJoinedMembers()
+        .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
     hasThreadReplies: (event) => {
       const id = event.getId();
       return (

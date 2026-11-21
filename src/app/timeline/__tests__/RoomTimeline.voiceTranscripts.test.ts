@@ -255,8 +255,8 @@ describe('a voice echo in an open thread', () => {
     try {
       const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
       act(update);
-      // One current membership read for the hint, none to rebuild fold trust.
-      expect(getJoinedMembers).toHaveBeenCalledTimes(1);
+      // No membership read: no fresh own voice message asks for the hint, and fold trust holds.
+      expect(getJoinedMembers).not.toHaveBeenCalled();
     } finally {
       act(() => renderer.unmount());
     }
@@ -327,6 +327,32 @@ it('hides the transcribing skeleton 60 seconds after the voice message was sent'
       vi.advanceTimersByTime(1);
     });
     expect(status()).toHaveLength(0);
+  } finally {
+    act(() => renderer.unmount());
+    vi.useRealTimers();
+  }
+});
+
+it('reschedules expiry if the clock moves back while the hint is pending', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(100_000);
+  const { renderer } = await openThread(undefined, AGENT, { showEcho: false, voiceAge: 40_000 });
+  try {
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+      vi.setSystemTime(105_000);
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(4_999);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(1);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(transcribingStatuses(renderer)).toHaveLength(0);
   } finally {
     act(() => renderer.unmount());
     vi.useRealTimers();
