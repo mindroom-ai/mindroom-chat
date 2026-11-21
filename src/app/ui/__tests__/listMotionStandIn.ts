@@ -8,7 +8,11 @@ export type MotionPlay = {
   element: HTMLElement;
   keyframes: Keyframe[];
   options: KeyframeAnimationOptions;
-  animation: { playState: AnimationPlayState; currentTime: number };
+  animation: {
+    playState: AnimationPlayState;
+    currentTime: number;
+    effect: { target: HTMLElement } | null;
+  };
 };
 
 /**

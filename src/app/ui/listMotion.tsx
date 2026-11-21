@@ -180,6 +180,12 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
   return started;
 };
 
+const cancelPlay = (animation: Animation): void => {
+  animation.cancel();
+  // eslint-disable-next-line no-param-reassign -- cancellation alone leaves the effect holding the row
+  animation.effect = null;
+};
+
 /**
  * Holds a play where its row shows now. A pause alone takes hold at the browser's next frame,
  * which a busy page draws late: a pressed row glided on until then (17 to 67 px in Chromium).
@@ -313,7 +319,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     const kept = running.filter((animation) => {
       const target = (animation.effect as KeyframeEffect | null)?.target;
       if (target && stayed.has(target)) return true;
-      animation.cancel();
+      cancelPlay(animation);
       return false;
     });
     const started = play(list, before);
@@ -327,9 +333,9 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       // The release brought this change (a swipe, which no click follows): the rows that kept
       // their place play on with it.
     } else if (press?.up && started.length > 0) letGo();
-    // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
+    // Keep the deadline even if the list goes away. It also releases effects that already finished.
     if (started.length > 0) {
-      setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
+      setTimeout(() => started.forEach(cancelPlay), LONGEST_PLAY_MS);
     }
   }, [letGo, listRef, order]);
 

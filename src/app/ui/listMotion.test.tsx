@@ -82,6 +82,7 @@ describe('useListMotion', () => {
   });
 
   it('fades a row that left where it stood, outside the rows, while the gap closes', async () => {
+    vi.useFakeTimers();
     const { rerender } = render(<List order={['a', 'b', 'c']} />);
     rerender(<List order={['a', 'c']} />);
 
@@ -99,9 +100,15 @@ describe('useListMotion', () => {
     });
     expect(playedByRow()).toMatchObject({ c: [glide(100)], '(left)': [[{}, { opacity: 0 }]] });
     expect(list.querySelectorAll('[data-motion-row]')).toHaveLength(2);
+    const leave = motion.plays.find(({ element }) => element === left)!;
+    expect(leave.animation.effect?.target).toBe(left);
+    expect(leave.options.fill).toBe('forwards');
 
     await motion.finish();
     expect(left?.isConnected).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(LONGEST_PLAY_MS);
+    expect(leave.animation.effect?.target?.isConnected).toBeUndefined();
   });
 
   it('follows a row that moved under another parent', () => {
@@ -193,11 +200,12 @@ describe('useListMotion', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['b', 'a']} />);
     expect(motion.cancel).not.toHaveBeenCalled();
-    const running = motion.plays.length;
+    const running = motion.plays.slice();
 
     rerender(<List order={['a', 'b']} />);
 
-    expect(motion.cancel).toHaveBeenCalledTimes(running);
+    expect(motion.cancel).toHaveBeenCalledTimes(running.length);
+    expect(running.some(({ animation }) => animation.effect?.target)).toBe(false);
   });
 
   it('lets the play of a row that shows where it did run on, and starts the moved ones again', () => {
@@ -250,6 +258,7 @@ describe('useListMotion', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(motion.cancel).toHaveBeenCalledTimes(running);
     expect(left?.isConnected).toBe(false);
+    expect(motion.plays.some(({ animation }) => animation.effect?.target)).toBe(false);
   });
 
   describe('under a press', () => {

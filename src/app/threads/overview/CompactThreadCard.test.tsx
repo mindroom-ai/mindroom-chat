@@ -148,6 +148,46 @@ describe('a card whose thread changes while it shows', () => {
     expect(moved).toContain('2');
   });
 
+  it.each(['finish', 'unmount'] as const)(
+    'releases reply animation targets after %s',
+    async (end) => {
+      const motion = standInForListMotion();
+      try {
+        const before = makeViewModel({ lastActivityTs: Date.now() - 10 * MINUTE });
+        const after = { ...before, lastActivityTs: Date.now(), messageCount: 2 };
+        const onClick = vi.fn();
+        const { rerender, unmount } = render(
+          <CompactThreadCard viewModel={before} onClick={onClick} />
+        );
+        rerender(<CompactThreadCard viewModel={after} onClick={onClick} />);
+        expect(motion.plays).toHaveLength(3);
+
+        // A change that doesn't animate must not end the reply's plays.
+        rerender(
+          <CompactThreadCard viewModel={{ ...after, isStreaming: true }} onClick={onClick} />
+        );
+        const animations = motion.plays.map(({ animation }) => animation);
+        expect(animations.map(({ playState }) => playState)).toEqual([
+          'running',
+          'running',
+          'running',
+        ]);
+        expect(animations.every(({ effect }) => effect?.target.isConnected)).toBe(true);
+
+        if (end === 'finish') await motion.finish();
+        else {
+          unmount();
+          await Promise.resolve();
+          expect(motion.plays.every(({ element }) => !element.isConnected)).toBe(true);
+        }
+        expect(animations.some(({ effect }) => effect?.target)).toBe(false);
+      } finally {
+        cleanup();
+        motion.restore();
+      }
+    }
+  );
+
   it('stays as it is when what loads is older activity, not something that just happened', () => {
     const motion = change(
       { lastActivityTs: Date.now() - 60 * MINUTE, previewText: 'Tom: first' },

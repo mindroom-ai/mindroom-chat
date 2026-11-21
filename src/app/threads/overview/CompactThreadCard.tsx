@@ -52,6 +52,14 @@ type Shown = Pick<CompactThreadCardViewModel, 'lastActivityTs' | 'isStreaming' |
 const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
   const { lastActivityTs, isStreaming, messageCount } = now;
   const shownRef = useRef<Shown>(now);
+  const activeRef = useRef<Set<Animation>>();
+  // Cancel only when the card goes, not when a new update arrives mid-animation.
+  useEffect(
+    () => () => {
+      activeRef.current?.forEach((animation) => animation.cancel());
+    },
+    []
+  );
   useEffect(() => {
     const before = shownRef.current;
     shownRef.current = { lastActivityTs, isStreaming, messageCount };
@@ -63,22 +71,39 @@ const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
       Date.now() - lastActivityTs < JUST_NOW_MS;
     const runEnded = before.isStreaming && !isStreaming;
     if (!card || !(justReplied || runEnded) || !playsMotion(card)) return;
+    const active = (activeRef.current ??= new Set<Animation>());
+    const track = (animation: Animation | undefined) => {
+      if (!animation) return;
+      active.add(animation);
+      const release = () => {
+        active.delete(animation);
+        // eslint-disable-next-line no-param-reassign -- a settled animation can still hold its target
+        animation.effect = null;
+      };
+      void animation.finished.then(release, release);
+    };
     // The card's own overlay (`Card` in CompactRoomView.css.ts), so nothing repaints the card.
-    card.animate([{ opacity: 0.16 }, { opacity: 0 }], {
-      duration: 1500,
-      easing: 'ease-out',
-      pseudoElement: '::after',
-    });
-    card
-      .querySelector('[data-compact-card-preview]')
-      ?.animate([{ opacity: 0, translate: '0px 4px' }, {}], {
-        duration: 200,
-        easing: 'cubic-bezier(0, 0, 0, 1)',
-      });
-    if (messageCount > before.messageCount) {
+    track(
+      card.animate([{ opacity: 0.16 }, { opacity: 0 }], {
+        duration: 1500,
+        easing: 'ease-out',
+        pseudoElement: '::after',
+      })
+    );
+    track(
       card
-        .querySelector('[data-compact-card-reply-count]')
-        ?.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 240 });
+        .querySelector('[data-compact-card-preview]')
+        ?.animate([{ opacity: 0, translate: '0px 4px' }, {}], {
+          duration: 200,
+          easing: 'cubic-bezier(0, 0, 0, 1)',
+        })
+    );
+    if (messageCount > before.messageCount) {
+      track(
+        card
+          .querySelector('[data-compact-card-reply-count]')
+          ?.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 240 })
+      );
     }
   }, [cardRef, lastActivityTs, isStreaming, messageCount]);
 };
