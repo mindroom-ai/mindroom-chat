@@ -25,7 +25,7 @@ import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import {
   memberName,
   mentionRank,
-  orderMentionCandidates,
+  filterAndOrderMentionCandidates,
   recentSenders,
 } from './mentionRanking';
 
@@ -153,7 +153,7 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
   const [t] = useTranslation();
   const roomMembers = useRoomMembers(client, room.roomId);
   const members = useMemo(
-    () => orderMentionCandidates(roomMembers.filter(isMentionable), recentSenders(room)),
+    () => filterAndOrderMentionCandidates(roomMembers.filter(isMentionable), recentSenders(room)),
     [roomMembers, room]
   );
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));

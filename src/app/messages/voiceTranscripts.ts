@@ -1,5 +1,8 @@
-import { useRef } from 'react';
-import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
+import { useEffect, useRef } from 'react';
+import { EventStatus, MsgType, type MatrixEvent } from 'matrix-js-sdk';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
@@ -8,57 +11,71 @@ import {
   isVoiceRawAudioFallback,
 } from '../matrix/protocol/transcribingPlaceholder';
 
-/**
- * The router's voice echoes a timeline draws under the voice messages they transcribe, whose own
- * rows hide: `byVoiceId` maps each voice message's ID to its echo.
- */
+/** The voice messages with a transcript under their player or a local transcribing indicator. */
 export type VoiceTranscriptPlan = {
   hiddenEventIds: ReadonlySet<string>;
   byVoiceId: ReadonlyMap<string, MatrixEvent>;
+  pendingVoiceIds: ReadonlySet<string>;
 };
 
 export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
   hiddenEventIds: new Set(),
   byVoiceId: new Map(),
+  pendingVoiceIds: new Set(),
 };
 
+const TRANSCRIBING_MS = 60_000;
+
 /**
- * Which router voice echoes of `events` show under their voice message instead of their row. An
- * echo moves when the room's router sent it (`routerUserId`, which the room's state names and
- * `trustedRouterUserId` trusts; no other agent or account, none while it names none, and none
- * the viewer ignores), it names its voice message (`getVoiceSourceEventId`, read from the version
- * its row shows, `getContent`, which counts only the sender's own edits), that version is a
- * transcript rather than the fallback text of a failed transcription (`isVoiceRawAudioFallback`)
- * and holds all of it rather than a preview of a long-text sidecar (`hasLongTextMetadata`),
+ * Which voice echoes of `events` show under their voice message instead of their row. An echo
+ * moves when a trusted account sent it (the room's binding or a joined account from its roster,
+ * excluding ignored accounts), it names its voice message (`getVoiceSourceEventId`, from
+ * the version its row shows, `getContent`, which counts only the sender's own edits), that
+ * version is a transcript or a legacy placeholder rather than the raw-audio fallback, and
+ * holds all of the text rather than a preview of a long-text sidecar,
  * and that message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays
  * as voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other
  * echo keeps its row as before: one from an older backend without the name, one whose voice
  * message is not loaded here or is no voice message, one the route or a jump opened
  * (`revealed`), and a second echo naming the same voice message.
+ *
+ * The viewer's own recent voice messages can show a pending indicator when a responder is joined
+ * and there is no folded transcript or thread reply. It can last up to 60 seconds without an
+ * answer (other people in the room, mentions-only mode or voice off), or end early on any later
+ * responder event in the timeline.
  */
 export const planVoiceTranscripts = ({
   events,
   getContent,
-  routerUserId,
+  trustedAccountIds,
   ignored,
   revealed,
+  viewerId,
+  expectsAnswer,
+  hasThreadReplies,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  routerUserId: string | undefined;
+  trustedAccountIds: ReadonlySet<string>;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
+  viewerId: string | undefined;
+  /** Whether someone joined may answer; asked only once a fresh own voice message exists. */
+  expectsAnswer: () => boolean;
+  hasThreadReplies: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
-  if (!routerUserId || ignored.has(routerUserId)) return NO_VOICE_TRANSCRIPTS;
-  const echoes = events.filter(
-    (event) =>
-      isVisibleRouterVoiceEcho(event.getOriginalContent()) &&
-      !event.isRedacted() &&
-      event.getSender() === routerUserId
-  );
-  if (echoes.length === 0) return NO_VOICE_TRANSCRIPTS;
-  const byId = new Map(events.map((event) => [event.getId(), event]));
+  const echoes =
+    trustedAccountIds.size === 0
+      ? []
+      : events.filter((event) => {
+          if (!isVisibleRouterVoiceEcho(event.getOriginalContent())) return false;
+          const sender = event.getSender();
+          return (
+            !!sender && trustedAccountIds.has(sender) && !ignored.has(sender) && !event.isRedacted()
+          );
+        });
+  const byId = new Map(echoes.length > 0 ? events.map((event) => [event.getId(), event]) : []);
   const hiddenEventIds = new Set<string>();
   const byVoiceId = new Map<string, MatrixEvent>();
   echoes.forEach((echo) => {
@@ -75,11 +92,62 @@ export const planVoiceTranscripts = ({
     byVoiceId.set(voiceId, echo);
     hiddenEventIds.add(echoId);
   });
-  return byVoiceId.size === 0 ? NO_VOICE_TRANSCRIPTS : { hiddenEventIds, byVoiceId };
+  const pending = new Map<string, number>();
+  if (viewerId) {
+    let oldestVoiceTs = Infinity;
+    for (const event of events) {
+      if (event.getSender() !== viewerId) continue;
+      const ts = event.getTs();
+      if (!Number.isFinite(ts)) continue;
+      const id = event.getId();
+      if (
+        isConfirmedMatrixEventId(id) &&
+        (!event.status || event.status === EventStatus.SENT) &&
+        !event.isRedacted() &&
+        !byVoiceId.has(id) &&
+        event.getType() === 'm.room.message'
+      ) {
+        const content = getContent(event);
+        const age =
+          content.msgtype === MsgType.Audio && isVoiceMessageContent(content)
+            ? event.getLocalAge()
+            : -1;
+        if (age >= 0 && age < TRANSCRIBING_MS && !hasThreadReplies(event)) {
+          pending.set(id, ts);
+          oldestVoiceTs = Math.min(oldestVoiceTs, ts);
+        }
+      }
+    }
+    if (pending.size > 0 && !expectsAnswer()) pending.clear();
+    if (pending.size > 0) {
+      // The room window may draw newest first. Compare server timestamps, not row order.
+      let latestAgentTs = oldestVoiceTs;
+      for (const event of events) {
+        const ts = event.getTs();
+        if (!Number.isFinite(ts) || ts <= latestAgentTs) continue;
+        const sender = event.getSender();
+        if (
+          !sender ||
+          ignored.has(sender) ||
+          !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds)
+        )
+          continue;
+        latestAgentTs = ts;
+      }
+      for (const [id, ts] of pending) {
+        if (ts < latestAgentTs) pending.delete(id);
+      }
+    }
+  }
+  return byVoiceId.size === 0 && pending.size === 0
+    ? NO_VOICE_TRANSCRIPTS
+    : { hiddenEventIds, byVoiceId, pendingVoiceIds: new Set(pending.keys()) };
 };
 
 /** Whether two plans draw the same: the timeline keeps the older, so its rows do not redraw. */
 export const sameVoiceTranscriptPlan = (a: VoiceTranscriptPlan, b: VoiceTranscriptPlan): boolean =>
+  a.pendingVoiceIds.size === b.pendingVoiceIds.size &&
+  [...a.pendingVoiceIds].every((id) => b.pendingVoiceIds.has(id)) &&
   a.byVoiceId.size === b.byVoiceId.size &&
   [...a.byVoiceId].every(([voiceId, echo]) => b.byVoiceId.get(voiceId) === echo);
 
@@ -94,6 +162,23 @@ export const useVoiceTranscriptPlan = (
   const last = useRef(NO_VOICE_TRANSCRIPTS);
   const plan = planVoiceTranscripts(input);
   if (!sameVoiceTranscriptPlan(plan, last.current)) last.current = plan;
+  // Wake only when the next visible indicator expires, not on a polling interval.
+  let nextExpiry = Infinity;
+  if (plan.pendingVoiceIds.size > 0) {
+    for (const event of input.events) {
+      const id = event.getId();
+      if (id && plan.pendingVoiceIds.has(id)) {
+        nextExpiry = Math.min(nextExpiry, event.localTimestamp + TRANSCRIBING_MS);
+      }
+    }
+  }
+  // Each firing re-arms while still pending (an early timer or a clock moved back), so it ends.
+  const [tick, refresh] = useForceUpdate();
+  useEffect(() => {
+    if (!Number.isFinite(nextExpiry)) return undefined;
+    const timer = setTimeout(refresh, Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [nextExpiry, refresh, tick]);
   return last.current;
 };
 

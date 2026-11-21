@@ -22,6 +22,10 @@ export const isMindroomAgentUserId = (userId: string | undefined): boolean => {
   return localpart.toLowerCase().startsWith(AGENT_USERNAME_PREFIX);
 };
 
+/** Only the bare owner ID is unambiguous; `router_<suffix>` can be an agent's name. */
+export const isMindroomOwnerUserId = (userId: string): boolean =>
+  getMxIdLocalPart(userId)?.toLowerCase() === `${AGENT_USERNAME_PREFIX}router`;
+
 export const hasActiveMindroomAgent = (
   members: readonly Pick<RoomMember, 'membership' | 'userId'>[]
 ): boolean =>
@@ -51,6 +55,19 @@ export const isMindroomAgentUserIdForViewer = (
   const viewerServer = getMxIdServer(viewerUserId);
   return !!targetServer && targetServer === viewerServer;
 };
+
+/**
+ * Accounts that can answer, for local timeline hints, not for trusting message content.
+ * `mindroom_router_<ns>` can be a real agent named `router_<ns>`: MindRoom reserves only `router`.
+ */
+export const isMindroomResponderForViewer = (
+  userId: string | undefined,
+  viewerId: string | undefined,
+  trustedAccountIds: ReadonlySet<string>
+): boolean =>
+  !!userId &&
+  !isMindroomOwnerUserId(userId) &&
+  (trustedAccountIds.has(userId) || isMindroomAgentUserIdForViewer(userId, viewerId));
 
 const hasAgentContentKey = (content: Record<string, unknown>): boolean =>
   AGENT_CONTENT_KEYS.some((key) => content[key] !== undefined);

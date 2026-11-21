@@ -97,7 +97,7 @@ const scheduleThread = ({ content }: StateEvent): string | undefined => {
   }
 };
 
-/** Cancels the thread's pending schedule as MindRoom's router, whose writes the client trusts. */
+/** Cancels the thread's pending schedule as the configured lobby's steward. */
 const cancelSchedules = async (stack: AgentStack, rootId: string) => {
   const state = await matrixFetch<StateEvent[]>(
     stack.homeserver,
@@ -209,7 +209,7 @@ test("a plugin's board keeps each thread in the column of its state, without a r
     stack,
     soonRoot,
     (event) =>
-      event.sender === stack.agents.router &&
+      event.sender === stack.agents.helper &&
       String(event.content.body ?? '').includes('[Automated Task]'),
     { timeout: 120_000, description: 'the automated task' }
   );
