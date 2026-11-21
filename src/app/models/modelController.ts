@@ -33,6 +33,7 @@ import {
   signedModelDevices,
 } from './modelDeviceTrust';
 import { sendModelRequest } from './modelTransport';
+import { loadRoomCatalogs, ROOM_CATALOG_LIMIT, type RoomCatalog } from './modelCatalogStorage';
 import { randomUuid } from '../lib/randomUuid';
 
 export type ModelPickerSnapshot = {
@@ -50,13 +51,6 @@ export type ModelPickerSnapshot = {
   error?: string;
 };
 type Catalog = { runtime: ModelRuntime; response: ModelCatalogResponse };
-type RoomCatalog = {
-  runtime: ModelRuntime;
-  models: ModelCatalogEntry[];
-  agentUserIds: string[];
-  /** The room default the runtime last reported, shown until a thread's own answer comes. */
-  inherited: ModelInheritedEntry[];
-};
 type Scope = {
   room: Room;
   threadId?: string;
@@ -74,6 +68,8 @@ type Scope = {
   retry?: ReturnType<typeof setTimeout>;
   /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
   kept?: RoomCatalog[];
+  /** The cached-catalog seed waits for a probe that sees the full member roster. */
+  seedDeferred: boolean;
   /** Recent event IDs of model commands typed in the thread and awaiting answers. */
   typedCommands: Set<string>;
   query?: Query;
@@ -119,6 +115,7 @@ const emptySnapshot = (): ModelPickerSnapshot => ({
 /** What the command names: the key, with the picked level after `@`. */
 const commandModel = ({ model, level }: Pick<Command, 'model' | 'level'>): string | undefined =>
   model && level ? `${model}@${level}` : model;
+const INACTIVE_SNAPSHOT = emptySnapshot();
 const scopeKey = (room: Room, threadId?: string): string => JSON.stringify([room.roomId, threadId]);
 /** Discovery asks again after these delays while a composer shows the scope, the last repeating. */
 const RETRY_DELAYS = [3000, 10000, 30000, 60000];
@@ -141,7 +138,7 @@ const controllers = new WeakMap<MatrixClient, ModelController>();
 export class ModelController {
   private readonly scopes = new Map<string, Scope>();
 
-  private readonly roomCatalogs = new Map<string, RoomCatalog[]>();
+  private roomCatalogs: ReturnType<typeof loadRoomCatalogs>;
 
   private readonly queries = new Map<string, Query>();
 
@@ -155,6 +152,7 @@ export class ModelController {
 
   constructor(private readonly mx: MatrixClient) {
     this.userId = mx.getUserId();
+    this.roomCatalogs = loadRoomCatalogs(this.userId);
   }
 
   /** Restart is explicit; snapshot reads and actions never replace a stopped owner. */
@@ -177,6 +175,8 @@ export class ModelController {
       this.mx.getUserId() !== this.userId
     )
       return;
+    const restarting = this.disposed;
+    if (restarting) this.roomCatalogs = loadRoomCatalogs(this.userId);
     this.started = true;
     this.disposed = false;
     const mx = this.mx;
@@ -189,12 +189,35 @@ export class ModelController {
     if (typeof document !== 'undefined')
       document.addEventListener('visibilitychange', this.onVisibility);
     this.scopes.forEach((scope) => {
+      if (restarting) this.reseed(scope);
       if (scope.listeners.size) this.refresh(scope.room, scope.threadId);
     });
   }
 
   private active(): boolean {
     return this.started && !this.disposed && this.mx.getUserId() === this.userId;
+  }
+
+  private roomSeed(room: Room, threadId?: string) {
+    const cached = threadId ? this.roomCatalogs.rooms.get(room.roomId) : undefined;
+    const kept = (cached ?? []).filter(({ runtime, agentUserIds }) =>
+      hasJoinedModelAgent(this.mx, room, runtime, agentUserIds)
+    );
+    const single = kept.length === 1 ? kept[0] : undefined;
+    return {
+      kept,
+      eligible: kept.length > 0,
+      // A chooser needs the thread's own catalogs, not the room's display seed.
+      runtimes: single ? [single.runtime] : [],
+      models: single?.models ?? [],
+      inherited: single && everyAgentJoined(this.mx, room, single) ? single.inherited : [],
+    };
+  }
+
+  private reseed(scope: Scope): void {
+    const { kept, ...seed } = this.roomSeed(scope.room, scope.threadId);
+    scope.kept = kept;
+    if (seed.eligible || scope.snapshot.eligible) this.publish(scope, seed);
   }
 
   private scope(room: Room, threadId?: string): Scope {
@@ -211,21 +234,11 @@ export class ModelController {
           this.scopes.delete(stale[0]);
         }
       }
-      const cached = threadId
-        ? (this.roomCatalogs.get(room.roomId) ?? []).filter((catalog) =>
-            hasJoinedModelAgent(this.mx, room, catalog.runtime, catalog.agentUserIds)
-          )
-        : [];
+      const { kept, ...seed } = this.roomSeed(room, threadId);
       scope = {
         room,
         threadId,
-        snapshot: {
-          ...emptySnapshot(),
-          eligible: cached.length > 0,
-          runtimes: cached.map((catalog) => catalog.runtime),
-          models: cached.length === 1 ? cached[0]!.models : [],
-          inherited: cached.length === 1 ? cached[0]!.inherited : [],
-        },
+        snapshot: { ...emptySnapshot(), ...seed },
         listeners: new Set(),
         watchers: new Set(),
         typedCommands: new Set(),
@@ -233,7 +246,8 @@ export class ModelController {
         generation: 0,
         needsRefresh: false,
         failures: 0,
-        kept: cached,
+        kept,
+        seedDeferred: !room.membersLoaded(),
       };
       this.scopes.set(key, scope);
     }
@@ -241,7 +255,7 @@ export class ModelController {
   }
 
   getSnapshot = (room: Room, threadId?: string): ModelPickerSnapshot =>
-    this.scope(room, threadId).snapshot;
+    this.mx.getUserId() === this.userId ? this.scope(room, threadId).snapshot : INACTIVE_SNAPSHOT;
 
   /**
    * The models of the runtime `userId` runs on `deviceId`, while the catalog the scope shows is
@@ -254,7 +268,7 @@ export class ModelController {
     userId: string,
     deviceId: string
   ): ModelCatalogEntry[] => {
-    const { runtime, runtimes, models } = this.scope(room, threadId).snapshot;
+    const { runtime, runtimes, models } = this.getSnapshot(room, threadId);
     const shown = runtime ?? (runtimes.length === 1 ? runtimes[0] : undefined);
     return shown?.userId === userId && shown.deviceId === deviceId ? models : NO_MODELS;
   };
@@ -353,9 +367,18 @@ export class ModelController {
 
   private async probe(query: Query): Promise<void> {
     try {
-      if (query.hydrating) await query.scope.room.loadMembersIfNeeded();
+      const { scope, hydrating } = query;
+      scope.seedDeferred ||= hydrating;
+      if (hydrating) await scope.room.loadMembersIfNeeded();
       if (!this.currentQuery(query)) return;
       query.hydrating = false;
+      const { failures, catalogs, snapshot, seedDeferred } = scope;
+      scope.seedDeferred = false;
+      // A cancelled probe leaves this seed check for the next probe with the full roster.
+      if (seedDeferred && failures < STALE_ATTEMPTS && !catalogs.size && !snapshot.runtime) {
+        this.reseed(scope);
+        if (!this.currentQuery(query)) return;
+      }
       const candidates = joinedModelCandidates(this.mx, query.scope.room);
       if (!candidates.length) {
         this.invalidate(query.scope);
@@ -400,10 +423,12 @@ export class ModelController {
       return;
     }
     scope.catalogs = query.replies;
-    if (this.roomCatalogs.size >= 64 && !this.roomCatalogs.has(scope.room.roomId)) {
-      this.roomCatalogs.delete(this.roomCatalogs.keys().next().value);
-    }
-    this.roomCatalogs.set(scope.room.roomId, roomCatalogsOf(query.replies.values()));
+    const { rooms, save } = this.roomCatalogs;
+    const { roomId } = scope.room;
+    rooms.delete(roomId);
+    rooms.set(roomId, roomCatalogsOf(query.replies.values()));
+    if (rooms.size > ROOM_CATALOG_LIMIT) rooms.delete(rooms.keys().next().value);
+    save();
     scope.needsRefresh = !!scope.send;
     const runtimes = [...scope.catalogs.values()].map((c) => c.runtime);
     const runtime =
@@ -600,7 +625,7 @@ export class ModelController {
     try {
       if (!(await isCurrentModelRuntime(this.mx, runtime))) {
         if (!this.currentCommand(command)) return;
-        this.roomCatalogs.delete(scope.room.roomId);
+        if (this.roomCatalogs.rooms.delete(scope.room.roomId)) this.roomCatalogs.save();
         this.invalidate(scope);
         return;
       }
@@ -809,13 +834,22 @@ export class ModelController {
   }
 
   private onMembership = (_event: MatrixEvent, member: RoomMember): void => {
-    // The room cache keeps the runtimes whose agents all stay joined, so it names no one gone.
-    const room = this.mx.getRoom(member.roomId);
-    const joined = (room && this.roomCatalogs.get(member.roomId))?.filter((catalog) =>
-      everyAgentJoined(this.mx, room, catalog)
-    );
-    if (joined?.length) this.roomCatalogs.set(member.roomId, joined);
-    else this.roomCatalogs.delete(member.roomId);
+    if (!this.active()) return;
+    // Missing roster entries during lazy hydration are not evidence that an agent left.
+    const { roomId, userId, membership } = member;
+    const { rooms, save } = this.roomCatalogs;
+    const cached = rooms.get(roomId);
+    if (cached && membership !== 'join') {
+      const kept = cached.filter(
+        ({ runtime, agentUserIds }) =>
+          userId !== this.userId && userId !== runtime.userId && !agentUserIds.includes(userId)
+      );
+      if (kept.length !== cached.length) {
+        if (kept.length) rooms.set(roomId, kept);
+        else rooms.delete(roomId);
+        save();
+      }
+    }
     this.scopes.forEach((scope) => {
       if (scope.room.roomId !== member.roomId) return;
       if (scope.query?.hydrating && !scope.catalogs.size) return;
@@ -824,13 +858,16 @@ export class ModelController {
   };
 
   private onDevices = (users: string[]): void => {
-    this.roomCatalogs.forEach((catalogs, roomId) => {
-      if (catalogs.some((catalog) => users.includes(catalog.runtime.userId))) {
-        this.roomCatalogs.delete(roomId);
-      }
+    if (!this.active()) return;
+    const { rooms, save } = this.roomCatalogs;
+    const size = rooms.size;
+    rooms.forEach((catalogs, roomId) => {
+      if (catalogs.some((catalog) => users.includes(catalog.runtime.userId))) rooms.delete(roomId);
     });
+    if (rooms.size !== size) save();
     this.scopes.forEach((scope) => {
-      const known = [...scope.catalogs.values()]
+      const catalogs = scope.catalogs.size ? scope.catalogs.values() : scope.kept ?? [];
+      const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);
       if (known.some((d) => users.includes(d.userId))) this.invalidateAndRefresh(scope);
@@ -894,7 +931,7 @@ export class ModelController {
     if (this.disposed) return;
     this.disposed = true;
     this.scopes.forEach((scope) => this.invalidate(scope));
-    this.roomCatalogs.clear();
+    this.roomCatalogs = loadRoomCatalogs(null);
     this.mx.removeListener(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     this.mx.removeListener(ClientEvent.Event, this.onEvent);
     this.mx.removeListener(MatrixEventEvent.Decrypted, this.onEvent);
