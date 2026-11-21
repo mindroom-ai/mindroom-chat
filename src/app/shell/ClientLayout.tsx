@@ -1,4 +1,4 @@
-import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box } from 'folds';
 import { useAtomValue } from 'jotai';
 import { UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ import {
 import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
+import { clientStartupMarks } from '../lib/startupTimeline';
 import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { PHONE_PAGE, PHONE_STAGE } from '../navigation/phonePageSlide';
 import { NoticeSlot } from '../ui/noticeSlots';
@@ -67,6 +68,10 @@ export function ClientLayout({
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
   const pageRef = useRef<HTMLDivElement>(null);
   useInert(pageRef, phone && layerOpen);
+  useLayoutEffect(() => {
+    const mark = clientStartupMarks.get(mx);
+    if (mark?.('shell.committed')) requestAnimationFrame(() => mark('shell.frame'));
+  }, [mx]);
 
   const hasAlias = pathnameContainsAliasRoute(pathname);
   const [resolvedAliasPath, setResolvedAliasPath] = useState<string>();

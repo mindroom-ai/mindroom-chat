@@ -14,6 +14,13 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 4. Sign-in pages live under `src/app/account/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
 5. Accounts are kept in a session registry (`src/app/matrix/session/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
 
+### Startup in the diagnostics export
+
+Settings → About → Export diagnostics includes `startupTimeline` for the first startup attempt, even
+without deep tracing. Add a mark's `atMs` to `timeOrigin` for epoch milliseconds. See the
+[`readStartupTimeline` documentation](../src/app/lib/startupTimeline.ts) for navigation timing
+and the meaning of individual marks.
+
 ## Layout
 
 The code is grouped by feature: one folder per domain, which holds the screens, hooks, state and helpers of one concept. A file goes where someone looking for that concept would look first.

@@ -18,6 +18,7 @@ import { Navigate } from 'react-router-dom';
 import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import type { ISyncStateData } from 'matrix-js-sdk/lib/sync';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SplashScreen } from '../ui/splash/SplashScreen';
@@ -55,6 +56,7 @@ import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
 import { describeKnownError } from '../lib/describeError';
+import { claimClientStartup, clientStartupMarks } from '../lib/startupTimeline';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import {
   DeviceIdentityVerificationError,
@@ -454,13 +456,15 @@ function ClientSession({ session, children }: ClientSessionProps) {
     let opened: MatrixClient | undefined;
     setStartup({ status: 'loading' });
     setSync(NO_SYNC_YET);
-    initClient(latestSession.current).then(
+    const markStartup = claimClientStartup(() => !abandoned);
+    initClient(latestSession.current, markStartup).then(
       (client) => {
         if (abandoned) {
           closeClient(client);
           return;
         }
         opened = client;
+        if (markStartup) clientStartupMarks.set(client, markStartup);
         setStartup({ status: 'loading', mx: client });
       },
       (error: unknown) => {
@@ -488,7 +492,13 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   useEffect(() => {
     if (!mx) return undefined;
-    const noteSyncState = (state: SyncState | null) => {
+    const markStartup = clientStartupMarks.get(mx);
+    const noteSync = (state: SyncState | null, _prev?: SyncState | null, data?: ISyncStateData) => {
+      // The SDK emits Prepared again after applying the first live response, before
+      // waiting for crypto's onSyncCompleted. Catchup only signals connectivity.
+      if (state === SyncState.Prepared && data) {
+        markStartup?.(data.fromCache ? 'sync.prepared.cache' : 'sync.first_live');
+      }
       const hasRooms = state !== null && hasCachedClientShell(mx);
       setSync((known) => noteSyncReport(known, state, hasRooms));
     };
@@ -501,11 +511,11 @@ function ClientSession({ session, children }: ClientSessionProps) {
         .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
         .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
     };
-    noteSyncState(mx.getSyncState());
-    mx.on(ClientEvent.Sync, noteSyncState);
+    noteSync(mx.getSyncState());
+    mx.on(ClientEvent.Sync, noteSync);
     mx.on(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     return () => {
-      mx.removeListener(ClientEvent.Sync, noteSyncState);
+      mx.removeListener(ClientEvent.Sync, noteSync);
       mx.removeListener(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     };
   }, [mx]);
@@ -519,6 +529,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     startClient(mx).then(
       () => {
         if (abandoned) return;
+        clientStartupMarks.get(mx)?.('sync.started');
         const hasRooms = hasCachedClientShell(mx);
         setSync((known) => noteStoreRestored(known, hasRooms));
         setStartup({ status: 'started', mx });
