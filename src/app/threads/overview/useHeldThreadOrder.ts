@@ -5,10 +5,25 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type PointerEvent,
   type RefObject,
   type TouchEvent,
 } from 'react';
+
+/** A scroll event only invalidates the view when it crosses zero, not for each pixel. */
+export const useScrolledAway = (viewRef: RefObject<HTMLElement>): boolean => {
+  const read = useCallback(() => (viewRef.current?.scrollTop ?? 0) > 0, [viewRef]);
+  const subscribe = useCallback(
+    (change: () => void) => {
+      const view = viewRef.current;
+      view?.addEventListener('scroll', change, { passive: true });
+      return () => view?.removeEventListener('scroll', change);
+    },
+    [viewRef]
+  );
+  return useSyncExternalStore(subscribe, read, () => false);
+};
 
 /**
  * The shown order kept against the live one: the threads shown keep their places, threads that
@@ -16,19 +31,29 @@ import {
  * puts before every shown thread leads (the top of a newest-first list, its live end), one it
  * puts after all of them ends the list, and one between follows its live neighbour.
  */
-export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[]): string[] => {
+export const holdOrder = (
+  shownIds: readonly string[],
+  liveIds: readonly string[],
+  canAnchor: (id: string) => boolean = () => true
+): string[] => {
   const live = new Set(liveIds);
   const kept = shownIds.filter((id) => live.has(id));
   const keptIds = new Set(kept);
-  const firstKept = liveIds.findIndex((id) => keptIds.has(id));
-  const lastKept = liveIds.findLastIndex((id) => keptIds.has(id));
+  const isAnchor = (id: string) => keptIds.has(id) && canAnchor(id);
+  const firstKept = liveIds.findIndex(isAnchor);
+  const lastKept = liveIds.findLastIndex(isAnchor);
   const leading: string[] = [];
   const trailing: string[] = [];
+  let neighbour = '';
   liveIds.forEach((id, index) => {
-    if (keptIds.has(id)) return;
+    if (keptIds.has(id)) {
+      if (isAnchor(id)) neighbour = id;
+      return;
+    }
     if (firstKept === -1 || index < firstKept) leading.push(id);
     else if (index > lastKept) trailing.push(id);
-    else kept.splice(kept.indexOf(liveIds[index - 1] ?? '') + 1, 0, id);
+    else kept.splice(kept.indexOf(neighbour) + 1, 0, id);
+    neighbour = id;
   });
   return [...leading, ...kept, ...trailing];
 };

@@ -1008,6 +1008,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "Bijgewerkte volgorde tonen"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "Compacte weergave",
         "threadFiltersActive": "Threadfilters (actief)"

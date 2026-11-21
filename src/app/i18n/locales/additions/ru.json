@@ -1050,6 +1050,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "Показать обновлённый порядок"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "Компактный вид",
         "threadFiltersActive": "Фильтры веток (активны)"

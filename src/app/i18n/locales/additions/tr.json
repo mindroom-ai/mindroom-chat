@@ -1008,6 +1008,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "Güncellenen sıralamayı göster"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "Kompakt görünüm",
         "threadFiltersActive": "Konu filtreleri (etkin)"

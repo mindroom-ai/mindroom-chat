@@ -987,6 +987,9 @@
       }
     },
     "threads": {
+      "compactRoomView": {
+        "showUpdatedOrder": "Tampilkan urutan terbaru"
+      },
       "mindroomRoomViewHeader": {
         "compactView": "Tampilan ringkas",
         "threadFiltersActive": "Filter utas (aktif)"

@@ -174,6 +174,7 @@ vi.mock('./CompactRoomView.css', () => ({
   CardMenuButton: 'CardMenuButton',
   CardShell: 'CardShell',
   CardMotion: 'CardMotion',
+  UpdatedOrder: 'UpdatedOrder',
   Cards: 'Cards',
   PinnedSection: 'PinnedSection',
 }));

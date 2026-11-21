@@ -167,7 +167,6 @@ import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   heldListHeight,
   isNearLatestEnd,
-  useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
@@ -179,6 +178,7 @@ import {
   useViewportAtBottomNow,
   type RoomRowsPlace,
 } from './roomTimelineScroll';
+import { useFlickStop } from '../ui/useFlickStop';
 import {
   useRelinkKeepingRows,
   useRetryAfterEmptyBackPage,
@@ -1923,6 +1923,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           focusRequest={focusRequest}
           filterBarShown={filterBarShown}
+          orderKey={threadIndex.threadSortControlSignature}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
         />

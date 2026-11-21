@@ -10,7 +10,8 @@ import {
 } from '../helpers/matrix';
 
 const THREAD_COUNT = 40;
-const COMPACT_VIEW = '[data-compact-room-view="true"]';
+// Mobile Back briefly keeps a still copy beside the live scroller.
+const COMPACT_VIEW = '[data-compact-room-view="true"]:not([data-page-slide-copy] *)';
 
 type Session = Awaited<ReturnType<typeof loginToMatrix>>;
 

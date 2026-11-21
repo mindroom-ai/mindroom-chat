@@ -6,8 +6,9 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Chip, Icon, Icons, Spinner, Text, color, config, toRem, type IconSrc } from 'folds';
+import { Box, Chip, Icon, Icons, Spinner, Text, color, config, toRem } from 'folds';
 import * as css from './RoomTimeline.css';
+import { FloatingAction } from '../ui/FloatingAction';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 
 /**
@@ -54,34 +55,6 @@ export const footerProbeStyle: CSSProperties = {
   visibility: 'hidden',
   pointerEvents: 'none',
 };
-
-/** A pill over the timeline that takes the reader somewhere or settles the unread state. */
-export function FloatingAction({
-  icon,
-  label,
-  onSelect,
-  primary = false,
-}: {
-  icon: IconSrc;
-  label: string;
-  onSelect: () => void;
-  primary?: boolean;
-}) {
-  return (
-    <Chip
-      className={css.FloatingAction}
-      onClick={onSelect}
-      variant={primary ? 'Primary' : 'SurfaceVariant'}
-      outlined
-      radii="Pill"
-      before={<Icon src={icon} size="50" />}
-    >
-      <Text size="L400" style={{ textWrap: 'balance' }}>
-        {label}
-      </Text>
-    </Chip>
-  );
-}
 
 /**
  * Jump to Latest, above the composer, while the reader is away from the rows' latest end; its

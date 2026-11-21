@@ -121,6 +121,205 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
+  it('keeps Working promotions in place while scrolled but applies folds and leaves', () => {
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a', '$b'] },
+      { id: 'later', rootIds: ['$c'] },
+    ];
+    const { container, rerender } = render(view(['$a', '$b', '$c']));
+    const scrollView = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scrollView.scrollTop = 30;
+    fireEvent.scroll(scrollView);
+    state.sections = [
+      { id: 'working', rootIds: ['$b'] },
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$c'] },
+    ];
+    rerender(view(['$a', '$b', '$c']));
+    expect(rows()).toEqual(['#needsYou 2', '$a', '$b', '#later 1', '$c']);
+    fireEvent.click(header('needsYou'));
+    expect(rows()).toEqual(['#needsYou 2', '#later 1', '$c']);
+    state.sections = [
+      { id: 'working', rootIds: ['$b'] },
+      { id: 'later', rootIds: ['$c'] },
+    ];
+    rerender(view(['$b', '$c']));
+    expect(rows()).toEqual(['#needsYou 1', '#later 1', '$c']);
+    scrollView.scrollTop = 0;
+    fireEvent.scroll(scrollView);
+    expect(rows()).toEqual(['#working 1', '$b', '#later 1', '$c']);
+  });
+
+  it('joins at the live edge of a section despite a pending move to Working', () => {
+    const ids = ['$a', '$b', '$c'];
+    state.sections = [{ id: 'needsYou', rootIds: ids }];
+    const { container, rerender } = render(view(ids));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const pill = () => screen.queryByRole('button', { name: /showUpdatedOrder/ });
+    const working = { id: 'working' as const, rootIds: ['$c'] };
+
+    state.sections = [working, { id: 'needsYou', rootIds: ['$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$a', '$b', '$c']);
+
+    const needsYou = { id: 'needsYou' as const, rootIds: ['$new', '$a', '$b'] };
+    state.sections = [working, needsYou];
+    rerender(view(['$new', ...ids]));
+    expect(rows()).toEqual(['#needsYou 4', '$new', '$a', '$b', '$c']);
+    expect(pill()).not.toBeNull();
+
+    state.sections = [needsYou];
+    rerender(view(needsYou.rootIds));
+    expect(rows()).toEqual(['#needsYou 3', '$new', '$a', '$b']);
+    expect(pill()).toBeNull();
+  });
+
+  it('restores the stored fold when a departed section returns while scrolled', () => {
+    localStorage.setItem(
+      `compactRoomSections:${ME}`,
+      JSON.stringify({ on: true, folded: ['done'] })
+    );
+    const done = { id: 'done' as const, rootIds: ['$done'] };
+    state.sections = [done];
+    const { container, rerender } = render(view(done.rootIds));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    expect(rows()).toEqual(['#done 1', '$done']);
+
+    const other = [
+      { id: 'needsYou' as const, rootIds: ['$needs'] },
+      { id: 'later' as const, rootIds: ['$later'] },
+    ];
+    state.sections = [...other, done];
+    rerender(view(['$needs', '$later', '$done']));
+    expect(rows()).toContain('$done');
+
+    state.sections = other;
+    rerender(view(['$needs', '$later']));
+    expect(rows()).toEqual(['#needsYou 1', '$needs', '#later 1', '$later']);
+
+    state.sections = [...other, { id: 'done', rootIds: ['$newDone'] }];
+    rerender(view(['$needs', '$later', '$newDone']));
+    expect(header('done').getAttribute('aria-expanded')).toBe('false');
+    expect(rows()).toEqual(['#needsYou 1', '$needs', '#later 1', '$later', '#done 1']);
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
+  it('offers changed folded header counts, but not a reorder within a folded section', () => {
+    const ids = ['$a', '$b', '$c', '$d'];
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$b', '$c'] },
+      { id: 'done', rootIds: ['$d'] },
+    ];
+    const { container, rerender } = render(view(ids));
+    fireEvent.click(header('later'));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const pill = () => screen.queryByRole('button', { name: /showUpdatedOrder/ });
+
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$c', '$b'] },
+      { id: 'done', rootIds: ['$d'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 1', '$a', '#later 2', '#done 1']);
+    expect(pill()).toBeNull();
+
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'later', rootIds: ['$c'] },
+      { id: 'done', rootIds: ['$d', '$b'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 1', '$a', '#later 2', '#done 1']);
+    expect(pill()).not.toBeNull();
+  });
+
+  it('removes an empty section while scrolled without offering a new order', () => {
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a', '$b'] },
+      { id: 'later', rootIds: ['$c'] },
+    ];
+    const { container, rerender } = render(view(['$a', '$b', '$c']));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$a', '$b'] }];
+    rerender(view(['$a', '$b']));
+    expect(rows()).toEqual(['#needsYou 2', '$a', '$b']);
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
+  it('keeps the departing section header focused while scrolled', () => {
+    const needsYou = {
+      id: 'needsYou' as const,
+      rootIds: Array.from({ length: 24 }, (_, i) => `$need${i}`),
+    };
+    state.sections = [needsYou, { id: 'later', rootIds: ['$later'] }];
+    const { container, rerender } = render(view([...needsYou.rootIds, '$later']));
+    const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+    scroller.scrollTop = 30;
+    fireEvent.scroll(scroller);
+    const laterHeader = header('later');
+    act(() => laterHeader.focus());
+    expect(document.activeElement).toBe(laterHeader);
+
+    state.sections = [needsYou];
+    rerender(view(needsYou.rootIds));
+    expect(document.activeElement).toBe(laterHeader);
+    expect(header('later').textContent).toBe('thread.workflow.later · 0');
+    expect(rows()).not.toContain('$later');
+    expect(scroller.scrollTop).toBe(30);
+
+    act(() => scroller.focus());
+    expect(document.querySelector('[data-compact-section="later"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /showUpdatedOrder/ })).toBeNull();
+  });
+
+  it.each([true, false])(
+    'preserves focus when a section above leaves (header focused: %s)',
+    (focused) => {
+      const needsYou = {
+        id: 'needsYou' as const,
+        rootIds: Array.from({ length: 24 }, (_, i) => `$need${i}`),
+      };
+      state.sections = [{ id: 'working', rootIds: ['$working'] }, needsYou];
+      const withOutside = (ids: string[]) => (
+        <>
+          <button type="button">Outside focus</button>
+          {view(ids)}
+        </>
+      );
+      const { container, rerender } = render(withOutside(['$working', ...needsYou.rootIds]));
+      const scroller = container.querySelector<HTMLElement>('[data-compact-room-view]')!;
+      scroller.scrollTop = 30;
+      fireEvent.scroll(scroller);
+      const needsHeader = header('needsYou');
+      const target = focused ? needsHeader : screen.getByRole('button', { name: 'Outside focus' });
+      act(() => target.focus());
+      expect(document.activeElement).toBe(target);
+
+      state.sections = [needsYou];
+      rerender(withOutside(needsYou.rootIds));
+      expect(document.activeElement).toBe(target);
+      expect(scroller.scrollTop).toBe(30);
+      if (focused) {
+        expect(header('needsYou')).toBe(needsHeader);
+        expect(header('working').textContent).toBe('thread.workflow.working · 0');
+      } else {
+        expect(document.querySelector('[data-compact-section="working"]')).toBeNull();
+        expect(document.querySelector('[data-compact-section="needsYou"] button')).toBeNull();
+      }
+    }
+  );
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
@@ -230,7 +429,9 @@ describe('the Compact room in sections', () => {
       state.sections = initial;
       const rootIds = initial.flatMap(({ rootIds: ids }) => ids);
       const { rerender } = render(view(rootIds));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });
@@ -425,7 +626,9 @@ describe('the Compact room in sections', () => {
 
     it('holds no section of the room before when the next room opens under the pointer', () => {
       const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });
@@ -450,7 +653,9 @@ describe('the Compact room in sections', () => {
     it('shows a new thread under its own header, which comes with it', () => {
       state.sections = [{ id: 'needsYou', rootIds: ['$a'] }];
       const { rerender } = render(view(['$a']));
-      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const list = document.querySelector<HTMLElement>(
+        '[data-compact-room-view] > div:has([data-scroll-anchor])'
+      )!;
       act(() => {
         fireEvent.pointerEnter(list);
       });

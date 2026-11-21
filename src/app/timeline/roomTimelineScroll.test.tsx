@@ -10,7 +10,6 @@ import { useViewScopedFlag } from './roomTimelineViewScope';
 import type { EventTimeline } from 'matrix-js-sdk';
 import {
   heldListHeight,
-  useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
@@ -20,6 +19,7 @@ import {
   useTimelineRowJumps,
   type RoomRowsPlace,
 } from './roomTimelineScroll';
+import { useFlickStop } from '../ui/useFlickStop';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */

@@ -24,13 +24,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../overview/CompactRoomView', () => ({
   CompactRoomView: ({
     threadRootIds,
+    pageLimit,
     onThreadClick,
   }: {
     threadRootIds: string[];
+    pageLimit?: number;
     onThreadClick: (rootId: string) => void;
   }) => (
     <ol>
-      {threadRootIds.map((rootId) => (
+      {threadRootIds.slice(0, pageLimit).map((rootId) => (
         <li key={rootId}>
           <button type="button" onClick={() => onThreadClick(rootId)}>
             {rootId}
