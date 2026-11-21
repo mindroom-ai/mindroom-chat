@@ -18,8 +18,8 @@ export const startLiveVoiceRecording = (
   store: ReturnType<typeof createStore>,
   context: PendingVoiceSendContext
 ): Promise<boolean> =>
-  beginLiveVoiceRecording(store, () =>
-    createVoiceCaptureSession(
+  beginLiveVoiceRecording(store, () => {
+    const session = createVoiceCaptureSession(
       (startedAt, mimeType) =>
         context.ownerSessionId
           ? beginVoiceRecording(context.ownerSessionId, startedAt, mimeType)
@@ -29,5 +29,7 @@ export const startLiveVoiceRecording = (
         store.set(pendingVoiceSendDraftAtom, { ...recording, context, recovered: true });
         return true;
       }
-    )
-  );
+    );
+    // The Mac app's recorder keeps a recording through a reload, named by its account.
+    return { ...session, start: () => session.start(context.ownerSessionId) };
+  });

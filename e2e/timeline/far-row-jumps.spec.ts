@@ -21,13 +21,13 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// Jumps within a room to a message far above the view. In the Threads view the room's whole
-// history is loaded, so the message is in the room's rows but its row is not mounted: a click on
-// a reply's quote and the minimap's first stripe each bring it into view, and the
-// quote highlights it. In the Full view the message is older than the loaded timeline, and the
-// quote still loads the history around it and lands on it. Desktop (1280 by 800) and
-// phone (390 by 844, touch; no minimap there, it needs a fine pointer), Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The account has 25 rooms.
+// Jumps to messages far above the view. In the flat Threads view there is no minimap. The
+// room's whole history is loaded, but the old row is not mounted: clicking a reply's quote
+// brings it into view and highlights it. In the Full view the quote loads the older history
+// around the target first. Inside a thread the minimap's first stripe jumps to the unmounted
+// root via the keyboard. Desktop (1280 by 800) and phone (390 by 844, touch; the thread minimap
+// needs a fine pointer), Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
+// WebKit, WebKit. The account has 25 rooms.
 // Set FAR_ROW_JUMP_SHOTS=<directory> to save the landed views.
 const PASSWORD = 'far-row-jumps-password';
 const RUN = Date.now().toString(36);
@@ -55,8 +55,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-/** An account with 24 other rooms and a room: an old message, 80 notes, a reply quoting it. */
-const seed = async (name: string) => {
+/** An account with 24 other rooms and a room: an old message, 80 notes, and a final reply. */
+const seed = async (name: string, threaded = false) => {
   const username = `frj_${name}_${RUN}`;
   const owner = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(owner.userId)}/displayname`, {
@@ -73,14 +73,19 @@ const seed = async (name: string) => {
   const send = (content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, owner.accessToken, roomId, content);
   const old = await send({ msgtype: 'm.text', body: OLD });
+  const threadRelation = { rel_type: 'm.thread', event_id: old };
   for (let index = 0; index < NOTE_COUNT; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await send({ msgtype: 'm.text', body: `${NOTES[index % NOTES.length]} (${index + 1})` });
+    await send({
+      msgtype: 'm.text',
+      body: `${NOTES[index % NOTES.length]} (${index + 1})`,
+      ...(threaded ? { 'm.relates_to': threadRelation } : {}),
+    });
   }
   const reply = await send({
     msgtype: 'm.text',
     body: REPLY,
-    'm.relates_to': { 'm.in_reply_to': { event_id: old } },
+    'm.relates_to': threaded ? threadRelation : { 'm.in_reply_to': { event_id: old } },
   });
   return { username, userId: owner.userId, roomId, old, reply };
 };
@@ -139,13 +144,17 @@ const shoot = async (page: Page, testInfo: TestInfo, name: string) => {
   await testInfo.attach(name, { body: await page.screenshot(), contentType: 'image/png' });
 };
 
-const openRoom = async (page: Page, seeded: Seeded, classic = false) => {
+const openTimeline = async (
+  page: Page,
+  seeded: Seeded,
+  view: 'threaded' | 'classic' | 'thread' = 'threaded'
+) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: seeded.username,
     password: PASSWORD,
   });
-  if (classic) {
+  if (view === 'classic') {
     await seedRoomOverviewState({
       page,
       roomId: seeded.roomId,
@@ -154,17 +163,24 @@ const openRoom = async (page: Page, seeded: Seeded, classic = false) => {
       filterState: createDefaultThreadFilterState(),
     });
   }
-  await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
-  await expect(page.getByText(REPLY, { exact: true })).toBeVisible({ timeout: 60_000 });
+  const roomUrl = `/home/${encodeURIComponent(seeded.roomId)}/`;
+  await page.goto(
+    view === 'thread' ? `${roomUrl}?threadId=${encodeURIComponent(seeded.old)}` : roomUrl
+  );
+  await expect(row(page, seeded.reply)).toBeVisible({ timeout: 60_000 });
   // The old message's row is far above: not mounted.
   await expect(row(page, seeded.old)).toHaveCount(0);
 };
 
 type Form = 'desktop' | 'phone';
 
+const minimapSlider = (page: Page) =>
+  page.getByRole('slider', { name: 'Jump to message', exact: true });
+
 const replyQuoteJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
   const seeded = await seed(`q_${engine}_${form}`);
-  await openRoom(page, seeded);
+  await openTimeline(page, seeded);
+  await expect(minimapSlider(page)).toHaveCount(0);
   const quote = row(page, seeded.reply).locator(`[data-event-id="${seeded.old}"]`).first();
   await expect(quote).toBeVisible({ timeout: 30_000 });
   await watchHighlight(page, seeded.old);
@@ -177,11 +193,19 @@ const replyQuoteJump = async (page: Page, engine: string, form: Form, testInfo: 
 
 const minimapJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
   test.skip(form === 'phone', 'The minimap needs a fine pointer');
-  const seeded = await seed(`m_${engine}_${form}`);
-  await openRoom(page, seeded);
-  const slider = page.getByRole('slider', { name: 'Jump to message', exact: true });
+  const seeded = await seed(`m_${engine}_${form}`, true);
+  await openTimeline(page, seeded, 'thread');
+  const slider = minimapSlider(page);
   await expect(slider).toBeVisible({ timeout: 30_000 });
+  // The root is the first stripe, followed by the notes and final reply.
+  await expect(slider).toHaveAttribute('aria-valuemax', String(NOTE_COUNT + 1), {
+    timeout: 30_000,
+  });
+  await expect(row(page, seeded.old)).toHaveCount(0);
   await slider.focus();
+  // Focus selects the first stripe, so move to the last one first: Home must move it back.
+  await page.keyboard.press('End');
+  await expect(slider).toHaveAttribute('aria-valuenow', String(NOTE_COUNT + 1));
   await page.keyboard.press('Home');
   await page.keyboard.press('Enter');
   await expectLanded(page, seeded.old, `${engine}, ${form}, minimap`);
@@ -190,7 +214,8 @@ const minimapJump = async (page: Page, engine: string, form: Form, testInfo: Tes
 
 const unloadedQuoteJump = async (page: Page, engine: string, form: Form, testInfo: TestInfo) => {
   const seeded = await seed(`u_${engine}_${form}`);
-  await openRoom(page, seeded, true);
+  await openTimeline(page, seeded, 'classic');
+  await expect(minimapSlider(page)).toHaveCount(0);
   const quote = row(page, seeded.reply).locator(`[data-event-id="${seeded.old}"]`).first();
   await expect(quote).toBeVisible({ timeout: 30_000 });
   await watchHighlight(page, seeded.old);
@@ -207,8 +232,8 @@ test.beforeEach(async () => {
 
 type Check = (page: Page, engine: string, form: Form, info: TestInfo) => Promise<void>;
 const CHECKS: [string, Check][] = [
-  ['a reply quote opens its far, loaded message', replyQuoteJump],
-  ['the minimap opens a far, loaded message', minimapJump],
+  ['the flat timeline has no minimap and a reply quote opens its far message', replyQuoteJump],
+  ['the thread minimap jumps to its far root with the keyboard', minimapJump],
   [
     'in the Full view a reply quote opens a message older than the loaded timeline',
     unloadedQuoteJump,

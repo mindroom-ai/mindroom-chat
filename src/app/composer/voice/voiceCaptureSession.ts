@@ -78,7 +78,7 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: () => Promise<boolean>;
+  start: (userId?: string) => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
@@ -373,7 +373,7 @@ export const createVoiceCaptureSession = (
     if (!onPark?.(recording)) journal?.release();
     update(idleSnapshot());
   };
-  const start = async () => {
+  const start = async (userId = '') => {
     if (snapshot.phase !== 'idle' || current?.acceptsEvents) return false;
     if (current) retire(current);
     const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
@@ -403,7 +403,7 @@ export const createVoiceCaptureSession = (
       let webRecorder: MediaRecorder | undefined;
       let mimeType: string | undefined;
       if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder();
+        const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
           nativeRecorder.stop();
           return false;

@@ -40,7 +40,7 @@ describe('ThreadBadge titles', () => {
     (summaryInfo, description) => {
       render(badge(summaryInfo));
       const button = screen.getByRole('button', { name: titledName, description });
-      expect(button.textContent).toBe(`${title} New · 11 replies`);
+      expect(button.textContent).toBe(`${title}\u00a0· New · 11 replies`);
     }
   );
 

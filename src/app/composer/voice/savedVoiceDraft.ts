@@ -3,6 +3,7 @@ import { atom, useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isJoined } from '../../matrix/state/roomList';
+import { isNativeVoiceRecorderAvailable } from '../../native/nativeVoiceRecorder';
 import {
   pendingVoiceSendDraftAtom,
   replyDraftAtRest,
@@ -12,6 +13,7 @@ import {
 } from '../roomInputDrafts';
 import {
   holdVoiceRecording,
+  importNativeVoiceRecordings,
   recoverVoiceRecording,
   releaseVoiceRecording,
 } from './voiceRecordingJournal';
@@ -133,6 +135,10 @@ export const useSavedVoiceDraft = (
       .then(async (saved) => {
         const slotTaken = () => !!store.get(pendingVoiceSendDraftAtom);
         if (slotTaken()) return;
+        const canOffer = isNativeVoiceRecorderAvailable()
+          ? await importNativeVoiceRecordings(userId)
+          : undefined;
+        if (slotTaken()) return;
         const savedRoom = saved && mx.getRoom(saved.roomId);
         const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
         const id = saved?.recordingId;
@@ -141,7 +147,7 @@ export const useSavedVoiceDraft = (
           room &&
           (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
         ) {
-          if (slotTaken()) {
+          if ((id && canOffer && !(await canOffer(id))) || slotTaken()) {
             if (id) releaseVoiceRecording(id);
             return;
           }
@@ -163,8 +169,8 @@ export const useSavedVoiceDraft = (
             },
           });
         } else if (getRecoveryContext) {
-          await recoverVoiceRecording(userId, room ? id : undefined, (recording) => {
-            if (slotTaken()) return false;
+          await recoverVoiceRecording(userId, room ? id : undefined, async (recording) => {
+            if ((canOffer && !(await canOffer(recording.recordingId))) || slotTaken()) return false;
             store.set(pendingVoiceSendDraftAtom, {
               ...recording,
               recovered: true,
