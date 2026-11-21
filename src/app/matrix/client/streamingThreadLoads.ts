@@ -1,4 +1,5 @@
-import { ClientEvent, SyncState, type MatrixClient, type Room, type Thread } from 'matrix-js-sdk';
+import { ClientEvent, RelationType, SyncState } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   TERMINAL_STREAM_STATUSES,
@@ -10,31 +11,40 @@ import { getSameSenderBundledEdit } from '../editEvent';
 import { isRecord } from '../../lib/isRecord';
 import { watchRoomThreads } from '../watchRoomThreads';
 import { isMindroomAgentUserId } from '../protocol/agentIdentity';
-import { isThreadSummaryContent } from '../protocol/threadSummary';
-import {
-  CHECK_DELAY_MS,
-  STREAM_IDLE_LIMIT_MS,
-  setStreamingLoadWake,
-  streamingChecksHeld,
-} from './streamingReplies';
+import { STREAM_IDLE_LIMIT_MS } from './streamingReplies';
+import { findReply } from './unopenedThreadEdits';
 
-// A title or newer reply can hide a streaming placeholder. Load first pages serially after
-// live sync, a 2 s delay and the list/check holds. A fresh bundled stream is positive evidence;
-// a recent agent reply without stream status can warrant a look if replies are missing. A thread is
-// tried once per reply: a failed page leaves the thread unopened and updates it, which would ask
-// again at once. A sync that recovers from an error tries the threads again.
+// A thread holds its replies only once it loads its first page, which the app does when it shows
+// or opens the thread. After a reload, a thread whose newest event is its title notice (MindRoom
+// posts it while the first reply streams) holds that reply nowhere: the root's summary names the
+// title, and only MindRoom's homeserver bundle (`io.mindroom.latest_reply`) still names the reply.
+// Its card then says nothing streams, and the thread waits in Needs you until it is opened. So a
+// thread whose bundled reply streams loads its first page in the background, one at a time once
+// live sync runs. A live streaming edit can also reveal a missing reply that the bundle omits.
+// Loading only makes the reply available to the streaming checks; it does not vouch for it.
 
 /** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
 const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
+
+const streams = (content: Record<string, unknown>): boolean => {
+  const status = readStreamStatus(content);
+  return (
+    (isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status))) &&
+    !hasTerminalStreamMetadata(content) &&
+    !(status && TERMINAL_STREAM_STATUSES.has(status))
+  );
+};
 
 /**
  * The id of the root's bundled reply, when it streams, is not the summary's newest event, is not
  * idle, and the thread does not hold it.
  */
-const hiddenStreamingReply = (
-  thread: Thread,
-  summary: Record<string, unknown>
-): string | undefined => {
+const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined => {
+  // An encrypted room's bundle is unreadable, whatever cleartext status it carries.
+  if (room.hasEncryptionStateEvent()) return undefined;
+  const relations = thread.rootEvent?.getUnsigned()?.['m.relations'];
+  const summary = isRecord(relations) ? relations['m.thread'] : undefined;
+  if (!isRecord(summary)) return undefined;
   const reply = summary[LATEST_REPLY_KEY];
   const latest = summary.latest_event;
   if (!isRecord(reply) || typeof reply.event_id !== 'string' || !isRecord(reply.content))
@@ -50,14 +60,7 @@ const hiddenStreamingReply = (
   if (edit && !isRecord(newContent)) return undefined;
   // The card's rule, on the reply's newest content.
   const content = isRecord(newContent) ? newContent : reply.content;
-  const status = readStreamStatus(content);
-  const streams = isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status));
-  if (
-    !streams ||
-    hasTerminalStreamMetadata(content) ||
-    (status && TERMINAL_STREAM_STATUSES.has(status))
-  )
-    return undefined;
+  if (!streams(content)) return undefined;
   const ts = Math.max(
     typeof reply.origin_server_ts === 'number' ? reply.origin_server_ts : 0,
     typeof edit?.origin_server_ts === 'number' ? edit.origin_server_ts : 0
@@ -65,50 +68,18 @@ const hiddenStreamingReply = (
   return Date.now() - ts <= STREAM_IDLE_LIMIT_MS ? reply.event_id : undefined;
 };
 
-const tsOf = (event: unknown): number =>
-  isRecord(event) && typeof event.origin_server_ts === 'number' ? event.origin_server_ts : 0;
-
-const speculativeReply = (thread: Thread, summary: Record<string, unknown> | undefined) => {
-  const held = thread.lastReply(
-    (event) => event.isRelation('m.thread') && !isThreadSummaryContent(event.getOriginalContent())
-  );
-  const listed = summary?.[LATEST_REPLY_KEY] ?? summary?.latest_event;
-  const reply = held && held.getTs() >= tsOf(listed) ? held.event : listed;
-  if (!isRecord(reply) || typeof reply.event_id !== 'string' || !isRecord(reply.content))
-    return undefined;
-  if (typeof reply.sender !== 'string' || !isMindroomAgentUserId(reply.sender)) return undefined;
-  if (reply.type === 'm.room.encrypted' || isThreadSummaryContent(reply.content)) return undefined;
-  if (Date.now() - tsOf(reply) > 2 * 60 * 60_000) return undefined;
-  const shown = held?.getId() === reply.event_id ? held : thread.replyToEvent;
-  const edit = shown?.getId() === reply.event_id ? shown.replacingEvent() : null;
-  const revision = (edit?.event ?? getSameSenderBundledEdit(reply))?.content;
-  const content = revision && isRecord(revision['m.new_content']) ? revision : reply.content;
-  const status = readStreamStatus(content);
-  if (
-    isAiRunStreaming(content) ||
-    hasTerminalStreamMetadata(content) ||
-    (status && (ACTIVE_STREAM_STATUSES.has(status) || TERMINAL_STREAM_STATUSES.has(status)))
-  )
-    return undefined;
-  const count = summary?.count;
-  if (
-    count === thread.length &&
-    count <= thread.events.length &&
-    count === thread.events.filter((event) => !event.status && event.isRelation('m.thread')).length
-  )
-    return undefined;
-  return reply.event_id;
-};
-
 /**
- * Loads the first page of each eligible unopened thread, for the client's whole
- * life; call it before the client starts. Returns a function that stops it.
+ * Background-loads unopened threads with evidence of a hidden stream. Start before the client
+ * starts; the returned function stops the loader.
  */
 export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   const queue: Array<[Room, Thread]> = [];
   const queued = new WeakSet<Thread>();
-  /** Per thread, the reply it was loaded for. */
+  /** The bundled-reply path still retries after a sync error. */
   const tried = new WeakMap<Thread, string>();
+  const triedTargets = new WeakMap<Thread, Set<string>>();
+  const syncEdits: MatrixEvent[] = [];
+  const liveEdits = new WeakSet<MatrixEvent>();
   let live = false;
   /** The sync failed since the last server answer: threads tried meanwhile are tried again. */
   let interrupted = false;
@@ -116,20 +87,39 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   let stopped = false;
 
   const pending = (room: Room, thread: Thread): string | undefined => {
-    if (thread.initialEventsFetched || room.hasEncryptionStateEvent()) return undefined;
-    const summary =
-      thread.rootEvent?.getServerAggregatedRelation<Record<string, unknown>>('m.thread');
-    const replyId =
-      (isRecord(summary) ? hiddenStreamingReply(thread, summary) : undefined) ??
-      speculativeReply(thread, summary);
-    return replyId && tried.get(thread) !== replyId ? replyId : undefined;
+    const replyId = hiddenStreamingReply(room, thread);
+    if (replyId && tried.get(thread) !== replyId) return replyId;
+    const edits = thread.replayEvents;
+    if (!edits?.length || thread.initialEventsFetched || room.hasEncryptionStateEvent()) return;
+    for (const edit of edits) {
+      if (!liveEdits.has(edit) || Date.now() - edit.getTs() > STREAM_IDLE_LIMIT_MS) continue;
+      const target = edit.getAssociatedId();
+      const content: unknown = edit.getOriginalContent()['m.new_content'];
+      if (
+        !target ||
+        triedTargets.get(thread)?.has(target) ||
+        !isRecord(content) ||
+        !streams(content)
+      )
+        continue;
+      // SDK replay drops older revisions on arrival, but keeps newer ones on out-of-order sync.
+      const superseded = edits.some(
+        (other) =>
+          other.getTs() > edit.getTs() &&
+          other.getAssociatedId() === target &&
+          other.getSender() === edit.getSender() &&
+          other.isRelation(RelationType.Replace)
+      );
+      if (!superseded && !findReply(thread, target)) return target;
+    }
+    return undefined;
   };
 
   const drain = () => {
     if (stopped || !live || running) return;
-    const index = queue.findIndex(([room, thread]) => !streamingChecksHeld(room, thread.id));
-    if (index < 0) return;
-    const [room, thread] = queue.splice(index, 1)[0]!;
+    const next = queue.shift();
+    if (!next) return;
+    const [room, thread] = next;
     queued.delete(thread);
     const replyId = pending(room, thread);
     if (!replyId) {
@@ -137,6 +127,9 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
       return;
     }
     tried.set(thread, replyId);
+    const targets = triedTargets.get(thread) ?? new Set<string>();
+    targets.add(replyId);
+    triedTargets.set(thread, targets);
     running = true;
     void Promise.resolve(thread.initialize())
       .catch(() => undefined)
@@ -149,11 +142,18 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   const consider = (room: Room, thread: Thread) => {
     if (queued.has(thread) || !pending(room, thread)) return;
     queued.add(thread);
-    setTimeout(() => {
-      if (stopped) return;
-      queue.push([room, thread]);
-      drain();
-    }, CHECK_DELAY_MS);
+    queue.push([room, thread]);
+    drain();
+  };
+
+  const onEvent = (event: MatrixEvent) => {
+    if (
+      event.isRelation(RelationType.Replace) &&
+      !event.isState() &&
+      isMindroomAgentUserId(event.getSender()) &&
+      event.getThread()?.initialEventsFetched === false
+    )
+      syncEdits.push(event);
   };
 
   const onSync = (
@@ -165,12 +165,15 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
       interrupted = true;
       return;
     }
-    // The saved sync replays first, and catching up after an error is no answer yet.
-    if ((state !== SyncState.Prepared && state !== SyncState.Syncing) || data?.fromCache) return;
+    if (state !== SyncState.Prepared && state !== SyncState.Syncing) return;
+    // ClientEvent.Event precedes the sync notification, even for saved sync. Only a server
+    // batch vouches for those exact edit objects, not everything already in replayEvents.
+    const edits = syncEdits.splice(0);
+    if (data?.fromCache) return;
     const recovered = interrupted;
     interrupted = false;
-    if (live && !recovered) return;
     live = true;
+    edits.forEach((edit) => liveEdits.add(edit));
     if (recovered)
       mx.getRooms().forEach((room) =>
         room.getThreads().forEach((thread) => {
@@ -178,18 +181,23 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
           consider(room, thread);
         })
       );
+    for (const edit of edits) {
+      const thread = edit.getThread();
+      if (thread) consider(thread.room, thread);
+    }
     drain();
   };
 
-  setStreamingLoadWake(mx, drain);
   const stopRooms = watchRoomThreads(mx, { onThread: consider });
+  mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.Sync, onSync);
 
   return () => {
     stopped = true;
-    setStreamingLoadWake(mx);
     stopRooms();
+    mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(ClientEvent.Sync, onSync);
+    syncEdits.splice(0);
     queue.splice(0);
   };
 };

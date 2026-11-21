@@ -75,17 +75,9 @@ type Check = {
 type Checker = {
   isCurrent: (room: Room, event: MatrixEvent) => boolean;
   hold: (roomId: string) => () => void;
-  held: (roomId: string, threadId: string) => boolean;
-  wakeLoads?: () => void;
 };
 
 const checkers = new WeakMap<MatrixClient, Checker>();
-export const setStreamingLoadWake = (mx: MatrixClient, wake?: () => void): void => {
-  const checker = checkers.get(mx);
-  if (checker) checker.wakeLoads = wake;
-};
-export const streamingChecksHeld = (room: Room, threadId: string): boolean =>
-  checkers.get(room.client)?.held(room.roomId, threadId) ?? false;
 
 /** When the reply's newest revision the client holds was sent: the reply, its applied or bundled edit. */
 export const newestRevisionTs = (event: MatrixEvent): number => {
@@ -159,13 +151,13 @@ export const holdStreamingChecks = (room: Room): (() => void) =>
 const threadOf = (event: MatrixEvent): string | undefined =>
   event.threadRootId ?? event.getRelation()?.event_id;
 
-/** The reply the client holds, in a timeline or as its thread's summary. */
+/** The reply an edit replaces, as the client holds it: in a timeline or as its thread's summary. */
 const heldReply = (
   room: Room | null,
-  event: MatrixEvent,
+  edit: MatrixEvent,
   replyId: string
 ): MatrixEvent | undefined => {
-  const thread = event.threadRootId ? room?.getThread(event.threadRootId) : undefined;
+  const thread = edit.threadRootId ? room?.getThread(edit.threadRootId) : undefined;
   return (thread && findReply(thread, replyId)) ?? room?.findEventById(replyId);
 };
 
@@ -251,13 +243,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
 
   /** The server's answer about a reply: its newest edit goes on every copy the check holds. */
   const answer = (room: Room, check: Check, edit: MatrixEvent | undefined) => {
-    if (edit)
-      check.targets.forEach((target) => {
-        // A first page can replace the copy this check started with.
-        const held = heldReply(room, target, check.eventId);
-        if (held && held !== target) putEdit(held, edit);
-        putEdit(target, edit);
-      });
+    if (edit) check.targets.forEach((target) => putEdit(target, edit));
     // Only now: a card built before the edit is on the reply would still say it streams.
     vouch(check.roomId, check.eventId, edit);
     announce(room, check.targets);
@@ -282,12 +268,6 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       const status = httpStatusOf(error);
       if (stopped || status === undefined || status < 400 || status >= 500 || status === 429)
         return false;
-      unknown.add(check.eventId);
-      announce(room, check.targets);
-      return true;
-    }
-    if (rawReply.unsigned?.redacted_because) {
-      if (stopped) return true;
       unknown.add(check.eventId);
       announce(room, check.targets);
       return true;
@@ -330,7 +310,6 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
         .finally(() => {
           running -= 1;
           drain();
-          checkers.get(mx)?.wakeLoads?.();
         });
     }
   };
@@ -408,7 +387,6 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       if (count > 0) holds.set(roomId, count);
       else holds.delete(roomId);
       drain();
-      checkers.get(mx)?.wakeLoads?.();
     };
   };
 
@@ -518,17 +496,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.Sync, onSync);
   mx.on(RoomEvent.TimelineReset, onReset);
-  checkers.set(mx, {
-    isCurrent,
-    hold,
-    held: (roomId, threadId) =>
-      holds.has(roomId) ||
-      (running > 0 &&
-        [...checks.values()].some(
-          (check) =>
-            check.running && [...check.targets].some((target) => threadOf(target) === threadId)
-        )),
-  });
+  checkers.set(mx, { isCurrent, hold });
 
   return () => {
     stopped = true;

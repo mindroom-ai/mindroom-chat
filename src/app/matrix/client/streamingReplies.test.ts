@@ -14,6 +14,7 @@ import {
   THREAD_RELATION_TYPE,
   Thread,
 } from 'matrix-js-sdk/lib/models/thread';
+import { UNSIGNED_THREAD_ID_FIELD } from 'matrix-js-sdk/lib/@types/event';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
@@ -85,16 +86,23 @@ const withSummary = (rootEvent: IEvent, latest: IEvent, count = 1): IEvent => ({
 });
 const chat = (eventId: string, ts: number): IEvent =>
   message(eventId, ts, { body: 'Lunch at noon?' }, readerId);
-const membership = (userId: string): IEvent =>
-  ({
-    type: 'm.room.member',
-    event_id: `$member-${userId}`,
-    room_id: roomId,
-    sender: userId,
-    state_key: userId,
-    origin_server_ts: 0,
-    content: { membership: 'join' },
-  } as IEvent);
+const membership = (userId: string) => ({
+  type: 'm.room.member',
+  event_id: `$member-${userId}`,
+  room_id: roomId,
+  sender: userId,
+  state_key: userId,
+  origin_server_ts: 0,
+  content: { membership: 'join' },
+});
+const joined = (events: IEvent[], prev_batch: string, limited = false) => ({
+  state: { events: [membership(agentId), membership(readerId)] },
+  timeline: { events, prev_batch, limited },
+  ephemeral: { events: [] },
+  account_data: { events: [] },
+  summary: { 'm.heroes': [] },
+  unread_notifications: {},
+});
 
 const settle = async () => {
   for (let i = 0; i < 30; i += 1) {
@@ -119,7 +127,7 @@ const json = (body: unknown, status = 200) =>
 const clients: MatrixClient[] = [];
 
 /** The app's client against a fake homeserver whose /sync answers come from `deliver`. */
-const fixture = (replyGate?: Promise<void>) => {
+const fixture = () => {
   const requests: string[] = [];
   const pendingSyncs: unknown[] = [];
   const waitingSyncs: Array<(response: Response) => void> = [];
@@ -162,12 +170,10 @@ const fixture = (replyGate?: Promise<void>) => {
         return serverThread.fail
           ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
           : json({ chunk: [...serverThread.replies].reverse() });
-      if (path.endsWith(`/event/${replyId}`)) {
-        if (replyGate) await replyGate;
+      if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
           : json(serverReply);
-      }
       throw new Error(`Unexpected request ${path}`);
     },
   });
@@ -180,16 +186,7 @@ const fixture = (replyGate?: Promise<void>) => {
     batch += 1;
     const response = {
       next_batch: `batch-${batch}`,
-      rooms: {
-        join: {
-          [roomId]: {
-            state: { events: [membership(agentId), membership(readerId)] },
-            timeline: { events, prev_batch: `before-${batch}`, limited },
-            ephemeral: { events: [] },
-            account_data: { events: [] },
-          },
-        },
-      },
+      rooms: { join: { [roomId]: joined(events, `before-${batch}`, limited) } },
     };
     const waiting = waitingSyncs.shift();
     if (waiting) waiting(json(response));
@@ -294,6 +291,92 @@ describe('streaming replies on thread cards', () => {
     return thread;
   };
 
+  it.each(['live', 'cached', 'superseded'])('loads on live evidence (%s)', async (kind) => {
+    const now = Date.now();
+    const f = fixture();
+    const rel = { rel_type: 'm.thread', event_id: rootId };
+    const text = message('$text', now - 20_000, { body: 'Results', 'm.relates_to': rel });
+    const file = message('$file', now - 19_000, {
+      msgtype: 'm.file',
+      body: 'results.txt',
+      'm.relates_to': rel,
+    });
+    const listed = withSummary(root(now - 50 * MINUTE), file, 3);
+    const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+    summary['io.mindroom.latest_reply'] = file;
+    const active = edit('Checking the results', now - 1_000, 'streaming');
+    const newest = kind === 'superseded' ? edit(finished, now, 'completed') : active;
+    const target = withEdit(reply(now - 49 * MINUTE), newest);
+    const tail = [listed, text, file];
+    f.setServerReply(target);
+    f.setServerThread({ root: listed, replies: [target, text, file] });
+    if (kind === 'cached') {
+      // Saved sync keeps the thread ID the SDK inferred when the edit first arrived.
+      active.unsigned[UNSIGNED_THREAD_ID_FIELD.name] = rootId;
+      vi.spyOn(f.mx.store, 'getSavedSyncToken').mockResolvedValue('saved');
+      vi.spyOn(f.mx.store, 'getSavedSync').mockImplementation(async () => {
+        await f.mx.threadSupportPending;
+        const join = { [roomId]: joined([...tail, active], 'before') };
+        return {
+          nextBatch: 'saved',
+          accountData: [],
+          roomsData: { join, invite: {}, leave: {}, knock: {} },
+        };
+      });
+    }
+    await f.start();
+    if (kind !== 'cached') await f.deliver(tail);
+    const thread = defined(f.room().getThread(rootId), 'the unopened thread');
+    const loads = () => f.requested(`/relations/${rootId}`);
+    expect(loads()).toBe(0);
+    expect(thread.initialEventsFetched).toBe(false);
+    expect(thread.findEventById(replyId)).toBeUndefined();
+    const workflow = () =>
+      classifyThreadWorkflow(
+        buildThreadRecord({ room: f.room(), threadRootId: rootId }).status,
+        now
+      );
+    expect(workflow()).toBe('needsYou');
+
+    const buffered = new Set(thread.replayEvents?.map((event) => event.getId()));
+    f.room().on(ThreadEvent.Update, (updated) => {
+      if (updated === thread) updated.replayEvents?.forEach((event) => buffered.add(event.getId()));
+    });
+    // An out-of-order batch can leave both the newer terminal edit and older active edit buffered.
+    await f.deliver(kind === 'cached' ? [] : kind === 'superseded' ? [newest, active] : [active]);
+    expect(buffered).toContain(active.event_id);
+    expect(buffered).toContain(newest.event_id);
+    expect(loads()).toBe(kind === 'live' ? 1 : 0);
+    workflow(); // Let the card check the loaded reply, as usual.
+    await afterCheckDelay();
+    expect(workflow()).toBe(kind === 'live' ? 'working' : 'needsYou');
+  });
+
+  it.each([agentId, readerId])(
+    'lists 30 finished threads without loading them (%s)',
+    async (sender) => {
+      const now = Date.now();
+      const f = fixture();
+      const roots = Array.from({ length: 30 }, (_, i) => {
+        const id = `$root-${i}`;
+        const rel = { rel_type: 'm.thread', event_id: id };
+        const ending = message(`$ending-${i}`, now, { body: 'Done', 'm.relates_to': rel }, sender);
+        return withSummary({ ...root(now - 60_000), event_id: id }, ending, i % 2 ? 3 : 1);
+      });
+      await f.start();
+      await f.deliver([chat('$chat-1', now)]);
+      f.holdThreadList(roots)();
+      await loadRoomThreads(f.room());
+      roots.forEach(({ event_id }) =>
+        buildThreadRecord({ room: f.room(), threadRootId: event_id })
+      );
+      await afterCheckDelay();
+      expect(f.requested('/threads')).toBe(2);
+      expect(f.requested('/event/')).toBe(0);
+      expect(f.requested('/relations/')).toBe(0);
+    }
+  );
+
   it('does not stream a thread restored from the cache with a summary taken mid-stream', async () => {
     const now = Date.now();
     const f = fixture();
@@ -329,38 +412,19 @@ describe('streaming replies on thread cards', () => {
     await afterCheckDelay();
     expect(f.card()).toEqual({ preview: finished, streaming: false });
     expect(f.replyRequests()).toBe(1);
-
-    await f.deliver([edit('Checking one more thing', now, 'streaming')]);
-    expect(f.card().streaming).toBe(true);
   });
 
   it('keeps streaming a reply that the server says still streams, and asks once', async () => {
     const now = Date.now();
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const f = fixture(gate);
-    // A recent edit keeps the old placeholder active without triggering a background load.
-    const pending = withEdit(reply(now - 121 * MINUTE), edit('Draft', now - 5_000, 'pending'));
-    const listed = withSummary(root(now - 122 * MINUTE), pending);
-    f.setServerThread({ root: listed, replies: [pending] });
-    f.setServerReply(withEdit(pending, edit('The notes', now - 3_000, 'streaming')));
+    const f = fixture();
+    f.setServerReply(withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')));
     await f.start();
-    await f.deliver([listed]);
-    const thread = defined(f.room().getThread(rootId), 'the thread');
-    const summaryReply = thread.replyToEvent;
+    await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
     expect(f.card().streaming).toBe(false);
-    await afterCheckDelay();
-    expect(f.replyRequests()).toBe(1);
 
-    await thread.initialize();
-    const loadedReply = defined(thread.findEventById(replyId), 'the reply from the first page');
-    expect(loadedReply).not.toBe(summaryReply);
-    // Do not read the card here: that would give the check the new object before the answer.
-    release();
-    await settle();
+    await afterCheckDelay();
     expect(f.card()).toEqual({ preview: 'The notes', streaming: true });
+    f.card();
     await afterCheckDelay();
     expect(f.replyRequests()).toBe(1);
 
@@ -382,15 +446,12 @@ describe('streaming replies on thread cards', () => {
     expect(f.replyRequests()).toBe(0);
   });
 
-  it.each([404, 200])('does not confirm an unavailable reply (%s)', async (code) => {
+  it('does not stream a reply the server no longer has, and does not ask again', async () => {
     const now = Date.now();
     const f = fixture();
-    const pending = reply(now - 50_000);
-    const cause = { ...pending, event_id: '$redact', type: 'm.room.redaction', content: {} };
-    const redacted = { ...pending, content: {}, unsigned: { redacted_because: cause } };
-    f.setServerReply(code === 404 ? code : redacted);
+    f.setServerReply(404);
     await f.start();
-    await f.deliver([withSummary(root(now - 60_000), pending)]);
+    await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
     await settle();
     f.card();
     await afterCheckDelay();
@@ -633,89 +694,6 @@ describe('streaming replies on thread cards', () => {
         'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
       });
 
-    it.each(['cold', 'warm', 'listed', 'full', 'old'])('checks file tails (%s)', async (start) => {
-      const now = Date.now();
-      const f = fixture();
-      const streaming = withEdit(
-        reply(now - 121 * MINUTE),
-        edit('Checking the results', now - 5_000, 'streaming')
-      );
-      const ts = start === 'old' ? now - 120 * MINUTE - 1_000 : now;
-      const rel = { rel_type: 'm.thread', event_id: rootId };
-      const text = message('$text', ts - 5_000, {
-        body: 'Results',
-        'm.relates_to': rel,
-        'io.mindroom.stream_status': start === 'listed' ? 'completed' : undefined,
-      });
-      const file = message('$file', ts - 4_000, {
-        msgtype: 'm.file',
-        body: 'results.txt',
-        url: 'mxc://example.org/results',
-        'm.relates_to': rel,
-      });
-      const listed = withSummary(root(now - 122 * MINUTE), file, start === 'full' ? 1 : 3);
-      f.setServerThread({
-        root: listed,
-        replies: start === 'full' ? [file] : [streaming, text, file],
-      });
-      f.setServerReply(streaming);
-      await f.start();
-      const first = start === 'warm' ? withSummary(listed, streaming) : listed;
-      await f.deliver([
-        start === 'listed' ? withSummary(listed, text) : first,
-        ...(['cold', 'listed'].includes(start) ? [text] : []),
-        ...(['cold', 'full'].includes(start) ? [file] : []),
-      ]);
-      const openList = f.holdThreadList([first]);
-      const listing = loadRoomThreads(f.room());
-      if (start === 'cold') {
-        await afterCheckDelay();
-        expect(f.requested('/relations/')).toBe(0);
-      }
-      expect(f.room().getThread(rootId)?.initialEventsFetched).toBe(false);
-      openList();
-      await listing;
-      if (start === 'warm') {
-        expect(f.card().streaming).toBe(true);
-        await f.deliver([file]);
-      }
-      expect(f.card().streaming).toBe(false);
-      if (start === 'cold') await settle();
-      else await afterCheckDelay();
-      const skip = start === 'full' || start === 'old';
-      expect(f.requested('/relations/')).toBe(skip ? 0 : 1);
-      if (skip) return;
-      f.card();
-      if (start !== 'warm') await afterCheckDelay();
-      const { status } = buildThreadRecord({ room: f.room(), threadRootId: rootId });
-      expect(classifyThreadWorkflow(status, now)).toBe('working');
-    });
-
-    it.each([agentId, readerId])('bounds requests for 30 threads (%s)', async (sender) => {
-      const now = Date.now();
-      const f = fixture();
-      const roots = (status: string, ts: number) =>
-        Array.from({ length: 30 }, (_, i) => {
-          const id = `$root-${i}`;
-          const newest = message(`$${status}-${i}`, ts, {
-            'io.mindroom.stream_status':
-              sender === agentId && status === 'completed' ? status : undefined,
-            'm.relates_to': { rel_type: 'm.thread', event_id: id },
-          });
-          return withSummary({ ...root(now - 20_000), event_id: id }, { ...newest, sender });
-        });
-      await f.start();
-      await f.deliver(roots('pending', now - 10_000));
-      const openList = f.holdThreadList(roots('completed', now));
-      const listing = loadRoomThreads(f.room());
-      await afterCheckDelay();
-      openList();
-      await listing;
-      await afterCheckDelay();
-      expect(f.requested('/threads')).toBe(2);
-      expect(f.requested('/event/') + f.requested('/relations/')).toBe(0);
-    });
-
     it('lets the list that starts after the card asked answer for the reply', async () => {
       const now = Date.now();
       const f = await reload(now);
@@ -873,11 +851,11 @@ describe('streaming replies on thread cards', () => {
     });
 
     describe('an unopened thread whose summary names its title', () => {
-      const listedRoot = (now: number, status: string, ts = now - 50_000) => {
-        const listed = withSummary(root(ts - 10_000), title(now - 15_000), 2);
+      const listedRoot = (now: number, status: string) => {
+        const listed = withSummary(root(now - 60_000), title(now - 15_000), 2);
         const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
         summary['io.mindroom.latest_reply'] = withEdit(
-          reply(ts),
+          reply(now - 50_000),
           edit('The notes', now - 3_000, status)
         );
         return listed;
@@ -903,9 +881,9 @@ describe('streaming replies on thread cards', () => {
         return f;
       };
 
-      it('loads a bundled stream with a fresh edit even if its reply is over two hours old', async () => {
+      it('loads its first page while its bundled reply streams, and the card streams', async () => {
         const now = Date.now();
-        const f = await reloadUnopened(now, listedRoot(now, 'streaming', now - 121 * MINUTE));
+        const f = await reloadUnopened(now, listedRoot(now, 'streaming'));
         expect(f.requested(`/relations/${rootId}`)).toBe(1);
         // The loaded reply is checked as any restored reply that says it streams.
         f.card();
@@ -986,7 +964,6 @@ describe('streaming replies on thread cards', () => {
       await settle();
       expect(f.card()).toEqual({ preview: finished, streaming: false });
       expect(f.replyRequests()).toBe(1);
-      expect(f.requested(`/relations/${rootId}`)).toBe(0);
     });
   });
 });
