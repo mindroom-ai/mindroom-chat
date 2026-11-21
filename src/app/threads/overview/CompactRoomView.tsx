@@ -319,85 +319,6 @@ const isKeyboardFocus = (element: Element): boolean => {
   }
 };
 
-const useCompactSectionFolds = (
-  room: Room,
-  orderHeld: boolean,
-  heldSections: CompactThreadSection[] | undefined
-) => {
-  const [sectionsChoice, updateSectionsChoice] = useAtom(
-    useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
-  );
-  // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back. If another section appears, such as Working below Needs you,
-  // the original stays open until the hold lets go or the reader folds it.
-  const soleSection = heldSections?.length === 1;
-  const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
-  const [, showFolds] = useReducer((count: number) => count + 1, 0);
-  const heldOpen = soleSection
-    ? heldSections?.[0]?.id
-    : orderHeld && heldOpenRef.current?.roomId === room.roomId
-    ? heldOpenRef.current.id
-    : undefined;
-  useLayoutEffect(() => {
-    heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
-  }, [heldOpen, room.roomId]);
-  const folded = useMemo(
-    () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
-    [heldOpen, sectionsChoice.folded, soleSection]
-  );
-  const toggleFold = (id: ThreadWorkflowBucket) => {
-    // A section held open shows open, so its header folds it, stored as folded once.
-    if (id === heldOpen) {
-      heldOpenRef.current = undefined;
-      showFolds();
-      if (sectionsChoice.folded.includes(id)) return;
-    }
-    updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
-  };
-  return { folded, soleSection, toggleFold };
-};
-
-const useShownOrder = (
-  room: Room,
-  threadRootIds: string[],
-  threadSections: CompactThreadSection[] | undefined,
-  orderHeld: boolean
-) => {
-  const { roomId } = room;
-  const shownRef = useRef<{
-    roomId: string;
-    sections: CompactThreadSection[] | undefined;
-    rows: string[];
-  }>();
-  const heldSections = useMemo(() => {
-    const shown = shownRef.current;
-    // Sections start live when entering from flat or from another room.
-    return threadSections && shown?.roomId === roomId && shown.sections
-      ? step(shown.sections, threadSections, orderHeld, COMPACT_THREAD_SECTION_ORDER)
-      : threadSections;
-  }, [orderHeld, roomId, threadSections]);
-  const folds = useCompactSectionFolds(room, orderHeld, heldSections);
-  const { folded } = folds;
-  const shownRows = useMemo(() => {
-    if (heldSections) {
-      return heldSections.flatMap(({ id, rootIds }) => [
-        sectionRowKey(id),
-        ...(folded.includes(id) ? [] : rootIds),
-      ]);
-    }
-    const shown = shownRef.current;
-    // Flat inherits only the rows left after folding. Headers are not in the live list.
-    const id = 'flat';
-    const previous = shown?.roomId === roomId ? shown.rows : [];
-    const live = [{ id, rootIds: threadRootIds }];
-    return step([{ id, rootIds: previous }], live, orderHeld, [id])[0]!.rootIds;
-  }, [folded, heldSections, orderHeld, roomId, threadRootIds]);
-  useLayoutEffect(() => {
-    shownRef.current = { roomId, sections: heldSections, rows: shownRows };
-  }, [heldSections, roomId, shownRows]);
-  return { ...folds, heldSections, shownRows };
-};
-
 export function CompactRoomView({
   room,
   threadRootIds,
@@ -431,12 +352,72 @@ export function CompactRoomView({
     threadRecordMap,
     pinnedRootIds,
   });
-  const { folded, heldSections, shownRows, soleSection, toggleFold } = useShownOrder(
-    room,
-    threadRootIds,
-    threadSections,
-    orderHeld
+  const [sectionsChoice, updateSectionsChoice] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
+  const { roomId } = room;
+  const shownRef = useRef<{
+    roomId: string;
+    sections: CompactThreadSection[] | undefined;
+    rows: string[];
+  }>();
+  const heldSections = useMemo(() => {
+    const shown = shownRef.current;
+    // Sections start live when entering from flat or from another room.
+    return orderHeld && threadSections && shown?.roomId === roomId && shown.sections
+      ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
+      : threadSections;
+  }, [orderHeld, roomId, threadSections]);
+  // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
+  // other sections to come back. If another section appears, such as Working below Needs you,
+  // the original stays open until the hold lets go or the reader folds it.
+  const soleSection = heldSections?.length === 1;
+  const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
+  const [, showFolds] = useReducer((count: number) => count + 1, 0);
+  const heldOpen = soleSection
+    ? heldSections?.[0]?.id
+    : orderHeld && heldOpenRef.current?.roomId === room.roomId
+    ? heldOpenRef.current.id
+    : undefined;
+  useLayoutEffect(() => {
+    heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
+  }, [heldOpen, room.roomId]);
+  const folded = useMemo(
+    () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
+    [heldOpen, sectionsChoice.folded, soleSection]
+  );
+  const toggleFold = (id: ThreadWorkflowBucket) => {
+    // A section held open shows open, so its header folds it, stored as folded once.
+    if (id === heldOpen) {
+      heldOpenRef.current = undefined;
+      showFolds();
+      if (sectionsChoice.folded.includes(id)) return;
+    }
+    updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
+  };
+  // In sections, the list's rows are each section's header and, unless it is folded, its cards.
+  const listedRows = useMemo(
+    () =>
+      heldSections
+        ? heldSections.flatMap(({ id, rootIds }) => [
+            sectionRowKey(id),
+            ...(folded.includes(id) ? [] : rootIds),
+          ])
+        : threadRootIds,
+    [folded, heldSections, threadRootIds]
+  );
+  const holdFlat = orderHeld && !heldSections;
+  const shownRows = useMemo(() => {
+    const shown = shownRef.current;
+    if (!holdFlat || shown?.roomId !== roomId) return listedRows;
+    // Flat is one headerless group. On leaving Sections, only cards visible after folding survive.
+    const id = 'flat';
+    const [flat] = step([{ id, rootIds: shown.rows }], [{ id, rootIds: listedRows }], true, [id]);
+    return flat!.rootIds;
+  }, [holdFlat, listedRows, roomId]);
+  useLayoutEffect(() => {
+    shownRef.current = { roomId, sections: heldSections, rows: shownRows };
+  }, [heldSections, roomId, shownRows]);
   useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.

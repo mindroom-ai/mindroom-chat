@@ -9,6 +9,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
+import * as scrollFallback from './useHeldThreadOrder';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -558,21 +559,33 @@ describe('the Compact room in sections', () => {
 });
 
 describe('Compact order when the view switches under the pointer', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const hold = () => {
     const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
     act(() => {
       fireEvent.pointerEnter(list);
     });
+    return () =>
+      act(() => {
+        fireEvent.pointerLeave(list);
+        fireEvent.click(document.body);
+      });
   };
 
   it('starts a flat room in its live order and holds that order on the next update', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
     const { rerender } = render(view(['$a', '$b'], false));
     hold();
     rerender(view(['$b', '$a'], false));
     expect(rows()).toEqual(['$a', '$b']);
 
     const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
-    rerender(view(['$d', '$c'], false, nextRoom));
+    const nextIds = ['$d', '$c'];
+    rerender(view(nextIds, false, nextRoom));
+    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
     expect(rows()).toEqual(['$d', '$c']);
     rerender(view(['$c', '$d'], false, nextRoom));
     expect(rows()).toEqual(['$d', '$c']);
@@ -591,6 +604,24 @@ describe('Compact order when the view switches under the pointer', () => {
     rerender(view(ids, false));
     // The folded card is a newcomer, so it leads, while $a and $b keep their shown order.
     expect(rows()).toEqual(['$done', '$a', '$b']);
+  });
+
+  it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$a', '$done'];
+    const { rerender } = render(view(ids, false));
+    const release = hold();
+    rerender(view(ids));
+    const sectionRows = fallback.mock.lastCall?.[0];
+    expect(sectionRows).toEqual(['section:needsYou', '$a', 'section:done']);
+
+    fallback.mockClear();
+    release();
+    expect(fallback.mock.lastCall?.[0]).toBe(sectionRows);
   });
 
   it('switches from flat to live Sections, then holds those sections on the next update', () => {
