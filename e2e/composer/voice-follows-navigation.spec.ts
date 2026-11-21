@@ -217,6 +217,7 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   const cancel = question.getByRole('button', { name: 'Cancel', exact: true });
   await page.keyboard.press('Enter');
   await expect(cancel).toBeFocused();
+  await page.screenshot({ path: test.info().outputPath('settings-discard-question.png') });
   await page.keyboard.press('Escape');
   await expect(question).toHaveCount(0);
   await expect(settings.locator(indicator(page))).toBeVisible();
@@ -232,6 +233,7 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await expect(palette).toBeVisible({ timeout: 30_000 });
   await indicator(page).locator(capsule(page)).click();
   await expect(cancel).toBeFocused();
+  await page.screenshot({ path: test.info().outputPath('palette-discard-question.png') });
   await cancel.click();
   await expect(question).toHaveCount(0);
   await expect(palette).toBeVisible();

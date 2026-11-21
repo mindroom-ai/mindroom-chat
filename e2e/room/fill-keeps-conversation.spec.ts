@@ -206,6 +206,36 @@ test('on a phone, a side panel over the conversation keeps the recording under i
     await closePanel(page, 'computer');
     await expect(discard).toBeVisible();
     await expect(recordingPill(page)).toHaveCount(0);
+
+    // A bottom sheet is modal: it hides what is outside it and takes a press there for leaving.
+    // The question the pill's Discard asks is over the sheet, not outside it: Cancel and Escape
+    // close the question alone, and Discard ends the recording under the open sheet.
+    await page
+      .locator('[data-phone-top-bar]')
+      .getByRole('button', { name: /^Activity/ })
+      .tap();
+    const sheet = page.getByRole('dialog', { name: 'Activity', exact: true });
+    await expect(sheet).toBeVisible();
+    const pillDiscard = recordingPill(page).getByRole('button', {
+      name: 'Discard voice recording',
+    });
+    const question = page.getByRole('dialog', { name: 'Discard voice recording?' });
+    const cancel = question.getByRole('button', { name: 'Cancel', exact: true });
+    await pillDiscard.tap();
+    await expect(cancel).toBeFocused();
+    await page.screenshot({ path: test.info().outputPath('phone-sheet-discard-question.png') });
+    await cancel.tap();
+    await expect(question).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await pillDiscard.tap();
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(question).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await pillDiscard.tap();
+    await question.getByRole('button', { name: 'Discard', exact: true }).tap();
+    await expect(recordingPill(page)).toHaveCount(0);
+    await expect(sheet).toBeVisible();
   } finally {
     // The page's live sync may still be in a route.
     await context.unrouteAll({ behavior: 'ignoreErrors' });
