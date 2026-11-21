@@ -1715,9 +1715,6 @@
     }
   },
   "threadNav": {
-    "layout": "Disposição dos tópicos",
-    "layoutRecent": "Recentes",
-    "layoutSections": "Secções",
     "forMe": "Para mim",
     "forMeHint": "Apenas tópicos em que participa, em que um agente publicou em seu nome ou que fixou",
     "emptyForMe": "Ainda não há tópicos para si",

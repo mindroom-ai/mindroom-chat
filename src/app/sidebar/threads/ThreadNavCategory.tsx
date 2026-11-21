@@ -2,7 +2,7 @@ import { useCallback, useId, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, Icons, Text, Tooltip } from 'folds';
+import { Button, Icon, Icons, type IconSrc, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import {
   crossRoomThreadIndexAtom,
@@ -18,14 +18,11 @@ import {
 } from './threadNavCategoryUtils';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { useMinuteClock } from '../../lib/hooks/useMinuteClock';
-import {
-  makeThreadSidebarPreferencesAtom,
-  type ThreadSidebarLayout,
-} from '../../threads/cross-room/threadSidebarPreferences';
+import { makeThreadSidebarPreferencesAtom } from '../../threads/cross-room/threadSidebarPreferences';
+import { GroupThreadsIcon } from '../../threads/overview/GroupThreadsIcon';
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { ThreadNavItem } from './ThreadNavItem';
 import * as css from './threadNav.css';
-import * as segmented from '../../ui/styles/Segmented.css';
 import { NavCategory } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
@@ -43,11 +40,52 @@ export const THREAD_NAV_CATEGORY_ID = makeNavCategoryId('mindroom', 'threads');
 export const threadNavSectionCategoryId = (id: SidebarThreadSectionId): string =>
   makeNavCategoryId('mindroom', 'threads', id);
 
-const LAYOUTS: ThreadSidebarLayout[] = ['recent', 'sections'];
-const LAYOUT_LABEL_KEYS = {
-  recent: 'threadNav.layoutRecent',
-  sections: 'threadNav.layoutSections',
-} as const;
+function HeaderToggle({
+  label,
+  hint,
+  icon,
+  pressed,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  icon: IconSrc;
+  pressed: boolean;
+  onClick: () => void;
+}) {
+  const hintId = useId();
+  return (
+    <>
+      <span id={hintId} hidden>
+        {hint}
+      </span>
+      <TooltipProvider
+        position="Bottom"
+        align="End"
+        offset={6}
+        tooltip={
+          <Tooltip className={css.HeaderTooltip}>
+            <Text size="T200">{hint}</Text>
+          </Tooltip>
+        }
+      >
+        {(triggerRef) => (
+          <button
+            ref={triggerRef}
+            type="button"
+            className={css.HeaderToggle}
+            aria-label={label}
+            aria-describedby={hintId}
+            aria-pressed={pressed}
+            onClick={onClick}
+          >
+            <Icon size="50" src={icon} aria-hidden />
+          </button>
+        )}
+      </TooltipProvider>
+    </>
+  );
+}
 
 type ThreadNavCategoryProps = {
   /** Shows only the threads of rooms in this space, nested ones included. */
@@ -56,10 +94,10 @@ type ThreadNavCategoryProps = {
 
 /**
  * The sidebar's THREADS category: threads across rooms that are neither resolved nor snoozed, by
- * latest activity, the user's pinned ones first; or, in the Sections layout the header switches
- * to, every thread in Working, Later, Idle and Resolved (`buildSidebarThreadSections`), each
- * section folding on its own. Direct messages and archived rooms are left out. It collapses like
- * the ROOMS category, but starts collapsed until the person opens it (`ClientInitStorageAtom`).
+ * latest activity, the user's pinned ones first; or, with Group on, every thread in Working,
+ * Later, Idle and Resolved (`buildSidebarThreadSections`), each section folding on its own.
+ * Direct messages and archived rooms are left out. It collapses like the ROOMS category, but
+ * starts collapsed until the person opens it (`ClientInitStorageAtom`).
  */
 export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const { t } = useTranslation();
@@ -145,8 +183,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   );
 
   const rowsProps = { pinnedKeys: pinned, isOpen, onTogglePin: togglePin };
-  const forMeHintId = useId();
-  const forMeHint = t('threadNav.forMeHint');
+  const grouped = layout === 'sections';
 
   return (
     <NavCategory data-testid="thread-nav-category">
@@ -154,53 +191,24 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
         {toggle}
         {!closed && (
           <div className={css.HeaderControls}>
-            <div
-              className={css.LayoutSegments}
-              role="radiogroup"
-              aria-label={t('threadNav.layout')}
-            >
-              {LAYOUTS.map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={layout === id}
-                  className={segmented.Segment}
-                  onClick={() => updatePreferences({ type: 'SET_LAYOUT', layout: id })}
-                >
-                  {t(LAYOUT_LABEL_KEYS[id])}
-                </button>
-              ))}
-            </div>
-            <span id={forMeHintId} hidden>
-              {forMeHint}
-            </span>
-            <TooltipProvider
-              position="Bottom"
-              align="End"
-              offset={6}
-              tooltip={
-                <Tooltip className={css.ForMeTooltip}>
-                  <Text size="T200">{forMeHint}</Text>
-                </Tooltip>
+            <HeaderToggle
+              label={t('threadNav.group')}
+              hint={t('threadNav.groupHint')}
+              icon={GroupThreadsIcon}
+              pressed={grouped}
+              onClick={() =>
+                updatePreferences({ type: 'SET_LAYOUT', layout: grouped ? 'recent' : 'sections' })
               }
-            >
-              {(triggerRef) => (
-                <button
-                  ref={triggerRef}
-                  type="button"
-                  className={css.ForMeToggle}
-                  aria-label={t('threadNav.forMe')}
-                  aria-describedby={forMeHintId}
-                  aria-pressed={involvedOnly}
-                  onClick={() =>
-                    updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
-                  }
-                >
-                  <Icon size="50" src={Icons.User} aria-hidden />
-                </button>
-              )}
-            </TooltipProvider>
+            />
+            <HeaderToggle
+              label={t('threadNav.forMe')}
+              hint={t('threadNav.forMeHint')}
+              icon={Icons.User}
+              pressed={involvedOnly}
+              onClick={() =>
+                updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
+              }
+            />
           </div>
         )}
       </NavCategoryHeader>

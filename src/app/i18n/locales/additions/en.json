@@ -1675,9 +1675,6 @@
     }
   },
   "threadNav": {
-    "layout": "Thread layout",
-    "layoutRecent": "Recent",
-    "layoutSections": "Sections",
     "forMe": "For me",
     "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
     "emptyForMe": "No threads for you yet",

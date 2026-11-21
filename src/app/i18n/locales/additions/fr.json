@@ -1715,9 +1715,6 @@
     }
   },
   "threadNav": {
-    "layout": "Disposition des fils",
-    "layoutRecent": "Récents",
-    "layoutSections": "Sections",
     "forMe": "Pour moi",
     "forMeHint": "Uniquement les fils auxquels vous participez, dans lesquels un agent a publié pour vous ou que vous avez épinglés",
     "emptyForMe": "Pas encore de fils pour vous",

@@ -7,13 +7,7 @@ export const CategoryHeader = style({ flexWrap: 'wrap' });
 export const CategoryToggle = style({ flexShrink: 0 });
 export const HeaderControls = style([Segments, { maxInlineSize: '100%' }]);
 
-export const LayoutSegments = style({
-  display: 'flex',
-  columnGap: toRem(2),
-  minInlineSize: 0,
-});
-
-export const ForMeToggle = style([
+export const HeaderToggle = style([
   Segment,
   {
     display: 'grid',
@@ -22,7 +16,7 @@ export const ForMeToggle = style([
   },
 ]);
 
-export const ForMeTooltip = style({ maxInlineSize: toRem(260) });
+export const HeaderTooltip = style({ maxInlineSize: toRem(260) });
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,

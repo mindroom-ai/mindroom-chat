@@ -19,6 +19,7 @@ import {
 import { THREAD_NAV_CATEGORY_ID, ThreadNavCategory } from './ThreadNavCategory';
 import {
   clearThreadSidebarPreferencesStore,
+  getThreadSidebarPreferencesStoreKey,
   makeThreadSidebarPreferencesAtom,
 } from '../../threads/cross-room/threadSidebarPreferences';
 
@@ -95,9 +96,8 @@ vi.mock('./threadNav.css', () => ({
   CategoryToggle: 'CategoryToggle',
   HeaderControls: 'HeaderControls',
   CategoryState: 'CategoryState',
-  LayoutSegments: 'LayoutSegments',
-  ForMeToggle: 'ForMeToggle',
-  ForMeTooltip: 'ForMeTooltip',
+  HeaderToggle: 'HeaderToggle',
+  HeaderTooltip: 'HeaderTooltip',
 }));
 vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
   getThreadSignalsReader: () => ({ read: readSignals }),
@@ -128,11 +128,7 @@ describe('ThreadNavCategory', () => {
   let store: ReturnType<typeof createStore>;
 
   beforeEach(() => {
-    vi.stubGlobal('localStorage', {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    });
+    localStorage.clear();
     clearThreadSidebarPreferencesStore(USER_ID);
     store = createStore();
     store.set(crossRoomThreadIndexAtom, {
@@ -151,7 +147,6 @@ describe('ThreadNavCategory', () => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
     clearThreadSidebarPreferencesStore(USER_ID);
-    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -208,6 +203,7 @@ describe('ThreadNavCategory', () => {
 
     expect(store.get(closedCategoriesAtom)).toContain(THREAD_NAV_CATEGORY_ID);
     expect(renderer!.root.findAllByProps({ 'data-testid': 'thread-nav-list' })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Group' })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ 'aria-label': 'For me' })).toHaveLength(0);
   });
 
@@ -270,7 +266,7 @@ describe('ThreadNavCategory', () => {
     ).toEqual([older.key]);
   });
 
-  it('switches to sections from the header, each folding on its own', () => {
+  it('round-trips the stored layout with Group and lets sections fold independently', () => {
     const resolved = {
       ...makeEntry('!resolved-room:example.org', '$resolved', 30),
       isResolved: true,
@@ -285,42 +281,43 @@ describe('ThreadNavCategory', () => {
         [resolved.key, resolved],
       ]),
     });
-    const closedCategoriesAtom = renderCategory();
+    const key = getThreadSidebarPreferencesStoreKey(USER_ID);
+    const saved = () => JSON.parse(localStorage.getItem(key) ?? '{}') as unknown;
+    localStorage.setItem(key, JSON.stringify({ v: 1, layout: 'recent', pinnedThreadKeys: [] }));
+    const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
+    const { container } = render(categoryTree(closedCategoriesAtom));
     const threadKeys = () =>
-      renderer!.root
-        .findAll((node) => node.props['data-thread-key'])
-        .map((node) => node.props['data-thread-key']);
-    const radio = (label: string) =>
-      renderer!.root.find((node) => node.props.role === 'radio' && node.children.includes(label));
-    expect(radio('Recent').props['aria-checked']).toBe(true);
+      Array.from(container.querySelectorAll('[data-thread-key]'), (row) =>
+        row.getAttribute('data-thread-key')
+      );
+    const group = screen.getByRole('button', { name: 'Group' });
+    expect(group.getAttribute('aria-pressed')).toBe('false');
     expect(threadKeys()).toEqual([newer.key, older.key]);
 
-    act(() => {
-      radio('Sections').props.onClick();
-    });
+    fireEvent.click(group);
 
-    expect(store.get(makeThreadSidebarPreferencesAtom(USER_ID)).layout).toBe('sections');
-    expect(radio('Sections').props['aria-checked']).toBe(true);
+    expect(saved()).toMatchObject({ v: 1, layout: 'sections' });
+    expect(group.getAttribute('aria-pressed')).toBe('true');
     const resolvedId = makeNavCategoryId('mindroom', 'threads', 'resolved');
-    const heading = (id: string) => renderer!.root.findByProps({ 'data-category-id': id });
-    const headingText = (id: string) =>
-      heading(id)
-        .findAll(() => true)
-        .flatMap((node) => node.children.filter((child) => typeof child === 'string'));
-    expect(headingText(makeNavCategoryId('mindroom', 'threads', 'idle'))).toContain('Idle · 2');
-    expect(headingText(resolvedId)).toContain('Resolved · 1');
+    const resolvedHeading = screen.getByRole('button', { name: 'Resolved · 1' });
+    expect(screen.getByRole('button', { name: 'Idle · 2' })).toBeTruthy();
     expect(threadKeys()).toEqual([newer.key, older.key, resolved.key]);
 
-    act(() => {
-      heading(resolvedId).props.onClick({ currentTarget: { getAttribute: () => resolvedId } });
-    });
+    fireEvent.click(resolvedHeading);
 
     expect(store.get(closedCategoriesAtom)).toContain(resolvedId);
-    expect(heading(resolvedId).props['aria-expanded']).toBe(false);
+    expect(resolvedHeading.getAttribute('aria-expanded')).toBe('false');
+    expect(threadKeys()).toEqual([newer.key, older.key]);
+
+    fireEvent.click(group);
+
+    expect(saved()).toMatchObject({ v: 1, layout: 'recent' });
+    expect(group.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Idle · 2' })).toBeNull();
     expect(threadKeys()).toEqual([newer.key, older.key]);
   });
 
-  it.each(['Recent', 'Sections'])('filters the %s layout with For me', (layout) => {
+  it.each(['recent', 'sections'])('filters the %s layout with For me', (layout) => {
     store.set(crossRoomThreadIndexAtom, {
       ...store.get(crossRoomThreadIndexAtom),
       entries: new Map([
@@ -328,36 +325,22 @@ describe('ThreadNavCategory', () => {
         [newer.key, { ...newer, isInvolved: false, isForUser: false }],
       ]),
     });
-    renderCategory();
-    if (layout === 'Sections') {
-      act(() => {
-        renderer!.root
-          .find((node) => node.props.role === 'radio' && node.children.includes(layout))
-          .props.onClick();
-      });
-    }
-    const forMe = () => renderer!.root.findByProps({ 'aria-label': 'For me' });
-    const threadKeys = () =>
-      renderer!.root
-        .findAll((node) => node.props['data-thread-key'])
-        .map((node) => node.props['data-thread-key']);
+    render(categoryTree());
+    const group = screen.getByRole('button', { name: 'Group' });
+    const grouped = layout === 'sections';
+    if (grouped) fireEvent.click(group);
+    const forMe = screen.getByRole('button', { name: 'For me' });
 
-    expect(forMe().props['aria-pressed']).toBe(false);
-    expect(threadKeys()).toEqual([newer.key, older.key]);
-    act(() => {
-      forMe().props.onClick();
-    });
-    expect(forMe().props['aria-pressed']).toBe(true);
-    expect(threadKeys()).toEqual([older.key]);
-    if (layout === 'Sections') {
-      expect(renderer!.root.findAll((node) => node.children.includes('Idle · 1'))).not.toHaveLength(
-        0
-      );
-    }
-    act(() => {
-      forMe().props.onClick();
-    });
-    expect(threadKeys()).toEqual([newer.key, older.key]);
+    expect(forMe.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByText(newer.summaryText)).toBeTruthy();
+    fireEvent.click(forMe);
+    expect(forMe.getAttribute('aria-pressed')).toBe('true');
+    expect(group.getAttribute('aria-pressed')).toBe(String(grouped));
+    expect(screen.getByText(older.summaryText)).toBeTruthy();
+    expect(screen.queryByText(newer.summaryText)).toBeNull();
+    if (grouped) expect(screen.getByRole('button', { name: 'Idle · 1' })).toBeTruthy();
+    fireEvent.click(forMe);
+    expect(screen.getByText(newer.summaryText)).toBeTruthy();
   });
 
   it('keeps a pinned uninvolved thread visible with For me on', () => {
@@ -404,19 +387,16 @@ describe('ThreadNavCategory', () => {
     ).toEqual([older.key]);
   });
 
-  it('describes the For me toggle before its tooltip opens on keyboard focus', () => {
+  it.each([
+    ['Group', 'Group by status'],
+    ['For me', 'Only threads you take part in, that an agent posted for you, or that you pinned'],
+  ])('describes the %s toggle before its tooltip opens on keyboard focus', (name, description) => {
     render(categoryTree());
-    const forMe = screen.getByRole('button', {
-      name: 'For me',
-      description:
-        'Only threads you take part in, that an agent posted for you, or that you pinned',
-    });
+    const toggle = screen.getByRole('button', { name, description });
     expect(screen.queryByRole('tooltip')).toBeNull();
-    forMe.focus();
-    fireEvent.keyUp(forMe, { key: 'Tab' });
-    expect(screen.getByRole('tooltip').textContent).toBe(
-      'Only threads you take part in, that an agent posted for you, or that you pinned'
-    );
+    toggle.focus();
+    fireEvent.keyUp(toggle, { key: 'Tab' });
+    expect(screen.getByRole('tooltip').textContent).toBe(description);
   });
 
   it('shows a distinct empty state when For me hides every thread', () => {

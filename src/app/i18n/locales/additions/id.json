@@ -1635,9 +1635,6 @@
     }
   },
   "threadNav": {
-    "layout": "Tata letak utas",
-    "layoutRecent": "Terbaru",
-    "layoutSections": "Bagian",
     "forMe": "Untuk saya",
     "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
     "emptyForMe": "Belum ada utas untuk Anda",

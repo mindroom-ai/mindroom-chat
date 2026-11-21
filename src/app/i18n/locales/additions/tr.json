@@ -1675,9 +1675,6 @@
     }
   },
   "threadNav": {
-    "layout": "Konu düzeni",
-    "layoutRecent": "Son",
-    "layoutSections": "Bölümler",
     "forMe": "Benim için",
     "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
     "emptyForMe": "Henüz sizin için konu yok",
