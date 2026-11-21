@@ -355,6 +355,10 @@ const appendStoredEvents = async (
 
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  // A failed request rejects where it is awaited below, and `done` rejects with it, which
+  // nothing awaits then (here and in the other transactions of this file). WebKit fails the
+  // write in flight each time it suspends the app.
+  tx.done.catch(() => undefined);
   const eventStore = tx.objectStore(EVENT_STORE);
   const metaStore = tx.objectStore(META_STORE);
   const stats = { ...((await metaStore.get(STATS_KEY)) ?? EMPTY_STATS) };
@@ -395,6 +399,7 @@ const readStoredEvents = async (): Promise<{
 }> => {
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readonly');
+  tx.done.catch(() => undefined);
   const stored = await tx.objectStore(EVENT_STORE).getAll();
   const storedStats = await tx.objectStore(META_STORE).get(STATS_KEY);
   await tx.done;
@@ -1113,6 +1118,7 @@ export const clearDeepTrace = async (): Promise<void> => {
   }
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  tx.done.catch(() => undefined);
   await tx.objectStore(EVENT_STORE).clear();
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;
