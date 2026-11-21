@@ -427,12 +427,13 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   const shown = await page.evaluate(() => {
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
     if (!view) return [];
-    const edge =
-      view.getBoundingClientRect().top +
-      view.clientTop +
-      parseFloat(getComputedStyle(view).scrollPaddingTop);
+    const bounds = view.getBoundingClientRect();
+    const edge = bounds.top + view.clientTop + parseFloat(getComputedStyle(view).scrollPaddingTop);
     return [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')]
-      .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
+      .filter((shell) => {
+        const rect = shell.getBoundingClientRect();
+        return rect.bottom > edge + 1 && rect.top < bounds.bottom;
+      })
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
   // The cards that move, the first reply first. One: the oldest thread's, far below the view, or
@@ -440,21 +441,27 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   // that leads it. Several, as a held order is let go: the three oldest threads', the
   // third to fifth card in view, the fifth first, so they keep their order above the first two,
   // the two cards under the one that leads the view, or that one and the next.
-  const moversOf: Record<Move, (string | undefined)[]> = {
+  // Numbers pick positions in the viewport, not just mounted cards.
+  const moversOf: Record<Move, (number | string | undefined)[]> = {
     below: [rootIds[0]],
     'below-reduced': [rootIds[0]],
     sections: [rootIds[0]],
-    'in-view': [shown[3]],
-    swap: [shown[1]],
+    'in-view': [3],
+    swap: [1],
     release: rootIds.slice(0, 3),
-    rotate: [shown[4], shown[3], shown[2]],
-    lead: [shown[0]],
-    under: [shown[1], shown[2]],
-    'lead-two': [shown[0], shown[1]],
-    'freeze-return': [shown[0]],
-    'sections-swap': [shown[1]],
+    rotate: [4, 3, 2],
+    lead: [0],
+    under: [1, 2],
+    'lead-two': [0, 1],
+    'freeze-return': [0],
+    'sections-swap': [1],
   };
-  const movers = moversOf[move].map((rootId) => rootId ?? '');
+  const movers = moversOf[move].map((target) => {
+    if (typeof target !== 'number') return target ?? '';
+    const rootId = shown[target];
+    expect(rootId, `${move}: card ${target + 1} must be in view before the reply`).toBeTruthy();
+    return rootId!;
+  });
   const mover = movers[0] ?? '';
   if (freezeReturn) {
     const frozen = await cardOrder(page);
