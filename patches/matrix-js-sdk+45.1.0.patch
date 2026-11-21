@@ -778,19 +778,25 @@ index 0898950..d4d8be4 100644
 +{"version":3,"file":"event-timeline-set.js","names":[],"sources":["../../src/models/event-timeline-set.ts"],"sourcesContent":["/*\nCopyright 2016 - 2021 The Matrix.org Foundation C.I.C.\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n*/\n\nimport { type Direction, EventTimeline, type IAddEventOptions } from \"./event-timeline.ts\";\nimport { type MatrixEvent } from \"./event.ts\";\nimport { logger } from \"../logger.ts\";\nimport { type Room, RoomEvent } from \"./room.ts\";\nimport { type Filter } from \"../filter.ts\";\nimport { type RoomState } from \"./room-state.ts\";\nimport { TypedEventEmitter } from \"./typed-event-emitter.ts\";\nimport { RelationsContainer } from \"./relations-container.ts\";\nimport { isReleasedEdit } from \"./relations.ts\";\nimport { type MatrixClient } from \"../client.ts\";\nimport { type Thread, type ThreadFilterType } from \"./thread.ts\";\n\nconst DEBUG = true;\n\n/* istanbul ignore next */\nlet debuglog: (...args: any[]) => void;\nif (DEBUG) {\n    // using bind means that we get to keep useful line numbers in the console\n    debuglog = logger.log.bind(logger);\n} else {\n    /* istanbul ignore next */\n    debuglog = function (): void {};\n}\n\ninterface IOpts {\n    // Set to true to enable improved timeline support.\n    timelineSupport?: boolean;\n    // The filter object, if any, for this timelineSet.\n    filter?: Filter;\n    pendingEvents?: boolean;\n}\n\nexport enum DuplicateStrategy {\n    Ignore = \"ignore\",\n    Replace = \"replace\",\n}\n\nexport interface IRoomTimelineData {\n    // the timeline the event was added to/removed from\n    timeline: EventTimeline;\n    // true if the event was a real-time event added to the end of the live timeline\n    liveEvent?: boolean;\n}\n\nexport interface IAddEventToTimelineOptions extends Pick<\n    IAddEventOptions,\n    \"toStartOfTimeline\" | \"roomState\" | \"timelineWasEmpty\" | \"addToState\"\n> {\n    /** Whether the sync response came from cache */\n    fromCache?: boolean;\n    /**\n     * The other events being added in the same batch. A relation whose parent is in the batch but not yet\n     * in a timeline (back-pagination adds newest first) is placed as its parent will be, rather than dropped\n     * as a relation to an unknown event.\n     */\n    batch?: MatrixEvent[];\n}\n\nexport interface IAddLiveEventOptions extends Pick<\n    IAddEventToTimelineOptions,\n    \"fromCache\" | \"roomState\" | \"timelineWasEmpty\" | \"addToState\"\n> {\n    /** Applies to events in the timeline only. If this is 'replace' then if a\n     * duplicate is encountered, the event passed to this function will replace\n     * the existing event in the timeline. If this is not specified, or is\n     * 'ignore', then the event passed to this function will be ignored\n     * entirely, preserving the existing event in the timeline. Events are\n     * identical based on their event ID <b>only</b>. */\n    duplicateStrategy?: DuplicateStrategy;\n}\n\ntype EmittedEvents = RoomEvent.Timeline | RoomEvent.TimelineReset;\n\nexport type EventTimelineSetHandlerMap = {\n    /**\n     * Fires whenever the timeline in a room is updated.\n     * @param event - The matrix event which caused this event to fire.\n     * @param room - The room, if any, whose timeline was updated.\n     * @param toStartOfTimeline - True if this event was added to the start\n     * @param removed - True if this event has just been removed from the timeline\n     * (beginning; oldest) of the timeline e.g. due to pagination.\n     *\n     * @param data - more data about the event\n     *\n     * @example\n     * ```\n     * matrixClient.on(\"Room.timeline\",\n     *                 function(event, room, toStartOfTimeline, removed, data) {\n     *   if (!toStartOfTimeline && data.liveEvent) {\n     *     var messageToAppend = room.timeline.[room.timeline.length - 1];\n     *   }\n     * });\n     * ```\n     */\n    [RoomEvent.Timeline]: (\n        event: MatrixEvent,\n        room: Room | undefined,\n        toStartOfTimeline: boolean | undefined,\n        removed: boolean,\n        data: IRoomTimelineData,\n    ) => void;\n    /**\n     * Fires whenever the live timeline in a room is reset.\n     *\n     * When we get a 'limited' sync (for example, after a network outage), we reset\n     * the live timeline to be empty before adding the recent events to the new\n     * timeline. This event is fired after the timeline is reset, and before the\n     * new events are added.\n     *\n     * @param room - The room whose live timeline was reset, if any\n     * @param timelineSet - timelineSet room whose live timeline was reset\n     * @param resetAllTimelines - True if all timelines were reset.\n     */\n    [RoomEvent.TimelineReset]: (\n        room: Room | undefined,\n        timelineSet: EventTimelineSet,\n        resetAllTimelines: boolean,\n    ) => void;\n};\n\n/**\n * Whether walking neighbours from `from` in `direction` reaches `to`. Neighbour\n * links can form a cycle, so the walk stops at a timeline it has already seen.\n */\nfunction canReachTimeline(from: EventTimeline, to: EventTimeline, direction: Direction): boolean {\n    const visited = new Set<EventTimeline>();\n    for (let tl: EventTimeline | null = from; tl && !visited.has(tl); tl = tl.getNeighbouringTimeline(direction)) {\n        if (tl === to) return true;\n        visited.add(tl);\n    }\n    return false;\n}\n\n/**\n * MindRoom: the map from event ID to timeline of a thread's timeline set. It reports each ID it\n * gains or loses to the thread's room, which counts the IDs its threads hold\n * (Room.countThreadEventId), so a lookup of an ID no thread holds skips asking every thread.\n */\nclass EventIdToTimeline extends Map<string, EventTimeline> {\n    public constructor(private readonly thread: Thread | undefined) {\n        super();\n    }\n\n    public set(eventId: string, timeline: EventTimeline): this {\n        if (this.thread && !this.has(eventId)) this.thread.room.countThreadEventId(this.thread, eventId, 1);\n        return super.set(eventId, timeline);\n    }\n\n    public delete(eventId: string): boolean {\n        if (!super.delete(eventId)) return false;\n        if (this.thread) this.thread.room.countThreadEventId(this.thread, eventId, -1);\n        return true;\n    }\n\n    public clear(): void {\n        if (this.thread) {\n            for (const eventId of this.keys()) this.thread.room.countThreadEventId(this.thread, eventId, -1);\n        }\n        super.clear();\n    }\n}\n\nexport class EventTimelineSet extends TypedEventEmitter<EmittedEvents, EventTimelineSetHandlerMap> {\n    public readonly relations: RelationsContainer;\n    private readonly timelineSupport: boolean;\n    private readonly displayPendingEvents: boolean;\n    private liveTimeline: EventTimeline;\n    private timelines: EventTimeline[];\n    private readonly _eventIdToTimeline: EventIdToTimeline;\n    private filter?: Filter;\n\n    /**\n     * Construct a set of EventTimeline objects, typically on behalf of a given\n     * room.  A room may have multiple EventTimelineSets for different levels\n     * of filtering.  The global notification list is also an EventTimelineSet, but\n     * lacks a room.\n     *\n     * <p>This is an ordered sequence of timelines, which may or may not\n     * be continuous. Each timeline lists a series of events, as well as tracking\n     * the room state at the start and the end of the timeline (if appropriate).\n     * It also tracks forward and backward pagination tokens, as well as containing\n     * links to the next timeline in the sequence.\n     *\n     * <p>There is one special timeline - the 'live' timeline, which represents the\n     * timeline to which events are being added in real-time as they are received\n     * from the /sync API. Note that you should not retain references to this\n     * timeline - even if it is the current timeline right now, it may not remain\n     * so if the server gives us a timeline gap in /sync.\n     *\n     * <p>In order that we can find events from their ids later, we also maintain a\n     * map from event_id to timeline and index.\n     *\n     * @param room - Room for this timelineSet. May be null for non-room cases, such as the\n     * notification timeline.\n     * @param opts - Options inherited from Room.\n     * @param client - the Matrix client which owns this EventTimelineSet,\n     * can be omitted if room is specified.\n     * @param thread - the thread to which this timeline set relates.\n     * @param threadListType - the type of thread list represented, if any\n     * (e.g., All threads or My threads)\n     */\n    public constructor(\n        public readonly room: Room | undefined,\n        opts: IOpts = {},\n        client?: MatrixClient,\n        public readonly thread?: Thread,\n        public readonly threadListType: ThreadFilterType | null = null,\n    ) {\n        super();\n\n        this.timelineSupport = Boolean(opts.timelineSupport);\n        this.liveTimeline = new EventTimeline(this);\n        this.displayPendingEvents = opts.pendingEvents !== false;\n\n        // just a list - *not* ordered.\n        this.timelines = [this.liveTimeline];\n        this._eventIdToTimeline = new EventIdToTimeline(thread);\n\n        this.filter = opts.filter;\n\n        this.relations = this.room?.relations ?? new RelationsContainer(room?.client ?? client!);\n    }\n\n    /**\n     * Get all the timelines in this set\n     * @returns the timelines in this set\n     */\n    public getTimelines(): EventTimeline[] {\n        return this.timelines;\n    }\n\n    /**\n     * Get the filter object this timeline set is filtered on, if any\n     * @returns the optional filter for this timelineSet\n     */\n    public getFilter(): Filter | undefined {\n        return this.filter;\n    }\n\n    /**\n     * Set the filter object this timeline set is filtered on\n     * (passed to the server when paginating via /messages).\n     * @param filter - the filter for this timelineSet\n     */\n    public setFilter(filter?: Filter): void {\n        this.filter = filter;\n    }\n\n    /**\n     * Get the list of pending sent events for this timelineSet's room, filtered\n     * by the timelineSet's filter if appropriate.\n     *\n     * @returns A list of the sent events\n     * waiting for remote echo.\n     *\n     * @throws If `opts.pendingEventOrdering` was not 'detached'\n     */\n    public getPendingEvents(): MatrixEvent[] {\n        if (!this.room || !this.displayPendingEvents) {\n            return [];\n        }\n\n        return this.room.getPendingEvents();\n    }\n    /**\n     * Get the live timeline for this room.\n     *\n     * @returns live timeline\n     */\n    public getLiveTimeline(): EventTimeline {\n        return this.liveTimeline;\n    }\n\n    /**\n     * Set the live timeline for this room.\n     *\n     * @returns live timeline\n     */\n    public setLiveTimeline(timeline: EventTimeline): void {\n        this.liveTimeline = timeline;\n    }\n\n    /**\n     * Return the timeline (if any) this event is in.\n     * @param eventId - the eventId being sought\n     * @returns timeline\n     */\n    public eventIdToTimeline(eventId: string): EventTimeline | undefined {\n        return this._eventIdToTimeline.get(eventId);\n    }\n\n    /**\n     * MindRoom: the IDs of the events this set holds, which its thread's room counts.\n     * @internal\n     */\n    public eventIds(): IterableIterator<string> {\n        return this._eventIdToTimeline.keys();\n    }\n\n    /**\n     * Track a new event as if it were in the same timeline as an old event,\n     * replacing it.\n     * @param oldEventId -  event ID of the original event\n     * @param newEventId -  event ID of the replacement event\n     */\n    public replaceEventId(oldEventId: string, newEventId: string): void {\n        const existingTimeline = this._eventIdToTimeline.get(oldEventId);\n        if (existingTimeline) {\n            this._eventIdToTimeline.delete(oldEventId);\n            this._eventIdToTimeline.set(newEventId, existingTimeline);\n        }\n    }\n\n    /**\n     * Reset the live timeline, and start a new one.\n     *\n     * <p>This is used when /sync returns a 'limited' timeline.\n     *\n     * @param backPaginationToken -   token for back-paginating the new timeline\n     * @param forwardPaginationToken - token for forward-paginating the old live timeline,\n     * if absent or null, all timelines are reset.\n     *\n     * @remarks\n     * Fires {@link RoomEvent.TimelineReset}\n     */\n    public resetLiveTimeline(backPaginationToken?: string, forwardPaginationToken?: string): void {\n        // Each EventTimeline has RoomState objects tracking the state at the start\n        // and end of that timeline. The copies at the end of the live timeline are\n        // special because they will have listeners attached to monitor changes to\n        // the current room state, so we move this RoomState from the end of the\n        // current live timeline to the end of the new one and, if necessary,\n        // replace it with a newly created one. We also make a copy for the start\n        // of the new timeline.\n\n        // if timeline support is disabled, forget about the old timelines\n        const resetAllTimelines = !this.timelineSupport || !forwardPaginationToken;\n\n        const oldTimeline = this.liveTimeline;\n        const newTimeline = oldTimeline.forkLive(EventTimeline.FORWARDS);\n\n        if (resetAllTimelines) {\n            this.timelines = [newTimeline];\n            this._eventIdToTimeline.clear();\n        } else {\n            this.timelines.push(newTimeline);\n        }\n\n        if (forwardPaginationToken) {\n            // Now set the forward pagination token on the old live timeline\n            // so it can be forward-paginated.\n            oldTimeline.setPaginationToken(forwardPaginationToken, EventTimeline.FORWARDS);\n        }\n\n        // make sure we set the pagination token before firing timelineReset,\n        // otherwise clients which start back-paginating will fail, and then get\n        // stuck without realising that they *can* back-paginate.\n        newTimeline.setPaginationToken(backPaginationToken ?? null, EventTimeline.BACKWARDS);\n\n        // Now we can swap the live timeline to the new one.\n        this.liveTimeline = newTimeline;\n        this.emit(RoomEvent.TimelineReset, this.room, this, resetAllTimelines);\n    }\n\n    /**\n     * Get the timeline which contains the given event, if any\n     *\n     * @param eventId -  event ID to look for\n     * @returns timeline containing\n     * the given event, or null if unknown\n     */\n    public getTimelineForEvent(eventId?: string): EventTimeline | null {\n        if (eventId === null || eventId === undefined) {\n            return null;\n        }\n        const res = this._eventIdToTimeline.get(eventId);\n        return res === undefined ? null : res;\n    }\n\n    /**\n     * Get an event which is stored in our timelines\n     *\n     * @param eventId -  event ID to look for\n     * @returns the given event, or undefined if unknown\n     */\n    public findEventById(eventId: string): MatrixEvent | undefined {\n        const tl = this.getTimelineForEvent(eventId);\n        if (!tl) {\n            return undefined;\n        }\n        return tl.getEvents().find(function (ev) {\n            return ev.getId() == eventId;\n        });\n    }\n\n    /**\n     * Add a new timeline to this timeline list\n     *\n     * @returns newly-created timeline\n     */\n    public addTimeline(): EventTimeline {\n        if (!this.timelineSupport) {\n            throw new Error(\n                \"timeline support is disabled. Set the 'timelineSupport'\" +\n                    \" parameter to true when creating MatrixClient to enable\" +\n                    \" it.\",\n            );\n        }\n\n        const timeline = new EventTimeline(this);\n        this.timelines.push(timeline);\n        return timeline;\n    }\n\n    /**\n     * Add events to a timeline\n     *\n     * <p>Will fire \"Room.timeline\" for each event added.\n     *\n     * @param events - A list of events to add.\n     *\n     * @param toStartOfTimeline -   True to add these events to the start\n     * (oldest) instead of the end (newest) of the timeline. If true, the oldest\n     * event will be the <b>last</b> element of 'events'.\n     *\n     * @param timeline -   timeline to\n     *    add events to.\n     *\n     * @param paginationToken -   token for the next batch of events\n     *\n     * @remarks\n     * Fires {@link RoomEvent.Timeline}\n     *\n     */\n    public addEventsToTimeline(\n        events: MatrixEvent[],\n        toStartOfTimeline: boolean,\n        addToState: boolean,\n        timeline: EventTimeline,\n        paginationToken?: string | null,\n    ): void {\n        if (!timeline) {\n            throw new Error(\"'timeline' not specified for EventTimelineSet.addEventsToTimeline\");\n        }\n\n        // Preserve the caller's historical target when materializing a pending thread gap.\n        if (this.thread && events.some(event => !this._eventIdToTimeline.has(event.getId()!))) {\n            this.thread.flushPendingTimelineReset();\n        }\n        if (!toStartOfTimeline && timeline == this.liveTimeline) {\n            throw new Error(\n                \"EventTimelineSet.addEventsToTimeline cannot be used for adding events to \" +\n                    \"the live timeline - use Room.addLiveEvents instead\",\n            );\n        }\n\n        if (this.filter) {\n            events = this.filter.filterRoomTimeline(events);\n            if (!events.length) {\n                return;\n            }\n        }\n\n        const direction = toStartOfTimeline ? EventTimeline.BACKWARDS : EventTimeline.FORWARDS;\n        const inverseDirection = toStartOfTimeline ? EventTimeline.FORWARDS : EventTimeline.BACKWARDS;\n\n        // Adding events to timelines can be quite complicated. The following\n        // illustrates some of the corner-cases.\n        //\n        // Let's say we start by knowing about four timelines. timeline3 and\n        // timeline4 are neighbours:\n        //\n        //    timeline1    timeline2    timeline3    timeline4\n        //      [M]          [P]          [S] <------> [T]\n        //\n        // Now we paginate timeline1, and get the following events from the server:\n        // [M, N, P, R, S, T, U].\n        //\n        // 1. First, we ignore event M, since we already know about it.\n        //\n        // 2. Next, we append N to timeline 1.\n        //\n        // 3. Next, we don't add event P, since we already know about it,\n        //    but we do link together the timelines. We now have:\n        //\n        //    timeline1    timeline2    timeline3    timeline4\n        //      [M, N] <---> [P]          [S] <------> [T]\n        //\n        // 4. Now we add event R to timeline2:\n        //\n        //    timeline1    timeline2    timeline3    timeline4\n        //      [M, N] <---> [P, R]       [S] <------> [T]\n        //\n        //    Note that we have switched the timeline we are working on from\n        //    timeline1 to timeline2.\n        //\n        // 5. We ignore event S, but again join the timelines:\n        //\n        //    timeline1    timeline2    timeline3    timeline4\n        //      [M, N] <---> [P, R] <---> [S] <------> [T]\n        //\n        // 6. We ignore event T, and the timelines are already joined, so there\n        //    is nothing to do.\n        //\n        // 7. Finally, we add event U to timeline4:\n        //\n        //    timeline1    timeline2    timeline3    timeline4\n        //      [M, N] <---> [P, R] <---> [S] <------> [T, U]\n        //\n        // The important thing to note in the above is what happened when we\n        // already knew about a given event:\n        //\n        //   - if it was appropriate, we joined up the timelines (steps 3, 5).\n        //   - in any case, we started adding further events to the timeline which\n        //       contained the event we knew about (steps 3, 5, 6).\n        //\n        //\n        // So much for adding events to the timeline. But what do we want to do\n        // with the pagination token?\n        //\n        // In the case above, we will be given a pagination token which tells us how to\n        // get events beyond 'U' - in this case, it makes sense to store this\n        // against timeline4. But what if timeline4 already had 'U' and beyond? in\n        // that case, our best bet is to throw away the pagination token we were\n        // given and stick with whatever token timeline4 had previously. In short,\n        // we want to only store the pagination token if the last event we receive\n        // is one we didn't previously know about.\n        //\n        // We make an exception for this if it turns out that we already knew about\n        // *all* of the events, and we weren't able to join up any timelines. When\n        // that happens, it means our existing pagination token is faulty, since it\n        // is only telling us what we already know. Rather than repeatedly\n        // paginating with the same token, we might as well use the new pagination\n        // token in the hope that we eventually work our way out of the mess.\n\n        let didUpdate = false;\n        let lastEventWasNew = false;\n        for (const event of events) {\n            const eventId = event.getId()!;\n\n            const existingTimeline = this._eventIdToTimeline.get(eventId);\n\n            if (!existingTimeline) {\n                // we don't know about this event yet. Just add it to the timeline.\n                this.addEventToTimeline(event, timeline, {\n                    toStartOfTimeline,\n                    addToState,\n                    batch: events,\n                });\n                lastEventWasNew = true;\n                didUpdate = true;\n                continue;\n            }\n\n            lastEventWasNew = false;\n\n            if (existingTimeline == timeline) {\n                debuglog(\"Event \" + eventId + \" already in timeline \" + timeline);\n                continue;\n            }\n\n            const neighbour = timeline.getNeighbouringTimeline(direction);\n            if (neighbour) {\n                // this timeline already has a neighbour in the relevant direction;\n                // let's assume the timelines are already correctly linked up, and\n                // skip over to it.\n                //\n                // there's probably some edge-case here where we end up with an\n                // event which is in a timeline a way down the chain, and there is\n                // a break in the chain somewhere. But I can't really imagine how\n                // that would happen, so I'm going to ignore it for now.\n                //\n                if (existingTimeline == neighbour) {\n                    debuglog(\"Event \" + eventId + \" in neighbouring timeline - switching to \" + existingTimeline);\n                } else {\n                    debuglog(\"Event \" + eventId + \" already in a different timeline \" + existingTimeline);\n                }\n                timeline = existingTimeline;\n                continue;\n            }\n\n            // time to join the timelines.\n            logger.info(\n                \"Already have timeline for \" + eventId + \" - joining timeline \" + timeline + \" to \" + existingTimeline,\n            );\n\n            // Variables to keep the line length limited below.\n            const existingIsLive = existingTimeline === this.liveTimeline;\n            const timelineIsLive = timeline === this.liveTimeline;\n\n            const backwardsIsLive = direction === EventTimeline.BACKWARDS && existingIsLive;\n            const forwardsIsLive = direction === EventTimeline.FORWARDS && timelineIsLive;\n\n            if (backwardsIsLive || forwardsIsLive) {\n                // The live timeline should never be spliced into a non-live position.\n                // We use independent logging to better discover the problem at a glance.\n                if (backwardsIsLive) {\n                    logger.warn(\n                        \"Refusing to set a preceding existingTimeLine on our \" +\n                            \"timeline as the existingTimeLine is live (\" +\n                            existingTimeline +\n                            \")\",\n                    );\n                }\n                if (forwardsIsLive) {\n                    logger.warn(\n                        \"Refusing to set our preceding timeline on a existingTimeLine \" +\n                            \"as our timeline is live (\" +\n                            timeline +\n                            \")\",\n                    );\n                }\n                continue; // abort splicing - try next event\n            }\n\n            // A page holding events of a segment that already lies on its far side (a\n            // history page with a newer segment's events) would link the two into a\n            // cycle, and a walk over neighbours without a visited set would never end.\n            if (\n                canReachTimeline(existingTimeline, timeline, direction) ||\n                canReachTimeline(timeline, existingTimeline, inverseDirection)\n            ) {\n                logger.warn(\n                    \"Refusing to join timeline \" + timeline + \" to \" + existingTimeline + \" as that would form a cycle\",\n                );\n                continue; // abort splicing - try next event\n            }\n\n            // setNeighbouringTimeline throws when the existing timeline is already linked\n            // on this side; that would leave our link set without its inverse, and drop\n            // the rest of the page.\n            if (existingTimeline.getNeighbouringTimeline(inverseDirection)) {\n                logger.warn(\n                    \"Refusing to join timeline \" +\n                        timeline +\n                        \" to \" +\n                        existingTimeline +\n                        \" as that already has a neighbouring timeline\",\n                );\n                continue; // abort splicing - try next event\n            }\n\n            timeline.setNeighbouringTimeline(existingTimeline, direction);\n            existingTimeline.setNeighbouringTimeline(timeline, inverseDirection);\n\n            timeline = existingTimeline;\n            didUpdate = true;\n        }\n\n        // see above - if the last event was new to us, or if we didn't find any\n        // new information, we update the pagination token for whatever\n        // timeline we ended up on.\n        if (lastEventWasNew || !didUpdate) {\n            if (direction === EventTimeline.FORWARDS && timeline === this.liveTimeline) {\n                logger.warn({ lastEventWasNew, didUpdate }); // for debugging\n                logger.warn(\n                    `Refusing to set forwards pagination token of live timeline ${timeline} to ${paginationToken}`,\n                );\n                return;\n            }\n            timeline.setPaginationToken(paginationToken ?? null, direction);\n        }\n    }\n\n    /**\n     * Add an event to the end of this live timeline.\n     *\n     * @param event - Event to be added\n     * @param options - addLiveEvent options\n     */\n    public addLiveEvent(\n        event: MatrixEvent,\n        { duplicateStrategy, fromCache, roomState, timelineWasEmpty, addToState }: IAddLiveEventOptions,\n    ): void {\n        if (this.filter) {\n            const events = this.filter.filterRoomTimeline([event]);\n            if (!events.length) {\n                return;\n            }\n        }\n\n        const timeline = this._eventIdToTimeline.get(event.getId()!);\n        if (timeline) {\n            if (duplicateStrategy === DuplicateStrategy.Replace) {\n                debuglog(\"EventTimelineSet.addLiveEvent: replacing duplicate event \" + event.getId());\n                const tlEvents = timeline.getEvents();\n                for (let j = 0; j < tlEvents.length; j++) {\n                    if (tlEvents[j].getId() === event.getId()) {\n                        // still need to set the right metadata on this event\n                        if (!roomState) {\n                            roomState = timeline.getState(EventTimeline.FORWARDS);\n                        }\n                        EventTimeline.setEventMetadata(event, roomState!, false);\n                        tlEvents[j] = event;\n\n                        // XXX: we need to fire an event when this happens.\n                        break;\n                    }\n                }\n            } else {\n                debuglog(\"EventTimelineSet.addLiveEvent: ignoring duplicate event \" + event.getId());\n            }\n            return;\n        }\n\n        this.thread?.flushPendingTimelineReset();\n        this.addEventToTimeline(event, this.liveTimeline, {\n            toStartOfTimeline: false,\n            fromCache,\n            roomState,\n            timelineWasEmpty,\n            addToState,\n        });\n    }\n\n    /**\n     * Add event to the given timeline, and emit Room.timeline. Assumes\n     * we have already checked we don't know about this event.\n     *\n     * Will fire \"Room.timeline\" for each event added.\n     *\n     * @param event - the event to add\n     * @param timeline - the timeline onto which to add it\n     * @param options - addEventToTimeline options\n     *\n     * @remarks\n     * Fires {@link RoomEvent.Timeline}\n     */\n    public addEventToTimeline(\n        event: MatrixEvent,\n        timeline: EventTimeline,\n        {\n            toStartOfTimeline,\n            fromCache = false,\n            roomState,\n            timelineWasEmpty,\n            addToState,\n            batch,\n        }: IAddEventToTimelineOptions,\n    ): void {\n        if (timeline.getTimelineSet() !== this) {\n            throw new Error(`EventTimelineSet.addEventToTimeline: Timeline=${timeline.toString()} does not belong \" +\n                \"in timelineSet(threadId=${this.thread?.id})`);\n        }\n\n        const eventId = event.getId()!;\n        if (!this._eventIdToTimeline.has(eventId)) this.thread?.flushPendingTimelineReset();\n        this.relations.aggregateParentEvent(event);\n        this.relations.aggregateChildEvent(event, this);\n\n        // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a\n        // threaded message should not be in the main timeline).\n        //\n        // We can only run this check for timelines with a `room` because `canContain`\n        // requires it\n        if (this.room && !this.canContain(event, batch)) {\n            let eventDebugString = `event=${eventId}`;\n            if (event.threadRootId) {\n                eventDebugString += `(belongs to thread=${event.threadRootId})`;\n            }\n            logger.warn(\n                `EventTimelineSet.addEventToTimeline: Ignoring ${eventDebugString} that does not belong ` +\n                    `in timeline=${timeline.toString()} timelineSet(threadId=${this.thread?.id})`,\n            );\n            return;\n        }\n\n        // MindRoom: see `Relations.releaseFromTimelines`; the timeline still counts its time. An empty\n        // timeline takes the edit, for its place among the others (`releaseEvent`).\n        if (this.thread && isReleasedEdit(event) && timeline.getEvents().length > 0) {\n            timeline.noteEventTs(event.getTs());\n            return;\n        }\n\n        timeline.addEvent(event, {\n            toStartOfTimeline,\n            roomState,\n            timelineWasEmpty,\n            addToState,\n        });\n        this._eventIdToTimeline.set(eventId, timeline);\n\n        const data: IRoomTimelineData = {\n            timeline: timeline,\n            liveEvent: !toStartOfTimeline && timeline == this.liveTimeline && !fromCache,\n        };\n        this.emit(RoomEvent.Timeline, event, this.room, Boolean(toStartOfTimeline), false, data);\n    }\n\n    /**\n     * Insert event to the given timeline, and emit Room.timeline. Assumes\n     * we have already checked we don't know about this event.\n     *\n     * TEMPORARY: until we have recursive relations, we need this function\n     * to exist to allow us to insert events in timeline order, which is our\n     * best guess for Sync Order.\n     * This is a copy of addEventToTimeline above, modified to insert the event\n     * after the event it relates to, and before any event with a later\n     * timestamp. This is our best guess at Sync Order.\n     *\n     * Will fire \"Room.timeline\" for each event added.\n     *\n     * @internal\n     *\n     * @remarks\n     * Fires {@link RoomEvent.Timeline}\n     */\n    public insertEventIntoTimeline(\n        event: MatrixEvent,\n        timeline: EventTimeline,\n        roomState: RoomState,\n        addToState: boolean,\n    ): void {\n        if (timeline.getTimelineSet() !== this) {\n            throw new Error(`EventTimelineSet.insertEventIntoTimeline: Timeline=${timeline.toString()} does not belong \" +\n                \"in timelineSet(threadId=${this.thread?.id})`);\n        }\n\n        const eventId = event.getId()!;\n        if (!this._eventIdToTimeline.has(eventId)) this.thread?.flushPendingTimelineReset();\n        this.relations.aggregateParentEvent(event);\n        this.relations.aggregateChildEvent(event, this);\n\n        // Make sure events don't get mixed in timelines they shouldn't be in (e.g. a\n        // threaded message should not be in the main timeline).\n        //\n        // We can only run this check for timelines with a `room` because `canContain`\n        // requires it\n        if (this.room && !this.canContain(event)) {\n            let eventDebugString = `event=${eventId}`;\n            if (event.threadRootId) {\n                eventDebugString += `(belongs to thread=${event.threadRootId})`;\n            }\n            logger.warn(\n                `EventTimelineSet.insertEventIntoTimeline: Ignoring ${eventDebugString} that does not belong ` +\n                    `in timeline=${timeline.toString()} timelineSet(threadId=${this.thread?.id})`,\n            );\n            return;\n        }\n\n        // MindRoom: see `Relations.releaseFromTimelines`; the timeline still counts its time. An empty\n        // timeline takes the edit, for its place among the others (`releaseEvent`).\n        if (this.thread && isReleasedEdit(event) && timeline.getEvents().length > 0) {\n            timeline.noteEventTs(event.getTs());\n            return;\n        }\n\n        // Find the event that this event is related to - the \"parent\"\n        const parentEventId = event.relationEventId;\n        if (!parentEventId) {\n            // Not related to anything - we just append\n            this.addEventToTimeline(event, timeline, {\n                toStartOfTimeline: false,\n                fromCache: false,\n                timelineWasEmpty: false,\n                roomState,\n                addToState,\n            });\n            return;\n        }\n\n        const parentEvent = this.findEventById(parentEventId);\n\n        const timelineEvents = timeline.getEvents();\n\n        // Start searching from the parent event, or if it is not in this timeline,\n        // start at the beginning and insert purely using timestamp order.\n        const parentIndex = parentEvent !== undefined ? Math.max(0, timelineEvents.indexOf(parentEvent)) : 0;\n        let insertIndex = parentIndex;\n        for (; insertIndex < timelineEvents.length; insertIndex++) {\n            const nextEvent = timelineEvents[insertIndex];\n            if (nextEvent.getTs() > event.getTs()) {\n                // We found an event later than ours, so insert before that.\n                break;\n            }\n        }\n        // If we got to the end of the loop, insertIndex points at the end of\n        // the list.\n\n        timeline.insertEvent(event, insertIndex, roomState, addToState);\n        this._eventIdToTimeline.set(eventId, timeline);\n\n        const data: IRoomTimelineData = {\n            timeline: timeline,\n            // The purpose of this method is inserting events in the middle of the\n            // timeline, so the events are, by definition, not live (whether or not\n            // we're adding them to the live timeline).\n            liveEvent: false,\n        };\n        this.emit(RoomEvent.Timeline, event, this.room, false, false, data);\n    }\n\n    /**\n     * Replaces event with ID oldEventId with one with newEventId, if oldEventId is\n     * recognised.  Otherwise, add to the live timeline.  Used to handle remote echos.\n     *\n     * @param localEvent -     the new event to be added to the timeline\n     * @param oldEventId -          the ID of the original event\n     * @param newEventId -         the ID of the replacement event\n     *\n     * @remarks\n     * Fires {@link RoomEvent.Timeline}\n     */\n    public handleRemoteEcho(localEvent: MatrixEvent, oldEventId: string, newEventId: string): void {\n        // XXX: why don't we infer newEventId from localEvent?\n        const existingTimeline = this._eventIdToTimeline.get(oldEventId);\n        if (existingTimeline) {\n            this._eventIdToTimeline.delete(oldEventId);\n            this._eventIdToTimeline.set(newEventId, existingTimeline);\n        } else if (!this.filter || this.filter.filterRoomTimeline([localEvent]).length) {\n            this.thread?.flushPendingTimelineReset();\n            this.addEventToTimeline(localEvent, this.liveTimeline, {\n                toStartOfTimeline: false,\n                addToState: false,\n            });\n        }\n    }\n\n    /**\n     * Removes a single event from this room.\n     *\n     * @param eventId -  The id of the event to remove\n     *\n     * @returns the removed event, or null if the event was not found\n     * in this room.\n     */\n    public removeEvent(eventId: string): MatrixEvent | null {\n        const timeline = this._eventIdToTimeline.get(eventId);\n        if (!timeline) {\n            return null;\n        }\n\n        const removed = timeline.removeEvent(eventId);\n        if (removed) {\n            this._eventIdToTimeline.delete(eventId);\n            const data = {\n                timeline: timeline,\n            };\n            this.emit(RoomEvent.Timeline, removed, this.room, undefined, true, data);\n        }\n        return removed;\n    }\n\n    /**\n     * MindRoom: removes an edit the relations released (`Relations.releaseFromTimelines`) without a\n     * `Room.timeline` event: nothing reads it, and some listeners would take its removal for an\n     * addition. A timeline keeps its only event: a page that brings the event again joins the\n     * timeline it comes to with this one, while an empty timeline linked to an older one would refuse\n     * the join and leave its newer neighbour fetching the same page again.\n     * @internal\n     */\n    public releaseEvent(eventId: string): void {\n        const timeline = this._eventIdToTimeline.get(eventId);\n        if (!timeline || timeline.getEvents().length <= 1) return;\n        if (timeline.removeEvent(eventId)) this._eventIdToTimeline.delete(eventId);\n    }\n\n    /**\n     * Determine where two events appear in the timeline relative to one another\n     *\n     * @param eventId1 -   The id of the first event\n     * @param eventId2 -   The id of the second event\n\n     * @returns -1 if eventId1 precedes eventId2, and +1 eventId1 succeeds\n     * eventId2. 0 if they are the same event; null if we can't tell (either\n     * because we don't know about one of the events, or because they are in\n     * separate timelines which don't join up).\n     */\n    public compareEventOrdering(eventId1: string, eventId2: string): number | null {\n        if (eventId1 == eventId2) {\n            // optimise this case\n            return 0;\n        }\n\n        const timeline1 = this._eventIdToTimeline.get(eventId1);\n        const timeline2 = this._eventIdToTimeline.get(eventId2);\n\n        if (timeline1 === undefined) {\n            return null;\n        }\n        if (timeline2 === undefined) {\n            return null;\n        }\n\n        if (timeline1 === timeline2) {\n            // both events are in the same timeline - figure out their relative indices\n            let idx1: number | undefined = undefined;\n            let idx2: number | undefined = undefined;\n            const events = timeline1.getEvents();\n            for (let idx = 0; idx < events.length && (idx1 === undefined || idx2 === undefined); idx++) {\n                const evId = events[idx].getId();\n                if (evId == eventId1) {\n                    idx1 = idx;\n                }\n                if (evId == eventId2) {\n                    idx2 = idx;\n                }\n            }\n            const difference = idx1! - idx2!;\n\n            // Return the sign of difference.\n            if (difference < 0) {\n                return -1;\n            } else if (difference > 0) {\n                return 1;\n            } else {\n                return 0;\n            }\n        }\n\n        // the events are in different timelines. Iterate through the\n        // linkedlist to see which comes first.\n\n        // first work forwards from timeline1\n        if (canReachTimeline(timeline1, timeline2, EventTimeline.FORWARDS)) {\n            // timeline1 is before timeline2\n            return -1;\n        }\n\n        // now try backwards from timeline1\n        if (canReachTimeline(timeline1, timeline2, EventTimeline.BACKWARDS)) {\n            // timeline2 is before timeline1\n            return 1;\n        }\n\n        // the timelines are not contiguous.\n        return null;\n    }\n\n    /**\n     * Determine whether a given event can sanely be added to this event timeline set,\n     * for timeline sets relating to a thread, only return true for events in the same\n     * thread timeline, for timeline sets not relating to a thread only return true\n     * for events which should be shown in the main room timeline.\n     * Requires the `room` property to have been set at EventTimelineSet construction time.\n     *\n     * @param event - the event to check whether it belongs to this timeline set.\n     * @param batch - other events being added alongside, in which the event's parent may be found\n     * @throws Error if `room` was not set when constructing this timeline set.\n     * @returns whether the event belongs to this timeline set.\n     */\n    public canContain(event: MatrixEvent, batch?: MatrixEvent[]): boolean {\n        if (!this.room) {\n            throw new Error(\n                \"Cannot call `EventTimelineSet::canContain without a `room` set. \" +\n                    \"Set the room when creating the EventTimelineSet to call this method.\",\n            );\n        }\n\n        const { threadId, shouldLiveInRoom, shouldLiveInThread } = this.room.eventShouldLiveIn(event, batch);\n\n        if (this.thread) {\n            return this.thread.id === threadId;\n        }\n\n        if (!shouldLiveInRoom && !shouldLiveInThread) {\n            logger.warn(\n                `EventTimelineSet:canContain event encountered which cannot be added to any timeline roomId=${\n                    this.room?.roomId\n                } eventId=${event.getId()} threadId=${event.threadRootId}`,\n            );\n        }\n\n        return shouldLiveInRoom;\n    }\n}\n"],"mappings":"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","ignoreList":[]}
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/models/event-timeline.d.ts b/node_modules/matrix-js-sdk/lib/models/event-timeline.d.ts
-index 3dfd2fa..d7006f2 100644
+index 3dfd2fa..d418472 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event-timeline.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/event-timeline.d.ts
-@@ -45,6 +45,8 @@ export declare class EventTimeline {
+@@ -44,7 +44,14 @@ export declare class EventTimeline {
+     private readonly roomId;
      private readonly name;
      private events;
++    /**
++     * MindRoom: how many times an event was added to this timeline or removed from it, for what is worked out
++     * from its events and kept until they change (`latestEventsSentBy` in room-receipts.ts).
++     */
++    eventsRevision: number;
      private baseIndex;
 +    /** MindRoom: see `getNewestEventTs`. */
 +    private newestEventTs;
      private startState?;
      private endState?;
      private startToken;
-@@ -207,6 +209,17 @@ export declare class EventTimeline {
+@@ -207,6 +214,17 @@ export declare class EventTimeline {
       * @internal
       */
      insertEvent(event: MatrixEvent, insertIndex: number, roomState: RoomState, addToState: boolean): void;
@@ -809,30 +815,38 @@ index 3dfd2fa..d7006f2 100644
       * Remove an event from the timeline
       *
 diff --git a/node_modules/matrix-js-sdk/lib/models/event-timeline.js b/node_modules/matrix-js-sdk/lib/models/event-timeline.js
-index 18c3f45..e686185 100644
+index 18c3f45..fed2184 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event-timeline.js
 +++ b/node_modules/matrix-js-sdk/lib/models/event-timeline.js
-@@ -57,6 +57,8 @@ export class EventTimeline {
+@@ -56,7 +56,14 @@ export class EventTimeline {
+     _defineProperty(this, "roomId", void 0);
      _defineProperty(this, "name", void 0);
      _defineProperty(this, "events", []);
++    /**
++     * MindRoom: how many times an event was added to this timeline or removed from it, for what is worked out
++     * from its events and kept until they change (`latestEventsSentBy` in room-receipts.ts).
++     */
++    _defineProperty(this, "eventsRevision", 0);
      _defineProperty(this, "baseIndex", 0);
 +    /** MindRoom: see `getNewestEventTs`. */
 +    _defineProperty(this, "newestEventTs", void 0);
      _defineProperty(this, "startState", void 0);
      _defineProperty(this, "endState", void 0);
      // If we have a roomId then we delegate pagination token storage to the room state objects `startState` and
-@@ -345,6 +347,7 @@ export class EventTimeline {
+@@ -345,6 +352,8 @@ export class EventTimeline {
        insertIndex = this.events.length;
      }
      this.events.splice(insertIndex, 0, event); // insert element
++    this.eventsRevision++;
 +    this.noteEventTs(event.getTs());
      if (toStartOfTimeline) {
        this.baseIndex++;
      }
-@@ -385,6 +388,24 @@ export class EventTimeline {
+@@ -385,6 +394,25 @@ export class EventTimeline {
        }
      }
      this.events.splice(insertIndex, 0, event); // insert element
++    this.eventsRevision++;
 +    this.noteEventTs(event.getTs());
 +  }
 +
@@ -854,6 +868,14 @@ index 18c3f45..e686185 100644
    }
  
    /**
+@@ -398,6 +426,7 @@ export class EventTimeline {
+       const ev = this.events[i];
+       if (ev.getId() == eventId) {
+         this.events.splice(i, 1);
++        this.eventsRevision++;
+         if (i < this.baseIndex) {
+           this.baseIndex--;
+         }
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.d.ts b/node_modules/matrix-js-sdk/lib/models/event.d.ts
 index 9097753..209d362 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.d.ts
@@ -1257,7 +1279,7 @@ index 84699e1..68d752b 100644
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/lib/models/room-receipts.js b/node_modules/matrix-js-sdk/lib/models/room-receipts.js
-index 5f6d1e4..359bdf4 100644
+index 5f6d1e4..4591d3f 100644
 --- a/node_modules/matrix-js-sdk/lib/models/room-receipts.js
 +++ b/node_modules/matrix-js-sdk/lib/models/room-receipts.js
 @@ -18,6 +18,7 @@ limitations under the License.
@@ -1268,39 +1290,90 @@ index 5f6d1e4..359bdf4 100644
  import { logger } from "../logger.js";
  
  /**
-@@ -155,7 +156,7 @@ export class RoomReceipts {
+@@ -154,9 +155,10 @@ export class RoomReceipts {
+    *          the event with the supplied ID.
     */
    userSentEventAfterOrSame(threadId, userId, eventId) {
-     const timeline = threadId === MAIN_ROOM_TIMELINE ? this.room.getLiveTimeline().getEvents() : this.room.getThread(threadId)?.timeline;
+-    const timeline = threadId === MAIN_ROOM_TIMELINE ? this.room.getLiveTimeline().getEvents() : this.room.getThread(threadId)?.timeline;
 -    const latestEventId = latestEventIdSentByUser(timeline, userId);
-+    const latestEventId = latestEventIdSentByUser(timeline, userId, eventId);
-     return !!latestEventId && isAfterOrSame(latestEventId, eventId, this.room);
+-    return !!latestEventId && isAfterOrSame(latestEventId, eventId, this.room);
++    // MindRoom: the events come from `latestEventsSentBy`, which walks the timeline once for all users.
++    // A thread's root is in its timeline and before everything else there, so it is left out as below.
++    const sent = threadId === MAIN_ROOM_TIMELINE ? latestEventsSentBy(this.room.getLiveTimeline(), userId, eventId) : latestEventsSentBy(this.room.getThread(threadId)?.liveTimeline, userId, eventId, threadId);
++    return sent.some(event => isAfterOrSame(event.getId(), eventId, this.room));
    }
  
-@@ -178,15 +179,21 @@ export class RoomReceipts {
+   /**
+@@ -166,11 +168,15 @@ export class RoomReceipts {
+   userRepliedInThread(rootEventId, userId) {
+     // The root is part of the thread's timeline, but it is not a reply to
+     // the thread, so leave it out.
+-    const replies = this.room.getThread(rootEventId)?.timeline.filter(event => event.getId() !== rootEventId);
+-    return !!latestEventIdSentByUser(replies, userId);
++    const timeline = this.room.getThread(rootEventId)?.liveTimeline;
++    return latestEventsSentBy(timeline, userId, undefined, rootEventId).length > 0;
+   }
+ }
+ 
++/** MindRoom: what one walk of a timeline found for `latestEventsSentBy`. */
++
++const latestEventsSent = new WeakMap();
++
+ /**
+  * Find the last event in the supplied timeline that was sent by this user.
+  *
+@@ -178,17 +184,43 @@ export class RoomReceipts {
   * ignored: they have no place in the timeline yet, and a failed send tells us
   * nothing about what the user has seen.
   *
-+ * MindRoom: the search ends at the event with the ID `notBeforeEventId`, when the timeline holds it: what the
-+ * user sent before that event does not tell whether they saw it, and a user who has sent nothing would cost
-+ * a walk over the whole timeline for each question.
+- * @returns the ID of the found event, or undefined if there is no such event.
++ * MindRoom: upstream walked the whole timeline for each user it was asked about, and the row of readers under a
++ * timeline asks about every joined member. Here one walk finds the events of all users and is kept until the
++ * timeline gains or loses an event. It goes no further back than the event with the ID `notBeforeEventId`, when
++ * the timeline holds it: what a user sent before that event does not tell whether they saw it. A kept walk that
++ * ended at another event is made again. The event with the ID `exceptEventId` is passed over, as is an event of
++ * the user that reads nothing for them (readsNothingForSender).
 + *
-  * @returns the ID of the found event, or undefined if there is no such event.
++ * @returns the found event, with the newer ones of the user that were still on their way at the walk and
++ *          have been sent since; empty if there is no such event.
   */
 -function latestEventIdSentByUser(timeline, userId) {
-+function latestEventIdSentByUser(timeline, userId, notBeforeEventId) {
-   if (!timeline) return undefined;
-   for (let index = timeline.length - 1; index >= 0; index--) {
-     const event = timeline[index];
+-  if (!timeline) return undefined;
+-  for (let index = timeline.length - 1; index >= 0; index--) {
+-    const event = timeline[index];
 -    if (event.getSender() === userId && !event.status) {
-+    // MindRoom: an event of the user that reads nothing for them (readsNothingForSender) is passed over.
-+    if (event.getSender() === userId && !event.status && !readsNothingForSender(event)) {
-       return event.getId();
+-      return event.getId();
++function latestEventsSentBy(timeline, userId, notBeforeEventId, exceptEventId) {
++  if (!timeline) return [];
++  let sent = latestEventsSent.get(timeline);
++  if (!sent || sent.revision !== timeline.eventsRevision || sent.notBeforeEventId !== undefined && sent.notBeforeEventId !== notBeforeEventId) {
++    sent = {
++      revision: timeline.eventsRevision,
++      bySender: new Map()
++    };
++    const found = new Set();
++    const events = timeline.getEvents();
++    for (let index = events.length - 1; index >= 0; index--) {
++      const event = events[index];
++      const eventId = event.getId();
++      const sender = event.getSender();
++      if (sender && !found.has(sender) && eventId !== exceptEventId && !readsNothingForSender(event)) {
++        const ofSender = sent.bySender.get(sender);
++        if (ofSender) ofSender.push(event);else sent.bySender.set(sender, [event]);
++        if (!event.status) found.add(sender);
++      }
++      if (notBeforeEventId !== undefined && eventId === notBeforeEventId) {
++        sent.notBeforeEventId = notBeforeEventId;
++        break;
++      }
      }
-+    if (notBeforeEventId !== undefined && event.getId() === notBeforeEventId) return undefined;
++    latestEventsSent.set(timeline, sent);
    }
-   return undefined;
+-  return undefined;
++  return sent.bySender.get(userId)?.filter(event => !event.status) ?? [];
  }
+ 
+ // --- implementation details ---
 diff --git a/node_modules/matrix-js-sdk/lib/models/room-state.js b/node_modules/matrix-js-sdk/lib/models/room-state.js
 index 463ff11..0953238 100644
 --- a/node_modules/matrix-js-sdk/lib/models/room-state.js
@@ -3728,30 +3801,38 @@ index 8d802ae..fb51f26 100644
  
          // the timelines are not contiguous.
 diff --git a/node_modules/matrix-js-sdk/src/models/event-timeline.ts b/node_modules/matrix-js-sdk/src/models/event-timeline.ts
-index 20b7016..4af2a1b 100644
+index 20b7016..99d40a4 100644
 --- a/node_modules/matrix-js-sdk/src/models/event-timeline.ts
 +++ b/node_modules/matrix-js-sdk/src/models/event-timeline.ts
-@@ -75,6 +75,8 @@ export class EventTimeline {
+@@ -74,7 +74,14 @@ export class EventTimeline {
+     private readonly roomId: string | null;
      private readonly name: string;
      private events: MatrixEvent[] = [];
++    /**
++     * MindRoom: how many times an event was added to this timeline or removed from it, for what is worked out
++     * from its events and kept until they change (`latestEventsSentBy` in room-receipts.ts).
++     */
++    public eventsRevision = 0;
      private baseIndex = 0;
 +    /** MindRoom: see `getNewestEventTs`. */
 +    private newestEventTs: number | undefined;
  
      private startState?: RoomState;
      private endState?: RoomState;
-@@ -386,6 +388,7 @@ export class EventTimeline {
+@@ -386,6 +393,8 @@ export class EventTimeline {
          }
  
          this.events.splice(insertIndex, 0, event); // insert element
++        this.eventsRevision++;
 +        this.noteEventTs(event.getTs());
          if (toStartOfTimeline) {
              this.baseIndex++;
          }
-@@ -428,6 +431,24 @@ export class EventTimeline {
+@@ -428,6 +437,25 @@ export class EventTimeline {
          }
  
          this.events.splice(insertIndex, 0, event); // insert element
++        this.eventsRevision++;
 +        this.noteEventTs(event.getTs());
 +    }
 +
@@ -3773,6 +3854,14 @@ index 20b7016..4af2a1b 100644
      }
  
      /**
+@@ -441,6 +469,7 @@ export class EventTimeline {
+             const ev = this.events[i];
+             if (ev.getId() == eventId) {
+                 this.events.splice(i, 1);
++                this.eventsRevision++;
+                 if (i < this.baseIndex) {
+                     this.baseIndex--;
+                 }
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
 index 850308a..d5ff596 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
@@ -4084,55 +4173,129 @@ index 47e0a8f..b3a04e7 100644
          if (this.creationEmitted) {
              return;
 diff --git a/node_modules/matrix-js-sdk/src/models/room-receipts.ts b/node_modules/matrix-js-sdk/src/models/room-receipts.ts
-index f91afa6..4d49559 100644
+index f91afa6..e58cd7c 100644
 --- a/node_modules/matrix-js-sdk/src/models/room-receipts.ts
 +++ b/node_modules/matrix-js-sdk/src/models/room-receipts.ts
-@@ -18,6 +18,7 @@ import { MAIN_ROOM_TIMELINE, type Receipt, type ReceiptContent } from "../@types
+@@ -18,6 +18,8 @@ import { MAIN_ROOM_TIMELINE, type Receipt, type ReceiptContent } from "../@types
  import { threadIdForReceipt } from "../client.ts";
  import { type Room, RoomEvent } from "./room.ts";
  import { type MatrixEvent } from "./event.ts";
++import { type EventTimeline } from "./event-timeline.ts";
 +import { readsNothingForSender } from "./read-receipt.ts";
  import { logger } from "../logger.ts";
  
  /**
-@@ -192,7 +193,7 @@ export class RoomReceipts {
-                 ? this.room.getLiveTimeline().getEvents()
-                 : this.room.getThread(threadId)?.timeline;
+@@ -187,13 +189,14 @@ export class RoomReceipts {
+      *          the event with the supplied ID.
+      */
+     private userSentEventAfterOrSame(threadId: string, userId: string, eventId: string): boolean {
+-        const timeline =
++        // MindRoom: the events come from `latestEventsSentBy`, which walks the timeline once for all users.
++        // A thread's root is in its timeline and before everything else there, so it is left out as below.
++        const sent =
+             threadId === MAIN_ROOM_TIMELINE
+-                ? this.room.getLiveTimeline().getEvents()
+-                : this.room.getThread(threadId)?.timeline;
++                ? latestEventsSentBy(this.room.getLiveTimeline(), userId, eventId)
++                : latestEventsSentBy(this.room.getThread(threadId)?.liveTimeline, userId, eventId, threadId);
  
 -        const latestEventId = latestEventIdSentByUser(timeline, userId);
-+        const latestEventId = latestEventIdSentByUser(timeline, userId, eventId);
-         return !!latestEventId && isAfterOrSame(latestEventId, eventId, this.room);
+-        return !!latestEventId && isAfterOrSame(latestEventId, eventId, this.room);
++        return sent.some((event) => isAfterOrSame(event.getId()!, eventId, this.room));
      }
  
-@@ -215,16 +216,26 @@ export class RoomReceipts {
+     /**
+@@ -203,11 +206,26 @@ export class RoomReceipts {
+     private userRepliedInThread(rootEventId: string, userId: string): boolean {
+         // The root is part of the thread's timeline, but it is not a reply to
+         // the thread, so leave it out.
+-        const replies = this.room.getThread(rootEventId)?.timeline.filter((event) => event.getId() !== rootEventId);
+-        return !!latestEventIdSentByUser(replies, userId);
++        const timeline = this.room.getThread(rootEventId)?.liveTimeline;
++        return latestEventsSentBy(timeline, userId, undefined, rootEventId).length > 0;
+     }
+ }
+ 
++/** MindRoom: what one walk of a timeline found for `latestEventsSentBy`. */
++interface LatestEventsSent {
++    /** The timeline's {@link EventTimeline.eventsRevision} at the walk. */
++    revision: number;
++    /** The event the walk ended at; undefined when it went through the whole timeline. */
++    notBeforeEventId?: string;
++    /**
++     * For each sender, their last event that was not on its way to the server, after the ones newer than it
++     * that were.
++     */
++    bySender: Map<string, MatrixEvent[]>;
++}
++
++const latestEventsSent = new WeakMap<EventTimeline, LatestEventsSent>();
++
+ /**
+  * Find the last event in the supplied timeline that was sent by this user.
+  *
+@@ -215,19 +233,52 @@ export class RoomReceipts {
   * ignored: they have no place in the timeline yet, and a failed send tells us
   * nothing about what the user has seen.
   *
-+ * MindRoom: the search ends at the event with the ID `notBeforeEventId`, when the timeline holds it: what the
-+ * user sent before that event does not tell whether they saw it, and a user who has sent nothing would cost
-+ * a walk over the whole timeline for each question.
+- * @returns the ID of the found event, or undefined if there is no such event.
++ * MindRoom: upstream walked the whole timeline for each user it was asked about, and the row of readers under a
++ * timeline asks about every joined member. Here one walk finds the events of all users and is kept until the
++ * timeline gains or loses an event. It goes no further back than the event with the ID `notBeforeEventId`, when
++ * the timeline holds it: what a user sent before that event does not tell whether they saw it. A kept walk that
++ * ended at another event is made again. The event with the ID `exceptEventId` is passed over, as is an event of
++ * the user that reads nothing for them (readsNothingForSender).
 + *
-  * @returns the ID of the found event, or undefined if there is no such event.
++ * @returns the found event, with the newer ones of the user that were still on their way at the walk and
++ *          have been sent since; empty if there is no such event.
   */
 -function latestEventIdSentByUser(timeline: Array<MatrixEvent> | undefined, userId: string): string | undefined {
-+function latestEventIdSentByUser(
-+    timeline: Array<MatrixEvent> | undefined,
+-    if (!timeline) return undefined;
+-
+-    for (let index = timeline.length - 1; index >= 0; index--) {
+-        const event = timeline[index];
+-        if (event.getSender() === userId && !event.status) {
+-            return event.getId();
++function latestEventsSentBy(
++    timeline: EventTimeline | undefined,
 +    userId: string,
 +    notBeforeEventId?: string,
-+): string | undefined {
-     if (!timeline) return undefined;
- 
-     for (let index = timeline.length - 1; index >= 0; index--) {
-         const event = timeline[index];
--        if (event.getSender() === userId && !event.status) {
-+        // MindRoom: an event of the user that reads nothing for them (readsNothingForSender) is passed over.
-+        if (event.getSender() === userId && !event.status && !readsNothingForSender(event)) {
-             return event.getId();
++    exceptEventId?: string,
++): MatrixEvent[] {
++    if (!timeline) return [];
++
++    let sent = latestEventsSent.get(timeline);
++    if (
++        !sent ||
++        sent.revision !== timeline.eventsRevision ||
++        (sent.notBeforeEventId !== undefined && sent.notBeforeEventId !== notBeforeEventId)
++    ) {
++        sent = { revision: timeline.eventsRevision, bySender: new Map() };
++        const found = new Set<string>();
++        const events = timeline.getEvents();
++        for (let index = events.length - 1; index >= 0; index--) {
++            const event = events[index];
++            const eventId = event.getId();
++            const sender = event.getSender();
++            if (sender && !found.has(sender) && eventId !== exceptEventId && !readsNothingForSender(event)) {
++                const ofSender = sent.bySender.get(sender);
++                if (ofSender) ofSender.push(event);
++                else sent.bySender.set(sender, [event]);
++                if (!event.status) found.add(sender);
++            }
++            if (notBeforeEventId !== undefined && eventId === notBeforeEventId) {
++                sent.notBeforeEventId = notBeforeEventId;
++                break;
++            }
          }
-+        if (notBeforeEventId !== undefined && event.getId() === notBeforeEventId) return undefined;
++        latestEventsSent.set(timeline, sent);
      }
  
-     return undefined;
+-    return undefined;
++    return sent.bySender.get(userId)?.filter((event) => !event.status) ?? [];
+ }
+ 
+ // --- implementation details ---
 diff --git a/node_modules/matrix-js-sdk/src/models/room-state.ts b/node_modules/matrix-js-sdk/src/models/room-state.ts
 index e3dc0b8..4a64135 100644
 --- a/node_modules/matrix-js-sdk/src/models/room-state.ts

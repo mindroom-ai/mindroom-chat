@@ -1,6 +1,13 @@
 import { ReactNode, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MatrixError, Method, type MatrixClient, type Room, type RoomSummary } from 'matrix-js-sdk';
+import {
+  HTTPError,
+  MatrixError,
+  Method,
+  type MatrixClient,
+  type Room,
+  type RoomSummary,
+} from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
@@ -28,8 +35,15 @@ const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForA
 
 const MSC3266_PREFIX = '/_matrix/client/unstable/im.nheko.summary';
 
-const isUnrecognized = (error: unknown): boolean =>
-  error instanceof MatrixError && error.errcode === 'M_UNRECOGNIZED';
+/**
+ * Whether the homeserver does not have the route: `M_UNRECOGNIZED`, or a 404 without a Matrix error
+ * code, which is what a proxy answers. A 404 with another code, such as `M_NOT_FOUND` for the room,
+ * is the route's answer.
+ */
+const isUnknownRoute = (error: unknown): boolean => {
+  if (error instanceof MatrixError && error.errcode) return error.errcode === 'M_UNRECOGNIZED';
+  return error instanceof HTTPError && error.httpStatus === 404;
+};
 
 /**
  * Whether the SDK asks the stable summary route of this homeserver: for Matrix 1.15, or MSC3266
@@ -44,7 +58,7 @@ const sdkAsksStableRoute = async (mx: MatrixClient): Promise<boolean> => {
  * The summary from the one route the SDK asks or, when the homeserver does not know that route,
  * from the older ones matrix-js-sdk asked itself until 45.0: the MSC's `summary/{roomId}` (unless
  * that is the one the SDK asked), then the `rooms/{roomId}/summary` of the first MSC3266 servers.
- * Any other failure is the result.
+ * Any failure but an unknown route ({@link isUnknownRoute}) is the result.
  */
 const fetchRoomSummary = async (
   mx: MatrixClient,
@@ -54,7 +68,7 @@ const fetchRoomSummary = async (
   try {
     return await mx.getRoomSummary(roomId, via);
   } catch (error) {
-    if (!isUnrecognized(error)) throw error;
+    if (!isUnknownRoute(error)) throw error;
   }
   const request = (path: string) =>
     mx.http.authedRequest<RoomSummary>(Method.Get, path, { via }, undefined, {
@@ -65,7 +79,7 @@ const fetchRoomSummary = async (
     try {
       return await request(`/summary/${room}`);
     } catch (error) {
-      if (!isUnrecognized(error)) throw error;
+      if (!isUnknownRoute(error)) throw error;
     }
   }
   return request(`/rooms/${room}/summary`);

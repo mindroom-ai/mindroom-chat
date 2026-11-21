@@ -262,6 +262,34 @@ describe('RoomSummaryLoader', () => {
       expect(vias).toEqual([via, via]);
     });
 
+    it("asks the MSC's route when a proxy answers the stable one with a bare 404", async () => {
+      const notFoundPage = new Response('<html><body>404 Not Found</body></html>', {
+        status: 404,
+        headers: { 'Content-Type': 'text/html' },
+      });
+      const { observed, asked, vias } = await summaryFrom(
+        { [STABLE]: notFoundPage, [MSC3266]: json(summary) },
+        true
+      );
+
+      expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
+      expect(asked).toEqual([STABLE, MSC3266]);
+      expect(vias).toEqual([via, via]);
+    });
+
+    it('reports a room the stable route does not find, and asks no older route', async () => {
+      const { observed, asked } = await summaryFrom(
+        { [STABLE]: json({ errcode: 'M_NOT_FOUND', error: 'Room not found' }, 404) },
+        true
+      );
+
+      expect(observed).toMatchObject({
+        status: AsyncStatus.Error,
+        error: { errcode: 'M_NOT_FOUND', httpStatus: 404 },
+      });
+      expect(asked).toEqual([STABLE]);
+    });
+
     it('asks the route of the first MSC3266 servers last', async () => {
       const { observed, asked, vias } = await summaryFrom({ [OLDEST]: json(summary) }, true);
 
