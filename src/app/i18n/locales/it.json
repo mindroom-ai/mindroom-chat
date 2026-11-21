@@ -2260,6 +2260,7 @@
       "statusPaused": "Registrazione vocale in pausa",
       "statusProcessing": "Elaborazione della registrazione vocale",
       "statusReadyToRetry": "Registrazione vocale pronta per un nuovo tentativo",
+      "recoveredRecording": "Registrazione recuperata · {{time}}",
       "statusSending": "Invio della registrazione vocale",
       "statusStarting": "Avvio della registrazione vocale",
       "voiceRecorderDialog": {
