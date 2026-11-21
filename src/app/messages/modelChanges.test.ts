@@ -310,6 +310,15 @@ describe('planModelChanges', () => {
     );
   });
 
+  it('keeps both rows when a trusted agent with a custom ID sends the command', () => {
+    const sender = '@helper:example.org';
+    expect(
+      plan([typed('!model fast', '$command', sender), ack()], {
+        trustedAccountIds: new Set([ROUTER, sender]),
+      })
+    ).toBe(NO_MODEL_CHANGES);
+  });
+
   it('keeps both rows of a redacted acknowledgement', () => {
     const redacted = Object.assign(ack(), { isRedacted: () => true });
     expect(plan([typed('!model fast'), redacted])).toBe(NO_MODEL_CHANGES);

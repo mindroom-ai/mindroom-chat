@@ -95,8 +95,9 @@ const isAppliedCommand = (
  *   holds an applied result (`parseModelSelectionResult`) for this room, for the thread the event
  *   itself was sent in, in the sender's own name;
  * - the command the result names is among `events`: a message in that thread (not its root), not
- *   redacted, from a sender who is neither ignored nor a MindRoom agent (one may send the command
- *   for somebody, whom the line could not name), and answered encrypted when it was encrypted;
+ *   redacted, from a sender who is neither ignored nor a MindRoom account (in the trusted set
+ *   or named like an agent), and answered encrypted when it was encrypted. An agent may send
+ *   the command for somebody else, whom the line could not name;
  * - that message, as its row shows it, is that change (`isAppliedCommand`).
  *
  * Every other reply and command keeps its row as before: a rejected or uncertain change, a
@@ -161,6 +162,7 @@ export const planModelChanges = ({
       command.isRedacted() ||
       command.getRoomId() !== result.room_id ||
       ignored.has(senderId) ||
+      trustedAccountIds.has(senderId) ||
       isMindroomAgentUserId(senderId) ||
       (command.isEncrypted() && !ack.isEncrypted()) ||
       threadRootOf(command) !== result.thread_id ||
