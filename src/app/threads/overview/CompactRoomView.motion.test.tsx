@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { ROW_HEIGHT, ROW_WIDTH, standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
@@ -178,6 +178,19 @@ const scrollView = (container: HTMLElement, scrollTop: number, clientHeight: num
   return view;
 };
 
+const cardOrder = (view: HTMLElement) =>
+  [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
+    (row) => row.dataset.scrollAnchor
+  );
+
+const releasePointer = (view: HTMLElement) => {
+  const held = view.querySelector('[data-order-held]')!;
+  // jsdom does not supply a pointer type. A cancelled pointer lets go on leave without a click.
+  fireEvent.pointerCancel(held);
+  fireEvent.pointerLeave(held);
+  expect(view.querySelector('[data-order-held]')).toBeNull();
+};
+
 describe('the Compact reading landmark', () => {
   it('leaves the first card in view still when a Board card joins below it', () => {
     const { container, rerender } = render(list(['$a', '$b', '$c', '$d', '$e', '$f', '$g']));
@@ -206,6 +219,41 @@ describe('the Compact reading landmark', () => {
       ids.at(-1)
     );
     expect(view.scrollTop).toBe(100);
+  });
+
+  it('leaves native scrolling alone when releasing a held sort reversal', () => {
+    const ids = Array.from({ length: 9 }, (_, index) => `$row${index}`);
+    const { container, rerender } = render(list(ids, false, { landmarkSortKey: 'lastReply:desc' }));
+    const view = scrollView(container, 100, 200);
+    fireEvent.pointerEnter(view.querySelector('[data-scroll-anchor]')!);
+    expect(view.querySelector('[data-order-held]')).not.toBeNull();
+
+    const reversed = [...ids].reverse();
+    rerender(list(reversed, false, { landmarkSortKey: 'lastReply:asc' }));
+    expect(cardOrder(view)).toEqual(ids);
+    expect(view.scrollTop).toBe(100);
+
+    releasePointer(view);
+    expect(cardOrder(view)).toEqual(reversed);
+    expect(view.scrollTop).toBe(100);
+  });
+
+  it('keeps the visible landmark when a held live reorder applies with the same sort', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e'];
+    const props = { landmarkSortKey: 'lastReply:desc' };
+    const { container, rerender } = render(list(ids, false, props));
+    const view = scrollView(container, 100, 200);
+    fireEvent.pointerEnter(view.querySelector('[data-scroll-anchor]')!);
+    expect(view.querySelector('[data-order-held]')).not.toBeNull();
+
+    const promoted = ['$e', '$a', '$b', '$c', '$d'];
+    rerender(list(promoted, false, props));
+    expect(cardOrder(view)).toEqual(ids);
+    expect(view.scrollTop).toBe(100);
+
+    releasePointer(view);
+    expect(cardOrder(view)).toEqual(promoted);
+    expect(view.scrollTop).toBe(200);
   });
 
   it('leaves native scrolling alone when Sections changes the rendered order', () => {
