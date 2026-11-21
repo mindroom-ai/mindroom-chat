@@ -740,13 +740,31 @@ function ActivityRowItem({ row, now }: { row: ActivityRow; now: number }) {
         </span>
         {waits && (
           <div className={activityCss.Actions}>
-            <Button size="300" variant="Success" fill="Soft" radii="300">
+            <Button
+              size="300"
+              variant="Success"
+              fill="Soft"
+              radii="300"
+              className={activityCss.ActionButton}
+            >
               <Text size="B300">{t('activity.actions.approve')}</Text>
             </Button>
-            <Button size="300" variant="Secondary" fill="Soft" radii="300">
+            <Button
+              size="300"
+              variant="Secondary"
+              fill="Soft"
+              radii="300"
+              className={activityCss.ActionButton}
+            >
               <Text size="B300">{t('activity.actions.deny')}</Text>
             </Button>
-            <Button size="300" variant="Secondary" fill="None" radii="300">
+            <Button
+              size="300"
+              variant="Secondary"
+              fill="None"
+              radii="300"
+              className={activityCss.ActionButton}
+            >
               <Text size="B300">{t('activity.actions.details')}</Text>
             </Button>
           </div>
