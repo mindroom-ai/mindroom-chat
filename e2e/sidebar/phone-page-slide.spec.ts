@@ -211,7 +211,8 @@ const seed = async (test: string, extraThreads = 0) => {
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  const seedThread = async (i: number) => {
+  // Send roots in order so the room has no batches of threads tied on their timestamps.
+  for (let i = 0; i < extraThreads; i += 1) {
     const id = await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`));
     await say(garden, {
       ...text('I added this to the garden checklist.'),
@@ -227,15 +228,6 @@ const seed = async (test: string, extraThreads = 0) => {
         { set_by: reader.user_id, set_at: new Date().toISOString() }
       );
     }
-  };
-  // Several requests in flight, but don't send hundreds to the test server at once.
-  const batchSize = 16;
-  for (let start = 0; start < extraThreads; start += batchSize) {
-    await Promise.all(
-      Array.from({ length: Math.min(batchSize, extraThreads - start) }, (_, i) =>
-        seedThread(start + i)
-      )
-    );
   }
   return { username, root, userId: reader.user_id, roomId: garden };
 };
@@ -437,7 +429,7 @@ for (const engine of ENGINES) {
 test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
   test.setTimeout(240_000);
-  const threadCount = 730;
+  const threadCount = 250;
   const { username, userId, roomId } = await seed('long', threadCount);
   await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
     await seedRoomOverviewState({
@@ -445,7 +437,7 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       userId,
       roomId,
       viewMode: 'compact',
-      filterState: createDefaultThreadFilterState(),
+      filterState: { ...createDefaultThreadFilterState(), sortBy: 'natural' },
     });
     await page.evaluate((id) => {
       localStorage.setItem(`compactRoomSections:${id}`, JSON.stringify({ on: true, folded: [] }));
@@ -465,21 +457,35 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       const scroller = document.querySelector<HTMLElement>(selector)!;
       scroller.scrollTop = scroller.scrollHeight * 0.6;
     }, view);
-    const live = await before.evaluate((scroller, shooting) => {
+    await expect
+      .poll(() =>
+        before.evaluate((scroller) =>
+          scroller
+            .getAnimations({ subtree: true })
+            .some((animation) =>
+              (animation.effect as KeyframeEffect | null)?.target?.hasAttribute('data-motion-row')
+            )
+        )
+      )
+      .toBe(false);
+    const initial = await before.evaluate((scroller, shooting) => {
       const read = (scroller: Element) => {
-        const { top, bottom } = scroller.getBoundingClientRect();
+        const { top, bottom, left, right } = scroller.getBoundingClientRect();
         const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
           .map((row) => ({
             id: row.dataset.threadRootId,
-            text: row.textContent,
+            title: row.querySelector('[title]')?.getAttribute('title'),
             rect: row.getBoundingClientRect(),
           }))
-          .filter(({ rect }) => rect.top >= top + 80 && rect.bottom <= bottom - 80)
-          .map(({ id, text, rect }) => ({
+          .filter(
+            ({ rect }) =>
+              rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right
+          )
+          .map(({ id, title, rect }) => ({
             id,
-            text,
+            title,
             y: rect.top - top,
-            x: rect.x,
+            x: rect.left - left,
             width: rect.width,
             height: rect.height,
           }));
@@ -490,25 +496,34 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
           scrollTop: scroller.scrollTop,
           scrollHeight: scroller.scrollHeight,
           visible,
+          height: bottom - top,
         };
       };
 
-      let tap: number | undefined;
+      type Layout = ReturnType<typeof read>;
+      let tap: { at: number; live: Layout } | undefined;
       document.addEventListener(
         'click',
         () => {
-          tap = performance.now();
+          const live = read(scroller);
+          tap = { at: performance.now(), live };
         },
         { capture: true, once: true }
       );
       document.addEventListener('animationstart', (event) => {
+        if (event.animationName === 'phone-page-over-out') {
+          const still = document.querySelector('[data-page-slide-copy]');
+          (window as unknown as { backNodes?: number }).backNodes =
+            still?.querySelectorAll('*').length;
+        }
         if (event.animationName !== 'phone-page-under-out' || tap === undefined) return;
-        const frameMs = performance.now() - tap;
+        const frameMs = performance.now() - tap.at;
         const copy = document.querySelector('[data-page-slide-copy] [data-compact-room-view]');
         const capture = window as unknown as {
-          snapshot?: { frameMs: number; layout: ReturnType<typeof read> };
+          snapshot?: { frameMs: number; layout: Layout; live: Layout };
         };
-        if (copy && !capture.snapshot) capture.snapshot = { frameMs, layout: read(copy) };
+        if (copy && !capture.snapshot)
+          capture.snapshot = { frameMs, layout: read(copy), live: tap.live };
       });
       if (shooting) {
         // Keep the held copy around long enough for a screenshot even on a slow renderer.
@@ -523,19 +538,29 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
       }
       return read(scroller);
     }, !!SHOTS);
-    expect(live.nodes).toBeGreaterThan(6_000);
-    expect(live.scrollTop).toBeGreaterThan(10_000);
-    expect(live.visible.length).toBeGreaterThan(2);
+    expect(initial.nodes).toBeGreaterThan(6_000);
+    expect(initial.scrollTop).toBeGreaterThan(10_000);
+    expect(initial.visible.length).toBeGreaterThan(2);
+    expect(initial.visible.every(({ title }) => !!title)).toBe(true);
 
-    const opened = live.visible[Math.floor(live.visible.length / 2)]!;
-    await page.touchscreen.tap(
-      opened.x + opened.width / 2,
-      opened.y + opened.height / 2 + (await before.boundingBox())!.y
+    // A partial row or one behind the glass bars belongs in the copy, but is not a tap target.
+    const tappable = initial.visible.filter(
+      ({ y, height }) => y >= 80 && y + height <= initial.height - 80
     );
-    const { frameMs, layout: snapshot } = await page
+    const opened = tappable[Math.floor(tappable.length / 2)]!;
+    const viewBox = (await before.boundingBox())!;
+    await page.touchscreen.tap(
+      viewBox.x + opened.x + opened.width / 2,
+      viewBox.y + opened.y + opened.height / 2
+    );
+    const {
+      frameMs,
+      layout: snapshot,
+      live,
+    } = await page
       .waitForFunction(
         () => {
-          type Capture = { frameMs: number; layout: typeof live };
+          type Capture = { frameMs: number; layout: typeof initial; live: typeof initial };
           return (window as unknown as { snapshot?: Capture }).snapshot!;
         },
         undefined,
@@ -552,14 +577,32 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
     await expect(threadColumn(page)).toBeVisible();
     expect(snapshot.scrollTop).toBeCloseTo(live.scrollTop, 0);
     expect(snapshot.scrollHeight).toBe(live.scrollHeight);
-    expect(snapshot.visible.map(({ id, text }) => ({ id, text }))).toEqual(
-      live.visible.map(({ id, text }) => ({ id, text }))
+    expect(snapshot.visible.map(({ id, title }) => ({ id, title }))).toEqual(
+      live.visible.map(({ id, title }) => ({ id, title }))
     );
-    snapshot.visible.forEach(({ y, height }, index) => {
-      expect(y).toBeCloseTo(live.visible[index]!.y, 0);
-      expect(height).toBeCloseTo(live.visible[index]!.height, 0);
+    snapshot.visible.forEach((row, index) => {
+      for (const axis of ['x', 'y', 'width', 'height'] as const) {
+        expect(row[axis]).toBeCloseTo(live.visible[index]![axis], 0);
+      }
     });
     expect(snapshot.nodes).toBeLessThan(2_000);
+
+    await page.evaluate(() => {
+      document.getAnimations().forEach((animation) => {
+        if ((animation as CSSAnimation).animationName?.startsWith('phone-page-'))
+          animation.finish();
+      });
+    });
+    await takeSlides(page, 'the forward slide');
+    await threadBack(page).tap();
+    const backNodes = await page
+      .waitForFunction(() => (window as unknown as { backNodes?: number }).backNodes!, undefined, {
+        timeout: 10_000,
+      })
+      .then((count) => count.jsonValue());
+    expect(backNodes).toBeLessThan(2_000);
+    await expect(threadColumn(page)).toBeHidden();
+    console.log('Compact back slide:', { copyNodes: backNodes });
   });
 });
 
