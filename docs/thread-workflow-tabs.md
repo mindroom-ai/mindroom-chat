@@ -27,17 +27,20 @@ hidden stream, one thread at a time. A reply that streams behind newer messages 
 text and files mid-turn) is in no summary, and the edits of a long stream can fill a thread's
 newest page. So a live edit of a reply that its thread does not hold makes the thread Working for
 5 minutes from when the client received it, and each further live edit starts the 5 minutes again.
-The edit must be by the reply's sender (the SDK fetches the reply to place the edit, without a
-request from the app), say explicitly that the reply still streams, be at most 30 minutes old, and
-be the newest revision of the reply the client knows; a reaction, an edit bundled with the fetched
-reply, or an edit from the saved sync never counts. The client keeps no copy of the reply for this.
-Working ends when a newer revision that the client learns of (also one bundled with the fetched
-reply) ends the stream, at a sync gap of the room, when the reader ignores the sender, or after the
-5 minutes. Once the thread holds the reply, as after a page that reaches it, only the usual checks
-of that reply count. Encrypted rooms are excluded. Known costs: a tool call silent for more than 5
-minutes shows Needs you until its next edit, as does a stream silent since relaunch; a redaction or
-a finishing edit that never arrives can leave Working for up to 5 minutes; and the thread's details
-show no tool trace for a reply the thread does not hold.
+Each such reply has its own 5 minutes, so the thread stays Working while any of them streams.
+The edit must be by the reply's sender, an agent the reader trusts (the SDK fetches the reply to
+place the edit, without a request from the app), say explicitly that the reply still streams, be at
+most 30 minutes old, and be the newest revision of the reply the client knows; a reaction, an edit
+bundled with the fetched reply, or an edit from the saved sync never counts. The client keeps no
+copy of the reply for this. Working ends when a newer revision that the client learns of ends the
+stream (one from the sync, also where the reply could not be fetched, one bundled with the fetched
+reply, or one a page of the thread brings), at a sync gap of the room, when the reader ignores the
+sender, or after the 5 minutes. Once the thread holds the reply, in its timeline or as the reply
+its summary names, only the usual checks of that reply count. Encrypted rooms are excluded. Known
+costs: a tool call silent for more than 5 minutes shows Needs you until its next edit, as does a
+stream silent since relaunch; a redaction or a finishing edit that never arrives can leave Working
+for up to 5 minutes; and the thread's details show no tool trace for a reply the thread does not
+hold.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups

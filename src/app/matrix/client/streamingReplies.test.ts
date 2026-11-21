@@ -23,9 +23,11 @@ import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { installEventContentGuard, trustAgentsOfViewer } from '../protocol/untrustedContent';
+import { closeClient } from './closeClient';
 import { startClient } from './clientSyncPolicy';
 import { CHECK_DELAY_MS, isStreamingReplyCurrent } from './streamingReplies';
 import { hasStreamHint, STREAM_HINT_MS } from './streamingThreadLoads';
+import { findReply } from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
 // A streamed reply shows as streaming on its thread's card only while the client can trust that it
@@ -138,7 +140,7 @@ const fixture = () => {
   /** What GET /event/$reply answers: the reply with its newest edit, or an error status. */
   let serverReply: IEvent | number = 404;
   /** Other events GET /event answers with. */
-  const otherEvents: IEvent[] = [];
+  const otherEvents = new Map<string, IEvent>();
   /** The roots the room's thread list holds, and a gate its pages wait for. */
   let listedRoots: IEvent[] = [];
   let listGate: Promise<void> = Promise.resolve();
@@ -175,7 +177,7 @@ const fixture = () => {
         return serverThread.fail
           ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
           : json({ chunk: [...serverThread.replies].reverse() });
-      const other = otherEvents.find((event) => path.endsWith(`/event/${event.event_id}`));
+      const other = otherEvents.get(path.slice(path.lastIndexOf('/') + 1));
       if (other) return json(other);
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
@@ -215,7 +217,7 @@ const fixture = () => {
     };
   };
   const replyRequests = () => requests.filter((path) => path.endsWith(`/event/${replyId}`)).length;
-  const serveEvent = (event: IEvent) => otherEvents.push(event);
+  const serveEvent = (event: IEvent) => otherEvents.set(event.event_id, event);
   const setServerReply = (value: IEvent | number) => {
     serverReply = value;
   };
@@ -528,6 +530,10 @@ describe('streaming replies on thread cards', () => {
       // the server nothing.
       expect(hinted(s)).toBe(true);
       expect(announced).toBe(true);
+      // The room does not keep the fetched reply with the relations that wait in the thread.
+      const waiting = thread.replayEvents ?? [];
+      expect(waiting.length).toBeGreaterThan(0);
+      expect(waiting.filter((event) => f.room().fetchedRelationParents.has(event))).toEqual([]);
       expect(thread.findEventById(replyId)).toBeUndefined();
       expect(thread.initialEventsFetched).toBe(false);
       expect(workflow()).toBe('working');
@@ -586,9 +592,27 @@ describe('streaming replies on thread cards', () => {
       (now) => ({ saved: [edit(finished, now, 'completed')] }),
     ],
     [
-      'a newer streaming edit from the saved sync',
-      (s, now) => ({ live: [[s.completed(now - 2_000)]] }),
+      'an older edit than a streaming one from the saved sync that waits in the thread',
+      (s, now) => ({ live: [[s.streaming(now - 2_000)]] }),
       (now) => ({ saved: [inThread(edit('Checking the results', now - 1_000, 'streaming'))] }),
+    ],
+    [
+      'an older edit than a streaming one from the saved sync that no thread took',
+      (s, now) => ({ live: [[s.streaming(now - 2_000)]] }),
+      (now) => ({ saved: [edit('Checking the results', now - 1_000, 'streaming')] }),
+    ],
+    [
+      'a member whose edit nests a stream status below its new content',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        delete active.content['io.mindroom.stream_status'];
+        active.content['m.new_content'] = {
+          body: 'Results',
+          'm.new_content': { 'io.mindroom.stream_status': 'streaming' },
+        };
+        return { newest: active, live: [[active]] };
+      },
+      () => ({ sender: readerId }),
     ],
     [
       'a reaction to a reply the server bundles a streaming edit with',
@@ -604,6 +628,14 @@ describe('streaming replies on thread cards', () => {
     [
       "another member's edit",
       (_s, now) => ({ live: [[othersEdit('Checking the results', now - 1_000, 'streaming')]] }),
+    ],
+    [
+      // Only a reply's sender can edit it.
+      'another agent’s edit',
+      (s, now) => {
+        const active = { ...s.streaming(now - 1_000), sender: '@mindroom_other:example.org' };
+        return { live: [[active]] };
+      },
     ],
     [
       'a run without a status',
@@ -702,19 +734,128 @@ describe('streaming replies on thread cards', () => {
     expect(s.workflow()).toBe('needsYou');
   });
 
-  it('keeps Working when another reply the thread lacks ends', async () => {
+  it.each([
+    ['the other', 'the first'],
+    ['the first', 'the other'],
+  ])(
+    'keeps Working while one of two replies the thread lacks streams: %s ends first',
+    async (first) => {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      const other = { ...s.placeholder, event_id: '$other-reply' };
+      /** An edit of the other reply, which the server then bundles with it. */
+      const ofOther = async (event: IEvent) => {
+        const moved = { ...event, event_id: `${event.event_id}-other` };
+        moved.content = {
+          ...event.content,
+          'm.relates_to': { rel_type: 'm.replace', event_id: other.event_id },
+        };
+        s.f.serveEvent(withEdit(other, moved));
+        await s.f.deliver([moved]);
+      };
+      const ofFirst = async (event: IEvent) => {
+        s.serve(event);
+        await s.f.deliver([event]);
+      };
+      await ofOther(s.streaming(now - 500));
+
+      await (first === 'the other' ? ofOther : ofFirst)(s.ending(now));
+      expect(s.workflow()).toBe('working');
+      await (first === 'the other' ? ofFirst : ofOther)(s.ending(now + 1));
+      expect(s.workflow()).toBe('needsYou');
+      expect(s.f.requested('/event/$other-reply')).toBe(2);
+    }
+  );
+
+  it.each<[string, Record<string, unknown>]>([
+    ['a stream status', { 'io.mindroom.stream_status': 'completed' }],
+    ['a stream status in record form', { 'io.mindroom.stream_status': { status: 'completed' } }],
+    ['only the run’s status', { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }],
+  ])('ends Working by a live edit that finishes the reply with %s', async (_name, status) => {
     const now = Date.now();
     const s = await hintMidStream(now);
-    const other = { ...s.placeholder, event_id: '$other-reply' };
-    const done = { ...s.completed(now), event_id: '$other-done' };
-    done.content = {
-      ...done.content,
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$other-reply' },
-    };
-    s.f.serveEvent(withEdit(other, done));
-    await s.f.deliver([done]);
-    expect(s.f.requested('/event/$other-reply')).toBe(1);
+    const done = s.completed(now);
+    delete done.content['io.mindroom.stream_status'];
+    done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
+    await arrive(s, { newest: done, live: [[done]] });
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  // Only starting needs the reply the SDK fetched; a finish the client learns of ends Working.
+  it('ends Working by a finishing edit whose reply the SDK could not fetch', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const updates = vi.fn();
+    s.thread.on(ThreadEvent.Update, updates);
+    s.f.setServerReply(500);
+    await s.f.deliver([s.ending(now)]);
+    expect(s.f.replyRequests()).toBe(2);
+    expect(updates).toHaveBeenCalled();
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('ends Working when a page of the thread brings the finishing edit without the reply', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
+    await s.thread.initialize();
+    expect(s.thread.findEventById(replyId)).toBeUndefined();
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('judges the reply by the summary’s copy once the summary names it', async () => {
+    const now = Date.now();
+    const s = await relaunchMidStream(now, { tail: false });
+    await arrive(s, oneLiveEdit(s, now));
     expect(s.workflow()).toBe('working');
+
+    // As when the events after the reply are gone: the card then reads the summary's copy.
+    const summarized = s.f.mx.getEventMapper()(s.placeholder);
+    vi.spyOn(s.thread, 'replyToEvent', 'get').mockReturnValue(summarized);
+    expect(hinted(s)).toBe(false);
+  });
+
+  it('keeps Working for a reply that a title notice displaced from the thread’s summary', async () => {
+    const now = Date.now();
+    const s = await relaunchMidStream(now, { summary: 'placeholder', tail: false });
+    // The summary's reply stays known to the card's preview, but the streaming checks read the title.
+    await s.f.deliver([
+      message('$title', now - 15_000, {
+        msgtype: 'm.notice',
+        body: 'Release notes',
+        'io.mindroom.thread_summary': { summary: 'Release notes', version: 1 },
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      }),
+    ]);
+    expect(s.thread.replyToEvent?.getId()).toBe('$title');
+    expect(findReply(s.thread, replyId)).toBeDefined();
+
+    await arrive(s, oneLiveEdit(s, now));
+    expect(s.f.replyRequests()).toBe(1);
+    expect(s.workflow()).toBe('working');
+  });
+
+  it.each<[string, (s: MidStream) => unknown]>([
+    ['the client closes', (s) => closeClient(s.f.mx)],
+    ['the account forgets the room', (s) => s.f.mx.emit(ClientEvent.DeleteRoom, roomId)],
+    ['the thread is deleted', (s) => s.thread.emit(ThreadEvent.Delete, s.thread)],
+  ])('forgets what it knows of the reply, and says nothing more, once %s', async (_name, end) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      const updates = vi.fn();
+      s.thread.on(ThreadEvent.Update, updates);
+      end(s);
+      expect(hinted(s)).toBe(false);
+      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
+      expect(updates).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ends Working five minutes after the last live edit, and says so', async () => {
