@@ -83,7 +83,10 @@ describe('ThreadBadge titles', () => {
         target,
         Object.assign(new MouseEvent(type, { bubbles: true }), { pointerType: 'mouse' })
       );
-    const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+    const wait = (ms: number) =>
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
 
     move(button, 'pointerover');
     const tooltip = screen.getByRole('tooltip');
