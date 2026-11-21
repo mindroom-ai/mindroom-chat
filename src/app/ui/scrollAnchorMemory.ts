@@ -11,7 +11,7 @@ type ScrollAnchor = {
 
 export type ScrollAnchorSnapshot = {
   scrollTop: number;
-  /** Explicit address placement follows its target through hydration until reader input. */
+  /** A synthetic address place, owned by the caller rather than the Back restore. */
   address?: true;
   /** The rows that were in view, so the list can reopen on them after rows reorder. */
   anchors: ScrollAnchor[];
@@ -100,7 +100,6 @@ type RestoreState = {
   memoryKey: string;
   /** Cleared once the restore is done following late layout. */
   snapshot?: ScrollAnchorSnapshot;
-  addressKey?: string;
   /** The rows the last write put back in place. */
   placedRows: string[];
   /** Every row's key, in order, at the last write. */
@@ -118,9 +117,9 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
-  /** The requested anchor can move as the window hydrates without changing the list extent. */
-  anchorLayout?: number;
-  addressKey?: string;
+  /** Windowed rows can arrive without changing the observed extent. */
+  rows?: readonly string[];
+  releaseAnchors?: () => void;
 };
 
 /**
@@ -138,8 +137,8 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-  anchorLayout,
-  addressKey,
+  rows,
+  releaseAnchors,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -152,26 +151,22 @@ export function useScrollAnchorMemory({
     const view = scrollRef.current;
     if (!view || !ready) return undefined;
     if (restoreRef.current?.memoryKey !== memoryKey) {
+      const saved = memory.get(memoryKey);
       restoreRef.current = {
         memoryKey,
-        snapshot: memory.get(memoryKey),
-        addressKey,
+        snapshot: saved?.address ? undefined : saved,
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
       };
     }
     const state = restoreRef.current;
-    const address = state.snapshot?.address === true;
-    if (address && state.addressKey !== addressKey) state.snapshot = undefined;
-    const readerInputs = ['wheel', 'pointerdown', 'touchstart', 'keydown'];
-
     let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
+      releaseAnchors?.();
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
-      readerInputs.forEach((type) => view.removeEventListener(type, stopFollowing));
     };
     const handleScroll = () => {
       if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
@@ -189,14 +184,16 @@ export function useScrollAnchorMemory({
       // thread sorting first, and stay where they land.
       if (
         snapshot.scrollTop <= 0 ||
-        (!address && view.scrollTop !== state.lastAppliedScrollTop) ||
+        view.scrollTop !== state.lastAppliedScrollTop ||
         !placement ||
-        (!address && !keepsRowOrder(state.rowOrder, rowOrder))
+        !keepsRowOrder(state.rowOrder, rowOrder)
       ) {
         stopFollowing();
         return;
       }
-      view.scrollTop = placement.scrollTop;
+      if (Math.abs(view.scrollTop - placement.scrollTop) >= 0.5)
+        view.scrollTop = placement.scrollTop;
+      if (placement.rows.length) releaseAnchors?.();
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
@@ -207,15 +204,12 @@ export function useScrollAnchorMemory({
     observer = new ResizeObserver(restore);
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
-    if (address)
-      readerInputs.forEach((type) => view.addEventListener(type, stopFollowing, { passive: true }));
-    else view.addEventListener('scroll', handleScroll);
+    view.addEventListener('scroll', handleScroll);
     return () => {
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
-      readerInputs.forEach((type) => view.removeEventListener(type, stopFollowing));
     };
-  }, [addressKey, anchorLayout, contentRef, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [contentRef, memory, memoryKey, ready, releaseAnchors, restarts, rows, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -234,13 +228,12 @@ export function useScrollAnchorMemory({
       restoreRef.current = {
         memoryKey,
         snapshot: place,
-        addressKey,
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop,
       };
       setRestarts((count) => count + 1);
     },
-    [addressKey, memoryKey, scrollRef]
+    [memoryKey, scrollRef]
   );
 }

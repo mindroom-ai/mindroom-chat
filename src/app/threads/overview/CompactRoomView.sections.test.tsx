@@ -485,12 +485,7 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('restores a deep anchor without mounting the preceding cards', () => {
-    const working = Array.from({ length: 730 }, (_unused, index) => `$card${index}`);
-    state.sections = [{ id: 'working', rootIds: working }];
-    const memory = new Map([
-      [ROOM_ID, { scrollTop: 500 * 84 + 44 - 40, anchors: [{ key: '$card500', offset: 40 }] }],
-    ]);
+  const flowGeometry = () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
       this: HTMLElement
     ) {
@@ -507,6 +502,15 @@ describe('the Compact room in sections', () => {
       }
       return new DOMRect(0, top, 300, wrapper.offsetHeight);
     });
+  };
+
+  it('restores a deep anchor without mounting the preceding cards', () => {
+    const working = Array.from({ length: 730 }, (_unused, index) => `$card${index}`);
+    state.sections = [{ id: 'working', rootIds: working }];
+    const memory = new Map([
+      [ROOM_ID, { scrollTop: 500 * 84 + 44 - 40, anchors: [{ key: '$card500', offset: 40 }] }],
+    ]);
+    flowGeometry();
     render(
       <CompactRoomView
         room={room}
@@ -522,6 +526,58 @@ describe('the Compact room in sections', () => {
     expect(anchor?.getBoundingClientRect().top).toBe(40);
     expect(rows()).not.toContain('$card0');
     expect(rows().length).toBeLessThan(35);
+  });
+
+  it('keeps an unloaded saved anchor until history puts its card back in the window', () => {
+    flowGeometry();
+    const cards = Array.from({ length: 730 }, (_, index) => `$card${index}`);
+    const memory = new Map([
+      [ROOM_ID, { scrollTop: 4000, anchors: [{ key: '$card500', offset: 40 }] }],
+    ]);
+    const at = (ids: string[]) => (
+      <CompactRoomView
+        room={room}
+        threadRootIds={ids}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: memory }}
+      />
+    );
+    const { rerender } = render(at(cards.slice(0, 120)));
+    expect(rows()).not.toContain('$card500');
+    rerender(at(cards));
+    expect(
+      document.querySelector('[data-scroll-anchor="$card500"]')?.getBoundingClientRect().top
+    ).toBe(40);
+  });
+
+  it('places an address after a pointer press expands the folded section', () => {
+    flowGeometry();
+    const done = Array.from({ length: 730 }, (_, index) => `$done${index}`);
+    state.sections = [
+      { id: 'working', rootIds: ['$work'] },
+      { id: 'done', rootIds: done },
+    ];
+    const memory: ScrollAnchorMemory = new Map();
+    const focusRequest = { eventId: '$done500', entryKey: 'folded' };
+    takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
+    render(
+      <CompactRoomView
+        room={room}
+        threadRootIds={['$work', ...done]}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: memory }}
+        focusRequest={focusRequest}
+        sectionsNow={NOW}
+      />
+    );
+    expect(rows()).not.toContain('$done500');
+    fireEvent.pointerDown(header('done'));
+    fireEvent.click(header('done'));
+    expect(
+      document.querySelector('[data-scroll-anchor="$done500"]')?.getBoundingClientRect().top
+    ).toBe(160);
   });
 
   it("meets the address's request for a card once the card shows, not while its section is folded", () => {
