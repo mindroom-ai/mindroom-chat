@@ -2,10 +2,13 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
+  createDefaultThreadFilterState,
   createPrivateRoom,
   matrixFetch,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
+  sendStateEvent,
 } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -165,12 +168,16 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (test: string) => {
+const seed = async (test: string, extraThreads = 0) => {
   const username = `pps_${test}_${RUN}`;
-  const reader = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
-    method: 'POST',
-    body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
-  });
+  const reader = await matrixFetch<{ access_token: string; user_id: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
   // The rooms have an agent, as MindRoom rooms do, so they open in Compact.
   const agent = await registerAgentAccount(HOMESERVER, `pps${test}`);
   const create = (name: string) =>
@@ -198,7 +205,30 @@ const seed = async (test: string) => {
   await say(garden, text('Who waters the beds in the second week of July?'));
   const harbor = await create('Harbor Plans');
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
-  return { username, root };
+  const subjects = [
+    'Water the new plants',
+    'Plan the harvest',
+    'Mend the greenhouse',
+    'Clean the tools',
+  ];
+  for (let i = 0; i < extraThreads; i += 1) {
+    const id = await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`));
+    await say(garden, {
+      ...text('I added this to the garden checklist.'),
+      'm.relates_to': { rel_type: 'm.thread', event_id: id },
+    });
+    if (i % 4 !== 0) {
+      await sendStateEvent(
+        HOMESERVER,
+        reader.access_token,
+        garden,
+        'com.mindroom.thread.tags',
+        JSON.stringify([id, 'resolved']),
+        { set_by: reader.user_id, set_at: new Date().toISOString() }
+      );
+    }
+  }
+  return { username, root, userId: reader.user_id, roomId: garden };
 };
 
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
@@ -394,6 +424,105 @@ for (const engine of ENGINES) {
     });
   });
 }
+
+test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
+  test.setTimeout(240_000);
+  const threadCount = 730;
+  const { username, userId, roomId } = await seed('long', threadCount);
+  await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+    await seedRoomOverviewState({
+      page,
+      userId,
+      roomId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+    await page.evaluate((id) => {
+      localStorage.setItem(`compactRoomSections:${id}`, JSON.stringify({ on: true, folded: [] }));
+    }, userId);
+    await page.reload();
+    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+    await expect(drawer(page)).toBeHidden();
+    const view = '[data-compact-room-view]';
+    const cards = '[data-thread-root-id]';
+    const before = page.locator(`[data-phone-stage] > [data-phone-page] ${view}`);
+    await expect(before.locator(cards)).toHaveCount(threadCount + 2, { timeout: 90_000 });
+    await page.evaluate((selector) => {
+      const scroller = document.querySelector<HTMLElement>(selector)!;
+      scroller.scrollTop = scroller.scrollHeight * 0.6;
+    }, view);
+    const read = (scroller: Element) => {
+      const { top, bottom } = scroller.getBoundingClientRect();
+      const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
+        .map((row) => ({
+          id: row.dataset.threadRootId,
+          text: row.textContent,
+          rect: row.getBoundingClientRect(),
+        }))
+        .filter(({ rect }) => rect.top >= top + 80 && rect.bottom <= bottom - 80)
+        .map(({ id, text, rect }) => ({
+          id,
+          text,
+          y: rect.top - top,
+          x: rect.x,
+          width: rect.width,
+          height: rect.height,
+        }));
+      return {
+        nodes: scroller.querySelectorAll('*').length,
+        scrollTop: scroller.scrollTop,
+        scrollHeight: scroller.scrollHeight,
+        visible,
+      };
+    };
+    const live = await before.evaluate(read);
+    expect(live.nodes).toBeGreaterThan(6_000);
+    expect(live.scrollTop).toBeGreaterThan(10_000);
+    expect(live.visible.length).toBeGreaterThan(2);
+
+    await page.evaluate(() => {
+      document.addEventListener('click', () => performance.mark('card-tap'), {
+        capture: true,
+        once: true,
+      });
+      document.addEventListener('animationstart', (event) => {
+        if (event.animationName === 'phone-page-under-out') performance.mark('first-slide-frame');
+      });
+    });
+    const opened = live.visible[Math.floor(live.visible.length / 2)]!;
+    await page.touchscreen.tap(
+      opened.x + opened.width / 2,
+      opened.y + opened.height / 2 + (await before.boundingBox())!.y
+    );
+    const still = page.locator(`[data-page-slide-copy] ${view}`);
+    await expect(still).toHaveCount(1);
+    const snapshot = await still.evaluate(read);
+    const frameMs = await page.evaluate(() => {
+      const tap = performance.getEntriesByName('card-tap')[0]?.startTime;
+      const frame = performance.getEntriesByName('first-slide-frame')[0]?.startTime;
+      return frame !== undefined && tap !== undefined ? frame - tap : null;
+    });
+    console.log('Compact slide:', { frameMs, liveNodes: live.nodes, copyNodes: snapshot.nodes });
+    if (SHOTS) {
+      await page
+        .locator('[data-page-slide-copy] > *')
+        .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
+      await page.screenshot({ path: `${SHOTS}/webkit-large-compact-slide.png` });
+    }
+    await expect(threadColumn(page)).toBeVisible();
+    expect(snapshot.scrollTop).toBeCloseTo(live.scrollTop, 0);
+    expect(snapshot.scrollHeight).toBe(live.scrollHeight);
+    expect(snapshot.visible.map(({ id, text }) => ({ id, text }))).toEqual(
+      live.visible.map(({ id, text }) => ({ id, text }))
+    );
+    snapshot.visible.forEach(({ y, height }, index) => {
+      expect(y).toBeCloseTo(live.visible[index]!.y, 0);
+      expect(height).toBeCloseTo(live.visible[index]!.height, 0);
+    });
+    expect(snapshot.nodes).toBeLessThan(2_000);
+  });
+});
 
 const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)[number]) => {
   {

@@ -157,6 +157,49 @@ describe('slidePhonePage', () => {
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
+  it('keeps the boxes of Compact rows outside the scroller without copying their contents', () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<div data-compact-room-view>' +
+      '<div class="card" data-page-slide-row="above"><span>Above the clip</span></div>' +
+      '<div class="card" data-page-slide-row="visible"><span>Still visible</span></div>' +
+      '<div class="card" data-page-slide-row="below"><span>Below the clip</span></div></div>' +
+      '<div data-other><span>Not a Compact row</span></div>';
+    const view = stage.querySelector('[data-compact-room-view]')!;
+    const rect = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        if (this === stage) return new DOMRect(0, 0, 390, 844);
+        if (this === view) return new DOMRect(0, 180, 390, 470);
+        const y = { above: 40, visible: 300, below: 720 }[
+          this.getAttribute('data-page-slide-row') ?? ''
+        ];
+        return new DOMRect(0, y ?? 990, 380.5, 42.25);
+      });
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      const still = copy()!;
+      for (const at of ['above', 'below']) {
+        const row = still.querySelector<HTMLElement>(`[data-page-slide-row="${at}"]`)!;
+        expect(row.childNodes).toHaveLength(0);
+        expect(row.className).toBe('card');
+        expect([row.style.boxSizing, row.style.width, row.style.height]).toEqual([
+          'border-box',
+          '380.5px',
+          '42.25px',
+        ]);
+      }
+      expect(still.querySelector('[data-page-slide-row="visible"] > span')?.textContent).toBe(
+        'Still visible'
+      );
+      expect(still.querySelector('[data-other] > span')?.textContent).toBe('Not a Compact row');
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
   it('draws in the copy the pictures the page shows, and loads none', async () => {
     const page = browser();
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
