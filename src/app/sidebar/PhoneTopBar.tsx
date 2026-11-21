@@ -3,7 +3,7 @@ import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import {
@@ -26,8 +26,6 @@ import * as css from './PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
 export const PHONE_NAV_DRAWER_ID = 'phone-nav-drawer';
-/** The menu button, which takes the focus back when the drawer closes around it. */
-export const PHONE_NAV_MENU_BUTTON_ID = 'phone-nav-menu-button';
 
 /** Three bars, the usual sign for a menu that slides in. */
 const MenuIcon: IconSrc = () => (

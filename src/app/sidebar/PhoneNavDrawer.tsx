@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import {
+  PHONE_NAV_MENU_BUTTON_ID,
   PHONE_SLIDE_OUT_MS,
   nextPhoneNavDrawerOpen,
   phoneNavDrawerOpenAtom,
@@ -18,7 +19,7 @@ import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
 import { focusHandOffAtom } from '../calls/window/callWindowState';
-import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
+import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */

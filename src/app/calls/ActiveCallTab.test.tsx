@@ -32,12 +32,17 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
-  useCallState: (): Partial<CallState> => ({ microphone: true, participants: [] }),
+  useCallState: () => state,
 }));
 
 const ORIGIN = '!origin:tab.test';
+const state: Pick<CallState, 'phase' | 'microphone' | 'participants'> = {
+  phase: 'connected',
+  microphone: true,
+  participants: [],
+};
 const active = {
-  call: { room: { roomId: '!agent-call:tab.test' } },
+  call: { room: { roomId: '!agent-call:tab.test' }, getState: () => state },
   kind: 'agent',
   origin: { roomId: ORIGIN, threadId: '$plan' },
 } as unknown as ActiveCall;
@@ -63,6 +68,7 @@ const openCall = () => fireEvent.click(returnButton());
 
 beforeEach(() => {
   localStorage.clear();
+  state.phase = 'connected';
   store = createStore();
   store.set(activeCallAtom, active);
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
@@ -125,33 +131,63 @@ describe("the rail's call button", () => {
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
   });
 
-  it('does not return to a call cleared before the drawer closes on the next frame', () => {
-    vi.useFakeTimers();
-    const clearImperativeStore = setImperativeJotaiStore(store);
-    const { container } = renderTab('Mobile');
-    container.setAttribute('data-phone-stage', '');
-    store.set(phoneNavDrawerOpenAtom, true);
-    try {
-      openCall();
-      expect(store.get(callPanelRoomAtom)).toBeUndefined();
-      act(() => {
-        store.set(activeCallAtom, undefined);
-        vi.runOnlyPendingTimers();
-      });
-      expect(store.get(callPanelRoomAtom)).toBeUndefined();
-      expect(store.get(focusHandOffAtom)).toBeUndefined();
-      expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
-      expect(navigation.navigateRoom).not.toHaveBeenCalled();
-    } finally {
-      clearImperativeStore();
+  it.each(['cleared', 'failed'] as const)(
+    'abandons a queued return if the call is %s',
+    (reason) => {
+      vi.useFakeTimers();
+      const clearImperativeStore = setImperativeJotaiStore(store);
+      const { container } = renderTab('Mobile');
+      container.setAttribute('data-phone-stage', '');
+      store.set(phoneNavDrawerOpenAtom, true);
+      try {
+        openCall();
+        expect(store.get(callPanelRoomAtom)).toBeUndefined();
+        act(() => {
+          if (reason === 'cleared') store.set(activeCallAtom, undefined);
+          else state.phase = 'failed';
+          vi.runOnlyPendingTimers();
+        });
+        expect(store.get(callPanelRoomAtom)).toBeUndefined();
+        expect(store.get(focusHandOffAtom)).toBeUndefined();
+        expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+        expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+        expect(navigation.navigateRoom).not.toHaveBeenCalled();
+      } finally {
+        clearImperativeStore();
+      }
     }
+  );
+
+  it('returns focus to the menu if the call heading never appears', () => {
+    vi.useFakeTimers();
+    const { container } = renderTab('Mobile');
+    const menu = document.createElement('button');
+    menu.id = 'phone-nav-menu-button';
+    container.append(menu);
+    store.set(phoneNavDrawerOpenAtom, true);
+    openCall();
+    expect(store.get(focusHandOffAtom)?.to).toBe('panel');
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
+    expect(menu).toBe(document.activeElement);
+  });
+
+  it('can reopen an already failed call to dismiss it', () => {
+    state.phase = 'failed';
+    renderTab('Mobile');
+    openCall();
+    expect(store.get(callPanelRoomAtom)).toBe(ORIGIN);
   });
 
   it('goes back to the conversation while docked, and on phones', () => {
     store.set(getCallWindowSettingsAtom(USER), { mode: 'docked', rect: bar });
     renderTab();
+    const button = returnButton();
     openCall();
     expect(store.get(callPanelRoomAtom)).toBe(ORIGIN);
+    expect(store.get(focusHandOffAtom)).toEqual({ to: 'panel', roomId: ORIGIN, from: button });
     expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ORIGIN, '$plan');
     expect(settings().rect).toEqual(bar);
     cleanup();

@@ -152,12 +152,19 @@ const joined = (participants: CallParticipant[]): CallState => ({
 
 const setMicrophone = vi.fn(async () => undefined);
 const roomCall = (participants: CallParticipant[]) => {
-  calls.active = { call: { room, setMicrophone } as unknown as ActiveCall['call'], kind: 'room' };
+  calls.active = {
+    call: { room, setMicrophone, getState: () => calls.state } as unknown as ActiveCall['call'],
+    kind: 'room',
+  };
   calls.state = joined(participants);
 };
 const agentCall = (origin: { roomId: string; threadId?: string }) => {
   calls.active = {
-    call: { room: callRoom, setMicrophone } as unknown as ActiveCall['call'],
+    call: {
+      room: callRoom,
+      setMicrophone,
+      getState: () => calls.state,
+    } as unknown as ActiveCall['call'],
     kind: 'agent',
     agentUserId: '@mindroom_helper:panel.test',
     origin,

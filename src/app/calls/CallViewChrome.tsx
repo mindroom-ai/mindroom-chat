@@ -12,6 +12,7 @@ import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useShortcut } from '../shortcuts/useShortcut';
 import type { CallParticipant } from './RoomCall';
 import { callPanelRoomAtom, type CallOrigin } from './callStore';
@@ -220,8 +221,9 @@ export function CallViewChrome(props: CallViewChromeProps) {
   const focusTarget = frame ? handleRef : titleRef;
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
   const panelRoomId = useAtomValue(callPanelRoomAtom);
-  // Ignore a panel still moving out. The page clears inert when the phone layer closes.
-  const panelReady = roomId === panelRoomId && !(phone && layerOpen);
+  const folded = usePanelFrame()?.layout === 'folded';
+  // Ignore a panel still moving out or folded. The page clears inert when the phone layer closes.
+  const panelReady = roomId === panelRoomId && !folded && !(phone && layerOpen);
   useFocusHandOff(
     frame ? 'window' : panelReady ? 'panel' : undefined,
     () => focusTarget.current?.focus(),
