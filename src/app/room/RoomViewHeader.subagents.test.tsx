@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
+import { lazy, Suspense } from 'react';
 import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { Badge, Icon, IconButton, Text } from 'folds';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { Badge, Icon, IconButton, Icons, Text } from 'folds';
+import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../matrix/protocol/scheduledTaskContract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
@@ -21,9 +23,11 @@ const SENDER = '@mindroom_lead:example.org';
 /** The thread the header has open unless a test says otherwise, where `run` starts its runs. */
 const THREAD = '$thread:example.org';
 
-const { screen, view, mx } = vi.hoisted(() => ({
+const { screen, view, mx, schedules, pins } = vi.hoisted(() => ({
   screen: { size: 'Desktop' },
   view: { mode: 'compact' },
+  schedules: { events: [] as MatrixEvent[] },
+  pins: { ids: [] as string[] },
   // One client, so the header reads the same run store the test feeds.
   mx: {
     getSafeUserId: () => '@me:example.org',
@@ -53,6 +57,7 @@ vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: '!room:example.org',
     name: 'General',
+    myUserId: '@me:example.org',
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
   }),
@@ -64,6 +69,7 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => undefined,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
+vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => schedules.events }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
   usePowerLevels: () => ({}),
   usePowerLevelsContext: () => ({}),
@@ -72,7 +78,7 @@ vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new S
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false, event: () => false, stateEvent: () => false }),
 }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => [] }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
@@ -97,18 +103,86 @@ afterEach(() => {
   store().clear();
   screen.size = 'Desktop';
   view.mode = 'compact';
+  schedules.events = [];
+  pins.ids = [];
+  vi.unstubAllGlobals();
 });
 
-const renderHeader = (props: RoomViewHeaderProps) => {
+const renderHeader = (
+  props: RoomViewHeaderProps,
+  createNodeMock?: (element: React.ReactElement) => Element | null
+) => {
   act(() => renderer?.unmount());
   act(() => {
     renderer = create(
       <Provider store={createStore()}>
         <RoomViewHeader openThreadId={THREAD} {...props} />
-      </Provider>
+      </Provider>,
+      createNodeMock ? { createNodeMock } : undefined
     );
   });
 };
+
+// Computed CSS sizes at 100% page zoom: a 40 px button, 4 px gap and 24 px of header padding.
+const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
+  const header = document.createElement('header');
+  header.style.paddingInlineStart = '16px';
+  header.style.paddingInlineEnd = '8px';
+  Object.defineProperty(header, 'clientWidth', { value: viewportWidth });
+  const tail = document.createElement('div');
+  tail.style.columnGap = '4px';
+  const more = document.createElement('button');
+  more.dataset.roomMoreOptions = '';
+  tail.append(more);
+  const calls = document.createElement('div');
+  let count = initialCalls;
+  const box = (width: number) => new DOMRect(0, 0, width, 40);
+  vi.spyOn(more, 'getBoundingClientRect').mockImplementation(() => box(40));
+  vi.spyOn(tail, 'getBoundingClientRect').mockImplementation(() => box(40 + 44 * rowPlugins));
+  vi.spyOn(calls, 'getBoundingClientRect').mockImplementation(() =>
+    box(Math.max(0, 44 * count - 4))
+  );
+  let resized: ResizeObserverCallback | undefined;
+  const observe = vi.fn<(element: Element) => void>();
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: ResizeObserverCallback) {
+        resized = callback;
+      }
+      observe = observe;
+      disconnect() {}
+    }
+  );
+  return {
+    createNodeMock: (element: React.ReactElement) => {
+      if (element.type === 'header') return header;
+      const props = element.props as Record<string, unknown>;
+      if ('data-room-header-mandatory-tail' in props) return tail;
+      if ('data-room-header-call-group' in props) return calls;
+      return null;
+    },
+    setCalls: (next: number) => {
+      count = next;
+      expect(observe).toHaveBeenCalledWith(calls);
+      act(() => resized?.([], {} as ResizeObserver));
+    },
+  };
+};
+
+const schedule = (taskId: string, threadId: string | null, newThread = false) =>
+  new MatrixEvent({
+    type: MINDROOM_SCHEDULED_TASK_EVENT,
+    state_key: taskId,
+    sender: SENDER,
+    content: {
+      status: 'pending',
+      workflow: JSON.stringify({ thread_id: threadId, new_thread: newThread }),
+    },
+  });
+
+const rowLabels = () =>
+  renderer?.root.findAllByType('button').map((node) => node.props['aria-label']);
 
 let serial = 0;
 /** A run in the thread (`null`: the room's timeline) as its first frame leaves it. */
@@ -283,10 +357,146 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     expect(onPanelToggle).toHaveBeenCalledWith('subagents');
   });
 
+  it('promotes the three highest-priority eligible buttons in existing row order', () => {
+    screen.size = 'Mobile';
+    run('running');
+    run('running', '$elsewhere:example.org');
+    schedules.events = [schedule('orchard', THREAD), schedule('seeds', THREAD, true)];
+    pins.ids = ['$pinned:example.org'];
+    const { createNodeMock } = phoneLayout(430, 1);
+    renderHeader(
+      {
+        hasMindroomAgents: true,
+        calls: <IconButton aria-label="Call" />,
+        computerAvailable: true,
+        computerShown: true,
+        onComputerToggle: vi.fn(),
+        pluginPanels: [{ id: 'toolkit', label: 'Toolkit', placement: 'auto', icon: Icons.Bulb }],
+      },
+      createNodeMock
+    );
+    expect(rowLabels()).toEqual([
+      'Scheduled tasks (1)',
+      'Show sub-agents, 1 active',
+      'Call',
+      'Show Members',
+      'More Options',
+    ]);
+    expect(menuDots()).toHaveLength(0);
+    openMenu();
+    expect(menuEntries()).toHaveLength(0);
+    expect(renderer?.root.findAllByType(MenuEntry).map((entry) => entry.props.label)).toEqual(
+      expect.arrayContaining(['Pinned Messages', 'Show Computer', 'Toolkit'])
+    );
+  });
+
+  it('keeps schedules in a thread’s phone menu at the room-wide count when all tasks are elsewhere', () => {
+    screen.size = 'Mobile';
+    schedules.events = [schedule('orchard', null), schedule('seeds', THREAD, true)];
+    const { createNodeMock } = phoneLayout(390, 0);
+    renderHeader({ hasMindroomAgents: true }, createNodeMock);
+    expect(rowLabels()).toEqual(['Show Members', 'More Options']);
+    openMenu();
+    expect(renderer?.root.findAllByType(MenuEntry).map((entry) => entry.props.label)).toContain(
+      'Scheduled tasks (2)'
+    );
+  });
+
+  it.each(['Mobile', 'Desktop', 'Tablet'])(
+    'shows the room-wide schedule count on %s when appropriate',
+    (size) => {
+      screen.size = size;
+      schedules.events = [schedule('orchard', null), schedule('seeds', THREAD, true)];
+      const { createNodeMock } = phoneLayout(390, 0);
+      renderHeader(
+        { hasMindroomAgents: true, openThreadId: size === 'Mobile' ? undefined : THREAD },
+        createNodeMock
+      );
+      expect(rowLabels()).toContain('Scheduled tasks (2)');
+      schedules.events = [];
+      renderHeader({ hasMindroomAgents: true }, createNodeMock);
+      if (size !== 'Mobile') expect(rowLabels()).toContain('Scheduled tasks (0)');
+      else expect(rowLabels()).not.toContain('Scheduled tasks (0)');
+    }
+  );
+
+  it('remeasures the room for optional buttons after two call controls finish loading', async () => {
+    screen.size = 'Mobile';
+    run('running');
+    schedules.events = [schedule('orchard', THREAD)];
+    const layout = phoneLayout(430, 0, 1);
+    const calls = Promise.withResolvers<{ default: () => React.ReactElement }>();
+    const CallButtons = lazy(() => calls.promise);
+    renderHeader(
+      {
+        hasMindroomAgents: true,
+        calls: (
+          <Suspense fallback={null}>
+            <CallButtons />
+          </Suspense>
+        ),
+        pluginPanels: [{ id: 'toolkit', label: 'Toolkit', placement: 'row', icon: Icons.Bulb }],
+      },
+      layout.createNodeMock
+    );
+    expect(rowLabels()).toEqual([
+      'Scheduled tasks (1)',
+      'Show sub-agents, 1 active',
+      'Show Members',
+      'Toolkit',
+      'More Options',
+    ]);
+    await act(async () => {
+      calls.resolve({
+        default: () => (
+          <>
+            <IconButton aria-label="Room call" />
+            <IconButton aria-label="Agent call" />
+          </>
+        ),
+      });
+    });
+    layout.setCalls(2);
+    expect(rowLabels()).toEqual([
+      'Scheduled tasks (1)',
+      'Show sub-agents, 1 active',
+      'Room call',
+      'Agent call',
+      'Toolkit',
+      'More Options',
+    ]);
+  });
+
+  it('promotes only the canvas supplied for the open conversation', () => {
+    screen.size = 'Mobile';
+    const { createNodeMock } = phoneLayout();
+    const canvas = {
+      canvasId: '$drawing:example.org',
+      roomId: ROOM_ID,
+      threadId: THREAD,
+      agentUserId: SENDER,
+      title: 'Orchard map',
+      createdTs: 1,
+      revisionId: '$drawing:example.org',
+      updatedTs: 1,
+      shared: false,
+    };
+    const props = { onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() };
+    renderHeader({ ...props, canvases: [canvas] }, createNodeMock);
+    expect(rowLabels()).toEqual(['Show Canvas', 'Show Members', 'More Options']);
+    renderHeader(
+      { ...props, openThreadId: '$elsewhere:example.org', canvases: [] },
+      createNodeMock
+    );
+    expect(rowLabels()).toEqual(['Show Members', 'More Options']);
+  });
+
   it("leaves a phone's menu button without a dot while only ended runs are kept", () => {
     screen.size = 'Mobile';
     run('cancelled');
-    renderHeader({ onPanelToggle: vi.fn() });
+    const { createNodeMock } = phoneLayout();
+    renderHeader({ onPanelToggle: vi.fn() }, createNodeMock);
+    expect(toggles()).toHaveLength(0);
     expect(menuDots()).toHaveLength(0);
     openMenu();
     expect(menuEntries()).toHaveLength(1);

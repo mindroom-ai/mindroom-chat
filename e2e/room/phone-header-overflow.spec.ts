@@ -32,11 +32,9 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// A phone's room header keeps the room's name and the room menu, so a long name
-// keeps its room (L8-F025, design decision #10); the menu offers first what the header leaves out:
-// the Compact view switch and the filter bar toggle (menu checkboxes), scheduled tasks, pinned
-// messages and members, each a row as tall as a message menu's, and the menu stays inside the
-// window. The menu button keeps a 44 px hit area. A desktop header keeps all its buttons. An
+// A phone's room header reserves room for the name and promotes Members and Pins here. The menu
+// keeps the Compact view switch, the filter bar toggle and the empty schedules entry. Those rows
+// are as tall as a message menu's, and the menu stays inside the window. The menu button keeps a 44 px hit area. A desktop header keeps all its buttons. An
 // agent room with a long name and a pinned message among 25 rooms, on a phone (390 by 844, touch)
 // and a desktop (1280 by 800), light and dark, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -45,7 +43,8 @@ const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Customer Escalations and Renewals';
 const PINNED = 'Escalation playbook: page the on-call lead first, then the account owner.';
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-const MOVED = ['Compact view', 'Thread filters', 'Scheduled tasks (0)', 'Pinned Messages'];
+const IN_MENU = ['Compact view', 'Thread filters', 'Scheduled tasks (0)'];
+const PROMOTED = ['Pinned Messages', 'Show Members'];
 const TARGET = 44;
 /** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
 const MENU_ROW = 32;
@@ -140,7 +139,7 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     await setLook(page, scheme);
     // eslint-disable-next-line no-await-in-loop
     await openRoom(page, data);
-    // The header holds the name and More Options, nothing else.
+    // Priority picks the promoted actions, then the row keeps its existing order.
     // eslint-disable-next-line no-await-in-loop
     const names = await header(page)
       .getByRole('button')
@@ -149,13 +148,13 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
           .filter((button) => button.getBoundingClientRect().width > 0)
           .map((button) => button.getAttribute('aria-label') ?? button.textContent ?? '')
       );
-    expect(names, `${engine} ${scheme} header buttons`).toEqual(['More Options']);
-    // The name gets the header's room: more than the old 130 px ("Customer Esc...").
+    expect(names, `${engine} ${scheme} header buttons`).toEqual([...PROMOTED, 'More Options']);
+    // The name retains its reserved width alongside the buttons.
     // eslint-disable-next-line no-await-in-loop
     const nameWidth = await header(page)
       .locator('h1')
       .evaluate((h1) => h1.getBoundingClientRect().width);
-    expect(nameWidth, 'room name width').toBeGreaterThan(230);
+    expect(nameWidth, 'room name width').toBeGreaterThanOrEqual(120);
     // eslint-disable-next-line no-await-in-loop
     const missed = await missedPoints(
       header(page).getByRole('button', { name: 'More Options', exact: true })
@@ -166,7 +165,7 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
 
     // eslint-disable-next-line no-await-in-loop
     await openMenu(page);
-    for (const name of [...MOVED, 'Show Members']) {
+    for (const name of IN_MENU) {
       // eslint-disable-next-line no-await-in-loop
       await expect(entry(page, name), name).toBeVisible();
       // eslint-disable-next-line no-await-in-loop
@@ -189,9 +188,8 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     await expect(roomMenu(page)).toHaveCount(0);
   }
 
-  // Each entry does what its header button did.
-  await openMenu(page);
-  await entry(page, 'Pinned Messages').tap();
+  // The promoted buttons and overflow entries remain functional.
+  await header(page).getByRole('button', { name: 'Pinned Messages', exact: true }).tap();
   await expect(page.getByText(PINNED).last()).toBeVisible();
   await page.keyboard.press('Escape');
 
@@ -206,14 +204,15 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
   await expect(page.locator('[data-compact-room-view="true"]')).toHaveCount(0);
   await openMenu(page);
   await expect(entry(page, 'Compact view')).toHaveAttribute('aria-checked', 'false');
-  await entry(page, 'Show Members').tap();
+  await page.keyboard.press('Escape');
+  await header(page).getByRole('button', { name: 'Show Members', exact: true }).tap();
   // On a phone the members panel opens as a dialog over the room.
   await expect(page.getByRole('dialog', { name: 'Members' })).toBeVisible();
 };
 
 const checkDesktop = async (page: Page, data: Seed) => {
   await openRoom(page, data);
-  for (const name of [...MOVED, 'More Options']) {
+  for (const name of [...IN_MENU, 'Pinned Messages', 'More Options']) {
     // eslint-disable-next-line no-await-in-loop
     await expect(header(page).getByRole('button', { name, exact: true }), name).toBeVisible();
   }
@@ -239,7 +238,7 @@ const newPage = async (
 };
 
 for (const engine of ENGINES) {
-  test(`a phone's room header keeps the name and moves the rest into the room menu: ${engine}`, async ({
+  test(`a phone's room header reserves room for the name and promotes Members and Pins: ${engine}`, async ({
     browser,
   }, testInfo) => {
     test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');

@@ -82,7 +82,10 @@ const showInApp = (page: Page, url: string) =>
 
 /** Moves the loaded client to a thread of `roomId`. */
 const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
-  await showInApp(page, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+  await showInApp(
+    page,
+    `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
+  );
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
 };
 
@@ -105,7 +108,9 @@ test('a canvas the agent shows in the open thread puts the canvas button in the 
   await expect
     .poll(
       async () =>
-        (await lobbyEvents(stack)).some(
+        (
+          await lobbyEvents(stack)
+        ).some(
           (event) =>
             inThread(event, rootId) &&
             (event.content['io.mindroom.ui_action'] as { action?: string } | undefined)?.action ===
@@ -137,11 +142,12 @@ const scenarioName = ({ conversation, encrypted }: Scenario) =>
   }`;
 
 /**
- * Whether the conversation offers a canvas: the header's button, or on a phone the room menu's
- * entry (the menu opens for the look and closes again).
+ * Whether the conversation offers a canvas in the row or the overflow menu (the menu opens for
+ * the look and closes again).
  */
 const canvasOffered = async (page: Page): Promise<boolean> => {
-  if (!isPhoneLayout(page)) return (await headerCanvasButton(page).count()) > 0;
+  if (await headerCanvasButton(page).isVisible()) return true;
+  if (!isPhoneLayout(page)) return false;
   await roomMoreOptions(page).click();
   const entry = page.getByRole('menuitem', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
   await expect(page.getByRole('menu')).toBeVisible();
@@ -167,7 +173,7 @@ const expectCanvasOffered = async (
 
 /**
  * The helper shows a canvas in the conversation while the page stays open, and the room's creator
- * then deletes it: the canvas button (a phone's room menu entry) comes and goes with it.
+ * then deletes it: the canvas control comes and goes with it.
  */
 const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scenario) => {
   const roomId = await createAgentRoom(stack, `Canvas desk ${uniqueWord('r')}`, scenario.encrypted);
@@ -209,14 +215,18 @@ const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scena
 };
 
 for (const scenario of SCENARIOS) {
-  test(`in ${scenarioName(scenario)}, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
+  test(`in ${scenarioName(
+    scenario
+  )}, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
     page,
     stack,
   }) => {
     await canvasComesAndGoes(page, stack, scenario);
   });
 
-  test(`in ${scenarioName(scenario)}, the room menu's canvas entry comes and goes on a phone (WebKit)`, async ({
+  test(`in ${scenarioName(
+    scenario
+  )}, the room menu's canvas entry comes and goes on a phone (WebKit)`, async ({
     stack,
     baseURL,
   }) => {

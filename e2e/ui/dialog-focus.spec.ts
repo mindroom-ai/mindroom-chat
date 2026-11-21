@@ -215,9 +215,9 @@ const CASES: Case[] = [
     name: 'Pinned Messages from the room menu',
     from: 'room',
     screens: ['phone'],
-    open: fromRoomMenu('Pinned Messages'),
+    open: byButton('Pinned Messages'),
   },
-  { name: 'members', from: 'room', screens: ['phone'], open: fromRoomMenu('Show Members') },
+  { name: 'members', from: 'room', screens: ['phone'], open: byButton('Show Members') },
   {
     name: 'member profile',
     from: 'room',

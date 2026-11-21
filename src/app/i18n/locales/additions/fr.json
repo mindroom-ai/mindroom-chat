@@ -1753,5 +1753,9 @@
   },
   "threadActions": {
     "openBeside": "Ouvrir dans la seconde colonne"
+  },
+  "roomSchedules": {
+    "thisThread": "Ce fil",
+    "elsewhereInRoom": "Ailleurs dans ce salon"
   }
 }

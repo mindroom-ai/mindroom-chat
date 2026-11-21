@@ -1665,5 +1665,9 @@
   },
   "threadActions": {
     "openBeside": "Buka di kolom kedua"
+  },
+  "roomSchedules": {
+    "thisThread": "Utas ini",
+    "elsewhereInRoom": "Di bagian lain ruangan ini"
   }
 }

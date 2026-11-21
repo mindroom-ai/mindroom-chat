@@ -1,11 +1,4 @@
-import {
-  type CSSProperties,
-  type MouseEvent,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { type CSSProperties, useLayoutEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -22,48 +15,59 @@ import {
 import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
-import { getPendingRoomSchedules } from './roomSchedules';
+import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import { getPendingRoomSchedules, getRoomScheduleCount } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';
 import * as css from './roomSchedules.css';
 
-/** The horizontal center of `element` in viewport pixels while `active`, following layout changes. */
-function useCenterX(element: Element | null, active: boolean): number | undefined {
+/** Pending tasks from the room's current state, shared by the header and its clock button. */
+export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
+  const events = useScheduledTaskEvents(room);
+  return useMemo(() => getPendingRoomSchedules(events), [events]);
+}
+
+/** The horizontal center of the header in viewport pixels, following layout changes. */
+function useCenterX(element: HTMLElement | null): number | undefined {
   const [centerX, setCenterX] = useState<number>();
   useLayoutEffect(() => {
-    if (!active || !element) return undefined;
+    if (!element) return undefined;
     const measure = () => {
       const rect = element.getBoundingClientRect();
       setCenterX(rect.left + rect.width / 2);
     };
     measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(element);
     window.addEventListener('resize', measure);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [active, element]);
-  return active ? centerX : undefined;
+  }, [element]);
+  return element ? centerX : undefined;
 }
 
 type RoomSchedulesOverlayProps = {
-  room: Room;
-  /** The room view's horizontal center in viewport pixels, which the list sits over. */
-  centerX?: number;
+  roomId: string;
+  tasks: readonly ParsedScheduledTask[];
+  openThreadId?: string;
+  /** The room header spans the room view, which the list sits over. */
+  roomHeader: HTMLElement | null;
   onClose: () => void;
   onOpenThread: (threadId: string) => void;
 };
 
 /** The room's pending scheduled tasks over the room view; it follows the room state while open. */
 export function RoomSchedulesOverlay({
-  room,
-  centerX,
+  roomId,
+  tasks,
+  openThreadId,
+  roomHeader,
   onClose,
   onOpenThread,
 }: RoomSchedulesOverlayProps) {
-  const events = useScheduledTaskEvents(room);
-  const tasks = useMemo(() => getPendingRoomSchedules(events), [events]);
+  const centerX = useCenterX(roomHeader);
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter
@@ -87,8 +91,9 @@ export function RoomSchedulesOverlay({
           }}
         >
           <RoomSchedulesDialog
-            roomId={room.roomId}
+            roomId={roomId}
             tasks={tasks}
+            openThreadId={openThreadId}
             onClose={onClose}
             onOpenThread={(threadId) => {
               onClose();
@@ -102,10 +107,14 @@ export function RoomSchedulesOverlay({
 }
 
 /** The room menu's entry for the scheduled tasks, with their count, on phones. */
-export function RoomSchedulesMenuEntry({ room, onSelect }: { room: Room; onSelect: () => void }) {
+export function RoomSchedulesMenuEntry({
+  total,
+  onSelect,
+}: {
+  total: number;
+  onSelect: () => void;
+}) {
   const { t } = useTranslation();
-  const events = useScheduledTaskEvents(room);
-  const total = useMemo(() => getPendingRoomSchedules(events), [events]).length;
   return (
     <MenuEntry
       icon={Icons.Clock}
@@ -118,30 +127,22 @@ export function RoomSchedulesMenuEntry({ room, onSelect }: { room: Room; onSelec
 
 type RoomSchedulesButtonProps = {
   room: Room;
-  onOpenThread: (threadId: string) => void;
+  countThreadId?: string;
+  open: boolean;
+  onOpen: () => void;
 };
 
-/**
- * The room header's scheduled-tasks button. It counts the room's pending tasks and opens their
- * list, which follows the room state while it is open.
- */
-export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonProps) {
+/** Counts the room's pending tasks, or only this thread's when promoted inside a phone thread. */
+export function RoomSchedulesButton({
+  room,
+  countThreadId,
+  open,
+  onOpen,
+}: RoomSchedulesButtonProps) {
   const { t } = useTranslation();
-  const events = useScheduledTaskEvents(room);
-  const tasks = useMemo(() => getPendingRoomSchedules(events), [events]);
-  const [openRoomId, setOpenRoomId] = useState<string>();
-  // The list is for one room: switching rooms closes it rather than showing another room's tasks.
-  const open = openRoomId === room.roomId;
-  // The room header spans the room view, which the list sits over.
-  const [roomHeader, setRoomHeader] = useState<Element | null>(null);
-  const roomViewCenter = useCenterX(roomHeader, open);
-
-  useEffect(() => {
-    if (openRoomId !== undefined && openRoomId !== room.roomId) setOpenRoomId(undefined);
-  }, [openRoomId, room.roomId]);
-
-  const label = t('roomSchedules.openLabel', { total: tasks.length });
-  const close = () => setOpenRoomId(undefined);
+  const tasks = usePendingRoomSchedules(room);
+  const total = getRoomScheduleCount(tasks, countThreadId);
+  const label = t('roomSchedules.openLabel', { total });
 
   const tooltip = (
     <Tooltip>
@@ -150,39 +151,26 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
   );
 
   return (
-    <>
-      <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
-        {(triggerRef) => (
-          <IconButton
-            ref={triggerRef}
-            className={css.Trigger}
-            variant="Surface"
-            fill="None"
-            aria-label={label}
-            aria-haspopup="dialog"
-            aria-expanded={open}
-            onClick={(event: MouseEvent<HTMLButtonElement>) => {
-              setRoomHeader(event.currentTarget.closest('header'));
-              setOpenRoomId(room.roomId);
-            }}
-          >
-            <Icon size="400" src={Icons.Clock} />
-            {tasks.length > 0 && (
-              <span className={css.Count} aria-hidden="true">
-                {tasks.length}
-              </span>
-            )}
-          </IconButton>
-        )}
-      </TooltipProvider>
-      {open && (
-        <RoomSchedulesOverlay
-          room={room}
-          centerX={roomViewCenter}
-          onClose={close}
-          onOpenThread={onOpenThread}
-        />
+    <TooltipProvider position="Bottom" offset={4} tooltip={tooltip}>
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          className={css.Trigger}
+          variant="Surface"
+          fill="None"
+          aria-label={label}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={onOpen}
+        >
+          <Icon size="400" src={Icons.Clock} />
+          {total > 0 && (
+            <span className={css.Count} aria-hidden="true">
+              {total}
+            </span>
+          )}
+        </IconButton>
       )}
-    </>
+    </TooltipProvider>
   );
 }

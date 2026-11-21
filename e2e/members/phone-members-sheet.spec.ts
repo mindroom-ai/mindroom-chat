@@ -18,7 +18,7 @@ import {
 // comes from the start edge: below the top bar, at the drawer's height, as wide as the drawer, over
 // a dimmed room. The scrim, Escape, a swipe toward the end edge, the menu button and a room picked
 // in the search put it away; closed after a keyboard opened it, it gives the focus back to the
-// room's More Options; while it is out a swipe from the start edge brings out no drawer. It
+// room's Members button; while it is out a swipe from the start edge brings out no drawer. It
 // rounds only its corner over the page, as the drawer does, with the page card's radius. 390 by 844
 // (and 744 by 1133 for the corner) with touch, in Chromium with real touches and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -98,12 +98,7 @@ const expectSheetOut = async (page: Page, step: string) => {
 };
 
 const openMembers = async (page: Page) => {
-  await banner(page).getByRole('button', { name: 'More Options', exact: true }).tap();
-  await page
-    .getByRole('menu')
-    .filter({ hasText: 'Leave Room' })
-    .getByRole('menuitem', { name: 'Show Members', exact: true })
-    .tap();
+  await banner(page).getByRole('button', { name: 'Show Members', exact: true }).tap();
   await expectSheetOut(page, 'Show Members slides the sheet in');
 };
 
@@ -253,19 +248,13 @@ for (const engine of ENGINES) {
 
         // Opened from the keyboard and closed with Escape, it gives the focus back.
         if (engine === 'chromium') {
-          const more = banner(page).getByRole('button', { name: 'More Options', exact: true });
-          await more.focus();
-          await page.keyboard.press('Enter');
-          await page
-            .getByRole('menu')
-            .filter({ hasText: 'Leave Room' })
-            .getByRole('menuitem', { name: 'Show Members', exact: true })
-            .focus();
+          const opener = banner(page).getByRole('button', { name: 'Show Members', exact: true });
+          await opener.focus();
           await page.keyboard.press('Enter');
           await expectSheetOut(page, 'Enter on Show Members slides the sheet in');
           await page.keyboard.press('Escape');
           await expectSheetAway(page, 'Escape puts the sheet away');
-          await expect(more, 'the focus goes back to More Options').toBeFocused();
+          await expect(opener, 'the focus goes back to Show Members').toBeFocused();
         }
       } finally {
         await context.close();

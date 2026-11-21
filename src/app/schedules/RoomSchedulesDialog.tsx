@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useMemo, useState } from 'react';
+import { Fragment, forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PageScroll } from '../ui/page/PageScroll';
@@ -11,8 +11,11 @@ import {
   renderMatrixMention,
 } from '../messages/html/react-custom-html-parser';
 import { isUserId } from '../matrix/matrix';
-import { parseScheduleTimestamp, type ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { getScheduleTimestamp } from './roomSchedules';
+import {
+  parseScheduleTimestamp,
+  type ParsedScheduledTask,
+} from '../matrix/protocol/scheduledTaskContract';
+import { getScheduleTimestamp, isScheduleInThread } from './roomSchedules';
 import * as css from './roomSchedules.css';
 
 function ScheduleCard({
@@ -20,12 +23,14 @@ function ScheduleCard({
   task,
   now,
   formatter,
+  grouped,
   onOpenThread,
 }: {
   roomId: string;
   task: ParsedScheduledTask;
   now: number;
   formatter: Intl.DateTimeFormat;
+  grouped: boolean;
   onOpenThread: (threadId: string) => void;
 }) {
   const [t] = useTranslation();
@@ -67,7 +72,7 @@ function ScheduleCard({
             </Badge>
           )}
         </Box>
-        <Text as="h3" size="H5" className={css.Wrap} dir="auto">
+        <Text as={grouped ? 'h4' : 'h3'} size="H5" className={css.Wrap} dir="auto">
           {task.description ?? task.taskId}
         </Text>
         {recurring ? (
@@ -212,10 +217,11 @@ export const RoomSchedulesDialog = forwardRef<
   {
     roomId: string;
     tasks: readonly ParsedScheduledTask[];
+    openThreadId?: string;
     onClose: () => void;
     onOpenThread: (threadId: string) => void;
   }
->(({ roomId, tasks, onClose, onOpenThread }, ref) => {
+>(({ roomId, tasks, openThreadId, onClose, onOpenThread }, ref) => {
   const { t, i18n } = useTranslation();
   const titleId = useId();
   const [now, setNow] = useState(Date.now);
@@ -224,6 +230,22 @@ export const RoomSchedulesDialog = forwardRef<
     () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
     [locale]
   );
+
+  const threadTasks =
+    openThreadId === undefined
+      ? []
+      : tasks.filter((task) => isScheduleInThread(task, openThreadId));
+  const grouped = threadTasks.length > 0 && threadTasks.length < tasks.length;
+  const groups =
+    grouped && openThreadId !== undefined
+      ? [
+          { heading: t('roomSchedules.thisThread'), tasks: threadTasks },
+          {
+            heading: t('roomSchedules.elsewhereInRoom'),
+            tasks: tasks.filter((task) => !isScheduleInThread(task, openThreadId)),
+          },
+        ]
+      : [{ heading: undefined, tasks }];
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 10_000);
@@ -272,15 +294,25 @@ export const RoomSchedulesDialog = forwardRef<
               </Text>
             </Box>
           ) : (
-            tasks.map((task) => (
-              <ScheduleCard
-                key={task.taskId}
-                roomId={roomId}
-                task={task}
-                now={now}
-                formatter={formatter}
-                onOpenThread={onOpenThread}
-              />
+            groups.map(({ heading, tasks: groupTasks }) => (
+              <Fragment key={heading ?? 'all'}>
+                {heading && (
+                  <Text as="h3" size="T300" priority="300">
+                    {heading}
+                  </Text>
+                )}
+                {groupTasks.map((task) => (
+                  <ScheduleCard
+                    key={task.taskId}
+                    roomId={roomId}
+                    task={task}
+                    now={now}
+                    formatter={formatter}
+                    grouped={grouped}
+                    onOpenThread={onOpenThread}
+                  />
+                ))}
+              </Fragment>
             ))
           )}
         </Box>

@@ -1709,5 +1709,9 @@
   },
   "threadActions": {
     "openBeside": "In tweede kolom openen"
+  },
+  "roomSchedules": {
+    "thisThread": "Deze thread",
+    "elsewhereInRoom": "Elders in deze kamer"
   }
 }

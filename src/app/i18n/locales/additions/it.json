@@ -1753,5 +1753,9 @@
   },
   "threadActions": {
     "openBeside": "Apri nella seconda colonna"
+  },
+  "roomSchedules": {
+    "thisThread": "Questa discussione",
+    "elsewhereInRoom": "Altrove in questa stanza"
   }
 }

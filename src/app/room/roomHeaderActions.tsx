@@ -10,11 +10,14 @@ import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
 type HeaderActionPlacement = 'row' | 'menu' | 'auto';
 
 /**
- * The room header's one overflow rule: an action shows in the header's row when its placement is
- * `row`, or `auto` on a screen wider than a phone's; otherwise the room menu offers it.
+ * `row` controls stay in the header; `auto` shows in the row on wider screens or with a phone
+ * promotion. The menu takes everything else.
  */
-export const showsInRow = (placement: HeaderActionPlacement, phone: boolean): boolean =>
-  placement === 'row' || (placement === 'auto' && !phone);
+export const showsInRow = (
+  placement: HeaderActionPlacement,
+  phone: boolean,
+  promoted: boolean
+): boolean => placement === 'row' || (placement === 'auto' && (!phone || promoted));
 
 /**
  * An action of the open room's header, which the header draws: an icon button in its row, or an
@@ -58,7 +61,10 @@ type RoomHeaderControls = {
   menu?: ReactNode;
 };
 
-export type RoomHeaderEntry = RoomHeaderAction | RoomHeaderControls;
+export type RoomHeaderEntry = (RoomHeaderAction | RoomHeaderControls) & {
+  /** Eligible for phone promotion if there is room; only applies to `auto`. */
+  phoneEligible?: boolean;
+};
 
 /** Whether the header draws the entry's controls, rather than the entry itself. */
 export const drawnByHeader = (entry: RoomHeaderEntry): entry is RoomHeaderAction => 'run' in entry;

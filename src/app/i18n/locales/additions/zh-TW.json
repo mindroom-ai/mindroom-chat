@@ -1665,5 +1665,9 @@
   },
   "threadActions": {
     "openBeside": "在第二欄開啟"
+  },
+  "roomSchedules": {
+    "thisThread": "此討論串",
+    "elsewhereInRoom": "此聊天室中的其他位置"
   }
 }

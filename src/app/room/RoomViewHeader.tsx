@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactElement } from 'react';
+import { Fragment, useEffect, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -37,7 +37,9 @@ import {
   RoomSchedulesButton,
   RoomSchedulesMenuEntry,
   RoomSchedulesOverlay,
+  usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
+import { getRoomScheduleCount } from '../schedules/roomSchedules';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
@@ -62,6 +64,7 @@ import {
   type RoomHeaderAction,
   type RoomHeaderEntry,
 } from './roomHeaderActions';
+import { selectPhoneHeaderActions, usePhoneHeaderSlots } from './phoneHeaderActions';
 import { HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
 
@@ -183,9 +186,9 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
  * The room header: avatar, name and topic (only the name on phones), then its actions (the Compact and
  * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
  * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
- * its row leaves out, and whether this room shows tool calls. Phones keep the name, the call
- * buttons and the room menu, so a long name keeps its room. The top bar's menu button, not the
- * header, leads back to the list there.
+ * its row leaves out, and whether this room shows tool calls. Phones promote a few of those
+ * actions when they fit alongside the name, call buttons, and room menu. The top bar's menu
+ * button, not the header, leads back to the list there.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -210,6 +213,7 @@ export function RoomViewHeader({
   const room = useRoom();
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const { slots, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
@@ -244,6 +248,13 @@ export function RoomViewHeader({
   // On phones the room menu opens these; they stay with the room they were opened in.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
   const [schedulesRoomId, setSchedulesRoomId] = useState<string>();
+  const schedulesOpen = !!hasMindroomAgents && schedulesRoomId === room.roomId;
+  const openSchedules = () => setSchedulesRoomId(room.roomId);
+  const pendingSchedules = usePendingRoomSchedules(room);
+  const scheduleCountThreadId = mobile ? openThreadId : undefined;
+  useEffect(() => {
+    if (!schedulesOpen && schedulesRoomId !== undefined) setSchedulesRoomId(undefined);
+  }, [schedulesOpen, schedulesRoomId]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -362,11 +373,19 @@ export function RoomViewHeader({
     hasMindroomAgents && {
       id: 'schedules',
       placement: 'auto',
-      row: <RoomSchedulesButton room={room} onOpenThread={openScheduledThread} />,
+      phoneEligible: mobile && getRoomScheduleCount(pendingSchedules, scheduleCountThreadId) > 0,
+      row: (
+        <RoomSchedulesButton
+          room={room}
+          countThreadId={scheduleCountThreadId}
+          open={schedulesOpen}
+          onOpen={openSchedules}
+        />
+      ),
       menu: (
         <RoomSchedulesMenuEntry
-          room={room}
-          onSelect={fromMenu(() => setSchedulesRoomId(room.roomId))}
+          total={pendingSchedules.length}
+          onSelect={fromMenu(openSchedules)}
         />
       ),
     },
@@ -374,6 +393,7 @@ export function RoomViewHeader({
       canvases.length > 0 && {
         id: 'canvas',
         placement: 'auto',
+        phoneEligible: true,
         row: (
           <CanvasHeaderButton
             canvases={canvases}
@@ -403,6 +423,7 @@ export function RoomViewHeader({
       icon: Icons.Monitor,
       // A button once the computer was shown, until then an entry of the room menu.
       placement: computerShown || computerOpen ? 'auto' : 'menu',
+      phoneEligible: true,
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
@@ -414,6 +435,7 @@ export function RoomViewHeader({
           : subagentsLabel,
       icon: SubagentsIcon,
       placement: 'auto',
+      phoneEligible: activeSubagents > 0,
       pressed: subagentsVisible,
       active: subagentsVisible,
       badge: activeSubagents > 0 && cornerCount(activeSubagents),
@@ -421,12 +443,29 @@ export function RoomViewHeader({
       marker: 'data-subagents-toggle',
     },
     // The call buttons, in the row on phones too, so a call is one tap away.
-    calls && { id: 'call', placement: 'row', row: calls },
+    (mobile || calls) && {
+      id: 'call',
+      placement: 'row',
+      row: mobile ? (
+        <Box
+          alignItems="Center"
+          gap="100"
+          ref={callGroupRef}
+          className={css.CallGroup}
+          data-room-header-call-group=""
+        >
+          {calls}
+        </Box>
+      ) : (
+        calls
+      ),
+    },
     pinnedCount > 0 && {
       id: 'pins',
       label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
       icon: Icons.Pin,
       placement: 'auto',
+      phoneEligible: true,
       popup: 'dialog',
       expanded: !!pinAnchor,
       run: setPinAnchor,
@@ -436,6 +475,7 @@ export function RoomViewHeader({
       label: membersEntryLabel,
       icon: Icons.User,
       placement: 'auto',
+      phoneEligible: true,
       shortcut: 'members',
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
@@ -481,7 +521,26 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
+  const promoted =
+    mobile &&
+    selectPhoneHeaderActions(
+      slots,
+      entries
+        .filter((entry) => entry.placement === 'auto' && entry.phoneEligible)
+        .map((entry) => entry.id)
+    );
+  const inRow = (entry: RoomHeaderEntry) =>
+    showsInRow(entry.placement, mobile, !!promoted && promoted.has(entry.id));
+  const rowEntries = entries.filter(inRow);
+  // The mandatory plugin controls are already after the built-in actions, beside More Options.
+  const inMandatoryTail = (entry: RoomHeaderEntry) =>
+    mobile && entry.placement === 'row' && entry.id !== 'call';
+  const drawRowEntry = (entry: RoomHeaderEntry) =>
+    drawnByHeader(entry) ? (
+      <HeaderActionButton key={entry.id} action={entry} />
+    ) : (
+      <Fragment key={entry.id}>{entry.row}</Fragment>
+    );
   const menuEntries = entries.filter((entry) => !inRow(entry));
   // What only works in the open room, before the room's own actions in the menu.
   const roomEntries =
@@ -494,10 +553,28 @@ export function RoomViewHeader({
       )
     );
 
+  const moreOptions = (
+    <HeaderActionButton
+      action={{
+        label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
+        icon: Icons.VerticalDots,
+        popup: 'menu',
+        expanded: !!menuAnchor,
+        run: setMenuAnchor,
+        marker: 'data-room-more-options',
+        // A dot marks what the menu holds that a button would show: join requests, active
+        // sub-agents or hidden active filters, on phones.
+        badge:
+          menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
+          cornerDot('data-room-menu-dot'),
+      }}
+    />
+  );
+
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
-    <PageHeader role="banner" className={css.Header}>
+    <PageHeader ref={headerRef} role="banner" className={css.Header}>
       {/* On phones the name leads: the top bar's menu button above it reaches the list. */}
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
         {!mobile && (
@@ -545,29 +622,20 @@ export function RoomViewHeader({
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box shrink="No" alignItems="Center" gap="100">
-        {entries
-          .filter(inRow)
-          .map((entry) =>
-            drawnByHeader(entry) ? (
-              <HeaderActionButton key={entry.id} action={entry} />
-            ) : (
-              <Fragment key={entry.id}>{entry.row}</Fragment>
-            )
-          )}
-        <HeaderActionButton
-          action={{
-            label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
-            icon: Icons.VerticalDots,
-            popup: 'menu',
-            expanded: !!menuAnchor,
-            run: setMenuAnchor,
-            // A dot marks what the menu holds that a button would show: join requests, active
-            // sub-agents or hidden active filters, on phones.
-            badge:
-              menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
-              cornerDot('data-room-menu-dot'),
-          }}
-        />
+        {rowEntries.filter((entry) => !inMandatoryTail(entry)).map(drawRowEntry)}
+        {mobile ? (
+          <Box
+            alignItems="Center"
+            gap="100"
+            ref={mandatoryTailRef}
+            data-room-header-mandatory-tail=""
+          >
+            {rowEntries.filter(inMandatoryTail).map(drawRowEntry)}
+            {moreOptions}
+          </Box>
+        ) : (
+          moreOptions
+        )}
       </Box>
       <PopOut
         anchor={pinAnchor}
@@ -635,11 +703,14 @@ export function RoomViewHeader({
           requestClose={() => setCanvasMenuAnchor(undefined)}
         />
       )}
-      {mobile && hasMindroomAgents && schedulesRoomId === room.roomId && (
+      {schedulesOpen && (
         <RoomSchedulesOverlay
-          room={room}
+          roomId={room.roomId}
+          roomHeader={headerRef.current}
+          tasks={pendingSchedules}
+          openThreadId={openThreadId}
           onClose={() => setSchedulesRoomId(undefined)}
-          onOpenThread={(scheduledThreadId) => navigateRoomThread(room.roomId, scheduledThreadId)}
+          onOpenThread={openScheduledThread}
         />
       )}
       {dialog}

@@ -1885,5 +1885,9 @@
   },
   "threadActions": {
     "openBeside": "فتح في العمود الثاني"
+  },
+  "roomSchedules": {
+    "thisThread": "هذه المحادثة الفرعية",
+    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة"
   }
 }

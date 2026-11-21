@@ -1753,5 +1753,9 @@
   },
   "threadActions": {
     "openBeside": "Abrir en la segunda columna"
+  },
+  "roomSchedules": {
+    "thisThread": "Este hilo",
+    "elsewhereInRoom": "En otras partes de esta sala"
   }
 }

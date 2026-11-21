@@ -8,7 +8,11 @@ import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { darkTheme, lightTheme } from '../../src/app/theme/colors.css';
-import { RoomSchedulesButton } from '../../src/app/schedules/RoomSchedulesButton';
+import {
+  RoomSchedulesButton,
+  RoomSchedulesOverlay,
+  usePendingRoomSchedules,
+} from '../../src/app/schedules/RoomSchedulesButton';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../src/app/matrix/protocol/scheduledTaskContract';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { useRoomEscapeReadReceipts } from '../../src/app/room/useRoomEscapeReadReceipts';
@@ -112,13 +116,18 @@ room.currentState.setStateEvents([
 
 function Fixture() {
   const [activeRoom, setActiveRoom] = useState(room);
+  const [open, setOpen] = useState(false);
+  const pendingSchedules = usePendingRoomSchedules(activeRoom);
   const [openedThread, setOpenedThread] = useState('');
   const [receiptCount, setReceiptCount] = useState(0);
   useRoomEscapeReadReceipts({ roomId: activeRoom.roomId, hideActivity: false });
   useEffect(() => {
     const receipt = () => setReceiptCount((count) => count + 1);
     const cancel = () => room.currentState.setStateEvents([schedule('overdue', {}, 'cancelled')]);
-    const switchRoom = () => setActiveRoom(emptyRoom);
+    const switchRoom = () => {
+      setOpen(false);
+      setActiveRoom(emptyRoom);
+    };
     window.addEventListener('cancel-schedule', cancel);
     window.addEventListener('switch-room', switchRoom);
     window.addEventListener('fixture-receipt', receipt);
@@ -130,11 +139,16 @@ function Fixture() {
   }, []);
   return (
     <main style={{ padding: 16, color: color.Surface.OnContainer }}>
-      <RoomSchedulesButton
-        key={activeRoom.roomId}
-        room={activeRoom}
-        onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}
-      />
+      <RoomSchedulesButton room={activeRoom} open={open} onOpen={() => setOpen(true)} />
+      {open && (
+        <RoomSchedulesOverlay
+          roomId={activeRoom.roomId}
+          roomHeader={null}
+          tasks={pendingSchedules}
+          onClose={() => setOpen(false)}
+          onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}
+        />
+      )}
       <p role="status">{openedThread}</p>
       <output aria-label="Read receipts sent">{receiptCount}</output>
     </main>
