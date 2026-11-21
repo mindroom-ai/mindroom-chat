@@ -17,7 +17,8 @@ export const View = style([
     paddingInline: config.space.S300,
     overflowY: 'auto',
     overflowX: 'hidden',
-    // Without a stacking context here, WebKit composites each card separately.
+    // Cards hold positioned elements. Without a stacking context on this composited scroller, WebKit
+    // gives each card its own layer plus clip and scroll proxies (about 6,000 layers for 731 cards).
     isolation: 'isolate',
     width: '100%',
   },
