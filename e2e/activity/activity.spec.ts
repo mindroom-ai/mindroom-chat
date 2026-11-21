@@ -17,6 +17,8 @@ test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
 const PASSWORD = 'activity-e2e-password';
 const RUN = Date.now().toString(36);
+// Wraps onto several lines in the Activity list, as a long answer an agent offers does.
+const LONG_OPTION = 'v4 draft, with the rewritten summary and the new install steps';
 
 type Fixture = {
   person: DisposableUser;
@@ -94,7 +96,12 @@ const seed = async (browserName: string): Promise<Fixture> => {
       creator_agent: 'code',
       question_text: 'Which release should I clean up?',
       options: { '✅': 'v3', '📄': 'v4', '1': 'v3', '2': 'v4' },
-      option_labels: { '✅': 'v3 final', '📄': 'v4 draft', '1': 'v3 final', '2': 'v4 draft' },
+      option_labels: {
+        '✅': 'v3 final',
+        '📄': LONG_OPTION,
+        '1': 'v3 final',
+        '2': LONG_OPTION,
+      },
       source_event_id: questionRoot,
     },
     ...thread(questionRoot),
@@ -209,6 +216,14 @@ test('resolving a thread takes its question out of Activity until something new 
   const list = page.getByRole('navigation', { name: 'Activity' });
   const questionRow = list.locator('[data-activity-row="question"]');
   await expect(questionRow).toContainText('Which release should I clean up?', { timeout: 60_000 });
+  // A long option wraps, and its button grows with it instead of spilling over its neighbours.
+  const longOption = questionRow.getByRole('button', { name: LONG_OPTION });
+  const spill = await longOption.evaluate((button) => ({
+    height: button.getBoundingClientRect().height,
+    overflow: button.scrollHeight - button.clientHeight,
+  }));
+  expect(spill.height).toBeGreaterThan(40);
+  expect(spill.overflow).toBeLessThanOrEqual(1);
   await questionRow.getByText(`Clean up the release notes ${RUN}`).click();
   await expect(page).toHaveURL(
     new RegExp(`/activity/[^/?]+\\?threadId=${encodeURIComponent(fixture.questionRoot)}`)

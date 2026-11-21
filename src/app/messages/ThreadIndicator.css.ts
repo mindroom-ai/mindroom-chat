@@ -64,7 +64,8 @@ export const ThreadIndicatorTitle = style({ fontWeight: 600 });
 export const ThreadIndicatorMetadata = style({
   ...inlineRow,
   gap: config.space.S100,
-  verticalAlign: 'middle',
+  // The count's text sits on the title's baseline; `middle` set it 1-2 px lower.
+  verticalAlign: 'baseline',
   whiteSpace: 'nowrap',
 });
 
