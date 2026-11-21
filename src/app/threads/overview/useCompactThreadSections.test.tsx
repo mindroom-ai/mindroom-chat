@@ -84,7 +84,7 @@ describe('useCompactThreadSections', () => {
         }),
       { wrapper: wrapperOf(createStore()), initialProps: { threadRecordMap: running } }
     );
-    expect(result.current).toEqual([
+    expect(result.current?.map(({ id, rootIds }) => ({ id, rootIds }))).toEqual([
       { id: 'working', rootIds: ['$b'] },
       { id: 'needsYou', rootIds: ['$a'] },
       { id: 'done', rootIds: ['$c'] },
@@ -98,7 +98,7 @@ describe('useCompactThreadSections', () => {
       ),
     });
 
-    expect(result.current).toEqual([
+    expect(result.current?.map(({ id, rootIds }) => ({ id, rootIds }))).toEqual([
       { id: 'needsYou', rootIds: ['$a', '$b'] },
       { id: 'done', rootIds: ['$c'] },
     ]);
@@ -136,6 +136,8 @@ describe('useCompactThreadSections', () => {
       { wrapper: wrapperOf(store) }
     );
 
-    expect(result.current).toEqual([{ id: 'done', rootIds: ['$new', '$old'] }]);
+    expect(result.current?.map(({ id, rootIds }) => ({ id, rootIds }))).toEqual([
+      { id: 'done', rootIds: ['$new', '$old'] },
+    ]);
   });
 });
