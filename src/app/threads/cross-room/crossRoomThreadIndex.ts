@@ -8,7 +8,9 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
-import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { isThreadSummaryEvent, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import { isKnownRedactedEventId } from '../../matrix/eventRevision';
 import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
@@ -345,25 +347,40 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
 const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
   event?.getSender?.() === userId || eventDirectlyMentionsUser(event, userId);
 
-const getInvolvementReplyEvents = (
-  thread: Thread | null | undefined,
-  rootEvent: MatrixEvent | undefined,
+/**
+ * Loaded visible replies decide involvement. If every reply is loaded, use only those.
+ * Otherwise add at most the newest detached reply. For the same event ID, prefer the loaded
+ * copy, then the reply from getThreadSummaryReply on its newest edit, then the root bundle's
+ * reply. Skip titles, the root, non-visible replies, and IDs the room knows are redacted.
+ */
+const getInvolvementReplyEvents = ({
+  thread,
+  rootEvent = thread?.rootEvent,
+  room = thread?.room,
   loadedReplies = getPreferredVisibleThreadReplyEvents(thread),
-  bundle: ReturnType<typeof getBundledThreadPreviews> = thread?.room
-    ? getBundledThreadPreviews(thread.room, rootEvent ?? thread.rootEvent)
-    : {}
-): MatrixEvent[] => {
-  // The SDK's latest event can be a title notice. The server can bundle the reply separately.
-  // Prefer loaded events to detached copies with the same ID.
-  let replies = loadedReplies;
-  for (const event of [thread?.replyToEvent, bundle.reply]) {
-    if (!event || !isVisibleThreadReplyEvent(event)) continue;
+  bundledPreviews,
+}: {
+  thread: Thread | null | undefined;
+  rootEvent?: MatrixEvent;
+  room?: Room;
+  loadedReplies?: MatrixEvent[];
+  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
+}): MatrixEvent[] => {
+  if (hasLoadedEveryThreadReply(thread)) return loadedReplies;
+
+  const rootId = rootEvent?.getId() ?? thread?.id;
+  const retained = getThreadSummaryReply(thread);
+  const bundled = (bundledPreviews ?? (room && getBundledThreadPreviews(room, rootEvent)))?.reply;
+  const candidates = [retained, bundled?.getId() === retained?.getId() ? undefined : bundled];
+  let newest: MatrixEvent | undefined;
+  for (const event of candidates) {
+    if (!event || !isVisibleThreadReplyEvent(event) || isThreadSummaryEvent(event)) continue;
     const id = event.getId();
-    if (replies.some((reply) => reply.getId() === id)) continue;
-    if (replies === loadedReplies) replies = [...loadedReplies];
-    replies.push(event);
+    if (!id || id === rootId || loadedReplies.some((reply) => reply.getId() === id)) continue;
+    if (room && isKnownRedactedEventId(room, id)) continue;
+    if (!newest || event.getTs() > newest.getTs()) newest = event;
   }
-  return replies;
+  return newest ? [...loadedReplies, newest] : loadedReplies;
 };
 
 type ThreadInvolvementInput = {
@@ -392,7 +409,7 @@ export const isUserInvolvedInThread = ({
     return true;
   }
 
-  return (replyEvents ?? getInvolvementReplyEvents(thread, rootEvent)).some((event) =>
+  return (replyEvents ?? getInvolvementReplyEvents({ thread, rootEvent })).some((event) =>
     eventInvolvesUser(event, userId)
   );
 };
@@ -411,7 +428,7 @@ export const hasAgentPostForUser = ({
 
   return (
     postedForUser(rootEvent) ||
-    (replyEvents ?? getInvolvementReplyEvents(thread, rootEvent)).some(postedForUser)
+    (replyEvents ?? getInvolvementReplyEvents({ thread, rootEvent })).some(postedForUser)
   );
 };
 
@@ -518,12 +535,13 @@ export const buildCrossRoomThreadIndexEntry = ({
     rootEvent: resolvedRootEvent,
     thread,
     userId: currentUserId,
-    replyEvents: getInvolvementReplyEvents(
+    replyEvents: getInvolvementReplyEvents({
       thread,
-      resolvedRootEvent,
-      visibleReplies,
-      bundledPreviews
-    ),
+      rootEvent: resolvedRootEvent,
+      room,
+      loadedReplies: visibleReplies,
+      bundledPreviews,
+    }),
   };
 
   return {

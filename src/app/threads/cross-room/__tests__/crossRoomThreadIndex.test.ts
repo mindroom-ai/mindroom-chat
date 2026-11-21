@@ -24,6 +24,8 @@ import { matchesEnum } from '../../../lib/matchesEnum';
 import { ORIGINAL_SENDER_KEY } from '../../../matrix/protocol/originalSender';
 import { groupThreads } from '../../page/threadGroups';
 import { readThreadSignals } from '../threadSignals';
+import { getBundledThreadPreviews } from '../../../event-store/threads/threadBundledPreviews';
+import { hasLoadedEveryThreadReply } from '../../../event-store/threads/threadUtils';
 
 const upsert = (snapshot: CrossRoomThreadIndexSnapshot, entry: CrossRoomThreadIndexEntry) =>
   applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
@@ -298,6 +300,53 @@ describe('thread involvement and agent attribution with SDK events', () => {
       expect(isUserInvolvedInThread({ rootEvent, thread: loaded, userId })).toBe(false);
     }
   );
+
+  it.each([true, false])(
+    'does not resurrect a live-redacted reply (all replies loaded: %s)',
+    async (complete) => {
+      const content = { ...attribution, 'm.mentions': { user_ids: [userId] } };
+      const rootEvent = bundledRoot(2, false, title, reply(content, agentId));
+      const thread = createThread(rootEvent, complete ? [rootEvent] : []);
+      const { room, client } = thread;
+      client.store.storeRoom(room);
+      const mapEvent = client.getEventMapper();
+      thread.addEvents([mapEvent(reply(content, agentId)), mapEvent(title)], false);
+      const index = () =>
+        buildCrossRoomThreadIndexEntry({ room, threadRootId: thread.id, currentUserId: userId });
+      expect(hasLoadedEveryThreadReply(thread)).toBe(complete);
+      expect(index()).toMatchObject({ isInvolved: true, hasAgentPostForUser: true });
+
+      await room.addLiveEvents(
+        [
+          new MatrixEvent({
+            ...message('$redact', { redacts: '$reply' }, agentId),
+            type: 'm.room.redaction',
+            redacts: '$reply',
+            origin_server_ts: 3,
+          }),
+        ],
+        { addToState: false }
+      );
+      expect(room.findEventById('$reply')?.isRedacted()).toBe(true);
+      expect(hasLoadedEveryThreadReply(thread)).toBe(complete);
+      expect(getBundledThreadPreviews(room, rootEvent).reply?.getId()).toBe('$reply');
+      expect(index()).toMatchObject({ isInvolved: false, hasAgentPostForUser: false });
+    }
+  );
+
+  it('uses only the newest detached reply when the SDK and the bundle name different replies', () => {
+    const content = { ...attribution, 'm.mentions': { user_ids: [userId] } };
+    const latest = { ...reply(), event_id: '$newer', origin_server_ts: 2 };
+    const rootEvent = bundledRoot(2, false, latest, reply(content, agentId));
+    const thread = createThread(rootEvent);
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: thread.room,
+      threadRootId: thread.id,
+      currentUserId: userId,
+    });
+    expect(thread.events).toHaveLength(0);
+    expect(entry).toMatchObject({ isInvolved: false, hasAgentPostForUser: false });
+  });
 
   it('publishes a new generation when only agent attribution changes', () => {
     const build = (content: Record<string, unknown>) => {
