@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { Virtualizer } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
+import {
+  createBatchedMeasurementRef,
+  createScrollMountMeasurement,
+  measureMountedRows,
+} from './batchedMeasurementRef';
 import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 
 afterEach(() => {
@@ -198,6 +202,32 @@ describe('batched virtualizer measurement ref', () => {
     await Promise.resolve();
     expect(virtualizer.itemSizeCache.has(0)).toBe(false);
     expect(virtualizer.itemSizeCache.get(25)).toBe(80);
+    dispose();
+  });
+
+  it('measures only near the target of a smooth programmatic scroll at a new width', () => {
+    const { virtualizer, mount, dispose } = setup();
+    const rows = [mount(0), mount(25)];
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    const wrapTo = (height: number) =>
+      rows.forEach((row) => Object.assign(row, { getBoundingClientRect: () => ({ height }) }));
+
+    // At rest, a new width's scan gives every mounted row its new height.
+    wrapTo(120);
+    const beforeRow = vi.fn();
+    measureMountedRows(virtualizer, beforeRow);
+    expect(beforeRow).toHaveBeenCalledTimes(2);
+    expect(virtualizer.itemSizeCache.get(0)).toBe(120);
+
+    // While virtual-core scrolls smoothly to row 25, a row far from it keeps its size, as it
+    // does for virtual-core's own observer: its new size would move the scroll's target.
+    virtualizer.scrollToIndex(25, { behavior: 'smooth' });
+    wrapTo(160);
+    beforeRow.mockClear();
+    measureMountedRows(virtualizer, beforeRow);
+    expect(beforeRow).toHaveBeenCalledTimes(1);
+    expect(virtualizer.itemSizeCache.get(0)).toBe(120);
+    expect(virtualizer.itemSizeCache.get(25)).toBe(160);
     dispose();
   });
 

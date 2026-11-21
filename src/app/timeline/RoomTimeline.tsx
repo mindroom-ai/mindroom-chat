@@ -1232,12 +1232,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
+  // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
-  const listHeight =
-    beforePaint && renderedList?.height
-      ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
-      : virtualizer.getTotalSize();
+  const heldList =
+    beforePaint && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
+  const listHeight = heldList
+    ? heldListHeight(heldList, ledger.ledgerPxAtRender)
+    : virtualizer.getTotalSize();
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
   // (the row that draws a folded turn's break measures the break, also when it is a secret
   // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
@@ -1779,6 +1781,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     surface: threadId ? threadRowsPinned : roomRowsPinned,
     itemCount,
     virtualizer,
+    listHeightHeld: !!heldList,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
     // unless its newest row is first; the way back from a thread at the place the reader left.
     opensAtLatest:
