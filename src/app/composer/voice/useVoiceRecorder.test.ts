@@ -1558,6 +1558,7 @@ describe('useVoiceRecorder', () => {
       const threadToken = Symbol('thread');
       const thread = {
         id: crypto.randomUUID(),
+        ready: Promise.resolve(true),
         append: vi.fn(async () => undefined),
         release: vi.fn<() => void>(),
         remove: vi.fn(async () => undefined),
@@ -1600,6 +1601,37 @@ describe('useVoiceRecorder', () => {
       expect(thread.release).toHaveBeenCalledOnce();
       expect(thread.remove).not.toHaveBeenCalled();
       begin.mockRestore();
+    }
+  );
+
+  it.each(['no Web Locks', 'a rejected Web Lock request'])(
+    'parks a displaced thread draft with %s',
+    async (reason) => {
+      if (reason === 'a rejected Web Lock request') {
+        vi.stubGlobal('navigator', {
+          mediaDevices: { getUserMedia },
+          locks: { request: vi.fn().mockRejectedValue(new Error('Locks unavailable')) },
+        });
+      }
+      const store = createStore();
+      const threadToken = Symbol('thread');
+      const getSendContext = () => createTestSendContext(ROOM_ID, '$thread');
+      MockMediaRecorder.autoStop = false;
+      store.set(openVoiceRecorderAtom, threadToken);
+      const { renderer } = await renderHarness({ recorderToken: threadToken, getSendContext }, store);
+      await act(async () => {
+        expect(await recorderState.current!.start()).toBe(true);
+      });
+      store.set(openVoiceRecorderAtom, Symbol('room'));
+      await act(async () => {
+        renderer.unmount();
+        MockMediaRecorder.instances[0]!.flushStop('thread audio');
+      });
+
+      const parked = store.get(pendingVoiceSendDraftAtom);
+      expect(parked).toMatchObject({ context: getSendContext(), recovered: false });
+      expect(parked?.recordingId).toBeUndefined();
+      expect(await parked?.file.text()).toBe('thread audio');
     }
   );
 

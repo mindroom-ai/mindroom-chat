@@ -59,8 +59,11 @@ export function useVoiceRecorder({
       },
       (recording) => {
         const context = sendBindingAtStartRef.current?.context;
-        if (!context || !canOffer() || store.get(pendingVoiceSendDraftAtom)) return false;
-        store.set(pendingVoiceSendDraftAtom, { ...recording, context, recovered: true });
+        const canOfferHere = canOffer();
+        if (!context || store.get(pendingVoiceSendDraftAtom)) return false;
+        if (recording.recordingId && !canOfferHere) return false;
+        // After a handoff, only the original composer can offer a memory-only draft.
+        store.set(pendingVoiceSendDraftAtom, { ...recording, context, recovered: canOfferHere });
         return true;
       }
     )
