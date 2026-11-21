@@ -12,7 +12,7 @@ const THREAD_SIDEBAR_PREFERENCES = 'threadSidebarPreferences';
 const THREAD_SIDEBAR_PREFERENCES_VERSION = 1;
 const MAX_PINNED_SIDEBAR_THREADS = 50;
 
-/** Recent: one list by latest activity. Sections: Working, Snoozed, Idle and Resolved. */
+/** Recent: one list by latest activity. Sections: Needs you, Working, Later and Done. */
 export type ThreadSidebarLayout = 'recent' | 'sections';
 
 export type ThreadSidebarPreferences = {
