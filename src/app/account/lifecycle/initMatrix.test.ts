@@ -4,6 +4,7 @@ import { createClient as createSdkClient } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
+import type { SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -230,20 +231,62 @@ describe('initClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
+  it('raises the saved sync archive limit and reports its startup workload', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
-    const startup = vi.fn().mockResolvedValue(undefined);
+    const markStartup = vi.fn();
     const syncAccumulator = {
       opts: {
         maxTimelineEntries: 50,
       },
+      accumulate: vi.fn<SyncAccumulator['accumulate']>(),
     };
+    const name = {
+      type: 'm.room.name',
+      state_key: '',
+      event_id: '$name',
+      sender: '@user:example.com',
+      origin_server_ts: 1,
+      content: { name: 'Example room' },
+    };
+    const topic = {
+      ...name,
+      type: 'm.room.topic',
+      event_id: '$topic',
+      content: { topic: 'Example topic' },
+    };
+    const startup = vi.fn(() => {
+      syncAccumulator.accumulate(
+        {
+          next_batch: 'saved-batch',
+          account_data: { events: [] },
+          rooms: {
+            join: {
+              '!example:example.com': {
+                summary: { 'm.heroes': [] },
+                state: { events: [name] },
+                'org.matrix.msc4222.state_after': { events: [name, topic] },
+                timeline: { events: [], prev_batch: null },
+                ephemeral: { events: [] },
+                account_data: { events: [] },
+                unread_notifications: {},
+              },
+            },
+            invite: {},
+            leave: {},
+            knock: {},
+          },
+        },
+        true
+      );
+      return Promise.resolve();
+    });
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return {
         backend: {
           syncAccumulator,
         },
         startup,
+        getSavedSync: vi.fn().mockResolvedValue(null),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -259,14 +302,22 @@ describe('initClient', () => {
       setMaxListeners,
     } as never);
 
-    await initClient({
-      sessionId,
-      baseUrl: 'https://example.com',
-      accessToken: 'token',
-      userId: '@user:example.com',
-      deviceId: 'DEVICE',
-    });
+    await initClient(
+      {
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      },
+      markStartup
+    );
 
+    expect(markStartup).toHaveBeenCalledWith('store.startup.done', {
+      roomCount: 1,
+      timelineEventCount: 0,
+      stateEventCount: 3,
+    });
     expect(vi.mocked(IndexedDBStore)).toHaveBeenCalledWith(
       expect.objectContaining({
         dbName: `web-sync-store::${sessionId}`,

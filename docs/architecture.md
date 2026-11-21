@@ -21,10 +21,13 @@ Its `timeOrigin` is epoch milliseconds; add a `marks[].atMs` to it to compare th
 journal timestamps. Each mark has a name and optional diagnostic detail. The `phases` array lists
 elapsed milliseconds between consecutive marks, not exclusive durations: store and crypto startup
 can overlap. `js.entry` marks the entry module body, after static dependencies have evaluated.
-`store.startup.done` counts rooms and event-array lengths in the saved sync, before replay.
-`saved_sync.read.done` reports `detail.cacheHit`, even for a saved sync with no rooms. Client marks
-belong to the first attempt; a retry or account switch does not fill missing marks. Splash and shell
-marks record React commits, not paints.
+`config.ready` marks the first React commit with config available, including router setup and
+rendering, not just reading or fetching the config. `store.startup.done` counts rooms and event-array
+lengths in the saved sync before replay. Both `state.events` and `org.matrix.msc4222.state_after.events`
+contribute for joined rooms: the count measures persisted entries the SDK processes, not distinct
+events. `saved_sync.read.done` reports `detail.cacheHit`, even for a saved sync with no rooms. Client
+marks belong to the first attempt; a retry or account switch does not fill missing marks. Splash and
+shell marks record React commits, not paints.
 
 Where the flight recorder is active, its existing writes include `startupMarks` (time origin and mark
 timestamps, without details). A prior `abnormalSession` can therefore show partial startup progress.

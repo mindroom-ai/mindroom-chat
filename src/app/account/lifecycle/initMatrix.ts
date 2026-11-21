@@ -108,17 +108,17 @@ const countSavedRooms = (rooms: ISyncResponse['rooms']) => {
   };
   for (const room of joined) {
     counts.timelineEventCount += eventCount(room?.timeline?.events);
-    const state = room?.['org.matrix.msc4222.state_after'] ?? room?.state;
-    counts.stateEventCount += eventCount(state?.events);
+    counts.stateEventCount += eventCount(room?.state?.events);
+    counts.stateEventCount += eventCount(room?.['org.matrix.msc4222.state_after']?.events);
   }
   for (const room of invited) counts.stateEventCount += eventCount(room?.invite_state?.events);
   for (const room of knocked) counts.stateEventCount += eventCount(room?.knock_state?.events);
   return counts;
 };
 
-// Observe the original promise without adding a wait to its callers.
+// Observe the original promise without adding a wait or surfacing diagnostic failures.
 const onCompletion = <T>(work: Promise<T>, note: (value: T) => void): Promise<T> => {
-  void work.then(note, () => undefined);
+  void work.then(note).catch(() => undefined);
   return work;
 };
 
@@ -368,13 +368,13 @@ export const initClient = async (
     const sync = store.backend?.syncAccumulator;
     if (sync) dropSettledScheduledTasks(sync);
     const restore = restoreStreamingRepliesFromCache(mx);
-    if (markStartup) onCompletion(restore, () => markStartup('streaming.restore.done'));
+    if (markStartup) void onCompletion(restore, () => markStartup('streaming.restore.done'));
     return restore;
   });
   const cryptoInit = mx.initRustCrypto({
     cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
   });
-  if (markStartup) onCompletion(cryptoInit, () => markStartup('crypto.init.done'));
+  if (markStartup) void onCompletion(cryptoInit, () => markStartup('crypto.init.done'));
   const results = await Promise.allSettled([storeStartup, cryptoInit]);
   const failure = results.find(
     (result): result is PromiseRejectedResult => result.status === 'rejected'
