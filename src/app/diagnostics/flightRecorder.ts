@@ -1,11 +1,9 @@
 import { APP_BUILD_VERSION } from '../config/appVersion';
-import { isRecord } from '../lib/isRecord';
 import {
   getSafeLocalStorage,
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
-import { getStartupMarks, isStartupMarkName, type StartupMarks } from '../lib/startupTimeline';
 
 export const FLIGHT_RECORDER_CURRENT_KEY = 'mindroom.flight.current.v1';
 export const FLIGHT_RECORDER_ABNORMAL_KEY = 'mindroom.flight.abnormal.v1';
@@ -70,7 +68,6 @@ export type FlightRecorderSession = {
   endReason: EndReason | null;
   events: FlightEvent[];
   lastAction?: FlightRecorderLastAction;
-  startupMarks?: StartupMarks;
 };
 type AbnormalSession = FlightRecorderSession & { detectedAt: number; startupGapMs: number };
 type Runtime = {
@@ -132,22 +129,12 @@ const eventIsValid = (value: unknown): value is FlightEvent => {
     event.delayMs >= GAP_MS
   );
 };
-const startupMarksAreValid = (value: unknown): boolean => {
-  if (!isRecord(value) || Object.keys(value).length !== 2) return false;
-  const { timeOrigin, atMs } = value;
-  if (!number(timeOrigin) || !isRecord(atMs)) return false;
-  const marks = Object.entries(atMs);
-  return marks.length > 0 && marks.every(([name, at]) => isStartupMarkName(name) && number(at));
-};
 const sessionIsValid = (value: unknown): value is FlightRecorderSession => {
   const item = value as Partial<FlightRecorderSession> | null;
   const keyCount = item ? Object.keys(item).length : 0;
   return Boolean(
     item &&
-      keyCount ===
-        12 + Number(item.lastAction !== undefined) + Number(item.startupMarks !== undefined) &&
-      (item.lastAction === undefined || lastActionIsValid(item.lastAction)) &&
-      (item.startupMarks === undefined || startupMarksAreValid(item.startupMarks)) &&
+      (keyCount === 12 || (keyCount === 13 && lastActionIsValid(item.lastAction))) &&
       item.schemaVersion === FLIGHT_RECORDER_SCHEMA_VERSION &&
       typeof item.buildVersion === 'string' &&
       /^[A-Za-z0-9._+-]{1,128}$/.test(item.buildVersion) &&
@@ -181,7 +168,8 @@ const parseAbnormal = (raw: string | null): AbnormalSession | undefined => {
   try {
     const abnormal = JSON.parse(raw) as AbnormalSession;
     const { detectedAt, startupGapMs, ...value } = abnormal;
-    return number(detectedAt) &&
+    return (Object.keys(abnormal).length === 14 || Object.keys(abnormal).length === 15) &&
+      number(detectedAt) &&
       number(startupGapMs) &&
       sessionIsValid(value) &&
       value.expectedEndAt === null
@@ -217,8 +205,6 @@ const disable = (runtime: Runtime): void => {
 };
 const flush = (runtime: Runtime): boolean => {
   if (runtime.disabled || !runtime.storage || !runtime.session) return false;
-  const startupMarks = getStartupMarks();
-  if (startupMarks) runtime.session.startupMarks = startupMarks;
   const json = serialize(runtime.session);
   if (!json || !setStorageItemSafe(runtime.storage, FLIGHT_RECORDER_CURRENT_KEY, json)) {
     if (runtime.established) {

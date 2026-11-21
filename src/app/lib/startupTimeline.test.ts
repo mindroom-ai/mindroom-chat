@@ -1,41 +1,47 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { claimClientStartup, markPageStartup, readStartupTimeline } from './startupTimeline';
 
-it('exports only startup marks, with relative times for the first client attempt', () => {
-  performance.mark('other.measurement');
+it('exports only our marks, with relative times for the first client attempt', () => {
+  const foreign = 'mindroom.startup.sync.first_live';
+  performance.mark(foreign);
+  const devToolsMark = vi.spyOn(performance, 'mark');
   try {
     markPageStartup('js.entry');
     markPageStartup('js.entry');
-    const readyAt = performance.now();
+    devToolsMark.mockImplementationOnce(() => {
+      throw new Error('User Timing failed');
+    });
+    markPageStartup('config.ready');
     markPageStartup('splash.shown');
-    markPageStartup('config.ready', readyAt);
     let active = true;
     const mark = claimClientStartup(() => active);
     if (!mark) throw new Error('The first startup must own the timeline');
     mark('client.init.start');
-    mark('saved_sync.read.done', { cacheHit: true });
+    mark('saved_sync.read.done', {
+      cacheHit: true,
+      durationMs: 3,
+      invalid: Infinity,
+      text: 'not an enum',
+    });
     active = false;
     mark('sync.first_live');
     expect(claimClientStartup(() => true)).toBeUndefined();
 
-    const { timeOrigin, marks, phases } = readStartupTimeline();
+    const { timeOrigin, marks } = readStartupTimeline();
     expect(timeOrigin).toBe(performance.timeOrigin);
     expect(marks.map(({ name, detail }) => [name, detail])).toEqual([
       ['mindroom.startup.js.entry', null],
       ['mindroom.startup.config.ready', null],
       ['mindroom.startup.splash.shown', null],
       ['mindroom.startup.client.init.start', null],
-      ['mindroom.startup.saved_sync.read.done', { cacheHit: true }],
+      ['mindroom.startup.saved_sync.read.done', { cacheHit: true, durationMs: 3 }],
     ]);
-    expect(marks[1]?.atMs).toBe(readyAt);
-    expect(phases).toEqual(
-      marks.slice(1).map((mark, index) => ({
-        from: marks[index]?.name,
-        to: mark.name,
-        durationMs: mark.atMs - (marks[index]?.atMs ?? 0),
-      }))
-    );
+    const [entry] = performance.getEntriesByName('mindroom.startup.js.entry', 'mark');
+    expect(entry).toBeDefined();
+    expect(marks[0]?.atMs).toBe(entry?.startTime);
   } finally {
-    performance.getEntriesByType('mark').forEach(({ name }) => performance.clearMarks(name));
+    devToolsMark.mockRestore();
+    performance.clearMarks(foreign);
+    for (const { name } of readStartupTimeline().marks) performance.clearMarks(name);
   }
 });

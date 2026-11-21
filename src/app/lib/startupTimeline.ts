@@ -1,50 +1,44 @@
+// App phase names live in lib/ because it is the lowest layer every caller can import.
 const PREFIX = 'mindroom.startup.';
-const PAGE_PHASES = ['js.entry', 'config.ready', 'splash.shown'] as const;
-const CLIENT_PHASES = [
-  'client.init.start',
-  'crypto.store.probe',
-  'crypto.store.preflight.done',
-  'store.startup.done',
-  'streaming.restore.done',
-  'crypto.init.done',
-  'identity.check.done',
-  'client.init.done',
-  'saved_sync.read.done',
-  'sync.prepared.cache',
-  'shell.shown',
-  'sync.first_live',
-] as const;
-type PagePhase = (typeof PAGE_PHASES)[number];
-type ClientPhase = (typeof CLIENT_PHASES)[number];
-type Detail = Record<string, number | boolean | string>;
-export type MarkClientStartup = (phase: ClientPhase, detail?: Detail) => void;
+type PagePhase = 'js.entry' | 'config.ready' | 'splash.shown';
+type ClientPhase =
+  | `client.init.${'start' | 'parallel.start' | 'done'}`
+  | `crypto.store.${'probe' | 'preflight.done'}`
+  | 'store.startup.done'
+  | 'streaming.restore.done'
+  | 'crypto.init.done'
+  | 'identity.check.done'
+  | 'saved_sync.read.done'
+  | `sync.${'prepared.cache' | 'first_live'}`
+  | `shell.${'committed' | 'frame'}`;
 
-const names = new Set([...PAGE_PHASES, ...CLIENT_PHASES].map((phase) => `${PREFIX}${phase}`));
-export const isStartupMarkName = (name: string): boolean => names.has(name);
+const ENUMS = ['unavailable', 'present', 'missing', 'recorded', 'recorded_now', 'unrecorded'];
+type Detail = Readonly<Record<string, number | boolean | string>>;
+const isSafeDetail = ([, v]: [string, Detail[string]]): boolean =>
+  typeof v === 'string' ? ENUMS.includes(v) : typeof v === 'boolean' || Number.isFinite(v);
+export type MarkClientStartup = (phase: ClientPhase, detail?: Detail) => boolean;
+type StartupMark = Readonly<{ name: string; atMs: number; detail: Detail | null }>;
+const timeOrigin = globalThis.performance?.timeOrigin ?? null;
+const marks: StartupMark[] = [];
 
-export type StartupMarks = Readonly<{ timeOrigin: number; atMs: Readonly<Record<string, number>> }>;
-let startupMarks: StartupMarks | undefined;
-export const getStartupMarks = () => startupMarks;
-
-const pending = new Set(names);
-const markOnce = (phase: PagePhase | ClientPhase, detail?: Detail, startTime?: number): void => {
+const markOnce = (phase: PagePhase | ClientPhase, detail?: Detail): boolean => {
   const name = `${PREFIX}${phase}`;
-  if (!pending.delete(name)) return;
+  if (marks.some((mark) => mark.name === name)) return false;
+  const atMs = globalThis.performance?.now();
+  if (atMs === undefined || !Number.isFinite(atMs)) return false;
+  const safeDetail = detail
+    ? Object.fromEntries(Object.entries(detail).filter(isSafeDetail))
+    : null;
+  marks.push({ name, atMs, detail: safeDetail });
   try {
-    const { startTime: atMs } = performance.mark(name, { detail, startTime });
-    const { timeOrigin } = performance;
-    if (!Number.isFinite(timeOrigin)) return;
-    startupMarks = Object.freeze({
-      timeOrigin,
-      atMs: Object.freeze({ ...startupMarks?.atMs, [name]: atMs }),
-    });
+    performance.mark(name, { detail: safeDetail, startTime: atMs });
   } catch {
-    // Missing User Timing support must not interrupt startup.
+    // Missing User Timing support must not interrupt startup or prevent export.
   }
+  return true;
 };
 
-export const markPageStartup = (phase: PagePhase, startTime?: number): void =>
-  markOnce(phase, undefined, startTime);
+export const markPageStartup = (phase: PagePhase): void => void markOnce(phase);
 export const clientStartupMarks = new WeakMap<object, MarkClientStartup>();
 
 let claimed = false;
@@ -52,27 +46,18 @@ let claimed = false;
 export const claimClientStartup = (isActive: () => boolean): MarkClientStartup | undefined => {
   if (claimed) return undefined;
   claimed = true;
-  return (phase, detail) => {
-    if (isActive()) markOnce(phase, detail);
-  };
+  return (phase, detail) => isActive() && markOnce(phase, detail);
 };
 
-export const readStartupTimeline = () => {
-  const marks = (globalThis.performance?.getEntriesByType?.('mark') ?? [])
-    .filter(({ name }) => name.startsWith(PREFIX))
-    .map((entry) => ({
-      name: entry.name,
-      atMs: entry.startTime,
-      detail: ((entry as PerformanceMark).detail ?? null) as unknown,
-    }));
-  return {
-    timeOrigin: globalThis.performance?.timeOrigin ?? null,
-    marks,
-    phases: marks.flatMap((mark, index) => {
-      const previous = marks[index - 1];
-      return previous
-        ? [{ from: previous.name, to: mark.name, durationMs: mark.atMs - previous.atMs }]
-        : [];
-    }),
-  };
-};
+/**
+ * The first startup attempt only. Add atMs to timeOrigin (epoch ms) to align with native logs.
+ * js.entry follows static module evaluation; config.ready records acceptance, not a render.
+ * Measure store.startup.done and crypto.init.done each from client.init.parallel.start; they overlap.
+ * saved_sync.read.done times getSavedSync. Its rooms, timelineEvents and stateEvents count what
+ * the replay will process (array lengths, including both state arrays, not distinct events).
+ * cacheHit distinguishes no saved sync from a saved sync with no rooms. identity.check.done times
+ * the identity check and tells whether the key was recorded before, recorded now, or still absent.
+ * splash.shown and shell.committed record React commits. shell.frame is a frame opportunity,
+ * not proof of paint.
+ */
+export const readStartupTimeline = () => ({ timeOrigin, marks: marks.slice() });

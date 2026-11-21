@@ -115,7 +115,6 @@ describe('combined diagnostics export', () => {
     expect(payload.startupTimeline).toEqual({
       timeOrigin: performance.timeOrigin,
       marks: [],
-      phases: [],
     });
     expect(payload.deepTrace).toMatchObject({
       enabled: true,

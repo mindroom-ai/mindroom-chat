@@ -4,7 +4,7 @@ import { createClient as createSdkClient } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
-import type { SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
+import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -231,14 +231,13 @@ describe('initClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('raises the saved sync archive limit and reports its startup workload', async () => {
+  it('raises the archive limit and reports the saved sync replay workload without replacing the SDK result', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     const markStartup = vi.fn();
     const syncAccumulator = {
       opts: {
         maxTimelineEntries: 50,
       },
-      accumulate: vi.fn<SyncAccumulator['accumulate']>(),
     };
     const name = {
       type: 'm.room.name',
@@ -254,40 +253,31 @@ describe('initClient', () => {
       event_id: '$topic',
       content: { topic: 'Example topic' },
     };
-    const startup = vi.fn(() => {
-      syncAccumulator.accumulate(
-        {
-          next_batch: 'saved-batch',
-          account_data: { events: [] },
-          rooms: {
-            join: {
-              '!example:example.com': {
-                summary: { 'm.heroes': [] },
-                state: { events: [name] },
-                'org.matrix.msc4222.state_after': { events: [name, topic] },
-                timeline: { events: [], prev_batch: null },
-                ephemeral: { events: [] },
-                account_data: { events: [] },
-                unread_notifications: {},
-              },
-            },
-            invite: {},
-            leave: {},
-            knock: {},
+    const savedSync: ISavedSync = {
+      nextBatch: 'saved-batch',
+      accountData: [],
+      roomsData: {
+        join: {
+          '!joined:example.com': {
+            summary: { 'm.heroes': [] },
+            state: { events: [name] },
+            'org.matrix.msc4222.state_after': { events: [name, topic] },
+            timeline: { events: [topic], prev_batch: 'older-batch' },
+            ephemeral: { events: [] },
+            account_data: { events: [] },
+            unread_notifications: {},
           },
         },
-        true
-      );
-      return Promise.resolve();
-    });
+        invite: { '!invited:example.com': { invite_state: { events: [name] } } },
+        knock: { '!knocked:example.com': { knock_state: { events: [name, topic] } } },
+        leave: {},
+      },
+    };
+    const sdkRead = Promise.resolve(savedSync);
+    const startup = vi.fn().mockResolvedValue(undefined);
+    const store = { backend: { syncAccumulator }, startup, getSavedSync: vi.fn(() => sdkRead) };
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return {
-        backend: {
-          syncAccumulator,
-        },
-        startup,
-        getSavedSync: vi.fn().mockResolvedValue(null),
-      } as unknown as IndexedDBStore;
+      return store as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -313,10 +303,17 @@ describe('initClient', () => {
       markStartup
     );
 
-    expect(markStartup).toHaveBeenCalledWith('store.startup.done', {
-      roomCount: 1,
-      timelineEventCount: 0,
-      stateEventCount: 3,
+    vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35);
+    const read = store.getSavedSync();
+    expect(read).toBe(sdkRead);
+    expect(await read).toBe(savedSync);
+    expect(markStartup).toHaveBeenCalledWith('store.startup.done');
+    expect(markStartup).toHaveBeenCalledWith('saved_sync.read.done', {
+      cacheHit: true,
+      durationMs: 25,
+      rooms: 3,
+      timelineEvents: 1,
+      stateEvents: 6,
     });
     expect(vi.mocked(IndexedDBStore)).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -613,21 +610,17 @@ describe('initClient', () => {
     expect(startup).not.toHaveBeenCalled();
   });
 
-  it('records a failed identity preflight without creating keys', async () => {
+  it('fails before creating keys when the homeserver identity check is unavailable', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup, getSavedSync: vi.fn() } as unknown as IndexedDBStore;
+      return { startup } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
     });
-    const now = vi.spyOn(performance, 'now').mockReturnValue(10);
-    const authedRequest = vi.fn(() => {
-      now.mockReturnValue(35);
-      return Promise.reject(new Error('offline'));
-    });
+    const authedRequest = vi.fn().mockRejectedValue(new Error('offline'));
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
@@ -636,21 +629,16 @@ describe('initClient', () => {
       http: { authedRequest },
     } as never);
 
-    const markStartup = vi.fn();
     await expect(
-      initClient(
-        {
-          sessionId,
-          baseUrl: 'https://example.com',
-          accessToken: 'token',
-          userId: '@user:example.com',
-          deviceId: 'DEVICE',
-        },
-        markStartup
-      )
+      initClient({
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      })
     ).rejects.toThrow('could not safely verify the encryption storage and device identity');
 
-    expect(markStartup).toHaveBeenLastCalledWith('crypto.store.preflight.done', { durationMs: 25 });
     expect(initRustCrypto).not.toHaveBeenCalled();
     expect(startup).not.toHaveBeenCalled();
   });

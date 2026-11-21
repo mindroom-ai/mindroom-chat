@@ -16,26 +16,10 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 
 ### Startup in the diagnostics export
 
-Settings → About → Export diagnostics includes `startupTimeline` even when deep tracing is off.
-Its `timeOrigin` is epoch milliseconds; add a `marks[].atMs` to it to compare that mark with native
-journal timestamps. Each mark has a name and optional diagnostic detail. The `phases` array lists
-elapsed milliseconds between consecutive marks, not exclusive durations: store and crypto startup
-can overlap. `js.entry` marks the entry module body, after static dependencies have evaluated.
-`config.ready` uses the time the loader accepts usable config, before rendering its children, and
-is emitted on commit. If a missing crypto store requires a `/keys/query` preflight,
-`crypto.store.preflight.done` reports its `detail.durationMs`, including on failure.
-`store.startup.done` counts rooms and event-array lengths in the saved sync before replay. Both
-`state.events` and `org.matrix.msc4222.state_after.events` contribute for joined rooms: the count
-measures persisted entries the SDK processes, not distinct events. `saved_sync.read.done` reports
-`detail.cacheHit`, even for a saved sync with no rooms. Client marks belong to the first attempt;
-a retry or account switch does not fill missing marks. Splash and shell marks record React commits,
-not paints.
-
-Where the flight recorder is active, its existing writes include `startupMarks` (time origin and mark
-timestamps, without details). A prior `abnormalSession` can therefore show partial startup progress.
-A kill can lose everything since the last completed checkpoint, normally every two seconds while
-visible. A blocked main thread can delay that checkpoint, and an observed hide or page exit is not
-classified as abnormal.
+Settings → About → Export diagnostics includes `startupTimeline` for the first startup attempt, even
+without deep tracing. Add a mark's `atMs` to `timeOrigin` for epoch milliseconds. The splash and shell
+marks record commits, not paints. The gap from `sync.prepared.cache` to `shell.committed` can include
+waiting for `/versions` on a version-cache miss, loading the signed-in route chunk and seeding atoms.
 
 ## Layout
 

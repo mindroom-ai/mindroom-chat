@@ -3,7 +3,6 @@ import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
-import type { ISyncResponse, SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
 import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
@@ -90,30 +89,8 @@ type SyncArchiveStore = IndexedDBStore & {
     syncAccumulator?: {
       opts?: { maxTimelineEntries?: number };
       joinRooms?: Record<string, object>;
-      accumulate?: SyncAccumulator['accumulate'];
     };
   };
-};
-
-const eventCount = (events: unknown): number => (Array.isArray(events) ? events.length : 0);
-const countSavedRooms = (rooms: ISyncResponse['rooms']) => {
-  // The SDK persists joined rooms, invites and knocks, but not leaves.
-  const joined = Object.values(rooms?.join ?? {});
-  const invited = Object.values(rooms?.invite ?? {});
-  const knocked = Object.values(rooms?.knock ?? {});
-  const counts = {
-    roomCount: joined.length + invited.length + knocked.length,
-    timelineEventCount: 0,
-    stateEventCount: 0,
-  };
-  for (const room of joined) {
-    counts.timelineEventCount += eventCount(room?.timeline?.events);
-    counts.stateEventCount += eventCount(room?.state?.events);
-    counts.stateEventCount += eventCount(room?.['org.matrix.msc4222.state_after']?.events);
-  }
-  for (const room of invited) counts.stateEventCount += eventCount(room?.invite_state?.events);
-  for (const room of knocked) counts.stateEventCount += eventCount(room?.knock_state?.events);
-  return counts;
 };
 
 // Observe the original promise without adding a wait or surfacing diagnostic failures.
@@ -240,36 +217,24 @@ const serverDeviceIdentityKey = async (
 const openedOwnStore = async (
   mx: MatrixClient,
   session: ClientBootstrapSession,
-  storeExisted: boolean,
-  markStartup?: MarkClientStartup
+  storeExisted: boolean
 ): Promise<boolean> => {
-  const started = markStartup ? performance.now() : 0;
-  const finish = (
-    branch: 'recorded' | 'server_checked' | 'server_failed' | 'new_store' | 'existing_unmarked',
-    ownStore: boolean
-  ): boolean => {
-    markStartup?.('identity.check.done', { branch, durationMs: performance.now() - started });
-    return ownStore;
-  };
   const ownKeys = await mx.getCrypto()?.getOwnDeviceKeys();
   if (!ownKeys) throw new DeviceIdentityVerificationError(session.userId);
   const recorded = safeRecordedDeviceIdentityKey(session.sessionId);
-  if (recorded !== undefined) return finish('recorded', recorded === ownKeys.ed25519);
+  if (recorded !== undefined) return recorded === ownKeys.ed25519;
   // A missing store was only created after the homeserver said it has no keys for the device.
-  const checkServer = storeExisted && safeHasInitializedCryptoStore(session.sessionId);
-  if (checkServer) {
+  if (storeExisted && safeHasInitializedCryptoStore(session.sessionId)) {
     let serverKey: string | undefined;
     try {
       serverKey = await serverDeviceIdentityKey(mx, session);
     } catch {
-      return finish('server_failed', true);
+      return true;
     }
-    if (serverKey !== undefined && serverKey !== ownKeys.ed25519)
-      return finish('server_checked', false);
+    if (serverKey !== undefined && serverKey !== ownKeys.ed25519) return false;
   }
   safeMarkCryptoStoreInitialized(session.sessionId, ownKeys.ed25519);
-  const branch = checkServer ? 'server_checked' : storeExisted ? 'existing_unmarked' : 'new_store';
-  return finish(branch, true);
+  return true;
 };
 
 /**
@@ -307,27 +272,31 @@ export const initClient = async (
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
-  let savedRoomCounts: ReturnType<typeof countSavedRooms> | undefined;
   if (markStartup) {
-    // LocalIndexedDBStoreBackend.init passes the raw saved sync here once, before accumulation.
-    const accumulator = store.backend?.syncAccumulator;
-    const accumulate = accumulator?.accumulate;
-    if (accumulator && typeof accumulate === 'function') {
-      const ownMethod = Object.hasOwn(accumulator, 'accumulate');
-      accumulator.accumulate = function (this: unknown, ...args) {
-        if (args[1]) {
-          if (ownMethod) accumulator.accumulate = accumulate;
-          else delete accumulator.accumulate;
-          savedRoomCounts = countSavedRooms(args[0]?.rooms);
-        }
-        return accumulate.apply(this, args);
-      };
-    }
     const readSavedSync = store.getSavedSync.bind(store);
-    store.getSavedSync = () =>
-      onCompletion(readSavedSync(), (savedSync) =>
-        markStartup('saved_sync.read.done', { cacheHit: Boolean(savedSync) })
-      );
+    store.getSavedSync = () => {
+      const started = performance.now();
+      return onCompletion(readSavedSync(), (savedSync) => {
+        const durationMs = performance.now() - started;
+        const { join = {}, invite = {}, knock = {} } = savedSync?.roomsData ?? {};
+        const joined = Object.values(join);
+        const invited = Object.values(invite);
+        const knocked = Object.values(knock);
+        let timelineEvents = 0;
+        let stateEvents = 0;
+        for (const room of joined) {
+          timelineEvents += room.timeline?.events.length ?? 0;
+          stateEvents += room.state?.events.length ?? 0;
+          stateEvents += room['org.matrix.msc4222.state_after']?.events.length ?? 0;
+        }
+        for (const room of invited) stateEvents += room.invite_state?.events.length ?? 0;
+        for (const room of knocked) stateEvents += room.knock_state?.events.length ?? 0;
+        const rooms = joined.length + invited.length + knocked.length;
+        const cacheHit = Boolean(savedSync);
+        const detail = { cacheHit, durationMs, rooms, timelineEvents, stateEvents };
+        markStartup('saved_sync.read.done', detail);
+      });
+    };
   }
   const legacyCryptoStore = new LegacyCryptoStore(globalThis.indexedDB, storeNames.crypto);
 
@@ -353,15 +322,10 @@ export const initClient = async (
     verificationMethods: ['m.sas.v1'],
   });
 
-  if (!continuity) {
-    const started = markStartup ? performance.now() : 0;
-    try {
-      if (await serverHasDeviceIdentity(mx, session))
-        throw new MissingCryptoStoreError(session.userId);
-    } finally {
-      markStartup?.('crypto.store.preflight.done', { durationMs: performance.now() - started });
-    }
+  if (!continuity && (await serverHasDeviceIdentity(mx, session))) {
+    throw new MissingCryptoStoreError(session.userId);
   }
+  markStartup?.('crypto.store.preflight.done');
 
   raiseSyncArchiveTimelineLimit(store);
 
@@ -369,8 +333,9 @@ export const initClient = async (
   // settle before tearing the half-started runtime down. Streaming replies the saved sync holds
   // are read from the event cache meanwhile, so the rooms first show their newest saved text.
   // Finished scheduled tasks a store saved before they were left out go before the replay.
+  markStartup?.('client.init.parallel.start');
   const storeStartup = store.startup().then(() => {
-    markStartup?.('store.startup.done', savedRoomCounts);
+    markStartup?.('store.startup.done');
     const sync = store.backend?.syncAccumulator;
     if (sync) dropSettledScheduledTasks(sync);
     const restore = restoreStreamingRepliesFromCache(mx);
@@ -392,7 +357,15 @@ export const initClient = async (
 
   let ownStore: boolean;
   try {
-    ownStore = await openedOwnStore(mx, session, continuity, markStartup);
+    const hadKey = markStartup && safeRecordedDeviceIdentityKey(session.sessionId) !== undefined;
+    const started = markStartup ? performance.now() : 0;
+    ownStore = await openedOwnStore(mx, session, continuity);
+    if (ownStore && markStartup) {
+      const durationMs = performance.now() - started;
+      const hasKey = safeRecordedDeviceIdentityKey(session.sessionId) !== undefined;
+      const branch = hadKey ? 'recorded' : hasKey ? 'recorded_now' : 'unrecorded';
+      markStartup('identity.check.done', { durationMs, branch });
+    }
   } catch (error) {
     await abandonClient(mx, store);
     throw error;

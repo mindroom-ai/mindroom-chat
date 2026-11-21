@@ -135,6 +135,7 @@ describe('initClient checks the identity key of the store it opens', () => {
       vi.mocked(IndexedDBStore).mockImplementation(function () {
         return {
           startup: vi.fn().mockResolvedValue(undefined),
+          getSavedSync: vi.fn().mockResolvedValue(null),
           destroy: vi.fn().mockResolvedValue(undefined),
         } as unknown as IndexedDBStore;
       });
@@ -160,9 +161,18 @@ describe('initClient checks the identity key of the store it opens', () => {
         setMaxListeners,
       } as never);
 
-      const started = initClient(session);
-      if (starts) await started;
-      else await expect(started).rejects.toBeInstanceOf(MissingCryptoStoreError);
+      const markStartup = vi.fn();
+      const started = initClient(session, markStartup);
+      if (starts) {
+        await started;
+        expect(markStartup).toHaveBeenCalledWith('identity.check.done', {
+          branch: recorded ? 'recorded_now' : 'unrecorded',
+          durationMs: expect.any(Number),
+        });
+      } else {
+        await expect(started).rejects.toBeInstanceOf(MissingCryptoStoreError);
+        expect(markStartup).not.toHaveBeenCalledWith('identity.check.done', expect.anything());
+      }
 
       expect(authedRequest).toHaveBeenCalledWith(
         'POST',
@@ -176,8 +186,13 @@ describe('initClient checks the identity key of the store it opens', () => {
 
       // Once recorded, the key decides without asking the homeserver again.
       if (recorded) {
-        await initClient(session);
+        markStartup.mockClear();
+        await initClient(session, markStartup);
         expect(authedRequest).toHaveBeenCalledTimes(1);
+        expect(markStartup).toHaveBeenCalledWith('identity.check.done', {
+          branch: 'recorded',
+          durationMs: expect.any(Number),
+        });
       }
     }
   );

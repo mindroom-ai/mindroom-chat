@@ -68,8 +68,10 @@ export function ClientLayout({
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
   const pageRef = useRef<HTMLDivElement>(null);
   useInert(pageRef, phone && layerOpen);
-  // The account atoms have been seeded; the real frame now commits behind ClientBindAtoms.
-  useLayoutEffect(() => clientStartupMarks.get(mx)?.('shell.shown'), [mx]);
+  useLayoutEffect(() => {
+    const mark = clientStartupMarks.get(mx);
+    if (mark?.('shell.committed')) requestAnimationFrame(() => mark('shell.frame'));
+  }, [mx]);
 
   const hasAlias = pathnameContainsAliasRoute(pathname);
   const [resolvedAliasPath, setResolvedAliasPath] = useState<string>();

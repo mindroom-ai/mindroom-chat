@@ -493,11 +493,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   useEffect(() => {
     if (!mx) return undefined;
     const markStartup = clientStartupMarks.get(mx);
-    const noteSyncState = (
-      state: SyncState | null,
-      _previous?: SyncState | null,
-      data?: ISyncStateData
-    ) => {
+    const noteSync = (state: SyncState | null, _prev?: SyncState | null, data?: ISyncStateData) => {
       // The SDK emits Prepared again after applying the first live response, before
       // waiting for crypto's onSyncCompleted. Catchup only signals connectivity.
       if (state === SyncState.Prepared && data) {
@@ -515,11 +511,11 @@ function ClientSession({ session, children }: ClientSessionProps) {
         .then(() => removeCurrentClientSessionAndReload(mx, latestSession.current))
         .catch((error: unknown) => setStartup({ status: 'error', mx, error }));
     };
-    noteSyncState(mx.getSyncState());
-    mx.on(ClientEvent.Sync, noteSyncState);
+    noteSync(mx.getSyncState());
+    mx.on(ClientEvent.Sync, noteSync);
     mx.on(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     return () => {
-      mx.removeListener(ClientEvent.Sync, noteSyncState);
+      mx.removeListener(ClientEvent.Sync, noteSync);
       mx.removeListener(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     };
   }, [mx]);
