@@ -585,6 +585,7 @@ function CompactRoomList({
     scrollRef: viewRef,
     contentRef,
     ready: shownRootIds.length > 0,
+    addressKey: requestKey,
     anchorLayout:
       restoreTarget && modelByRootId.has(restoreTarget)
         ? items.find(({ key }) => key === restoreTarget)?.start ?? 0

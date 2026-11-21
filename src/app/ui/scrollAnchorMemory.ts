@@ -100,6 +100,7 @@ type RestoreState = {
   memoryKey: string;
   /** Cleared once the restore is done following late layout. */
   snapshot?: ScrollAnchorSnapshot;
+  addressKey?: string;
   /** The rows the last write put back in place. */
   placedRows: string[];
   /** Every row's key, in order, at the last write. */
@@ -119,6 +120,7 @@ type ScrollAnchorMemoryOptions = {
   ready: boolean;
   /** The requested anchor can move as the window hydrates without changing the list extent. */
   anchorLayout?: number;
+  addressKey?: string;
 };
 
 /**
@@ -137,6 +139,7 @@ export function useScrollAnchorMemory({
   contentRef,
   ready,
   anchorLayout,
+  addressKey,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -152,6 +155,7 @@ export function useScrollAnchorMemory({
       restoreRef.current = {
         memoryKey,
         snapshot: memory.get(memoryKey),
+        addressKey,
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
@@ -159,6 +163,7 @@ export function useScrollAnchorMemory({
     }
     const state = restoreRef.current;
     const address = state.snapshot?.address === true;
+    if (address && state.addressKey !== addressKey) state.snapshot = undefined;
     const readerInputs = ['wheel', 'pointerdown', 'touchstart', 'keydown'];
 
     let observer: ResizeObserver | undefined;
@@ -210,7 +215,7 @@ export function useScrollAnchorMemory({
       view.removeEventListener('scroll', handleScroll);
       readerInputs.forEach((type) => view.removeEventListener(type, stopFollowing));
     };
-  }, [anchorLayout, contentRef, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [addressKey, anchorLayout, contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -229,12 +234,13 @@ export function useScrollAnchorMemory({
       restoreRef.current = {
         memoryKey,
         snapshot: place,
+        addressKey,
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop,
       };
       setRestarts((count) => count + 1);
     },
-    [memoryKey, scrollRef]
+    [addressKey, memoryKey, scrollRef]
   );
 }
