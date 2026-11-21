@@ -2,24 +2,44 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { useCompactBlocks } from './useCompactBlocks';
 
 const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
 const groups = { cards: ids };
 let width = 390;
+let fontSize = 16;
 const height = (id: string) =>
-  (Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1);
+  ((Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1) * fontSize) / 16;
 const gap = 4.25;
 const clientHeight = 480;
 
-function List({ memory }: { memory: ScrollAnchorMemory }) {
+function List({
+  memory,
+  shown = groups,
+  records,
+  protectedId,
+}: {
+  memory: ScrollAnchorMemory;
+  shown?: Record<string, string[]>;
+  records?: ReadonlyMap<string, ThreadRecord>;
+  protectedId?: string;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const window = useCompactBlocks({ groups, scrollRef, contentRef, memory, roomId: '!room' });
+  const window = useCompactBlocks({
+    groups: shown,
+    scrollRef,
+    contentRef,
+    memory,
+    roomId: '!room',
+    records,
+    protectedId,
+  });
   return (
     <div ref={scrollRef} data-view="" data-complete={window.extentComplete}>
-      <div ref={contentRef} style={{ rowGap: gap }}>
+      <div ref={contentRef} style={{ rowGap: gap, fontSize }}>
         {window.rows[0]?.map((row) =>
           typeof row === 'string' ? (
             <button key={row} type="button" data-scroll-anchor={row}>
@@ -46,6 +66,7 @@ const getHeight = (row: HTMLElement) =>
 
 beforeEach(() => {
   width = 390;
+  fontSize = 16;
   vi.useFakeTimers();
   vi.stubGlobal(
     'ResizeObserver',
@@ -136,6 +157,63 @@ it('remeasures the evicted cards after the width changes', () => {
   resize();
   tick(12);
   expect(space()).toBe(10602.25);
+});
+
+it('remeasures evicted cards after a font-size change without shrinking the old extent first', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  const space = () =>
+    Number.parseFloat(container.querySelector<HTMLElement>('[data-compact-spacer]')!.style.height);
+  tick(12);
+  expect(space()).toBe(7168.75);
+  fontSize = 24;
+  rerender(<List memory={memory} />);
+  expect(space()).toBe(7168.75);
+  tick(12);
+  expect(space()).toBe(10602.25);
+});
+
+it('keeps filtered heights but rediscovers IDs that really left the index', () => {
+  const memory = new Map();
+  const id = '$row80';
+  const records = new Map([[id, {} as ThreadRecord]]);
+  const filtered = { cards: ids.filter((key) => key !== id) };
+  const { container, rerender } = render(<List memory={memory} records={records} />);
+  const complete = () => container.querySelector<HTMLElement>('[data-view]')?.dataset.complete;
+  tick(12);
+  expect(complete()).toBe('true');
+  rerender(<List memory={memory} records={records} shown={filtered} />);
+  rerender(<List memory={memory} records={records} />);
+  expect(complete()).toBe('true');
+  rerender(<List memory={memory} records={new Map()} shown={filtered} />);
+  rerender(<List memory={memory} records={records} />);
+  expect(complete()).toBe('false');
+  tick(2);
+  expect(complete()).toBe('true');
+});
+
+it('keeps the pressed card and then the open menu trigger outside the window', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  const first = view.querySelector('[data-scroll-anchor="$row0"]')!;
+  const pointer = (type: string) => {
+    const event = new Event(type, { bubbles: true });
+    Object.defineProperty(event, 'pointerId', { value: 1 });
+    first.dispatchEvent(event);
+  };
+  pointer('pointerdown');
+  act(() => {
+    view.scrollTop = 6000;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  expect(first.isConnected).toBe(true);
+  rerender(<List memory={memory} protectedId="$row0" />);
+  pointer('pointercancel');
+  expect(first.isConnected).toBe(true);
+  rerender(<List memory={memory} />);
+  expect(first.isConnected).toBe(false);
 });
 
 it('retains a native drag source through pointercancel and evicts it after dragend', () => {

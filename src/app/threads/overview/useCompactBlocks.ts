@@ -92,11 +92,9 @@ export function useCompactBlocks(options: Options) {
   const back = !state.placed && !!saved && saved.scrollTop > 0;
   const awaitingAnchors =
     indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
-  const placeReady =
-    !back ||
-    (state.checked &&
-      !awaitingAnchors &&
-      (backSlot === undefined ? extentComplete : prefixReady(backSlot)));
+  const canPlace =
+    !awaitingAnchors && (backSlot === undefined ? extentComplete : prefixReady(backSlot));
+  const placeReady = !back || (state.checked && canPlace);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const visible = geometry.visible.filter((id) => index.has(id));
@@ -106,7 +104,7 @@ export function useCompactBlocks(options: Options) {
         ? band(savedKeys)
         : [backSlot, backSlot]
       : band(geometry.order === order ? visible : visible.slice(0, 1));
-  const focused = cardId(contentRef.current?.querySelector(':focus'));
+  const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   const retained = new Set([focused, protectedId, state.gesture?.id]);
   const liveIds: string[] = [];
   const spacers = new Map<string, string[]>();
@@ -193,7 +191,7 @@ export function useCompactBlocks(options: Options) {
       return changed || start !== first || end !== last;
     };
     const measured = layout();
-    if (back && !state.checked) render();
+    if (back && canPlace && !state.checked) render();
     state.checked = true;
     const update = () => {
       state.placed ||= placeReady && liveIds.length > 0;

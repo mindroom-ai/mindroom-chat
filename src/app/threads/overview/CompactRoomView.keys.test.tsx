@@ -133,6 +133,31 @@ describe('the thread keys on the compact thread list', () => {
     }
   });
 
+  it('resolve-next reaches a logical neighbour that is not mounted in the filtered order', () => {
+    vi.useFakeTimers();
+    try {
+      const ids = Array.from({ length: 96 }, (_, index) => `$card${index}`).filter(
+        (id) => id !== '$card94'
+      );
+      render(list('!keyboard:example.org', ids));
+      card('$card0').focus();
+      fireEvent.keyDown(card('$card0'), { key: 'End' });
+      for (let i = 0; i < 12; i += 1)
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+      expect(document.activeElement).toBe(card('$card95'));
+      expect(card('$card93')).toBeNull();
+      act(() => {
+        expect(resolveKeys()).toBe(true);
+      });
+      expect(state.setResolved).toHaveBeenLastCalledWith('$card95', true);
+      expect(document.activeElement).toBe(card('$card93'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps the keys from the open thread, and changes nothing, on a pinned card', () => {
     state.pinned = ['$a'];
     render(list('!pinned:example.org', ['$a', '$b']));

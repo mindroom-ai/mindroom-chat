@@ -8,6 +8,7 @@ import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
+import { compactCardNavigation } from '../threads/overview/compactCardKeys';
 import { useThreadKeys } from './useThreadKeys';
 
 const ROOM = '!room:server';
@@ -75,6 +76,23 @@ describe('useThreadKeys', () => {
     expect(press('previousThread')).toBe(true);
     expect(document.activeElement).toBe(card('$a'));
     expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  it('steps beside the open thread even when it and both neighbours are off-window', () => {
+    const scroller = area.querySelector('[data-compact-room-view]')!;
+    const focus = vi.fn(() => true);
+    compactCardNavigation.set(scroller, { ids: ['$a', '$b', '$c', '$d', '$e', '$f'], focus });
+    try {
+      mount('$e');
+      expect(press('nextThread')).toBe(true);
+      expect(press('previousThread')).toBe(true);
+      expect(focus.mock.calls).toEqual([
+        ['$f', false],
+        ['$d', false],
+      ]);
+    } finally {
+      compactCardNavigation.delete(scroller);
+    }
   });
 
   it('starts beside the thread just left', () => {
