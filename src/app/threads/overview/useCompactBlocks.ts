@@ -97,8 +97,9 @@ export function useCompactBlocks({
       : undefined;
   const liveIds: string[] = [];
   const spacers = new Map<string, string[]>();
-  const rows = grouped.map((slots) => {
+  const rows = grouped.map((slots, groupIndex) => {
     const group: CompactBlockRow[] = [];
+    let gapIndex = 0;
     slots.forEach((slot) => {
       const inBand =
         (slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS) ||
@@ -119,8 +120,11 @@ export function useCompactBlocks({
             tail.height += height + gap;
           } else {
             const idsInSpacer = [id];
-            spacers.set(id, idsInSpacer);
-            group.push({ key: id, height, ids: idsInSpacer });
+            // Reuse the gap as its boundaries move. Removing it before inserting the new
+            // gap collapses WebKit's native scroll range during the commit.
+            const key = `${groupIndex}:${gapIndex++}`;
+            spacers.set(key, idsInSpacer);
+            group.push({ key, height, ids: idsInSpacer });
           }
         }
       });

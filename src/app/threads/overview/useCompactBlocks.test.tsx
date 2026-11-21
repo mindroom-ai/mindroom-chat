@@ -99,7 +99,12 @@ it('measures the tail in blocks, then remounts evicted rows without shifting the
     expect(view.scrollTop).toBe(originally);
   };
   // One short + one tall + two gaps occupy exactly 199.25px.
+  const space = view.querySelector('[data-compact-spacer]');
+  expect(space).not.toBeNull();
   around('$row60', 30 * 199.25);
+  // Keep the measured gap in flow during the commit: WebKit clamps the native offset
+  // if React tears down the old spacer before placing its replacement.
+  expect(view.querySelector('[data-compact-spacer]')).toBe(space);
   act(() => {
     resize();
     vi.advanceTimersByTime(17);
