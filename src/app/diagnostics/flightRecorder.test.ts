@@ -774,7 +774,7 @@ describe('iOS freeze flight recorder', () => {
     storage.values.set(FLIGHT_RECORDER_ABNORMAL_KEY, 'abnormal');
 
     clearAppOwnedCacheLocalStorage(storage);
-    clearUserUiState('@alice:example.org');
+    void clearUserUiState('@alice:example.org');
 
     expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe('current');
     expect(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBe('abnormal');

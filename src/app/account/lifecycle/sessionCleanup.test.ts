@@ -73,7 +73,7 @@ it('removes only the logged-out account composer drafts from storage and memory'
   const draft = [{ type: 'paragraph' as const, children: [{ text: 'Private draft' }] }];
   store.set(roomIdToMsgDraftAtomFamily(aliceKey), draft);
   store.set(roomIdToMsgDraftAtomFamily(bobKey), draft);
-  clearUserUiState('@draft-alice:example.org');
+  void clearUserUiState('@draft-alice:example.org');
   expect(values.size).toBe(1);
   expect(store.get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
   expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
@@ -90,7 +90,7 @@ it('removes the keys each module keeps for the logged-out account, and no other 
   const values = stubLocalStorage();
   seed(values, accountStorageKeys('@alice:example.org'));
   const bobKeys = seed(values, accountStorageKeys('@bob:example.org'));
-  clearUserUiState('@alice:example.org');
+  void clearUserUiState('@alice:example.org');
   expect([...values.keys()]).toEqual(bobKeys);
 });
 
@@ -103,7 +103,7 @@ it('removes the logged-out account plugin panel widths and pending settings edit
   const values = stubLocalStorage();
   seed(values, perPanelOrDevice('@alice:example.org'));
   const bobKeys = seed(values, perPanelOrDevice('@bob:example.org'));
-  clearUserUiState('@alice:example.org');
+  void clearUserUiState('@alice:example.org');
   expect([...values.keys()]).toEqual(bobKeys);
 });
 
@@ -113,7 +113,7 @@ it('keeps those of a stored login whose user ID starts with the logged-out one',
   putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' });
   seed(values, perPanelOrDevice('@alice:example.org'));
   const kept = seed(values, perPanelOrDevice(userId));
-  clearUserUiState('@alice:example.org');
+  void clearUserUiState('@alice:example.org');
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
 });
 
@@ -123,7 +123,7 @@ it('removes those of a logged-out user ID that starts with a stored one', () => 
   putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' });
   const kept = seed(values, perPanelOrDevice(userId));
   seed(values, perPanelOrDevice('@alice:example.org:8448'));
-  clearUserUiState('@alice:example.org:8448');
+  void clearUserUiState('@alice:example.org:8448');
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
 });
 
@@ -289,7 +289,7 @@ describe('MindRoom session cleanup', () => {
     const removeItem = vi.fn();
     vi.stubGlobal('localStorage', { removeItem });
 
-    clearUserUiState('@alice:example.com');
+    void clearUserUiState('@alice:example.com');
     clearSessionUiState('session-a');
     clearSessionNativeState('session-a');
     clearInMemoryCaches();

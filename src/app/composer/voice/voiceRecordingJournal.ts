@@ -1,4 +1,9 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import {
+  cancelNativeVoiceRecording,
+  listNativeVoiceLeftovers,
+  readNativeVoiceFile,
+} from '../../native/nativeVoiceRecorder';
 import { getAudioFileExtension } from './voiceRecorderMime';
 
 type Recording = { id: string; userId: string; startedAt: number; mimeType: string };
@@ -72,40 +77,57 @@ export const deleteVoiceRecording = async (id?: string): Promise<void> => {
   if (deleted) releaseVoiceRecording(id);
 };
 
-export const beginVoiceRecording = (userId: string, startedAt: number, mimeType: string) => {
+export const beginVoiceRecording = (
+  userId: string,
+  startedAt: number,
+  mimeType: string,
+  nativeId?: string
+) => {
   if (!globalThis.navigator?.locks) return undefined;
-  const id = crypto.randomUUID();
+  const id = nativeId ?? crypto.randomUUID();
   const start = holdVoiceRecording(id).then(async (locked) => {
     if (!locked) return false;
-    const stored = await withDb((db) => db.add('recordings', { id, userId, startedAt, mimeType }));
+    const stored = await withDb(async (db) => {
+      if (nativeId && (await db.getKey('recordings', id))) return id;
+      return db.add('recordings', { id, userId, startedAt, mimeType });
+    });
     if (!stored) releaseVoiceRecording(id);
     return !!stored;
   });
   starts.set(id, start);
   void start.then(() => starts.delete(id));
-  let tail: Promise<unknown> = start;
+  let tail = start;
   return {
     id,
-    remove: () => deleteVoiceRecording(id),
+    ready: start,
+    remove: async () => {
+      if (nativeId && !(await start)) return;
+      // A successful native append must survive a failed or interrupted handoff.
+      if (nativeId && tail !== start && (await tail)) releaseVoiceRecording(id);
+      else await deleteVoiceRecording(id);
+    },
     release: () => {
-      void tail.then(() => releaseVoiceRecording(id));
+      void tail.then(async () => {
+        if (await start) releaseVoiceRecording(id);
+      });
     },
     append: async (seq: number, data: Blob, elapsedMs: number) => {
       const bytes = data.arrayBuffer().catch(() => undefined);
       const next = tail.then(async () => {
-        if (!(await start) || !held.has(id)) return;
+        if (!(await start) || !held.has(id)) return false;
         const buffer = await bytes;
-        if (!buffer) return;
-        await withDb((db) =>
+        if (!buffer) return false;
+        const chunk = { id, seq, bytes: buffer, elapsedMs, type: nativeId ? mimeType : data.type };
+        const committed = await withDb((db) =>
           change(db, async (tx) => {
             // Sign-out can delete the meta in another tab. Do not recreate its chunks.
-            if (await tx.objectStore('recordings').getKey(id)) {
-              await tx
-                .objectStore('chunks')
-                .put({ id, seq, bytes: buffer, elapsedMs, type: data.type });
-            }
+            if (!(await tx.objectStore('recordings').getKey(id))) return false;
+            const chunks = tx.objectStore('chunks');
+            if (!nativeId || !(await chunks.getKey([id, seq]))) await chunks.put(chunk);
+            return true;
           })
         );
+        return committed === true;
       });
       tail = next;
       return next;
@@ -113,11 +135,41 @@ export const beginVoiceRecording = (userId: string, startedAt: number, mimeType:
   };
 };
 
+const nativeDeleted = (id: string) =>
+  cancelNativeVoiceRecording(id)
+    .then(() => true)
+    .catch(() => false);
+
+/** Transfers leftovers; a durable draft can verify unlisted UUIDs with idempotent cancel. */
+export const importNativeVoiceRecordings = async (userId: string) => {
+  if (!globalThis.navigator?.locks) return undefined;
+  const { recordings } = await listNativeVoiceLeftovers().catch(() => ({ recordings: [] }));
+  const transferred = new Map<string, boolean>();
+  /* eslint-disable no-await-in-loop, no-continue */
+  for (const { id, path, startedAt, duration, userId: owner } of recordings) {
+    if (owner !== userId) continue;
+    transferred.set(id, false);
+    const journal = beginVoiceRecording(userId, startedAt, 'audio/mp4', id);
+    if (!journal || !(await journal.ready)) continue;
+    try {
+      const data = await readNativeVoiceFile(path);
+      if (data && (await journal.append(0, data, duration)))
+        transferred.set(id, await nativeDeleted(id));
+    } catch {
+      // A failed handoff stays off this page.
+    } finally {
+      journal.release();
+    }
+  }
+  /* eslint-enable no-await-in-loop, no-continue */
+  return (id: string) => transferred.get(id) ?? nativeDeleted(id);
+};
+
 type Recovered = { recordingId: string; file: File; duration: number };
 export const recoverVoiceRecording = async (
   userId: string,
   skipId: string | undefined,
-  offer: (recording: Recovered) => boolean
+  offer: (recording: Recovered) => boolean | Promise<boolean>
 ): Promise<void> => {
   if (!globalThis.navigator?.locks) return;
   await withDb(async (db) => {
@@ -135,7 +187,7 @@ export const recoverVoiceRecording = async (
           continue;
         }
         const type = chunks[0]?.type || mimeType;
-        accepted = offer({
+        accepted = await offer({
           recordingId: id,
           file: new File(
             chunks.map((c) => c.bytes),
@@ -144,7 +196,7 @@ export const recoverVoiceRecording = async (
           ),
           duration: Math.max(1, Math.round(last.elapsedMs)),
         });
-        return;
+        if (accepted) return;
       } finally {
         if (!accepted) releaseVoiceRecording(id);
       }
