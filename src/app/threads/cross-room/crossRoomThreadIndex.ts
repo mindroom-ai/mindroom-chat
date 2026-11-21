@@ -51,7 +51,9 @@ export type CrossRoomThreadIndexEntry = {
   resolvedTs?: number;
   hasAttention: boolean;
   isInvolved: boolean;
-  hasAgentPostForUser: boolean;
+  // Sidebar For me: involvement, agent attribution, or participation for the SDK account.
+  // After redacting your only reply, For me may still show the thread until the SDK rereads the root.
+  isForUser: boolean;
   summaryText: string;
   rootPreviewText: string;
   searchableText: string;
@@ -344,9 +346,6 @@ const eventDirectlyMentionsUser = (event: MatrixEvent | undefined, userId: strin
   return hasDirectUserMention(getMentionSourceContent(replacementEvent ?? event, content), userId);
 };
 
-const eventInvolvesUser = (event: MatrixEvent | undefined, userId: string): boolean =>
-  event?.getSender?.() === userId || eventDirectlyMentionsUser(event, userId);
-
 type ThreadInvolvementInput = {
   rootEvent?: MatrixEvent;
   thread: Thread | null | undefined;
@@ -361,26 +360,17 @@ export const isUserInvolvedInThread = ({
   visibleReplies,
 }: ThreadInvolvementInput): boolean => {
   if (!userId) return false;
-  if (eventInvolvesUser(rootEvent, userId)) return true;
+  if (rootEvent?.getSender?.() === userId) return true;
+  if (eventDirectlyMentionsUser(rootEvent, userId)) return true;
 
-  // The bundle is for this SDK account. If all replies are present, trust the visible events
-  // instead: a redaction of an earlier reply need not refresh the SDK's bundled flag.
-  if (
-    thread?.hasCurrentUserParticipated &&
-    thread.client?.getUserId?.() === userId &&
-    !hasLoadedEveryThreadReply(thread)
-  ) {
-    return true;
-  }
-
-  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some((event) =>
-    eventInvolvesUser(event, userId)
+  return (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(
+    (event) => event.getSender?.() === userId || eventDirectlyMentionsUser(event, userId)
   );
 };
 
 /**
  * Attribution uses the root and loaded visible replies, plus detached replies only when incomplete.
- * Read original content and skip detached titles, roots, non-visible replies, and room-known redactions.
+ * Read original content and skip title replies, plus detached roots, non-visible replies, and room-known redactions.
  */
 export const hasAgentPostForUser = ({
   thread,
@@ -401,7 +391,9 @@ export const hasAgentPostForUser = ({
 
   if (
     postedForUser(rootEvent) ||
-    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(postedForUser)
+    (visibleReplies ?? getPreferredVisibleThreadReplyEvents(thread)).some(
+      (event) => postedForUser(event) && !isThreadSummaryEvent(event)
+    )
   )
     return true;
   if (hasLoadedEveryThreadReply(thread)) return false;
@@ -527,6 +519,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     userId: currentUserId,
     visibleReplies,
   };
+  const isInvolved = hasPendingOwnReply || isUserInvolvedInThread(involvementInput);
 
   return {
     key: getCrossRoomThreadIndexKey(room.roomId, threadRootId),
@@ -548,8 +541,13 @@ export const buildCrossRoomThreadIndexEntry = ({
       : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
-    isInvolved: hasPendingOwnReply || isUserInvolvedInThread(involvementInput),
-    hasAgentPostForUser: hasAgentPostForUser({ ...involvementInput, room, bundledPreviews }),
+    isInvolved,
+    isForUser:
+      isInvolved ||
+      hasAgentPostForUser({ ...involvementInput, room, bundledPreviews }) ||
+      (!!currentUserId &&
+        thread?.hasCurrentUserParticipated === true &&
+        thread.client?.getUserId?.() === currentUserId),
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),

@@ -113,7 +113,7 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     threadRootId,
     lastActivityTs,
     isInvolved: true,
-    hasAgentPostForUser: false,
+    isForUser: true,
     isUnread: false,
     isResolved: false,
     summaryText: threadRootId,
@@ -325,7 +325,7 @@ describe('ThreadNavCategory', () => {
       ...store.get(crossRoomThreadIndexAtom),
       entries: new Map([
         [older.key, older],
-        [newer.key, { ...newer, isInvolved: false }],
+        [newer.key, { ...newer, isInvolved: false, isForUser: false }],
       ]),
     });
     renderCategory();
@@ -364,8 +364,8 @@ describe('ThreadNavCategory', () => {
     store.set(crossRoomThreadIndexAtom, {
       ...store.get(crossRoomThreadIndexAtom),
       entries: new Map([
-        [older.key, { ...older, isInvolved: false }],
-        [newer.key, { ...newer, isInvolved: false }],
+        [older.key, { ...older, isInvolved: false, isForUser: false }],
+        [newer.key, { ...newer, isInvolved: false, isForUser: false }],
       ]),
     });
     store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
@@ -388,8 +388,8 @@ describe('ThreadNavCategory', () => {
     store.set(crossRoomThreadIndexAtom, {
       ...store.get(crossRoomThreadIndexAtom),
       entries: new Map([
-        [older.key, { ...older, isInvolved: false, hasAgentPostForUser: true }],
-        [newer.key, { ...newer, isInvolved: false }],
+        [older.key, { ...older, isInvolved: false, isForUser: true }],
+        [newer.key, { ...newer, isInvolved: false, isForUser: false }],
       ]),
     });
     renderCategory();
@@ -422,7 +422,7 @@ describe('ThreadNavCategory', () => {
   it('shows a distinct empty state when For me hides every thread', () => {
     store.set(crossRoomThreadIndexAtom, {
       ...store.get(crossRoomThreadIndexAtom),
-      entries: new Map([[newer.key, { ...newer, isInvolved: false }]]),
+      entries: new Map([[newer.key, { ...newer, isInvolved: false, isForUser: false }]]),
     });
     renderCategory();
 

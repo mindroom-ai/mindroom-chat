@@ -335,12 +335,12 @@ describe('edits of unopened threads', () => {
     await f.deliver([withSummary(latest)]);
     expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
     expect(f.thread().initialEventsFetched).toBe(false);
-    expect(indexForViewer(f)?.hasAgentPostForUser).toBe(true);
+    expect(indexForViewer(f)).toMatchObject({ isInvolved: false, isForUser: true });
 
     await f.deliver([title(160)]);
     expect(f.thread().replyToEvent?.getId()).toBe('$title-160');
     expect(f.loadedThread()).toBe(false);
-    expect(indexForViewer(f)?.hasAgentPostForUser).toBe(true);
+    expect(indexForViewer(f)).toMatchObject({ isInvolved: false, isForUser: true });
   });
 
   it('never counts a detached mention, even if a stale bundle outlives its removal', async () => {

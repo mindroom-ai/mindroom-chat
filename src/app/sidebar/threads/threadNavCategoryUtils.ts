@@ -9,11 +9,10 @@ export const MAX_SIDEBAR_RESOLVED_THREADS = 20;
 export const MAX_SIDEBAR_LATER_THREADS = 20;
 
 export const matchesSidebarThreadInvolvement = (
-  entry: Pick<CrossRoomThreadIndexEntry, 'key' | 'isInvolved' | 'hasAgentPostForUser'>,
+  entry: Pick<CrossRoomThreadIndexEntry, 'key' | 'isForUser'>,
   involvedOnly: boolean,
   pinnedKeys: ReadonlySet<string>
-): boolean =>
-  !involvedOnly || entry.isInvolved || entry.hasAgentPostForUser || pinnedKeys.has(entry.key);
+): boolean => !involvedOnly || entry.isForUser || pinnedKeys.has(entry.key);
 
 type Compare = (left: CrossRoomThreadIndexEntry, right: CrossRoomThreadIndexEntry) => number;
 

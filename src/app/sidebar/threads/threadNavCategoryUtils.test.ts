@@ -15,14 +15,14 @@ const makeEntry = ({
   key,
   lastActivityTs,
   isInvolved = true,
-  hasAgentPostForUser = false,
+  isForUser = isInvolved,
   isResolved = false,
   roomId = key,
 }: {
   key: string;
   lastActivityTs: number;
   isInvolved?: boolean;
-  hasAgentPostForUser?: boolean;
+  isForUser?: boolean;
   isResolved?: boolean;
   roomId?: string;
 }): CrossRoomThreadIndexEntry =>
@@ -31,7 +31,7 @@ const makeEntry = ({
     roomId,
     lastActivityTs,
     isInvolved,
-    hasAgentPostForUser,
+    isForUser,
     isUnread: false,
     hasAttention: false,
     isResolved,
@@ -48,7 +48,7 @@ describe('matchesSidebarThreadInvolvement', () => {
       key: 'attributed',
       lastActivityTs: 4,
       isInvolved: false,
-      hasAgentPostForUser: true,
+      isForUser: true,
     }),
   ];
   const pinned = new Set(['pinned']);
