@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  COMPACT_THREAD_SECTION_ORDER,
-  holdCompactThreadSections,
-  type CompactThreadSection,
-} from './compactThreadSections';
-import { holdOrder } from './useHeldThreadOrder';
-
+import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
 import { step } from './compactShownOrder';
 
 const FLAT = 'flat';
@@ -133,18 +127,3 @@ const properties = <Id extends string>(groupOrder: readonly Id[], keepEmpty = fa
 
 describe('flat order properties', () => properties([FLAT], true));
 describe('section order properties', () => properties(COMPACT_THREAD_SECTION_ORDER));
-
-it('agrees with the old flat hold on seeded lists', () => {
-  for (const { shown, live } of randomLists([FLAT], true)) {
-    const expected = flat(holdOrder(shown[0]!.rootIds, live[0]!.rootIds));
-    expect(step(shown, live, true, [FLAT])).toEqual(expected);
-  }
-});
-
-it('agrees with the old Sections hold on seeded lists', () => {
-  for (const { shown, live } of randomLists(COMPACT_THREAD_SECTION_ORDER)) {
-    expect(step(shown, live, true, COMPACT_THREAD_SECTION_ORDER)).toEqual(
-      holdCompactThreadSections(live, shown)
-    );
-  }
-});

@@ -1,10 +1,9 @@
 type OrderGroup<Id extends string> = { id: Id; rootIds: string[] };
 
 /**
- * The shown order kept against the live one: the threads shown keep their places, threads that
- * left the list go, and new ones join where the live order puts them. One that the live order
- * puts before every shown thread leads (the top of a newest-first list, its live end), one it
- * puts after all of them ends the list, and one between follows its live neighbour.
+ * New cards that the live order puts before all survivors lead the list, so a newest-first
+ * list still shows arrivals at the top. Those after all survivors go last; those in between
+ * follow their live predecessor without reordering the cards already shown.
  */
 const holdOrder = (shownIds: readonly string[], liveIds: readonly string[]): string[] => {
   const live = new Set(liveIds);

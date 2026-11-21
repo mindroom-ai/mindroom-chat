@@ -2,61 +2,13 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MOUSE_REST_HOLD_MS, useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import {
+  MOUSE_REST_HOLD_MS,
+  useCompactScrollFallback,
+  usePointerOverCards,
+} from './useHeldThreadOrder';
 
-describe('useHeldThreadOrder', () => {
-  it('follows the live order while nothing holds it', () => {
-    const { result, rerender } = renderHook(({ ids, held }) => useHeldThreadOrder(ids, held), {
-      initialProps: { ids: ['$a', '$b', '$c'], held: false },
-    });
-    rerender({ ids: ['$c', '$a', '$b'], held: false });
-    expect(result.current).toEqual(['$c', '$a', '$b']);
-  });
-
-  it('keeps the shown order while held, drops threads that leave, adds new ones at the live end', () => {
-    const { result, rerender } = renderHook(({ ids, held }) => useHeldThreadOrder(ids, held), {
-      initialProps: { ids: ['$a', '$b', '$c', '$d'], held: false },
-    });
-    rerender({ ids: ['$a', '$b', '$c', '$d'], held: true });
-    // $d got a reply and $b was resolved away; $e is new and leads the newest-first order.
-    rerender({ ids: ['$e', '$d', '$a', '$c'], held: true });
-    expect(result.current).toEqual(['$e', '$a', '$c', '$d']);
-    // Still held: the next update keeps that order.
-    rerender({ ids: ['$c', '$e', '$d', '$a'], held: true });
-    expect(result.current).toEqual(['$e', '$a', '$c', '$d']);
-    // Released: the live order applies.
-    rerender({ ids: ['$c', '$e', '$d', '$a'], held: false });
-    expect(result.current).toEqual(['$c', '$e', '$d', '$a']);
-  });
-
-  it('puts new threads at the top of a newest-first list, in their live order', () => {
-    const { result, rerender } = renderHook(({ ids, held }) => useHeldThreadOrder(ids, held), {
-      initialProps: { ids: ['$c', '$b', '$a'], held: true },
-    });
-    rerender({ ids: ['$e', '$d', '$c', '$b', '$a'], held: true });
-    expect(result.current).toEqual(['$e', '$d', '$c', '$b', '$a']);
-  });
-
-  it('puts new threads at the bottom of an oldest-first list', () => {
-    const { result, rerender } = renderHook(({ ids, held }) => useHeldThreadOrder(ids, held), {
-      initialProps: { ids: ['$a', '$b', '$c'], held: true },
-    });
-    // $a got a reply, which would move it to the bottom; $d is new.
-    rerender({ ids: ['$b', '$c', '$a', '$d'], held: true });
-    expect(result.current).toEqual(['$a', '$b', '$c', '$d']);
-  });
-
-  it('puts a new thread after the thread the live order puts before it', () => {
-    const { result, rerender } = renderHook(({ ids, held }) => useHeldThreadOrder(ids, held), {
-      initialProps: { ids: ['$a', '$b', '$c'], held: true },
-    });
-    // An older page brought $x, whose last reply falls between $b and $c.
-    rerender({ ids: ['$a', '$b', '$x', '$c'], held: true });
-    expect(result.current).toEqual(['$a', '$b', '$x', '$c']);
-  });
-});
-
-describe('useHeldThreadOrder scrolling', () => {
+describe('useCompactScrollFallback', () => {
   const CARD = 100;
 
   const SECTION_HEADER = 32;
@@ -117,7 +69,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, writes, scrollBy } = list(ids, 150);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     scrollBy(100);
@@ -132,7 +84,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$c', '$b', '$a'];
     const { view, show } = list(ids, 150);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     show(['$d', ...ids]);
@@ -145,7 +97,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$c', '$b', '$a'];
     const { view, show } = list(ids, 150);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     show(['$d', ...ids]);
@@ -158,7 +110,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, show, writes } = list(ids, 250);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     // $c, topmost in view, got a reply and leads the live order.
@@ -179,7 +131,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const topOf = () =>
       view.querySelector(`[data-scroll-anchor="${anchor}"]`)!.getBoundingClientRect().top;
     const { rerender } = renderHook(
-      ({ order }) => useHeldThreadOrder(order, false, { current: view }),
+      ({ order }) => useCompactScrollFallback(order, { current: view }),
       { initialProps: { order: ids } }
     );
     const top = topOf();
@@ -197,7 +149,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const topOfB = () =>
       view.querySelector('[data-scroll-anchor="$b"]')!.getBoundingClientRect().top;
     const { rerender } = renderHook(
-      ({ order }) => useHeldThreadOrder(order, false, { current: view }, sectionOfRow),
+      ({ order }) => useCompactScrollFallback(order, { current: view }, sectionOfRow),
       { initialProps: { order: ids } }
     );
     expect(topOfB()).toBe(-10);
@@ -215,7 +167,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     // A card lands above, and another script already scrolled by as much to keep its card in view.
@@ -232,7 +184,7 @@ describe('useHeldThreadOrder scrolling', () => {
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);
     const { rerender } = renderHook(
-      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
       { initialProps: { live: ids } }
     );
     show(['$d', ...ids]);
