@@ -120,7 +120,7 @@ export const buildCompactThreadSections = ({
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
   shown: readonly CompactThreadSection[],
-  interactionOnly: boolean,
+  away: boolean,
   keepEmptyHeaders: boolean
 ): CompactThreadSection[] => {
   const shownIn = new Map(
@@ -133,7 +133,7 @@ export const holdCompactThreadSections = (
     const shownIds = shown.find((section) => section.id === id)?.rootIds;
     if (!members.length && (!shownIds || !keepEmptyHeaders)) return [];
     const anchors = new Set(live.find((section) => section.id === id)?.rootIds);
-    const canAnchor = (rootId: string) => interactionOnly || anchors.has(rootId);
+    const canAnchor = (rootId: string) => !away || anchors.has(rootId);
     const rootIds = holdOrder(shownIds ?? [], members, canAnchor);
     return [{ id, rootIds }];
   });

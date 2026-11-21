@@ -253,6 +253,12 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
 
 const listView = (page: Page) => page.locator('[data-compact-room-view]');
 const updatePill = (page: Page) => page.getByRole('button', { name: 'Show updated order' });
+const orderHeld = (page: Page) => page.locator('[data-order-held]');
+const IN_BAND = 60;
+const scrollPastBand = (page: Page) =>
+  listView(page).evaluate((view) => {
+    view.scrollTop = Math.ceil(view.clientHeight / 2) + 30;
+  });
 
 /** Sample the layout shells, headers and the actual animated rows on every frame. */
 const watchVisibleRows = async (page: Page) => {
@@ -313,7 +319,7 @@ const agentStartsOn = (seeded: Seeded, rootId: string) =>
 
 const sectionHeader = (page: Page, id: string) => page.locator(`[data-compact-section="${id}"]`);
 
-/** The threads the agent works on before the reader scrolls, so Working shows above Needs you. */
+/** Seed a Working section below Needs you before the reader scrolls. */
 const WORKING = 3;
 
 type Move =
@@ -369,8 +375,8 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       'm.relates_to': threadRelation(rootId),
     });
   if (sections) {
-    // The agent starts on the newest threads while the reader is at the top: Working comes and
-    // grows, and the Needs you header glides down each time.
+    // The agent starts on the newest threads while the reader is at the top: Working grows
+    // below Needs you.
     for (const [index, rootId] of rootIds.slice(-WORKING).entries()) {
       // eslint-disable-next-line no-await-in-loop
       await agentStartsOn(seeded, rootId);
@@ -382,17 +388,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(400);
     }
-    // The Needs you header leads the view, over its cards: no card shows above it.
-    await page.evaluate(() => {
-      const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
-      const header = view?.querySelector<HTMLElement>('[data-compact-section="needsYou"]');
-      if (!view || !header) return;
-      const edge =
-        view.getBoundingClientRect().top +
-        view.clientTop +
-        parseFloat(getComputedStyle(view).scrollPaddingTop);
-      view.scrollTop += header.getBoundingClientRect().top - edge;
-    });
+    // Keep the visible Needs you rows under test, now below the live band.
+    await expect(listView(page).locator('[data-compact-section]').first()).toHaveAttribute(
+      'data-compact-section',
+      'needsYou'
+    );
+    await scrollPastBand(page);
   } else {
     // Cards glide first: two replies move their cards to the top while the reader is there.
     for (const rootId of [rootIds[3] ?? '', rootIds[4] ?? '']) {
@@ -403,8 +404,8 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(400);
     }
-    // A swap, and three cards that rotate above two: the first card leads the view, cut by 30 px.
-    await scrollList(page, move === 'swap' || move === 'rotate' ? 30 : 700);
+    if (move === 'swap' || move === 'rotate') await scrollPastBand(page);
+    else await scrollList(page, 700);
   }
   const leads = move === 'lead' || move === 'lead-two' || freezeReturn;
   if (leads || move === 'under') {
@@ -422,6 +423,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       view.scrollTop += (lead?.getBoundingClientRect().top ?? edge) - edge + 30;
     });
   }
+  await expect(orderHeld(page)).toHaveCount(1);
   await page.waitForTimeout(300);
 
   const shown = await page.evaluate(() => {
@@ -478,7 +480,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await expect(cardOf(page, mover)).toContainText(replyText);
     expect(await cardOrder(page)).toEqual(frozen);
     await page.mouse.move(5, 795);
-    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
+    await expect(orderHeld(page)).toHaveCount(1);
   }
   const before = await cardOrder(page);
   const still = await watchVisibleRows(page);
@@ -518,7 +520,11 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   }
 };
 
-const openScrolled = async (page: Page, seeded: Seeded, hideResolved = false) => {
+const openScrolled = async (
+  page: Page,
+  seeded: Seeded,
+  { hideResolved = false, top = 700 } = {}
+) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: seeded.reader.username,
@@ -540,14 +546,74 @@ const openScrolled = async (page: Page, seeded: Seeded, hideResolved = false) =>
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   await expectRoomCompact(page, true, 60_000);
   await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
-  await scrollList(page, 700);
+  await scrollList(page, top);
+  await expect.poll(() => listScrollTop(page)).toBe(top);
   await page.waitForTimeout(400);
+};
+
+const checkLiveInBand = async (page: Page, seeded: Seeded) => {
+  await openScrolled(page, seeded, { top: IN_BAND });
+  await page.mouse.move(5, 795);
+  await expect(orderHeld(page)).toHaveCount(0);
+  const before = await cardOrder(page);
+  const leader = listView(page).locator(`[data-scroll-anchor="${before[0] ?? ''}"]`);
+  const leadingTop = (await leader.boundingBox())!.y;
+  const watch = await listView(page).evaluateHandle((view) => {
+    const origin = view.scrollTop;
+    let maxDelta = 0;
+    let frame = 0;
+    const sample = () => {
+      maxDelta = Math.max(maxDelta, Math.abs(view.scrollTop - origin));
+      frame = requestAnimationFrame(sample);
+    };
+    sample();
+    return () => {
+      cancelAnimationFrame(frame);
+      return maxDelta;
+    };
+  });
+  const reply = (rootId: string, body: string) =>
+    sendRoomMessage(HOMESERVER, seeded.agent.accessToken, seeded.roomId, {
+      msgtype: 'm.text',
+      body,
+      'm.relates_to': threadRelation(rootId),
+    });
+  const mover = seeded.rootIds[0] ?? '';
+  await reply(mover, 'The export is fixed.');
+  await expect(cardOf(page, mover)).toContainText('The export is fixed.', { timeout: 30_000 });
+  await expect.poll(async () => (await cardOrder(page))[0]).toBe(mover);
+  await expect(updatePill(page)).toHaveCount(0);
+  const newLeader = listView(page).locator(`[data-scroll-anchor="${mover}"]`);
+  expect(Math.abs((await newLeader.boundingBox())!.y - leadingTop)).toBeLessThanOrEqual(1);
+  expect(
+    (await leader.boundingBox())!.y - leadingTop,
+    'the former leader reflows down'
+  ).toBeGreaterThan(50);
+  await page.waitForTimeout(600);
+  expect(await watch.evaluate((read) => read()), 'no anchor snap in any frame').toBeLessThanOrEqual(
+    1
+  );
+  await watch.dispose();
+  await expect.poll(() => listScrollTop(page)).toBe(IN_BAND);
+
+  // Leaving the band holds the order that was applied live there, not its earlier order.
+  const liveOrder = await cardOrder(page);
+  await scrollPastBand(page);
+  await expect(orderHeld(page)).toHaveCount(1);
+  const still = await watchVisibleRows(page);
+  const next = seeded.rootIds[1] ?? '';
+  await reply(next, 'Ready for the next review.');
+  await expect(cardOf(page, next)).toContainText('Ready for the next review.', { timeout: 30_000 });
+  await expect(updatePill(page)).toBeVisible();
+  await still();
+  expect(await cardOrder(page)).toEqual(liveOrder);
 };
 
 const checkRelease = async (
   page: Page,
   seeded: Seeded,
-  action: 'click' | 'tap' | 'Enter' | 'scroll'
+  action: 'click' | 'tap' | 'Enter' | 'scroll' | 'band',
+  shotName = `pill-${action}`
 ) => {
   await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'no-preference' });
   await openScrolled(page, seeded);
@@ -570,7 +636,7 @@ const checkRelease = async (
   });
   expect(gap, 'gap below the floating filter bar').toBeGreaterThanOrEqual(0);
   expect(gap, 'gap below the floating filter bar').toBeLessThanOrEqual(16);
-  await shot(page, `pill-${action}`);
+  await shot(page, shotName);
   const formerFirstRow = listView(page).locator(`[data-motion-row="${before[0] ?? ''}"]`);
   const glide = await formerFirstRow.evaluateHandle((row) => {
     let glided = false;
@@ -602,11 +668,11 @@ const checkRelease = async (
     await page.keyboard.press('Enter');
     // The resting pointer normally holds for three seconds. Enter must not wait for it.
     await expect.poll(async () => (await cardOrder(page))[0], { timeout: 1000 }).toBe(rootId);
-  } else await scrollList(page, 0);
-  await expect.poll(() => listScrollTop(page)).toBe(0);
+  } else await scrollList(page, action === 'band' ? IN_BAND : 0);
+  await expect.poll(() => listScrollTop(page)).toBe(action === 'band' ? IN_BAND : 0);
   await expect.poll(async () => (await cardOrder(page))[0]).toBe(rootId);
   await expect(pill).toHaveCount(0);
-  if (action !== 'scroll') await expect(listView(page)).toBeFocused();
+  if (action !== 'scroll' && action !== 'band') await expect(listView(page)).toBeFocused();
   await expect.poll(() => glide.evaluate(({ read }) => read())).toBe(true);
   await glide.evaluate(({ stop }) => stop());
   await glide.dispose();
@@ -677,7 +743,7 @@ test.describe('Compact order stays calm while scrolled', () => {
   test('removing a card above preserves the visible rows', async ({ page }) => {
     test.setTimeout(180_000);
     const seeded = await seed('leave');
-    await openScrolled(page, seeded, true);
+    await openScrolled(page, seeded, { hideResolved: true });
     const newest = seeded.rootIds.at(-1) ?? '';
     const still = await watchVisibleRows(page);
     await sendStateEvent(
@@ -694,8 +760,26 @@ test.describe('Compact order stays calm while scrolled', () => {
     await expect(updatePill(page)).toHaveCount(0);
   });
 
-  for (const action of ['click', 'Enter', 'scroll'] as const) {
-    test(`${action} applies the order at the top with a glide`, async ({ page }) => {
+  test('reflows live at a nonzero offset inside the band (Chromium)', async ({ page }) => {
+    test.setTimeout(180_000);
+    await checkLiveInBand(page, await seed('cband'));
+  });
+
+  test('reflows live at a nonzero offset inside the band (WebKit)', async ({ baseURL }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright WebKit');
+    test.setTimeout(180_000);
+    const browser = await launchWebKit();
+    try {
+      const context = await browser.newContext({ ...DESKTOP, baseURL });
+      await checkLiveInBand(await context.newPage(), await seed('wband'));
+    } finally {
+      await browser.close();
+    }
+  });
+
+  for (const action of ['click', 'Enter', 'scroll', 'band'] as const) {
+    const label = action === 'band' ? 'scrolling back into the band' : `${action} at the top`;
+    test(`${label} applies the order with a glide`, async ({ page }) => {
       test.setTimeout(180_000);
       await checkRelease(page, await seed(action.toLowerCase()), action);
     });
@@ -716,7 +800,7 @@ test.describe('Compact catch-up on a phone', () => {
     const browser = await launchWebKit();
     try {
       const context = await browser.newContext({ ...PHONE, baseURL });
-      await checkRelease(await context.newPage(), await seed('wtap'), 'tap');
+      await checkRelease(await context.newPage(), await seed('wtap'), 'tap', 'pill-tap-webkit');
     } finally {
       await browser.close();
     }

@@ -11,14 +11,23 @@ import {
   type TouchEvent,
 } from 'react';
 
-/** A scroll event only invalidates the view when it crosses zero, not for each pixel. */
+const nearTop = (view: HTMLElement | null) => !view || view.scrollTop <= view.clientHeight / 2;
+
+/** Only crossing the live band invalidates the view, not each pixel scrolled. */
 export const useScrolledAway = (viewRef: RefObject<HTMLElement>): boolean => {
-  const read = useCallback(() => (viewRef.current?.scrollTop ?? 0) > 0, [viewRef]);
+  const read = useCallback(() => !nearTop(viewRef.current), [viewRef]);
   const subscribe = useCallback(
     (change: () => void) => {
       const view = viewRef.current;
-      view?.addEventListener('scroll', change, { passive: true });
-      return () => view?.removeEventListener('scroll', change);
+      if (!view) return () => undefined;
+      const observer =
+        typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(change);
+      observer?.observe(view);
+      view.addEventListener('scroll', change, { passive: true });
+      return () => {
+        view.removeEventListener('scroll', change);
+        observer?.disconnect();
+      };
     },
     [viewRef]
   );
@@ -141,8 +150,9 @@ const browserAnchorsScroll = (): boolean =>
  * in, threads that leave the list go, and new ones join at their place in the live order, so a
  * newest-first list still shows them at the top. Once released, the live order applies.
  *
- * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
- * grow above the ones in view would push them down, so the list scrolls by as much and the cards
+ * The top band lets cards arrive and reflow without scroll compensation. Further down, cards
+ * that join or grow above the ones in view would push them down, so the list scrolls by as much.
+ * The cards
  * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
  * the list scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost
  * card in view from the rows that kept their relative order, even if other cards moved down.
@@ -169,7 +179,7 @@ export const useHeldThreadOrder = (
     // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
     if (!view || browserAnchorsScroll()) return;
     const before = cardsInViewRef.current;
-    if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
+    if (before && !nearTop(view) && view.scrollTop === before.scrollTop) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const stationary =
         before.order === shown ? undefined : stationaryRows(before.order, shown, sectionOfRow);

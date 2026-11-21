@@ -395,7 +395,7 @@ export function CompactRoomView({
   const heldSections = useMemo(() => {
     const shown = committed.current?.scope === scope ? committed.current.sections : undefined;
     return orderHeld && threadSections && shown
-      ? holdCompactThreadSections(threadSections, shown, !away, interactionHeld)
+      ? holdCompactThreadSections(threadSections, shown, away, interactionHeld)
       : threadSections;
   }, [away, interactionHeld, orderHeld, scope, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
@@ -760,6 +760,7 @@ export function CompactRoomView({
     <Box
       ref={viewRef}
       className={css.View}
+      style={away ? undefined : { overflowAnchor: 'none' }}
       data-compact-room-view="true"
       data-page-slide-clip=""
       // Cards still to mount: the cards' end is further down than the view's.

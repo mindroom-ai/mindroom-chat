@@ -2,7 +2,37 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MOUSE_REST_HOLD_MS, useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import {
+  MOUSE_REST_HOLD_MS,
+  useHeldThreadOrder,
+  usePointerOverCards,
+  useScrolledAway,
+} from './useHeldThreadOrder';
+
+describe('useScrolledAway', () => {
+  it('only holds beyond half the scroller height, including before a scroll event', () => {
+    const view = document.createElement('div');
+    Object.defineProperty(view, 'clientHeight', { value: 400 });
+    const { result, rerender } = renderHook(() => useScrolledAway({ current: view }));
+    expect(result.current).toBe(false);
+
+    act(() => {
+      view.scrollTop = 200;
+      view.dispatchEvent(new Event('scroll'));
+    });
+    expect(result.current).toBe(false);
+
+    view.scrollTop = 201;
+    rerender();
+    expect(result.current).toBe(true);
+
+    act(() => {
+      view.scrollTop = 199;
+      view.dispatchEvent(new Event('scroll'));
+    });
+    expect(result.current).toBe(false);
+  });
+});
 
 describe('useHeldThreadOrder', () => {
   it('follows the live order while nothing holds it', () => {
@@ -74,7 +104,8 @@ describe('useHeldThreadOrder scrolling', () => {
         offset = value;
       },
     });
-    view.getBoundingClientRect = () => ({ top: 0, bottom: 400 } as DOMRect);
+    Object.defineProperty(view, 'clientHeight', { value: 240 });
+    view.getBoundingClientRect = () => ({ top: 0, bottom: 240 } as DOMRect);
     const show = (shownIds: string[]) => {
       let rowTop = 0;
       view.replaceChildren(
@@ -151,6 +182,20 @@ describe('useHeldThreadOrder scrolling', () => {
     show(['$d', ...ids]);
     rerender({ live: ['$d', ...ids] });
     expect(view.scrollTop).toBe(250);
+  });
+
+  it('lets the cards reflow without scroll anchoring inside the top band', () => {
+    withoutScrollAnchoring();
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes } = list(ids, 60);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    show(['$d', ...ids]);
+    rerender({ live: ['$d', ...ids] });
+    expect(writes).toEqual([]);
+    expect(view.scrollTop).toBe(60);
   });
 
   it('keeps its place when the topmost card in view moves to the top, by the card after it', () => {
