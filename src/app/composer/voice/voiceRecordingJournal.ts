@@ -86,7 +86,6 @@ export const beginVoiceRecording = (userId: string, startedAt: number, mimeType:
   let tail: Promise<unknown> = start;
   return {
     id,
-    ready: start,
     remove: () => deleteVoiceRecording(id),
     release: () => {
       void tail.then(() => releaseVoiceRecording(id));

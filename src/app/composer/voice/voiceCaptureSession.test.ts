@@ -628,7 +628,6 @@ describe('voice capture session', () => {
     const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
     const session = createVoiceCaptureSession(() => ({
       id: 'recording',
-      ready: Promise.resolve(true),
       append,
       remove: vi.fn(),
       release: vi.fn(),

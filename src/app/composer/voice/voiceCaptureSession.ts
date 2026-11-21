@@ -94,7 +94,6 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 
 type CaptureJournal = {
   id: string;
-  ready: Promise<boolean>;
   append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;
   remove: () => Promise<void>;
   release: () => void;
@@ -335,17 +334,7 @@ export const createVoiceCaptureSession = (
     if (isCurrent && !released) releaseVoiceCaptureState(source);
     const recording = { file, duration, waveform, ...(journal && { recordingId: journal.id }) };
     if (park) {
-      const offer = (recordingId?: string) => {
-        if (
-          (recordingId && generation.offerOnStop === false) ||
-          !onPark?.({ ...recording, recordingId })
-        )
-          journal?.release();
-      };
-      // A generated id alone does not mean the lock and metadata were saved.
-      if (journal) {
-        void journal.ready.catch(() => false).then((ready) => offer(ready ? journal.id : undefined));
-      } else offer();
+      if (generation.offerOnStop === false || !onPark?.(recording)) journal?.release();
       update(idleSnapshot());
       resolve?.({ status: 'ignored' });
     } else resolve?.({ status: 'captured', recording });
