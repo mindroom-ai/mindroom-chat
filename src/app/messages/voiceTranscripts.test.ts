@@ -89,7 +89,7 @@ const plan = (
     ignored,
     revealed,
     viewerId: PERSON,
-    expectsAnswer: expectsAnswer ? () => true : undefined,
+    expectsAnswer,
     hasThreadReplies,
     isHidden: () => false,
   });
@@ -184,7 +184,7 @@ describe('planVoiceTranscripts', () => {
       ignored: new Set(),
       revealed: new Set(),
       viewerId: PERSON,
-      expectsAnswer: undefined,
+      expectsAnswer: false,
       hasThreadReplies: () => false,
       isHidden: () => false,
     });

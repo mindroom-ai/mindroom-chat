@@ -68,7 +68,7 @@ it('does not restart the pending voice hint when rebuilding an old cached event'
       ignored: new Set<string>(),
       revealed: new Set<string>(),
       viewerId,
-      expectsAnswer: () => true,
+      expectsAnswer: true,
       isHidden: () => false,
       hasThreadReplies: () => false,
     }).pendingVoiceIds;

@@ -141,7 +141,6 @@ import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useReplyCardPlan } from './replyCards';
 import { useModelChangePlan } from '../messages/modelChanges';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
-import { ROOM_SETTINGS_EVENT } from '../matrix/protocol/roomSettings';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
@@ -995,39 +994,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       room.removeListener(RoomEvent.Summary, queueScan);
     };
   }, [mx, room, boundUserId, rosterAccountIds, viewerId, isResponder, refreshMembership]);
-  const replyMode = useStateEvent(room, ROOM_SETTINGS_EVENT, 'reply_mode')?.getContent().value;
-  const voiceRows = threadId ? threadEvents : roomWindowRows;
-  const expectsVoiceAnswer = (voice: MatrixEvent) => {
-    if (replyMode !== 'mentions') return true;
-    const root = voice.threadRootId;
-    if (!root || root === voice.getId()) return false;
-    const isEarlierAgentReply = (event: MatrixEvent) => {
-      const sender = event.getSender();
-      return (
-        event.threadRootId === root &&
-        event.getId() !== root &&
-        event.getTs() < voice.getTs() &&
-        event.getType() === 'm.room.message' &&
-        !event.isRedacted() &&
-        !!sender &&
-        isResponder(sender)
-      );
-    };
-    return (
-      voiceRows.some(isEarlierAgentReply) ||
-      room.getThread(root)?.events.some(isEarlierAgentReply) === true
-    );
-  };
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
-    events: voiceRows,
+    events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
     trustedAccountIds,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
     viewerId,
-    // A room with other people needs a mention, which a voice message has not sent.
-    expectsAnswer: viewerIsOnlyPerson && hasJoinedResponder ? expectsVoiceAnswer : undefined,
+    expectsAnswer: viewerIsOnlyPerson && hasJoinedResponder,
     isHidden: (event) =>
       approvalTimeline.hiddenEventIds.has(event.getId() ?? '') ||
       (event.isRedacted() ? !showHiddenEvents : isHiddenByPlugin(event)),

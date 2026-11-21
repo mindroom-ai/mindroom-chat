@@ -101,7 +101,6 @@ const openThread = async (
     voiceAge = 0,
     echoBody = '🎤 Invented words',
     joinedMembers = [VIEWER, AGENT],
-    priorReply = false,
   } = {}
 ) => {
   if (router) setRouterBinding(router);
@@ -133,18 +132,6 @@ const openThread = async (
     }),
   ];
   if (!showEcho) events.pop();
-  if (priorReply) {
-    events.splice(
-      1,
-      0,
-      makeEvent('$prior', {
-        threadRootId: threadId,
-        ts: 1_500,
-        sender: AGENT,
-        content: { msgtype: 'm.text', body: 'I can help with that.' },
-      })
-    );
-  }
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const room = makeRoomWithState({ liveEvents: [rootEvent], joinedMembers });
@@ -320,24 +307,6 @@ describe('a voice echo in an open thread', () => {
     });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(0);
-    } finally {
-      act(() => renderer.unmount());
-    }
-  });
-
-  it.each([false, true])('honors mentions-only mode with prior reply %s', async (priorReply) => {
-    roomState.setStateEvents([
-      new MatrixEvent({
-        type: 'io.mindroom.room_settings',
-        room_id: roomState.roomId,
-        state_key: 'reply_mode',
-        sender: VIEWER,
-        content: { value: 'mentions' },
-      }),
-    ]);
-    const { renderer } = await openThread(undefined, AGENT, { showEcho: false, priorReply });
-    try {
-      expect(transcribingStatuses(renderer)).toHaveLength(priorReply ? 1 : 0);
     } finally {
       act(() => renderer.unmount());
     }

@@ -40,8 +40,9 @@ const TRANSCRIBING_MS = 60_000;
  * message is not loaded here or is no voice message, one the route or a jump opened
  * (`revealed`), and a second echo naming the same voice message.
  *
- * The viewer's own recent voice messages can show a pending indicator if an agent is joined,
- * until a transcript, a later agent event or a thread reply arrives, or the message ages out.
+ * The viewer's own recent voice messages can show a pending indicator when alone with a
+ * responder, until a transcript, a later drawn agent event or a thread reply arrives, or the
+ * message ages out. A mentions-only room may show the hint for up to 60 seconds without an answer.
  */
 export const planVoiceTranscripts = ({
   events,
@@ -60,7 +61,7 @@ export const planVoiceTranscripts = ({
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
   viewerId: string | undefined;
-  expectsAnswer: ((event: MatrixEvent) => boolean) | undefined;
+  expectsAnswer: boolean;
   hasThreadReplies: (event: MatrixEvent) => boolean;
   isHidden: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
@@ -129,8 +130,7 @@ export const planVoiceTranscripts = ({
         if (
           content.msgtype === MsgType.Audio &&
           isVoiceMessageContent(content) &&
-          !hasThreadReplies(event) &&
-          expectsAnswer(event)
+          !hasThreadReplies(event)
         ) {
           pendingVoiceIds.add(id);
         }
