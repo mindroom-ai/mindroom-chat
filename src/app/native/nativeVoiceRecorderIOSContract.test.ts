@@ -150,14 +150,14 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(leftover).toContain('"duration":');
   });
 
-  it('clears only matching owned recordings, including stopped ones, and rejects removal failures', () => {
+  it('best-effort clears only matching owned recordings, including stopped ones', () => {
     const clear = body('clear');
     expect(clear).toMatch(/guard let userId = call\.getString\("userId"\)/);
+    expect(clear).toMatch(/if pendingOwner == userId \{ generation \+= 1 \}/);
     expect(clear).toMatch(
-      /for \(id, owner\) in owners where owner\.userId == userId \{\s*do \{ try removeFile\(id\) \}/
+      /for \(id, owner\) in owners where owner\.userId == userId \{\s*try\? removeFile\(id\)/
     );
-    expect(clear).toMatch(/call\.reject\(.*"CLEAR_FAILED"\)/);
-    expect(clear).not.toMatch(/removeItem|clearFolder|finishLive|discardLive/);
+    expect(clear).not.toMatch(/call\.reject|removeItem|clearFolder|finishLive|discardLive/);
   });
 
   it('clears leftovers on plugin load and closes with its window', () => {

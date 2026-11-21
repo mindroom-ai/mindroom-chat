@@ -90,9 +90,10 @@ export class NativeVoiceRecorder extends EventTarget {
   stop(): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    this.deliver()
-      .catch(() => undefined)
-      .finally(() => this.end());
+    this.deliver().then(
+      () => this.end(),
+      (error: { code?: string }) => this.end(error)
+    );
   }
 
   private transition(
@@ -101,12 +102,10 @@ export class NativeVoiceRecorder extends EventTarget {
   ): void {
     if (this.state === 'inactive') return;
     this.state = state;
-    // A transition the native recorder refuses would leave a wrong duration: end the recording.
     call(getVoiceRecorderPlugin()).catch((error: { code?: string }) => {
       if (this.state === 'inactive') return;
       this.state = 'inactive';
-      // A reload may already have finalized the file. Leave it for recovery.
-      this.end(error?.code === 'NOT_RECORDING');
+      this.end(error);
     });
   }
 
@@ -116,8 +115,9 @@ export class NativeVoiceRecorder extends EventTarget {
     if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 
-  private end(keepFile = false): void {
-    if (!keepFile) cancelNativeVoiceRecording(this.id).catch(() => undefined);
+  private end(error?: { code?: string }): void {
+    // A reload may already have finalized the file. Leave it for recovery.
+    if (error?.code !== 'NOT_RECORDING') cancelNativeVoiceRecording(this.id).catch(() => undefined);
     this.dispatchEvent(new Event('stop'));
   }
 }

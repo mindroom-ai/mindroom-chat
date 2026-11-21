@@ -109,10 +109,7 @@ export const clearUserUiState = (userId: string): Promise<void> => {
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);
-  removeStorageItemSafe(
-    getSafeLocalStorage(),
-    `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`
-  );
+  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);
   clearRecentThreadsStore(userId);

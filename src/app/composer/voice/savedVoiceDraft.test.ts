@@ -350,7 +350,7 @@ describe('native recording recovery on composer mount', () => {
     const store = await reloadPage(getContext);
     expect(store.get(reloadedAtom())).toBeUndefined();
 
-    fetchAudio.mockResolvedValueOnce(readAudio('replacement audio'));
+    fetchAudio.mockRejectedValue(new Error('The native copy is no longer readable'));
     native.cancel.mockRejectedValueOnce(new Error('File is busy'));
     const next = await reloadPage(getContext);
     expect(next.get(reloadedAtom())).toBeUndefined();
@@ -359,6 +359,7 @@ describe('native recording recovery on composer mount', () => {
     const recovered = third.get(reloadedAtom());
     expect(recovered?.recordingId).toBe(leftover.id);
     expect(await recovered?.file.text()).toBe('native voice');
+    expect(fetchAudio).toHaveBeenCalledOnce();
     expect(native.cancel.mock.calls).toEqual(
       Array.from({ length: 3 }, () => [{ id: leftover.id }])
     );

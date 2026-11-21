@@ -240,8 +240,19 @@ describe('native voice recorder', () => {
     expect(plugin.level.mock.calls).toEqual([[{ id: 'b' }]]);
   });
 
+  it('leaves reload-finalized audio when a late native stop reports NOT_RECORDING', async () => {
+    const stopping = deferred<{ path: string }>();
+    plugin.stop.mockReturnValueOnce(stopping.promise);
+    const recorder = await startNativeVoiceRecorder(USER);
+    const { seen } = watch(recorder);
+    recorder.stop();
+    stopping.reject({ code: 'NOT_RECORDING' });
+    await vi.waitFor(() => expect(seen).toEqual(['stop']));
+    expect(plugin.cancel).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ['the native stop fails', () => plugin.stop.mockRejectedValue({ code: 'NOT_RECORDING' })],
+    ['the native stop fails', () => plugin.stop.mockRejectedValue({ code: 'STOP_FAILED' })],
     ['the file cannot be read', () => stubFetch({ ok: false, status: 404 })],
     ['a status 0 answer is empty', () => stubFetch({ ...audio(''), ok: false, status: 0 })],
     [

@@ -183,16 +183,11 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func clear(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
-            guard let userId = call.getString("userId"), !userId.isEmpty else {
-                return call.reject("Missing recording owner", "CLEAR_FAILED")
-            }
+            guard let userId = call.getString("userId") else { return call.resolve() }
             if pendingOwner == userId { generation += 1 }
-            var failed = false
             for (id, owner) in owners where owner.userId == userId {
-                do { try removeFile(id) }
-                catch { failed = true }
+                try? removeFile(id)
             }
-            if failed { return call.reject("Could not remove recordings", "CLEAR_FAILED") }
             call.resolve()
         }
     }
