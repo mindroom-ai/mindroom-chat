@@ -33,7 +33,7 @@
   "mindroom": {
     "thinkingPlaceholderMessages": ["Thinking", "Working on it", "Reading the thread"],
     "canvas": {
-      "enabled": false,
+      "enabled": true,
       "libraries": false
     },
     "computers": {
