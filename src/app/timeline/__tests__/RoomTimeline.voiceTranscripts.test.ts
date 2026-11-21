@@ -35,7 +35,7 @@ importBeforeTests(() => import('../RoomTimeline'));
 const openThread = async (
   router?: string,
   sender = ROUTER,
-  { showEcho = true, voiceTs = 2_000, echoBody = '🎤 Invented words' } = {}
+  { showEcho = true, voiceTs = 2_000, voiceAge = 0, echoBody = '🎤 Invented words' } = {}
 ) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
@@ -51,6 +51,7 @@ const openThread = async (
     makeEvent('$voice', {
       threadRootId: threadId,
       ts: voiceTs,
+      unsigned: { age: voiceAge },
       content: {
         msgtype: 'm.audio',
         body: 'voice.ogg',
@@ -165,7 +166,11 @@ describe('a voice echo in an open thread', () => {
 it('hides the transcribing skeleton 60 seconds after the voice message was sent', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(100_000);
-  const renderer = await openThread(undefined, AGENT, { showEcho: false, voiceTs: 60_000 });
+  const renderer = await openThread(undefined, AGENT, {
+    showEcho: false,
+    voiceTs: 3_700_000,
+    voiceAge: 40_000,
+  });
   const status = () =>
     renderer.root.findAllByProps({ role: 'status', 'aria-label': 'Transcribing…' });
   try {

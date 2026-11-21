@@ -26,9 +26,17 @@ const voice = (
   id = '$voice',
   sender = PERSON,
   content: Record<string, unknown> = VOICE_CONTENT,
-  ts = Date.now()
+  ts = Date.now(),
+  age?: number
 ) =>
-  new MatrixEvent({ event_id: id, type: 'm.room.message', sender, content, origin_server_ts: ts });
+  new MatrixEvent({
+    event_id: id,
+    type: 'm.room.message',
+    sender,
+    content,
+    origin_server_ts: ts,
+    ...(age === undefined ? {} : { unsigned: { age } }),
+  });
 
 const echo = (
   id: string,
@@ -266,6 +274,11 @@ describe('pending voice transcription', () => {
     expect(sameVoiceTranscriptPlan(result, NO_VOICE_TRANSCRIPTS)).toBe(false);
   });
 
+  it('uses the age supplied by the server even if its clock is ahead', () => {
+    const skewed = voice('$voice', PERSON, VOICE_CONTENT, now + 3_600_000, 40_000);
+    expect([...pending([skewed]).pendingVoiceIds]).toEqual(['$voice']);
+  });
+
   it('ends when a transcript folds, even if the events loaded out of order', () => {
     const source = voice();
     const transcript = echo('$echo');
@@ -317,7 +330,6 @@ describe('pending voice transcription', () => {
     ["another person's voice", () => voice('$voice', '@alex:example.org')],
     ['a local echo', () => voice('~room:txn')],
     ['an old voice message', () => voice('$voice', PERSON, VOICE_CONTENT, now - 60_000)],
-    ['a future voice message', () => voice('$voice', PERSON, VOICE_CONTENT, now + 1)],
     ['an invalid timestamp', () => voice('$voice', PERSON, VOICE_CONTENT, NaN)],
     ['an audio file', () => voice('$voice', PERSON, { msgtype: 'm.audio', body: 'audio.ogg' })],
     ['a redacted voice message', () => Object.assign(voice(), { isRedacted: () => true })],

@@ -91,20 +91,18 @@ export const planVoiceTranscripts = ({
   });
   const pendingVoiceIds = new Set<string>();
   if (viewerId && hasJoinedAgent) {
-    const now = Date.now();
     for (let i = events.length - 1; i >= 0; i -= 1) {
       const event = events[i];
       if (!event) continue;
       const sender = event.getSender();
       const id = event.getId();
-      const ts = event.getTs();
+      const age = event.getLocalAge();
       if (
         sender === viewerId &&
         isConfirmedMatrixEventId(id) &&
         (!event.status || event.status === EventStatus.SENT) &&
-        Number.isSafeInteger(ts) &&
-        ts <= now &&
-        ts > now - TRANSCRIBING_MS &&
+        age >= 0 &&
+        age < TRANSCRIBING_MS &&
         !event.isRedacted() &&
         !byVoiceId.has(id) &&
         event.getType() === 'm.room.message'
@@ -151,7 +149,7 @@ export const useVoiceTranscriptPlan = (
     for (const event of input.events) {
       const id = event.getId();
       if (id && plan.pendingVoiceIds.has(id)) {
-        nextExpiry = Math.min(nextExpiry, event.getTs() + TRANSCRIBING_MS);
+        nextExpiry = Math.min(nextExpiry, Date.now() + (TRANSCRIBING_MS - event.getLocalAge()));
       }
     }
   }

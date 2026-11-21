@@ -1244,6 +1244,7 @@ const makeEvent = (
   } = {}
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
+  const localTimestamp = typeof unsigned.age === 'number' ? Date.now() - unsigned.age : opts.ts ?? 0;
   return {
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
@@ -1261,6 +1262,7 @@ const makeEvent = (
     getServerAggregatedRelation: () => undefined,
     getStateKey: () => opts.stateKey,
     getTs: () => opts.ts ?? 0,
+    getLocalAge: () => Date.now() - localTimestamp,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
     isEncrypted: () => opts.encrypted ?? opts.type === 'm.room.encrypted',
