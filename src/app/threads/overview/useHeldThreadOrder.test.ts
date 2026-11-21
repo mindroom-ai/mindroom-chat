@@ -48,6 +48,29 @@ const shiftInView = (
   return moved(stayed) - moved(anchor);
 };
 
+/**
+ * The rows that moved, each with the neighbour it only traded places with: the order does not
+ * tell which of the two moved, and what the reader keeps is the rows under both.
+ */
+const withTraded = (
+  before: readonly string[],
+  after: readonly string[],
+  movers: readonly string[]
+) => {
+  const kept = before.filter((row) => after.includes(row));
+  return movers.flatMap((mover) => {
+    const at = kept.indexOf(mover);
+    const now = after.indexOf(mover);
+    const partner = [kept[at - 1], kept[at + 1]].find(
+      (row) =>
+        row !== undefined &&
+        Math.abs(after.indexOf(row) - now) === 1 &&
+        kept.indexOf(row) < at !== after.indexOf(row) < now
+    );
+    return partner ? [mover, partner] : [mover];
+  });
+};
+
 const moveTo = (rows: readonly string[], movers: readonly string[], place: number) => {
   const rest = rows.filter((row) => !movers.includes(row));
   return [...rest.slice(0, place), ...movers, ...rest.slice(place)];
@@ -94,8 +117,17 @@ describe('rowToPin', () => {
     expect(rowsMovedUp(rows, both, '$r5', inView)).toEqual(['$r7', '$r6']);
   });
 
-  it('pins the upper of two rows that swap', () => {
-    expect(pin(['$b', '$a', '$c', '$d', '$e', '$f'], ['$a', '$b', '$c'])).toBe('$a');
+  it('pins the row after two that traded places: the order does not tell which one moved', () => {
+    expect(pin(['$b', '$a', '$c', '$d', '$e', '$f'], ['$a', '$b', '$c'])).toBe('$c');
+    expect(pin(['$b', '$a', '$c', '$d', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$c');
+    expect(pin(['$a', '$b', '$d', '$c', '$e', '$f'], ['$c', '$d', '$e'])).toBe('$e');
+    // A row in view above the two stayed, and leads.
+    expect(pin(['$a', '$b', '$d', '$c', '$e', '$f'], ['$b', '$c', '$d', '$e'])).toBe('$b');
+    // Two rows that came up past the row before them moved, not traded, and that row stays.
+    expect(pin(['$d', '$c', '$a', '$b', '$e', '$f'], ['$b', '$c', '$d', '$e'])).toBe('$b');
+    // With no row before them, the second of them and the first row read as trading places too:
+    // the three change places, and the row after them stays.
+    expect(pin(['$c', '$b', '$a', '$d', '$e', '$f'], ['$a', '$b', '$c', '$d'])).toBe('$d');
   });
 
   it('pins the leading row when rows from under the next one came up past both', () => {
@@ -162,6 +194,9 @@ describe('rowsMovedUp', () => {
     // $c led the view and moved to the top: left in the page, the browser would follow it there.
     const after = ['$c', '$a', '$b', '$d', '$e', '$f'];
     expect(rowsMovedUp(before, after, '$d', ['$c', '$d', '$e'])).toEqual(['$c']);
+    // Two rows in view that traded places both leave the page, for the row after them.
+    const traded = ['$b', '$a', '$c', '$d', '$e', '$f'];
+    expect(rowsMovedUp(before, traded, '$c', ['$a', '$b', '$c'])).toEqual(['$b', '$a']);
     // Under the pinned row now, React takes it out by itself.
     expect(rowsMovedUp(before, ['$a', '$b', '$d', '$c', '$e', '$f'], '$d', ['$c', '$d'])).toEqual(
       []
@@ -229,12 +264,13 @@ describe('the rows in view through a change of order', () => {
   it('stay in place when one row moves, from any place to any other', () => {
     rows.forEach((mover, from) =>
       rows.forEach((_, to) => {
-        // One place down is the next row's move one place up.
-        if (to === from || to === from + 1) return;
+        if (to === from) return;
         const after = moveTo(rows, [mover], to);
+        // One place up or down, it trades places with the row next to it.
+        const movers = withTraded(rows, after, [mover]);
         viewsOf(rows).forEach((inView) =>
           expect(
-            shiftInView(rows, after, inView, [mover]),
+            shiftInView(rows, after, inView, movers),
             `${mover} to ${to}, seen from ${inView[0]}`
           ).toBe(0)
         );
@@ -250,7 +286,7 @@ describe('the rows in view through a change of order', () => {
           // order of that row going down: see `rowToPin`.
           if (first === '$1' && second === '$2') return;
           const after = [...joined, ...moveTo(rows, [...new Set([first, second])], 0)];
-          const movers = movedUp(rows, after, [first, second]);
+          const movers = withTraded(rows, after, movedUp(rows, after, [first, second]));
           viewsOf(rows).forEach((inView) =>
             expect(
               shiftInView(rows, after, inView, movers),
@@ -300,7 +336,7 @@ describe('the rows in view through a change of order', () => {
           if (after.join() === before.join()) return;
           viewsOf(before).forEach((inView) =>
             expect(
-              shiftInView(before, after, inView, [card]),
+              shiftInView(before, after, inView, withTraded(before, after, [card])),
               `${after.join(' ')} seen from ${inView[0]}`
             ).toBe(0)
           );
@@ -393,12 +429,13 @@ describe('useRowKeys', () => {
 
   it('takes the view inside its scroll padding, as the browser does, not the row under a bar', () => {
     vi.stubGlobal('CSS', { supports: () => true });
-    // $a and $b swap. $a leads the list's box and stays, so $b moved up past it.
-    expect(keysOf(700).keys(['$b', '$a', '$c', '$d'])).toEqual(['$b#', '$a', '$c', '$d']);
+    // $b moved up past $a and a card that joined. $a leads the list's box and stays.
+    const order = ['$b', '$new', '$a', '$c', '$d'];
+    expect(keysOf(700).keys(order)).toEqual(['$b#', '$new', '$a', '$c', '$d']);
     // Under a bar 60 px high $a is out of view: $b leads it and moved, and no row in view stayed.
     const padded = { scrollPaddingTop: '60px', getPropertyValue: () => '' };
     vi.spyOn(window, 'getComputedStyle').mockReturnValue(padded as unknown as CSSStyleDeclaration);
-    expect(keysOf(700).keys(['$b', '$a', '$c', '$d'])).toEqual(['$b', '$a', '$c', '$d']);
+    expect(keysOf(700).keys(order)).toEqual(order);
   });
 
   it('keeps every key in a list where a reply moves its card down', () => {

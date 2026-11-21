@@ -41,8 +41,11 @@ export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[
  * - it stands under another header than it did;
  * - it moved down: the two rows that stood right after it stand before it now, in their order,
  *   and after the row that stood before it, so they did not come up past that one as well;
- * - it moved up: a row that stood before it, and did not leave in the two ways above, stands
- *   after it now. Of two rows that swap, the lower one moved up, as a reply moves it.
+ * - it traded places with the row next to it, the row before the two still before them: the
+ *   order does not tell which of the two moved, and with neither kept, they trade places and the
+ *   rows under them stay;
+ * - it moved up: a row that stood before it, and went nowhere in the first two ways, stands after
+ *   it now.
  *
  * Two cards that come up from right under a card to right above it, in their order, read as that
  * card moving down: the orders are the same.
@@ -68,17 +71,26 @@ export const rowToPin = (
   };
   const headerBefore = headerOf(before);
   const headerNow = headerOf(after);
-  const left = (row: string, at: number) =>
+  const wentDown = (row: string, at: number) =>
     !isHeader(row) &&
     (headerBefore.get(row) !== headerNow.get(row) ||
       (at + 2 < kept.length &&
         now(kept[at - 1]) < now(kept[at + 1]) &&
         now(kept[at + 1]) < now(kept[at + 2]) &&
         now(kept[at + 2]) < now(row)));
+  // Whether the row at this place and the next traded places.
+  const traded = (at: number) =>
+    at >= 0 &&
+    at + 1 < kept.length &&
+    now(kept[at + 1]) + 1 === now(kept[at]) &&
+    now(kept[at - 1]) < now(kept[at + 1]);
   return inView.find((row) => {
     const at = placeBefore.get(row);
-    const passed = (other: string, index: number) => now(other) > now(row) && !left(other, index);
-    return at !== undefined && !left(row, at) && !kept.slice(0, at).some(passed);
+    if (at === undefined) return false;
+    if (isHeader(row)) return true;
+    const passed = (other: string, index: number) =>
+      now(other) > now(row) && !wentDown(other, index);
+    return !(wentDown(row, at) || traded(at) || traded(at - 1) || kept.slice(0, at).some(passed));
   });
 };
 
