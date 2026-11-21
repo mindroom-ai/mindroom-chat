@@ -57,6 +57,7 @@ vi.mock('./ComputerPanel.css.ts', () => ({
   Details: 'Details',
   Error: 'Error',
   Header: 'Header',
+  HeldFrame: 'HeldFrame',
   KeyboardInput: 'KeyboardInput',
   Layout: 'Layout',
   Panel: 'Panel',
@@ -132,19 +133,27 @@ const createGateway = () => {
 const screenConnections: ComputerScreenProps[] = [];
 const screenDisposals = vi.fn();
 let screensConnect = true;
-const screenKeyboard = { openKeyboard: vi.fn(), closeKeyboard: vi.fn() };
+const screenHandle = {
+  captureFrame: vi.fn<ComputerScreenHandle['captureFrame']>(),
+  openKeyboard: vi.fn(),
+  closeKeyboard: vi.fn(),
+};
 const TestScreen = forwardRef<ComputerScreenHandle, ComputerScreenProps>((screenProps, ref) => {
   const screenPropsRef = React.useRef(screenProps);
   screenPropsRef.current = screenProps;
   const { mode, url } = screenProps;
-  useImperativeHandle(ref, () => screenKeyboard, []);
+  useImperativeHandle(ref, () => screenHandle, []);
   useEffect(() => {
     const connection = screenPropsRef.current;
     screenConnections.push({
       ...connection,
+      get holdingFrame() {
+        return screenPropsRef.current.holdingFrame;
+      },
+      onConnected: (width, height) => screenPropsRef.current.onConnected(width, height),
       onDisconnected: (message) => screenPropsRef.current.onDisconnected(message),
     });
-    if (screensConnect) connection.onConnected();
+    if (screensConnect) connection.onConnected(300, 150);
     return () => screenDisposals();
   }, [url]);
   return <div data-testid="computer-screen" data-mode={mode} />;
@@ -210,8 +219,9 @@ describe('ComputerPanel', () => {
   beforeEach(() => {
     screenConnections.length = 0;
     screenDisposals.mockReset();
-    screenKeyboard.openKeyboard.mockReset();
-    screenKeyboard.closeKeyboard.mockReset();
+    screenHandle.captureFrame.mockReset();
+    screenHandle.openKeyboard.mockReset();
+    screenHandle.closeKeyboard.mockReset();
     screensConnect = true;
     container = document.createElement('div');
     document.body.append(container);
@@ -621,7 +631,7 @@ describe('ComputerPanel', () => {
       expect(findButton(container, 'Resume agent')).toBeInstanceOf(HTMLButtonElement);
       expect(keyboardButton()).toBeUndefined();
 
-      act(() => screenConnections[1]!.onConnected());
+      act(() => screenConnections[1]!.onConnected(300, 150));
       expect(keyboardButton()).toBeDefined();
     });
 
@@ -653,15 +663,15 @@ describe('ComputerPanel', () => {
       expect(press.defaultPrevented).toBe(true);
 
       await click(keyboardButton()!);
-      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.openKeyboard).toHaveBeenCalledOnce();
       // The screen reports the keyboard from its textarea's focus.
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
       act(() => screenConnections[0]!.onKeyboardChange!(true));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
 
       await click(keyboardButton()!);
-      expect(screenKeyboard.closeKeyboard).toHaveBeenCalledOnce();
-      expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.closeKeyboard).toHaveBeenCalledOnce();
+      expect(screenHandle.openKeyboard).toHaveBeenCalledOnce();
       act(() => screenConnections[0]!.onKeyboardChange!(false));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
     });
@@ -669,6 +679,7 @@ describe('ComputerPanel', () => {
     // The real screen, on a stand-in for noVNC that connects at once.
     const createRfb = vi.fn((target: HTMLElement): RfbClient => {
       const canvas = document.createElement('canvas');
+      canvas.width = 0;
       canvas.tabIndex = -1;
       target.append(canvas);
       const events = new EventTarget();
@@ -681,6 +692,7 @@ describe('ComputerPanel', () => {
         clipboardPasteFrom: vi.fn(),
         sendKey: vi.fn(),
         scaleViewport: false,
+        background: '',
         viewOnly: true,
         focusOnClick: true,
       };
@@ -872,31 +884,114 @@ describe('ComputerPanel', () => {
   };
 
   const screenTickets = () => screenConnections.map(({ protocols }) => protocols[1]);
+  const heldCanvas = () => container.querySelector('.ScreenFrame .HeldFrame canvas');
 
-  it('keeps the screen when the control stream closes before the release response', async () => {
+  it.each(['connecting', 'connected'])('bounds the hold while %s', async (phase) => {
+    vi.useFakeTimers();
     const { pending, request } = holdControl('release');
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
-    await waitFor(() => findButton(container, 'Take control'));
+    await advance();
     await click(findButton(container, 'Take control'));
-    await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
-    await waitFor(() => expect(pending.resolve).toBeDefined());
+    const releaseRequest = vi
+      .mocked(request)
+      .mock.calls.findIndex(
+        ([url, init]) =>
+          new URL(url.toString()).pathname.endsWith('/control') &&
+          typeof init?.body === 'string' &&
+          JSON.parse(init.body).action === 'release'
+      );
+    expect(releaseRequest).toBeGreaterThanOrEqual(0);
+    expect(screenHandle.captureFrame).toHaveBeenCalledOnce();
+    expect(screenHandle.captureFrame.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(request).mock.invocationCallOrder[releaseRequest]!
+    );
     act(() => screenConnections[0]!.onDisconnected());
-
     expect(container.textContent).not.toContain('Computer disconnected');
-    expect(container.textContent).not.toContain('The computer connection closed.');
-    expect(container.querySelector('[data-testid="computer-screen"]')).not.toBeNull();
+    expect(heldCanvas()).toBe(frame);
 
+    await advance(1_000);
+    screensConnect = false;
     await act(async () => pending.resolve?.());
-    await waitFor(() => findButton(container, 'Take control'));
     expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+    const replacement = screenConnections[1]!;
+    expect(replacement.holdingFrame).toBe(true);
+    if (phase === 'connected') {
+      // Connect only means noVNC requested a framebuffer update. Nothing has painted yet.
+      act(() => replacement.onConnected(frame.width, frame.height));
+      expect(container.textContent).toContain('Watch mode');
+    }
+
+    await advance(1_999);
+    expect(heldCanvas()).toBe(frame);
+    await advance(1);
+    expect(heldCanvas()).toBeNull();
+    expect(replacement.holdingFrame).toBe(false);
+    expect(frame).toMatchObject({ width: 0, height: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['Take control', 'size mismatch'])('drops the held frame on %s', async (cause) => {
+    vi.useFakeTimers();
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
+    renderPanel();
+
+    await advance();
+    await click(findButton(container, 'Take control'));
+    screensConnect = false;
+    await click(findButton(container, 'Resume agent'));
+    expect(heldCanvas()).toBe(frame);
+
+    const width = cause === 'size mismatch' ? frame.width + 1 : frame.width;
+    act(() => screenConnections[1]!.onConnected(width, frame.height));
     expect(container.textContent).toContain('Watch mode');
-    expect(container.textContent).not.toContain('Computer disconnected');
+    if (cause === 'Take control') {
+      expect(heldCanvas()).toBe(frame);
+      await click(findButton(container, 'Take control'));
+      expect(container.textContent).toContain('You have control');
+    }
+    expect(heldCanvas()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['Stop', 'agent change'])('clears a pending held frame on %s', async (action) => {
+    vi.useFakeTimers();
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
+    const props = renderPanel();
+
+    await advance();
+    await click(findButton(container, 'Take control'));
+    screensConnect = false;
+    await click(findButton(container, 'Resume agent'));
+    expect(screenConnections).toHaveLength(2);
+    expect(heldCanvas()).toBe(frame);
+    expect(vi.getTimerCount()).toBe(1);
+
+    if (action === 'Stop') {
+      await click(findButton(container, 'Stop'));
+      expect(container.textContent).toContain('Computer stopped');
+    } else {
+      renderPanel({
+        ...props,
+        agents: [{ userId: '@mindroom_writer:example.org', name: 'Writer' }],
+      });
+      await advance();
+      expect(screenConnections[2]!.url).toContain('/sessions/session-2/stream');
+      expect(screenConnections[2]!.holdingFrame).toBe(false);
+    }
+    expect(heldCanvas()).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('keeps control when release fails with the stream still open', async () => {
     const { pending, request } = holdControl('release', true);
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
     await waitFor(() => findButton(container, 'Take control'));
@@ -904,9 +999,11 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(pending.resolve).toBeDefined());
+    expect(heldCanvas()).toBe(frame);
     await act(async () => pending.resolve?.());
 
     await waitFor(() => expect(findButton(container, 'Resume agent').disabled).toBe(false));
+    expect(heldCanvas()).toBeNull();
     expect(container.textContent).toContain('Control was not released. Control unavailable.');
     expect(container.textContent).toContain('You have control');
 
@@ -920,6 +1017,8 @@ describe('ComputerPanel', () => {
     ['take', 'Take control'],
   ] as const)('recovers when %s fails after the stream closed', async (action, restoredButton) => {
     const { pending, request } = holdControl(action, true);
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     renderPanel({ request });
 
     await waitFor(() => findButton(container, 'Take control'));
@@ -930,9 +1029,12 @@ describe('ComputerPanel', () => {
     }
     await waitFor(() => expect(pending.resolve).toBeDefined());
     act(() => screenConnections[0]!.onDisconnected());
+    if (action === 'release') expect(heldCanvas()).toBe(frame);
     await act(async () => pending.resolve?.());
 
     await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
+    expect(heldCanvas()).toBeNull();
+    if (action === 'release') expect(frame.width).toBe(0);
     expect(container.textContent).toContain('Computer disconnected');
     expect(container.textContent).toContain('Control unavailable.');
     expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
@@ -943,6 +1045,8 @@ describe('ComputerPanel', () => {
   });
 
   it('reconnects a failed replacement watch stream while continuation delivery is pending', async () => {
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
     let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
     const continuation = new Promise<{ event_id: string }>((resolve) => {
       resolveContinuation = resolve;
@@ -954,17 +1058,21 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Take control'));
     await click(findButton(container, 'Take control'));
     await waitFor(() => findButton(container, 'Resume agent'));
+    screensConnect = false;
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(screenConnections).toHaveLength(2));
 
+    expect(heldCanvas()).toBe(frame);
     act(() => screenConnections[1]!.onDisconnected('Replacement watch stream closed.'));
 
     await waitFor(() => findButton(container, 'Reconnect'));
+    expect(heldCanvas()).toBeNull();
     expect(container.textContent).toContain('Replacement watch stream closed.');
     await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
     await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
     expect(mx.sendMessage).toHaveBeenCalledOnce();
 
+    screensConnect = true;
     await click(findButton(container, 'Reconnect'));
     await waitFor(() => expect(screenConnections).toHaveLength(3));
     expect(screenConnections.map(({ protocols }) => protocols[1])).toEqual([
@@ -972,6 +1080,7 @@ describe('ComputerPanel', () => {
       'mindroom-ticket.ticket-2',
       'mindroom-ticket.ticket-3',
     ]);
+    expect(heldCanvas()).toBeNull();
     expect(mx.sendMessage).toHaveBeenCalledOnce();
   });
 
@@ -1004,7 +1113,10 @@ describe('ComputerPanel', () => {
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a failed watch reconnect before continuation delivery settles', async () => {
+  it('drops the held frame and reports a failed ticket before the continuation settles', async () => {
+    const frame = document.createElement('canvas');
+    screenHandle.captureFrame.mockReturnValue(frame);
+    const pendingTicket: { resolve?: (response: Response) => void } = {};
     let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
     const mx = makeMatrixClient();
     vi.mocked(mx.sendMessage).mockReturnValue(
@@ -1016,7 +1128,9 @@ describe('ComputerPanel', () => {
     let tickets = 0;
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (input.toString().endsWith('/stream-ticket') && ++tickets === 2) {
-        return jsonResponse(503, { detail: 'Computer stream is unavailable.' });
+        return new Promise<Response>((resolve) => {
+          pendingTicket.resolve = resolve;
+        });
       }
       return gateway(input, init);
     }) as unknown as typeof fetch;
@@ -1027,8 +1141,15 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
 
-    await waitFor(() => expect(container.textContent).toContain('Computer stream is unavailable.'));
+    await waitFor(() => expect(pendingTicket.resolve).toBeDefined());
+    expect(heldCanvas()).toBe(frame);
+    await act(async () =>
+      pendingTicket.resolve?.(jsonResponse(503, { detail: 'Computer stream is unavailable.' }))
+    );
+    expect(container.textContent).toContain('Computer stream is unavailable.');
     expect(container.textContent).toContain('Computer disconnected');
+    expect(heldCanvas()).toBeNull();
+    expect(frame.width).toBe(0);
     expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
     expect(findButton(container, 'Reconnect').disabled).toBe(true);
 

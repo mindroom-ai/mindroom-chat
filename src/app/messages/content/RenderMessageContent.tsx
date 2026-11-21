@@ -164,7 +164,7 @@ function CoreMessageContent({
     [eventId, toolRoomId, toolThreadId]
   );
 
-  // A call between people starts with the router's row, shown as its latest edit has it: who is
+  // A call between people starts with MindRoom's row, shown as its latest edit has it: who is
   // in the call, Join and Transcript while live; how long it lasted once over.
   const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
   if (callRow && mEvent) return <LazyCallRow mEvent={mEvent} row={callRow} body={content.body} />;

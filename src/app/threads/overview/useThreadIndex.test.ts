@@ -1,5 +1,9 @@
+import { createClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { createDefaultThreadFilterState, type ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  type ThreadFilterState,
+} from '../../event-store/threads/roomThreadOverviewModel';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { resolveThreadIndexSnapshot } from './useThreadIndex';
 
@@ -46,6 +50,13 @@ const makeRecord = (threadRootId: string, overrides: Partial<ThreadRecord> = {})
   ...overrides,
 });
 
+const userId = '@alice:example.org';
+const room = new Room(
+  '!room:example.org',
+  createClient({ baseUrl: 'https://example.org', userId }),
+  userId
+);
+
 describe('resolveThreadIndexSnapshot', () => {
   it('selects the compact record map and derives counts from the active root set', () => {
     const normalRecord = makeRecord('$normal', {
@@ -64,6 +75,7 @@ describe('resolveThreadIndexSnapshot', () => {
     });
 
     const snapshot = resolveThreadIndexSnapshot({
+      room,
       threadId: undefined,
       compactViewRequested: true,
       visibleThreadRootIds: ['$normal'],
@@ -92,6 +104,7 @@ describe('resolveThreadIndexSnapshot', () => {
     const filteredState = makeFilterState({ resolved: 'include', freeText: 'root' });
 
     const snapshot = resolveThreadIndexSnapshot({
+      room,
       threadId: undefined,
       compactViewRequested: false,
       visibleThreadRootIds: ['$root'],

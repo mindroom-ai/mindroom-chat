@@ -2,6 +2,7 @@ import { EventType, type Room, type RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString } from '../../lib/hooks/useAsyncSearch';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { withoutNameDisguises } from '../../matrix/room';
+import { isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
 
 /**
  * The user name prefix MindRoom gives every agent account (MindRoom's
@@ -10,8 +11,9 @@ import { withoutNameDisguises } from '../../matrix/room';
  */
 const AGENT_PREFIX = 'mindroom_';
 
-/** MindRoom's router agent, with the installation namespace MindRoom appends when one is set. */
-const ROUTER_AGENT = /^router(?:_[a-z0-9]{4,32})?$/;
+// MindRoom reserves `router`, not `router_<suffix>` (config/main.py, validate_entity_names).
+// With no namespace set, an agent named router_<suffix> has the same ID as a namespaced owner.
+const POSSIBLE_NAMESPACED_OWNER = /^mindroom_router_[a-z0-9]{4,32}$/;
 
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
@@ -36,11 +38,6 @@ const localpart = (userId: string): string =>
 const userName = (userId: string): string => {
   const name = localpart(userId);
   return name.startsWith(AGENT_PREFIX) ? name.slice(AGENT_PREFIX.length) : name;
-};
-
-const isRouterAgent = (userId: string): boolean => {
-  const name = localpart(userId);
-  return name.startsWith(AGENT_PREFIX) && ROUTER_AGENT.test(name.slice(AGENT_PREFIX.length));
 };
 
 const startsAWord = (value: string, needle: string): boolean =>
@@ -89,18 +86,20 @@ export const recentSenders = (room: SenderTimelines): string[] => {
 };
 
 /**
- * Members in the order equal matches keep: the router after everyone else, since a match on a
- * name always means that member more than the agent that only dispatches; then whoever sent a
- * message most recently; then the order given.
+ * Members to offer as mentions, excluding the known owner. Accounts that could be namespaced
+ * owners go last; other ties keep the order of who sent a message most recently.
  */
-export const orderMentionCandidates = <T extends MentionCandidate>(
+export const filterAndOrderMentionCandidates = <T extends MentionCandidate>(
   members: readonly T[],
   senders: readonly string[]
 ): T[] => {
   const recency = new Map(senders.map((userId, index) => [userId, index]));
-  const routerLast = (member: T): number => (isRouterAgent(member.userId) ? 1 : 0);
   const recent = (member: T): number => recency.get(member.userId) ?? senders.length;
-  return [...members].sort(
-    (left, right) => routerLast(left) - routerLast(right) || recent(left) - recent(right)
-  );
+  const possibleOwner = (member: T) =>
+    Number(POSSIBLE_NAMESPACED_OWNER.test(localpart(member.userId)));
+  return members
+    .filter((member) => !isMindroomOwnerUserId(member.userId))
+    .sort(
+      (left, right) => possibleOwner(left) - possibleOwner(right) || recent(left) - recent(right)
+    );
 };

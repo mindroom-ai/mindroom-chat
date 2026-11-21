@@ -2260,6 +2260,7 @@
       "statusPaused": "Registrazione vocale in pausa",
       "statusProcessing": "Elaborazione della registrazione vocale",
       "statusReadyToRetry": "Registrazione vocale pronta per un nuovo tentativo",
+      "recoveredRecording": "Registrazione recuperata · {{time}}",
       "statusSending": "Invio della registrazione vocale",
       "statusStarting": "Avvio della registrazione vocale",
       "voiceRecorderDialog": {
@@ -2661,9 +2662,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "L’approvazione automatica si applica a questo thread, al richiedente, all’agente e allo strumento.",
         "argumentsMayDifferBetweenCalls": "Gli argomenti possono variare tra le chiamate.",
         "requestedBy": "Richiesto da {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "L’agente router sta trascrivendo"
       },
       "streamingIndicator": {
         "aiIsResponding": "L’IA sta rispondendo"

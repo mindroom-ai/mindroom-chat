@@ -41,6 +41,7 @@ describe('roomThreadOverviewModel', () => {
         freeText: '',
         unsupportedQuery: '',
         statusMode: 'and',
+        forMe: false,
       });
       expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
     });
@@ -164,6 +165,21 @@ describe('roomThreadOverviewModel', () => {
       expect(isRoomThreadOverviewActive(undefined, stored)).toBe(false);
       expect(isRoomThreadOverviewActive(undefined, { ...stored, snoozed: 'include' })).toBe(true);
       expect(isRoomThreadOverviewActive(undefined, { ...stored, resolved: 'exclude' })).toBe(true);
+    });
+
+    it('counts For me as an active choice only when enabled', async () => {
+      const {
+        createDefaultThreadFilterState,
+        hasActiveThreadFilters,
+        hasChosenThreadFilters,
+        resetThreadFilterState,
+      } = await import('./roomThreadOverviewModel');
+      const defaults = createDefaultThreadFilterState();
+      const active = { ...defaults, forMe: true };
+      expect(hasActiveThreadFilters(active)).toBe(true);
+      expect(hasChosenThreadFilters(active)).toBe(true);
+      expect(defaults.forMe).toBe(false);
+      expect(resetThreadFilterState().forMe).toBe(false);
     });
 
     it('cycles natural/last-reply sort modes in the UI order', async () => {

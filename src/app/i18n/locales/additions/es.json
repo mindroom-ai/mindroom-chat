@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados"
+        "advancedFilters": "Filtros avanzados",
+        "includeResolvedThreads": "Incluir hilos resueltos",
+        "hideResolvedThreads": "Ocultar hilos resueltos",
+        "forMeSummary": "{{summary}}. Filtro «Para mí» activado."
       },
       "threadPeopleFilter": {
         "label": "Personas",
@@ -1059,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expandir todos los mensajes largos",
-        "collapseAllLong": "Contraer todos los mensajes largos"
+        "collapseAllLong": "Contraer todos los mensajes largos",
+        "showFullMessage": "Mostrar mensaje completo"
       }
     },
     "computer": {
@@ -1715,9 +1719,10 @@
     }
   },
   "threadNav": {
-    "layout": "Disposición de los hilos",
-    "layoutRecent": "Recientes",
-    "layoutSections": "Secciones",
+    "forMe": "Para mí",
+    "forMeHint": "Solo los hilos en los que participas, en los que un agente publicó por ti o que has fijado",
+    "roomForMeHint": "Solo los hilos en los que participas o en los que un agente publicó por ti",
+    "emptyForMe": "Aún no hay hilos para ti",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
     "sections": {

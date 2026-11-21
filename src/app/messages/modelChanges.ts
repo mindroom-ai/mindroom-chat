@@ -8,9 +8,9 @@ import {
   type ModelSelectionResult,
 } from '../models/modelProtocol';
 
-/** A thread's model change the router applied, as its one line shows it. */
+/** A thread's applied model change, as its one line shows it. */
 export type ModelChange = {
-  /** The command the router answered, whose own row hides. */
+  /** The command that was answered, whose own row hides. */
   command: MatrixEvent;
   operation: 'set' | 'reset';
   /** The reference a set chose, `key` or `key@level`; a reset names none. */
@@ -24,8 +24,8 @@ export type ModelChange = {
 };
 
 /**
- * The model changes a thread draws as one line each, at the row of the router's acknowledgement
- * (`byAckId`), in place of that reply and of the command it answers, whose row hides.
+ * The model changes a thread draws as one line each, at the acknowledgement's row (`byAckId`),
+ * in place of that reply and of the command it answers, whose row hides.
  */
 export type ModelChangePlan = {
   hiddenEventIds: ReadonlySet<string>;
@@ -48,16 +48,32 @@ const TYPED_MODEL_COMMAND = /^[!/]model[^\S\n]+(\S[^\n]*)$/i;
 const RESET_ARGUMENTS = new Set(['reset', 'clear']);
 
 /**
- * Whether a message, as its row shows it, is the change `result` says the router applied and
+ * Whether a message, as its row shows it, is the change `result` says was applied and
  * nothing else: its text is the command with its one argument (the model's exact reference for a
- * set, `reset` or `clear` for a reset; a model with one of those names is a set, as the router
- * decides), and the picker's structured operation, when it carries one, says the same. So the
- * text the row hides is never more than the line says.
+ * set, `reset` or `clear` for a reset; a model with one of those names is a set, as the backend
+ * decides). A picker's structured command must agree with the result's change and runtime,
+ * even when a text-only edit no longer carries the structured content.
  */
-const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelectionResult) => {
-  if (MODEL_SELECTION in content) {
-    const selection = content[MODEL_SELECTION] as { operation?: unknown; model?: unknown } | null;
-    if (selection?.operation !== result.operation || selection.model !== result.model) return false;
+const isAppliedCommand = (
+  command: MatrixEvent,
+  content: Record<string, unknown>,
+  result: ModelSelectionResult
+) => {
+  for (const version of [command.getOriginalContent<Record<string, unknown>>(), content]) {
+    if (!(MODEL_SELECTION in version)) continue;
+    const selection = version[MODEL_SELECTION] as {
+      operation?: unknown;
+      model?: unknown;
+      runtime_user_id?: unknown;
+      runtime_device_id?: unknown;
+    } | null;
+    if (
+      selection?.operation !== result.operation ||
+      selection.model !== result.model ||
+      selection.runtime_user_id !== result.runtime_user_id ||
+      selection.runtime_device_id !== result.runtime_device_id
+    )
+      return false;
   }
   const argument =
     typeof content.body === 'string'
@@ -73,15 +89,15 @@ const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelecti
  * Which model changes of `events` (an open thread's rows) show as one line. A change counts when
  * every part of it is proven by the events themselves, never by what a reply's text says:
  *
- * - the room's router sent the acknowledgement (`routerUserId`, which the room's state names and
- *   `trustedRouterUserId` trusts; none while it names none or the viewer ignores it), and it is
- *   not redacted;
+ * - a trusted account sent the acknowledgement (the room's binding or a joined account from
+ *   its roster, excluding ignored accounts), and it is not redacted;
  * - its content, as its row shows it (`getContent`, which counts only the sender's own edits),
  *   holds an applied result (`parseModelSelectionResult`) for this room, for the thread the event
- *   itself was sent in, in the router's own name;
+ *   itself was sent in, in the sender's own name;
  * - the command the result names is among `events`: a message in that thread (not its root), not
- *   redacted, from a sender who is neither ignored nor a MindRoom agent (one may send the command
- *   for somebody, whom the line could not name), and answered encrypted when it was encrypted;
+ *   redacted, from a sender who is neither ignored nor a MindRoom account (in the trusted set
+ *   or named like an agent), and answered encrypted when it was encrypted. An agent may send
+ *   the command for somebody else, whom the line could not name;
  * - that message, as its row shows it, is that change (`isAppliedCommand`).
  *
  * Every other reply and command keeps its row as before: a rejected or uncertain change, a
@@ -93,24 +109,28 @@ const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelecti
 export const planModelChanges = ({
   events,
   getContent,
-  routerUserId,
+  trustedAccountIds,
   ignored,
   keeps,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  routerUserId: string | undefined;
+  trustedAccountIds: ReadonlySet<string>;
   ignored: ReadonlySet<string>;
   keeps: (eventId: string) => boolean;
 }): ModelChangePlan => {
-  if (!routerUserId || ignored.has(routerUserId)) return NO_MODEL_CHANGES;
+  if (trustedAccountIds.size === 0) return NO_MODEL_CHANGES;
   // Every version of an acknowledgement carries the result, so the cheap read of the first finds them.
-  const acks = events.filter(
-    (event) =>
+  const acks = events.filter((event) => {
+    const sender = event.getSender();
+    return (
       MODEL_RESULT in event.getOriginalContent() &&
       !event.isRedacted() &&
-      event.getSender() === routerUserId
-  );
+      !!sender &&
+      trustedAccountIds.has(sender) &&
+      !ignored.has(sender)
+    );
+  });
   if (acks.length === 0) return NO_MODEL_CHANGES;
   const byId = new Map(events.map((event) => [event.getId(), event]));
   const hiddenEventIds = new Set<string>();
@@ -126,7 +146,7 @@ export const planModelChanges = ({
       !result.thread_id ||
       result.room_id !== ack.getRoomId() ||
       result.thread_id !== threadRootOf(ack) ||
-      result.runtime_user_id !== routerUserId ||
+      result.runtime_user_id !== ack.getSender() ||
       result.command_event_id === ackId ||
       keeps(ackId) ||
       keeps(result.command_event_id) ||
@@ -142,10 +162,11 @@ export const planModelChanges = ({
       command.isRedacted() ||
       command.getRoomId() !== result.room_id ||
       ignored.has(senderId) ||
+      trustedAccountIds.has(senderId) ||
       isMindroomAgentUserId(senderId) ||
       (command.isEncrypted() && !ack.isEncrypted()) ||
       threadRootOf(command) !== result.thread_id ||
-      !isAppliedCommand(getContent(command), result)
+      !isAppliedCommand(command, getContent(command), result)
     )
       return;
     hiddenEventIds.add(result.command_event_id);

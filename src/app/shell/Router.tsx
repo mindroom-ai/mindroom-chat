@@ -52,6 +52,7 @@ import {
   THREADS_ROOM_PATH,
 } from '../routes/paths';
 import { getAppBasePath } from '../lib/basePath';
+import { markPageStartup } from '../lib/startupTimeline';
 import { AuthLayout } from '../account/auth/AuthLayout';
 import { Login } from '../account/auth/login/Login';
 import { Register } from '../account/auth/register/Register';
@@ -68,11 +69,13 @@ let clientPages: ClientPages | undefined;
 let roomModule: RoomModule | undefined;
 const loadClientPages = () =>
   import('./clientPages').then((pages) => {
+    if (!clientPages) markPageStartup('pages.loaded');
     clientPages = pages;
     return pages;
   });
 const loadRoom = () =>
   import('../room/Room').then((room) => {
+    if (!roomModule) markPageStartup('room.loaded');
     roomModule = room;
     return room;
   });

@@ -2232,6 +2232,7 @@
       "statusPaused": "录音已暂停",
       "statusProcessing": "处理录音",
       "statusReadyToRetry": "录音准备重试",
+      "recoveredRecording": "已恢复的录音 · {{time}}",
       "statusSending": "发送录音",
       "statusStarting": "开始录音",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "自动批准适用于此讨论串、请求者、智能体和工具。",
         "argumentsMayDifferBetweenCalls": "每次调用的参数可能不同。",
         "requestedBy": "由{{requester}}请求"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由智能体正在转写"
       },
       "streamingIndicator": {
         "aiIsResponding": "AI正在响应"

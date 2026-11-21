@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import type { Browser, BrowserContextOptions, Page, Request, Response } from '@playwright/test';
 import {
+  createAgentRoom,
   expect,
   routeClientConfig,
   signIn,
@@ -60,28 +61,6 @@ const roomEvents = async (stack: AgentStack, roomId: string): Promise<Raw[]> =>
       { accessToken: stack.tester.accessToken }
     )
   ).chunk;
-
-/** A new room of the tester's with the helper and the router, once both joined it. */
-const createAgentRoom = async (stack: AgentStack, name: string): Promise<string> => {
-  const roomId = await createRoom(stack.homeserver, stack.tester.accessToken, {
-    name,
-    invite: [stack.agents.helper, stack.agents.router],
-  });
-  await expect
-    .poll(
-      async () => {
-        const { joined } = await matrixFetch<{ joined: Record<string, unknown> }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/joined_members`,
-          { accessToken: stack.tester.accessToken }
-        );
-        return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
-      },
-      { timeout: 90_000, intervals: [500, 1000], message: `the agents join ${name}` }
-    )
-    .toBe(true);
-  return roomId;
-};
 
 const createPlainRoom = (stack: AgentStack, name: string): Promise<string> =>
   createRoom(stack.homeserver, stack.tester.accessToken, { name });
@@ -267,7 +246,9 @@ const run = async (browser: Browser, stack: AgentStack, baseURL: string | undefi
   for (let index = 1; index <= FILLER_ROOMS; index += 1)
     await createPlainRoom(stack, name(`Project room ${index}`));
   const labels = ['Release Desk', 'Phone Desk', 'Away Desk', 'Watch Desk', 'Control Desk'];
-  const roomIds = await Promise.all(labels.map((label) => createAgentRoom(stack, name(label))));
+  const roomIds = await Promise.all(
+    labels.map((label) => createAgentRoom(stack, name(label), false))
+  );
 
   const devices = await Promise.all([
     openDevice(browser, stack, baseURL, 'desk', DESKTOP),

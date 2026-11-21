@@ -14,6 +14,8 @@ import { matchesThreadPeopleFilter } from './threadPeopleFilter';
 import { isSnoozedAt } from './threadSnooze';
 import type { ThreadRecord } from './types';
 
+type ThreadForMeMatcher = (threadRootId: string) => boolean;
+
 const getThreadRecordDimension = (
   record: ThreadRecord,
   key: ThreadFilterKey,
@@ -42,20 +44,23 @@ const getThreadRecordDimension = (
   }
 };
 
-const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
+const hasStructuredThreadFilters = (state: ThreadFilterState): boolean =>
   (state.tab !== undefined && state.tab !== 'all') ||
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
-  (state.people?.length ?? 0) > 0;
+  (state.people?.length ?? 0) > 0 ||
+  state.forMe === true;
 
 /** Whether `record` passes `state`; a snooze counts while its time is later than `now`. */
 export const matchesThreadRecordFilterState = (
   record: ThreadRecord,
   state: ThreadFilterState,
-  now = Date.now()
+  now = Date.now(),
+  isForUser?: ThreadForMeMatcher
 ): boolean => {
   if (state.tab && state.tab !== 'all' && classifyThreadWorkflow(record.status, now) !== state.tab)
     return false;
+  if (state.forMe && !isForUser?.(record.threadRootId)) return false;
   if (!matchesThreadPeopleFilter(record, state.people)) return false;
   if (state.statusMode === 'or') {
     for (const key of THREAD_FILTER_KEYS) {
@@ -84,14 +89,15 @@ export const filterThreadRecordRootIds = (
   threadRootIds: string[],
   state: ThreadFilterState,
   recordMap: ReadonlyMap<string, ThreadRecord>,
-  now = Date.now()
+  now = Date.now(),
+  isForUser?: ThreadForMeMatcher
 ): string[] => {
-  if (!hasStatusOrTagFilters(state)) return threadRootIds;
+  if (!hasStructuredThreadFilters(state)) return threadRootIds;
 
   return threadRootIds.filter((threadRootId) => {
     const record = recordMap.get(threadRootId);
     if (!record) return false;
-    return matchesThreadRecordFilterState(record, state, now);
+    return matchesThreadRecordFilterState(record, state, now, isForUser);
   });
 };
 
@@ -144,6 +150,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   threadFilterState,
   searchQuery,
   recordMap,
+  isForUser,
   threadSortFreezeState,
   threadSortControlSignature,
   now = Date.now(),
@@ -153,6 +160,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   threadFilterState: ThreadFilterState;
   searchQuery: string;
   recordMap: ReadonlyMap<string, ThreadRecord>;
+  isForUser?: ThreadForMeMatcher;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSortControlSignature: string;
   /** The clock the snoozed filter reads. */
@@ -163,7 +171,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   displayOrderedIds: string[];
 } => {
   const matchingIds = filterThreadRecordsBySearch(
-    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap, now),
+    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap, now, isForUser),
     searchQuery,
     recordMap
   );
@@ -234,16 +242,17 @@ export const computeThreadRecordTagCounts = (
   return counts;
 };
 
-/** Counts reflect people, tags and text, but not the selected status tab or legacy statuses. */
+/** Counts reflect For me, people, tags and text, but not the selected status tab or legacy statuses. */
 export const computeThreadWorkflowCounts = (
   ids: string[],
   records: ReadonlyMap<string, ThreadRecord>,
   state: ThreadFilterState,
-  now: number
+  now: number,
+  isForUser?: ThreadForMeMatcher
 ): ThreadWorkflowCounts => {
   const counts: ThreadWorkflowCounts = { needsYou: 0, working: 0, later: 0, done: 0, all: 0 };
   const matching = filterThreadRecordsBySearch(
-    filterThreadRecordRootIds(ids, selectThreadWorkflowTab(state, 'all'), records, now),
+    filterThreadRecordRootIds(ids, selectThreadWorkflowTab(state, 'all'), records, now, isForUser),
     state.freeText,
     records
   );

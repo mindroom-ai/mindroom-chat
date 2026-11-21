@@ -47,6 +47,9 @@ import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/b
 import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 import { leavePage } from './boot/inviteFragment';
+import { markPageStartup } from './app/lib/startupTimeline';
+
+markPageStartup('js.entry');
 
 /** Marks the one reload that recovers a page the service worker does not control. */
 const SW_CONTROL_RELOAD_KEY = 'mindroom_sw_control_reloaded';

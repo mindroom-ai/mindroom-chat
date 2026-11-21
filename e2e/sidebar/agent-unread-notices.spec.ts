@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Locator, Page } from '@playwright/test';
-import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import {
   composer,
   createAgentRoom,
@@ -8,8 +8,6 @@ import {
   expect,
   openLobby,
   openNewSession,
-  readRouterWelcome,
-  routerToken,
   sendFromComposer,
   test,
   uniqueWord,
@@ -19,33 +17,38 @@ import {
 // A room with a MindRoom agent is unread only for what its thread lists show. A notice that does
 // not carry `io.mindroom.conversation: true` from an agent stays out of them, such as a status
 // line, so it leaves its room read; an agent's marked one lists as a conversation and makes its
-// room unread. Runs against the agent stack (scripts/agent-stack/stack.py) with the stub model,
-// where the router is that agent; MindRoom's agents never answer a notice. Skips without a
-// MindRoom checkout.
+// room unread. Runs against the agent stack (scripts/agent-stack/stack.py) with the stub model.
+// A fixture agent sends the notices; MindRoom's agents never answer a notice.
 
 /** The room's row in the room list; `data-highlight` says whether it shows as unread. */
 const roomRow = (page: Page, name: string): Locator =>
   page.locator('[data-highlight]').filter({ has: page.getByRole('link', { name }) });
 
-/** The router sends a notice to the room, with the conversation mark when `marked`. */
-const sendNotice = (stack: AgentStack, roomId: string, body: string, marked: boolean) =>
-  sendRoomMessage(stack.homeserver, routerToken(stack), roomId, {
+/** A fixture agent joins and sends a notice, with the conversation mark when `marked`. */
+const sendNotice = async (stack: AgentStack, roomId: string, body: string, marked: boolean) => {
+  const agent = await registerAgentAccount(stack.homeserver, 'reporter');
+  await matrixFetch(stack.homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
+    method: 'POST',
+    accessToken: stack.tester.accessToken,
+    body: JSON.stringify({ user_id: agent.userId }),
+  });
+  await joinRoom(stack.homeserver, agent.accessToken, roomId);
+  return sendRoomMessage(stack.homeserver, agent.accessToken, roomId, {
     msgtype: 'm.notice',
     body,
     ...(marked ? { 'io.mindroom.conversation': true } : {}),
   });
+};
 
 test("an agent's notice makes its room unread only when marked", async ({ page, stack }) => {
   test.setTimeout(300_000);
   const word = uniqueWord('unread');
-  // Home lists both rooms; they are in no space. The router's welcome is read in each.
+  // Home lists both rooms; they are in no space.
   const rooms = { unmarked: `${word} status`, marked: `${word} reports` };
   const ids = {
     unmarked: await createAgentRoom(stack, rooms.unmarked, false),
     marked: await createAgentRoom(stack, rooms.marked, false),
   };
-  await readRouterWelcome(stack, ids.unmarked);
-  await readRouterWelcome(stack, ids.marked);
 
   await openLobby(page, stack);
   for (const name of Object.values(rooms)) {
@@ -102,8 +105,6 @@ test('a notice in an encrypted agent room leaves the room read once it decrypts'
     body: JSON.stringify({ user_id: personId }),
   });
   await joinRoom(stack.homeserver, personToken, ids.sealed);
-  await readRouterWelcome(stack, ids.sealed);
-  await readRouterWelcome(stack, ids.anchor);
 
   await openLobby(page, stack);
   for (const name of Object.values(rooms)) {

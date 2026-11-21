@@ -7,7 +7,7 @@ const API_PATH = '/api/call-transcripts/v1';
 export type TranscriptCall = {
   id: string;
   roomId: string;
-  /** The room's "Call started" row, once the router posted it. */
+  /** The room's "Call started" row, once posted. */
   rowEventId: string | null;
   startedAt: string;
   /** Null while the call is live. */

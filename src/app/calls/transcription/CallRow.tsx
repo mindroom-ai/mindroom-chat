@@ -158,10 +158,9 @@ function LiveCallRow({ room, row }: RowProps) {
 }
 
 /**
- * The row MindRoom's router posts when a call between people starts (`io.mindroom.call`), as its
- * latest edit has it. Unedited, the call is on: who is in it, Join and Transcript. Edited for the
- * end: how long it lasted and, once the router names it, the way to the transcript message in the
- * row's thread.
+ * The row MindRoom posts when a call between people starts (`io.mindroom.call`), as its latest
+ * edit has it. Unedited, the call is on: who is in it, Join and Transcript. Edited for the end:
+ * how long it lasted and, once the poster adds it, a link to the transcript in the row's thread.
  */
 export function CallRow({ mEvent, row }: { mEvent: MatrixEvent; row: CallRowContent }) {
   const room = useMatrixClient().getRoom(mEvent.getRoomId());

@@ -59,6 +59,7 @@ export type CapturedVoiceRecording = {
   file: File;
   duration: number;
   waveform: number[] | undefined;
+  recordingId?: string;
 };
 export type VoiceCaptureResult =
   | { status: 'captured'; recording: CapturedVoiceRecording }
@@ -76,7 +77,7 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: () => Promise<boolean>;
+  start: (userId?: string) => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
@@ -84,14 +85,24 @@ export type VoiceCaptureSession = {
   discard: () => Promise<boolean>;
   reset: () => void;
   clearError: () => void;
-  releaseOwner: () => void;
+  releaseOwner: (offerOnStop?: boolean) => void;
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
   Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
+type CaptureJournal = {
+  id: string;
+  append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;
+  remove: () => Promise<void>;
+  release: () => void;
+};
+
 type Generation = {
+  journal?: CaptureJournal;
+  offerOnStop?: boolean;
+  web?: boolean;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -107,7 +118,7 @@ type Generation = {
   samples: number[];
   elapsedMs: number;
   startedAt?: number;
-  action?: 'send' | 'discard';
+  action?: 'send' | 'discard' | 'park';
   resolve?: (result: VoiceCaptureResult) => void;
   detach?: () => void;
 };
@@ -124,7 +135,10 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
     errorMessage: undefined,
   });
 
-export const createVoiceCaptureSession = (): VoiceCaptureSession => {
+export const createVoiceCaptureSession = (
+  beginJournal?: (startedAt: number, mimeType: string) => CaptureJournal | undefined,
+  onPark?: (recording: CapturedVoiceRecording) => boolean
+): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
   const listeners = new Set<() => void>();
   let snapshot = idleSnapshot();
@@ -204,6 +218,8 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     }
     releaseResources(generation);
     generation.recorder = undefined;
+    if (generation.chunks.length) generation.journal?.release();
+    else void generation.journal?.remove();
     generation.chunks = [];
     generation.samples = [];
     generation.resolve?.({ status: 'ignored' });
@@ -266,15 +282,19 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
+    generation.elapsedMs = elapsed(generation);
     releaseResources(generation);
     generation.recorder = undefined;
+    const journal = generation.journal;
+    generation.journal = undefined;
     const resolve = generation.resolve;
     generation.resolve = undefined;
     const isCurrent = current === generation;
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    if (generation.action !== 'send') {
+    const park = (generation.web && onPark && !generation.action) || generation.action === 'park';
+    if (generation.action !== 'send' && (!park || !generation.chunks.length)) {
       update({
         phase: 'idle',
         elapsedMs: 0,
@@ -285,10 +305,11 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       });
       generation.chunks = [];
       generation.samples = [];
-      resolve?.({ status: 'ignored' });
+      void Promise.resolve(journal?.remove()).then(() => resolve?.({ status: 'ignored' }));
       return;
     }
     if (generation.chunks.length === 0) {
+      void journal?.remove();
       update({ phase: 'idle', errorMessage: 'No audio data was captured.' });
       generation.samples = [];
       resolve?.({ status: 'failed' });
@@ -311,9 +332,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.samples = [];
     // The facade retains processing until delivery begins; capture diagnostics end here.
     if (isCurrent && !released) releaseVoiceCaptureState(source);
-    resolve?.({ status: 'captured', recording: { file, duration, waveform } });
+    const recording = { file, duration, waveform, ...(journal && { recordingId: journal.id }) };
+    if (park) {
+      if (generation.offerOnStop === false || !onPark?.(recording)) journal?.release();
+      update(idleSnapshot());
+      resolve?.({ status: 'ignored' });
+    } else resolve?.({ status: 'captured', recording });
   };
-  const start = async () => {
+  const start = async (userId = '') => {
     if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
     released = false;
     if (current) retire(current);
@@ -344,7 +370,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       let webRecorder: MediaRecorder | undefined;
       let mimeType: string | undefined;
       if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder();
+        const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
           nativeRecorder.stop();
           return false;
@@ -385,7 +411,10 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       }
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
-        if (generation.acceptsEvents && data.size > 0) generation.chunks.push(data);
+        if (!generation.acceptsEvents || data.size === 0) return;
+        const seq = generation.chunks.length;
+        generation.chunks.push(data);
+        void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
       generation.finishStop = onStop;
@@ -395,8 +424,19 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
+      if (webRecorder) {
+        generation.web = true;
+        try {
+          generation.journal = beginJournal?.(
+            generation.startedAt,
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+          );
+        } catch {
+          // Storage is best effort; capture still works from memory.
+        }
+        webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
+      }
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
@@ -414,9 +454,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     !!current &&
     !current.action &&
     (current.recorder?.state === 'recording' || current.recorder?.state === 'paused');
-  const stop = (action: 'send' | 'discard'): Promise<VoiceCaptureResult> => {
+  const stop = (action: 'send' | 'discard' | 'park'): Promise<VoiceCaptureResult> => {
     if (current?.action) return Promise.resolve({ status: 'ignored' });
-    if (!canStop()) {
+    if (!canStop() && !(action === 'park' && current?.recorder)) {
       if (action === 'discard') reset();
       return Promise.resolve({ status: 'ignored' });
     }
@@ -431,7 +471,8 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
       try {
-        generation.recorder!.stop();
+        if (generation.recorder!.state !== 'inactive') generation.recorder!.stop();
+        if (!generation.acceptsEvents) return;
         generation.stopTimer = setTimeout(() => {
           recordDeepTraceEvent('voice.capture.stop_timeout', {
             chunk_count: generation.chunks.length,
@@ -439,6 +480,10 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
           generation.finishStop?.();
         }, VOICE_RECORDER_STOP_TIMEOUT_MS);
       } catch (err) {
+        if (action === 'park') {
+          generation.finishStop?.();
+          return;
+        }
         generation.resolve = undefined;
         retire(generation);
         if (current === generation) {
@@ -499,12 +544,16 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     clearError: () => {
       if (snapshot.errorMessage !== undefined) publish({ errorMessage: undefined });
     },
-    releaseOwner: () => {
+    releaseOwner: (offerOnStop) => {
       if (released) return;
       released = true;
       const generation = current;
+      if (onPark && generation?.web && generation.recorder && !generation.action) {
+        generation.offerOnStop = offerOnStop;
+        void stop('park');
+      }
       current = undefined;
-      if (generation?.action === 'send' && generation.resolve) releaseResources(generation);
+      if (generation?.resolve) releaseResources(generation);
       else if (generation) retire(generation);
       snapshot = idleSnapshot();
       releaseVoiceCaptureState(source);

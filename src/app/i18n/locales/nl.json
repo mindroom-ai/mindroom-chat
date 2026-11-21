@@ -2232,6 +2232,7 @@
       "statusPaused": "Spraakopname gepauzeerd",
       "statusProcessing": "Spraakopname wordt verwerkt",
       "statusReadyToRetry": "Spraakopname kan opnieuw worden geprobeerd",
+      "recoveredRecording": "Herstelde opname · {{time}}",
       "statusSending": "Spraakopname wordt verstuurd",
       "statusStarting": "Spraakopname wordt gestart",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "Automatische goedkeuring geldt voor deze thread, aanvrager, agent en dit gereedschap.",
         "argumentsMayDifferBetweenCalls": "Argumenten kunnen per aanroep verschillen.",
         "requestedBy": "Aangevraagd door {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router-agent transcribeert"
       },
       "streamingIndicator": {
         "aiIsResponding": "AI antwoordt"

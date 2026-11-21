@@ -2232,6 +2232,7 @@
       "statusPaused": "錄音已暫停",
       "statusProcessing": "處理錄音",
       "statusReadyToRetry": "錄音準備重試",
+      "recoveredRecording": "已復原的錄音 · {{time}}",
       "statusSending": "傳送錄音",
       "statusStarting": "開始錄音",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "自動核准適用於此討論串、請求者、AI 代理與工具。",
         "argumentsMayDifferBetweenCalls": "每次呼叫的引數可能不同。",
         "requestedBy": "由{{requester}}請求"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由 AI 代理正在轉錄"
       },
       "streamingIndicator": {
         "aiIsResponding": "AI正在響應"

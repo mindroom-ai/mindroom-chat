@@ -1355,9 +1355,6 @@
         "submitted": "জমা দেওয়া হয়েছে",
         "toolApprovalRequest": "টুল অনুমোদন অনুরোধ"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "রাউটার এজেন্ট কথা থেকে লেখা তৈরি করছে"
-      },
       "pendingSendIndicator": {
         "messageFailedToSend": "বার্তা পাঠাতে ব্যর্থ হয়েছে",
         "messageSending": "বার্তা পাঠানো হচ্ছে",
@@ -1672,6 +1669,7 @@
       "statusPaused": "ভয়েস রেকর্ডিং বিরাম দেওয়া হয়েছে৷",
       "statusProcessing": "ভয়েস রেকর্ডিং প্রক্রিয়া করা হচ্ছে",
       "statusReadyToRetry": "আবার চেষ্টা করার জন্য ভয়েস রেকর্ডিং প্রস্তুত৷",
+      "recoveredRecording": "পুনরুদ্ধার করা রেকর্ডিং · {{time}}",
       "statusSending": "ভয়েস রেকর্ডিং পাঠানো হচ্ছে",
       "statusStarting": "ভয়েস রেকর্ডিং শুরু হচ্ছে",
       "voiceRecorderDialog": {

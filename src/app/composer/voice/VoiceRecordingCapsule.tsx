@@ -16,6 +16,7 @@ type VoiceRecordingCapsuleProps = {
   sampleCount?: number;
   canPause: boolean;
   hasPendingSend?: boolean;
+  recovered?: boolean;
   onDiscard: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -39,6 +40,7 @@ export function VoiceRecordingCapsule({
   sampleCount,
   canPause,
   hasPendingSend,
+  recovered,
   onDiscard,
   onPause,
   onResume,
@@ -80,7 +82,11 @@ export function VoiceRecordingCapsule({
         compact
       />
       <Text className={css.Timer} size="B300" aria-live="polite">
-        {millisecondsToMinutesAndSeconds(elapsedMs)}
+        {recovered
+          ? t('mindroomUi.voice.recoveredRecording', {
+              time: millisecondsToMinutesAndSeconds(elapsedMs),
+            })
+          : millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>
       <IconTooltip
         label={

@@ -128,6 +128,7 @@ const capture = () => {
 class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
   mimeType = 'audio/mp4';
+  id = 'native-id';
   level = () => 0.25;
   pause = vi.fn(() => {
     this.state = 'paused';
@@ -609,6 +610,44 @@ describe('voice capture session', () => {
     expect(await session.finish()).toEqual({ status: 'ignored' });
   });
 
+  it.each(['self-stop', 'unmount'])('parks audio after %s', async (exit) => {
+    const park = vi.fn(() => true);
+    const session = createVoiceCaptureSession(undefined, park);
+    sessions.push(session);
+    await session.start();
+    vi.advanceTimersByTime(4_900);
+    const recorder = latest();
+    if (exit === 'unmount') session.releaseOwner();
+    recorder.emitData(new Blob(['voice'], { type: 'audio/webm' }));
+    recorder.emitStop();
+    expect(park).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 4_900 }));
+    expect(session.getSnapshot().errorMessage).toBeUndefined();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it('continues recording after a journal write rejects and keeps the recorded bytes', async () => {
+    const append = vi.fn().mockRejectedValue(new Error('quota exceeded'));
+    const session = createVoiceCaptureSession(() => ({
+      id: 'recording',
+      append,
+      remove: vi.fn(),
+      release: vi.fn(),
+    }));
+    sessions.push(session);
+    expect(await session.start()).toBe(true);
+    vi.advanceTimersByTime(1_000);
+    latest().emitData(new Blob(['first'], { type: 'audio/webm' }));
+    await Promise.resolve();
+    expect(session.getSnapshot().phase).toBe('recording');
+    const result = await finish(session, 'second');
+    expect(append.mock.calls.map(([seq]) => seq)).toEqual([0, 1]);
+    expect(result.status).toBe('captured');
+    if (result.status !== 'captured') return;
+    expect(result.recording.recordingId).toBe('recording');
+    expect(await result.recording.file.text()).toBe('firstsecond');
+    expect(result.recording.file.type).toBe(latest().mimeType);
+  });
+
   it('discards with false and releases ordinary ownership before native stop arrives', async () => {
     const session = capture();
     await session.start();
@@ -675,6 +714,43 @@ describe('voice capture session', () => {
 });
 
 describe('voice capture session on the native recorder', () => {
+  it.each(['send', 'discard', 'unmount'] as const)(
+    'stops native capture for %s without journaling or parking its audio',
+    async (action) => {
+      const recorder = withoutWebCapture();
+      const begin = vi.fn(() => ({
+        id: 'journal-id',
+        append: vi.fn(async () => undefined),
+        remove: vi.fn(),
+        release: vi.fn(),
+      }));
+      const park = vi.fn(() => true);
+      const session = createVoiceCaptureSession(begin, park);
+      expect(await session.start('@voice:example.org')).toBe(true);
+      expect(native.start).toHaveBeenCalledExactlyOnceWith('@voice:example.org');
+      vi.advanceTimersByTime(1_800);
+
+      let stopped;
+      if (action === 'unmount') session.releaseOwner(true);
+      else stopped = action === 'send' ? session.finish() : session.discard();
+      expect(recorder.stop).toHaveBeenCalledExactlyOnceWith();
+      recorder.deliver('native voice');
+
+      const result = await stopped;
+      if (action === 'send') {
+        expect(result).toMatchObject({ status: 'captured', recording: { duration: 1_800 } });
+        if (!result || typeof result === 'boolean' || result.status !== 'captured')
+          throw new Error('missing native recording');
+        expect(await result.recording.file.text()).toBe('native voice');
+        expect(result.recording.recordingId).toBeUndefined();
+      }
+      expect(begin).not.toHaveBeenCalled();
+      expect(park).not.toHaveBeenCalled();
+      session.releaseOwner();
+      expect(session.getSnapshot().phase).toBe('idle');
+    }
+  );
+
   it('records, pauses and sends through the native recorder', async () => {
     const recorder = withoutWebCapture();
     const session = capture();

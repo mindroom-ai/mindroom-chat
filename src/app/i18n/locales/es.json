@@ -2260,6 +2260,7 @@
       "statusPaused": "Grabación de voz en pausa",
       "statusProcessing": "Procesando grabación de voz",
       "statusReadyToRetry": "Grabación de voz lista para reintentar",
+      "recoveredRecording": "Grabación recuperada · {{time}}",
       "statusSending": "Enviando grabación de voz",
       "statusStarting": "Iniciando grabación de voz",
       "voiceRecorderDialog": {
@@ -2661,9 +2662,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "La aprobación automática se aplica a este hilo, solicitante, agente y herramienta.",
         "argumentsMayDifferBetweenCalls": "Los argumentos pueden variar entre llamadas.",
         "requestedBy": "Solicitado por {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "El agente enrutador está transcribiendo"
       },
       "streamingIndicator": {
         "aiIsResponding": "La IA está respondiendo"

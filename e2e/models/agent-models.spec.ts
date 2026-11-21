@@ -13,9 +13,9 @@ import {
   waitForAgentReply,
 } from '../helpers/agentStack';
 
-// The model badge and the thread model picker with a live MindRoom backend: the picker asks the
-// router for its catalog over encrypted to-device messages, sends `!model <key>`, and the next reply
-// runs on that model (the backend names it in the reply's `io.mindroom.ai_run` metadata).
+// The model badge and the thread model picker with a live MindRoom backend: the picker discovers
+// a catalog over encrypted to-device messages, sends `!model <key>`, and the next reply runs on
+// that model (the backend names it in the reply's `io.mindroom.ai_run` metadata).
 test.describe.configure({ timeout: 300_000 });
 
 // AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
@@ -25,7 +25,7 @@ const shot = async (page: Page, name: string) => {
 };
 
 /**
- * The router's confirmation of a typed thread model change: the thread's model change line
+ * The agent's confirmation of a typed thread model change: the thread's model change line
  * (`operation`: `set` or `reset`), or the reply of a backend that sends no result for a typed
  * command, which says `reply`.
  */
@@ -71,7 +71,7 @@ test('a thread switches to another model from the picker, and the choice survive
   await expect(models.getByRole('option', { name: named(first.displayName) })).toBeVisible();
   await models.getByRole('option', { name: named(second.displayName) }).click();
   await expect(chip).toHaveText(second.displayName, { timeout: 60_000 });
-  // The router confirms the switch in the thread, which shows it as one line.
+  // The runtime confirms the switch in the thread, which shows it as one line.
   await expect(page.locator('[data-model-change="set"]')).toHaveText(
     `Model set${second.displayName}`,
     { timeout: 60_000 }
@@ -90,7 +90,7 @@ test('a thread switches to another model from the picker, and the choice survive
   await expect(secondRow).toContainText('You said: second question', { timeout: 30_000 });
   await expect(secondRow).toContainText(second.displayName);
 
-  // After a reload the chip learns the thread's model from the router again. The picker collects
+  // After a reload the chip discovers the thread's model again. The picker collects
   // answers for its whole discovery window (MODEL_TIMEOUT, 12 s) before it shows one.
   await openThread(page, stack, rootId);
   await expect(chip).toHaveText(second.displayName, { timeout: 45_000 });
@@ -145,7 +145,7 @@ test('a thread runs a model at the reasoning level picked in the effort column',
   expect(requests.length).toBeGreaterThan(0);
   expect(requests.map((request) => request.reasoning_effort)).toContain('high');
 
-  // After a reload the chip learns the level from the router again.
+  // After a reload the chip discovers the level again.
   await openThread(page, stack, rootId);
   await expect(chip).toHaveText(`${think.displayName} · High`, { timeout: 45_000 });
 });
@@ -169,7 +169,7 @@ test(
     await expect(typedConfirmation(page, 'set', `This thread now uses ${second.key}`)).toBeVisible({
       timeout: 60_000,
     });
-    // The chip follows the router's answer well inside the picker's 12 s discovery window.
+    // The chip follows the agent's answer well inside the picker's 12 s discovery window.
     await expect(chip).toHaveText(second.displayName, { timeout: 10_000 });
     await shot(page, `typed-model-chip-${test.info().project.name}`);
 
@@ -192,9 +192,9 @@ test(
       modelId: first.id,
     });
     // A fresh load of the finished thread, then the command inside the chip's 12 s discovery
-    // window, once the router has answered the discovery (the live test typed 1.5 s after opening;
-    // a busy runner can take a few seconds to answer). The live test saw the chip appear 12 s after
-    // the thread opened, as the default, although the router had already confirmed the switch.
+    // window, once a runtime has answered discovery (the live test typed 1.5 s after opening;
+    // a busy runner can take a few seconds to answer). The chip appeared 12 s after the thread
+    // opened, as the default, although the agent had already confirmed the switch.
     await openThread(page, stack, rootId);
     await page.waitForTimeout(5_000);
     const chip = page.getByRole('button', { name: 'Choose model' });

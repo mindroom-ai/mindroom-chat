@@ -4,6 +4,9 @@ import { createClient as createSdkClient } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
+import type { ISavedSync } from 'matrix-js-sdk/lib/store';
+import type { MarkClientStartup } from '../../lib/startupTimeline';
+import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
@@ -48,10 +51,16 @@ import {
   getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
 } from '../../event-store/cache/db';
 import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
+import { clearNativeVoiceRecordings } from '../../native/nativeVoiceRecorder';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../../matrix/cachedSpecVersions';
+
+vi.mock('../../diagnostics/deepTrace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../diagnostics/deepTrace')>()),
+  recordSyncStoreFailure: vi.fn(),
+}));
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
   IndexedDBStore: vi.fn(),
@@ -73,6 +82,8 @@ vi.mock('../../matrix/protocol/longText', () => ({
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
   clearAttachmentRepositoryMemory: vi.fn(),
 }));
+
+vi.mock('../../native/nativeVoiceRecorder', () => ({ clearNativeVoiceRecordings: vi.fn() }));
 
 vi.mock('../../matrix/client/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
@@ -230,21 +241,55 @@ describe('initClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('raises the saved sync archive timeline limit for the IndexedDB store', async () => {
+  it('raises the archive limit and reports the saved sync replay workload without replacing the SDK result', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
-    const startup = vi.fn().mockResolvedValue(undefined);
+    const markStartup = vi.fn();
     const syncAccumulator = {
       opts: {
         maxTimelineEntries: 50,
       },
     };
-    vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return {
-        backend: {
-          syncAccumulator,
+    const name = {
+      type: 'm.room.name',
+      state_key: '',
+      event_id: '$name',
+      sender: '@user:example.com',
+      origin_server_ts: 1,
+      content: { name: 'Example room' },
+    };
+    const topic = {
+      ...name,
+      type: 'm.room.topic',
+      event_id: '$topic',
+      content: { topic: 'Example topic' },
+    };
+    const savedSync: ISavedSync = {
+      nextBatch: 'saved-batch',
+      accountData: [],
+      roomsData: {
+        join: {
+          '!joined:example.com': {
+            summary: { 'm.heroes': [] },
+            state: { events: [name] },
+            'org.matrix.msc4222.state_after': { events: [name, topic] },
+            timeline: { events: [topic], prev_batch: 'older-batch' },
+            ephemeral: { events: [] },
+            account_data: { events: [] },
+            unread_notifications: {},
+          },
         },
-        startup,
-      } as unknown as IndexedDBStore;
+        invite: { '!invited:example.com': { invite_state: { events: [name] } } },
+        knock: { '!knocked:example.com': { knock_state: { events: [name, topic] } } },
+        leave: {},
+      },
+    };
+    const sdkRead = Promise.resolve(savedSync);
+    const startup = vi.fn().mockResolvedValue(undefined);
+    const on = vi.fn();
+    const getSavedSync = vi.fn(() => sdkRead);
+    const store = { backend: { syncAccumulator }, startup, getSavedSync, on };
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return store as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -259,14 +304,42 @@ describe('initClient', () => {
       setMaxListeners,
     } as never);
 
-    await initClient({
-      sessionId,
-      baseUrl: 'https://example.com',
-      accessToken: 'token',
-      userId: '@user:example.com',
-      deviceId: 'DEVICE',
-    });
+    await initClient(
+      {
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      },
+      markStartup
+    );
 
+    // What the store reports goes to the diagnostics trace.
+    const failure = new Error('failed');
+    on.mock.calls.forEach(([, report]) => (report as (error: unknown) => void)(failure));
+    expect(on.mock.calls.map(([outcome]) => outcome)).toEqual(['failed', 'stopped', 'degraded']);
+    expect(vi.mocked(recordSyncStoreFailure).mock.calls).toEqual([
+      ['failed', failure],
+      ['stopped', failure],
+      ['degraded', failure],
+    ]);
+
+    vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValueOnce(35);
+    const read = store.getSavedSync();
+    expect(read).toBe(sdkRead);
+    expect(await read).toBe(savedSync);
+    expect(markStartup).toHaveBeenCalledWith('store.startup.done');
+    expect(markStartup).toHaveBeenCalledWith('identity.check.done', {
+      durationMs: expect.any(Number),
+    });
+    expect(markStartup).toHaveBeenCalledWith('saved_sync.read.done', {
+      cacheHit: true,
+      durationMs: 25,
+      rooms: 3,
+      timelineEvents: 1,
+      stateEvents: 6,
+    });
     expect(vi.mocked(IndexedDBStore)).toHaveBeenCalledWith(
       expect.objectContaining({
         dbName: `web-sync-store::${sessionId}`,
@@ -353,7 +426,10 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases });
     vi.stubGlobal('navigator', { onLine: false });
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(),
+      } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -389,7 +465,10 @@ describe('initClient', () => {
     Object.defineProperty(factory, 'databases', { configurable: true, value: undefined });
     vi.stubGlobal('indexedDB', factory);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        on: vi.fn(),
+      } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -448,7 +527,7 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -488,7 +567,7 @@ describe('initClient', () => {
     });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -533,7 +612,7 @@ describe('initClient', () => {
     });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -567,7 +646,7 @@ describe('initClient', () => {
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
     vi.mocked(IndexedDBStore).mockImplementation(function () {
-      return { startup } as unknown as IndexedDBStore;
+      return { startup, on: vi.fn() } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
@@ -631,6 +710,7 @@ describe('initClient', () => {
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return {
         startup,
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -688,6 +768,7 @@ describe('initClient', () => {
   ])('$name', async ({ failedInitializer }) => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     const initializationFailure = new Error(`${failedInitializer} initialization failed`);
+    const markStartup = vi.fn<MarkClientStartup>();
     let resolveSibling: (() => void) | undefined;
     const pendingInitializer = vi.fn(
       () =>
@@ -708,6 +789,8 @@ describe('initClient', () => {
       return {
         startup,
         destroy,
+        getSavedSync: vi.fn().mockResolvedValue(null),
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -724,13 +807,16 @@ describe('initClient', () => {
     } as never);
 
     let rejected = false;
-    const initPromise = initClient({
-      sessionId,
-      baseUrl: 'https://example.com',
-      accessToken: 'token',
-      userId: '@user:example.com',
-      deviceId: 'DEVICE',
-    }).catch((error) => {
+    const initPromise = initClient(
+      {
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      },
+      markStartup
+    ).catch((error) => {
       rejected = true;
       throw error;
     });
@@ -748,6 +834,9 @@ describe('initClient', () => {
     expect(stopClient).toHaveBeenCalledTimes(1);
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(setMaxListeners).not.toHaveBeenCalled();
+    expect(markStartup.mock.calls.some(([phase]) => phase === 'crypto.init.done')).toBe(
+      failedInitializer === 'sync'
+    );
   });
 
   it('does not lower a larger existing sync archive limit', async () => {
@@ -764,6 +853,7 @@ describe('initClient', () => {
           syncAccumulator,
         },
         startup,
+        on: vi.fn(),
       } as unknown as IndexedDBStore;
     });
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
@@ -808,7 +898,10 @@ describe('initClient', () => {
 
     try {
       vi.mocked(IndexedDBStore).mockImplementation(function () {
-        return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+        return {
+          startup: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(),
+        } as unknown as IndexedDBStore;
       });
       vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
         return {} as unknown as IndexedDBCryptoStore;
@@ -1720,7 +1813,13 @@ describe('logoutClient', () => {
     const getHomeserverUrl = vi.fn().mockReturnValue('https://example.com');
     const getDeviceId = vi.fn().mockReturnValue(deviceId);
 
-    await logoutClient({
+    let finishNativeClear!: () => void;
+    vi.mocked(clearNativeVoiceRecordings).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishNativeClear = resolve;
+      })
+    );
+    const signingOut = logoutClient({
       clearStores,
       getDeviceId,
       getHomeserverUrl,
@@ -1728,6 +1827,12 @@ describe('logoutClient', () => {
       logout,
       stopClient,
     } as never);
+    await vi.waitFor(() =>
+      expect(clearNativeVoiceRecordings).toHaveBeenCalledExactlyOnceWith(userId)
+    );
+    expect(reload).not.toHaveBeenCalled();
+    finishNativeClear();
+    await signingOut;
 
     expect(logout).toHaveBeenCalledTimes(1);
     expect(clearStores).toHaveBeenCalledWith({

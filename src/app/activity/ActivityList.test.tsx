@@ -379,9 +379,10 @@ describe('ActivityList', () => {
   it('answers a question with the option picked', async () => {
     mocks.answerQuestion.mockResolvedValue(undefined);
     renderList({ rows: ROWS, hiddenAutomations: 0 });
-    await act(async () =>
-      fireEvent.click(within(rowByTitle('Thread q')).getByRole('button', { name: 'v3 final' }))
-    );
+    const option = within(rowByTitle('Thread q')).getByRole('button', { name: 'v3 final' });
+    // A long option wraps, and its button grows instead of spilling over its neighbours.
+    expect(option.className).toContain(css.ActionButton);
+    await act(async () => fireEvent.click(option));
     expect(mocks.answerQuestion).toHaveBeenCalledWith(
       mx,
       mocks.rooms.get('!q:x'),

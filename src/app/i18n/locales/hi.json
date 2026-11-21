@@ -1355,9 +1355,6 @@
         "submitted": "प्रस्तुत किया गया",
         "toolApprovalRequest": "उपकरण अनुमोदन अनुरोध"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "राउटर एजेंट आवाज़ को टेक्स्ट में बदल रहा है"
-      },
       "pendingSendIndicator": {
         "messageFailedToSend": "संदेश भेजने में विफल रहा",
         "messageSending": "संदेश भेजा जा रहा है",
@@ -1672,6 +1669,7 @@
       "statusPaused": "ध्वनि रिकॉर्डिंग रोक दी गई",
       "statusProcessing": "ध्वनि रिकॉर्डिंग संसाधित की जा रही है",
       "statusReadyToRetry": "वॉयस रिकॉर्डिंग पुनः प्रयास के लिए तैयार है",
+      "recoveredRecording": "बहाल की गई रिकॉर्डिंग · {{time}}",
       "statusSending": "वॉइस रिकॉर्डिंग भेजी जा रही है",
       "statusStarting": "ध्वनि रिकॉर्डिंग प्रारंभ हो रही है",
       "voiceRecorderDialog": {

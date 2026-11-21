@@ -82,9 +82,7 @@ describe('the Group switch of the Compact filter bar', () => {
       if (!toggle) throw new Error('no Group switch');
       expect(toggle.props['aria-label']).toBe('Group');
       expect(toggle.findAll((node) => node.type === 'path')).toHaveLength(3);
-      expect(toggle.findByProps({ className: css.SectionsSwitchLabel }).props.children).toBe(
-        'Group'
-      );
+      expect(toggle.findByProps({ className: css.BarToggleLabel }).props.children).toBe('Group');
     }
   );
 
@@ -102,4 +100,29 @@ describe('the Group switch of the Compact filter bar', () => {
     expect(tabs()).toEqual(['needsYou', 'working', 'later', 'done', 'all']);
     expect(byData('data-search-toggle')).toHaveLength(1);
   });
+});
+
+it.each([true, false])('shows and toggles For me beside Group (simple: %s)', (simple) => {
+  const toggle = () =>
+    renderer?.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'For me'
+    )[0];
+  const group = { onToggleThreadSections: noop };
+  const onToggleForMe = vi.fn();
+  renderBar(simple, { ...group, onToggleForMe });
+  expect(toggle()?.props['aria-pressed']).toBe(false);
+  expect(toggle()?.findByProps({ className: css.BarToggleLabel }).props.children).toBe('For me');
+  act(() => {
+    toggle()?.props.onClick();
+  });
+  expect(onToggleForMe).toHaveBeenCalledTimes(1);
+
+  act(() => renderer?.unmount());
+  renderBar(simple, {
+    ...group,
+    onToggleForMe,
+    state: { ...createDefaultThreadFilterState(), forMe: true },
+  });
+  expect(toggle()?.props['aria-pressed']).toBe(true);
+  expect(toggle()?.props.className).toContain(css.SortButtonActive);
 });

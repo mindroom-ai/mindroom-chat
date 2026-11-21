@@ -2232,6 +2232,7 @@
       "statusPaused": "Perekaman suara dijeda",
       "statusProcessing": "Memproses rekaman suara",
       "statusReadyToRetry": "Rekaman suara siap dicoba ulang",
+      "recoveredRecording": "Rekaman dipulihkan · {{time}}",
       "statusSending": "Mengirim rekaman suara",
       "statusStarting": "Memulai rekaman suara",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "Persetujuan otomatis berlaku untuk utas, pemohon, agen, dan alat ini.",
         "argumentsMayDifferBetweenCalls": "Argumen dapat berbeda antar panggilan.",
         "requestedBy": "Diminta oleh {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Agen perute sedang mentranskripsikan"
       },
       "streamingIndicator": {
         "aiIsResponding": "AI sedang merespons"

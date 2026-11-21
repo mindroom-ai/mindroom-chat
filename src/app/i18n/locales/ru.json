@@ -2288,6 +2288,7 @@
       "statusPaused": "Запись приостановлена",
       "statusProcessing": "Обработка записи",
       "statusReadyToRetry": "Запись готова к повторной отправке",
+      "recoveredRecording": "Восстановленная запись · {{time}}",
       "statusSending": "Отправка записи",
       "statusStarting": "Запуск записи",
       "voiceRecorderDialog": {
@@ -2703,9 +2704,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "Автоодобрение действует для этой ветки, инициатора, агента и инструмента.",
         "argumentsMayDifferBetweenCalls": "Аргументы разных вызовов могут отличаться.",
         "requestedBy": "Запросил(а) {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Агент маршрутизации расшифровывает речь"
       },
       "streamingIndicator": {
         "aiIsResponding": "ИИ отвечает"

@@ -1,9 +1,6 @@
 import { MatrixError } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  PendingVoiceSendContext,
-  PendingVoiceSendDraft,
-} from '../roomInputDrafts';
+import type { PendingVoiceSendContext, PendingVoiceSendDraft } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
 import { createVoiceSendDraftController, type VoiceDraftStore } from './voiceSendDraftController';
 
@@ -49,6 +46,59 @@ const deferred = () => {
   });
   return { promise, resolve, reject };
 };
+
+const journal = vi.hoisted(() => ({ deleteVoiceRecording: vi.fn(async () => undefined) }));
+vi.mock('./voiceRecordingJournal', () => journal);
+
+it('deletes journal audio only after a successful send, or on discard', async () => {
+  const store = createDraftStore();
+  const controller = createVoiceSendDraftController(store);
+  const recording = { ...createRecording(), recordingId: 'journal-id' };
+  const context = createContext();
+  const onFailure = vi.fn();
+  await controller.sendInitial(recording, context, {
+    sendRecording: () => Promise.reject(new Error('offline')),
+    onFailure,
+  });
+  expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
+  expect(store.read()?.recordingId).toBe(recording.recordingId);
+
+  const gate = deferred();
+  const retry = controller.retry({
+    claim: () => true,
+    sendRecording: () => gate.promise,
+    onFailure,
+  });
+  expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
+  gate.resolve();
+  expect(await retry).toBe(true);
+  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+
+  journal.deleteVoiceRecording.mockClear();
+  await controller.sendInitial(recording, context, { sendRecording: () => undefined, onFailure });
+  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+  journal.deleteVoiceRecording.mockClear();
+  store.write({ ...recording, context, recovered: true });
+  await controller.discardPending();
+  expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith(recording.recordingId);
+  expect(store.read()).toBeUndefined();
+});
+
+it('sends recovered audio from the composer that claimed it and parks a failure there', async () => {
+  const draft = { ...createDraft(), recovered: true };
+  const store = createDraftStore(draft);
+  const context = createContext('!destination:example.org');
+  const sendRecording = vi.fn().mockRejectedValue(new Error('offline'));
+  await createVoiceSendDraftController(store).retry({
+    claim: () => true,
+    context: () => context,
+    sendRecording,
+    onFailure: vi.fn(),
+  });
+  expect(sendRecording).toHaveBeenCalledWith(draft.file, draft.duration, draft.waveform, context);
+  expect(store.read()?.context).toBe(context);
+  expect(store.read()?.recovered).toBeFalsy();
+});
 
 describe('voiceSendDraftController', () => {
   it('sends an initial recording with exact identity and clears durable state on success', async () => {
@@ -311,7 +361,7 @@ describe('voiceSendDraftController', () => {
       onFailure,
     });
 
-    controller.discardPending();
+    await controller.discardPending();
     gate.reject(new Error('failed'));
 
     expect(await retry).toBe(false);

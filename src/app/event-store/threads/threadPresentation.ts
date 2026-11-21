@@ -84,6 +84,7 @@ export const resolveThreadRootPreviewText = ({
   });
 
 type ResolveThreadPresentationSnapshotOptions = {
+  bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
   fallbackLatestReplyTs?: number;
   /** Stands in for the cached reply's time when only the thread's activity is known. */
   fallbackLastActivityTs?: number;
@@ -114,8 +115,9 @@ export const resolveThreadPresentationSnapshot = ({
   visibleReplyEvents,
   fallbackLatestReplyTs,
   fallbackLastActivityTs,
+  bundledPreviews,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
-  const bundle = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
+  const bundle = bundledPreviews ?? getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
   const summaryReply = getThreadSummaryReply(thread);
@@ -139,20 +141,24 @@ export const resolveThreadPresentationSnapshot = ({
   const bundledReply = bundled.reply ?? summaryReply;
   const candidatePreviewEvent =
     (!fallbackLatestReplyPreviewText ||
-      (bundledReply && cachedReplyTs !== undefined &&
+      (bundledReply &&
+        cachedReplyTs !== undefined &&
         getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
     bundledReply &&
     !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
     getVisibleThreadEventBodyPreviewText(bundledReply) &&
-    (!loadedPreviewEvent || (bundledReply.getId() === loadedPreviewEvent.getId()
-      ? getThreadPreviewRevisionTs(bundledReply) > getThreadPreviewRevisionTs(loadedPreviewEvent)
-      : bundledReply.getTs() > loadedPreviewEvent.getTs()))
+    (!loadedPreviewEvent ||
+      (bundledReply.getId() === loadedPreviewEvent.getId()
+        ? getThreadPreviewRevisionTs(bundledReply) > getThreadPreviewRevisionTs(loadedPreviewEvent)
+        : bundledReply.getTs() > loadedPreviewEvent.getTs()))
       ? bundledReply
       : loadedPreviewEvent;
-  const preferCachedReply = bundled.reply && fallbackLatestReplyPreviewText &&
-    cachedReplyTs !== undefined && (!candidatePreviewEvent ||
-      cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
+  const preferCachedReply =
+    bundled.reply &&
+    fallbackLatestReplyPreviewText &&
+    cachedReplyTs !== undefined &&
+    (!candidatePreviewEvent || cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
   // A cached preview keeps its own sender: a newer reply not shown yet (one still encrypted) did
   // not write it (P2-e2ee-F005).

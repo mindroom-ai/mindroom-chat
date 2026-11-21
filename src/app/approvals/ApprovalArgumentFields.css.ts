@@ -53,9 +53,20 @@ export const Code = style({
   overflowWrap: 'anywhere',
 });
 
-// To a finger it reaches 5 px up and down, halfway to the decision buttons below it.
+// To a finger it reaches 5 px up and down, halfway to the decision buttons below it. In a narrow
+// list (Activity) its label wraps, and the button grows with it instead of spilling over.
 export const Toggle = style([
-  { alignSelf: 'flex-start' },
+  {
+    alignSelf: 'flex-start',
+    selectors: {
+      '&&': {
+        height: 'auto',
+        minBlockSize: toRem(32),
+        paddingBlock: toRem(6),
+        textAlign: 'start',
+      },
+    },
+  },
   touchTarget('22px', '', { blockReach: '5px' }),
 ]);
 

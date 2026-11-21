@@ -14,10 +14,9 @@ const member = (userId: string, name: string) =>
     getMxcAvatarUrl: () => undefined,
   } as unknown as RoomMember);
 
-// A MindRoom team as a room holds it: every agent's user ID starts with `mindroom_`, the router
-// among them, beside the people.
+// The agents and the owner have `mindroom_` user IDs; the people do not.
 const scout = member('@mindroom_scout:x', 'Scout');
-const router = member('@mindroom_router:x', 'RouterAgent');
+const owner = member('@mindroom_router:x', 'MindRoom');
 const maya = member('@maya:x', 'Maya');
 const mind = member('@mindroom_mind:x', 'Mind');
 const quill = member('@mindroom_quill:x', 'Quill');
@@ -226,7 +225,7 @@ describe('UserMentionAutocomplete suggestions', () => {
 });
 
 describe('UserMentionAutocomplete among MindRoom agents', () => {
-  const team = () => [scout, mind, router, quill, forge];
+  const team = () => [scout, mind, owner, quill, forge];
 
   it.each([
     ['before the search answers', false],
@@ -245,16 +244,15 @@ describe('UserMentionAutocomplete among MindRoom agents', () => {
     expect(shownNames()).toEqual(['Mind']);
   });
 
-  it('puts Mind above the router in a room that lists the router first', () => {
-    members = [router, mind, maya, grace];
-    render(picker('Min'), { searched: true });
+  it('does not offer the owner even when its full display name matches', () => {
+    members = [owner, mind, maya, grace];
+    renderQuery('MindRoom');
 
-    expect(shownNames()[0]).toBe('Mind');
-    expect(pickWithTab()[0]).toBe(mind.userId);
+    expect(shownNames()).toEqual([]);
   });
 
   it('finds an agent by its user name without the shared prefix', () => {
-    members = [scout, router, researcher];
+    members = [scout, owner, researcher];
     render(picker('resea'), { searched: true });
 
     expect(shownNames()).toEqual(['Researcher']);
@@ -270,11 +268,11 @@ describe('UserMentionAutocomplete among MindRoom agents', () => {
     expect(shownNames()).toEqual(['Maya', 'Mind']);
   });
 
-  it('never puts the router above another agent its name matches as well', () => {
-    members = [router, researcher];
-    render(picker('R', undefined, roomWithSenders(researcher, router)), { searched: true });
+  it('does not offer the owner for a bare @ even when it spoke last', () => {
+    members = [owner, researcher];
+    render(picker('', undefined, roomWithSenders(researcher, owner)), { searched: true });
 
-    expect(shownNames()).toEqual(['Researcher', 'RouterAgent']);
+    expect(shownNames()).toEqual(['Researcher']);
   });
 
   it('inserts the mention as "@" and the display name, as the message shows it', () => {

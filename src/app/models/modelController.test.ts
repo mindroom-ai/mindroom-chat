@@ -77,11 +77,11 @@ const setup = (lazyLoadMembers = false) => {
   const controller = getModelController(mx);
   cleanups.push(() => disposeModelController(mx));
   const snapshot = (thread = '$root') => controller.getSnapshot(room, thread);
-  const response = (request: any, changes: any = {}, identity: any = {}) => {
+  const response = (request: any, changes: any = {}, identity: any = {}, sender = router) => {
     mx.emit(ClientEvent.ReceivedToDeviceMessage, {
       message: {
         type: 'io.mindroom.models.response',
-        sender: router,
+        sender,
         content: {
           version: 1,
           request_id: request.request_id,
@@ -102,7 +102,7 @@ const setup = (lazyLoadMembers = false) => {
         identity === null
           ? null
           : {
-              sender: router,
+              sender,
               senderDevice: 'FORGED',
               senderVerified: false,
               senderCurve25519KeyBase64: 'curve',
@@ -148,7 +148,12 @@ const setup = (lazyLoadMembers = false) => {
     mx.emit(ClientEvent.Event, event);
     return event;
   };
-  const message = (sender: string, body: string, id: string) =>
+  const message = (
+    sender: string,
+    body: string,
+    id: string,
+    reply?: { eventId: string; isFallback: boolean }
+  ) =>
     mx.emit(
       ClientEvent.Event,
       new MatrixEvent({
@@ -159,7 +164,14 @@ const setup = (lazyLoadMembers = false) => {
         content: {
           msgtype: 'm.text',
           body,
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+          'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: '$root',
+            ...(reply && {
+              'm.in_reply_to': { event_id: reply.eventId },
+              is_falling_back: reply.isFallback,
+            }),
+          },
         },
       })
     );
@@ -364,7 +376,7 @@ describe('shared model discovery', () => {
     'room',
     'thread',
     'request',
-    'router-only',
+    'no-eligible-agent',
     'left-agent',
     'invited-agent',
     'foreign-agent',
@@ -383,7 +395,7 @@ describe('shared model discovery', () => {
     if (kind === 'room') changes.room_id = '!elsewhere:test';
     if (kind === 'thread') changes.thread_id = '$other';
     if (kind === 'request') changes.request_id = 'old';
-    if (kind === 'router-only') changes.agent_user_ids = [router];
+    if (kind === 'no-eligible-agent') changes.agent_user_ids = [];
     if (kind === 'left-agent') h.member(helper, 'leave');
     if (kind === 'invited-agent') h.member(helper, 'invite');
     if (kind === 'foreign-agent') {
@@ -394,6 +406,21 @@ describe('shared model discovery', () => {
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot().eligible).toBe(false);
+  });
+  it('discovers a signed runtime that is the only agent in the room', async () => {
+    const h = setup();
+    h.member(router, 'leave');
+    h.devices.set(helper, new Map([['DEVICE', h.device(helper)]]));
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), { agent_user_ids: [helper] }, undefined, helper);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      runtime: { userId: helper, deviceId: 'DEVICE' },
+    });
   });
   it('requires explicit choice between authenticated runtime devices', async () => {
     const h = setup();
@@ -618,7 +645,7 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: true });
   });
-  it('backs off and hides a revalidating button whose router lost its signed devices', async () => {
+  it('backs off and hides a button whose runtime lost its signed devices', async () => {
     const h = setup();
     await h.discover();
     const known = h.devices.get(router)!;
@@ -680,7 +707,7 @@ describe('shared model discovery', () => {
     expect(h.snapshot().error).toBeDefined();
     await vi.advanceTimersByTimeAsync(60000 + 12000);
     expect(h.snapshot().eligible).toBe(false);
-    // The join kept the router and its agent, so the room cache stays for another thread.
+    // The join kept the runtime and its agent, so the room cache stays for another thread.
     expect(h.snapshot('$second').eligible).toBe(true);
     await vi.advanceTimersByTimeAsync(60000);
     expect(h.snapshot().loading).toBe(true);
@@ -1476,31 +1503,65 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().override).toBe('fast');
     expect(h.snapshot('$other').override).toBeNull();
   });
-  it('asks again after a typed !model command is answered, and shows the new selection at once', async () => {
+  it('waits for a joined agent result for the typed !model, even from another runtime', async () => {
     const h = setup();
     await h.discover();
     expect(h.snapshot().override).toBeNull();
-    const { message } = h;
     const asked = h.queued.length;
-    message(viewer, '!model fast', '$typed');
+    h.message(viewer, '!model fast', '$typed');
+    h.message(helper, 'Something else', '$unrelated');
     await flush();
     expect(h.queued.length).toBe(asked);
-    message(router, '✅ This thread now uses `fast`.', '$answer');
+    h.ack({ command_event_id: '$older' }, { event_id: '$oldAnswer' });
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    h.ack({ command_event_id: '$typed', runtime_user_id: helper }, { sender: helper });
     await flush();
     expect(h.queued.length).toBe(asked + 1);
     h.response(h.request(), { selection: { override: 'fast', inherited: [] } });
     await flush();
     expect(h.snapshot().override).toBe('fast');
-    // Another message of the runtime asks nothing more.
-    message(router, 'Something else', '$later');
+    h.message(helper, 'Something else', '$later');
     await flush();
     expect(h.queued.length).toBe(asked + 1);
-    message(viewer, '!model reset', '$typed2');
-    message(router, '✅ Thread model override removed.', '$answer2');
+  });
+
+  it('reprobes once for each overlapping typed model command', async () => {
+    const h = setup();
+    await h.discover();
+    const asked = h.queued.length;
+    h.message(viewer, '!model fast', '$first');
+    h.message(viewer, '/model reset', '$second');
+
+    h.ack({ command_event_id: '$first' });
     await flush();
-    h.response(h.request(), { selection: { override: null, inherited: [] } });
+    expect(h.queued.length).toBe(asked + 1);
+    h.ack({ command_event_id: '$first' }, { event_id: '$duplicateAnswer' });
     await flush();
-    expect(h.snapshot().override).toBeNull();
+    expect(h.queued.length).toBe(asked + 1);
+
+    h.message(helper, 'This thread now uses reset.', '$secondAnswer', {
+      eventId: '$second',
+      isFallback: false,
+    });
+    await flush();
+    expect(h.queued.length).toBe(asked + 2);
+  });
+
+  it('reprobes on a genuine legacy reply to /model, not a thread fallback', async () => {
+    const h = setup();
+    await h.discover();
+    const asked = h.queued.length;
+    h.message(viewer, '/model fast', '$typed');
+    h.message(helper, 'Something else', '$unrelated', { eventId: '$typed', isFallback: true });
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    h.message(helper, 'This thread now uses fast.', '$answer', {
+      eventId: '$typed',
+      isFallback: false,
+    });
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
   });
   it('shows the first answer before its window ends, and follows a !model typed inside it', async () => {
     const h = setup();
@@ -1512,7 +1573,7 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot()).toMatchObject({ eligible: true, override: null, loading: true });
     const asked = h.queued.length;
     h.message(viewer, '!model fast', '$typed');
-    h.message(router, '✅ This thread now uses `fast`.', '$answer');
+    h.ack({ command_event_id: '$typed' });
     await flush();
     expect(h.queued.length).toBe(asked + 1);
     h.response(h.request(), { selection: { override: 'fast', inherited: [] } });

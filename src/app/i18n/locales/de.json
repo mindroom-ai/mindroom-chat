@@ -2232,6 +2232,7 @@
       "statusPaused": "Sprachaufnahme pausiert",
       "statusProcessing": "Sprachaufnahme wird verarbeitet",
       "statusReadyToRetry": "Sprachaufnahme kann erneut gesendet werden",
+      "recoveredRecording": "Wiederhergestellte Aufnahme · {{time}}",
       "statusSending": "Sprachaufnahme wird gesendet",
       "statusStarting": "Sprachaufnahme wird gestartet",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "autoApprovalAppliesToThisThreadRequesterAgentAndTool": "Die automatische Genehmigung gilt für diesen Thread, Anforderer, Agenten und dieses Werkzeug.",
         "argumentsMayDifferBetweenCalls": "Die Argumente können sich zwischen Aufrufen unterscheiden.",
         "requestedBy": "Angefordert von {{requester}}"
-      },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router-Agent transkribiert"
       },
       "streamingIndicator": {
         "aiIsResponding": "KI antwortet"
