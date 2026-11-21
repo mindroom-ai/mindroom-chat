@@ -1,0 +1,123 @@
+{
+  "sdkVersion": "41.7.0",
+  "outcomes": {
+    "the newest of 2,000 messages, asked of 500 members who have sent nothing": {
+      "answers": {
+        "readers": ["@writer:example.org"]
+      },
+      "senderLookups": 1002,
+      "idLookups": 1002000
+    },
+    "a thread root that is the newest event, asked of 50 members who have not replied and one who has": {
+      "answers": {
+        "events of the thread": 401,
+        "readers of the root": ["@other:example.org"],
+        "readers of the newest reply": ["@other:example.org"],
+        "readers of an older reply": ["@writer:example.org", "@other:example.org"]
+      },
+      "senderLookups": 304,
+      "idLookups": 23837
+    },
+    "the first of 400 messages, asked of the 50 members who sent the last 50": {
+      "answers": {
+        "cold": {
+          "readers": ["@late-49:example.org"]
+        },
+        "warm": {
+          "readers": ["@late-49:example.org"]
+        },
+        "warm sender lookups": 100
+      },
+      "senderLookups": 100,
+      "idLookups": 50
+    },
+    "a join as the newest event, then the same event with the membership before it": {
+      "answers": {
+        "as a join": true,
+        "as a profile change": false
+      },
+      "senderLookups": 5,
+      "idLookups": 2
+    },
+    "a member who sent a message that is not the newest, and one who sent the newest": {
+      "answers": {
+        "@writer:example.org $first": false,
+        "@writer:example.org $written": false,
+        "@writer:example.org $after": false,
+        "@writer:example.org $newest": false,
+        "@reader:example.org $first": true,
+        "@reader:example.org $written": true,
+        "@reader:example.org $after": true,
+        "@reader:example.org $newest": true,
+        "@other:example.org $first": false,
+        "@other:example.org $written": false,
+        "@other:example.org $after": false,
+        "@other:example.org $newest": false
+      },
+      "senderLookups": 24,
+      "idLookups": 30
+    },
+    "a message redacted after it was paged in": {
+      "answers": {
+        "redacted": true,
+        "@writer:example.org $first": false,
+        "@writer:example.org $written": false,
+        "@writer:example.org $redaction": false,
+        "@reader:example.org $first": true,
+        "@reader:example.org $written": true,
+        "@reader:example.org $redaction": true,
+        "@other:example.org $first": false,
+        "@other:example.org $written": false,
+        "@other:example.org $redaction": false
+      },
+      "senderLookups": 18,
+      "idLookups": 20
+    },
+    "events that came live, a gap in the sync, then history and a live event after it": {
+      "answers": {
+        "before the gap": {
+          "@writer:example.org $live-1": true,
+          "@writer:example.org $live-2": true,
+          "@other:example.org $live-1": true,
+          "@other:example.org $live-2": false,
+          "@reader:example.org $live-1": false,
+          "@reader:example.org $live-2": false
+        },
+        "after the gap": {
+          "@writer:example.org $live-1": true,
+          "@writer:example.org $live-2": true,
+          "@other:example.org $live-1": true,
+          "@other:example.org $live-2": false
+        },
+        "at the end": {
+          "@writer:example.org $live-1": true,
+          "@writer:example.org $live-2": true,
+          "@writer:example.org $history": false,
+          "@writer:example.org $live-3": false,
+          "@other:example.org $live-1": true,
+          "@other:example.org $live-2": true,
+          "@other:example.org $history": true,
+          "@other:example.org $live-3": true,
+          "@reader:example.org $live-1": false,
+          "@reader:example.org $live-2": false,
+          "@reader:example.org $history": false,
+          "@reader:example.org $live-3": false
+        }
+      },
+      "senderLookups": 18,
+      "idLookups": 97
+    },
+    "a receipt on the second of three messages": {
+      "answers": {
+        "@reader:example.org $first": true,
+        "@reader:example.org $second": true,
+        "@reader:example.org $third": false,
+        "@writer:example.org $first": false,
+        "@writer:example.org $second": false,
+        "@writer:example.org $third": false
+      },
+      "senderLookups": 8,
+      "idLookups": 29
+    }
+  }
+}

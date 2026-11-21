@@ -9,7 +9,8 @@ import { encodeBase64 } from 'matrix-js-sdk/lib/base64';
  *
  * The settings match the other MatrixRTC participants, MindRoom agents among them: a keyring of
  * 256 so every index keeps its key, a ratchet window of 10, and HKDF key derivation from the raw
- * 16-byte keys (LiveKit's derivation for binary key material).
+ * keys (LiveKit's derivation for binary key material): 32 bytes from matrix-js-sdk since 45.1, 16
+ * from older clients.
  */
 export class MatrixRtcKeyProvider extends BaseKeyProvider {
   constructor() {
@@ -50,12 +51,15 @@ export const sendCallKey = async (
 ): Promise<void> => {
   const cryptoApi = mx.getCrypto();
   if (!cryptoApi) throw new Error('No crypto to encrypt a call key with');
+  // The content of the SDK's own send (`ToDeviceKeyTransport.sendKey`), so that a device takes this
+  // key as it takes that one: `keys` and `member.id` are what a peer reading the older format takes.
+  const mediaKey = { index: keyIndex, key: encodeBase64(key) };
   const payload = {
-    keys: { index: keyIndex, key: encodeBase64(key) },
     room_id: roomId,
+    member_id: memberId,
+    media_key: mediaKey,
+    keys: mediaKey,
     member: { claimed_device_id: mx.getDeviceId() ?? '', id: memberId },
-    session: { call_id: '', application: 'm.call', scope: 'm.room' },
-    sent_ts: Date.now(),
   };
   const encrypt = async () => {
     const { eventType, batch } = await cryptoApi.encryptToDeviceMessages(
@@ -70,7 +74,7 @@ export const sendCallKey = async (
   let encrypted = await encrypt();
   if (!encrypted) {
     // Tracks an untracked user and awaits their key query through the Rust crypto
-    // (patches/matrix-js-sdk+41.7.0.patch); a tracked user's cached list is kept as it is.
+    // (patches/matrix-js-sdk+45.1.0.patch); a tracked user's cached list is kept as it is.
     await cryptoApi.getUserDeviceInfo([to.userId], true);
     encrypted = await encrypt();
   }
