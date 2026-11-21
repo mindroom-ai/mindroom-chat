@@ -103,7 +103,8 @@ export const planVoiceTranscripts = ({
         ignored.has(sender) ||
         !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
         isHidden(event)
-      ) continue;
+      )
+        continue;
       const ts = event.getTs();
       if (Number.isFinite(ts)) latestAgentTs = Math.max(latestAgentTs, ts);
     }

@@ -953,8 +953,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       );
       const mindroomCount = joined.length - people.length;
       setViewerIsOnlyPerson(
-        people.length === 1 && people[0]?.userId === viewerId &&
-        room.getJoinedMemberCount() - mindroomCount === 1
+        people.length === 1 &&
+          people[0]?.userId === viewerId &&
+          room.getJoinedMemberCount() - mindroomCount === 1
       );
     };
     updateOnlyPerson();
@@ -1003,11 +1004,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     const isEarlierAgentReply = (event: MatrixEvent) => {
       const sender = event.getSender();
       return (
-        event.threadRootId === root && event.getId() !== root && event.getTs() < voice.getTs() &&
-        event.getType() === 'm.room.message' && !event.isRedacted() && !!sender && isResponder(sender)
+        event.threadRootId === root &&
+        event.getId() !== root &&
+        event.getTs() < voice.getTs() &&
+        event.getType() === 'm.room.message' &&
+        !event.isRedacted() &&
+        !!sender &&
+        isResponder(sender)
       );
     };
-    return voiceRows.some(isEarlierAgentReply) || room.getThread(root)?.events.some(isEarlierAgentReply) === true;
+    return (
+      voiceRows.some(isEarlierAgentReply) ||
+      room.getThread(root)?.events.some(isEarlierAgentReply) === true
+    );
   };
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({

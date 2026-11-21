@@ -134,12 +134,16 @@ const openThread = async (
   ];
   if (!showEcho) events.pop();
   if (priorReply) {
-    events.splice(1, 0, makeEvent('$prior', {
-      threadRootId: threadId,
-      ts: 1_500,
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: 'I can help with that.' },
-    }));
+    events.splice(
+      1,
+      0,
+      makeEvent('$prior', {
+        threadRootId: threadId,
+        ts: 1_500,
+        sender: AGENT,
+        content: { msgtype: 'm.text', body: 'I can help with that.' },
+      })
+    );
   }
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
@@ -364,7 +368,10 @@ describe('a voice echo in an open thread', () => {
 
   it('scans joined people once for a batch of membership changes', async () => {
     const joinedMembers = [VIEWER, AGENT];
-    const { renderer, room } = await openThread(undefined, AGENT, { showEcho: false, joinedMembers });
+    const { renderer, room } = await openThread(undefined, AGENT, {
+      showEcho: false,
+      joinedMembers,
+    });
     try {
       const getJoinedMembers = vi.spyOn(room, 'getJoinedMembers');
       await act(async () => {
