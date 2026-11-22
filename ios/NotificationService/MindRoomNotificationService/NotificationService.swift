@@ -128,8 +128,12 @@ class NotificationService: UNNotificationServiceExtension {
         activeSlot = slot
         slotLock.unlock()
 
-        let task = Task { [weak self] in
-            await self?.enrichWithCommunicationNotification(
+        let task = Task<Void, Never> { [weak self] in
+            guard let self else {
+                slot.deliver(mutableContent)
+                return
+            }
+            await self.enrichWithCommunicationNotification(
                 slot: slot,
                 mutableContent: mutableContent,
                 payload: payload,
