@@ -396,7 +396,7 @@ describe('InviteUserPrompt', () => {
 
   const textContent = (renderer: ReactTestRenderer, role: string) =>
     renderer.root
-      .findAll((node) => node.props.role === role)
+      .findAll((node) => typeof node.type === 'string' && node.props.role === role)
       .map((node) =>
         Array.isArray(node.children) ? node.children.join('') : String(node.children)
       )
