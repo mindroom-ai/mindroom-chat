@@ -94,7 +94,15 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
-const CAPTURED = { capture: true, passive: true };
+// The first row in view, and how far below the view's top it starts.
+const firstRowInView = (view: HTMLElement): { row: Element; top: number } | undefined => {
+  const { top } = view.getBoundingClientRect();
+  for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {
+    const rect = row.getBoundingClientRect();
+    if (rect.bottom > top) return { row, top: rect.top - top };
+  }
+  return undefined;
+};
 
 type RestoreState = {
   memoryKey: string;
@@ -104,6 +112,9 @@ type RestoreState = {
   placedRows: string[];
   /** Every row's key, in order, at the last write. */
   rowOrder: string[];
+  lastAppliedScrollTop: number;
+  /** The first row in view at the last write. */
+  rowInView?: ReturnType<typeof firstRowInView>;
 };
 
 type ScrollAnchorMemoryOptions = {
@@ -150,23 +161,29 @@ export function useScrollAnchorMemory({
         snapshot: memory.get(memoryKey),
         placedRows: [],
         rowOrder: [],
+        lastAppliedScrollTop: view.scrollTop,
       };
     }
     const state = restoreRef.current;
 
     let observer: ResizeObserver | undefined;
-    // What the reader scrolls the list with: a wheel or a pointer on it, or a key anywhere (the
-    // thread keys focus a row from outside the list). A scroll alone need not be theirs: the
-    // browser's scroll anchoring and other code that keeps the rows in place scroll it too.
-    const inputs = [
-      [view, 'wheel'],
-      [view, 'pointerdown'],
-      [window, 'keydown'],
-    ] as const;
     const stopFollowing = () => {
       state.snapshot = undefined;
       observer?.disconnect();
-      inputs.forEach(([target, type]) => target.removeEventListener(type, stopFollowing, CAPTURED));
+      view.removeEventListener('scroll', handleScroll);
+    };
+    // A scroll that moved the rows is the reader's, by whatever means, and ends the restore.
+    // One that left them where they show is the browser's scroll anchoring, or code that
+    // scrolls as it does: the list changed around the rows, and the restore goes on from there.
+    const handleScroll = () => {
+      if (view.scrollTop === state.lastAppliedScrollTop) return;
+      const { rowInView: shown } = state;
+      const moved =
+        shown && view.contains(shown.row)
+          ? shown.row.getBoundingClientRect().top - view.getBoundingClientRect().top - shown.top
+          : Infinity;
+      if (Math.abs(moved) <= 1) state.lastAppliedScrollTop = view.scrollTop;
+      else stopFollowing();
     };
     const restore = () => {
       const { snapshot } = state;
@@ -174,11 +191,11 @@ export function useScrollAnchorMemory({
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
       // A reader who left at the top stays at the top, where rows that moved
-      // up show; one who scrolled since (`inputs`) keeps their place.
-      // Late layout moves the placed rows together (the header padding
-      // settling, cards loading above). Rows that move apart or change order
-      // are the list changing under the reader, such as a card leaving or a
-      // thread sorting first, and stay where they land.
+      // up show; one who scrolled since the last write keeps their place
+      // (`handleScroll`). Late layout moves the placed rows together (the
+      // header padding settling, cards loading above). Rows that move apart
+      // or change order are the list changing under the reader, such as a
+      // card leaving or a thread sorting first, and stay where they land.
       if (snapshot.scrollTop <= 0 || !placement || !keepsRowOrder(state.rowOrder, rowOrder)) {
         stopFollowing();
         return;
@@ -186,6 +203,8 @@ export function useScrollAnchorMemory({
       view.scrollTop = placement.scrollTop;
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
+      state.lastAppliedScrollTop = view.scrollTop;
+      state.rowInView = firstRowInView(view);
     };
     restore();
     if (!state.snapshot) return undefined;
@@ -193,10 +212,10 @@ export function useScrollAnchorMemory({
     observer = new ResizeObserver(restore);
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
-    inputs.forEach(([target, type]) => target.addEventListener(type, stopFollowing, CAPTURED));
+    view.addEventListener('scroll', handleScroll);
     return () => {
       observer?.disconnect();
-      inputs.forEach(([target, type]) => target.removeEventListener(type, stopFollowing, CAPTURED));
+      view.removeEventListener('scroll', handleScroll);
     };
   }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
@@ -213,14 +232,16 @@ export function useScrollAnchorMemory({
 
   return useCallback(
     (place: ScrollAnchorSnapshot) => {
+      const lastAppliedScrollTop = scrollRef.current?.scrollTop ?? 0;
       restoreRef.current = {
         memoryKey,
         snapshot: place,
         placedRows: [],
         rowOrder: [],
+        lastAppliedScrollTop,
       };
       setRestarts((count) => count + 1);
     },
-    [memoryKey]
+    [memoryKey, scrollRef]
   );
 }

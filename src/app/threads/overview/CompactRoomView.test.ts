@@ -326,9 +326,8 @@ describe('CompactRoomView', () => {
         }
       }
     );
-    // The scroll element these tests give the view has no style to read, and no window around it.
+    // The scroll element these tests give the view has no style to read.
     vi.stubGlobal('getComputedStyle', () => ({}));
-    vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {} });
     vi.clearAllMocks();
     useCompactThreadCardViewModelsMock.mockReturnValue([]);
     useToggleThreadResolutionMock.mockReturnValue({
@@ -679,8 +678,8 @@ describe('CompactRoomView', () => {
         listeners.get(type)?.delete(fn);
       },
       readerScrollTo: (value: number) => {
-        listeners.get('wheel')?.forEach((fn) => fn({ type: 'wheel' }));
         scrollTop = Math.min(value, maxScrollTop);
+        listeners.get('scroll')?.forEach((fn) => fn({ type: 'scroll' }));
       },
     };
   };

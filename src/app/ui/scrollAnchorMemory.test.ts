@@ -28,10 +28,14 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
     },
   });
   view.getBoundingClientRect = () => toRect(0, viewportHeight);
+  // A row keeps its element while it stays in the list, as a keyed row does.
   const setRows = (nextKeys: string[]) => {
+    const kept = new Map(
+      Array.from(content.children, (row) => [row.getAttribute('data-scroll-anchor'), row])
+    );
     content.replaceChildren(
       ...nextKeys.map((key) => {
-        const row = document.createElement('div');
+        const row = kept.get(key) ?? document.createElement('div');
         row.setAttribute('data-scroll-anchor', key);
         row.getBoundingClientRect = () => toRect(rowTop(row) - scrollTop, ROW_HEIGHT);
         return row;
@@ -125,7 +129,6 @@ describe('useScrollAnchorMemory', () => {
     );
 
   const scrollReaderTo = (layout: Layout, scrollTop: number) => {
-    layout.view.dispatchEvent(new Event('wheel'));
     layout.view.scrollTop = scrollTop;
     layout.view.dispatchEvent(new Event('scroll'));
   };
@@ -298,37 +301,51 @@ describe('useScrollAnchorMemory', () => {
     expect(observers.size).toBe(0);
   });
 
-  it('keeps following when another writer changes scrollTop without reader input', () => {
+  it('goes on when scroll anchoring scrolls the list, which keeps its rows where they show', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);
     const before = leaveAt(memory, keys, 300);
 
-    const layout = createLayout(keys.slice(0, 6));
+    const layout = createLayout(keys.slice(3));
     mount(memory, layout);
-    // Another writer (e.g. native scroll anchoring) moves scrollTop before the target mounts.
-    layout.view.scrollTop = 120;
-    layout.view.dispatchEvent(new Event('scroll'));
+    expect(layout.view.scrollTop).toBe(180);
+    // Three rows render above the view, and the browser scrolls by their height.
     layout.setRows(keys);
+    layout.view.scrollTop = 300;
+    layout.view.dispatchEvent(new Event('scroll'));
+    expect(observers.size).toBe(1);
+
+    // The restore still follows: a row that joins above with nothing scrolling for it.
+    layout.setRows(['new-row', ...keys]);
     resize(layout.content);
     expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-    expect(observers.size).toBe(1);
   });
 
-  it.each([
-    ['wheel on a row', 'wheel', true],
-    ['pointer on a row', 'pointerdown', true],
-    // The thread keys focus a row, which scrolls to it, from outside the list.
-    ['key anywhere', 'keydown', false],
-  ])('stops following at a %s', (_label, input, onRow) => {
+  it('goes on while the reader types elsewhere', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    const before = leaveAt(memory, keys, 300);
+
+    const layout = createLayout(keys);
+    mount(memory, layout);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    layout.setRows(['new-row', ...keys]);
+    resize(layout.content);
+    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
+  });
+
+  it('ends at a scroll no input came with (a screen reader, find in page), and stays there', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);
     leaveAt(memory, keys, 300);
+
     const layout = createLayout(keys);
     mount(memory, layout);
-    // The list hears its rows' input first, also if a row keeps it to itself.
-    const target = onRow ? layout.view.querySelector('[data-scroll-anchor]')! : document.body;
-    target.dispatchEvent(new Event(input));
+    layout.view.scrollTop = 120;
+    layout.view.dispatchEvent(new Event('scroll'));
     expect(observers.size).toBe(0);
+    layout.setRows(['new-row', ...keys]);
+    expect(layout.view.scrollTop).toBe(120);
   });
 
   it('stops following once the reader scrolls, even back to the same place', () => {
