@@ -7,6 +7,7 @@ import { framingHeaders } from '../../scripts/frame-headers.mjs';
 const APP_SCHEME = 'capacitor';
 export const APP_ORIGIN = `${APP_SCHEME}://localhost`;
 export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html'];
+const OPEN_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
 
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
@@ -73,23 +74,23 @@ const readBundleFile = async (
 ): Promise<{ file: string; fullPath: string; body: Buffer | null } | undefined> => {
   const lexical = path.resolve(realRoot, relative);
   if (!lexical.startsWith(`${realRoot}${path.sep}`)) return undefined;
+  let handle: fs.promises.FileHandle | undefined;
   try {
     if ((await fs.promises.realpath(lexical)) !== lexical) return undefined;
-    if (!(await fs.promises.stat(lexical)).isFile()) return undefined;
-    return {
-      file: relative,
-      fullPath: lexical,
-      body: headOnly ? null : await fs.promises.readFile(lexical),
-    };
+    handle = await fs.promises.open(lexical, OPEN_FLAGS);
+    if (!(await handle.stat()).isFile()) return undefined;
+    return { file: relative, fullPath: lexical, body: headOnly ? null : await handle.readFile() };
   } catch {
     return undefined;
+  } finally {
+    await handle?.close();
   }
 };
 
 // Packaged, `dist` lives inside the signed, read-only `app.asar`; from a checkout, anyone who can
 // write `dist` can already run code as the user, so mid-request parent swaps are out of scope.
-// Serves only a regular file whose real path equals the requested path inside root. No open handle:
-// inside asar, `fs.open` copies the file out to a temporary file first.
+// Serves only a regular file whose real path equals the requested path inside root, from one handle
+// (inside asar, Electron reads packed entries through the archive descriptor, no temp copy).
 export const serveBundle = (distDir: string): void => {
   let realRoot: string;
   try {

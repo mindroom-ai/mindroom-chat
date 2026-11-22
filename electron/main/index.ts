@@ -33,7 +33,9 @@ void app.whenReady().then(() => {
   try {
     serveBundle(distDir);
   } catch (error) {
-    dialog.showErrorBox('MindRoom', String(error instanceof Error ? error.message : error));
+    const message = String(error instanceof Error ? error.message : error);
+    if (isTest) console.error(message);
+    else dialog.showErrorBox('MindRoom', message);
     app.exit(1);
     return;
   }
