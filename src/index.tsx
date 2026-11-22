@@ -94,7 +94,6 @@ const startDiagnostics = (): void => {
 const prepareDocument = (): void => {
   runSafely('desktop shell', () => {
     markDesktopShell();
-    startDesktopMediaAuth();
     if (isDesktopApp() && typeof navigator !== 'undefined' && navigator.storage?.persist) {
       void navigator.storage.persist().catch(() => undefined);
     }
@@ -290,4 +289,7 @@ if (rootElement) {
   createRoot(rootElement).render(<App />);
 }
 
+runSafely('desktop media auth', () => {
+  startDesktopMediaAuth(getActiveSession, subscribeToSessionStore);
+});
 startServiceWorker();

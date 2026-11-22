@@ -9,7 +9,6 @@ import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electron
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PRELOAD_PATH = path.join(ROOT, 'build/electron/preload.cjs');
 const SESSION_STORE_KEY = 'mindroom_multi_account_store';
-const SESSION_STORE_EVENT = 'mindroom-session-store-changed';
 const PIXEL_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64'
@@ -190,7 +189,7 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
 
     // Push session through the real session store (exercising startDesktopMediaAuth).
     await page.evaluate(
-      ({ key, eventName, baseUrl }) => {
+      ({ key, baseUrl }) => {
         const sessionId = `${encodeURIComponent(baseUrl)}::${encodeURIComponent('@alice:local')}`;
         window.localStorage.setItem(
           key,
@@ -209,9 +208,9 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
             ],
           })
         );
-        window.dispatchEvent(new Event(eventName));
+        window.dispatchEvent(new StorageEvent('storage', { key }));
       },
-      { key: SESSION_STORE_KEY, eventName: SESSION_STORE_EVENT, baseUrl: server.url }
+      { key: SESSION_STORE_KEY, baseUrl: server.url }
     );
 
     // Wait for main to store the pushed session (no sleep).
@@ -329,11 +328,11 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
 
     // 8. after sign-out, requests arrive without Authorization
     await page.evaluate(
-      ({ key, eventName }) => {
+      ({ key }) => {
         window.localStorage.setItem(key, JSON.stringify({ version: 1, sessions: [] }));
-        window.dispatchEvent(new Event(eventName));
+        window.dispatchEvent(new StorageEvent('storage', { key }));
       },
-      { key: SESSION_STORE_KEY, eventName: SESSION_STORE_EVENT }
+      { key: SESSION_STORE_KEY }
     );
     await expect
       .poll(async () => {

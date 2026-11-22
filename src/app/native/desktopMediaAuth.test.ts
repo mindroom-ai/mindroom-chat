@@ -1,19 +1,16 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopMediaSession, DesktopResult } from '../lib/desktopBridge';
 import {
+  getActiveSession,
   putSession,
   removeSession,
   setActiveSession,
+  subscribeToSessionStore,
   updateSessionCredentials,
   updateSessionLastPath,
 } from '../matrix/session/sessions';
-import {
-  desktopMediaAuthReady,
-  startDesktopMediaAuth,
-  subscribeDesktopMediaAuth,
-} from './desktopMediaAuth';
 
 type Deferred = {
   session: DesktopMediaSession | null;
@@ -41,14 +38,29 @@ const installBridge = () => {
   return { bridge, pending, calls };
 };
 
+let unsubscribes: Array<() => void> = [];
+const trackedSubscribe = (listener: () => void): (() => void) => {
+  const stop = subscribeToSessionStore(listener);
+  unsubscribes.push(stop);
+  return stop;
+};
+
+beforeEach(() => {
+  vi.resetModules();
+  unsubscribes = [];
+});
+
 afterEach(() => {
+  for (const stop of unsubscribes) stop();
+  unsubscribes = [];
   Reflect.deleteProperty(window, 'mindroomDesktop');
   window.localStorage.clear();
-  startDesktopMediaAuth();
 });
 
 describe('desktopMediaAuth', () => {
   it('follows the active session across 21 stored accounts, switches, token refreshes, and logout', async () => {
+    const { desktopMediaAuthReady, startDesktopMediaAuth, subscribeDesktopMediaAuth } =
+      await import('./desktopMediaAuth');
     const { pending, calls } = installBridge();
     const notifications = vi.fn();
     const stop = subscribeDesktopMediaAuth(notifications);
@@ -66,7 +78,9 @@ describe('desktopMediaAuth', () => {
         );
       }
 
-      startDesktopMediaAuth();
+      startDesktopMediaAuth(getActiveSession, trackedSubscribe);
+      // Calling startDesktopMediaAuth a second time is a no-op.
+      startDesktopMediaAuth(getActiveSession, trackedSubscribe);
       expect(calls).toEqual([{ baseUrl: 'https://hs-1.example', accessToken: 'tok-21' }]);
       expect(desktopMediaAuthReady()).toBe(false);
 
@@ -130,6 +144,7 @@ describe('desktopMediaAuth', () => {
   });
 
   it('ignores stale acknowledgements and stays not-ready on rejected IPC results', async () => {
+    const { desktopMediaAuthReady, startDesktopMediaAuth } = await import('./desktopMediaAuth');
     const { pending } = installBridge();
 
     putSession({
@@ -138,7 +153,7 @@ describe('desktopMediaAuth', () => {
       deviceId: 'D1',
       accessToken: 'tok-alice',
     });
-    startDesktopMediaAuth();
+    startDesktopMediaAuth(getActiveSession, trackedSubscribe);
     const first = pending.shift()!;
 
     putSession({
