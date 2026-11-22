@@ -440,6 +440,30 @@ describe('RoomSchedulesDialog', () => {
     expect(document.activeElement).toBe(copyB);
   });
 
+  it('keeps focus on the clicked row when switching rows from an open cancel bar', async () => {
+    const view = mountDialog({
+      roomId: '!r:example.org',
+      tasks: [
+        makeTask({ taskId: 'task-1', description: 'Task 1' }),
+        makeTask({ taskId: 'task-2', description: 'Task 2' }),
+        makeTask({ taskId: 'task-3', description: 'Task 3' }),
+      ],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+    });
+    cleanup = view.unmount;
+
+    const toggles = view.host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]');
+    await click(toggles[1]!);
+    await click(btnAria(view.host, 'Cancel')!);
+    expect(document.activeElement).toBe(btnText(view.host, 'Keep'));
+
+    // Simulate Safari tapping row 3 without blurring Keep beforehand.
+    await click(toggles[2]!);
+    expect(document.activeElement).toBe(toggles[2]);
+  });
+
   it('recovers focus when a focused task row unmounts and ticks imminent countdowns every second', () => {
     vi.useFakeTimers();
     const baseNow = new Date('2026-09-15T10:00:00Z').getTime();

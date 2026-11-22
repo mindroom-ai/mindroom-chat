@@ -261,7 +261,10 @@ function ScheduleAccordionItem({
           className={css.RowHeader}
           aria-expanded={open}
           aria-controls={open ? `${id}-drawer` : undefined}
-          onClick={onToggle}
+          onClick={() => {
+            toggleButtonRef.current?.focus();
+            onToggle();
+          }}
         >
           <span className={css.IconTile[tone]} aria-hidden="true">
             <Icon
