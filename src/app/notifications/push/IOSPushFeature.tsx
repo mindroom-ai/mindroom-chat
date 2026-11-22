@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KnownMembership, RoomMemberEvent, UserEvent, type MatrixClient } from 'matrix-js-sdk';
+import {
+  KnownMembership,
+  RoomMemberEvent,
+  RoomStateEvent,
+  UserEvent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
@@ -18,6 +24,7 @@ import {
   useCloudflareAccessSignInRequired,
 } from '../../native/cloudflareAccess';
 import {
+  clearNativeNotificationAccount,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
   type NativeNotificationAvatarEntry,
@@ -27,6 +34,7 @@ import {
   disableIOSPushPusher,
   findIOSPushAccount,
   getOrCreateIOSPushProfileTag,
+  getStoredIOSPushProfileTag,
   IOS_PUSH_ACCOUNT_KEY,
   isNativeIOSPlatform,
   registerIOSPush,
@@ -81,23 +89,18 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
 export function NativeIOSPushFeature() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
-  const sessionId = useActiveSession()?.sessionId;
+  const activeSession = useActiveSession();
+  const sessionId = activeSession?.sessionId;
   const language = useAppLanguageCode();
   const enabled = useIOSPushEnabled(sessionId);
   const { hasCompletedInitialSync } = useClientStartupContext();
   const homeserverUrl = mx.getHomeserverUrl();
   const userId = mx.getUserId?.() ?? undefined;
-  const rawAccessToken = mx.getAccessToken?.() ?? undefined;
   const signInRequired = useCloudflareAccessSignInRequired(homeserverUrl);
   const pushAllowed = cloudflareAccessAllowsPush(homeserverUrl);
   const native = isNativeIOSPlatform();
   // Only the iOS app reads it: resolving it makes the account's push tag, which browsers never send.
   const pushConfig = native ? resolveIOSPushConfig(clientConfig, sessionId, language) : undefined;
-  const accountTag = native
-    ? pushConfig?.profileTag ?? getOrCreateIOSPushProfileTag(sessionId)
-    : undefined;
-  const notificationAccessToken =
-    homeserverUrl && !hasCloudflareAccess(homeserverUrl) ? rawAccessToken : undefined;
   const configKey = pushConfig ? JSON.stringify(pushConfig) : undefined;
   const stableConfig = useMemo(
     () => (configKey ? pushConfig : undefined),
@@ -105,12 +108,43 @@ export function NativeIOSPushFeature() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [configKey]
   );
+  const nativeNotificationEligible =
+    native &&
+    Boolean(stableConfig) &&
+    enabled &&
+    pushAllowed &&
+    !signInRequired &&
+    Boolean(sessionId);
+  // Always use the per-session tag that `mindroom_account` carries in APNs payloads (never a
+  // deployment-level `pushConfig.profileTag`), and only mint one when push is eligible.
+  const accountTag = nativeNotificationEligible
+    ? getOrCreateIOSPushProfileTag(sessionId)
+    : undefined;
+  // Prefer `activeSession.accessToken` so rotated tokens published to the session store sync
+  // immediately without waiting for `matrix-js-sdk` to update its internal field.
+  const notificationAccessToken =
+    homeserverUrl && !hasCloudflareAccess(homeserverUrl)
+      ? activeSession?.accessToken ?? mx.getAccessToken?.() ?? undefined
+      : undefined;
   const latest = useLatestRef({ enabled, signInRequired, pushAllowed });
   const lastAvatarSnapshotRef = useRef<string | undefined>(undefined);
 
-  // Sync account metadata (and token when not behind Cloudflare Access) for the Notification Service Extension.
+  // Sync account metadata (and token when not behind Cloudflare Access) for the Notification
+  // Service Extension when push is eligible; clear native state if push is disabled or disallowed.
   useEffect(() => {
-    if (!native || !accountTag || !homeserverUrl || !userId) return;
+    if (!native || !sessionId) return;
+    if (!stableConfig || !enabled || !pushAllowed) {
+      lastAvatarSnapshotRef.current = undefined;
+      const storedTag = getStoredIOSPushProfileTag(sessionId);
+      if (storedTag) {
+        clearNativeNotificationAccount(storedTag).catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[ios-push] could not clear notification account', error);
+        });
+      }
+      return;
+    }
+    if (!nativeNotificationEligible || !accountTag || !homeserverUrl || !userId) return;
     syncNativeNotificationAccount({
       accountTag,
       homeserverUrl,
@@ -120,11 +154,24 @@ export function NativeIOSPushFeature() {
       // eslint-disable-next-line no-console
       console.warn('[ios-push] could not sync notification account', error);
     });
-  }, [accountTag, homeserverUrl, native, notificationAccessToken, userId]);
+  }, [
+    accountTag,
+    enabled,
+    homeserverUrl,
+    native,
+    nativeNotificationEligible,
+    notificationAccessToken,
+    pushAllowed,
+    sessionId,
+    stableConfig,
+    userId,
+  ]);
 
   // Pre-warm sender avatars in the shared App Group cache once initial sync completes.
   useEffect(() => {
-    if (!native || !accountTag || !hasCompletedInitialSync || !userId) return undefined;
+    if (!nativeNotificationEligible || !accountTag || !hasCompletedInitialSync || !userId) {
+      return undefined;
+    }
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const syncAvatarsNow = () => {
@@ -148,14 +195,16 @@ export function NativeIOSPushFeature() {
 
     syncAvatarsNow();
     mx.on?.(RoomMemberEvent.Membership, scheduleSync);
+    mx.on?.(RoomStateEvent.Members, scheduleSync);
     mx.on?.(UserEvent.AvatarUrl, scheduleSync);
 
     return () => {
       if (timer !== undefined) clearTimeout(timer);
       mx.removeListener?.(RoomMemberEvent.Membership, scheduleSync);
+      mx.removeListener?.(RoomStateEvent.Members, scheduleSync);
       mx.removeListener?.(UserEvent.AvatarUrl, scheduleSync);
     };
-  }, [accountTag, hasCompletedInitialSync, mx, native, userId]);
+  }, [accountTag, hasCompletedInitialSync, mx, nativeNotificationEligible, userId]);
 
   // Tokens can arrive from a registration started earlier, so the listener lives as long as the client.
   useEffect(() => {

@@ -185,11 +185,17 @@ export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
  * deployment configures one, and every push of the account carries it under
  * `IOS_PUSH_ACCOUNT_KEY`.
  */
-export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
+/** Reads the account's stored push tag without generating one if absent. */
+export const getStoredIOSPushProfileTag = (sessionId?: string): string | undefined => {
   const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
-  const stored = trimConfigValue(readStorage(storageKey));
+  return trimConfigValue(readStorage(storageKey));
+};
+
+export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
+  const stored = getStoredIOSPushProfileTag(sessionId);
   if (stored) return stored;
 
+  const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
   const generated = generateProfileTag();
   writeStorage(storageKey, generated);
   return generated;
@@ -335,7 +341,7 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
 
 export const clearIOSPushState = (sessionId?: string) => {
   const profileTagKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
-  const profileTag = trimConfigValue(readStorage(profileTagKey));
+  const profileTag = getStoredIOSPushProfileTag(sessionId);
   const storageKeys = [
     resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
     profileTagKey,

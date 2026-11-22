@@ -37,12 +37,14 @@ final class NotificationPayloadTests: XCTestCase {
         XCTAssertFalse(NotificationPayload(userInfo: [:]).isGatewayFormatted)
     }
 
-    func testDetectsRingPayload() {
+    func testDetectsRingPayloadOnlyForDictionaries() {
         let ringPayload = NotificationPayload(userInfo: ["mindroom_ring": ["call_id": "c1"]])
         XCTAssertTrue(ringPayload.isRing)
 
-        let nullRingPayload = NotificationPayload(userInfo: ["mindroom_ring": NSNull()])
-        XCTAssertFalse(nullRingPayload.isRing)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_ring": NSNull()]).isRing)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_ring": "ring"]).isRing)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_ring": true]).isRing)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_ring": 1]).isRing)
     }
 
     func testEffectiveDisplayNameAndRoomNameFallbacks() {

@@ -3,11 +3,83 @@ import Intents
 import MindRoomNotificationKit
 import UserNotifications
 
-class NotificationService: UNNotificationServiceExtension {
+/// Per-request delivery coordination so overlapping notifications on a reused extension instance
+/// can never cross-deliver or double-invoke `contentHandler`.
+private final class DeliverySlot: @unchecked Sendable {
     private let lock = NSLock()
+    private var delivered = false
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
-    private var activeTask: Task<Void, Never>?
+    private var fetchTask: Task<Void, Never>?
+
+    init(
+        contentHandler: @escaping (UNNotificationContent) -> Void,
+        bestAttemptContent: UNMutableNotificationContent
+    ) {
+        self.contentHandler = contentHandler
+        self.bestAttemptContent = bestAttemptContent
+    }
+
+    func setTask(_ task: Task<Void, Never>) {
+        let shouldCancel: Bool
+        lock.lock()
+        if delivered {
+            shouldCancel = true
+        } else {
+            fetchTask = task
+            shouldCancel = false
+        }
+        lock.unlock()
+        if shouldCancel {
+            task.cancel()
+        }
+    }
+
+    func deliver(_ content: UNNotificationContent) {
+        let handler: ((UNNotificationContent) -> Void)?
+        lock.lock()
+        guard !delivered else {
+            lock.unlock()
+            return
+        }
+        delivered = true
+        handler = contentHandler
+        contentHandler = nil
+        bestAttemptContent = nil
+        fetchTask = nil
+        lock.unlock()
+        handler?(content)
+    }
+
+    func expire() {
+        let handler: ((UNNotificationContent) -> Void)?
+        let fallback: UNMutableNotificationContent?
+        let task: Task<Void, Never>?
+
+        lock.lock()
+        guard !delivered else {
+            lock.unlock()
+            return
+        }
+        delivered = true
+        handler = contentHandler
+        fallback = bestAttemptContent
+        task = fetchTask
+        contentHandler = nil
+        bestAttemptContent = nil
+        fetchTask = nil
+        lock.unlock()
+
+        task?.cancel()
+        if let handler, let fallback {
+            handler(fallback)
+        }
+    }
+}
+
+class NotificationService: UNNotificationServiceExtension {
+    private let slotLock = NSLock()
+    private var activeSlot: DeliverySlot?
 
     override func didReceive(
         _ request: UNNotificationRequest,
@@ -48,43 +120,36 @@ class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        lock.lock()
-        let previousTask = activeTask
-        self.contentHandler = contentHandler
-        self.bestAttemptContent = mutableContent
-        self.activeTask = Task { [weak self] in
+        let slot = DeliverySlot(
+            contentHandler: contentHandler,
+            bestAttemptContent: mutableContent
+        )
+        slotLock.lock()
+        activeSlot = slot
+        slotLock.unlock()
+
+        let task = Task { [weak self] in
             await self?.enrichWithCommunicationNotification(
+                slot: slot,
                 mutableContent: mutableContent,
                 payload: payload,
                 sender: sender,
                 senderDisplayName: senderDisplayName
             )
         }
-        lock.unlock()
-        previousTask?.cancel()
+        slot.setTask(task)
     }
 
     override func serviceExtensionTimeWillExpire() {
-        let handler: ((UNNotificationContent) -> Void)?
-        let fallback: UNMutableNotificationContent?
-        let task: Task<Void, Never>?
-
-        lock.lock()
-        handler = contentHandler
-        fallback = bestAttemptContent
-        task = activeTask
-        contentHandler = nil
-        bestAttemptContent = nil
-        activeTask = nil
-        lock.unlock()
-
-        task?.cancel()
-        if let handler, let fallback {
-            handler(fallback)
-        }
+        slotLock.lock()
+        let slot = activeSlot
+        activeSlot = nil
+        slotLock.unlock()
+        slot?.expire()
     }
 
     private func enrichWithCommunicationNotification(
+        slot: DeliverySlot,
         mutableContent: UNMutableNotificationContent,
         payload: NotificationPayload,
         sender: String,
@@ -100,8 +165,9 @@ class NotificationService: UNNotificationServiceExtension {
             )
         }
 
+        // On cache miss, fetch for this notification in memory only so the main app remains the sole
+        // disk cache writer (prevents cross-process cache resurrection after account sign-out).
         if avatarData == nil,
-           let accountTag = resolvedAccount.accountTag,
            let credentials = resolvedAccount.credentials,
            let accessToken = credentials.accessToken,
            !accessToken.isEmpty
@@ -111,12 +177,6 @@ class NotificationService: UNNotificationServiceExtension {
                 accessToken: accessToken,
                 sender: sender
             ) {
-                NotificationAvatarStore.shared.storeAvatar(
-                    accountTag: accountTag,
-                    sender: sender,
-                    mxcUrl: fetched.mxcUrl,
-                    data: fetched.data
-                )
                 avatarData = fetched.data
             }
         }
@@ -136,21 +196,8 @@ class NotificationService: UNNotificationServiceExtension {
             suggestionType: .instantMessageAddress
         )
 
-        let mePerson: INPerson? = resolvedAccount.credentials.map { record in
-            INPerson(
-                personHandle: INPersonHandle(value: record.userId, type: .unknown),
-                nameComponents: nil,
-                displayName: "",
-                image: nil,
-                contactIdentifier: nil,
-                customIdentifier: record.userId,
-                isMe: true,
-                suggestionType: .none
-            )
-        }
-
         let intent = INSendMessageIntent(
-            recipients: mePerson.map { [$0] },
+            recipients: nil,
             outgoingMessageType: .outgoingMessageText,
             content: mutableContent.body,
             speakableGroupName: nil,
@@ -172,7 +219,7 @@ class NotificationService: UNNotificationServiceExtension {
         } else {
             finalContent = mutableContent
         }
-        deliverOnce(finalContent)
+        slot.deliver(finalContent)
     }
 
     private func resolveAccount(
@@ -186,16 +233,5 @@ class NotificationService: UNNotificationServiceExtension {
             return (accountTag: single.accountTag, credentials: single.record)
         }
         return (accountTag: nil, credentials: nil)
-    }
-
-    private func deliverOnce(_ content: UNNotificationContent) {
-        let handler: ((UNNotificationContent) -> Void)?
-        lock.lock()
-        handler = contentHandler
-        contentHandler = nil
-        bestAttemptContent = nil
-        activeTask = nil
-        lock.unlock()
-        handler?(content)
     }
 }

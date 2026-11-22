@@ -38,11 +38,7 @@ public struct NotificationPayload: Equatable, Sendable {
         self.sender = Self.stringValue(userInfo["sender"])
         self.senderDisplayName = Self.stringValue(userInfo["sender_display_name"])
         self.roomName = Self.stringValue(userInfo["room_name"])
-        if let ringValue = userInfo["mindroom_ring"] {
-            self.isRing = !(ringValue is NSNull)
-        } else {
-            self.isRing = false
-        }
+        self.isRing = userInfo["mindroom_ring"] is [AnyHashable: Any]
         self.isGatewayFormatted = Self.boolFlag(userInfo["mindroom_plain"])
     }
 

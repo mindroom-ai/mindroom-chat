@@ -28,6 +28,8 @@ public final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate,
 /// Fetches sender avatars from a Matrix homeserver for iOS Communication Notifications.
 public struct NotificationAvatarFetcher: Sendable {
     public static let defaultThumbnailSize = 128
+    public static let maxProfileBytes = 64 * 1024
+    public static let maxImageBytes = NotificationAvatarStore.maxAvatarBytes
 
     private static let defaultSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -51,16 +53,14 @@ public struct NotificationAvatarFetcher: Sendable {
         .union(CharacterSet(charactersIn: "-._~:"))
 
     private let allowInsecureLocalhost: Bool
-    private let transport: NotificationHTTPTransport
+    private let customTransport: NotificationHTTPTransport?
 
     public init(
         allowInsecureLocalhost: Bool = false,
         transport: NotificationHTTPTransport? = nil
     ) {
         self.allowInsecureLocalhost = allowInsecureLocalhost
-        self.transport = transport ?? { request in
-            try await NotificationAvatarFetcher.defaultSession.data(for: request)
-        }
+        self.customTransport = transport
     }
 
     public static func parseMxcUri(_ mxcUrl: String) -> (server: String, mediaId: String)? {
@@ -124,14 +124,12 @@ public struct NotificationAvatarFetcher: Sendable {
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        guard let (data, response) = try? await transport(request),
-              let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200,
-              NotificationAvatarStore.isValidImageData(data) else {
+        guard let data = await executeBounded(request: request, maxBytes: Self.maxImageBytes),
+              let sanitized = NotificationAvatarStore.validatedImageData(data) else {
             return nil
         }
 
-        return data
+        return sanitized
     }
 
     public func fetchSenderAvatar(
@@ -160,9 +158,7 @@ public struct NotificationAvatarFetcher: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        guard let (data, response) = try? await transport(request),
-              let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200,
+        guard let data = await executeBounded(request: request, maxBytes: Self.maxProfileBytes),
               let decoded = try? JSONDecoder().decode(ProfileAvatarResponse.self, from: data),
               let mxcUrl = decoded.avatarUrl,
               !mxcUrl.isEmpty else {
@@ -178,6 +174,52 @@ public struct NotificationAvatarFetcher: Sendable {
         }
 
         return (mxcUrl: mxcUrl, data: thumbnail)
+    }
+
+    private func executeBounded(request: URLRequest, maxBytes: Int) async -> Data? {
+        if let customTransport {
+            guard let (data, response) = try? await customTransport(request),
+                  let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200,
+                  httpResponse.expectedContentLength <= Int64(maxBytes),
+                  data.count <= maxBytes else {
+                return nil
+            }
+            return data
+        }
+        return try? await Self.readBounded(request: request, maxBytes: maxBytes)
+    }
+
+    /// Streams the HTTP response incrementally and aborts as soon as `maxBytes` would be exceeded.
+    private static func readBounded(request: URLRequest, maxBytes: Int) async throws -> Data? {
+        let (bytes, response) = try await defaultSession.bytes(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            bytes.task.cancel()
+            return nil
+        }
+        if httpResponse.expectedContentLength > Int64(maxBytes) {
+            bytes.task.cancel()
+            return nil
+        }
+
+        let initialCapacity: Int
+        if httpResponse.expectedContentLength > 0 {
+            initialCapacity = min(Int(httpResponse.expectedContentLength), maxBytes)
+        } else {
+            initialCapacity = min(8 * 1024, maxBytes)
+        }
+
+        var buffer = Data()
+        buffer.reserveCapacity(initialCapacity)
+        for try await byte in bytes {
+            if buffer.count >= maxBytes {
+                bytes.task.cancel()
+                return nil
+            }
+            buffer.append(byte)
+        }
+        return buffer
     }
 
     private struct ProfileAvatarResponse: Decodable {

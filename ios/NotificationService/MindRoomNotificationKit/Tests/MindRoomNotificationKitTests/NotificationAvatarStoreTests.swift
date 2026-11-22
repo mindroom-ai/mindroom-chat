@@ -4,11 +4,6 @@ import XCTest
 final class NotificationAvatarStoreTests: XCTestCase {
     private var tempDir: URL!
 
-    private static let samplePNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01])
-    private static let sampleJPEG = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
-    private static let sampleGIF = Data([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00])
-    private static let sampleWebP = Data([0x52, 0x49, 0x46, 0x46, 0x10, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50, 0x00])
-
     override func setUpWithError() throws {
         tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("MindRoomNotificationAvatarStoreTests-\(UUID().uuidString)", isDirectory: true)
@@ -24,35 +19,57 @@ final class NotificationAvatarStoreTests: XCTestCase {
     func testStoresAndLoadsValidImageFormatsPerAccount() {
         let store = NotificationAvatarStore(baseDirectory: tempDir)
 
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@png:x", mxcUrl: "mxc://x/1", data: Self.samplePNG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@jpg:x", mxcUrl: "mxc://x/2", data: Self.sampleJPEG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@gif:x", mxcUrl: "mxc://x/3", data: Self.sampleGIF))
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct-2", sender: "@webp:x", mxcUrl: "mxc://x/4", data: Self.sampleWebP))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@png:x", mxcUrl: "mxc://x/1", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@jpg:x", mxcUrl: "mxc://x/2", data: TestImageFixtures.sampleJPEG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct-1", sender: "@gif:x", mxcUrl: "mxc://x/3", data: TestImageFixtures.sampleGIF))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct-2", sender: "@webp:x", mxcUrl: "mxc://x/4", data: TestImageFixtures.sampleWebP))
 
-        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@png:x"), Self.samplePNG)
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@png:x"), TestImageFixtures.samplePNG)
         XCTAssertEqual(store.cachedMxcUrl(accountTag: "acct-1", sender: "@png:x"), "mxc://x/1")
-        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@jpg:x"), Self.sampleJPEG)
-        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@gif:x"), Self.sampleGIF)
-        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-2", sender: "@webp:x"), Self.sampleWebP)
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@jpg:x"), TestImageFixtures.sampleJPEG)
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-1", sender: "@gif:x"), TestImageFixtures.sampleGIF)
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct-2", sender: "@webp:x"), TestImageFixtures.sampleWebP)
 
         // Account isolation
         XCTAssertNil(store.cachedAvatar(accountTag: "acct-1", sender: "@webp:x"))
         XCTAssertNil(store.cachedAvatar(accountTag: "acct-2", sender: "@png:x"))
     }
 
-    func testRejectsInvalidEmptyAndOversizedImages() {
+    func testRejectsInvalidEmptyOversizedAndDecompressionBombImages() {
         let store = NotificationAvatarStore(baseDirectory: tempDir)
 
         XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@empty:x", mxcUrl: "mxc://x/1", data: Data()))
         XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@text:x", mxcUrl: "mxc://x/2", data: Data("<html>not an image</html>".utf8)))
 
-        var oversized = Self.samplePNG
+        // Truncated magic bytes with no valid image dimensions
+        let truncatedPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01])
+        XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@trunc:x", mxcUrl: "mxc://x/3", data: truncatedPNG))
+
+        // Decompression bomb header (5000x5000 exceeds 4096 max dimension / 16M pixels)
+        XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@bomb:x", mxcUrl: "mxc://x/4", data: TestImageFixtures.bomb5000x5000PNG))
+
+        var oversized = TestImageFixtures.samplePNG
         oversized.append(Data(repeating: 0x00, count: NotificationAvatarStore.maxAvatarBytes))
-        XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@big:x", mxcUrl: "mxc://x/3", data: oversized))
+        XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@big:x", mxcUrl: "mxc://x/5", data: oversized))
 
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@empty:x"))
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@text:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@trunc:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@bomb:x"))
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@big:x"))
+    }
+
+    func testDownsamplesLargeValidImageToMaxStoredPixelSize() throws {
+        let store = NotificationAvatarStore(baseDirectory: tempDir)
+        let originalDims = try XCTUnwrap(TestImageFixtures.imageDimensions(of: TestImageFixtures.large512PNG))
+        XCTAssertEqual(originalDims.width, 512)
+        XCTAssertEqual(originalDims.height, 512)
+
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@hd:x", mxcUrl: "mxc://x/hd", data: TestImageFixtures.large512PNG))
+        let stored = try XCTUnwrap(store.cachedAvatar(accountTag: "acct", sender: "@hd:x"))
+        let storedDims = try XCTUnwrap(TestImageFixtures.imageDimensions(of: stored))
+        XCTAssertLessThanOrEqual(storedDims.width, NotificationAvatarStore.maxStoredPixelSize)
+        XCTAssertLessThanOrEqual(storedDims.height, NotificationAvatarStore.maxStoredPixelSize)
     }
 
     func testEvictsOldestEntriesBeyondLimit() {
@@ -70,26 +87,26 @@ final class NotificationAvatarStoreTests: XCTestCase {
             now: { clock.next() }
         )
 
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u1:x", mxcUrl: "mxc://x/1", data: Self.samplePNG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u2:x", mxcUrl: "mxc://x/2", data: Self.samplePNG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u3:x", mxcUrl: "mxc://x/3", data: Self.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u1:x", mxcUrl: "mxc://x/1", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u2:x", mxcUrl: "mxc://x/2", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u3:x", mxcUrl: "mxc://x/3", data: TestImageFixtures.samplePNG))
         // Refresh u1 so u2 becomes oldest
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u1:x", mxcUrl: "mxc://x/1b", data: Self.sampleJPEG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u1:x", mxcUrl: "mxc://x/1b", data: TestImageFixtures.sampleJPEG))
         // Adding u4 should evict u2
-        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u4:x", mxcUrl: "mxc://x/4", data: Self.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@u4:x", mxcUrl: "mxc://x/4", data: TestImageFixtures.samplePNG))
 
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@u2:x"))
         XCTAssertNil(store.cachedMxcUrl(accountTag: "acct", sender: "@u2:x"))
-        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", sender: "@u1:x"), Self.sampleJPEG)
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", sender: "@u1:x"), TestImageFixtures.sampleJPEG)
         XCTAssertNotNil(store.cachedAvatar(accountTag: "acct", sender: "@u3:x"))
         XCTAssertNotNil(store.cachedAvatar(accountTag: "acct", sender: "@u4:x"))
     }
 
     func testRemoveClearAccountAndClearAll() {
         let store = NotificationAvatarStore(baseDirectory: tempDir)
-        XCTAssertTrue(store.storeAvatar(accountTag: "a1", sender: "@u1:x", mxcUrl: "mxc://x/1", data: Self.samplePNG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "a1", sender: "@u2:x", mxcUrl: "mxc://x/2", data: Self.samplePNG))
-        XCTAssertTrue(store.storeAvatar(accountTag: "a2", sender: "@u3:x", mxcUrl: "mxc://x/3", data: Self.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "a1", sender: "@u1:x", mxcUrl: "mxc://x/1", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "a1", sender: "@u2:x", mxcUrl: "mxc://x/2", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "a2", sender: "@u3:x", mxcUrl: "mxc://x/3", data: TestImageFixtures.samplePNG))
 
         store.removeAvatar(accountTag: "a1", sender: "@u1:x")
         XCTAssertNil(store.cachedAvatar(accountTag: "a1", sender: "@u1:x"))

@@ -68,6 +68,9 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(serviceSource).toContain('NotificationMarkdown.strip');
     expect(serviceSource).toContain('INSendMessageIntent');
     expect(serviceSource).toContain('interaction.direction = .incoming');
+    expect(serviceSource).toContain('recipients: nil');
+    expect(serviceSource).toContain('DeliverySlot');
+    expect(serviceSource).not.toContain('NotificationAvatarStore.shared.storeAvatar');
     expect(serviceSource).toContain('mutableContent.updating(from: intent)');
     expect(serviceSource).toContain('serviceExtensionTimeWillExpire');
   });

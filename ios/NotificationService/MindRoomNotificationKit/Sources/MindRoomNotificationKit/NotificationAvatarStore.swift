@@ -1,11 +1,17 @@
+import CoreGraphics
 import CryptoKit
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 /// App Group directory-backed avatar cache shared by the main app and Notification Service Extension.
 public final class NotificationAvatarStore: @unchecked Sendable {
     public static let appGroupId = "group.chat.mindroom.app"
     public static let maxAvatarBytes = 512 * 1024
     public static let maxEntriesPerAccount = 250
+    public static let maxImageDimension = 4096
+    public static let maxImagePixels = 16_777_216
+    public static let maxStoredPixelSize = 256
 
     public static let shared = NotificationAvatarStore()
 
@@ -46,34 +52,47 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         self.init(baseDirectory: root)
     }
 
+    /// Validates image magic bytes, compressed size, and header-only pixel dimensions without decoding pixels.
     public static func isValidImageData(_ data: Data) -> Bool {
-        guard !data.isEmpty, data.count <= maxAvatarBytes else {
-            return false
+        inspectImage(data) != nil
+    }
+
+    /// Validates image bytes & dimensions and downsamples oversized images (> 256px) to a safe PNG thumbnail.
+    public static func validatedImageData(_ data: Data) -> Data? {
+        guard let inspected = inspectImage(data) else {
+            return nil
         }
-        let bytes = [UInt8](data.prefix(12))
-        // PNG: 89 50 4E 47 0D 0A 1A 0A
-        if bytes.count >= 8 && bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
-            return true
+        if max(inspected.width, inspected.height) <= maxStoredPixelSize {
+            return data
         }
-        // JPEG: FF D8 FF
-        if bytes.count >= 3 && bytes.starts(with: [0xFF, 0xD8, 0xFF]) {
-            return true
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxStoredPixelSize,
+            kCGImageSourceShouldCacheImmediately: false,
+        ]
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            inspected.source,
+            0,
+            thumbnailOptions as CFDictionary
+        ) else {
+            return nil
         }
-        // GIF87a / GIF89a
-        if bytes.count >= 6 && (
-            bytes.starts(with: [0x47, 0x49, 0x46, 0x38, 0x37, 0x61])
-                || bytes.starts(with: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
-        ) {
-            return true
-        }
-        // WebP: RIFF....WEBP
-        if bytes.count >= 12
-            && bytes.starts(with: [0x52, 0x49, 0x46, 0x46])
-            && bytes[8..<12].elementsEqual([0x57, 0x45, 0x42, 0x50])
+
+        if let png = encodeImage(thumbnail, type: UTType.png.identifier as CFString),
+           png.count <= maxAvatarBytes
         {
-            return true
+            return png
         }
-        return false
+        if let jpeg = encodeImage(
+            thumbnail,
+            type: UTType.jpeg.identifier as CFString,
+            properties: [kCGImageDestinationLossyCompressionQuality: 0.85]
+        ), jpeg.count <= maxAvatarBytes {
+            return jpeg
+        }
+        return nil
     }
 
     public func cachedAvatar(accountTag: String, sender: String) -> Data? {
@@ -106,7 +125,10 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         mxcUrl: String,
         data: Data
     ) -> Bool {
-        guard !accountTag.isEmpty, !sender.isEmpty, !mxcUrl.isEmpty, Self.isValidImageData(data) else {
+        guard !accountTag.isEmpty,
+              !sender.isEmpty,
+              !mxcUrl.isEmpty,
+              let sanitized = Self.validatedImageData(data) else {
             return false
         }
         return queue.sync {
@@ -117,7 +139,7 @@ public final class NotificationAvatarStore: @unchecked Sendable {
                     withIntermediateDirectories: true
                 )
                 let fileURL = avatarFileURL(accountTag: accountTag, sender: sender)
-                try data.write(to: fileURL, options: .atomic)
+                try sanitized.write(to: fileURL, options: .atomic)
 
                 var manifest = loadManifest(accountTag: accountTag)
                 manifest[sender] = ManifestEntry(mxcUrl: mxcUrl, updatedAt: now())
@@ -174,6 +196,85 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         queue.sync {
             try? FileManager.default.removeItem(at: baseDirectory)
         }
+    }
+
+    private static func hasValidImageMagicBytes(_ data: Data) -> Bool {
+        guard !data.isEmpty, data.count <= maxAvatarBytes else {
+            return false
+        }
+        let bytes = [UInt8](data.prefix(12))
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if bytes.count >= 8 && bytes.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) {
+            return true
+        }
+        // JPEG: FF D8 FF
+        if bytes.count >= 3 && bytes.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return true
+        }
+        // GIF87a / GIF89a
+        if bytes.count >= 6 && (
+            bytes.starts(with: [0x47, 0x49, 0x46, 0x38, 0x37, 0x61])
+                || bytes.starts(with: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+        ) {
+            return true
+        }
+        // WebP: RIFF....WEBP
+        if bytes.count >= 12
+            && bytes.starts(with: [0x52, 0x49, 0x46, 0x46])
+            && bytes[8..<12].elementsEqual([0x57, 0x45, 0x42, 0x50])
+        {
+            return true
+        }
+        return false
+    }
+
+    private static func inspectImage(_ data: Data) -> (source: CGImageSource, width: Int, height: Int)? {
+        guard hasValidImageMagicBytes(data) else { return nil }
+
+        let sourceOptions: [CFString: Any] = [
+            kCGImageSourceShouldCache: false,
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary),
+              let properties = CGImageSourceCopyPropertiesAtIndex(
+                  source,
+                  0,
+                  sourceOptions as CFDictionary
+              ) as? [CFString: Any],
+              let widthNumber = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+              let heightNumber = properties[kCGImagePropertyPixelHeight] as? NSNumber else {
+            return nil
+        }
+
+        let width = widthNumber.intValue
+        let height = heightNumber.intValue
+        guard width > 0,
+              height > 0,
+              width <= maxImageDimension,
+              height <= maxImageDimension else {
+            return nil
+        }
+        let (totalPixels, overflow) = width.multipliedReportingOverflow(by: height)
+        guard !overflow, totalPixels <= maxImagePixels else {
+            return nil
+        }
+        return (source: source, width: width, height: height)
+    }
+
+    private static func encodeImage(
+        _ image: CGImage,
+        type: CFString,
+        properties: [CFString: Any]? = nil
+    ) -> Data? {
+        let outputData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(outputData, type, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary?)
+        guard CGImageDestinationFinalize(destination) else {
+            return nil
+        }
+        let data = outputData as Data
+        return data.isEmpty ? nil : data
     }
 
     private func accountDirectory(for accountTag: String) -> URL {

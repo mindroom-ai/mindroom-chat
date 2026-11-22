@@ -3,6 +3,203 @@ import Capacitor
 import Foundation
 import MindRoomNotificationKit
 
+/// Serializes per-account avatar sync tasks and generation counters so an in-flight download can
+/// never resurrect an account's cache directory after `clearAccount`.
+private final class AvatarSyncCoordinator: @unchecked Sendable {
+    private static let maxConcurrentDownloads = 4
+
+    private let lock = NSLock()
+    private var syncTasks: [String: Task<Void, Never>] = [:]
+    private var accountGenerations: [String: UInt64] = [:]
+
+    deinit {
+        lock.lock()
+        let tasks = Array(syncTasks.values)
+        syncTasks.removeAll()
+        lock.unlock()
+        tasks.forEach { $0.cancel() }
+    }
+
+    func scheduleSync(
+        accountTag: String,
+        entries: [(sender: String, mxcUrl: String?)]
+    ) {
+        lock.lock()
+        let generation = accountGenerations[accountTag] ?? 0
+        let previous = syncTasks[accountTag]
+        let task = Task.detached(priority: .utility) { [weak self] in
+            await self?.performAvatarSync(
+                accountTag: accountTag,
+                generation: generation,
+                entries: entries
+            )
+        }
+        syncTasks[accountTag] = task
+        lock.unlock()
+        previous?.cancel()
+    }
+
+    func clearAccount(accountTag: String) {
+        lock.lock()
+        accountGenerations[accountTag, default: 0] &+= 1
+        let active = syncTasks.removeValue(forKey: accountTag)
+        KeychainNotificationCredentialStore.shared.remove(accountTag: accountTag)
+        NotificationAvatarStore.shared.clearAccount(accountTag: accountTag)
+        lock.unlock()
+        active?.cancel()
+    }
+
+    private func isCurrentGeneration(accountTag: String, generation: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return (accountGenerations[accountTag] ?? 0) == generation
+    }
+
+    private func removeAvatarIfCurrent(
+        accountTag: String,
+        generation: UInt64,
+        sender: String
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard (accountGenerations[accountTag] ?? 0) == generation,
+              KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
+            return
+        }
+        NotificationAvatarStore.shared.removeAvatar(accountTag: accountTag, sender: sender)
+    }
+
+    private func storeAvatarIfCurrent(
+        accountTag: String,
+        generation: UInt64,
+        sender: String,
+        mxcUrl: String,
+        data: Data
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard (accountGenerations[accountTag] ?? 0) == generation,
+              KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
+            return
+        }
+        NotificationAvatarStore.shared.storeAvatar(
+            accountTag: accountTag,
+            sender: sender,
+            mxcUrl: mxcUrl,
+            data: data
+        )
+    }
+
+    private func performAvatarSync(
+        accountTag: String,
+        generation: UInt64,
+        entries: [(sender: String, mxcUrl: String?)]
+    ) async {
+        var toDownload: [(sender: String, mxcUrl: String)] = []
+
+        for entry in entries {
+            if Task.isCancelled || !isCurrentGeneration(accountTag: accountTag, generation: generation) {
+                return
+            }
+            guard let mxcUrl = entry.mxcUrl else {
+                removeAvatarIfCurrent(
+                    accountTag: accountTag,
+                    generation: generation,
+                    sender: entry.sender
+                )
+                continue
+            }
+            if NotificationAvatarStore.shared.cachedMxcUrl(
+                accountTag: accountTag,
+                sender: entry.sender
+            ) != mxcUrl {
+                toDownload.append((sender: entry.sender, mxcUrl: mxcUrl))
+            }
+        }
+
+        guard !toDownload.isEmpty,
+              !Task.isCancelled,
+              isCurrentGeneration(accountTag: accountTag, generation: generation),
+              let credentials = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag),
+              let accessToken = credentials.accessToken,
+              !accessToken.isEmpty else {
+            return
+        }
+
+        let homeserverUrl = credentials.homeserverUrl
+        let maxConcurrency = Self.maxConcurrentDownloads
+
+        await withTaskGroup(of: Void.self) { group in
+            var nextIndex = 0
+
+            while nextIndex < min(maxConcurrency, toDownload.count) {
+                let item = toDownload[nextIndex]
+                nextIndex += 1
+                group.addTask {
+                    await self.downloadAndStoreAvatar(
+                        accountTag: accountTag,
+                        generation: generation,
+                        homeserverUrl: homeserverUrl,
+                        accessToken: accessToken,
+                        sender: item.sender,
+                        mxcUrl: item.mxcUrl
+                    )
+                }
+            }
+
+            while await group.next() != nil {
+                if Task.isCancelled
+                    || nextIndex >= toDownload.count
+                    || !isCurrentGeneration(accountTag: accountTag, generation: generation)
+                {
+                    continue
+                }
+                let item = toDownload[nextIndex]
+                nextIndex += 1
+                group.addTask {
+                    await self.downloadAndStoreAvatar(
+                        accountTag: accountTag,
+                        generation: generation,
+                        homeserverUrl: homeserverUrl,
+                        accessToken: accessToken,
+                        sender: item.sender,
+                        mxcUrl: item.mxcUrl
+                    )
+                }
+            }
+        }
+    }
+
+    private func downloadAndStoreAvatar(
+        accountTag: String,
+        generation: UInt64,
+        homeserverUrl: String,
+        accessToken: String,
+        sender: String,
+        mxcUrl: String
+    ) async {
+        guard !Task.isCancelled,
+              isCurrentGeneration(accountTag: accountTag, generation: generation) else {
+            return
+        }
+        guard let data = await NotificationAvatarFetcher.shared.downloadThumbnail(
+            homeserverUrl: homeserverUrl,
+            accessToken: accessToken,
+            mxcUrl: mxcUrl
+        ) else {
+            return
+        }
+        guard !Task.isCancelled else { return }
+        storeAvatarIfCurrent(
+            accountTag: accountTag,
+            generation: generation,
+            sender: sender,
+            mxcUrl: mxcUrl,
+            data: data
+        )
+    }
+}
+
 /// Syncs Matrix account credentials and sender avatars to the shared Keychain and App Group cache
 /// for the iOS Notification Service Extension (`src/app/native/nativeNotifications.ts`).
 @objc(MindRoomNotificationsPlugin)
@@ -15,18 +212,7 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clearAccount", returnType: CAPPluginReturnPromise),
     ]
 
-    private static let maxConcurrentDownloads = 4
-
-    private let taskLock = NSLock()
-    private var syncTasks: [String: Task<Void, Never>] = [:]
-
-    deinit {
-        taskLock.lock()
-        let tasks = Array(syncTasks.values)
-        syncTasks.removeAll()
-        taskLock.unlock()
-        tasks.forEach { $0.cancel() }
-    }
+    private let coordinator = AvatarSyncCoordinator()
 
     @objc func syncAccount(_ call: CAPPluginCall) {
         guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")),
@@ -60,16 +246,7 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
             entries.append((sender: sender, mxcUrl: mxcUrl))
         }
 
-        let task = Task.detached(priority: .utility) {
-            await Self.performAvatarSync(accountTag: accountTag, entries: entries)
-        }
-
-        taskLock.lock()
-        let previous = syncTasks[accountTag]
-        syncTasks[accountTag] = task
-        taskLock.unlock()
-        previous?.cancel()
-
+        coordinator.scheduleSync(accountTag: accountTag, entries: entries)
         call.resolve()
     }
 
@@ -78,108 +255,8 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
             return call.reject("Invalid accountTag", "INVALID")
         }
 
-        taskLock.lock()
-        let active = syncTasks.removeValue(forKey: accountTag)
-        taskLock.unlock()
-        active?.cancel()
-
-        KeychainNotificationCredentialStore.shared.remove(accountTag: accountTag)
-        NotificationAvatarStore.shared.clearAccount(accountTag: accountTag)
+        coordinator.clearAccount(accountTag: accountTag)
         call.resolve()
-    }
-
-    private static func performAvatarSync(
-        accountTag: String,
-        entries: [(sender: String, mxcUrl: String?)]
-    ) async {
-        var toDownload: [(sender: String, mxcUrl: String)] = []
-
-        for entry in entries {
-            if Task.isCancelled { return }
-            guard let mxcUrl = entry.mxcUrl else {
-                NotificationAvatarStore.shared.removeAvatar(
-                    accountTag: accountTag,
-                    sender: entry.sender
-                )
-                continue
-            }
-            if NotificationAvatarStore.shared.cachedMxcUrl(
-                accountTag: accountTag,
-                sender: entry.sender
-            ) != mxcUrl {
-                toDownload.append((sender: entry.sender, mxcUrl: mxcUrl))
-            }
-        }
-
-        guard !toDownload.isEmpty,
-              !Task.isCancelled,
-              let credentials = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag),
-              let accessToken = credentials.accessToken,
-              !accessToken.isEmpty else {
-            return
-        }
-
-        let homeserverUrl = credentials.homeserverUrl
-        let maxConcurrency = Self.maxConcurrentDownloads
-
-        await withTaskGroup(of: Void.self) { group in
-            var nextIndex = 0
-
-            while nextIndex < min(maxConcurrency, toDownload.count) {
-                let item = toDownload[nextIndex]
-                nextIndex += 1
-                group.addTask {
-                    await Self.downloadAndStoreAvatar(
-                        accountTag: accountTag,
-                        homeserverUrl: homeserverUrl,
-                        accessToken: accessToken,
-                        sender: item.sender,
-                        mxcUrl: item.mxcUrl
-                    )
-                }
-            }
-
-            while await group.next() != nil {
-                if Task.isCancelled || nextIndex >= toDownload.count {
-                    continue
-                }
-                let item = toDownload[nextIndex]
-                nextIndex += 1
-                group.addTask {
-                    await Self.downloadAndStoreAvatar(
-                        accountTag: accountTag,
-                        homeserverUrl: homeserverUrl,
-                        accessToken: accessToken,
-                        sender: item.sender,
-                        mxcUrl: item.mxcUrl
-                    )
-                }
-            }
-        }
-    }
-
-    private static func downloadAndStoreAvatar(
-        accountTag: String,
-        homeserverUrl: String,
-        accessToken: String,
-        sender: String,
-        mxcUrl: String
-    ) async {
-        guard !Task.isCancelled else { return }
-        guard let data = await NotificationAvatarFetcher.shared.downloadThumbnail(
-            homeserverUrl: homeserverUrl,
-            accessToken: accessToken,
-            mxcUrl: mxcUrl
-        ) else {
-            return
-        }
-        guard !Task.isCancelled else { return }
-        NotificationAvatarStore.shared.storeAvatar(
-            accountTag: accountTag,
-            sender: sender,
-            mxcUrl: mxcUrl,
-            data: data
-        )
     }
 
     private static func trimmedNonEmpty(_ value: String?) -> String? {

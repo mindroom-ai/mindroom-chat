@@ -2,8 +2,6 @@ import MindRoomNotificationKit
 import XCTest
 
 final class NotificationAvatarFetcherTests: XCTestCase {
-    private static let samplePNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01])
-
     func testParseMxcUriAcceptsValidAndRejectsMalformedOrTraversal() {
         let valid = NotificationAvatarFetcher.parseMxcUri("mxc://mindroom.chat/abc123_XYZ-9")
         XCTAssertEqual(valid?.server, "mindroom.chat")
@@ -42,7 +40,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         let fetcher = NotificationAvatarFetcher(transport: { request in
             counter.calls += 1
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Self.samplePNG, response)
+            return (TestImageFixtures.samplePNG, response)
         })
 
         let httpResult = await fetcher.downloadThumbnail(
@@ -63,14 +61,14 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         let localFetcher = NotificationAvatarFetcher(allowInsecureLocalhost: true, transport: { request in
             counter.calls += 1
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Self.samplePNG, response)
+            return (TestImageFixtures.samplePNG, response)
         })
         let localAllowed = await localFetcher.downloadThumbnail(
             homeserverUrl: "http://127.0.0.1:8008",
             accessToken: "token",
             mxcUrl: "mxc://mindroom.chat/media1"
         )
-        XCTAssertEqual(localAllowed, Self.samplePNG)
+        XCTAssertEqual(localAllowed, TestImageFixtures.samplePNG)
         XCTAssertEqual(counter.calls, 1)
     }
 
@@ -86,7 +84,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
                 let body = Data(#"{"avatar_url":"mxc://mindroom.chat/avatar42"}"#.utf8)
                 return (body, response)
             }
-            return (Self.samplePNG, response)
+            return (TestImageFixtures.samplePNG, response)
         })
 
         let fetched = await fetcher.fetchSenderAvatar(
@@ -96,7 +94,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         )
 
         XCTAssertEqual(fetched?.mxcUrl, "mxc://mindroom.chat/avatar42")
-        XCTAssertEqual(fetched?.data, Self.samplePNG)
+        XCTAssertEqual(fetched?.data, TestImageFixtures.samplePNG)
         XCTAssertEqual(recorder.requests.count, 2)
 
         XCTAssertEqual(
@@ -112,8 +110,23 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         XCTAssertEqual(recorder.requests[1].value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
     }
 
-    func testRejectsOversizedOrInvalidImageBytesAndNon200() async {
-        var oversizedBuffer = Self.samplePNG
+    func testRejectsOversizedProfileOversizedImageDecompressionBombAndNon200() async {
+        // Profile JSON exceeding 64 KiB is rejected before downloading thumbnail
+        let padded = String(repeating: " ", count: NotificationAvatarFetcher.maxProfileBytes + 1)
+        let oversizedProfileBody = Data("{\"avatar_url\":\"mxc://mindroom.chat/a\"\(padded)}".utf8)
+        let profileFetcher = NotificationAvatarFetcher(transport: { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (oversizedProfileBody, response)
+        })
+        let oversizedProfileResult = await profileFetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            sender: "@alice:mindroom.chat"
+        )
+        XCTAssertNil(oversizedProfileResult)
+
+        // Thumbnail exceeding 512 KiB is rejected
+        var oversizedBuffer = TestImageFixtures.samplePNG
         oversizedBuffer.append(Data(repeating: 0x00, count: NotificationAvatarStore.maxAvatarBytes))
         let oversizedData = oversizedBuffer
 
@@ -128,6 +141,18 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         )
         XCTAssertNil(oversizedResult)
 
+        // Decompression bomb header (5000x5000) is rejected
+        let bombFetcher = NotificationAvatarFetcher(transport: { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (TestImageFixtures.bomb5000x5000PNG, response)
+        })
+        let bombResult = await bombFetcher.downloadThumbnail(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            mxcUrl: "mxc://mindroom.chat/bomb"
+        )
+        XCTAssertNil(bombResult)
+
         let htmlFetcher = NotificationAvatarFetcher(transport: { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (Data("<html>error</html>".utf8), response)
@@ -141,7 +166,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
 
         let redirectFetcher = NotificationAvatarFetcher(transport: { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 302, httpVersion: nil, headerFields: nil)!
-            return (Self.samplePNG, response)
+            return (TestImageFixtures.samplePNG, response)
         })
         let redirectResult = await redirectFetcher.downloadThumbnail(
             homeserverUrl: "https://matrix.mindroom.chat",
