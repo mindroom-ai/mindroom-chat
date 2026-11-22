@@ -1,28 +1,48 @@
 // @vitest-environment jsdom
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  cardBeside,
+  compactCardNavigation,
   compactCardsIn,
+  focusCardBeside,
   focusCompactCard,
   focusedCompactCard,
   handleCardArrowKey,
 } from './compactCardKeys';
 
-const mountCards = (ids: string[]): HTMLElement => {
+const mountCards = (ids: string[]) => {
   const view = document.createElement('div');
   view.setAttribute('data-compact-room-view', 'true');
-  view.innerHTML = ids
-    .map((id) => `<div><button data-thread-root-id="${id}"></button><button>Resolve</button></div>`)
-    .join('');
+  for (const id of ids) {
+    const shell = document.createElement('div');
+    shell.dataset.scrollAnchor = id;
+    const button = document.createElement('button');
+    button.dataset.threadRootId = id;
+    const resolve = document.createElement('button');
+    shell.append(button, resolve);
+    view.append(shell);
+  }
   document.body.append(view);
+  compactCardNavigation.set(view, {
+    ids,
+    focus: (id, preventScroll) =>
+      focusCompactCard(
+        compactCardsIn(view).find((el) => el.dataset.threadRootId === id),
+        preventScroll
+      ),
+  });
   return view;
 };
 
 const card = (id: string): HTMLElement =>
   document.querySelector<HTMLElement>(`[data-thread-root-id="${id}"]`)!;
 
-const press = (view: HTMLElement, target: HTMLElement, key: string, modifiers = {}) => {
+const press = (
+  view: HTMLElement,
+  target: HTMLElement,
+  key: string,
+  modifiers: Partial<KeyboardEvent> = {}
+): boolean => {
   let prevented = false;
   handleCardArrowKey({
     key,
@@ -110,24 +130,54 @@ describe('handleCardArrowKey', () => {
     expect(press(view, resolve, 'ArrowDown')).toBe(false);
     expect(document.activeElement).toBe(card('$a'));
   });
+
+  it('hands Tab and Shift+Tab across a spacer to the logical neighbour', () => {
+    const view = mountCards(['$a', '$d']);
+    const spacer = document.createElement('div');
+    spacer.dataset.compactSpacer = 'cards:0';
+    card('$a').parentElement!.after(spacer);
+    const focus = vi.fn(() => true);
+    compactCardNavigation.set(view, { ids: ['$a', '$b', '$c', '$d'], focus });
+    const actionsA = card('$a').parentElement!.querySelectorAll<HTMLElement>('button');
+    // Tab inside the card stays native.
+    expect(press(view, actionsA[0]!, 'Tab')).toBe(false);
+    // Tab from the last control crosses the spacer to $b.
+    expect(press(view, actionsA[1]!, 'Tab')).toBe(true);
+    expect(focus).toHaveBeenLastCalledWith('$b');
+    // Shift+Tab from the card after the spacer crosses back to $c.
+    expect(press(view, card('$d'), 'Tab', { shiftKey: true })).toBe(true);
+    expect(focus).toHaveBeenLastCalledWith('$c');
+    // Without a spacer sibling (e.g. end of list / section boundary), Tab stays native.
+    const actionsD = card('$d').parentElement!.querySelectorAll<HTMLElement>('button');
+    expect(press(view, actionsD[1]!, 'Tab')).toBe(false);
+  });
 });
 
-describe('cardBeside', () => {
-  it('is the card above or below the thread just left', () => {
+describe('focusCardBeside', () => {
+  it('focuses the card above or below the thread just left, and keeps exact separate from preventScroll', () => {
     const view = mountCards(['$a', '$b', '$c']);
-    const cards = compactCardsIn(view);
-    expect(cardBeside(cards, '$b', 1)).toBe(card('$c'));
-    expect(cardBeside(cards, '$b', -1)).toBe(card('$a'));
+    expect(focusCardBeside(view, '$b', 1)).toBe(true);
+    expect(document.activeElement).toBe(card('$c'));
+    expect(focusCardBeside(view, '$b', -1)).toBe(true);
+    expect(document.activeElement).toBe(card('$a'));
     // At either end, that thread's own card.
-    expect(cardBeside(cards, '$c', 1)).toBe(card('$c'));
-    expect(cardBeside(cards, '$b', 0)).toBe(card('$b'));
+    expect(focusCardBeside(view, '$c', 1)).toBe(true);
+    expect(document.activeElement).toBe(card('$c'));
+    const focus = vi.fn(() => true);
+    compactCardNavigation.set(view, { ids: ['$a', '$b', '$c'], focus });
+    expect(focusCardBeside(view, '$b', 0, true)).toBe(true);
+    expect(focus).toHaveBeenLastCalledWith('$b', false);
+    expect(focusCardBeside(view, '$b', 0, true, true)).toBe(true);
+    expect(focus).toHaveBeenLastCalledWith('$b', true);
+    expect(focusCardBeside(view, '$gone', 0, true)).toBe(false);
   });
 
-  it('is the first card in view without one', () => {
+  it('falls back to the first card in view when not exact', () => {
     const view = mountCards(['$a', '$b']);
-    const cards = compactCardsIn(view);
-    expect(cardBeside(cards, undefined, 1)).toBe(card('$a'));
-    expect(cardBeside(cards, '$gone', -1)).toBe(card('$a'));
-    expect(cardBeside([], '$a', 1)).toBeUndefined();
+    expect(focusCardBeside(view, undefined, 1)).toBe(true);
+    expect(document.activeElement).toBe(card('$a'));
+    expect(focusCardBeside(view, '$gone', -1)).toBe(true);
+    expect(document.activeElement).toBe(card('$a'));
+    expect(focusCardBeside(null, '$a', 1)).toBe(false);
   });
 });

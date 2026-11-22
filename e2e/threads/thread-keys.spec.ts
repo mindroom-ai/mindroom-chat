@@ -314,4 +314,5 @@ test('a thread left far down a long list hands the focus to its card', async ({ 
   await page.keyboard.press('Alt+ArrowLeft');
   await expect(banner(page)).toHaveCount(0);
   await expect(card(page, deep)).toBeFocused();
+  await expect(card(page, deep)).toBeInViewport();
 });

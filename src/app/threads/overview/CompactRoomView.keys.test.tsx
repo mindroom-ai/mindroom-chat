@@ -84,10 +84,30 @@ const resolveKeys = (): boolean => runShortcut('resolveThread', new KeyboardEven
 beforeEach(() => {
   state.pinned = [];
   state.resolved = [];
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
+    this: HTMLElement
+  ) {
+    if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, 300);
+    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+    let top = -(view?.scrollTop ?? 0);
+    for (let row = this.previousElementSibling; row; row = row.previousElementSibling) {
+      if (row instanceof HTMLElement && row.style.display !== 'none')
+        top +=
+          Number.parseFloat(row.style.height) || (row.hasAttribute('data-scroll-anchor') ? 100 : 0);
+    }
+    const h =
+      this.style.display === 'none'
+        ? 0
+        : Number.parseFloat(this.style.height) ||
+          (this.hasAttribute('data-scroll-anchor') ? 100 : 0);
+    return new DOMRect(0, top, 300, h);
+  });
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -153,6 +173,58 @@ describe('the thread keys on the compact thread list', () => {
       });
       expect(state.setResolved).toHaveBeenLastCalledWith('$card95', true);
       expect(document.activeElement).toBe(card('$card93'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('tabs across a spacer from a retained focused card to its logical neighbour', () => {
+    vi.useFakeTimers();
+    try {
+      const ids = Array.from({ length: 96 }, (_, index) => `$card${index}`);
+      render(list('!tab:example.org', ids));
+      for (let i = 0; i < 12; i += 1)
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+      const firstShell = card('$card0').closest<HTMLElement>('[data-scroll-anchor]')!;
+      card('$card0').focus();
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+      view.scrollTop = 6000;
+      fireEvent.scroll(view);
+      // $card0 is retained alone with a spacer between it and the deep window.
+      expect(card('$card1')).toBeNull();
+      expect(firstShell.nextElementSibling?.hasAttribute('data-compact-spacer')).toBe(true);
+      // Tab within the card stays native; Tab from the card's last button crosses the spacer to $card1.
+      const cardTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      card('$card0').dispatchEvent(cardTab);
+      expect(cardTab.defaultPrevented).toBe(false);
+      const actions = [...firstShell.querySelectorAll<HTMLElement>('button:not([disabled])')];
+      const lastAction = actions.at(-1)!;
+      lastAction.focus();
+      const crossTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      act(() => {
+        lastAction.dispatchEvent(crossTab);
+      });
+      expect(crossTab.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(card('$card1'));
+      // Shift+Tab across the leading spacer from the first mounted deep card materializes its neighbour.
+      view.scrollTop = 6000;
+      fireEvent.scroll(view);
+      const deepFirst = card('$card48');
+      expect(card('$card47')).toBeNull();
+      deepFirst.focus();
+      const backTab = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => {
+        deepFirst.dispatchEvent(backTab);
+      });
+      expect(backTab.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(card('$card47'));
     } finally {
       vi.useRealTimers();
     }
