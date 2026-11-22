@@ -1,10 +1,15 @@
+import crypto from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import { DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
 import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
+import { loginToMatrix, matrixFetch } from '../helpers/matrix';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PRELOAD_PATH = path.join(ROOT, 'build/electron/preload.cjs');
@@ -13,7 +18,12 @@ const PIXEL_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64'
 );
+const APP_ORIGIN = 'capacitor://localhost';
 const VIDEO_BYTES = Buffer.alloc(1024, 0x41);
+const TINY_WEBM = Buffer.from(
+  'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAALeEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHWTbuMU6uEElTDZ1OsggEyTbuMU6uEHFO7a1OsggLI7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsCrXsYMPQkBNgIxMYXZmNjMuMS4xMDJXQYxMYXZmNjMuMS4xMDJEiYhAj0AAAAAAABZUrmvXrgEAAAAAAABO14EBc8WIQfRNr6Mm7NacgQAitZyDdW5kiIEAhoVWX1ZQOIOBASPjg4QF9eEA4JCwgSC6gSCagQJVsIRVuYEBVe6BAOwBAAAAAAAAAgAAElTDZ/pzc59jwIBnyJlFo4dFTkNPREVSRIeMTGF2ZjYzLjEuMTAyc3PVY8CLY8WIQfRNr6Mm7NZnyKBFo4dFTkNPREVSRIeTTGF2YzYzLjEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnVBEeeBAKO9gQAAgNACAJ0BKiAAIAAARwiFhYiFhIgCAgJ1qgP4AgghCD0A/v9NEv/8WFfxYV/FhX/xYV/8/M7txfzmAKOVgQBkALEBAAEQEAAYABhYL/QACHAAo5WBAMgAsQEAARAQABgAGFgv9AAIcACjlYEBLACxAQABEBAAGAAYWC/0AAhwAKOVgQGQALEBAAEQEAAYABhYL/QACHAAo5WBAfQAsQEAARAQABgAGFgv9AAIcACjlYECWACxAQABEBAAGAAYWC/0AAhwAKOVgQK8ALEBAAEQEBRgAGFgv9AAIcAAo5WBAyAAsQEAARAQABgAGFgv9AAIcACjlYEDhACxAQABEBAAGAAYWC/0AAhwABxTu2uRu4+zgQC3iveBAfGCAbHwgQM=',
+  'base64'
+);
 
 type RecordedRequest = {
   url: string;
@@ -483,5 +493,196 @@ test('never attaches a token on redirects across two signed-in windows or same-o
     await desktop.close();
     await serverA.close();
     await serverB.close();
+  }
+});
+
+test('@homeserver renders authenticated image and avatar, plays video, and copies without token', async () => {
+  const homeserver = process.env.E2E_HOMESERVER_URL ?? DISPOSABLE_HOMESERVER;
+  const suffix = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+  const username = `desktop_media_${suffix}`;
+  const password = `Pass_${crypto.randomBytes(8).toString('hex')}`;
+  const displayName = `Media User ${suffix}`;
+
+  const reg = await fetch(`${homeserver}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(reg.ok, `registering ${username} on ${homeserver} (${reg.status})`).toBe(true);
+  const alice = await loginToMatrix(homeserver, username, password);
+
+  const upload = async (bytes: Buffer, contentType: string, filename: string): Promise<string> => {
+    const res = await fetch(
+      `${homeserver}/_matrix/media/v3/upload?filename=${encodeURIComponent(filename)}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${alice.accessToken}`,
+          'Content-Type': contentType,
+        },
+        body: new Uint8Array(bytes),
+      }
+    );
+    expect(res.ok, `uploading ${filename} (${res.status})`).toBe(true);
+    const data = (await res.json()) as { content_uri?: string };
+    expect(data.content_uri).toMatch(/^mxc:\/\//);
+    return data.content_uri!;
+  };
+
+  const imageUri = await upload(PIXEL_PNG, 'image/png', 'media-auth-picture.png');
+  const videoUri = await upload(TINY_WEBM, 'video/webm', 'media-auth-clip.webm');
+
+  const profilePath = `/profile/${encodeURIComponent(alice.userId)}`;
+  await matrixFetch(homeserver, `${profilePath}/displayname`, {
+    method: 'PUT',
+    accessToken: alice.accessToken,
+    body: JSON.stringify({ displayname: displayName }),
+  });
+  await matrixFetch(homeserver, `${profilePath}/avatar_url`, {
+    method: 'PUT',
+    accessToken: alice.accessToken,
+    body: JSON.stringify({ avatar_url: imageUri }),
+  });
+
+  const roomId = await createRoom(homeserver, alice.accessToken, {
+    name: `Desktop Media ${suffix}`,
+    encrypted: false,
+  });
+
+  const sendMessage = async (txn: string, content: Record<string, unknown>): Promise<void> => {
+    await matrixFetch(
+      homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(txn)}`,
+      {
+        method: 'PUT',
+        accessToken: alice.accessToken,
+        body: JSON.stringify(content),
+      }
+    );
+  };
+
+  await sendMessage(`img_${suffix}`, {
+    msgtype: 'm.image',
+    body: 'media-auth-picture.png',
+    url: imageUri,
+    info: { mimetype: 'image/png', w: 1, h: 1, size: PIXEL_PNG.length },
+  });
+  await sendMessage(`vid_${suffix}`, {
+    msgtype: 'm.video',
+    body: 'media-auth-clip.webm',
+    url: videoUri,
+    info: { mimetype: 'video/webm', w: 32, h: 32, duration: 1000, size: TINY_WEBM.length },
+  });
+
+  const desktop = await launchDesktop();
+  const { app, page } = desktop;
+  const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
+  await page.addLocatorHandler(setup, () => setup.getByRole('button', { name: 'Not now' }).click());
+
+  try {
+    await loginWithPassword(page, {
+      homeserver,
+      username,
+      password,
+      baseUrl: APP_ORIGIN,
+    });
+
+    await page.goto(`${APP_ORIGIN}/home/${encodeURIComponent(roomId)}`);
+    const timeline = page.getByTestId('room-virtual-inner');
+    await expect(timeline).toBeVisible({ timeout: 20_000 });
+
+    // 1. Timeline image renders right after sign-in with no access_token in its URL.
+    const image = timeline.locator('img[alt="media-auth-picture.png"]').first();
+    await expect(image).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth > 0), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    const imageSrc = await image.evaluate((el: HTMLImageElement) => el.currentSrc || el.src);
+    expect(imageSrc).not.toContain('access_token');
+    expect(imageSrc).not.toContain(alice.accessToken);
+
+    // 2. User A's avatar renders with naturalWidth > 0 and no access_token in its URL.
+    const avatar = page.locator(`img[alt="${displayName}"]`).first();
+    await expect(avatar).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => avatar.evaluate((el: HTMLImageElement) => el.naturalWidth > 0), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    const avatarSrc = await avatar.evaluate((el: HTMLImageElement) => el.currentSrc || el.src);
+    expect(avatarSrc).not.toContain('access_token');
+    expect(avatarSrc).not.toContain(alice.accessToken);
+
+    // 3. Video loads and plays (currentTime > 0).
+    const video = timeline.locator('video').first();
+    const watchButton = timeline.getByRole('button', { name: 'Watch' }).first();
+    await expect(video.or(watchButton)).toBeVisible({ timeout: 20_000 });
+    if (await watchButton.isVisible()) await watchButton.click();
+    await expect(video).toBeVisible({ timeout: 15_000 });
+    await video.evaluate(async (el: HTMLVideoElement) => {
+      el.muted = true;
+      el.loop = true;
+      try {
+        await el.play();
+      } catch {
+        // Headless environments may block play(); polled below.
+      }
+    });
+    await expect
+      .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime > 0), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+
+    // 4. Copying a selection across the image puts neither access_token nor the session token on the clipboard.
+    const desktopAccessToken = await page.evaluate((key) => {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw) as {
+        activeSessionId?: string;
+        sessions?: Array<{ sessionId?: string; accessToken?: string }>;
+      };
+      return (
+        parsed.sessions?.find((s) => s.sessionId === parsed.activeSessionId)?.accessToken ?? ''
+      );
+    }, SESSION_STORE_KEY);
+    expect(desktopAccessToken.length).toBeGreaterThan(0);
+
+    await app.evaluate(({ clipboard }) => clipboard.clear());
+    await image.evaluate((img: HTMLImageElement) => {
+      const container =
+        img.closest('[data-event-id]') ?? img.closest('article') ?? img.parentElement ?? img;
+      const range = document.createRange();
+      range.selectNodeContents(container);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.execCommand('copy');
+    });
+    const copied = await app.evaluate(async ({ clipboard }) => {
+      const parts: string[] = [await clipboard.readText()];
+      for (const item of await clipboard.read()) {
+        if (item.types.includes('text/html')) {
+          parts.push(await (await item.getType('text/html')).text());
+        }
+      }
+      return parts.join('\n');
+    });
+    expect(copied.trim().length).toBeGreaterThan(0);
+    expect(copied).not.toContain('access_token');
+    expect(copied).not.toContain(desktopAccessToken);
+    expect(copied).not.toContain(alice.accessToken);
+
+    // 5. Zero unexpected CSP violations.
+    expect(desktop.violations).toEqual([]);
+  } finally {
+    await desktop.close();
   }
 });
