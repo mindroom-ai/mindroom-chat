@@ -490,6 +490,7 @@
         "close": "Chiudi la vista della chiamata",
         "participants": "Persone nella chiamata",
         "connecting": "Connessione in corso…",
+        "connectingAnotherCall": "Connessione a un’altra chiamata in corso…",
         "reconnecting": "Riconnessione in corso…",
         "ended": "La chiamata è terminata.",
         "waitingFor": "In attesa di {{name}}…",
@@ -745,6 +746,9 @@
         "save": "Salva",
         "saved": "Salvato",
         "clear": "Cancella",
+        "saveSetting": "Salva {{setting}}",
+        "savedSetting": "Salvato: {{setting}}",
+        "clearSetting": "Cancella {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",
         "saveFailed": "Impossibile salvare l’impostazione. Riprova.",
@@ -784,6 +788,11 @@
         "threadSummaryModel": {
           "label": "Modello per i titoli",
           "description": "Modello che genera i titoli automatici dei thread di questa stanza."
+        },
+        "agentInstructions": {
+          "label": "Istruzioni per gli agenti",
+          "description": "Istruzioni aggiuntive fornite a ogni agente che risponde in questa stanza. I moderatori possono modificarle; non concedono autorizzazioni aggiuntive agli agenti. Tutti nella stanza possono leggerle e lo stato della stanza non è crittografato end-to-end, quindi non inserire segreti qui.",
+          "placeholder": "Per esempio: mantieni le risposte brevi e rispondi in olandese"
         }
       }
     },
@@ -1806,6 +1815,32 @@
   },
   "roomSchedules": {
     "thisThread": "Questo thread",
-    "elsewhereInRoom": "Altrove in questa stanza"
+    "elsewhereInRoom": "Altrove in questa stanza",
+    "filterAll": "Tutte",
+    "filterLabel": "Filtra attività pianificate",
+    "awaitingShort": "In attesa",
+    "inSeconds": "tra {{count}}s",
+    "inMinutes": "tra {{count}}m",
+    "inHours": "tra {{count}}h",
+    "inHoursMinutes": "tra {{hours}}h {{minutes}}m",
+    "inDays": "tra {{count}}g",
+    "thread": "Thread",
+    "destination": "Destinazione",
+    "showFullPrompt": "Mostra prompt completo",
+    "showLessPrompt": "Mostra meno",
+    "details": "Dettagli",
+    "hideDetails": "Nascondi dettagli",
+    "copyId": "Copia ID",
+    "copied": "Copiato",
+    "edit": "Modifica",
+    "cancel": "Annulla",
+    "cancelConfirm": "Annullare questa attività pianificata?",
+    "keep": "Mantieni",
+    "cancelTask": "Annulla attività",
+    "cancelling": "Annullamento...",
+    "cancelError": "Impossibile annullare l'attività. Riprova.",
+    "cancellationSent": "Annullamento inviato",
+    "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
+    "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
   }
 }

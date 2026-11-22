@@ -472,6 +472,7 @@
         "close": "通話ビューを閉じる",
         "participants": "通話中の人",
         "connecting": "接続中…",
+        "connectingAnotherCall": "別の通話に接続中…",
         "reconnecting": "再接続中…",
         "ended": "通話が終了しました。",
         "waitingFor": "{{name}} を待っています…",
@@ -719,6 +720,9 @@
         "save": "保存",
         "saved": "保存しました",
         "clear": "クリア",
+        "saveSetting": "{{setting}}を保存",
+        "savedSetting": "{{setting}}を保存しました",
+        "clearSetting": "{{setting}}をクリア",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
         "saveFailed": "設定を保存できませんでした。もう一度お試しください。",
@@ -758,6 +762,11 @@
         "threadSummaryModel": {
           "label": "タイトルモデル",
           "description": "このルームの自動スレッドタイトルを生成するモデル。"
+        },
+        "agentInstructions": {
+          "label": "エージェントへの指示",
+          "description": "このルームで応答するすべてのエージェントに渡される追加の指示です。モデレーターが編集できますが、エージェントに追加の権限は付与されません。ルームの全員が読むことができ、ルーム状態はエンドツーエンド暗号化されないため、秘密情報は入力しないでください。",
+          "placeholder": "例: 回答は短くしてオランダ語で返信する"
         }
       }
     },
@@ -1716,6 +1725,32 @@
   },
   "roomSchedules": {
     "thisThread": "このスレッド",
-    "elsewhereInRoom": "このルーム内の別の場所"
+    "elsewhereInRoom": "このルーム内の別の場所",
+    "filterAll": "すべて",
+    "filterLabel": "予定されたタスクを絞り込む",
+    "awaitingShort": "待機中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分後",
+    "inHours": "{{count}}時間後",
+    "inHoursMinutes": "{{hours}}時間{{minutes}}分後",
+    "inDays": "{{count}}日後",
+    "thread": "スレッド",
+    "destination": "送信先",
+    "showFullPrompt": "プロンプトをすべて表示",
+    "showLessPrompt": "折りたたむ",
+    "details": "詳細",
+    "hideDetails": "詳細を隠す",
+    "copyId": "IDをコピー",
+    "copied": "コピーしました",
+    "edit": "編集",
+    "cancel": "キャンセル",
+    "cancelConfirm": "この予定されたタスクをキャンセルしますか？",
+    "keep": "維持",
+    "cancelTask": "タスクをキャンセル",
+    "cancelling": "キャンセル中...",
+    "cancelError": "タスクをキャンセルできませんでした。もう一度お試しください。",
+    "cancellationSent": "キャンセルを送信しました",
+    "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
+    "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
   }
 }

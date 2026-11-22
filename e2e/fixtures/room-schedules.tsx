@@ -77,7 +77,7 @@ room.currentState.setStateEvents([
     'morning',
     {
       schedule_type: 'cron',
-      message: 'Check the inbox.\nSummarize urgent messages.',
+      message: 'Check `inbox` with @helper.\nSummarize urgent messages.',
       description: 'Morning inbox',
       model: params.has('stress') ? 'custom-model-'.repeat(40) : 'cheap',
       cron_schedule: {
@@ -117,7 +117,7 @@ room.currentState.setStateEvents([
 function Fixture() {
   const [open, setOpen] = useState(false);
   const pendingSchedules = usePendingRoomSchedules(room);
-  const [openedThread, setOpenedThread] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
   const [receiptCount, setReceiptCount] = useState(0);
   useRoomEscapeReadReceipts({ roomId: room.roomId, hideActivity: false });
   useEffect(() => installOverlayFocus(document), []);
@@ -143,10 +143,17 @@ function Fixture() {
           roomId={room.roomId}
           tasks={pendingSchedules}
           onClose={() => setOpen(false)}
-          onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}
+          onOpenThread={(id) => setStatusMessage(`Opened ${id}`)}
+          onEditTask={(task) => {
+            setOpen(false);
+            setStatusMessage(`Editing ${task.taskId}`);
+          }}
+          onCancelTask={async (task) => {
+            setStatusMessage(`Cancelled ${task.taskId}`);
+          }}
         />
       )}
-      <p role="status">{openedThread}</p>
+      <p role="status">{statusMessage}</p>
       <output aria-label="Read receipts sent">{receiptCount}</output>
     </main>
   );

@@ -472,6 +472,7 @@
         "close": "Tutup tampilan panggilan",
         "participants": "Orang dalam panggilan",
         "connecting": "Menghubungkan…",
+        "connectingAnotherCall": "Menghubungkan ke panggilan lain…",
         "reconnecting": "Menghubungkan ulang…",
         "ended": "Panggilan berakhir.",
         "waitingFor": "Menunggu {{name}}…",
@@ -719,6 +720,9 @@
         "save": "Simpan",
         "saved": "Tersimpan",
         "clear": "Hapus",
+        "saveSetting": "Simpan {{setting}}",
+        "savedSetting": "Tersimpan: {{setting}}",
+        "clearSetting": "Hapus {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
         "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
@@ -758,6 +762,11 @@
         "threadSummaryModel": {
           "label": "Model judul",
           "description": "Model yang menulis judul utas otomatis di ruang ini."
+        },
+        "agentInstructions": {
+          "label": "Instruksi agen",
+          "description": "Instruksi tambahan yang diberikan kepada setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan. Semua orang di ruang ini dapat membacanya, dan status ruang tidak terenkripsi ujung ke ujung, jadi jangan masukkan rahasia di sini.",
+          "placeholder": "Contoh: Buat jawaban singkat dan balas dalam bahasa Belanda"
         }
       }
     },
@@ -1716,6 +1725,32 @@
   },
   "roomSchedules": {
     "thisThread": "Utas ini",
-    "elsewhereInRoom": "Di bagian lain ruang ini"
+    "elsewhereInRoom": "Di bagian lain ruang ini",
+    "filterAll": "Semua",
+    "filterLabel": "Filter tugas terjadwal",
+    "awaitingShort": "Menunggu",
+    "inSeconds": "dalam {{count}}d",
+    "inMinutes": "dalam {{count}}m",
+    "inHours": "dalam {{count}}j",
+    "inHoursMinutes": "dalam {{hours}}j {{minutes}}m",
+    "inDays": "dalam {{count}}h",
+    "thread": "Utas",
+    "destination": "Tujuan",
+    "showFullPrompt": "Tampilkan prompt lengkap",
+    "showLessPrompt": "Tampilkan lebih sedikit",
+    "details": "Detail",
+    "hideDetails": "Sembunyikan detail",
+    "copyId": "Salin ID",
+    "copied": "Disalin",
+    "edit": "Edit",
+    "cancel": "Batalkan",
+    "cancelConfirm": "Batalkan tugas terjadwal ini?",
+    "keep": "Simpan",
+    "cancelTask": "Batalkan tugas",
+    "cancelling": "Membatalkan...",
+    "cancelError": "Tidak dapat membatalkan tugas. Coba lagi.",
+    "cancellationSent": "Pembatalan dikirim",
+    "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
+    "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
   }
 }

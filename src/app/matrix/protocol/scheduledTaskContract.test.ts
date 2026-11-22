@@ -243,4 +243,21 @@ describe('parseScheduledTaskStateEvent', () => {
 
     expect(parseScheduledTaskStateEvent(event)).toBeNull();
   });
+
+  it('parses pre_approved_call when present in workflow details', () => {
+    const event = makeScheduledTaskEvent({
+      status: 'pending',
+      workflow: JSON.stringify({
+        schedule_type: 'once',
+        message: 'Start scheduled call',
+        pre_approved_call: true,
+      }),
+    });
+
+    expect(parseScheduledTaskStateEvent(event)).toMatchObject({
+      taskId: 'task-1',
+      status: 'pending',
+      preApprovedCall: true,
+    });
+  });
 });

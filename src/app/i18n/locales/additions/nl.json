@@ -481,6 +481,7 @@
         "close": "Oproepweergave sluiten",
         "participants": "Mensen in de oproep",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbinden met een andere oproep…",
         "reconnecting": "Opnieuw verbinden…",
         "ended": "De oproep is beëindigd.",
         "waitingFor": "Wachten op {{name}}…",
@@ -732,6 +733,9 @@
         "save": "Opslaan",
         "saved": "Opgeslagen",
         "clear": "Wissen",
+        "saveSetting": "{{setting}} opslaan",
+        "savedSetting": "{{setting}} opgeslagen",
+        "clearSetting": "{{setting}} wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
         "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw.",
@@ -771,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Titelmodel",
           "description": "Model dat de automatische threadtitels in deze ruimte schrijft."
+        },
+        "agentInstructions": {
+          "label": "Agentinstructies",
+          "description": "Extra instructies die elke agent krijgt bij het antwoorden in deze ruimte. Moderators kunnen ze bewerken; ze geven agents geen extra rechten. Iedereen in de ruimte kan ze lezen en de status van de ruimte is niet end-to-end versleuteld, dus zet hier geen geheimen in.",
+          "placeholder": "Bijvoorbeeld: houd antwoorden kort en antwoord in het Nederlands"
         }
       }
     },
@@ -1761,6 +1770,32 @@
   },
   "roomSchedules": {
     "thisThread": "Deze thread",
-    "elsewhereInRoom": "Elders in deze ruimte"
+    "elsewhereInRoom": "Elders in deze ruimte",
+    "filterAll": "Alle",
+    "filterLabel": "Geplande taken filteren",
+    "awaitingShort": "In afwachting",
+    "inSeconds": "over {{count}}s",
+    "inMinutes": "over {{count}}m",
+    "inHours": "over {{count}}u",
+    "inHoursMinutes": "over {{hours}}u {{minutes}}m",
+    "inDays": "over {{count}}d",
+    "thread": "Thread",
+    "destination": "Bestemming",
+    "showFullPrompt": "Volledige prompt tonen",
+    "showLessPrompt": "Minder tonen",
+    "details": "Details",
+    "hideDetails": "Details verbergen",
+    "copyId": "ID kopiëren",
+    "copied": "Gekopieerd",
+    "edit": "Bewerken",
+    "cancel": "Annuleren",
+    "cancelConfirm": "Deze geplande taak annuleren?",
+    "keep": "Behouden",
+    "cancelTask": "Taak annuleren",
+    "cancelling": "Annuleren...",
+    "cancelError": "Kon taak niet annuleren. Probeer opnieuw.",
+    "cancellationSent": "Annulering verzonden",
+    "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
+    "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
   }
 }

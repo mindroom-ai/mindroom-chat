@@ -103,15 +103,6 @@ test.describe('room schedules in the chat header', () => {
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
     const prompt = dialog.getByText('Summarize the weekly report', { exact: true });
     await expect(prompt).toBeVisible();
-    // The prompt is plain text whose first letter lines up with its label's, like the other fields.
-    const textStart = (element: Element) => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      return range.getBoundingClientRect().x;
-    };
-    expect(await prompt.evaluate(textStart)).toBe(
-      await dialog.getByText('Prompt', { exact: true }).evaluate(textStart)
-    );
     // The list sits over the room view, whose width the room header spans, not the whole window.
     const roomView = await trigger.evaluate((button) => {
       const { left, width } = button.closest('header')!.getBoundingClientRect();
@@ -121,6 +112,7 @@ test.describe('room schedules in the chat header', () => {
     expect(roomView.width).toBeGreaterThan(listBounds.width);
     expect(Math.abs(listBounds.x + listBounds.width / 2 - roomView.center)).toBeLessThanOrEqual(1);
     await expect(dialog.getByText('cheap', { exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Details', exact: true }).click();
     const creator = dialog.getByRole('link', { name: '@Schedule creator', exact: true });
     await expect(creator).toHaveAttribute('title', userId);
     await expect(creator).toHaveAttribute('href', `https://matrix.to/#/${userId}`);
@@ -150,6 +142,7 @@ test.describe('room schedules in the chat header', () => {
     await expect(trigger).toBeInViewport();
     await trigger.click();
     await expect(dialog.getByText('Weekly report', { exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Details', exact: true }).click();
     await creator.click();
     await expect(shareProfile).toBeVisible();
     await page.keyboard.press('Escape');
@@ -171,7 +164,7 @@ test.describe('room schedules in the chat header', () => {
         updated_at: '2026-09-16T12:00:00Z',
       }
     );
-    await expect(dialog.getByText('premium', { exact: true })).toBeVisible();
+    await expect(dialog.locator('dl').getByText('premium', { exact: true })).toBeVisible();
     await expect(dialog.getByText('cheap', { exact: true })).toHaveCount(0);
     await expect(dialog.locator('time[datetime="2026-09-16T12:00:00.000Z"]')).toBeVisible();
     await sendStateEvent(

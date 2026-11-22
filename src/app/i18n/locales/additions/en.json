@@ -481,6 +481,7 @@
         "close": "Close call view",
         "participants": "People in the call",
         "connecting": "Connecting…",
+        "connectingAnotherCall": "Connecting to another call…",
         "reconnecting": "Reconnecting…",
         "ended": "The call ended.",
         "waitingFor": "Waiting for {{name}}…",
@@ -732,6 +733,9 @@
         "save": "Save",
         "saved": "Saved",
         "clear": "Clear",
+        "saveSetting": "Save {{setting}}",
+        "savedSetting": "Saved {{setting}}",
+        "clearSetting": "Clear {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",
         "saveFailed": "Couldn't save the setting. Try again.",
@@ -771,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Title model",
           "description": "Model that writes this room's automatic thread titles."
+        },
+        "agentInstructions": {
+          "label": "Agent instructions",
+          "description": "Extra instructions given to every agent answering in this room. Moderators can edit them; they grant agents no extra permissions. Everyone in the room can read them, and room state is not end-to-end encrypted, so do not put secrets here.",
+          "placeholder": "For example: Keep answers short and reply in Dutch"
         }
       }
     },
@@ -1761,6 +1770,32 @@
   },
   "roomSchedules": {
     "thisThread": "This thread",
-    "elsewhereInRoom": "Elsewhere in this room"
+    "elsewhereInRoom": "Elsewhere in this room",
+    "filterAll": "All",
+    "filterLabel": "Filter scheduled tasks",
+    "awaitingShort": "Awaiting",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}d",
+    "thread": "Thread",
+    "destination": "Destination",
+    "showFullPrompt": "Show full prompt",
+    "showLessPrompt": "Show less",
+    "details": "Details",
+    "hideDetails": "Hide details",
+    "copyId": "Copy ID",
+    "copied": "Copied",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "cancelConfirm": "Cancel this scheduled task?",
+    "keep": "Keep",
+    "cancelTask": "Cancel task",
+    "cancelling": "Cancelling...",
+    "cancelError": "Could not cancel task. Try again.",
+    "cancellationSent": "Cancellation sent",
+    "editDraftBusy": "Clear your current draft before editing this schedule.",
+    "copyFailed": "Could not copy. Select the Task ID in Details."
   }
 }

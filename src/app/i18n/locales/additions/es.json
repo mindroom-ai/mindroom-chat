@@ -490,6 +490,7 @@
         "close": "Cerrar la vista de la llamada",
         "participants": "Personas en la llamada",
         "connecting": "Conectando…",
+        "connectingAnotherCall": "Conectando a otra llamada…",
         "reconnecting": "Reconectando…",
         "ended": "La llamada terminó.",
         "waitingFor": "Esperando a {{name}}…",
@@ -745,6 +746,9 @@
         "save": "Guardar",
         "saved": "Guardado",
         "clear": "Borrar",
+        "saveSetting": "Guardar {{setting}}",
+        "savedSetting": "Guardado: {{setting}}",
+        "clearSetting": "Borrar {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",
         "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
@@ -784,6 +788,11 @@
         "threadSummaryModel": {
           "label": "Modelo de títulos",
           "description": "Modelo que genera los títulos automáticos de los hilos de esta sala."
+        },
+        "agentInstructions": {
+          "label": "Instrucciones para los agentes",
+          "description": "Instrucciones adicionales que se dan a cada agente al responder en esta sala. Los moderadores pueden editarlas; no conceden permisos adicionales a los agentes. Todas las personas de la sala pueden leerlas y el estado de la sala no está cifrado de extremo a extremo, así que no pongas secretos aquí.",
+          "placeholder": "Por ejemplo: mantén las respuestas breves y responde en neerlandés"
         }
       }
     },
@@ -1806,6 +1815,32 @@
   },
   "roomSchedules": {
     "thisThread": "Este hilo",
-    "elsewhereInRoom": "En otras partes de esta sala"
+    "elsewhereInRoom": "En otras partes de esta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tareas programadas",
+    "awaitingShort": "Pendiente",
+    "inSeconds": "en {{count}}s",
+    "inMinutes": "en {{count}}m",
+    "inHours": "en {{count}}h",
+    "inHoursMinutes": "en {{hours}}h {{minutes}}m",
+    "inDays": "en {{count}}d",
+    "thread": "Hilo",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalles",
+    "hideDetails": "Ocultar detalles",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "¿Cancelar esta tarea programada?",
+    "keep": "Conservar",
+    "cancelTask": "Cancelar tarea",
+    "cancelling": "Cancelando...",
+    "cancelError": "No se pudo cancelar la tarea. Inténtalo de nuevo.",
+    "cancellationSent": "Cancelación enviada",
+    "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
+    "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
   }
 }

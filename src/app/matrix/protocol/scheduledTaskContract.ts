@@ -33,6 +33,7 @@ type ScheduledTaskDetails = {
   model?: string | null;
   silent?: boolean;
   isConditional?: boolean;
+  preApprovedCall?: boolean;
   historyLimit?: number | null;
   sourceEventId?: string;
 };
@@ -103,6 +104,8 @@ const parseDetails = (value: Record<string, unknown>): ScheduledTaskDetails => {
   }
   if (typeof value.silent === 'boolean') details.silent = value.silent;
   if (typeof value.is_conditional === 'boolean') details.isConditional = value.is_conditional;
+  if (typeof value.pre_approved_call === 'boolean')
+    details.preApprovedCall = value.pre_approved_call;
   if (value.model === null) details.model = null;
   if (typeof value.model === 'string') details.model = value.model.trim() || null;
   if (value.history_limit === null) details.historyLimit = null;

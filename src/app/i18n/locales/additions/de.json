@@ -481,6 +481,7 @@
         "close": "Anrufansicht schließen",
         "participants": "Personen im Anruf",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbindung zu einem anderen Anruf wird hergestellt…",
         "reconnecting": "Verbindung wird wiederhergestellt…",
         "ended": "Der Anruf ist beendet.",
         "waitingFor": "Warten auf {{name}}…",
@@ -732,6 +733,9 @@
         "save": "Speichern",
         "saved": "Gespeichert",
         "clear": "Löschen",
+        "saveSetting": "{{setting}} speichern",
+        "savedSetting": "{{setting}} gespeichert",
+        "clearSetting": "{{setting}} löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
         "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
@@ -771,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Titelmodell",
           "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
+        },
+        "agentInstructions": {
+          "label": "Anweisungen für Agents",
+          "description": "Zusätzliche Anweisungen, die jeder Agent beim Antworten in diesem Raum erhält. Moderatoren können sie bearbeiten; sie verleihen Agents keine zusätzlichen Berechtigungen. Alle im Raum können sie lesen, und der Raumzustand ist nicht Ende-zu-Ende-verschlüsselt, also gib hier keine Geheimnisse ein.",
+          "placeholder": "Zum Beispiel: Antworten kurz halten und auf Niederländisch antworten"
         }
       }
     },
@@ -1761,6 +1770,32 @@
   },
   "roomSchedules": {
     "thisThread": "Dieser Thread",
-    "elsewhereInRoom": "An anderer Stelle in diesem Raum"
+    "elsewhereInRoom": "An anderer Stelle in diesem Raum",
+    "filterAll": "Alle",
+    "filterLabel": "Geplante Aufgaben filtern",
+    "awaitingShort": "Ausstehend",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}T",
+    "thread": "Thread",
+    "destination": "Ziel",
+    "showFullPrompt": "Vollständigen Prompt anzeigen",
+    "showLessPrompt": "Weniger anzeigen",
+    "details": "Details",
+    "hideDetails": "Details ausblenden",
+    "copyId": "ID kopieren",
+    "copied": "Kopiert",
+    "edit": "Bearbeiten",
+    "cancel": "Abbrechen",
+    "cancelConfirm": "Diese geplante Aufgabe abbrechen?",
+    "keep": "Behalten",
+    "cancelTask": "Aufgabe abbrechen",
+    "cancelling": "Wird abgebrochen...",
+    "cancelError": "Aufgabe konnte nicht abgebrochen werden. Bitte erneut versuchen.",
+    "cancellationSent": "Abbruch gesendet",
+    "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
+    "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   }
 }
