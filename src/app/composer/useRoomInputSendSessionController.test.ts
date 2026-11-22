@@ -1,4 +1,9 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
+import {
+  THREAD_MODEL_KEY,
+  threadModelContent,
+  type ThreadModelContent,
+} from '../matrix/protocol/threadModel';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -129,6 +134,7 @@ const TestHarness = ({
   restoreComposerFallbackForRoom,
   threadId,
   forkFrom,
+  takeRootModelDraft,
   roomId = '!room:example.org',
   buildUploadMessageContent = buildFileContent,
 }: {
@@ -148,6 +154,7 @@ const TestHarness = ({
   restoreComposerFallbackForRoom: Mock;
   threadId?: string;
   forkFrom?: ThreadForkRef;
+  takeRootModelDraft?: (room: any) => ThreadModelContent | undefined;
   roomId?: string;
   buildUploadMessageContent?: BuildUploadMessageContent;
 }) => {
@@ -224,6 +231,7 @@ const TestHarness = ({
     buildUploadMessageContent,
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
+    takeRootModelDraft,
   });
 
   useEffect(() => {
@@ -245,6 +253,7 @@ const renderHarness = (
     threadId?: string;
     forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
+    takeRootModelDraft?: (room: any) => ThreadModelContent | undefined;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
     buildUploadMessageContent?: BuildUploadMessageContent;
   } = {}
@@ -285,6 +294,7 @@ const renderHarness = (
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
     forkFrom: options.forkFrom,
+    takeRootModelDraft: options.takeRootModelDraft,
     buildUploadMessageContent: options.buildUploadMessageContent,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
@@ -2357,5 +2367,202 @@ describe('useRoomInputSendSessionController submission markers', () => {
       body: longBody,
       'io.mindroom.submission': { id, more: false },
     });
+  });
+});
+
+describe('useRoomInputSendSessionController root thread model stamping', () => {
+  const pick = threadModelContent('@router:example.org', 'DEV1', 'sonnet@high');
+
+  const onceDraft = () => {
+    let remaining: ThreadModelContent | undefined = pick;
+    return vi.fn(() => {
+      const next = remaining;
+      remaining = undefined;
+      return next;
+    });
+  };
+
+  it('stamps plain text root once and leaves subsequent sends unstamped', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'first' } });
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'second' } });
+    });
+
+    expect(takeRootModelDraft).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'first',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    expect(mx.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+  });
+
+  it('stamps long text on both its preview event and sidecar', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+    const longBody = 'word '.repeat(10_000).trim();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: longBody } });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
+      msgtype: 'm.file',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    const sidecar = parseLongTextJsonSidecar(await mx.uploadContent.mock.calls[0]![0].text());
+    expect(sidecar).toMatchObject({
+      body: longBody,
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+  });
+
+  it('stamps only the first upload when sending multiple uploads with a caption', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'first.png',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    expect(mx.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    expect(mx.sendMessage.mock.calls[2]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+  });
+
+  it('stamps the caption if the staged upload fails and is removed before sending', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+    const file = createFile('broken.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Fallback root' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.selectedFilesRef.current = [];
+    api.sendSessionUploadItemsRef.current = [];
+    api.uploadsRef.current = [];
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'Fallback root',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+  });
+
+  it.each(['!help', ' /schedule tomorrow'])(
+    'does not consume or stamp command caption %s sent with an attachment',
+    async (commandBody) => {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ takeRootModelDraft });
+      const file = createFile('photo.png');
+      api.selectedFilesRef.current = [createUploadItem(file)];
+      api.uploadsRef.current = [successUpload(file)];
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: commandBody } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+      expect(mx.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
+  );
+
+  it('does not consume or stamp a command caption if its staged upload is removed before sending', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+    const file = createFile('broken.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: '!help' } });
+    });
+    expect(takeRootModelDraft).not.toHaveBeenCalled();
+
+    api.selectedFilesRef.current = [];
+    api.sendSessionUploadItemsRef.current = [];
+    api.uploadsRef.current = [];
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    expect(takeRootModelDraft).not.toHaveBeenCalled();
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+  });
+
+  it.each(['!model fast', '  !help', '/schedule tomorrow', ' /status'])(
+    'does not consume or stamp command %s',
+    async (commandBody) => {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ takeRootModelDraft });
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: commandBody } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
+  );
+
+  it.each(['m.notice', 'm.emote'])(
+    'does not consume or stamp non-m.text message (%s)',
+    async (msgtype) => {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ takeRootModelDraft });
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype, body: 'announcement' } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
+  );
+
+  it('does not consume or stamp replies, existing threads, or forks', async () => {
+    for (const opts of [
+      {
+        replyDraft: {
+          userId: '@other:example.org',
+          eventId: '$msg',
+          body: 'hi',
+          formattedBody: undefined,
+        },
+      },
+      { threadId: '$thread' },
+      { forkFrom: { roomId: '!room:example.org', threadId: '$orig', eventId: '$ev' } },
+    ]) {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ ...opts, takeRootModelDraft });
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'hello' } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
   });
 });
