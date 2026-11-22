@@ -1,4 +1,4 @@
-import { APP_ORIGIN, isFramePage, parseAppUrl } from './bundleProtocol';
+import { APP_ORIGIN, isAllowedAppPage, isFramePage, parseAppUrl } from './bundleProtocol';
 
 const NETWORK_PERMISSIONS = new Set(['local-network', 'local-network-access', 'loopback-network']);
 const ALLOWED_PERMISSIONS = new Set([
@@ -10,23 +10,21 @@ const ALLOWED_PERMISSIONS = new Set([
   ...NETWORK_PERMISSIONS,
 ]);
 
-const isAllowedAppPage = (rawUrl: string): boolean => {
-  const parsed = parseAppUrl(rawUrl);
-  return parsed !== undefined && !isFramePage(parsed.pathname);
+let blockedUrlRecorder: ((url: string) => void) | undefined;
+
+export const setBlockedUrlRecorder = (recorder: ((url: string) => void) | undefined): void => {
+  blockedUrlRecorder = recorder;
 };
 
-export const guardWebContents = (
-  contents: Electron.WebContents,
-  onBlockedUrl?: (url: string) => void
-): void => {
+export const guardWebContents = (contents: Electron.WebContents): void => {
   contents.setWindowOpenHandler(({ url }) => {
-    onBlockedUrl?.(url);
+    blockedUrlRecorder?.(url);
     return { action: 'deny' };
   });
   contents.on('will-navigate', (event, url) => {
     if (isAllowedAppPage(url)) return;
     event.preventDefault();
-    onBlockedUrl?.(url);
+    blockedUrlRecorder?.(url);
   });
 };
 

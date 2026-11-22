@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { APP_ORIGIN } from './bundleProtocol';
 
 const ipcMainMock = vi.hoisted(() => ({
   handle: vi.fn(),
@@ -9,6 +8,7 @@ vi.mock('electron', () => ({
   ipcMain: ipcMainMock,
 }));
 
+import { APP_ORIGIN } from './bundleProtocol';
 import { handle, isAuthorized } from './ipc';
 
 const makeOwner = (frame: { url: string; origin: string }, destroyed = false) =>
@@ -57,18 +57,15 @@ describe('ipc', () => {
         isAuthorized({ sender: otherHostOwner, senderFrame: otherCapacitorHost }, otherHostOwner)
       ).toBe(false);
 
-      // Frame that navigated: owner now has a new mainFrame.
       const navigatedOwner = makeOwner({ url: `${APP_ORIGIN}/other`, origin: APP_ORIGIN });
       expect(isAuthorized({ sender: navigatedOwner, senderFrame: mainFrame }, navigatedOwner)).toBe(
         false
       );
 
-      // Sandboxed or failed page: app URL, but origin is "null".
       const opaque = { url: `${APP_ORIGIN}/home`, origin: 'null' };
       const opaqueOwner = makeOwner(opaque);
       expect(isAuthorized({ sender: opaqueOwner, senderFrame: opaque }, opaqueOwner)).toBe(false);
 
-      // Frame page spellings.
       for (const path of ['/pdf-frame.html', '/%70df-frame.html', '//pdf-frame.html?a=1']) {
         const framePage = { url: `${APP_ORIGIN}${path}`, origin: APP_ORIGIN };
         const frameOwner = makeOwner(framePage);
@@ -129,6 +126,33 @@ describe('ipc', () => {
         ok: false,
         code: 'INTERNAL_ERROR',
       });
+    });
+
+    it('returns FORBIDDEN when owners() throws', async () => {
+      const frame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
+      const owner = makeOwner(frame);
+      const parse = vi.fn(() => 1);
+      const run = vi.fn(async () => ({ ok: true as const, value: 1 }));
+
+      handle(
+        'desktop:broken-owners',
+        () => {
+          throw new Error('owners boom');
+        },
+        parse,
+        run
+      );
+      const listener = ipcMainMock.handle.mock.calls[0]?.[1] as (
+        event: { sender: unknown; senderFrame: { url: string; origin: string } | null },
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      await expect(listener({ sender: owner, senderFrame: frame })).resolves.toEqual({
+        ok: false,
+        code: 'FORBIDDEN',
+      });
+      expect(parse).not.toHaveBeenCalled();
+      expect(run).not.toHaveBeenCalled();
     });
   });
 });

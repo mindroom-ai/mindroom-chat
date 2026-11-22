@@ -45,6 +45,11 @@ export const isFramePage = (pathname: string): boolean => {
   return 'file' in res && FRAME_PAGE_FILES.includes(res.file);
 };
 
+export const isAllowedAppPage = (rawUrl: string): boolean => {
+  const parsed = parseAppUrl(rawUrl);
+  return parsed !== undefined && !isFramePage(parsed.pathname);
+};
+
 export const registerBundleScheme = (): void => {
   protocol.registerSchemesAsPrivileged([
     {
@@ -61,34 +66,75 @@ export const registerBundleScheme = (): void => {
   ]);
 };
 
-const indexFiles = (dir: string, prefix = '', out = new Set<string>()): Set<string> => {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const rel = prefix ? `${prefix}/${e.name}` : e.name;
-    if (e.isFile()) out.add(rel);
-    else if (e.isDirectory()) indexFiles(path.join(dir, e.name), rel, out);
+type ReadBundleResult =
+  | { kind: 'file'; file: string; fullPath: string; body: Buffer | null }
+  | { kind: 'symlink' }
+  | { kind: 'missing' };
+
+const readRegularFile = async (
+  realRoot: string,
+  relative: string,
+  headOnly: boolean
+): Promise<ReadBundleResult> => {
+  const lexical = path.resolve(realRoot, relative);
+  if (!lexical.startsWith(`${realRoot}${path.sep}`)) return { kind: 'missing' };
+  let stat: fs.Stats;
+  try {
+    stat = await fs.promises.lstat(lexical);
+  } catch {
+    return { kind: 'missing' };
   }
-  return out;
+  if (stat.isSymbolicLink()) return { kind: 'symlink' };
+  if (!stat.isFile()) return { kind: 'missing' };
+  let real: string;
+  try {
+    real = await fs.promises.realpath(lexical);
+  } catch {
+    return { kind: 'missing' };
+  }
+  if (!real.startsWith(`${realRoot}${path.sep}`)) return { kind: 'symlink' };
+  if (real !== lexical) {
+    return real.toLowerCase() === lexical.toLowerCase() ? { kind: 'missing' } : { kind: 'symlink' };
+  }
+  try {
+    const body = headOnly ? null : await fs.promises.readFile(real);
+    return { kind: 'file', file: relative, fullPath: real, body };
+  } catch {
+    return { kind: 'missing' };
+  }
 };
 
 export const serveBundle = (distDir: string): void => {
-  const root = path.resolve(distDir);
-  const files = indexFiles(root);
-  const rootPrefix = `${root}${path.sep}`;
+  const resolvedDist = path.resolve(distDir);
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method Not Allowed', { status: 405 });
     }
     const url = parseAppUrl(request.url);
     if (!url) return new Response('Not Found', { status: 404 });
-    const resolved = resolveBundlePath(url.pathname, (rel) => files.has(rel));
-    if ('status' in resolved) return new Response('Not Found', { status: resolved.status });
-    const fullPath = path.resolve(root, resolved.file);
-    if (!fullPath.startsWith(rootPrefix)) return new Response('Not Found', { status: 404 });
+    let realRoot: string;
+    try {
+      realRoot = await fs.promises.realpath(resolvedDist);
+    } catch {
+      return new Response('Not Found', { status: 404 });
+    }
+    const headOnly = request.method === 'HEAD';
+    const candidate = resolveBundlePath(url.pathname, () => true);
+    if ('status' in candidate) return new Response('Not Found', { status: candidate.status });
+
+    let served = await readRegularFile(realRoot, candidate.file, headOnly);
+    if (served.kind === 'symlink') return new Response('Not Found', { status: 404 });
+    if (served.kind === 'missing') {
+      const fallback = resolveBundlePath(url.pathname, (rel) => rel === 'index.html');
+      if ('status' in fallback) return new Response('Not Found', { status: fallback.status });
+      served = await readRegularFile(realRoot, fallback.file, headOnly);
+    }
+    if (served.kind !== 'file') return new Response('Not Found', { status: 404 });
+
     const headers: Record<string, string> = {
-      'Content-Type': contentType(path.basename(fullPath)) || 'application/octet-stream',
-      ...(resolved.file.endsWith('.html') ? framingHeaders(url.pathname) : {}),
+      'Content-Type': contentType(path.basename(served.fullPath)) || 'application/octet-stream',
+      ...(served.file.endsWith('.html') ? framingHeaders(url.pathname) : {}),
     };
-    const body = request.method === 'HEAD' ? null : await fs.promises.readFile(fullPath);
-    return new Response(body, { status: 200, headers });
+    return new Response(served.body, { status: 200, headers });
   });
 };

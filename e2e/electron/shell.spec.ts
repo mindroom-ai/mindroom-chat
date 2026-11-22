@@ -8,7 +8,7 @@ import { COMPOSER_NAME } from '../helpers/composerName';
 import { createRoom } from '../helpers/createRoom';
 import { DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
 import { launchDesktop } from '../helpers/electronApp';
-import { loginToMatrix } from '../helpers/matrix';
+import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 
 const APP_ORIGIN = 'capacitor://localhost';
 
@@ -37,8 +37,8 @@ const startProbeServer = async () => {
   const server = http.createServer((req, res) => {
     const cors = {
       'Access-Control-Allow-Origin': req.headers.origin ?? '*',
-      'Access-Control-Allow-Headers': 'Authorization',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     };
     if (req.method === 'OPTIONS') {
       res.writeHead(204, cors);
@@ -52,7 +52,30 @@ const startProbeServer = async () => {
       res.end(JSON.stringify({ ok: true }));
       return;
     }
-    res.writeHead(404);
+    if (req.url === '/_matrix/client/versions') {
+      res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ versions: ['v1.11'] }));
+      return;
+    }
+    if (req.url === '/_matrix/client/v3/keys/query') {
+      sockets.add(req.socket);
+      return;
+    }
+    if (req.url === '/_matrix/client/v3/login') {
+      res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          flows: [
+            {
+              type: 'm.login.sso',
+              identity_providers: [{ id: 'apple', name: 'Apple', brand: 'apple' }],
+            },
+          ],
+        })
+      );
+      return;
+    }
+    res.writeHead(404, cors);
     res.end();
   });
 
@@ -337,8 +360,9 @@ test.describe('Electron desktop shell', () => {
     }
   });
 
-  test('applies 28px titlebar inset, 0 in fullscreen, and keeps overlays in the strip clickable', async () => {
-    const session = await launchDesktop({ offline: true });
+  test('applies 28px titlebar inset, 0 in fullscreen, and keeps real Dialog and PopOut overlays no-drag and clickable', async () => {
+    const probe = await startProbeServer();
+    const session = await launchDesktop();
     try {
       const { app, page } = session;
       await expect(page.locator('input[name="serverInput"]')).toBeVisible();
@@ -349,49 +373,64 @@ test.describe('Electron desktop shell', () => {
         return {
           paddingTop: root ? getComputedStyle(root).paddingTop : null,
           dragHeight: drag ? getComputedStyle(drag).height : null,
+          dragRegion: drag ? getComputedStyle(drag).getPropertyValue('-webkit-app-region') : null,
         };
       });
-      expect(layout).toEqual({ paddingTop: '28px', dragHeight: '28px' });
+      expect(layout).toEqual({ paddingTop: '28px', dragHeight: '28px', dragRegion: 'drag' });
 
-      // Dialog inside #portalContainer and PopOut menu in body overlapping the 28px strip.
-      await page.evaluate(() => {
-        const counts = { dialog: 0, menu: 0 };
-        (window as unknown as { __stripClicks?: typeof counts }).__stripClicks = counts;
-
-        const dialogBtn = document.createElement('button');
-        dialogBtn.id = 'e2e-strip-dialog-btn';
-        dialogBtn.type = 'button';
-        dialogBtn.textContent = 'Dialog';
-        dialogBtn.style.cssText = 'position:fixed;top:4px;left:140px;height:20px;z-index:9999;';
-        dialogBtn.addEventListener('click', () => {
-          counts.dialog += 1;
-        });
-        const dialog = document.createElement('div');
-        dialog.setAttribute('role', 'dialog');
-        dialog.append(dialogBtn);
-        document.getElementById('portalContainer')?.append(dialog);
-
-        const menuBtn = document.createElement('button');
-        menuBtn.id = 'e2e-strip-menu-btn';
-        menuBtn.type = 'button';
-        menuBtn.textContent = 'Menu';
-        menuBtn.style.cssText = 'position:fixed;top:4px;left:240px;height:20px;z-index:9999;';
-        menuBtn.addEventListener('click', () => {
-          counts.menu += 1;
-        });
-        const menu = document.createElement('div');
-        menu.setAttribute('role', 'menu');
-        menu.append(menuBtn);
-        document.body.append(menu);
-      });
-
-      await page.locator('#e2e-strip-dialog-btn').click();
-      await page.locator('#e2e-strip-menu-btn').click();
-      const clicks = await page.evaluate(
-        () =>
-          (window as unknown as { __stripClicks?: { dialog: number; menu: number } }).__stripClicks
+      // Real ModalLayer/Dialog: navigate to an unlisted local server so UnlistedServerCheck opens.
+      await page.goto(
+        `${APP_ORIGIN}/login/${encodeURIComponent(`http://127.0.0.1:${probe.port}`)}`
       );
-      expect(clicks).toEqual({ dialog: 1, menu: 1 });
+      await page.getByRole('button', { name: /apple/i }).click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toBeVisible();
+      const cancelBtn = dialog.getByRole('button', { name: /cancel/i });
+      await expect(cancelBtn).toBeVisible();
+      expect(
+        await cancelBtn.evaluate((el) =>
+          getComputedStyle(el).getPropertyValue('-webkit-app-region')
+        )
+      ).toBe('no-drag');
+      await cancelBtn.click();
+      await expect(dialog).toHaveCount(0);
+
+      // Real PopOut Menu: seed a session against the local stub so ClientRoot renders StartupRecoveryMenu.
+      await page.evaluate((port: number) => {
+        const baseUrl = `http://127.0.0.1:${port}`;
+        const sessionId = `${baseUrl}|@e2e:localhost`;
+        localStorage.setItem(
+          'mindroom_multi_account_store',
+          JSON.stringify({
+            version: 1,
+            activeSessionId: sessionId,
+            sessions: [
+              {
+                sessionId,
+                baseUrl,
+                userId: '@e2e:localhost',
+                deviceId: 'E2EDEVICE',
+                accessToken: 'fake-token',
+                lastUsedAt: Date.now(),
+              },
+            ],
+          })
+        );
+      }, probe.port);
+      await page.goto(`${APP_ORIGIN}/home`);
+      const recoveryTrigger = page.getByRole('button', { name: /startup recovery options/i });
+      await expect(recoveryTrigger).toBeVisible();
+      await recoveryTrigger.click();
+
+      const removeItem = page.getByRole('menuitem', { name: /remove account/i });
+      await expect(removeItem).toBeVisible();
+      expect(
+        await removeItem.evaluate((el) =>
+          getComputedStyle(el).getPropertyValue('-webkit-app-region')
+        )
+      ).toBe('no-drag');
+      await removeItem.click();
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
 
       // Fullscreen toggles --app-inset-top to 0px via enter-full-screen / leave-full-screen.
       await app.evaluate(({ BrowserWindow }) => {
@@ -426,6 +465,7 @@ test.describe('Electron desktop shell', () => {
         .toBe('28px');
     } finally {
       await session.close();
+      await probe.close();
     }
   });
 
@@ -486,61 +526,104 @@ test.describe('Electron desktop shell', () => {
     }
   });
 
-  test('@homeserver signs in with password, sends and decrypts a message in an encrypted room', async () => {
+  test('@homeserver signs in with password, encrypts messages, decrypts on second account and after reload, and reaches LAN homeserver', async () => {
     const homeserver = process.env.E2E_HOMESERVER_URL ?? DISPOSABLE_HOMESERVER;
     const lanHomeserver = process.env.E2E_LAN_HOMESERVER_URL;
+    expect(
+      lanHomeserver,
+      'E2E_LAN_HOMESERVER_URL must be set for the @homeserver desktop run'
+    ).toBeTruthy();
+
     const suffix = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const username = `desktop_${suffix}`;
-    const password = `Pass_${crypto.randomBytes(8).toString('hex')}`;
+    const registerUser = async (prefix: string) => {
+      const username = `desktop_${prefix}_${suffix}`;
+      const password = `Pass_${crypto.randomBytes(8).toString('hex')}`;
+      const reg = await fetch(`${homeserver}/_matrix/client/v3/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          auth: { type: 'm.login.dummy' },
+          inhibit_login: true,
+        }),
+      });
+      expect(reg.ok, `registering ${username} on ${homeserver} (${reg.status})`).toBe(true);
+      const apiSession = await loginToMatrix(homeserver, username, password);
+      return { ...apiSession, username, password };
+    };
 
-    const reg = await fetch(`${homeserver}/_matrix/client/v3/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        auth: { type: 'm.login.dummy' },
-        inhibit_login: true,
-      }),
-    });
-    expect(reg.ok, `registering ${username} on ${homeserver} (${reg.status})`).toBe(true);
-
-    const apiSession = await loginToMatrix(homeserver, username, password);
-    const roomName = `Desktop E2EE ${suffix}`;
-    const roomId = await createRoom(homeserver, apiSession.accessToken, {
-      name: roomName,
+    const alice = await registerUser('a');
+    const bob = await registerUser('b');
+    const roomId = await createRoom(homeserver, alice.accessToken, {
+      name: `Desktop E2EE ${suffix}`,
       encrypted: true,
+      invite: [bob.userId],
     });
+    await joinRoom(homeserver, bob.accessToken, roomId);
     const messageText = `Encrypted desktop check ${suffix}`;
 
-    const session = await launchDesktop();
+    const bobSession = await launchDesktop();
+    const aliceSession = await launchDesktop();
     try {
-      const { page } = session;
-      await loginWithPassword(page, { homeserver, username, password });
+      // Sign Bob in first so his device keys are published before Alice encrypts.
+      await loginWithPassword(bobSession.page, {
+        homeserver,
+        username: bob.username,
+        password: bob.password,
+        baseUrl: APP_ORIGIN,
+      });
+      await loginWithPassword(aliceSession.page, {
+        homeserver,
+        username: alice.username,
+        password: alice.password,
+        baseUrl: APP_ORIGIN,
+      });
 
-      await page.goto(`${APP_ORIGIN}/home/${encodeURIComponent(roomId)}`);
-      const composer = page.getByRole('textbox', { name: COMPOSER_NAME }).first();
+      const roomUrl = `${APP_ORIGIN}/home/${encodeURIComponent(roomId)}`;
+      await aliceSession.page.goto(roomUrl);
+      const composer = aliceSession.page.getByRole('textbox', { name: COMPOSER_NAME }).first();
       await expect(composer).toBeVisible({ timeout: 20_000 });
       await composer.click();
-      await page.keyboard.type(messageText);
-      await page.keyboard.press('Enter');
-      await expect(page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await aliceSession.page.keyboard.type(messageText);
+      await aliceSession.page.keyboard.press('Enter');
+      await expect(aliceSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
 
-      // Reload the desktop window and verify the encrypted message still decrypts from persistent crypto storage.
-      await page.reload();
-      await waitForLoggedInShell(page);
-      await expect(page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByText(/Unable to decrypt/i)).toHaveCount(0);
+      // Assert the homeserver stored ciphertext (m.room.encrypted) and not plaintext.
+      await expect
+        .poll(async () => {
+          const { chunk } = await matrixFetch<{
+            chunk: Array<{ type: string; content?: { body?: string } }>;
+          }>(homeserver, `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=20`, {
+            accessToken: alice.accessToken,
+          });
+          return {
+            hasEncrypted: chunk.some((ev) => ev.type === 'm.room.encrypted'),
+            hasPlaintext: chunk.some((ev) => ev.content?.body === messageText),
+          };
+        })
+        .toEqual({ hasEncrypted: true, hasPlaintext: false });
 
-      if (lanHomeserver) {
-        const lanOk = await page.evaluate(async (url: string) => {
-          const res = await fetch(`${url}/_matrix/client/versions`);
-          return res.ok;
-        }, lanHomeserver);
-        expect(lanOk).toBe(true);
-      }
+      // Assert the second account in its own profile decrypts the unique plaintext.
+      await bobSession.page.goto(roomUrl);
+      await expect(bobSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await expect(bobSession.page.getByText(/Unable to decrypt/i)).toHaveCount(0);
+
+      // Reload Alice and verify the encrypted message still decrypts from persistent crypto storage.
+      await aliceSession.page.reload();
+      await waitForLoggedInShell(aliceSession.page);
+      await expect(aliceSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await expect(aliceSession.page.getByText(/Unable to decrypt/i)).toHaveCount(0);
+
+      // Probe the homeserver on the LAN address (must be set and reachable).
+      const lanOk = await aliceSession.page.evaluate(async (url: string) => {
+        const res = await fetch(`${url}/_matrix/client/versions`);
+        return res.ok;
+      }, lanHomeserver!);
+      expect(lanOk).toBe(true);
     } finally {
-      await session.close();
+      await aliceSession.close();
+      await bobSession.close();
     }
   });
 });

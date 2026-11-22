@@ -202,6 +202,7 @@ describe('bundleProtocol', () => {
         ).toEqual(framingHeaders(unframeable.split('?')[0] ?? unframeable));
       }
 
+      expect(isFramePage('/PDF-FRAME.HTML')).toBe(false);
       const upperCaseFrame = await handler(new Request(`${APP_ORIGIN}/PDF-FRAME.HTML`));
       expect(upperCaseFrame.status).toBe(200);
       expect(await upperCaseFrame.text()).toContain('<title>app</title>');
@@ -216,22 +217,46 @@ describe('bundleProtocol', () => {
       expect(await normalizedEscape.text()).not.toContain('TOP_SECRET');
 
       const symlink = await handler(new Request(`${APP_ORIGIN}/leak.txt`));
+      expect(symlink.status).toBe(404);
       expect(await symlink.text()).not.toContain('TOP_SECRET');
     });
 
-    it('returns 404 when dist/index.html is a symlink outside dist', async () => {
+    it('checks files on each request: symlink swap, removal, and newly added hashed files', async () => {
       const parent = makeDist({
         'secret.txt': 'TOP_SECRET',
+        'dist/index.html': '<!doctype html><title>app</title>',
         'dist/assets/app.js': 'console.log(1);',
       });
       const distDir = path.join(parent, 'dist');
-      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'index.html'));
 
       serveBundle(distDir);
       const handler = protocolMock.handle.mock.calls[0]?.[1] as (
         request: Request
       ) => Promise<Response>;
 
+      expect((await handler(new Request(`${APP_ORIGIN}/assets/app.js`))).status).toBe(200);
+
+      // File swapped to a symlink after start -> 404.
+      fs.rmSync(path.join(distDir, 'assets/app.js'));
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'assets/app.js'));
+      const swapped = await handler(new Request(`${APP_ORIGIN}/assets/app.js`));
+      expect(swapped.status).toBe(404);
+      expect(await swapped.text()).not.toContain('TOP_SECRET');
+
+      // File removed after start -> 404 (no throw).
+      fs.rmSync(path.join(distDir, 'assets/app.js'));
+      const removed = await handler(new Request(`${APP_ORIGIN}/assets/app.js`));
+      expect(removed.status).toBe(404);
+
+      // New hashed file added after start -> served.
+      fs.writeFileSync(path.join(distDir, 'assets/app-abc123.js'), 'console.log("new");', 'utf8');
+      const added = await handler(new Request(`${APP_ORIGIN}/assets/app-abc123.js`));
+      expect(added.status).toBe(200);
+      expect(await added.text()).toBe('console.log("new");');
+
+      // index.html swapped to symlink after start -> 404 on SPA fallback too.
+      fs.rmSync(path.join(distDir, 'index.html'));
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'index.html'));
       for (const route of ['/', '/home', '/index.html']) {
         const res = await handler(new Request(`${APP_ORIGIN}${route}`));
         expect(res.status, route).toBe(404);

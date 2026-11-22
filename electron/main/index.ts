@@ -2,7 +2,7 @@ import path from 'node:path';
 import { app, session } from 'electron';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
-import { guardSession } from './security';
+import { guardSession, setBlockedUrlRecorder } from './security';
 
 registerBundleScheme();
 
@@ -21,8 +21,10 @@ const distDir =
 const telemetry = isTest
   ? { blockedUrls: [] as string[], networkPermissions: [] as string[] }
   : undefined;
-if (telemetry) Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
-const onBlockedUrl = telemetry ? (url: string) => telemetry.blockedUrls.push(url) : undefined;
+if (telemetry) {
+  Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
+  setBlockedUrlRecorder((url) => telemetry.blockedUrls.push(url));
+}
 
 void app.whenReady().then(() => {
   if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
@@ -34,10 +36,10 @@ void app.whenReady().then(() => {
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
-  showMainWindow(onBlockedUrl);
+  showMainWindow();
 });
 
-app.on('activate', () => showMainWindow(onBlockedUrl));
+app.on('activate', () => showMainWindow());
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

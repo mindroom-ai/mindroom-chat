@@ -9,7 +9,7 @@ let mainWindow: BrowserWindow | undefined;
 export const getMainWindow = (): BrowserWindow | undefined =>
   mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
 
-export const showMainWindow = (onBlockedUrl?: (url: string) => void): BrowserWindow => {
+export const showMainWindow = (): BrowserWindow => {
   const existing = getMainWindow();
   if (existing) {
     existing.show();
@@ -35,7 +35,7 @@ export const showMainWindow = (onBlockedUrl?: (url: string) => void): BrowserWin
     },
   });
   mainWindow = win;
-  guardWebContents(win.webContents, onBlockedUrl);
+  guardWebContents(win.webContents);
   win.once('ready-to-show', () => {
     if (!win.isDestroyed()) win.show();
   });
@@ -46,26 +46,17 @@ export const showMainWindow = (onBlockedUrl?: (url: string) => void): BrowserWin
   };
   win.on('enter-full-screen', () => sendFullscreen(true));
   win.on('leave-full-screen', () => sendFullscreen(false));
+  win.webContents.on('did-finish-load', () => sendFullscreen(win.isFullScreen()));
 
-  let reloadedAfterCrash = false;
-  let crashResetTimer: ReturnType<typeof setTimeout> | undefined;
-  win.webContents.on('did-finish-load', () => {
-    sendFullscreen(win.isFullScreen());
-    clearTimeout(crashResetTimer);
-    if (reloadedAfterCrash) {
-      crashResetTimer = setTimeout(() => {
-        reloadedAfterCrash = false;
-      }, CRASH_RESET_MS);
-    }
-  });
+  let lastCrashReloadAt = 0;
   win.webContents.on('render-process-gone', (_event, details) => {
-    clearTimeout(crashResetTimer);
-    if (details.reason === 'clean-exit' || reloadedAfterCrash || win.isDestroyed()) return;
-    reloadedAfterCrash = true;
+    if (details.reason === 'clean-exit' || win.isDestroyed()) return;
+    const now = Date.now();
+    if (now - lastCrashReloadAt <= CRASH_RESET_MS) return;
+    lastCrashReloadAt = now;
     win.webContents.reload();
   });
   win.on('closed', () => {
-    clearTimeout(crashResetTimer);
     if (mainWindow === win) mainWindow = undefined;
   });
   void win.loadURL(`${APP_ORIGIN}/`);

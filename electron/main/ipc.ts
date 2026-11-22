@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { APP_ORIGIN, isFramePage, parseAppUrl } from './bundleProtocol';
+import { APP_ORIGIN, isAllowedAppPage } from './bundleProtocol';
 
 export type Result<T> = { ok: true; value: T } | { ok: false; code: string };
 
@@ -9,9 +9,12 @@ export const isAuthorized = (
 ): boolean => {
   if (event.sender !== owner || owner.isDestroyed()) return false;
   const frame = event.senderFrame;
-  if (!frame || frame !== owner.mainFrame || frame.origin !== APP_ORIGIN) return false;
-  const parsed = parseAppUrl(frame.url);
-  return parsed !== undefined && !isFramePage(parsed.pathname);
+  return (
+    frame !== null &&
+    frame === owner.mainFrame &&
+    frame.origin === APP_ORIGIN &&
+    isAllowedAppPage(frame.url)
+  );
 };
 
 export const handle = <A, T>(
@@ -21,7 +24,13 @@ export const handle = <A, T>(
   run: (args: A, sender: Electron.WebContents) => Promise<Result<T>>
 ): void => {
   ipcMain.handle(channel, async (event, ...args): Promise<Result<T>> => {
-    const owner = owners().find((candidate) => isAuthorized(event, candidate));
+    let candidates: readonly Electron.WebContents[];
+    try {
+      candidates = owners();
+    } catch {
+      return { ok: false, code: 'FORBIDDEN' };
+    }
+    const owner = candidates.find((candidate) => isAuthorized(event, candidate));
     if (!owner) return { ok: false, code: 'FORBIDDEN' };
     let parsed: A | undefined;
     try {

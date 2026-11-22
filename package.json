@@ -24,7 +24,7 @@
     "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs electron playwright.electron.config.ts",
     "postinstall": "patch-package --error-on-fail",
     "build:desktop": "npm run build:ios && node electron/build.mjs",
-    "desktop": "node electron/build.mjs && electron .",
+    "desktop": "electron .",
     "e2e:desktop": "playwright test -c playwright.electron.config.ts"
   },
   "dependencies": {
