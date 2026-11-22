@@ -51,6 +51,7 @@ export function useCompactBlocks(options: Options) {
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
+      endSlot: undefined as number | undefined,
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as (() => boolean) | undefined,
       wake: undefined as (() => void) | undefined,
@@ -115,6 +116,12 @@ export function useCompactBlocks(options: Options) {
     missing >= 0 || reader[0]! > 0
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
+  // End's destination is the last screen: the blocks that fill it, by the heights there are.
+  let endSlot = state.end ? blocks.length : undefined;
+  for (let room = scrollRef.current?.clientHeight ?? 0; endSlot && room > 0; ) {
+    endSlot -= 1;
+    for (const id of blocks[endSlot]!) room -= (heights.get(id) ?? 0) + gap;
+  }
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   const retained = new Set([focused, protectedId, state.gesture?.id]);
   const projectedIds: string[] = [];
@@ -128,10 +135,8 @@ export function useCompactBlocks(options: Options) {
         slot === probe ||
         near(slot, reader) ||
         near(slot, goal) ||
-        near(slot, [
-          targetReady ? targetSlot : undefined,
-          state.end ? blocks.length - 1 : undefined,
-        ]);
+        near(slot, [targetReady ? targetSlot : undefined]) ||
+        (endSlot !== undefined && slot >= endSlot - BUFFER_BLOCKS);
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
         if (inBand || retained.has(id)) {
@@ -217,6 +222,7 @@ export function useCompactBlocks(options: Options) {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;
     mounted.current = liveIds;
+    state.endSlot = endSlot;
     if (records && !indexPending)
       for (const id of heights.keys())
         if (!records.has(id) && !index.has(id)) {
@@ -286,13 +292,17 @@ export function useCompactBlocks(options: Options) {
     if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
     if (back && !placeReady && state.reachable === order) render();
   });
-  // The scrollbar's End reads the extent once the end band is mounted and measured: cached
-  // heights that a width or font change left stale are not the list's end. Not for an extent
-  // still being discovered: there a render grows it, and End goes to the end there is.
+  // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
+  // heights that a width or font change left stale are not the list's end. It renders until
+  // the measured heights ask for no more blocks. Not for an extent still being discovered:
+  // there a render grows it, and End goes to the end there is.
   const prepareEnd = useMemo(
     () => () => {
       state.end = true;
-      flushSync(render);
+      for (let from = -1; from !== state.endSlot; ) {
+        from = state.endSlot ?? -1;
+        flushSync(render);
+      }
     },
     [state]
   );

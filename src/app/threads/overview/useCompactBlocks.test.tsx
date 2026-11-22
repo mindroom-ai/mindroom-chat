@@ -57,7 +57,7 @@ function List({
       data-ready={window.placeReady}
     >
       <div ref={contentRef} style={{ rowGap: gap, fontSize }}>
-        {window.rows[0]?.map((row) =>
+        {window.rows.flat().map((row) =>
           typeof row === 'string' ? (
             <button key={row} type="button" data-scroll-anchor={row}>
               {row}
@@ -497,6 +497,48 @@ it('mounts the end with its real heights before the scrollbar End reads the exte
   // The reader's own scroll lets the end go again.
   move(20 * 199.25 + 1);
   expect(view.querySelector('[data-scroll-anchor="$row95"]')).toBeNull();
+});
+
+it('mounts the whole last screen before End when the last sections are short', () => {
+  let prepareEnd = () => {};
+  // A long section, then two of one card each: the last screen is mostly the long one's tail.
+  const shown = { working: ids.slice(0, 94), later: ids.slice(94, 95), done: ids.slice(95) };
+  const { container } = render(
+    <List
+      memory={new Map()}
+      shown={shown}
+      onEnd={(prepare) => {
+        prepareEnd = prepare;
+      }}
+    />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(14);
+  act(() => {
+    view.scrollTop = 20 * 199.25;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  width = 320;
+  resize();
+  tick(2);
+  act(() => prepareEnd());
+  const mounted = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
+    (row) => row.dataset.scrollAnchor
+  );
+  // The long section's last block fills the screen, and the block before it is the buffer.
+  expect(mounted.slice(-24)).toEqual(ids.slice(72));
+  // The end is real, so the scroll to it mounts nothing more.
+  const extent = () =>
+    [...view.querySelectorAll<HTMLElement>('[data-view] > div > *')].reduce(
+      (sum, row) => sum + getHeight(row) + gap,
+      -gap
+    );
+  const prepared = extent();
+  act(() => {
+    view.scrollTop = prepared - clientHeight;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  expect(extent()).toBe(prepared);
 });
 
 it('keeps the stationary visible cards when the first jumps to the top', () => {
