@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent,
 } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
@@ -350,7 +351,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
                 variant="Secondary"
                 fill="None"
                 radii="300"
-                onClick={(event) => appendPage(event.detail === 0)}
+                onClick={(event: MouseEvent<HTMLButtonElement>) => appendPage(event.detail === 0)}
               >
                 <Text size="B300">{t('threadsPage.showMore')}</Text>
               </Button>
