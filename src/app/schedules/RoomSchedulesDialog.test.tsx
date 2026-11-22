@@ -524,7 +524,7 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     try {
       const copyBtn = findButtonByText(host, 'Copy ID')!;
       await click(copyBtn);
-      expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
+      expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42', copyBtn);
       expect(copyBtn.textContent?.trim()).toBe('Copy ID');
       const liveRegion = host.querySelector('span[role="status"][aria-live="polite"]');
       expect(liveRegion?.className).toBe('copied-status');
@@ -1529,6 +1529,45 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       expect(document.activeElement).toBe(toggles()[1]);
     } finally {
       mount9.unmount();
+    }
+
+    // Case 10: late webfont load increases scrollHeight without resizing clientHeight -> reveals "Show full prompt".
+    let resolveFonts: (() => void) | undefined;
+    const originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts');
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          resolveFonts = resolve;
+        }),
+      },
+    });
+    const mount10 = mountDialog({
+      ...base,
+      tasks: [
+        makeTask({
+          taskId: 'late-font',
+          message: 'Medium prompt text that wraps after font load.',
+        }),
+      ],
+    });
+    try {
+      const p = mount10.host.querySelector<HTMLParagraphElement>('article p')!;
+      let scrollHeight = 60;
+      Object.defineProperty(p, 'clientHeight', { configurable: true, get: () => 60 });
+      Object.defineProperty(p, 'scrollHeight', { configurable: true, get: () => scrollHeight });
+      expect(findButtonByText(mount10.host, 'Show full prompt')).toBeUndefined();
+
+      scrollHeight = 90;
+      await act(async () => {
+        resolveFonts?.();
+        await Promise.resolve();
+      });
+      expect(findButtonByText(mount10.host, 'Show full prompt')).toBeDefined();
+    } finally {
+      mount10.unmount();
+      if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts);
+      else Reflect.deleteProperty(document, 'fonts');
     }
   });
 });

@@ -30,11 +30,14 @@ const copyWithBrowserClipboard = async (text: string): Promise<boolean> => {
 };
 
 // The pre-Clipboard API way: select the text in a hidden field and run the copy command.
-const copyWithSelection = (text: string): boolean => {
+const copyWithSelection = (text: string, container?: Element | null): boolean => {
   if (typeof document === 'undefined' || !document.body) return false;
   const previouslyFocused =
     document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const mountTarget = previouslyFocused?.closest('[role="dialog"]') ?? document.body;
+  const mountTarget =
+    container?.closest('[role="dialog"]') ??
+    previouslyFocused?.closest('[role="dialog"]') ??
+    document.body;
   const input = document.createElement('input');
   input.setAttribute('data-clipboard-fallback', '');
   input.setAttribute('aria-hidden', 'true');
@@ -66,10 +69,13 @@ const copyWithSelection = (text: string): boolean => {
 };
 
 /** Copies text with the first clipboard that works: native, browser, then the copy command. */
-export const copyToClipboard = async (text: string): Promise<boolean> => {
+export const copyToClipboard = async (
+  text: string,
+  container?: Element | null
+): Promise<boolean> => {
   if (await copyWithNativeClipboard(text)) return true;
   if (await copyWithBrowserClipboard(text)) return true;
-  return copyWithSelection(text);
+  return copyWithSelection(text, container);
 };
 
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);

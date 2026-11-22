@@ -1,6 +1,7 @@
 import {
   type FocusEvent,
   Fragment,
+  type MouseEvent,
   type ReactNode,
   forwardRef,
   useCallback,
@@ -170,10 +171,17 @@ function ScheduleAccordionItem({
       }
     };
     measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) measure();
+    });
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(el);
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+    };
   }, [open, promptExpanded, promptText]);
 
   useEffect(() => {
@@ -312,8 +320,8 @@ function ScheduleAccordionItem({
     setCopyFailed(false);
   };
 
-  const handleCopyId = async () => {
-    const ok = await copyToClipboard(task.taskId);
+  const handleCopyId = async (trigger?: Element | null) => {
+    const ok = await copyToClipboard(task.taskId, trigger);
     if (!mountedRef.current) return;
     if (ok) {
       clearCopyFailed();
@@ -528,7 +536,9 @@ function ScheduleAccordionItem({
                 fill="None"
                 radii="300"
                 className={css.CompactAction}
-                onClick={() => void handleCopyId()}
+                onClick={(event: MouseEvent<HTMLButtonElement>) =>
+                  void handleCopyId(event.currentTarget)
+                }
               >
                 {copied ? <Icon size="100" src={Icons.Check} /> : <CopyIcon />}
                 <Text size="T200">{t('roomSchedules.copyId')}</Text>

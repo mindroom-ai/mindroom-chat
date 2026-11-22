@@ -198,4 +198,38 @@ describe('copyToClipboard', () => {
       dialog.remove();
     }
   });
+
+  it('mounts the fallback inside the clicked trigger dialog even when activeElement is body', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const button = document.createElement('button');
+    button.textContent = 'Copy ID';
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    // Simulate Safari click leaving focus on document.body.
+    expect(document.activeElement).toBe(document.body);
+
+    let inputParent: Node | null = null;
+    const execCommand = vi.fn(() => {
+      const input = document.querySelector<HTMLInputElement>('input[data-clipboard-fallback]');
+      inputParent = input?.parentNode ?? null;
+      return true;
+    });
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      await expect(copyToClipboard('task-safari', button)).resolves.toBe(true);
+      expect(inputParent).toBe(dialog);
+      expect(execCommand).toHaveBeenCalledWith('copy');
+    } finally {
+      dialog.remove();
+    }
+  });
 });
