@@ -720,8 +720,8 @@ final class ThreadSnapshotTests: XCTestCase {
         let reaction = event("$reaction", 14, sender: me, type: "m.reaction", ["m.relates_to": ["rel_type": "m.annotation", "event_id": "$reply", "key": "👍"] as JSON])
         let related = [placeholder, written, reply] + parts + [foreign, locked, card("$card", 11)] + cardEdits + [reaction]
         let kept = try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, related)))
-        XCTAssertEqual(kept.related.compactMap { $0["event_id"] as? String },
-                       ["$echo", "$written", "$reply", "$part3", "$foreign", "$card", "$card0", "$card1", "$reaction"])
+        XCTAssertEqual(kept.related.compactMap { $0["event_id"] as? String }.sorted(),
+                       ["$card", "$card0", "$card1", "$echo", "$part3", "$reaction", "$reply", "$written"])
         for trusted in [[], [agent]] as [Set<String>] {
             let whole = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now, trustedAccounts: trusted)
             XCTAssertEqual(ThreadSnapshot.build(root: kept.root, related: kept.related, ownUserId: me, now: now, trustedAccounts: trusted), whole)

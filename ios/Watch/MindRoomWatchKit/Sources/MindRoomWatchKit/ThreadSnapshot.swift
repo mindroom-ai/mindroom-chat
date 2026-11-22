@@ -82,16 +82,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
             }
         }
         messages.sort { $0.timestamp < $1.timestamp }
-        // As the Matrix spec and the web client: only the sender's own edits replace a message, and the
-        // newest one that can be read (an edit that does not decrypt has no new content).
-        var senders: [String: String] = [:]
-        for event in [root] + messages { if let id = event.eventId { senders[id] = event["sender"] as? String } }
-        var latestEdits: [String: JSON] = [:]
-        for event in edits {
-            guard let target = event.replacedEventId, let sender = senders[target], sender == event["sender"] as? String,
-                  event.newContent != nil else { continue }
-            if (latestEdits[target]?.timestamp ?? -1) < event.timestamp { latestEdits[target] = event }
-        }
+        let latestEdits = shownEdits(of: [root] + messages, among: edits)
         let cardEdits = edits.filter { $0["type"] as? String == ApprovalCard.eventType }
         let edit = { (event: JSON) in latestEdits[event.eventId ?? ""] }
         // An edit replaces the whole content, what kind of message it is included (one that names no kind keeps it).
@@ -119,7 +110,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
         var transcripts: [String: String] = [:]
         var hiddenEchoIds = Set<String>()
         for message in messages {
-            guard let id = message.eventId,
+            // A message only: an approval card with an echo's marks stays a card.
+            guard let id = message.eventId, message["type"] as? String == "m.room.message",
                   let sender = message["sender"] as? String, trustedAccounts.contains(sender),
                   message.content["io.mindroom.thread_summary"] == nil,
                   let echo = VoiceEcho.transcript(message, latestEdit: edit(message)),
@@ -235,20 +227,41 @@ public typealias ThreadEvents = (root: JSON, related: [JSON])
 
 extension ThreadSnapshot {
     /// What to keep of a thread's events to build it again when the room's trust changes. Nothing when no
-    /// message is marked as a voice echo: no trust changes such a thread. Else the events without the edits
-    /// `build` does not read: those a newer edit by the same sender replaced (a streamed reply has one for
-    /// each step, with all of the text so far) and those that cannot be read. A card's edits all stay.
+    /// message is marked as a voice echo: no trust changes such a thread. Else the events with, of each
+    /// message's edits, only the one `build` shows (`shownEdits`; a streamed reply has an edit for each step,
+    /// with all of the text so far). A card's edits all stay: a card reads each of them.
     public static func kept(_ events: ThreadEvents) -> ThreadEvents? {
-        guard events.related.contains(where: { jsonBool($0.content[VoiceEcho.flag]) == true }) else { return nil }
-        let isCard = { (event: JSON) in event["type"] as? String == ApprovalCard.eventType }
-        let key = { (edit: JSON) in "\(edit.replacedEventId ?? "") \(edit["sender"] as? String ?? "")" }
-        var newest: [String: JSON] = [:]
-        for edit in events.related where !isCard(edit) && edit.replacedEventId != nil && edit.newContent != nil {
-            if (newest[key(edit)]?.timestamp ?? -1) < edit.timestamp { newest[key(edit)] = edit }
+        guard events.related.contains(where: {
+            $0["type"] as? String == "m.room.message" && jsonBool($0.content[VoiceEcho.flag]) == true
+        }) else { return nil }
+        let isEdit = { (event: JSON) in event.replacedEventId != nil && event["type"] as? String != ApprovalCard.eventType }
+        let others = events.related.filter { !isEdit($0) }
+        return (events.root, others + shownEdits(of: [events.root] + others, among: events.related.filter(isEdit)).values)
+    }
+}
+
+/// The edit each of `events` shows, by the event's id. As the Matrix spec and the web client: the newest edit by
+/// the event's own sender that can be read (one that does not decrypt has no new content), by its time and then
+/// by the greater event id (`isEventOrderedAfter`). What it does not say of a voice echo's marks, in its new
+/// content or beside it, is taken from that sender's older edits, newest first (`getEditedEvent`).
+func shownEdits(of events: [JSON], among edits: [JSON]) -> [String: JSON] {
+    var senders: [String: String] = [:]
+    for event in events { if let id = event.eventId { senders[id] = event["sender"] as? String } }
+    var own: [String: [JSON]] = [:]
+    for edit in edits {
+        guard let target = edit.replacedEventId, let sender = senders[target], sender == edit["sender"] as? String,
+              edit.newContent != nil else { continue }
+        own[target, default: []].append(edit)
+    }
+    return own.mapValues { edits in
+        let newestFirst = edits.sorted { ($0.timestamp, $0.eventId ?? "") > ($1.timestamp, $1.eventId ?? "") }
+        var shown = newestFirst[0], content = shown.content, newContent = shown.newContent ?? [:]
+        for mark in VoiceEcho.marks where newContent[mark] == nil && content[mark] == nil {
+            newContent[mark] = newestFirst.dropFirst().lazy.compactMap { $0.newContent?[mark] ?? $0.content[mark] }.first
         }
-        return (events.root, events.related.filter { event in
-            isCard(event) || event.replacedEventId == nil || newest[key(event)]?.eventId == event.eventId
-        })
+        content["m.new_content"] = newContent
+        shown["content"] = content
+        return shown
     }
 }
 

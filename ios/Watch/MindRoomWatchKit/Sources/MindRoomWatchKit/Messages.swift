@@ -90,6 +90,10 @@ public enum AudioCaption {
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
     static let flag = "com.mindroom.visible_router_voice_echo"
+    private static let source = "com.mindroom.voice_source_event_id"
+    private static let fallback = "com.mindroom.voice_raw_audio_fallback"
+    /// What an echo says of itself: read across its sender's edits (`shownEdits`).
+    static let marks = [flag, source, fallback]
 
     /// As the web client's `planVoiceTranscripts`: the first version and the one shown carry the flag, and the
     /// one shown is not the raw-audio fallback, holds all of the text (no preview of a long text) and names
@@ -101,10 +105,10 @@ public enum VoiceEcho {
         let beside = latestEdit?.newContent == nil ? nil : latestEdit?.content
         let shown = { (key: String) in content[key] ?? beside?[key] }
         guard jsonBool(event.content[flag]) == true, jsonBool(shown(flag)) == true,
-              jsonBool(shown("com.mindroom.voice_raw_audio_fallback")) != true,
+              jsonBool(shown(fallback)) != true,
               !(content["io.mindroom.long_text"] is JSON) else { return nil }
         let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
-        guard let voiceId = nonEmpty(shown("com.mindroom.voice_source_event_id"))
+        guard let voiceId = nonEmpty(shown(source))
             ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
         let body = content["body"] as? String
         return (voiceId, body == placeholder ? nil : body)
