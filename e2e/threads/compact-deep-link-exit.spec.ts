@@ -207,8 +207,6 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
     let worst = { drift: 0, frame: -1, id: '', delta: 0 };
     for (let frame = 0; frame <= frames; frame += 1) {
       if (frame < frames) {
-        // Reader input with exact steps. The browser still dispatches the real scroll events.
-        scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY }));
         scroller.scrollTop += deltaY;
       }
       // eslint-disable-next-line no-await-in-loop

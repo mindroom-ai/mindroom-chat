@@ -81,10 +81,7 @@ const settledCardLayout = (page: Page): Promise<CardLayout> =>
 const scrollOverviewTo = (page: Page, scrollTop: number) =>
   page.evaluate(
     ([selector, top]) => {
-      const view = document.querySelector<HTMLElement>(selector)!;
-      // Model the reader taking control before advancing to an exact pixel offset.
-      view.dispatchEvent(new WheelEvent('wheel', { deltaY: top - view.scrollTop }));
-      view.scrollTop = top;
+      document.querySelector<HTMLElement>(selector)!.scrollTop = top;
     },
     [COMPACT_VIEW, scrollTop] as const
   );

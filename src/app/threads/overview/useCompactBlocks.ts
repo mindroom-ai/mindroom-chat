@@ -46,18 +46,20 @@ type Options = {
 export function useCompactBlocks(options: Options) {
   const { groups, memory, roomId, target, records, indexPending } = options;
   const { scrollRef, contentRef, protectedId } = options;
-  const state = useMemo(
-    () => ({
-      geometry: getGeometry(memory, roomId),
+  const state = useMemo(() => {
+    const geometry = getGeometry(memory, roomId);
+    return {
+      geometry,
       saved: memory.get(roomId),
-      checked: false,
+      previousVisible: geometry.visible,
+      readyOrder: undefined as string | undefined,
+      offset: undefined as number | undefined,
+      cancelled: false,
       placed: false,
-      rangeReady: false,
-      occupied: [] as string[],
+      onWrite: undefined as (() => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
-    }),
-    [memory, roomId]
-  );
+    };
+  }, [memory, roomId]);
   const { geometry, saved } = state;
   const { heights, fresh, gap } = geometry;
   const [, render] = useReducer((revision: number) => revision + 1, 0);
@@ -85,20 +87,13 @@ export function useCompactBlocks(options: Options) {
   const backSlot = medianSlot(savedKeys);
   const prefixReady = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
-  const back = !state.placed && !!saved && saved.scrollTop > 0;
-  const awaitingAnchors =
-    indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
+  const back = !state.placed && !state.cancelled && !!saved?.scrollTop;
+  const warm = savedKeys.some((id) => index.has(id) && state.previousVisible.includes(id));
   const canPlace =
-    !awaitingAnchors && (backSlot === undefined ? extentComplete : prefixReady(backSlot));
-  // The small-list fast path skips prefix discovery, but a partial list can end too early.
-  const waitingForRange =
-    back &&
-    small &&
-    indexPending &&
-    savedKeys.length === 1 &&
-    geometry.order !== order &&
-    !state.rangeReady;
-  const placeReady = !back || ((small || state.checked) && canPlace && !waitingForRange);
+    !(indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id))) &&
+    (warm || (backSlot === undefined ? extentComplete : prefixReady(backSlot)));
+  const waitingForRange = indexPending && !warm && savedKeys.length === 1;
+  const placeReady = !back || (canPlace && (!waitingForRange || state.readyOrder === order));
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const bandIds = back && backSlot !== undefined ? savedKeys : geometry.visible;
@@ -114,8 +109,12 @@ export function useCompactBlocks(options: Options) {
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   // Keep the visible rows while a partial restore discovers its new prefix.
-  const occupied = back && indexPending ? state.occupied : [];
-  const retained = new Set([focused, protectedId, state.gesture?.id, ...occupied]);
+  const retained = new Set([
+    focused,
+    protectedId,
+    state.gesture?.id,
+    ...(back ? geometry.visible : []),
+  ]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
@@ -158,9 +157,7 @@ export function useCompactBlocks(options: Options) {
     projectedIds.every((id, i) => id === mounted.current[i])
       ? mounted.current
       : projectedIds;
-  const measure = useRef<(settle?: boolean) => boolean>();
-  const readyRef = useRef(placeReady);
-  readyRef.current = placeReady;
+  const measure = useRef<() => boolean>();
   const watch = useRef<(nodes: NodeListOf<Element>, wake: boolean) => void>();
 
   useEffect(() => {
@@ -172,11 +169,20 @@ export function useCompactBlocks(options: Options) {
       if (!frame)
         frame = requestAnimationFrame(() => {
           frame = 0;
-          if (measure.current?.(true)) render();
+          if (measure.current?.()) render();
         });
     };
     const scroll = () => {
-      if (measure.current?.(true)) flushSync(render);
+      const takeover =
+        state.offset === undefined &&
+        !state.cancelled &&
+        !!state.saved?.scrollTop &&
+        view.scrollTop !== 0;
+      if (takeover) state.cancelled = true;
+      if (measure.current?.() || takeover) flushSync(render);
+    };
+    state.onWrite = () => {
+      if (measure.current?.()) schedule();
     };
     const observer =
       typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
@@ -197,7 +203,6 @@ export function useCompactBlocks(options: Options) {
     };
     document.fonts?.addEventListener('loadingdone', fontsChanged);
     const track = (event: Event) => {
-      if (event.type === 'wheel' && readyRef.current) state.placed = true;
       const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
       if (event.type === 'pointerdown' || event.type === 'dragstart') {
         const node = event.target;
@@ -213,14 +218,13 @@ export function useCompactBlocks(options: Options) {
     const events = ['pointerdown', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'blur'];
     events.forEach((event) => window.addEventListener(event, track, true));
     view.addEventListener('scroll', scroll, { passive: true });
-    view.addEventListener('wheel', track, { passive: true });
     return () => {
+      state.onWrite = undefined;
       observer?.disconnect();
       events.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
-      view.removeEventListener('wheel', track);
     };
   }, [contentRef, geometry, scrollRef, state]);
 
@@ -235,7 +239,7 @@ export function useCompactBlocks(options: Options) {
         heights.delete(id);
         fresh.delete(id);
       }
-    const layout = (settle = false) => {
+    const layout = () => {
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
@@ -261,15 +265,12 @@ export function useCompactBlocks(options: Options) {
         if (id !== undefined) {
           if (heights.get(id) !== height) changed = true;
           heights.set(id, height);
-          if (waitingForRange && id === savedKeys[0]) {
+          if (back && canPlace && !placeReady && id === savedKeys[0]) {
             const destination = view.scrollTop + y - top - saved.anchors[0]!.offset;
-            state.rangeReady = destination <= view.scrollHeight - view.clientHeight + 1;
-            changed ||= state.rangeReady;
-          }
-          if (settle && placeReady && !state.placed) {
-            const pending = indexPending && saved?.anchors.length ? saved.anchors : undefined;
-            const anchor = pending?.find(({ key }) => key === id);
-            state.placed = !pending || (!!anchor && Math.abs(y - top - anchor.offset) <= 1);
+            if (destination <= view.scrollHeight - view.clientHeight + 1) {
+              state.readyOrder = order;
+              changed = true;
+            }
           }
         }
         if (y >= bottom || end <= top) continue;
@@ -281,22 +282,21 @@ export function useCompactBlocks(options: Options) {
           edge = next + measuredGap;
         }
       }
-      if (back && !state.placed) {
-        if (settle && indexPending && view.scrollTop > 0 && visible.length)
-          state.occupied = visible;
+      if (back && state.offset === undefined && !state.cancelled) {
+        if (!warm && visible.length) geometry.visible = visible;
         return changed;
       }
+      if (state.offset !== undefined) state.placed = true;
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
       const [start, end] = band(geometry.visible);
       return changed || start !== first || end !== last;
     };
     const measured = layout();
-    if (back && canPlace && !placeReady && (!waitingForRange || state.rangeReady)) render();
-    state.checked = true;
-    measure.current = (settle = false) => layout(settle) || measured || (!small && probe >= 0);
+    measure.current = () => layout() || measured || (!small && probe >= 0);
     watch.current?.(content.querySelectorAll(SHELL), measured || (!small && probe >= 0) || (back && placeReady));
+    if (back && !placeReady && state.readyOrder === order) render();
   });
 
-  return { rows, liveIds, extentComplete, placeReady, targetReady };
+  return { rows, liveIds, extentComplete, placeReady, targetReady, progress: state };
 }

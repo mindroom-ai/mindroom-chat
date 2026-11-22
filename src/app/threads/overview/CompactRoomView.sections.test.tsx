@@ -644,32 +644,52 @@ describe('a focus request on the mounted Compact room', () => {
   const VIEW_HEIGHT = 300;
   const cards = Array.from({ length: 10 }, (_unused, index) => `$card${index}`);
   let scrollTop = 0;
+  let resizeCallbacks: Array<() => void> = [];
+  const rowHeight = (element: Element) =>
+    element instanceof HTMLElement && element.style.display !== 'none'
+      ? Number.parseFloat(element.style.height) ||
+        (element.hasAttribute('data-scroll-anchor') ? ROW_HEIGHT : 0)
+      : 0;
+  const extent = () =>
+    [...document.querySelectorAll('[data-scroll-anchor], [data-compact-spacer]')].reduce(
+      (sum, row) => sum + rowHeight(row),
+      0
+    );
 
   // jsdom lays nothing out: each card is ROW_HEIGHT tall, one under the other, in a list
   // VIEW_HEIGHT tall that scrolls.
   beforeEach(() => {
     scrollTop = 0;
+    resizeCallbacks = [];
     vi.stubGlobal(
       'ResizeObserver',
       class {
+        private cb: () => void;
+        constructor(cb: () => void) {
+          this.cb = cb;
+          resizeCallbacks.push(cb);
+        }
         observe = vi.fn();
-        disconnect = vi.fn();
+        unobserve = vi.fn();
+        disconnect = () => {
+          resizeCallbacks = resizeCallbacks.filter((entry) => entry !== this.cb);
+        };
       }
     );
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
       this: HTMLElement
     ) {
       if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, VIEW_HEIGHT);
-      const index = [...document.querySelectorAll('[data-scroll-anchor]')].indexOf(this);
-      return new DOMRect(0, index * ROW_HEIGHT - scrollTop, 300, index < 0 ? 0 : ROW_HEIGHT);
+      let top = -scrollTop;
+      for (let row = this.previousElementSibling; row; row = row.previousElementSibling)
+        top += rowHeight(row);
+      return new DOMRect(0, top, 300, rowHeight(this));
     });
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(VIEW_HEIGHT);
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(
-      () => document.querySelectorAll('[data-scroll-anchor]').length * ROW_HEIGHT
-    );
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(extent);
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
-      scrollTop = Math.min(Math.max(0, value), cards.length * ROW_HEIGHT - VIEW_HEIGHT);
+      scrollTop = Math.min(Math.max(0, value), Math.max(0, extent() - VIEW_HEIGHT));
     });
   });
 
@@ -718,6 +738,67 @@ describe('a focus request on the mounted Compact room', () => {
     // Back to the first entry keeps the reader's place: its request was met.
     rerender(at({ eventId: '$card8', entryKey: 'pin' }));
     expect(scrollTop).toBe(100);
+  });
+
+  describe('with an already measured window', () => {
+    const large = Array.from({ length: 120 }, (_, index) => `$card${index}`);
+    const measure = () => {
+      let prevScroll = 0;
+      let prevExtent = extent();
+      for (let i = 0; i < 16; i++) {
+        const scroller = document.querySelector('[data-compact-room-view]');
+        if (scroller && scrollTop !== prevScroll) {
+          prevScroll = scrollTop;
+          act(() => {
+            fireEvent.scroll(scroller);
+          });
+        }
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+        if (extent() !== prevExtent) {
+          prevExtent = extent();
+          act(() => {
+            for (const cb of [...resizeCallbacks]) cb();
+          });
+        }
+      }
+    };
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('places warm Back in its first commit when 48 unseen roots were prepended', () => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      scrollTop = 6000;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      unmount();
+      scrollTop = 0;
+      render(at(undefined, [...Array.from({ length: 48 }, (_, i) => `$new${i}`), ...large]));
+      expect(topOf('$card60')).toBe(0);
+      expect(scrollTop).toBeGreaterThan(0);
+      measure();
+      expect(topOf('$card60')).toBe(0);
+    });
+
+    it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
+      memory.clear();
+      const partial = large.slice(0, 40);
+      memory.set(ROOM_ID, {
+        scrollTop: 3800,
+        anchors: [
+          { key: '$card38', offset: 0 },
+          { key: '$card39', offset: 100 },
+        ],
+      });
+      render(at(undefined, partial, true));
+      measure();
+      expect(scrollTop).toBe(3700);
+      scrollTop = 0;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      expect(document.querySelector('[data-scroll-anchor="$card0"]')).not.toBeNull();
+    });
   });
 
   it('stays where the reader is for a request of an entry the router replaced', () => {

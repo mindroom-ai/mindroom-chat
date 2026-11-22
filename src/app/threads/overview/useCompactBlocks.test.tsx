@@ -248,7 +248,7 @@ it('does not offer the saved place while the small pending index would clamp it'
   expect(view.dataset.ready).toBe('true');
 });
 
-it('lets a wheel take over a clamped pending restore', () => {
+it('lets a scroll take over a pending restore without wheel input', () => {
   const id = '$row38';
   const memory: ScrollAnchorMemory = new Map([
     ['!room', { scrollTop: 1, anchors: [{ key: id, offset: 160 }] }],
@@ -263,7 +263,6 @@ it('lets a wheel take over a clamped pending restore', () => {
     view.dispatchEvent(new Event('scroll'));
   });
   act(() => {
-    view.dispatchEvent(new WheelEvent('wheel', { deltaY: -3400 }));
     view.scrollTop = 0;
     view.dispatchEvent(new Event('scroll'));
   });

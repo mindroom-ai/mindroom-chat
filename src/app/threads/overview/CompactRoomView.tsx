@@ -609,6 +609,7 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0 && blocks.placeReady,
+    progress: blocks.progress,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount

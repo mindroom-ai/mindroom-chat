@@ -79,10 +79,7 @@ const settledCards = (
 const scrollTo = (page: Page, scrollTop: number) =>
   page.evaluate(
     ([selector, value]) => {
-      const view = document.querySelector<HTMLElement>(selector)!;
-      // Model the reader taking control before advancing to an exact pixel offset.
-      view.dispatchEvent(new WheelEvent('wheel', { deltaY: value - view.scrollTop }));
-      view.scrollTop = value;
+      document.querySelector<HTMLElement>(selector)!.scrollTop = value;
     },
     [COMPACT_VIEW, scrollTop] as const
   );
