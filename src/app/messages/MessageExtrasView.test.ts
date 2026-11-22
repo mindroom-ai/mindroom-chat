@@ -609,10 +609,15 @@ describe('MessageExtras', () => {
     });
   });
 
-  it('routes text/html extra links through CheckedMessageLink confirmation', () => {
+  it.each([
+    { shell: 'desktop app', desktop: true },
+    { shell: 'web and phone', desktop: false },
+  ])('text/html extra links in the $shell: confirmation is $desktop', ({ desktop }) => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root: Root = createRoot(container);
+    if (desktop)
+      Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
     try {
       act(() => {
         root.render(
@@ -635,16 +640,18 @@ describe('MessageExtras', () => {
       });
       const link = container.querySelector('a');
       expect(link?.getAttribute('href')).toBe('https://evil.example/phish');
-      expect(link?.getAttribute('title')).toBe('https://evil.example/phish');
+      // As on main outside the desktop app: the sanitizer's plain anchor, no title, no question.
+      expect(link?.getAttribute('title')).toBe(desktop ? 'https://evil.example/phish' : null);
       const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
       act(() => {
         link?.dispatchEvent(evt);
       });
-      expect(evt.defaultPrevented).toBe(true);
-      expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(evt.defaultPrevented).toBe(desktop);
+      expect(document.body.querySelector('[role="dialog"]') !== null).toBe(desktop);
     } finally {
       act(() => root.unmount());
       container.remove();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
     }
   });
 });

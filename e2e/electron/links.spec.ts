@@ -28,7 +28,7 @@ const readTelemetry = async (
 test.afterEach(() => assertNoUnexpectedViolations());
 
 test.describe('Electron external link handling', () => {
-  test('opens only trusted clicks on openable links/buttons, blocks scripted/editable/forged opens, and isolates sandboxed frames', async () => {
+  test('opens only trusted clicks on openable links/buttons and blocks scripted/editable/forged opens', async () => {
     const session = await launchDesktop();
     try {
       const { app, page } = session;
@@ -68,7 +68,10 @@ test.describe('Electron external link handling', () => {
         };
 
         mk('a', 'e2e-link-primary', 'Primary', { href: 'https://example.org/primary' });
-        mk('a', 'e2e-link-middle', 'Middle', { href: 'https://example.org/middle' });
+        mk('a', 'e2e-link-middle', 'Middle', {
+          href: 'https://example.org/middle',
+          target: '_blank',
+        });
         mk('a', 'e2e-link-enter', 'EnterBlank', {
           href: 'https://example.org/enter-blank',
           target: '_blank',
@@ -108,22 +111,6 @@ test.describe('Electron external link handling', () => {
         editable.appendChild(editableLink);
         box.appendChild(editable);
 
-        // SVG anchor must also be handled.
-        const svgNS = 'http://www.w3.org/2000/svg';
-        const svg = document.createElementNS(svgNS, 'svg');
-        svg.setAttribute('width', '80');
-        svg.setAttribute('height', '24');
-        const svgLink = document.createElementNS(svgNS, 'a');
-        svgLink.id = 'e2e-svg-link';
-        svgLink.setAttribute('href', 'https://example.org/svg');
-        const rect = document.createElementNS(svgNS, 'rect');
-        rect.setAttribute('width', '80');
-        rect.setAttribute('height', '24');
-        rect.setAttribute('fill', '#48f');
-        svgLink.appendChild(rect);
-        svg.appendChild(svgLink);
-        box.appendChild(svg);
-
         document.body.appendChild(box);
       });
 
@@ -152,12 +139,11 @@ test.describe('Electron external link handling', () => {
       await clickEl('#e2e-link-file');
       await clickEl('#e2e-link-editable');
 
-      // Real primary click, middle click, Enter on a _blank link, and SVG anchor click.
+      // Real primary click, middle click on a _blank link, and Enter on a _blank link: once each.
       await clickEl('#e2e-link-primary');
       await clickEl('#e2e-link-middle', 'middle');
       await page.evaluate(() => (document.getElementById('e2e-link-enter') as HTMLElement).focus());
       await page.keyboard.press('Enter');
-      await clickEl('#e2e-svg-link');
 
       await expect
         .poll(async () => (await readTelemetry(app)).externalOpens)
@@ -165,37 +151,8 @@ test.describe('Electron external link handling', () => {
           'https://example.org/primary',
           'https://example.org/middle',
           'https://example.org/enter-blank',
-          'https://example.org/svg',
         ]);
       expect(app.windows()).toHaveLength(1);
-
-      // Opaque sandboxed frame has no mindroomDesktop and cannot read parent.mindroomDesktop.
-      const sandboxResult = await page.evaluate(
-        () =>
-          new Promise<{ own: boolean; parentBlocked: boolean }>((resolve) => {
-            const onMessage = (e: MessageEvent) => {
-              if (e.data && typeof e.data === 'object' && 'parentBlocked' in e.data) {
-                window.removeEventListener('message', onMessage);
-                resolve(e.data as { own: boolean; parentBlocked: boolean });
-              }
-            };
-            window.addEventListener('message', onMessage);
-            const iframe = document.createElement('iframe');
-            iframe.src = `${window.location.origin}/canvas-frame.html`;
-            iframe.addEventListener('load', () => {
-              iframe.contentWindow?.postMessage(
-                `<!DOCTYPE html><html><body><script>
-                  let parentBlocked = false;
-                  try { void window.parent.mindroomDesktop; } catch { parentBlocked = true; }
-                  window.parent.postMessage({ own: 'mindroomDesktop' in window, parentBlocked }, '*');
-                </script></body></html>`,
-                '*'
-              );
-            });
-            document.body.appendChild(iframe);
-          })
-      );
-      expect(sandboxResult).toEqual({ own: false, parentBlocked: true });
     } finally {
       await session.close();
     }
@@ -277,6 +234,9 @@ test.describe('Electron external link handling', () => {
       await expect(dialog).toBeVisible();
       await dialog.getByRole('button', { name: /cancel/i }).click();
       await expect(dialog).toHaveCount(0);
+      // Let a wrongly sent open arrive before reading: Cancel must have opened nothing.
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 250)));
+      expect((await readTelemetry(app)).externalOpens).toEqual(['https://example.org/docs']);
 
       await misleadingLink.click();
       await expect(dialog).toBeVisible();

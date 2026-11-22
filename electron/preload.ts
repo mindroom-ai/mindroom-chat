@@ -1,38 +1,24 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopBridge, DesktopResult, DesktopShellEvent } from '../src/app/lib/desktopBridge';
 
-const isEditable = (path: EventTarget[], from: number): boolean => {
-  for (let i = from; i < path.length; i += 1) {
-    const node = path[i];
-    if (node instanceof HTMLElement) return node.isContentEditable;
-  }
-  return false;
-};
-
 const externalUrlForClick = (event: MouseEvent): string | undefined => {
-  if (!event.isTrusted || (event.type === 'click' ? event.button !== 0 : event.button !== 1)) {
-    return undefined;
-  }
-  const path = event.composedPath();
-  const idx = path.findIndex(
-    (node) => node instanceof Element && node.matches('a[href], button[data-open-external]')
-  );
-  if (idx < 0 || isEditable(path, idx)) return undefined;
-  const hit = path[idx] as Element;
+  if (!event.isTrusted || event.button !== (event.type === 'click' ? 0 : 1)) return undefined;
+  const hit = event
+    .composedPath()
+    .find(
+      (node): node is HTMLAnchorElement | HTMLButtonElement =>
+        (node instanceof HTMLAnchorElement && node.hasAttribute('href')) ||
+        (node instanceof HTMLButtonElement && node.hasAttribute('data-open-external'))
+    );
+  // A non-editable island inside an editable area (e.g. a mention pill) still opens, as on web.
+  if (!hit || hit.isContentEditable) return undefined;
   if (hit instanceof HTMLButtonElement) {
     return event.type === 'click' && !hit.disabled
       ? hit.getAttribute('data-open-external') || undefined
       : undefined;
   }
-  const rawHref =
-    hit instanceof HTMLAnchorElement
-      ? hit.href
-      : hit instanceof SVGAElement
-      ? hit.href.baseVal
-      : undefined;
-  if (!rawHref) return undefined;
   try {
-    const parsed = new URL(rawHref, window.location.href);
+    const parsed = new URL(hit.href, window.location.href);
     return parsed.origin !== window.location.origin ? parsed.href : undefined;
   } catch {
     return undefined;

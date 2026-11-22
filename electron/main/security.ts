@@ -16,52 +16,56 @@ const ALLOWED_PERMISSIONS = new Set([
   'persistent-storage',
   ...NETWORK_PERMISSIONS,
 ]);
-const MEDIA_PATH_RE = /(?:^|\/)_matrix\/(?:[^/]+\/)*media\//i;
+const MAX_URL_LENGTH = 8192;
+const OPENABLE_SCHEMES = new Set(['http:', 'https:', 'mailto:']);
+// `access_token` as a parameter name (query, fragment, or a query inside the fragment), or
+// `access_token=` anywhere, which also catches a nested redirect that carries one.
+const ACCESS_TOKEN_RE = /[?&#]access_token(?:[=&#]|$)|access_token=/i;
 const MAILTO_BLOCKED_PARAMS = new Set(['attach', 'attachment']);
 
-const decodeOnce = (value: string): string => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+/** The text as written, percent-decoded once, and twice. Decodes byte by byte: never throws. */
+const decodings = (value: string): string[] => {
+  const decode = (text: string): string =>
+    text.replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+  const once = decode(value);
+  return [value, once, decode(once)];
 };
 
-const hasParam = (query: string, match: (lowerKey: string) => boolean): boolean =>
-  Array.from(new URLSearchParams(query).keys()).some((k) => match(k.toLowerCase()));
-
-const hasAccessToken = (u: URL): boolean => {
-  const isToken = (k: string) => k === 'access_token';
-  if (hasParam(u.search, isToken)) return true;
-  const hash = u.hash.slice(1);
-  if (!hash) return false;
-  if (hasParam(hash, isToken)) return true;
-  const qAt = hash.indexOf('?');
-  return qAt >= 0 && hasParam(hash.slice(qAt + 1), isToken);
-};
-
+/** One pass over the path segments: a `_matrix` segment followed later by a `media` segment. */
 const isMediaPath = (pathname: string): boolean => {
-  const once = decodeOnce(pathname).replace(/\\/g, '/');
-  const twice = decodeOnce(once).replace(/\\/g, '/');
-  return [pathname, once, twice].some((p) => MEDIA_PATH_RE.test(p.replace(/\/+/g, '/')));
+  let inMatrix = false;
+  return pathname
+    .toLowerCase()
+    .split(/[/\\]/)
+    .some((segment) => {
+      if (segment === '_matrix') inMatrix = true;
+      return inMatrix && segment === 'media';
+    });
 };
 
-export const isOpenable = (url: string): boolean => {
-  if (!url || /[\r\n\0]/.test(url)) return false;
+/** The canonical form of a URL the app may hand to the system, or `undefined`. */
+export const openableHref = (url: string): string | undefined => {
+  // eslint-disable-next-line no-control-regex
+  if (!url || url.length > MAX_URL_LENGTH || /[\0-\x1f\x7f]/.test(url)) return undefined;
   let u: URL;
   try {
     u = new URL(url);
   } catch {
-    return false;
+    return undefined;
   }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') return false;
-  if (hasAccessToken(u)) return false;
+  if (!OPENABLE_SCHEMES.has(u.protocol) || u.username || u.password) return undefined;
+  if (decodings(url).some((text) => ACCESS_TOKEN_RE.test(text))) return undefined;
   if (u.protocol === 'mailto:') {
-    return u.pathname.trim().length > 0 && !hasParam(u.search, (k) => MAILTO_BLOCKED_PARAMS.has(k));
+    const blocked = Array.from(u.searchParams.keys()).some((key) =>
+      MAILTO_BLOCKED_PARAMS.has(key.toLowerCase())
+    );
+    // An authority (`mailto://host/x`) is no address; `mailto:` alone names nobody.
+    if (u.host || u.href.startsWith('mailto://') || !u.pathname.trim() || blocked) return undefined;
   }
-  if (u.username || u.password) return false;
-  return !isMediaPath(u.pathname);
+  return decodings(u.pathname).some(isMediaPath) ? undefined : u.href;
 };
+
+export const isOpenable = (url: string): boolean => openableHref(url) !== undefined;
 
 let blockedUrlRecorder: ((url: string) => void) | undefined;
 
@@ -147,7 +151,7 @@ export const registerExternalOpenHandlers = ({
     externalOwners,
     (args) => {
       const url = stringArg(args);
-      return url && isOpenable(url) ? new URL(url).href : undefined;
+      return url ? openableHref(url) : undefined;
     },
     async (url) => ({ ok: true, value: await openUrl(url) })
   );

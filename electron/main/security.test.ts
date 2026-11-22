@@ -15,6 +15,7 @@ import {
   guardSession,
   guardWebContents,
   isOpenable,
+  openableHref,
   registerExternalOpenHandlers,
 } from './security';
 
@@ -305,58 +306,102 @@ describe('security', () => {
 });
 
 describe('isOpenable', () => {
-  it('allows http, https, and mailto URLs without media paths or access tokens', () => {
-    for (const url of [
-      'https://example.org/path?q=1',
-      'http://127.0.0.1:8000/docs',
-      'mailto:alice@example.org',
-      'mailto:alice@example.org?subject=Hello',
-    ]) {
-      expect(isOpenable(url), url).toBe(true);
-    }
-  });
+  const HS = 'https://hs.example';
+  const nested = encodeURIComponent('https://b.example/cb?access_token=syt_placeholder');
+  const cases: Array<[why: string, url: string, href?: string]> = [
+    // Opens, as its canonical form.
+    ['https link', 'https://example.org/path?q=1#frag', 'https://example.org/path?q=1#frag'],
+    ['host is lowercased', 'https://EXAMPLE.org', 'https://example.org/'],
+    ['http on loopback', 'http://127.0.0.1:8000/docs', 'http://127.0.0.1:8000/docs'],
+    ['IDN host', 'https://bücher.example/a', 'https://xn--bcher-kva.example/a'],
+    ['mailto', 'mailto:a@b.example', 'mailto:a@b.example'],
+    ['mailto subject', 'mailto:a@b.example?subject=Hi', 'mailto:a@b.example?subject=Hi'],
+    [
+      'token only in text',
+      'https://example.org/docs/access_token',
+      'https://example.org/docs/access_token',
+    ],
+    [
+      'media outside _matrix',
+      'https://example.org/media/_matrix/x',
+      'https://example.org/media/_matrix/x',
+    ],
+    [
+      'at the length cap',
+      `https://example.org/${'a'.repeat(8172)}`,
+      `https://example.org/${'a'.repeat(8172)}`,
+    ],
+    // Shape and scheme.
+    ['empty', ''],
+    ['not a URL', 'not-a-url'],
+    ['over the length cap', `https://example.org/${'a'.repeat(8173)}`],
+    ['newline', 'https://example.org/a\nb'],
+    ['tab', 'https://example.org/acc\tess_token=1'],
+    ['NUL', 'https://example.org/\0'],
+    ['DEL', 'https://example.org/\x7f'],
+    ['javascript:', 'javascript:alert(1)'],
+    ['file:', 'file:///etc/passwd'],
+    ['data:', 'data:text/html,hi'],
+    ['blob:', 'blob:https://example.org/123'],
+    ['app scheme', 'capacitor://localhost/home'],
+    ['custom scheme', 'mindroom://auth/login'],
+    // Credentials, for every scheme.
+    ['user and password', 'https://user:pass@example.org/'],
+    ['user', 'https://user@example.org/'],
+    ['password', 'https://:pass@example.org/'],
+    ['mailto authority with credentials', 'mailto://user:pass@host.example/x'],
+    ['mailto authority', 'mailto://host.example/x'],
+    ['mailto empty authority', 'mailto:///x'],
+    ['mailto nobody', 'mailto:'],
+    // access_token as a parameter name or `access_token=` anywhere, however encoded.
+    ['query', 'https://example.org/page?access_token=syt_placeholder'],
+    ['query, upper case', 'https://example.org/page?a=1&ACCESS_TOKEN=syt_placeholder'],
+    ['query, no value', 'https://example.org/page?access_token'],
+    ['query, encoded key', 'https://example.org/page?%61ccess_token=syt_placeholder'],
+    ['query, twice encoded key', 'https://example.org/page?%2561ccess%255Ftoken=syt_placeholder'],
+    ['query, encoded equals', 'https://example.org/page?access_token%3Dsyt_placeholder'],
+    [
+      'query, bad escape beside it',
+      'https://example.org/page?b=%zz&%61ccess_token=syt_placeholder',
+    ],
+    ['fragment', 'https://example.org/page#access_token=syt_placeholder'],
+    ['fragment, encoded key', 'https://example.org/page#%61ccess_token=syt_placeholder'],
+    ['hash route query', 'https://example.org/#/route?access_token=syt_placeholder'],
+    ['hash route query, encoded', 'https://example.org/#/route?%61ccess_token=syt_placeholder'],
+    ['hash route query, encoded upper', 'https://example.org/#/route?a=1&%41CCESS_TOKEN=x'],
+    ['nested redirect', `https://a.example/go?next=${nested}`],
+    ['nested redirect, twice encoded', `https://a.example/go?next=${encodeURIComponent(nested)}`],
+    ['nested redirect in fragment', `https://a.example/#/go?next=${nested}`],
+    ['mailto token', 'mailto:a@b.example?access_token=syt_placeholder'],
+    // mailto attachments.
+    ['attach', 'mailto:a@b.example?attach=/etc/passwd'],
+    ['ATTACH', 'mailto:a@b.example?subject=x&ATTACH=/etc/passwd'],
+    ['attachment', 'mailto:a@b.example?attachment=/etc/passwd'],
+    ['encoded attach', 'mailto:a@b.example?%61ttach=/etc/passwd'],
+    // Matrix media, every route family and spelling.
+    ['media v3 download', `${HS}/_matrix/media/v3/download/hs.example/abc`],
+    ['media r0 thumbnail', `${HS}/_matrix/media/r0/thumbnail/hs.example/abc`],
+    ['client v1 download', `${HS}/_matrix/client/v1/media/download/hs.example/abc`],
+    ['client v1 thumbnail', `${HS}/_matrix/client/v1/media/thumbnail/hs.example/abc?width=64`],
+    ['MSC3916 unstable', `${HS}/_matrix/client/unstable/org.matrix.msc3916/media/download/a/b`],
+    ['federation download', `${HS}/_matrix/federation/v1/media/download/abc`],
+    ['federation thumbnail', `${HS}/_matrix/federation/v1/media/thumbnail/abc`],
+    ['under a base path', `${HS}/sub/_matrix/client/v1/media/download/hs.example/abc`],
+    ['doubled slash', `${HS}/_matrix//media/v3/download/hs.example/abc`],
+    ['doubled slashes throughout', `${HS}//_matrix//client//v1//media//download/a/b`],
+    ['upper case', `${HS}/_MATRIX/Media/v3/download/hs.example/abc`],
+    ['encoded underscore', `${HS}/%5fmatrix/client/v1/media/download/hs.example/abc`],
+    ['encoded slash', `${HS}/_matrix/client/v1%2fmedia%2fdownload/hs.example/abc`],
+    ['twice encoded slash', `${HS}/_matrix/client/v1%252Fmedia%252Fdownload/hs.example/abc`],
+    ['encoded backslash', `${HS}/_matrix%5Cmedia%5Cv3/download/hs.example/abc`],
+    ['encoded letters', `${HS}/_m%61trix/m%2565dia/v3/download/hs.example/abc`],
+    ['media as the last segment', `${HS}/_matrix/client/v1/media`],
+    ['after many _matrix segments', `${HS}/${'_matrix/'.repeat(1000)}media/x`],
+  ];
 
-  it('refuses non-web schemes, Matrix media paths, and URLs carrying access_token', () => {
-    for (const url of [
-      'javascript:alert(1)',
-      'file:///etc/passwd',
-      'data:text/html,hi',
-      'blob:https://example.org/123',
-      'capacitor://localhost/home',
-      'mindroom://auth/login',
-      'mailto:',
-      'https://example.org/page?access_token=syt_secret',
-      'https://example.org/page?a=1&ACCESS_TOKEN=syt_secret',
-      'https://example.org/page?%61ccess_token=syt_secret',
-      'https://example.org/page#access_token=syt_secret',
-      'https://example.org/page#%61ccess_token=syt_secret',
-      'https://example.org/#/route?access_token=syt_secret',
-      'https://example.org/#/route?%61ccess_token=syt_secret',
-      'https://example.org/#/route?a=1&%41CCESS_TOKEN=syt_secret',
-      'mailto:alice@example.org?access_token=syt_secret',
-      'mailto:alice@example.org?attach=/etc/passwd',
-      'mailto:alice@example.org?ATTACH=/etc/passwd',
-      'mailto:alice@example.org?attachment=/etc/passwd',
-      'mailto:alice@example.org?%61ttach=/etc/passwd',
-      'https://user:pass@example.org/',
-      'https://user@example.org/',
-      'https://:pass@example.org/',
-      'https://hs.example/_matrix/client/v1/media/download/hs.example/abc',
-      'https://hs.example/_matrix/client/v1/media/thumbnail/hs.example/abc?width=64',
-      'https://hs.example/_matrix/media/v3/download/hs.example/abc',
-      'https://hs.example/_matrix/media/r0/thumbnail/hs.example/abc',
-      'https://hs.example/sub/_matrix/client/v1/media/download/hs.example/abc',
-      'https://hs.example/%5fmatrix/client/v1/media/download/hs.example/abc',
-      'https://hs.example/_matrix/client/v1/media%2fdownload/hs.example/abc',
-      'https://hs.example/_matrix/client/unstable/org.matrix.msc3916/media/download/hs.example/abc',
-      'https://hs.example/_matrix/federation/v1/media/download/abc',
-      'https://hs.example/_matrix/federation/v1/media/thumbnail/abc',
-      'https://hs.example/_matrix//media/v3/download/hs.example/abc',
-      'https://example.org/a\nb',
-      'not-a-url',
-    ]) {
-      expect(isOpenable(url), url).toBe(false);
-    }
+  it.each(cases)('%s', (_why, url, href) => {
+    expect(openableHref(url)).toBe(href);
+    expect(isOpenable(url)).toBe(href !== undefined);
   });
 });
 
@@ -413,7 +458,7 @@ describe('external open and sign-in IPC channels', () => {
       ok: false,
       code: 'BAD_ARGUMENTS',
     });
-    expect(await openExternal(event, 'https://example.org/?access_token=1')).toEqual({
+    expect(await openExternal(event, 'https://example.org/?access_token=syt_placeholder')).toEqual({
       ok: false,
       code: 'BAD_ARGUMENTS',
     });
