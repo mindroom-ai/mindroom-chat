@@ -204,6 +204,7 @@ export const RowHeader = style({
     '&:hover': { backgroundColor: surfaceMix(6) },
     '&:focus-visible': focusRing(color.Surface.OnContainer, '-2px'),
   },
+  '@media': { '(pointer: coarse)': { minBlockSize: `max(${toRem(44)}, 44px)` } },
 });
 
 const iconTileBase = style({
@@ -341,9 +342,15 @@ export const PromptToggle = style([
         borderRadius: config.radii.R300,
       },
     },
-    '@media': { '(pointer: coarse)': { minWidth: `max(${toRem(44)}, 44px)`, textAlign: 'start' } },
+    '@media': {
+      '(pointer: coarse)': {
+        minInlineSize: `max(${toRem(44)}, 44px)`,
+        minBlockSize: `max(${toRem(44)}, 44px)`,
+        textAlign: 'start',
+      },
+    },
   },
-  touchTarget('4px', '', { blockReach: '12px' }),
+  touchTarget('4px', ''),
 ]);
 
 export const CancelBar = style({

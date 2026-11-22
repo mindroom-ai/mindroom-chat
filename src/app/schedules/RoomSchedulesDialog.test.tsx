@@ -250,6 +250,12 @@ describe('RoomSchedulesDialog', () => {
     await click(btnText(view.host, 'Show less')!);
     expect(promptEl.className).toContain('prompt-clamped');
 
+    // Shorter prompts without a toggle are never clamped.
+    view.rerender({ ...baseProps, tasks: [{ ...task, message: 'x'.repeat(146) }] });
+    expect(view.host.querySelector('p.prompt')!.className).not.toContain('prompt-clamped');
+    expect(btnText(view.host, 'Show full prompt')).toBeUndefined();
+    view.rerender({ ...baseProps, tasks: [task] });
+
     expect(view.host.querySelector('dl')).toBeNull();
     await click(btnText(view.host, 'Details')!);
     const dl = view.host.querySelector('dl')!;
@@ -390,14 +396,48 @@ describe('RoomSchedulesDialog', () => {
       'Clear your current draft before editing this schedule.'
     );
 
+    // Keep the row expanded when switching to preApprovedCall so the guard itself is tested.
     view.rerender({
       roomId: '!r:example.org',
-      tasks: [makeTask({ taskId: 'preapproved', preApprovedCall: true })],
+      tasks: [makeTask({ taskId: 'editable', preApprovedCall: true })],
       onClose: vi.fn(),
       onOpenThread: vi.fn(),
       onEditTask,
     });
+    expect(btnText(view.host, 'Copy ID')).toBeTruthy();
     expect(btnAria(view.host, 'Edit')).toBeUndefined();
+  });
+
+  it('does not steal focus when a pending cancel completes after focus moved to another task', async () => {
+    let resolveCancel!: () => void;
+    const onCancelTask = vi.fn(() => new Promise<void>((r) => (resolveCancel = r)));
+    const view = mountDialog({
+      roomId: '!r:example.org',
+      tasks: [
+        makeTask({ taskId: 'task-a', description: 'Task A' }),
+        makeTask({ taskId: 'task-b', description: 'Task B' }),
+      ],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask,
+    });
+    cleanup = view.unmount;
+
+    const toggles = view.host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]');
+    await click(toggles[0]!);
+    await click(btnAria(view.host, 'Cancel')!);
+    await click(btnText(view.host, 'Cancel task')!);
+
+    // Move to Task B and focus its Copy ID button while Task A's cancel is still in flight.
+    await click(toggles[1]!);
+    const copyB = btnText(view.host, 'Copy ID')!;
+    copyB.focus();
+    expect(document.activeElement).toBe(copyB);
+
+    await act(async () => {
+      resolveCancel();
+    });
+    expect(document.activeElement).toBe(copyB);
   });
 
   it('recovers focus when a focused task row unmounts and ticks imminent countdowns every second', () => {

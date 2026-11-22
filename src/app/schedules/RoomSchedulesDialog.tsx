@@ -113,6 +113,7 @@ function ScheduleAccordionItem({
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmBarRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<number>();
   const mountedRef = useRef(true);
 
@@ -125,6 +126,7 @@ function ScheduleAccordionItem({
   }, []);
 
   const promptText = task.message;
+  const longPrompt = promptText !== undefined && isLongPrompt(promptText);
   useEffect(() => setPromptExpanded(false), [promptText]);
 
   const commandSafe = sched.isCommandSafeTaskId(task.taskId);
@@ -234,8 +236,9 @@ function ScheduleAccordionItem({
   const handleConfirmCancelClick = async () => {
     if (isCancelling) return;
     if ((await ctx.cancel.handleCancelTask(task)) && mountedRef.current) {
+      const shouldRestoreFocus = Boolean(confirmBarRef.current?.contains(document.activeElement));
       setConfirmingCancel(false);
-      toggleButtonRef.current?.focus();
+      if (shouldRestoreFocus) toggleButtonRef.current?.focus();
     }
   };
 
@@ -309,17 +312,14 @@ function ScheduleAccordionItem({
               id={`${id}-prompt`}
               as="p"
               size="T300"
-              className={classNames(
-                css.Prompt,
-                promptText !== undefined && !promptExpanded && css.PromptClamped
-              )}
+              className={classNames(css.Prompt, longPrompt && !promptExpanded && css.PromptClamped)}
               dir="auto"
             >
               {promptText !== undefined
                 ? renderSchedulePrompt(promptText)
                 : t('roomSchedules.promptUnavailable')}
             </Text>
-            {promptText !== undefined && isLongPrompt(promptText) && (
+            {longPrompt && (
               <button
                 type="button"
                 className={css.PromptToggle}
@@ -419,6 +419,7 @@ function ScheduleAccordionItem({
 
           {showCancelBar && (
             <div
+              ref={confirmBarRef}
               id={`${id}-confirm`}
               role="group"
               aria-labelledby={`${id}-confirm-q`}
@@ -491,7 +492,7 @@ function ScheduleAccordionItem({
               <MetaRow label={t('roomSchedules.model')} wrap>
                 {task.model ? <bdi>{task.model}</bdi> : t('roomSchedules.inheritedModel')}
               </MetaRow>
-              {task.historyLimit !== undefined && (
+              {(task.historyLimit === null || historyChip) && (
                 <MetaRow label={t('roomSchedules.historyLimit')}>
                   {task.historyLimit === null ? t('roomSchedules.fullHistory') : historyChip}
                 </MetaRow>
