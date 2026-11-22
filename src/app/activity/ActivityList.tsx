@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent,
 } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
@@ -48,12 +47,6 @@ const findScrollParent = (element: HTMLElement): HTMLElement | null => {
     if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return parent;
   }
   return null;
-};
-
-const focusedRowKey = (list: HTMLElement | null): string | null => {
-  const active = typeof document !== 'undefined' ? document.activeElement : null;
-  if (!list || !(active instanceof HTMLElement) || !list.contains(active)) return null;
-  return active.closest<HTMLElement>('[data-motion-row]')?.dataset.motionRow ?? null;
 };
 
 type ActivityListProps = {
@@ -111,16 +104,12 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  // Keyed to the active filter so every tab or Unread change resets to PAGE_SIZE on first render.
+  // The window over the ordinary rows belongs to one filter: a tab or Unread change starts it
+  // again at one page, from the first render on.
   const filterKey = `${tab}:${unreadOnly}`;
-  const [windowState, setWindowState] = useState({ filterKey, limit: PAGE_SIZE });
-  const committedFilterRef = useRef(filterKey);
-  const filterChanged = committedFilterRef.current !== filterKey;
-  if (windowState.filterKey !== filterKey) setWindowState({ filterKey, limit: PAGE_SIZE });
-  const limit = windowState.filterKey === filterKey ? windowState.limit : PAGE_SIZE;
-  useLayoutEffect(() => {
-    committedFilterRef.current = filterKey;
-  }, [filterKey]);
+  const [paged, setPaged] = useState({ filterKey, limit: PAGE_SIZE });
+  if (paged.filterKey !== filterKey) setPaged({ filterKey, limit: PAGE_SIZE });
+  const limit = paged.filterKey === filterKey ? paged.limit : PAGE_SIZE;
 
   const open = useCallback(
     (row: ActivityRow) => {
@@ -139,15 +128,17 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
 
   const rowsRef = useRef<HTMLDivElement>(null);
-  // Waiting rows are never capped; ordinary rows are windowed, extending only within one page past
-  // the boundary so a live prepend keeps the current/focused row without mounting deep rows.
-  const nearEdge = (index: number): number =>
-    index >= 0 && index < limit + PAGE_SIZE ? index + 1 : 0;
-  const currentIndex = rest.findIndex(isCurrent);
-  const activeKey = filterChanged ? null : focusedRowKey(rowsRef.current);
-  const focusedIndex = activeKey ? rest.findIndex((row) => row.key === activeKey) : -1;
-  const effectiveLimit = Math.max(limit, nearEdge(currentIndex), nearEdge(focusedIndex));
-  const visibleRest = rest.slice(0, effectiveLimit);
+  // Waiting rows are never capped. The ordinary rows end at the last one this filter already
+  // showed, so a live update never unmounts a row, or at the page limit where that is further.
+  // While the index still fills in, the limit alone holds: its rows arrive by the hundred.
+  const mountedRef = useRef({ filterKey, keys: new Set<string>() });
+  const { keys: mounted } = mountedRef.current;
+  const anchored = !loading && mountedRef.current.filterKey === filterKey;
+  const lastMounted = anchored ? rest.findLastIndex((row) => mounted.has(row.key)) : -1;
+  const visibleRest = rest.slice(0, Math.max(limit, lastMounted + 1));
+  useLayoutEffect(() => {
+    mountedRef.current = { filterKey, keys: new Set(visibleRest.map((row) => row.key)) };
+  });
   const visibleRows = [...waitingRows, ...visibleRest];
   const hasMore = visibleRest.length < rest.length;
 
@@ -157,23 +148,27 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     visibleRows.map((row) => (row.type === 'thread' ? row.entry.roomId : row.roomId))
   );
 
-  const pendingFocusKeyRef = useRef<string | null>(null);
-  const appendPage = (focusFirstNew?: boolean) => {
-    if (focusFirstNew) pendingFocusKeyRef.current = rest[visibleRest.length]?.key ?? null;
-    setWindowState({ filterKey, limit: effectiveLimit + PAGE_SIZE });
+  // Show more appends a page when it is activated and when it nears the view. Its focus then
+  // goes to the first new row: the page mounts before it, and the last page takes it away.
+  const moreRef = useRef<HTMLDivElement>(null);
+  const focusKeyRef = useRef<string>();
+  const appendPage = () => {
+    if (moreRef.current?.contains(document.activeElement)) {
+      focusKeyRef.current = rest[visibleRest.length]?.key;
+    }
+    setPaged({ filterKey, limit: visibleRest.length + PAGE_SIZE });
   };
   const appendRef = useRef(appendPage);
   appendRef.current = appendPage;
-
   useLayoutEffect(() => {
-    const key = pendingFocusKeyRef.current;
+    const key = focusKeyRef.current;
+    focusKeyRef.current = undefined;
     if (!key) return;
-    pendingFocusKeyRef.current = null;
-    const row = [
-      ...(rowsRef.current?.querySelectorAll<HTMLElement>('[data-motion-row]') ?? []),
-    ].find((element) => element.dataset.motionRow === key);
-    row?.querySelector<HTMLElement>('button')?.focus();
-  }, [visibleRest.length]);
+    [...(rowsRef.current?.querySelectorAll<HTMLElement>('[data-motion-row]') ?? [])]
+      .find((row) => row.dataset.motionRow === key)
+      ?.querySelector('button')
+      ?.focus();
+  });
 
   // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
   // The rows that wait come first, so their number tells when one moves under the day's divider
@@ -187,19 +182,23 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     offWindow
   );
 
-  const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const target = moreRef.current;
     if (!hasMore || !target || typeof IntersectionObserver === 'undefined') return undefined;
+    // What it measured for an earlier filter or page may still arrive after the cleanup.
+    let live = true;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) appendRef.current();
+        if (live && entries.some((entry) => entry.isIntersecting)) appendRef.current();
       },
       { root: findScrollParent(target), rootMargin: SENTINEL_MARGIN }
     );
     observer.observe(target);
-    return () => observer.disconnect();
-  }, [hasMore, limit]);
+    return () => {
+      live = false;
+      observer.disconnect();
+    };
+  }, [hasMore, filterKey, limit]);
   const openInvites = () => {
     void navigate(getActivityInvitesPath());
     onNavigate?.();
@@ -346,13 +345,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
           </div>
           {hasMore && (
             <div ref={moreRef} className={css.ShowMore}>
-              <Button
-                size="300"
-                variant="Secondary"
-                fill="None"
-                radii="300"
-                onClick={(event: MouseEvent<HTMLButtonElement>) => appendPage(event.detail === 0)}
-              >
+              <Button size="300" variant="Secondary" fill="None" radii="300" onClick={appendPage}>
                 <Text size="B300">{t('threadsPage.showMore')}</Text>
               </Button>
             </div>
