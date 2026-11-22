@@ -714,12 +714,42 @@ test.describe('Electron script policy and canvas frame', () => {
         `${APP_ORIGIN}/home/${encodeURIComponent(ROOM_ID)}?threadId=${encodeURIComponent(ROOT_ID)}`
       );
 
-      const assertCanvasWorks = async (
+      const canvasAlert = (outerSelector: string) =>
+        outerSelector.startsWith('aside ')
+          ? page
+              .locator('aside[aria-label*="Canvas"], aside[aria-label*="canvas"]')
+              .first()
+              .getByRole('alert')
+              .first()
+          : page
+              .locator(outerSelector)
+              .first()
+              .locator('xpath=../..')
+              .getByRole('alert')
+              .first();
+
+      const markBeforeRemount = async (outerSelector: string): Promise<void> => {
+        await page
+          .locator(outerSelector)
+          .first()
+          .evaluate((el) => {
+            el.setAttribute('data-e2e-prev', '1');
+          });
+        await canvasAlert(outerSelector).evaluate((el) => {
+          el.setAttribute('data-e2e-prev', '1');
+        });
+      };
+
+      const waitForSettledCanvas = async (
         outerSelector: string,
-        expectedLabel: string
+        expectedLabel: string,
+        remounted = false
       ): Promise<FrameLocator> => {
         const outer = page.locator(outerSelector).first();
         await expect(outer).toBeVisible({ timeout: 20_000 });
+        if (remounted) {
+          await expect(outer).not.toHaveAttribute('data-e2e-prev', '1', { timeout: 15_000 });
+        }
         await expect(outer).toHaveAttribute('src', '/canvas-frame.html');
         const inner = page.frameLocator(outerSelector).first().frameLocator('iframe');
         await expect(inner.locator('#label')).toHaveText(expectedLabel, { timeout: 15_000 });
@@ -727,6 +757,25 @@ test.describe('Electron script policy and canvas frame', () => {
           JSON.stringify({ origin: 'null', hasBridge: false, d3Ok: true, fetchBlocked: true }),
           { timeout: 15_000 }
         );
+        await expect(inner.locator('#remote-asset')).toHaveText('blocked', { timeout: 15_000 });
+        // CanvasPageErrors mounts above the iframe once both blocked CSP reports arrive,
+        // shifting the iframe down; wait for the new alert to settle before clicking inside.
+        const alert = canvasAlert(outerSelector);
+        await expect(alert).toBeVisible({ timeout: 15_000 });
+        if (remounted) {
+          await expect(alert).not.toHaveAttribute('data-e2e-prev', '1', { timeout: 15_000 });
+        }
+        await expect(alert).toContainText('(connect-src)', { timeout: 15_000 });
+        await expect(alert).toContainText('(img-src)', { timeout: 15_000 });
+        return inner;
+      };
+
+      const assertCanvasWorks = async (
+        outerSelector: string,
+        expectedLabel: string,
+        remounted = false
+      ): Promise<FrameLocator> => {
+        const inner = await waitForSettledCanvas(outerSelector, expectedLabel, remounted);
         await expect(inner.locator('#count')).toHaveText('0');
         await inner.locator('#inc').click();
         await expect(inner.locator('#count')).toHaveText('1');
@@ -738,11 +787,11 @@ test.describe('Electron script policy and canvas frame', () => {
       expect(mock.probeHits()).toBe(0);
 
       await expect(inlineInner.locator('#remote')).toHaveText('off');
-      await expect(inlineInner.locator('#remote-asset')).toHaveText('blocked', { timeout: 15_000 });
       expect(remoteAssetHits).toBe(0);
       await expect(inlineInner.locator('#saved')).toHaveText('none');
 
       // 2a. Navigating the wrapper frame itself restarts the inline canvas with the same document and runs again.
+      await markBeforeRemount('iframe[title="Policy Canvas"]');
       await page
         .locator('iframe[title="Policy Canvas"]')
         .first()
@@ -751,16 +800,13 @@ test.describe('Electron script policy and canvas frame', () => {
         .evaluate(() => {
           window.location.assign('about:blank');
         });
-      await expect(inlineInner.locator('#count')).toHaveText('0', { timeout: 15_000 });
-      await inlineInner.locator('#inc').click();
-      await expect(inlineInner.locator('#count')).toHaveText('1');
-      await expect(inlineInner.locator('#meta')).toHaveText(
-        JSON.stringify({ origin: 'null', hasBridge: false, d3Ok: true, fetchBlocked: true })
-      );
+      await assertCanvasWorks('iframe[title="Policy Canvas"]', 'v1-inline', true);
 
       // 2b. Saving state and escaping changes the document within one revision (same revisionEventId) and shows it.
       await inlineInner.locator('#save').click();
+      await markBeforeRemount('iframe[title="Policy Canvas"]');
       await inlineInner.locator('#escape-inner').click();
+      await waitForSettledCanvas('iframe[title="Policy Canvas"]', 'v1-inline', true);
       await expect(inlineInner.locator('#saved')).toHaveText('same-rev-saved', { timeout: 15_000 });
       await expect(inlineInner.locator('#count')).toHaveText('0');
       await inlineInner.locator('#inc').click();
@@ -801,8 +847,9 @@ test.describe('Electron script policy and canvas frame', () => {
         .getByRole('button', { name: 'Load update', exact: true })
         .first();
       await expect(loadInlineUpdate).toBeVisible({ timeout: 15_000 });
+      await markBeforeRemount('iframe[title="Policy Canvas"]');
       await loadInlineUpdate.click();
-      await assertCanvasWorks('iframe[title="Policy Canvas"]', 'v2-updated');
+      await assertCanvasWorks('iframe[title="Policy Canvas"]', 'v2-updated', true);
 
       // 4. Open in the panel: works, updates on a new document, and shows escaped after a document change.
       await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
@@ -849,8 +896,9 @@ test.describe('Electron script policy and canvas frame', () => {
       });
       const loadPanelUpdate = panel.getByRole('button', { name: 'Load update', exact: true });
       await expect(loadPanelUpdate).toBeVisible({ timeout: 15_000 });
+      await markBeforeRemount('aside iframe[title="Policy Canvas"]');
       await loadPanelUpdate.click();
-      await assertCanvasWorks('aside iframe[title="Policy Canvas"]', 'v3-panel');
+      await assertCanvasWorks('aside iframe[title="Policy Canvas"]', 'v3-panel', true);
 
       // Escape the wrapper frame in the panel after the document change -> shown as escaped.
       await page
