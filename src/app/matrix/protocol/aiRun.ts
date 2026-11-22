@@ -210,7 +210,13 @@ export const withoutAiRunCost = (info: AiRunInfo): AiRunInfo => ({
   subagentsCostUsd: undefined,
 });
 
-const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
+const TERMINAL_AI_RUN_STATUSES = new Set([
+  'completed',
+  'cached',
+  'error',
+  'cancelled',
+  'interrupted',
+]);
 
 export const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
 // 'pending' counts as active so callers driving spinners (e.g. thread streaming
@@ -272,20 +278,29 @@ export const hasTerminalStreamMetadata = (content: Record<string, unknown>): boo
     typeof metadata?.status === 'string' ? metadata.status.toLowerCase() : undefined;
   if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return true;
 
-  const streamStatus = getStreamStatusFromContent(content);
+  const streamStatus = readStreamStatus(content);
   return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
 export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
-  // Check io.mindroom.ai_run metadata (present on final edits)
+  if (hasTerminalStreamMetadata(content)) return false;
+
+  const streamStatus = readStreamStatus(content);
+  if (streamStatus === 'approval_pending') return false;
+
   const metadata = getAiRunMetadata(content);
   if (metadata) {
-    const status = typeof metadata.status === 'string' ? metadata.status : undefined;
-    return !status || !TERMINAL_AI_RUN_STATUSES.has(status);
+    if (typeof metadata.status === 'string' && metadata.status.length > 0) {
+      return !TERMINAL_AI_RUN_STATUSES.has(metadata.status.toLowerCase());
+    }
+    if (streamStatus) {
+      return (
+        ACTIVE_STREAM_STATUSES.has(streamStatus) && !TERMINAL_STREAM_STATUSES.has(streamStatus)
+      );
+    }
+    return true;
   }
 
-  // Check io.mindroom.stream_status (present on intermediate streaming edits)
-  const streamStatus = getStreamStatusFromContent(content);
   if (streamStatus) {
     return ACTIVE_STREAM_STATUSES.has(streamStatus) && !TERMINAL_STREAM_STATUSES.has(streamStatus);
   }

@@ -19,11 +19,9 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { saveFile } from '../native/nativeFileSave';
 import { getAiRunInfo, withoutAiRunCost, type AiRunInfo } from '../matrix/protocol/aiRun';
 import { getLongTextSource, type LongTextSource } from '../matrix/protocol/longText';
-import {
-  downloadLongTextSidecarBlob,
-  getLongTextDownloadName,
-} from './content/longTextDownload';
+import { downloadLongTextSidecarBlob, getLongTextDownloadName } from './content/longTextDownload';
 import { useLongTextResolvedContent } from './content/LongTextText';
+import { hasRenderableAiRunDetails } from './agent-run/aiRunDisplay';
 import { ReplyDetails } from './reply/ReplyDetails';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import * as css from './MessageControls.css';
@@ -108,12 +106,8 @@ type AiRunControlsProps = {
 };
 
 /** Owns the Reply details dialog of an agent reply; the children render its triggers. */
-export function AiRunControls({
-  info,
-  eventId,
-  forwardedRef,
-  children,
-}: AiRunControlsProps) {
+export function AiRunControls({ info, eventId, forwardedRef, children }: AiRunControlsProps) {
+  const renderableInfo = info && hasRenderableAiRunDetails(info) ? info : undefined;
   const [open, setOpen] = useState(false);
   const openDetails = useCallback(() => setOpen(true), []);
   const closeDetails = useCallback(() => setOpen(false), []);
@@ -127,8 +121,8 @@ export function AiRunControls({
 
   return (
     <>
-      {children(info && controls)}
-      {info && (
+      {children(renderableInfo && controls)}
+      {renderableInfo && (
         <ModalLayer
           open={open}
           onClose={closeDetails}
@@ -152,7 +146,7 @@ export function AiRunControls({
               }
               className={css.ReplyDetailsScroll}
             >
-              <ReplyDetails info={info} eventId={eventId} />
+              <ReplyDetails info={renderableInfo} eventId={eventId} />
             </PageScroll>
           </Dialog>
         </ModalLayer>

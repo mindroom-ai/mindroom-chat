@@ -2,6 +2,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { hasRenderableAiRunDetails } from '../agent-run/aiRunDisplay';
 import { ReplyDetails } from './ReplyDetails';
 import { ThreadConversationCostProvider } from '../../event-store/threads/useThreadConversationCost';
 import type { ThreadConversationCost } from '../../event-store/threads/threadConversationCost';
@@ -387,5 +388,35 @@ describe('ReplyDetails', () => {
       'Run ID': 'run-123',
       'Session ID': 'session-456',
     });
+  });
+
+  it('reports whether an AiRunInfo has at least one renderable detail section', () => {
+    expect(hasRenderableAiRunDetails({})).toBe(false);
+    expect(hasRenderableAiRunDetails({ status: 'completed' })).toBe(false);
+    expect(hasRenderableAiRunDetails({ status: 'cached' })).toBe(false);
+    expect(hasRenderableAiRunDetails({ status: 'interrupted' })).toBe(false);
+    expect(hasRenderableAiRunDetails({ inputTokens: 0, outputTokens: 0 })).toBe(false);
+
+    expect(
+      hasRenderableAiRunDetails({
+        modelDisplayName: 'Gemini 4 Neon',
+        modelProvider: 'openrouter',
+        modelId: 'google/gemini-4-neon',
+        modelConfig: 'gemini4_neon',
+      })
+    ).toBe(true);
+    expect(hasRenderableAiRunDetails({ status: 'error' })).toBe(true);
+    expect(hasRenderableAiRunDetails({ status: 'cancelled' })).toBe(true);
+    expect(hasRenderableAiRunDetails({ costUsd: 0 })).toBe(true);
+    expect(hasRenderableAiRunDetails({ subagentsCostUsd: 0.01 })).toBe(true);
+    expect(hasRenderableAiRunDetails({ outputTokens: 12 })).toBe(true);
+    expect(hasRenderableAiRunDetails({ contextInputTokens: 100, contextWindowTokens: 4000 })).toBe(
+      true
+    );
+    expect(hasRenderableAiRunDetails({ toolCount: 0 })).toBe(true);
+    expect(hasRenderableAiRunDetails({ timeToFirstToken: 0.42 })).toBe(true);
+    expect(hasRenderableAiRunDetails({ modelConfig: 'default' })).toBe(true);
+    expect(hasRenderableAiRunDetails({ runId: 'run-1' })).toBe(true);
+    expect(hasRenderableAiRunDetails({ sessionId: 'session-1' })).toBe(true);
   });
 });

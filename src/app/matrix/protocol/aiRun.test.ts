@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getAiRunInfo, isAiRunStreaming, withoutAiRunCost } from './aiRun';
+import {
+  getAiRunInfo,
+  hasTerminalStreamMetadata,
+  isAiRunStreaming,
+  withoutAiRunCost,
+} from './aiRun';
 
 describe('getAiRunInfo', () => {
   it('extracts metadata from top-level message content', () => {
@@ -95,9 +100,7 @@ describe('getAiRunInfo', () => {
 
   it('returns undefined when metadata is absent or invalid', () => {
     expect(getAiRunInfo({})).toBeUndefined();
-    expect(
-      getAiRunInfo({ 'io.mindroom.ai_run': { version: 1, usage: 'bad' } })
-    ).toBeUndefined();
+    expect(getAiRunInfo({ 'io.mindroom.ai_run': { version: 1, usage: 'bad' } })).toBeUndefined();
     expect(getAiRunInfo({ 'io.mindroom.ai_run': { version: 3 } })).toBeUndefined();
   });
 });
@@ -109,10 +112,11 @@ describe('isAiRunStreaming', () => {
   });
 
   it('returns false for terminal statuses', () => {
-    const terminalStatuses = ['completed', 'cached', 'error', 'cancelled'];
+    const terminalStatuses = ['completed', 'cached', 'error', 'cancelled', 'interrupted'];
     for (const status of terminalStatuses) {
-      expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(
-        false
+      expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(false);
+      expect(hasTerminalStreamMetadata({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(
+        true
       );
     }
   });
@@ -199,8 +203,8 @@ describe('isAiRunStreaming', () => {
     expect(isAiRunStreaming({ 'io.mindroom.stream_status': 'Completed' })).toBe(false);
   });
 
-  it('prefers ai_run metadata over stream_status when both present', () => {
-    // ai_run says completed, stream_status says streaming → not streaming (ai_run wins)
+  it('always treats terminal metadata as not streaming when both ai_run and stream_status are present', () => {
+    // ai_run says completed, stream_status says streaming → not streaming
     expect(
       isAiRunStreaming({
         'io.mindroom.ai_run': { version: 1, status: 'completed' },
@@ -208,13 +212,83 @@ describe('isAiRunStreaming', () => {
       })
     ).toBe(false);
 
-    // ai_run says running, stream_status says completed → streaming (ai_run wins)
+    // ai_run says running, stream_status says completed → not streaming (terminal stream_status wins)
     expect(
       isAiRunStreaming({
         'io.mindroom.ai_run': { version: 1, status: 'running' },
         'io.mindroom.stream_status': 'completed',
       })
+    ).toBe(false);
+
+    // record-form terminal stream_status also terminates even with active ai_run
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        'io.mindroom.stream_status': { status: 'cancelled' },
+      })
+    ).toBe(false);
+    expect(
+      hasTerminalStreamMetadata({
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        'io.mindroom.stream_status': { status: 'cancelled' },
+      })
     ).toBe(true);
+  });
+
+  it('handles early status-less ai_run metadata alongside stream_status lifecycle', () => {
+    const earlyRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'pending',
+      })
+    ).toBe(true);
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'streaming',
+      })
+    ).toBe(true);
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'approval_pending',
+      })
+    ).toBe(false);
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': { ...earlyRun, status: 'streaming' },
+        'io.mindroom.stream_status': 'approval_pending',
+      })
+    ).toBe(false);
+
+    for (const terminal of ['completed', 'cancelled', 'error', 'interrupted']) {
+      expect(
+        isAiRunStreaming({
+          'io.mindroom.ai_run': earlyRun,
+          'io.mindroom.stream_status': terminal,
+        })
+      ).toBe(false);
+    }
+
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'unknown',
+      })
+    ).toBe(false);
+
+    // Backward compat: status-less ai_run without stream_status stays streaming
+    expect(isAiRunStreaming({ 'io.mindroom.ai_run': earlyRun })).toBe(true);
   });
 });
 

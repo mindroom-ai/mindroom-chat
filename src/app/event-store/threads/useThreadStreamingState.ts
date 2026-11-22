@@ -3,7 +3,6 @@ import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import {
   ACTIVE_STREAM_STATUSES,
-  TERMINAL_STREAM_STATUSES,
   getAiRunInfo,
   hasTerminalStreamMetadata,
   readStreamStatus,
@@ -76,30 +75,29 @@ export const isEventStreaming = (
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
 ): boolean => {
   const content = getPreferredEventContent(mEvent, timelineSet);
+  const streamStatus = readStreamStatus(content);
+  // hasTerminalStreamMetadata owns both the ai_run terminal set (which
+  // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) and string- or
+  // record-form terminal stream statuses. A device without the room's keys
+  // reads the finishing edit's status in the clear, and a redacted finishing
+  // edit still ended the stream.
+  const terminalMetadata =
+    hasTerminalStreamMetadata(content) || !!getFinishingEdit(mEvent) || hasStreamEnded(mEvent);
+
+  if (terminalMetadata || streamStatus === 'approval_pending') {
+    return false;
+  }
+
   const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
   if (aiRunStatus === 'streaming') {
     return true;
   }
 
-  const streamStatus = readStreamStatus(content);
-  // hasTerminalStreamMetadata owns the ai_run terminal set (which
-  // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
-  // stream statuses; the local check only adds the record-form fallback.
-  // Diverging here wedges a permanent spinner while the stop chip (gated on
-  // the shared helper) is hidden.
-  // A device without the room's keys reads the finishing edit's status in the clear, and a
-  // redacted finishing edit still ended the stream.
-  const terminalMetadata =
-    hasTerminalStreamMetadata(content) ||
-    (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus)) ||
-    !!getFinishingEdit(mEvent) ||
-    hasStreamEnded(mEvent);
-
-  if (hasStopReaction(relations) && !terminalMetadata) {
+  if (hasStopReaction(relations)) {
     return true;
   }
 
-  return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus) && !terminalMetadata;
+  return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus);
 };
 
 const getThreadStreamingSnapshot = (

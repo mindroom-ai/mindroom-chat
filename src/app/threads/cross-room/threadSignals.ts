@@ -219,7 +219,11 @@ const questionSourceId = ({ event, content }: Shown): string | undefined =>
 
 const readOutcome = ({ event, content, editTs }: Shown): ThreadOutcome | undefined => {
   const run = getAiRunInfo(content);
-  const status = (run?.status ?? getStreamStatusFromContent(content) ?? '').toLowerCase();
+  const runStatus = run?.status?.toLowerCase();
+  const status =
+    runStatus && (STOPPED_STATUSES.has(runStatus) || FINISHED_STATUSES.has(runStatus))
+      ? runStatus
+      : (getStreamStatusFromContent(content) ?? '').toLowerCase();
   const ts = editTs ?? event.getTs();
   const durationMs = ts - event.getTs();
   const base = {

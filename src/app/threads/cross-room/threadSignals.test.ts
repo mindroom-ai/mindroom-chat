@@ -472,6 +472,64 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(fast, ROOT, ME, NOW).outcome).toBeUndefined();
   });
 
+  it('reads terminal stream_status outcomes even when early or non-terminal ai_run is present', async () => {
+    const earlyRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+
+    const stoppedStatusless = event({
+      id: '$stop-statusless',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'cancelled',
+      },
+    });
+    const { room: r1 } = await setup(ME, [stoppedStatusless]);
+    expect(readThreadSignals(r1, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+
+    const stoppedWithStreamingRun = event({
+      id: '$stop-streaming-run',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': { ...earlyRun, status: 'streaming' },
+        'io.mindroom.stream_status': 'error',
+      },
+    });
+    const { room: r2 } = await setup(ME, [stoppedWithStreamingRun]);
+    expect(readThreadSignals(r2, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+
+    const finishedWithPendingRun = event({ id: '$finish-pending-run', ts: 2000, sender: AGENT });
+    finishedWithPendingRun.makeReplaced(
+      event({
+        id: '$finish-pending-run-edit',
+        ts: 2000 + FINISHED_AFTER_MS + 10_000,
+        sender: AGENT,
+        content: {
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'Done',
+            'io.mindroom.ai_run': { ...earlyRun, status: 'pending' },
+            'io.mindroom.stream_status': 'completed',
+          },
+        },
+      })
+    );
+    const { room: r3 } = await setup(ME, [finishedWithPendingRun]);
+    expect(readThreadSignals(r3, ROOT, ME, NOW).outcome).toMatchObject({
+      kind: 'finished',
+      durationMs: FINISHED_AFTER_MS + 10_000,
+    });
+  });
+
   it('calls an agent thread nobody wrote in an automation', async () => {
     const { room } = await setup(AGENT, [event({ id: '$digest', ts: 2000, sender: AGENT })]);
     expect(readThreadSignals(room, ROOT, ME, NOW).automation).toBe(true);

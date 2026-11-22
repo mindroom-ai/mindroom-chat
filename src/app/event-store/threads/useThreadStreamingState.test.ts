@@ -782,4 +782,96 @@ describe('useThreadStreamingState', () => {
 
     renderer.unmount();
   });
+
+  it('tracks the early ai_run edit lifecycle across placeholder, approval pause, resume, and terminal notes', () => {
+    const earlyAiRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+    const relationMap = new Map<string, MockRelations>();
+    const loadedEdits: MatrixEvent[] = [];
+    const stopReaction = makeMessageEvent('$stop-reaction', 205, {
+      'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
+    });
+    const relations = Object.assign(makeRelations(), { getRelations: () => loadedEdits });
+    relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({
+      rootEventId: '$root',
+      thread,
+      roomTimelineSet: makeTimelineSet(relationMap, () => []),
+    });
+
+    const pushEdit = (id: string, ts: number, newContent: Record<string, unknown>) => {
+      const edit = makeEditEvent(id, ts, '$reply', newContent);
+      loadedEdits.push(edit);
+      replyEvent.makeReplaced(edit);
+    };
+
+    // 1. Placeholder with early ai_run
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 2. Progress edit with early ai_run
+    pushEdit('$edit-progress', 220, {
+      body: 'Working on it...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 3. Approval pause edit (even with a stop reaction still present)
+    pushEdit('$edit-approval', 240, {
+      body: 'Waiting for approval...',
+      'io.mindroom.stream_status': 'approval_pending',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 4. Resume streaming (including an edit carrying explicit streaming ai_run.status)
+    pushEdit('$edit-resume', 260, {
+      body: 'Resumed...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'streaming' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 5a. Terminal stop note WITHOUT ai_run (borrows ai_run from earlier loaded edit via getEditedEvent)
+    pushEdit('$edit-stop-borrowed', 280, {
+      body: 'Stopped.',
+      'io.mindroom.stream_status': 'cancelled',
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 5b. Terminal error note WITH ai_run
+    pushEdit('$edit-error', 300, {
+      body: 'Failed.',
+      'io.mindroom.stream_status': 'error',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'error' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 5c. Terminal restart/interrupted note WITH ai_run
+    pushEdit('$edit-interrupted', 320, {
+      body: 'Interrupted by restart.',
+      'io.mindroom.stream_status': 'cancelled',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'interrupted' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+  });
 });

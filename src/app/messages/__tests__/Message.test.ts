@@ -813,6 +813,76 @@ describe('Message reply details menu item', () => {
     expect(rowValue(renderer, 'Run ID')).toBe('run-123');
     expect(rowValue(renderer, 'Session ID')).toBe('session-456');
   });
+
+  it('renders AvatarModelMark, ModelBadge, and Reply details on a streaming placeholder with early ai_run', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+        'io.mindroom.ai_run': {
+          version: 1,
+          model: {
+            config: 'gemini4_neon',
+            display_name: 'Gemini 4 Neon',
+            id: 'google/gemini-4-neon',
+            provider: 'openrouter',
+          },
+        },
+      },
+      { collapse: false }
+    );
+
+    const avatarStacks = renderer.root.findAll(
+      (node) => node.type === 'div' && node.props.className === 'MessageAvatarWithModel'
+    );
+    const avatarMarks = renderer.root.findAll(
+      (node) => node.type === 'span' && node.props.className === 'Mark'
+    );
+
+    expect(avatarStacks).toHaveLength(1);
+    expect(avatarMarks).toHaveLength(1);
+    expect(hasSpanText(renderer, 'Gemini 4 Neon')).toBe(true);
+    expect(
+      hasNodeTip(renderer, 'Gemini 4 Neon · gemini4_neon (openrouter / google/gemini-4-neon)')
+    ).toBe(true);
+    expect(getButtonByAriaLabel(renderer, 'Reply details')).toBeDefined();
+  });
+
+  it('does not expose an empty Reply details button for bare status-only completed ai_run', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Done',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'completed',
+        },
+      },
+      { collapse: false }
+    );
+
+    expect(getButtonByAriaLabel(renderer, 'Reply details')).toBeUndefined();
+
+    await openContextMenu(renderer);
+    expect(getButtonByText(renderer, 'Reply details')).toBeUndefined();
+  });
+
+  it('still exposes Reply details for flagged status-only cancelled ai_run', async () => {
+    const { renderer } = await renderMessage(
+      {
+        msgtype: 'm.text',
+        body: 'Stopped',
+        'io.mindroom.ai_run': {
+          version: 1,
+          status: 'cancelled',
+        },
+      },
+      { collapse: false }
+    );
+
+    expect(getButtonByAriaLabel(renderer, 'Reply details')).toBeDefined();
+  });
 });
 
 describe('Message copy text overflow integration', () => {

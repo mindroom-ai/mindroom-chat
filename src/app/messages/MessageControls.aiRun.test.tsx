@@ -28,7 +28,7 @@ function Row({ controls }: { controls: AiRunControlsRenderProps | undefined }) {
   );
 }
 
-const render = (info: { status: string } | undefined) => (
+const render = (info: AiRunInfo | undefined) => (
   <AiRunControls info={info}>{(controls) => <Row controls={controls} />}</AiRunControls>
 );
 
@@ -45,12 +45,32 @@ describe('AiRunControls', () => {
     });
     expect(row().props['data-opened']).toBe(true);
 
-    act(() => renderer.update(render({ status: 'completed' })));
+    act(() => renderer.update(render({ status: 'completed', modelDisplayName: 'Gemini 4 Neon' })));
     expect(row().props.children).toBe('with details');
     expect(row().props['data-opened']).toBe(true);
 
     act(() => renderer.update(render(undefined)));
     expect(row().props['data-opened']).toBe(true);
+    renderer.unmount();
+  });
+
+  it('hides controls for bare status-only completed runs and shows them for early model or flagged runs', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(render({ status: 'completed' }));
+    });
+    const row = () => renderer.root.findByType('button');
+    expect(row().props.children).toBe('without details');
+
+    act(() => renderer.update(render({ modelDisplayName: 'Gemini 4 Neon' })));
+    expect(row().props.children).toBe('with details');
+
+    act(() => renderer.update(render({ status: 'cancelled' })));
+    expect(row().props.children).toBe('with details');
+
+    act(() => renderer.update(render({ status: 'error' })));
+    expect(row().props.children).toBe('with details');
+
     renderer.unmount();
   });
 });
