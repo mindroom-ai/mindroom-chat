@@ -214,11 +214,14 @@ const anchorRect = {
   right: 344,
 };
 
+const focusInput = vi.fn();
+
 const createNodeMock = (element: React.ReactElement) => {
   const className = typeof element.props.className === 'string' ? element.props.className : '';
   if (className.includes('InviteAutocompleteMenuRoot')) {
     return { getBoundingClientRect: () => anchorRect };
   }
+  if (element.type === 'input') return { focus: focusInput };
   return null;
 };
 
@@ -543,6 +546,21 @@ describe('InviteUserPrompt', () => {
     expect(textContent(renderer, 'status')).toBe('');
     expect(textContent(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
     expect(textContent(renderer, 'alert')).toContain('Forbidden');
+  });
+
+  it('returns focus to the user ID field after an invite whose grant fails', async () => {
+    const { renderer, mx } = renderPrompt();
+    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+    focusInput.mockClear();
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    await submitInvite(renderer);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(textContent(renderer, 'alert')).toContain('Forbidden');
+    expect(focusInput).toHaveBeenCalled();
   });
 
   it.each([
