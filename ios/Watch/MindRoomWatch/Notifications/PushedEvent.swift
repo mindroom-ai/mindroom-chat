@@ -21,6 +21,11 @@ enum PushedEvent {
         if session.client == nil { await session.restore() }
         guard let client = session.client, let userId = try? client.userId(),
               let room = try? client.getRoom(roomId: roomId) else { return nil }
+        // The room's trust is read beside the events: the thread's screen folds voice echoes with it, and what
+        // the push is must be the same there and here. When it cannot be read, the trust the app last read
+        // stands, or none (nothing is hidden).
+        let trust = RoomTrust.of(roomId)
+        let trustRead = Task { _ = await trust.refresh { await roomState(client, roomId: roomId) } }
         var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: pushedId)
         // A room's newer keys reach the watch only through sync, which runs while the app is in front: when
         // the event does not decrypt, sync for a few seconds and read it again.
@@ -43,8 +48,8 @@ enum PushedEvent {
         }
         let rootId = ThreadSnapshot.threadRootId(of: event)
         let threadJsons = rootId == eventId ? jsons : (try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId)) ?? []
-        if let root = threadJsons.first.flatMap(parse) {
-            let snapshot = ThreadSnapshot.build(root: root, related: threadJsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+        await trustRead.value
+        if let snapshot = threadSnapshot(threadJsons, trust: trust, userId: userId) {
             switch snapshot.pushed(eventId: eventId) {
             case let .approval(card, actionable): return .approval(card, actionable: actionable, roomId: roomId)
             case let .question(question): return .question(question, roomId: roomId, threadId: rootId)

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
@@ -22,23 +23,34 @@ final class ThreadModel: ObservableObject {
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
-    private let refreshTrust: @MainActor () async -> Set<String>
-    private var trustedAccounts: Set<String> = []
+    /// The room's trust, the one its threads list reads too: the thread is built with it as it is then.
+    private let trust: RoomTrust
+    private var trustChanges: AnyCancellable?
+    private let refreshTrust: @MainActor () -> Void
+    /// The thread's events as last read: its root, then every event related to it.
+    private var events: [String]?
 
-    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?,
-         refreshTrust: @escaping @MainActor () async -> Set<String> = { [] }) {
+    /// `initial`: the thread's events as the threads list last read them. `refreshTrust` asks the room to read
+    /// its trust again and does not wait for it (`RoomModel.refreshTrust`).
+    init(room: Room, rootId: String, userId: String, initial: [String]?, refreshTrust: @escaping @MainActor () -> Void) {
+        let trust = RoomTrust.of(room.id())
         self.room = room
         self.rootId = rootId
         self.userId = userId
+        self.trust = trust
         self.refreshTrust = refreshTrust
-        snapshot = initial
+        events = initial
+        snapshot = initial.flatMap { threadSnapshot($0, trust: trust, userId: userId) }
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
+        trustChanges = trust.changed.sink { model?.show() }
         model = self
     }
 
     func start() async {
-        trustedAccounts = await refreshTrust()
+        // The trust is read beside the thread, never ahead of it: the timeline, the messages and Reply do not
+        // wait for the room's state, and the thread shows again once the trust is there.
+        refreshTrust()
         if timeline == nil {
             do {
                 let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
@@ -56,9 +68,8 @@ final class ThreadModel: ObservableObject {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
-                guard let self, !Task.isCancelled else { break }
-                self.trustedAccounts = await self.refreshTrust()
-                self.update()
+                self?.refreshTrust()
+                self?.update()
             }
         }
     }
@@ -101,10 +112,15 @@ final class ThreadModel: ObservableObject {
     }
 
     private func fetch() async {
-        guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
-              let root = jsons.first.flatMap(parse) else { return }
-        let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date(),
-                                        trustedAccounts: trustedAccounts)
+        guard let read = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId) else { return }
+        events = read
+        show()
+    }
+
+    /// Shows the thread as the events last read give it with the room's trust as it is now: after each read,
+    /// and when the trust changed, for which nothing is read again.
+    private func show() {
+        guard let next = events.flatMap({ threadSnapshot($0, trust: trust, userId: userId) }) else { return }
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)
