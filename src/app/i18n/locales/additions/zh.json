@@ -722,6 +722,35 @@
           "default": "默认",
           "auto": "任何消息",
           "mentions": "仅在被提及时"
+        },
+        "sections": {
+          "agents": "智能体",
+          "threadTitles": "话题标题"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房间中所有智能体、团队和路由器的默认模型。话题内的单独覆盖仍具有更高优先级。",
+          "default": "使用配置的默认值",
+          "defaultDescription": "遵循 MindRoom 为此房间配置的默认值。",
+          "unknown": "未知模型：“{{value}}”不在此房间的模型列表中。",
+          "catalogUnavailable": "当前没有可用的模型列表。你仍可重置为配置的默认值。"
+        },
+        "threadMode": {
+          "label": "话题模式",
+          "description": "此房间中的智能体是在话题中还是在主时间线中回复。",
+          "default": "使用配置的默认值",
+          "thread": "话题",
+          "room": "主时间线",
+          "effective": "当前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "话题",
+            "room": "主时间线",
+            "mixed": "混合（因智能体而异）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "标题模型",
+          "description": "为此房间生成自动话题标题的模型。"
         }
       }
     },

@@ -735,6 +735,35 @@
           "default": "Standaard",
           "auto": "Op elk bericht",
           "mentions": "Alleen als ze genoemd worden"
+        },
+        "sections": {
+          "agents": "Agents",
+          "threadTitles": "Threadtitels"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Standaardmodel voor elke agent, elk team en de router in deze ruimte. Keuzes per thread blijven voorrang hebben.",
+          "default": "Geconfigureerde standaard gebruiken",
+          "defaultDescription": "Volg de in MindRoom geconfigureerde standaard voor deze ruimte.",
+          "unknown": "Onbekend model: \"{{value}}\" staat niet in de modellijst van deze ruimte.",
+          "catalogUnavailable": "Er is momenteel geen modellijst beschikbaar. Je kunt nog steeds terugzetten naar de geconfigureerde standaard."
+        },
+        "threadMode": {
+          "label": "Threadmodus",
+          "description": "Of agents in deze ruimte in threads of in de hoofdtijdlijn antwoorden.",
+          "default": "Geconfigureerde standaard gebruiken",
+          "thread": "Threads",
+          "room": "Hoofdtijdlijn",
+          "effective": "Huidige effectieve modus: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Hoofdtijdlijn",
+            "mixed": "Gemengd (verschilt per agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Titelmodel",
+          "description": "Model dat de automatische threadtitels in deze ruimte schrijft."
         }
       }
     },

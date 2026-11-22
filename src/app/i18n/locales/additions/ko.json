@@ -722,6 +722,35 @@
           "default": "기본값",
           "auto": "모든 메시지",
           "mentions": "멘션될 때만"
+        },
+        "sections": {
+          "agents": "에이전트",
+          "threadTitles": "스레드 제목"
+        },
+        "model": {
+          "label": "모델",
+          "description": "이 방의 모든 에이전트, 팀, 라우터에 적용되는 기본 모델입니다. 스레드별 재정의가 여전히 우선합니다.",
+          "default": "구성된 기본값 사용",
+          "defaultDescription": "이 방에 구성된 MindRoom 기본값을 따릅니다.",
+          "unknown": "알 수 없는 모델: \"{{value}}\"은(는) 이 방의 모델 목록에 없습니다.",
+          "catalogUnavailable": "지금은 모델 목록을 불러올 수 없습니다. 구성된 기본값으로 재설정할 수는 있습니다."
+        },
+        "threadMode": {
+          "label": "스레드 모드",
+          "description": "이 방에서 에이전트가 스레드에 답할지 메인 타임라인에 답할지 설정합니다.",
+          "default": "구성된 기본값 사용",
+          "thread": "스레드",
+          "room": "메인 타임라인",
+          "effective": "현재 적용 모드: {{mode}}",
+          "effectiveModes": {
+            "thread": "스레드",
+            "room": "메인 타임라인",
+            "mixed": "혼합(에이전트마다 다름)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "제목 모델",
+          "description": "이 방의 자동 스레드 제목을 작성하는 모델입니다."
         }
       }
     },

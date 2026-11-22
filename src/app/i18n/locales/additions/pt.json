@@ -748,6 +748,35 @@
           "default": "Padrão",
           "auto": "A qualquer mensagem",
           "mentions": "Só quando mencionados"
+        },
+        "sections": {
+          "agents": "Agentes",
+          "threadTitles": "Títulos de tópicos"
+        },
+        "model": {
+          "label": "Modelo",
+          "description": "Modelo padrão para todos os agentes, equipes e roteador nesta sala. Substituições por tópico continuam tendo prioridade.",
+          "default": "Usar padrão configurado",
+          "defaultDescription": "Seguir o padrão configurado no MindRoom para esta sala.",
+          "unknown": "Modelo desconhecido: \"{{value}}\" não está na lista de modelos desta sala.",
+          "catalogUnavailable": "Nenhuma lista de modelos está disponível no momento. Você ainda pode redefinir para o padrão configurado."
+        },
+        "threadMode": {
+          "label": "Modo de tópico",
+          "description": "Se os agentes respondem em tópicos ou na linha do tempo principal desta sala.",
+          "default": "Usar padrão configurado",
+          "thread": "Tópicos",
+          "room": "Linha do tempo principal",
+          "effective": "Modo efetivo atual: {{mode}}",
+          "effectiveModes": {
+            "thread": "Tópicos",
+            "room": "Linha do tempo principal",
+            "mixed": "Misto (varia por agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modelo de títulos",
+          "description": "Modelo que escreve os títulos automáticos dos tópicos desta sala."
         }
       }
     },

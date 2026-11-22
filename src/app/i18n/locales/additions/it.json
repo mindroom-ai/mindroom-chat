@@ -748,6 +748,35 @@
           "default": "Predefinito",
           "auto": "A ogni messaggio",
           "mentions": "Solo se menzionati"
+        },
+        "sections": {
+          "agents": "Agenti",
+          "threadTitles": "Titoli dei thread"
+        },
+        "model": {
+          "label": "Modello",
+          "description": "Modello predefinito per ogni agente, team e router in questa stanza. Le scelte sui singoli thread hanno comunque la precedenza.",
+          "default": "Usa predefinito configurato",
+          "defaultDescription": "Segui il modello predefinito configurato in MindRoom per questa stanza.",
+          "unknown": "Modello sconosciuto: \"{{value}}\" non è presente nell’elenco modelli di questa stanza.",
+          "catalogUnavailable": "Nessun elenco modelli disponibile al momento. Puoi comunque ripristinare il valore predefinito configurato."
+        },
+        "threadMode": {
+          "label": "Modalità thread",
+          "description": "Indica se gli agenti rispondono nei thread o nella sequenza principale di questa stanza.",
+          "default": "Usa predefinito configurato",
+          "thread": "Thread",
+          "room": "Sequenza principale",
+          "effective": "Modalità effettiva attuale: {{mode}}",
+          "effectiveModes": {
+            "thread": "Thread",
+            "room": "Sequenza principale",
+            "mixed": "Mista (varia per agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modello per i titoli",
+          "description": "Modello che genera i titoli automatici dei thread di questa stanza."
         }
       }
     },

@@ -735,6 +735,35 @@
           "default": "Standard",
           "auto": "Auf jede Nachricht",
           "mentions": "Nur bei Erwähnung"
+        },
+        "sections": {
+          "agents": "Agenten",
+          "threadTitles": "Thread-Titel"
+        },
+        "model": {
+          "label": "Modell",
+          "description": "Standardmodell für alle Agenten, Teams und den Router in diesem Raum. Thread-spezifische Vorgaben haben weiterhin Vorrang.",
+          "default": "Konfigurierten Standard verwenden",
+          "defaultDescription": "Folgt dem in MindRoom konfigurierten Standard für diesen Raum.",
+          "unknown": "Unbekanntes Modell: „{{value}}“ steht nicht in der Modellliste dieses Raums.",
+          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen."
+        },
+        "threadMode": {
+          "label": "Thread-Modus",
+          "description": "Ob Agenten in diesem Raum in Threads oder im Hauptverlauf antworten.",
+          "default": "Konfigurierten Standard verwenden",
+          "thread": "Threads",
+          "room": "Hauptverlauf",
+          "effective": "Aktuell wirksamer Modus: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Hauptverlauf",
+            "mixed": "Gemischt (je nach Agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Titelmodell",
+          "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
         }
       }
     },

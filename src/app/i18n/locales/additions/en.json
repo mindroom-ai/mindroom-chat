@@ -735,6 +735,35 @@
           "default": "Default",
           "auto": "Any message",
           "mentions": "Only when mentioned"
+        },
+        "sections": {
+          "agents": "Agents",
+          "threadTitles": "Thread titles"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Default model for every agent, team, and router in this room. Thread overrides still take precedence.",
+          "default": "Use configured default",
+          "defaultDescription": "Follow MindRoom's configured default for this room.",
+          "unknown": "Unknown model: \"{{value}}\" is not in this room's model list.",
+          "catalogUnavailable": "No model list is available right now. You can still reset to the configured default."
+        },
+        "threadMode": {
+          "label": "Thread mode",
+          "description": "Whether agents reply in threads or in the main timeline for this room.",
+          "default": "Use configured default",
+          "thread": "Threads",
+          "room": "Main timeline",
+          "effective": "Current effective mode: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Main timeline",
+            "mixed": "Mixed (varies by agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Title model",
+          "description": "Model that writes this room's automatic thread titles."
         }
       }
     },
