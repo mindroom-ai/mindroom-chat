@@ -2145,6 +2145,36 @@ describe('model mutation acknowledgement', () => {
 
     unsubSettings();
   });
+
+  it('reports a Settings refresh that got no answer until the runtime answers again', async () => {
+    const h = setup();
+    const snapshot = () => h.controller.getRoomCatalogSnapshot(h.room);
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    h.response(h.request());
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(snapshot().error).toBeUndefined();
+
+    // Asked again, as each opening of a model tile does, with the runtime away.
+    h.controller.refreshRoomCatalog(h.room);
+    expect(snapshot().loading).toBe(true);
+    expect(snapshot().models.map((m) => m.key)).toEqual(['fast', 'reset']);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(snapshot().loading).toBe(false);
+    expect(snapshot().error).toBeDefined();
+
+    // Its answer to the next attempt clears the error at once, not when the window ends.
+    await vi.advanceTimersByTimeAsync(3000);
+    h.response(h.request(), {
+      models: [{ key: 'new', display_name: 'New', provider: 'openai', id: 'new-1' }],
+    });
+    await flush();
+    expect(snapshot().loading).toBe(true);
+    expect(snapshot().error).toBeUndefined();
+    expect(snapshot().models.map((m) => m.key)).toEqual(['new']);
+
+    unsubSettings();
+  });
 });
 
 describe('ModelController main-room next-thread draft', () => {

@@ -588,6 +588,8 @@ export class ModelController {
     // The shown runtime's answer is the thread's selection now, so show it at once.
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
+      // Room settings offer no model of a list that failed to refresh; this answer is one again.
+      if (scope.catalogOnly) this.publish(scope, { error: undefined });
       this.showRuntime(scope, runtime);
     } else if (
       !scope.catalogs.size &&

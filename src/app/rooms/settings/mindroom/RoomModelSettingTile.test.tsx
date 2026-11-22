@@ -144,13 +144,14 @@ afterEach(() => {
 });
 
 describe('RoomModelSettingTile', () => {
-  it('shows Use configured default when unset, and opens on its row with the keys', () => {
+  it('shows Use configured default when unset, and opens on its row with the list asked again', () => {
     const catalog = createCatalog();
     renderTile(MODEL_DEF, catalog);
     expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'model']);
     expect(trigger().textContent).toBe('Use configured default');
 
     const dialog = open();
+    expect(catalog.refresh).toHaveBeenCalledTimes(1);
     expect(dialog.contains(document.activeElement)).toBe(true);
     expect(defaultRow().getAttribute('aria-selected')).toBe('true');
   });
@@ -274,6 +275,28 @@ describe('RoomModelSettingTile', () => {
     await settle();
     expect(catalog.chooseRuntime).not.toHaveBeenCalled();
     expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
+  });
+
+  it('keeps its rows while a list that answered is asked again, and drops them when that fails', () => {
+    const refresh = vi.fn();
+    const { rerender } = renderTile(MODEL_DEF, createCatalog({ refresh }));
+
+    const dialog = open();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    rerender(tile(MODEL_DEF, createCatalog({ refresh, loading: true })));
+    expect(within(dialog).getByRole('status').textContent).toBe('Loading models');
+    expect(screen.getByRole('option', { name: /Deep/ })).toBeTruthy();
+    expect(defaultRow()).toBeTruthy();
+
+    // The runtime did not answer: its old rows may name models it no longer has.
+    rerender(tile(MODEL_DEF, createCatalog({ refresh, error: 'Model discovery unavailable.' })));
+    expect(screen.queryByRole('option', { name: /Deep/ })).toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe(
+      'No model list is available right now. You can still reset to the configured default.Retry'
+    );
+    expect(defaultRow()).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it('keeps focus on its button through a save, which opens nothing meanwhile', async () => {

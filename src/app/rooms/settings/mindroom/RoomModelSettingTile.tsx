@@ -92,11 +92,12 @@ export function RoomModelSettingTile({
     [catalog.models, definition.allowReasoningLevels]
   );
 
-  // Without a list the menu keeps the reset row and says so, with Retry.
-  const unavailable = catalog.runtimes.length === 0;
+  // Models are offered from a list a runtime just confirmed. With none, or after a refresh that
+  // failed, the menu keeps the reset row and says so with Retry: a model of an old list may be gone.
+  const unavailable = catalog.error !== undefined || catalog.runtimes.length === 0;
   const state: ModelPickerState = {
     ...catalog,
-    models,
+    models: unavailable ? [] : models,
     inherited: [],
     override:
       stored.kind === 'default' ? null : stored.kind === 'known' ? stored.model.key : stored.raw,
@@ -114,7 +115,9 @@ export function RoomModelSettingTile({
       setAnchor(undefined);
       return;
     }
-    if (!hasCatalog && !catalog.loading) catalog.refresh();
+    // Asked again on each opening, as the composer's menu does: a runtime's models change when
+    // its configuration reloads. The rows it had stay while the answer is on its way.
+    catalog.refresh();
     setAnchor(event.currentTarget.getBoundingClientRect());
   };
 
