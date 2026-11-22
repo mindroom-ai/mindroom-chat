@@ -44,7 +44,7 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
   const rooms = mx.getRooms?.() ?? [];
 
   for (const room of rooms) {
-    if (room.getMyMembership?.() !== KnownMembership.Join) continue;
+    if (room.getMyMembership?.() !== 'join') continue;
     const members =
       room.getJoinedMembers?.() ??
       room.getMembers?.().filter((member) => member.membership === KnownMembership.Join) ??
