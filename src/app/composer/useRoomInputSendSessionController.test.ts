@@ -2526,6 +2526,21 @@ describe('useRoomInputSendSessionController root thread model stamping', () => {
     }
   );
 
+  it.each(['m.notice', 'm.emote'])(
+    'does not consume or stamp non-m.text message (%s)',
+    async (msgtype) => {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ takeRootModelDraft });
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype, body: 'announcement' } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
+  );
+
   it('does not consume or stamp replies, existing threads, or forks', async () => {
     for (const opts of [
       {

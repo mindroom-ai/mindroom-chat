@@ -456,6 +456,7 @@ export class ModelController {
     const runtime =
       runtimes.find((r) => r.id === scope.chosenRuntimeId) ??
       (runtimes.length === 1 ? runtimes[0] : undefined);
+    if (runtime && scope.chosenRuntimeId !== runtime.id) scope.chosenRuntimeId = undefined;
     this.publish(scope, { ...patch, eligible: runtimes.length > 0, runtimes, runtime });
     this.showRuntime(scope, runtime);
   }
@@ -503,7 +504,7 @@ export class ModelController {
     )
       return;
     const response = parseModelCatalogResponse(message.content);
-    if (!response || !response.capabilities.includes('model_selection')) return;
+    if (!response) return;
     const query = this.queries.get(response.request_id);
     if (
       !query ||
@@ -523,19 +524,24 @@ export class ModelController {
       !hasJoinedModelAgent(this.mx, query.scope.room, runtime, response.agent_user_ids)
     )
       return;
-    query.replies.set(runtime.id, { runtime, response });
-    query.scope.failures = 0;
-    // Keep collecting: another signed device may represent a distinct runtime.
-    // The shown runtime's answer is the thread's selection now, so show it at once.
     const { scope } = query;
-    if (!scope.threadId && !supportsRootModel({ runtime, response })) {
-      if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
-      else if (scope.draft?.catalog.runtime.id === runtime.id) {
-        scope.draft = undefined;
-        this.publish(scope, { override: null, reasoning: null });
+    const hasSelection = response.capabilities.includes('model_selection');
+    if (hasSelection) {
+      query.replies.set(runtime.id, { runtime, response });
+      query.scope.failures = 0;
+    }
+    if (!hasSelection || (!scope.threadId && !supportsRootModel({ runtime, response }))) {
+      if (!scope.threadId) {
+        if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
+        else if (scope.draft?.catalog.runtime.id === runtime.id) {
+          scope.draft = undefined;
+          this.publish(scope, { override: null, reasoning: null });
+        }
       }
       return;
     }
+    // Keep collecting: another signed device may represent a distinct runtime.
+    // The shown runtime's answer is the thread's selection now, so show it at once.
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
       this.showRuntime(scope, runtime);
@@ -641,6 +647,7 @@ export class ModelController {
       if (!catalog) return;
       scope.draft =
         operation === 'set' ? { catalog, key: model!, ...(level && { level }) } : undefined;
+      if (scope.draft) scope.chosenRuntimeId = runtime.id;
       this.publish(scope, {
         override: scope.draft?.key ?? null,
         reasoning: scope.draft?.level ?? null,
@@ -942,8 +949,10 @@ export class ModelController {
       const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);
-      if (known.some((d) => users.includes(d.userId))) this.invalidateAndRefresh(scope);
-      else if (
+      if (known.some((d) => users.includes(d.userId))) {
+        const draftUser = scope.draft?.catalog.runtime.userId;
+        this.invalidateAndRefresh(scope, false, !!draftUser && !users.includes(draftUser));
+      } else if (
         this.waiting(scope) &&
         joinedModelCandidates(this.mx, scope.room).some((id) => users.includes(id))
       )
@@ -953,7 +962,7 @@ export class ModelController {
   };
 
   /** `keepUnshown`: a membership change, after which a thread no composer shows keeps its button. */
-  private invalidateAndRefresh(scope: Scope, keepUnshown = false): void {
+  private invalidateAndRefresh(scope: Scope, keepUnshown = false, keepDraft = keepUnshown): void {
     // Revalidate behind a shown button while its runtime and one of its agents stay joined, and
     // behind a button no composer shows while each of its runtimes and all their agents do.
     const shown = scope.listeners.size > 0;
@@ -968,7 +977,7 @@ export class ModelController {
     this.invalidate(
       scope,
       keep ? { ...scope.snapshot, ...(!intact && { inherited: [] }) } : undefined,
-      keepUnshown
+      keepDraft
     );
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;

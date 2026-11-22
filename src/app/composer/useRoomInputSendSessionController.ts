@@ -347,7 +347,8 @@ const placeInFork = async (
 };
 
 export const isCommandText = (content?: IContent): boolean =>
-  typeof content?.body === 'string' && /^[!/]/.test(content.body.trim());
+  (content !== undefined && content.msgtype !== 'm.text') ||
+  (typeof content?.body === 'string' && /^[!/]/.test(content.body.trim()));
 
 /**
  * A session's message with the relation it gets. In a fork draft exactly one message carries the

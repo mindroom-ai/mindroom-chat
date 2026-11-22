@@ -2317,6 +2317,142 @@ describe('ModelController main-room next-thread draft', () => {
     expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
   });
 
+  it('keeps the draft when DevicesUpdated fires only for another runtime', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    h.response(req, { capabilities: rootCaps, models: reasoningModels }, {}, router);
+    h.response(
+      req,
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const routerRuntime = h.controller
+      .getSnapshot(h.room, undefined)
+      .runtimes.find((r) => r.userId === router)!;
+    h.controller.chooseRuntime(h.room, undefined, routerRuntime.id);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.mx.emit(CryptoEvent.DevicesUpdated, [alpha], false);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('drops the draft when its runtime replies with empty capabilities lacking model_selection', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(h.request(), { capabilities: [] }, {}, router);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('pins the shown runtime when picking before a second runtime answers discovery', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    h.response(req, { capabilities: rootCaps, models: reasoningModels }, {}, router);
+    await flush();
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    // Second runtime answers later in the same discovery window.
+    h.response(
+      req,
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const snap = h.controller.getSnapshot(h.room, undefined);
+    expect(snap.runtime?.userId).toBe(router);
+    expect(snap).toMatchObject({ override: 'sonnet', reasoning: 'high' });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('clears stale chosenRuntimeId on fallback so the new sole runtime answers immediately', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    // Alpha becomes sole poster; fallback switches shown runtime to alpha.
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(alpha)!, 'leave');
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getSnapshot(h.room, undefined).runtime?.userId).toBe(alpha);
+
+    // Next refresh after membership invalidation accepts alpha immediately before the 12s window ends.
+    h.member('@bystander:test', 'join');
+    h.mx.emit(
+      RoomMemberEvent.Membership,
+      new MatrixEvent({}),
+      h.room.getMember('@bystander:test')!,
+      'leave'
+    );
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    expect(h.controller.getSnapshot(h.room, undefined).canMutate).toBe(true);
+  });
+
   it('isolates drafts per account and clears on dispose', async () => {
     const h1 = setup(false, '@alice:test');
     const h2 = setup(false, '@bob:test');
