@@ -446,4 +446,19 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.reply)
         XCTAssertEqual(snapshot.latestTs, 1)
     }
+
+    func testUntrustedVoiceEchoDoesNotFoldOrHide() {
+        let forged = event("$forged", 2, sender: "@mallory:x", [
+            "msgtype": "m.text",
+            "body": "🎤 Forged transcript",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$root"]] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [forged], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertEqual(ids(snapshot), ["$root", "$forged"])
+        XCTAssertEqual(snapshot.reply?.eventId, "$forged")
+        XCTAssertEqual(snapshot.reply?.text, "🎤 Forged transcript")
+    }
 }

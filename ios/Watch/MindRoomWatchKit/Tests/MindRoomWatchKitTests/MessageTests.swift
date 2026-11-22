@@ -100,4 +100,48 @@ final class VoiceEchoTests: XCTestCase {
     func testOrdinaryReplyIsNoEcho() {
         XCTAssertNil(VoiceEcho.transcript(message(["body": "hi", "m.relates_to": ["m.in_reply_to": ["event_id": "$voice"]]]), latestEdit: nil))
     }
+
+    func testPrefersVoiceSourceEventIdOverReplyRelation() throws {
+        let content: JSON = [
+            "msgtype": "m.text",
+            "body": "🎤 Hello",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$voice",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$other"]] as JSON,
+        ]
+        let result = try XCTUnwrap(VoiceEcho.transcript(message(content, id: "$echo"), latestEdit: nil))
+        XCTAssertEqual(result.voiceEventId, "$voice")
+        XCTAssertEqual(result.text, "🎤 Hello")
+    }
+
+    func testReadsVoiceSourceEventIdWithoutReplyRelation() throws {
+        let content: JSON = [
+            "msgtype": "m.text",
+            "body": "🎤 Direct",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$voice",
+        ]
+        let result = try XCTUnwrap(VoiceEcho.transcript(message(content, id: "$echo"), latestEdit: nil))
+        XCTAssertEqual(result.voiceEventId, "$voice")
+        XCTAssertEqual(result.text, "🎤 Direct")
+    }
+
+    func testSkipsRawAudioFallback() {
+        let direct = message([
+            "msgtype": "m.text",
+            "body": "🎤 [Attached voice message]",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$voice",
+            "com.mindroom.voice_raw_audio_fallback": true,
+        ], id: "$echo")
+        XCTAssertNil(VoiceEcho.transcript(direct, latestEdit: nil))
+        let editedFallback = edit(of: "$echo", [
+            "msgtype": "m.text",
+            "body": "🎤 [Attached voice message]",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$voice",
+            "com.mindroom.voice_raw_audio_fallback": true,
+        ])
+        XCTAssertNil(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: editedFallback))
+    }
 }
