@@ -4,6 +4,7 @@ import {
   type ScrollAnchorMemory,
   type ScrollAnchorSnapshot,
   captureScrollAnchors,
+  keepsRowOrder,
   placeRows,
 } from '../../ui/scrollAnchorMemory';
 import { type CompactFocusRequest, compactFocusPlace } from './compactFocusRequest';
@@ -73,9 +74,18 @@ type ScrollState = {
   offset: number;
   lastWrite?: number;
   pending?: CompactScrollRequest;
+  placedRows: string[];
+  rowOrder: readonly string[];
   observer?: ResizeObserver;
   consumed: Set<string>;
   jumped: boolean;
+};
+
+const clearPending = (state: ScrollState): void => {
+  state.pending = undefined;
+  state.placedRows = [];
+  state.rowOrder = [];
+  stopObserving(state);
 };
 
 const writeOffset = (view: HTMLElement, state: ScrollState, top: number): boolean => {
@@ -90,22 +100,34 @@ const writeOffset = (view: HTMLElement, state: ScrollState, top: number): boolea
 const placePending = (view: HTMLElement, state: ScrollState): boolean => {
   let request = state.pending;
   if (!request) return false;
-  if (view.scrollTop !== state.offset) state.pending = undefined;
-  if (!state.pending || !state.ready) return false;
+  if (view.scrollTop !== state.offset) {
+    clearPending(state);
+    return false;
+  }
+  if (!state.ready) return false;
   if ('focus' in request) {
     const place = compactFocusPlace(request.focus, view);
     if (place === null) return false; // The mounted link's card has yet to show.
-    state.pending = place && { id: request.id, ...place };
-    if (!state.pending) return false; // The card already shows whole.
-    request = state.pending;
+    if (!place) {
+      clearPending(state);
+      return false; // The card already shows whole.
+    }
+    request = { id: request.id, ...place };
+    state.pending = request;
   }
-  const placement = placeRows(view, request, []);
-  if (!placement) return false;
+  const placement = placeRows(view, request, state.placedRows);
+  if (
+    !placement ||
+    (state.placedRows.length > 0 &&
+      state.rowOrder !== state.rows &&
+      !keepsRowOrder(state.rowOrder, state.rows))
+  ) {
+    clearPending(state);
+    return false;
+  }
   const jumped = writeOffset(view, state, placement.scrollTop);
-  const placed =
-    placement.rows.length > 0 ||
-    (request.anchors.length === 0 && Math.abs(view.scrollTop - request.scrollTop) < 0.5);
-  if (placed && !view.hasAttribute('data-cards-pending')) state.pending = undefined;
+  state.placedRows = placement.rows;
+  state.rowOrder = state.rows;
   return jumped;
 };
 
@@ -124,6 +146,8 @@ export const useCompactScrollOwner = ({
     rows,
     ready,
     offset: 0,
+    placedRows: [],
+    rowOrder: [],
     consumed: new Set(),
     jumped: false,
   }));
@@ -145,10 +169,12 @@ export const useCompactScrollOwner = ({
     if (request && !state.consumed.has(request.id)) {
       state.consumed.add(request.id);
       state.pending = request;
+      state.placedRows = [];
+      state.rowOrder = [];
       state.offset = view.scrollTop;
     }
     if (state.pending) state.jumped = placePending(view, state);
-    else if (before && view.scrollTop === before.scrollTop) {
+    if (!state.pending && before && view.scrollTop === before.scrollTop) {
       const stationary =
         before.order === rows ? undefined : stationaryRows(before.order, rows, sectionOfRow);
       const anchor = before.cards.find(
@@ -159,12 +185,11 @@ export const useCompactScrollOwner = ({
     }
     state.offset = view.scrollTop;
 
-    // Main follows late resizes only while placing a saved position or link, not while reading.
-    if (state.pending && !state.observer) {
+    // Follow late resizes (insets, hydrating cards) while placing a saved position or link.
+    if (state.pending && !state.observer && typeof ResizeObserver !== 'undefined') {
       state.observer = new ResizeObserver(() => {
         placePending(view, state);
         state.offset = view.scrollTop;
-        if (!state.pending) stopObserving(state);
       });
       state.observer.observe(view);
       if (contentRef.current) state.observer.observe(contentRef.current);
@@ -178,8 +203,7 @@ export const useCompactScrollOwner = ({
       state.offset = view.scrollTop;
       if (state.offset === state.lastWrite) return;
       state.lastWrite = undefined;
-      state.pending = undefined;
-      stopObserving(state);
+      clearPending(state);
     };
     view.addEventListener('scroll', onScroll, { passive: true });
     return () => {

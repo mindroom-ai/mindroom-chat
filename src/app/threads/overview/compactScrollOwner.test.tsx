@@ -15,14 +15,21 @@ const list = (
   initialRequest?: CompactScrollRequest,
   staging = false
 ) => {
+  let resizeCallback: (() => void) | undefined;
   vi.stubGlobal(
     'ResizeObserver',
     class {
+      constructor(cb: () => void) {
+        resizeCallback = cb;
+      }
       observe() {}
-      disconnect() {}
+      disconnect() {
+        resizeCallback = undefined;
+      }
     }
   );
   let offset = initialOffset;
+  let inset = 0;
   const writes: number[] = [];
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement
@@ -34,7 +41,7 @@ const list = (
             .slice(0, Array.from(parent.children).indexOf(this))
             .reduce(
               (top, row) => top + (row.hasAttribute('data-scroll-anchor') ? CARD : HEADER),
-              -offset
+              inset - offset
             )
         : 0;
     return {
@@ -100,6 +107,10 @@ const list = (
     writes,
     scrollBy: (delta: number) => {
       offset += delta;
+    },
+    setInset: (px: number) => {
+      inset = px;
+      resizeCallback?.();
     },
   };
 };
@@ -221,5 +232,40 @@ describe('Compact scroll owner', () => {
     fireEvent.scroll(view);
     show(['$a', '$b', '$target']);
     expect(view.scrollTop).toBe(31);
+  });
+
+  it('follows a late top inset resize after placing a mounted card without staging', () => {
+    const { view, setInset } = list(['$a', '$b', '$target'], 0, focus);
+    expect(view.scrollTop).toBe(175);
+    setInset(86);
+    expect(view.scrollTop).toBe(261);
+  });
+
+  it('keeps a focused card in place when threads arrive above it after mount', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const { view, show } = list(['$a', '$target'], 0, focus);
+    expect(view.scrollTop).toBe(75);
+    show(['$x', '$y', '$z', '$a', '$target']);
+    expect(view.scrollTop).toBe(375);
+  });
+
+  it('stops following a pending placement on reorder and hands off to passive keep', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e'];
+    const saved = { id: 'mount', scrollTop: 150, anchors: [{ key: '$c', offset: 50 }] };
+    const { view, show } = list(ids, 0, saved);
+    expect(view.scrollTop).toBe(150);
+
+    // $e sorts to the top: the pending restore ends and passive keep holds $c at 50.
+    show(['$e', '$a', '$b', '$c', '$d']);
+    expect(view.scrollTop).toBe(250);
+  });
+
+  it('does not chase a focused card that later reorders to the top', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const { view, show } = list(['$a', '$b', '$target'], 0, focus);
+    expect(view.scrollTop).toBe(175);
+    show(['$target', '$a', '$b']);
+    expect(view.scrollTop).toBe(175);
   });
 });

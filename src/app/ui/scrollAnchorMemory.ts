@@ -87,7 +87,7 @@ const getRowKeys = (view: HTMLElement): string[] =>
 
 // Rows rendering late or added and removed around the others keep the others'
 // order; a row sorting past them changes it.
-const keepsRowOrder = (before: string[], after: string[]): boolean => {
+export const keepsRowOrder = (before: readonly string[], after: readonly string[]): boolean => {
   const beforeKeys = new Set(before);
   const afterKeys = new Set(after);
   const kept = after.filter((key) => beforeKeys.has(key));
@@ -154,18 +154,9 @@ export function useScrollAnchorMemory({
     }
     const state = restoreRef.current;
 
-    let observer: ResizeObserver | undefined;
-    const stopFollowing = () => {
-      state.snapshot = undefined;
-      observer?.disconnect();
-      view.removeEventListener('scroll', handleScroll);
-    };
-    const handleScroll = () => {
-      if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
-    };
-    const restore = () => {
+    const restore = (): boolean => {
       const { snapshot } = state;
-      if (!snapshot) return;
+      if (!snapshot) return false;
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
       // A reader who left at the top stays at the top, where rows that moved
@@ -180,25 +171,35 @@ export function useScrollAnchorMemory({
         !placement ||
         !keepsRowOrder(state.rowOrder, rowOrder)
       ) {
-        stopFollowing();
-        return;
+        state.snapshot = undefined;
+        return false;
       }
       view.scrollTop = placement.scrollTop;
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
+      return true;
     };
-    restore();
-    if (!state.snapshot) return undefined;
+    if (!restore()) return undefined;
 
-    observer = new ResizeObserver(restore);
+    const handleScroll = () => {
+      if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
+    };
+    const observer = new ResizeObserver(() => {
+      if (!restore()) stopFollowing();
+    });
+    const disconnect = () => {
+      observer.disconnect();
+      view.removeEventListener('scroll', handleScroll);
+    };
+    const stopFollowing = () => {
+      state.snapshot = undefined;
+      disconnect();
+    };
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
     view.addEventListener('scroll', handleScroll);
-    return () => {
-      observer?.disconnect();
-      view.removeEventListener('scroll', handleScroll);
-    };
+    return disconnect;
   }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
