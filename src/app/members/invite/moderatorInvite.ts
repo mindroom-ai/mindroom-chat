@@ -57,7 +57,10 @@ export const evaluateModeratorGrant = (
   ) {
     return { kind: 'ineligible' };
   }
-  const level = Math.max(MODERATOR_LEVEL, readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT));
+  const level = Math.max(
+    MODERATOR_LEVEL,
+    readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT)
+  );
   if (powerOf(targetId, levels, creators) >= level) return { kind: 'alreadySatisfied' };
   if (maxLevel !== undefined && level > maxLevel) return { kind: 'levelRaised', level };
   if (

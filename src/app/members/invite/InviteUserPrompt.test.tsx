@@ -850,16 +850,13 @@ describe('InviteUserPrompt', () => {
   it.each([
     { label: 'v9 room', roomVersion: '9' },
     { label: 'unknown non-numeric room version', roomVersion: 'org.example.unstable' },
-  ])(
-    'hides the moderator checkbox and skips member loading for a $label',
-    ({ roomVersion }) => {
-      const { renderer, room } = renderPrompt({ roomVersion, membersLoaded: false });
-      typeUserId(renderer, '@mindroom_helper:example.org');
-      expect(findModeratorCheckbox(renderer)).toBeUndefined();
-      expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
-      expect(room.getMembers).not.toHaveBeenCalled();
-    }
-  );
+  ])('hides the moderator checkbox and skips member loading for a $label', ({ roomVersion }) => {
+    const { renderer, room } = renderPrompt({ roomVersion, membersLoaded: false });
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(findModeratorCheckbox(renderer)).toBeUndefined();
+    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(room.getMembers).not.toHaveBeenCalled();
+  });
 
   it('offers moderator rights in a v10 room', async () => {
     const { renderer, mx, room } = renderPrompt({ roomVersion: '10' });
