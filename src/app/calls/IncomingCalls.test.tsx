@@ -123,6 +123,7 @@ afterEach(() => {
   calls.startRingtone.mockClear();
   calls.stopRingtone.mockClear();
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -179,7 +180,9 @@ const mountAndRing = (store: ReturnType<typeof createStore>, eventId = '$ring') 
 };
 
 describe('IncomingCalls ring alerts', () => {
-  it('stops the web ringtone on native iOS when the app becomes hidden', () => {
+  it('stops the web ringtone on native iOS on hide and restarts on resume only while the ring is still live', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
     calls.settings = true;
     calls.nativeIOS = true;
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
@@ -194,7 +197,23 @@ describe('IncomingCalls ring alerts', () => {
     });
     expect(calls.stopRingtone).toHaveBeenCalledTimes(1);
 
+    // Resuming while the ring is still live restarts the ringtone.
     act(() => {
+      vi.setSystemTime(1_010_000);
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.startRingtone).toHaveBeenCalledTimes(2);
+
+    // Hide again, let the ring expire without running the 1 s cleanup interval, then resume.
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.stopRingtone).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      vi.setSystemTime(1_030_000);
       Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
       document.dispatchEvent(new Event('visibilitychange'));
     });

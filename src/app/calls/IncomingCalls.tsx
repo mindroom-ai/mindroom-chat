@@ -62,18 +62,31 @@ export const useRingLine = (
 
 const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
 
+const isRingCallLive = (
+  mx: ReturnType<typeof useMatrixClient>,
+  room: Room | null | undefined,
+  expiresAt: number
+): boolean => {
+  if (!room || Date.now() >= expiresAt) return false;
+  const members = activeMemberships(mx.matrixRTC.getRoomSession(room));
+  const myUserId = mx.getSafeUserId();
+  return members.length > 0 && !members.some((member) => member.userId === myUserId);
+};
+
 /**
  * While a ring shows: the ringtone (when notification sounds are on) and, when the window is in
  * the background and `notify` is set, a system notification (when desktop notifications are on
  * and allowed) that brings the window and the ring forward. Both stop with the ring.
  */
 function RingAlerts({
+  room,
   ring,
   line,
   notify,
   muted,
   onOpen,
 }: {
+  room: Room;
   ring: IncomingRing;
   line: string;
   notify: boolean;
@@ -81,6 +94,7 @@ function RingAlerts({
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
   const [hiddenOnIOS, setHiddenOnIOS] = useState(
@@ -98,8 +112,11 @@ function RingAlerts({
   }, []);
 
   useEffect(
-    () => (sound && !muted && !hiddenOnIOS ? startRingtone() : undefined),
-    [sound, muted, hiddenOnIOS, ring.eventId]
+    () =>
+      sound && !muted && !hiddenOnIOS && isRingCallLive(mx, room, ring.expiresAt)
+        ? startRingtone()
+        : undefined,
+    [sound, muted, hiddenOnIOS, mx, room, ring.eventId, ring.expiresAt]
   );
 
   useEffect(() => {
@@ -151,6 +168,7 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
       data-incoming-call={room.roomId}
     >
       <RingAlerts
+        room={room}
         ring={ring}
         line={line(caller)}
         notify={membersSettled}
@@ -228,11 +246,8 @@ export function IncomingCalls() {
   useEffect(() => {
     if (!ring) return undefined;
     const room = mx.getRoom(ring.roomId);
-    const myUserId = mx.getSafeUserId();
     const check = () => {
-      const members = room ? activeMemberships(mx.matrixRTC.getRoomSession(room)) : [];
-      const answered = members.some((member) => member.userId === myUserId);
-      if (members.length === 0 || answered || Date.now() >= ring.expiresAt) setRing(undefined);
+      if (!isRingCallLive(mx, room, ring.expiresAt)) setRing(undefined);
     };
     const timer = window.setInterval(check, 1000);
     return () => window.clearInterval(timer);

@@ -115,10 +115,15 @@ const retryMessageSend: MatrixScheduler['retryAlgorithm'] = (event, attempts, er
   return delayMs >= 0 && !isPastRetryWindow(event, delayMs) ? delayMs : -1;
 };
 
-// Keep call rings off the shared `message` queue so an expired ring's clearQueue cannot reject
-// unrelated queued text messages; everything else keeps the SDK's default queue algorithm.
+const ringQueueName = (event: MatrixEvent): string => {
+  const key = event.getTxnId() ?? event.getId();
+  return key ? `${RING_QUEUE_NAME}:${key}` : RING_QUEUE_NAME;
+};
+
+// Give each call ring its own queue so an expired ring's clearQueue rejects only that ring and
+// never unrelated queued text messages or a later redial's ring; everything else matches main.
 const queueMessageSend: MatrixScheduler['queueAlgorithm'] = (event) =>
-  isRingNotification(event) ? RING_QUEUE_NAME : MatrixScheduler.QUEUE_MESSAGES(event);
+  isRingNotification(event) ? ringQueueName(event) : MatrixScheduler.QUEUE_MESSAGES(event);
 
 // Receiving the server's copy through /sync clears the local echo's status.
 const isConfirmedBySync = (event: MatrixEvent): boolean => event.status === null;

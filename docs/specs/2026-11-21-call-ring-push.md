@@ -40,7 +40,7 @@ The server shows only that no ring from the caller landed. It does not show whet
    It goes to the console and the existing deep diagnostics.
 2. **Reproduce** on an iPhone against a throwaway deployment and read the trace. The fix goes where the trace points: the app's `notify` choice, the SDK gate (patch), or the encryption failure (one `resendEvent` of the same local event inside the ring's lifetime). No fix is built blind.
 3. **Two changes the code justifies now:**
-   - Deadline: the scheduler's retry window for a ring is its `lifetime` (30 s), not 60 s (`isPastRetryWindow`). No second retry loop.
+   - Deadline and queue isolation: each ring gets its own scheduler queue (`call-ring:<id>`) so an expired ring cannot reject unrelated queued sends or a redial's ring, and retries stop at its `lifetime` (30 s, rejected at expiry), not 60 s (`isPastRetryWindow`). No second retry loop.
    - The `notify` choice no longer depends on `m.direct` alone: `ring` when the room is direct **or** has two or three joined members; else `notification`. This matches the server rule (section 4).
 
 One ring per call holds by construction: the SDK sends once per join, retries reuse the transaction ID, and the homeserver accepts one audible ring per call membership.
@@ -180,11 +180,11 @@ class MindroomApnsPushkin(ApnsPushkin):
 
 ## 6. iOS
 
-- **Ringtone**: `ios/App/App/ring.wav`, 16-bit PCM mono, 22.05 kHz, 28.6 s (11 cycles of the bell pattern of `ringtone.ts`), about 1.3 MB, made by a committed script. A custom sound of 30 s or more, or a missing file, plays the default sound.
+- **Ringtone**: `ios/App/App/ring.wav`, 16-bit PCM mono, 11.025 kHz, 28.6 s (11 cycles of the bell pattern of `ringtone.ts`), about 630 KB, made by a committed script. A custom sound of 30 s or more, or a missing file, plays the default sound.
 - **Project**: a file reference and a Resources entry in `project.pbxproj` (the App target is not a synchronized folder; check `scripts/ios-xcode-project.mjs` first).
 - **Info.plist and entitlements**: no change. No Time Sensitive entitlement, so Focus and the silent switch apply.
 - **Text**: `VOICE_CALL_FROM_USER` and `VIDEO_CALL_FROM_USER` exist in 17 `Localizable.strings`; change them to "Incoming call from %1$@" and "Incoming video call from %1$@". It is the alert body under the app name.
-- **One sound owner per ring.** In front, Capacitor presents no banner or sound (`capacitor.config.ts` sets no `presentationOptions`), and the web ringtone rings. But `IncomingCalls.tsx:85` starts the web ringtone without looking at the app state, so a background or just-resumed WebView could ring on top of APNs. Rule for the native iOS app: the owner is fixed when the device first sees the ring. Visible at that moment: the web ringtone. Hidden, or a ring caught up after resume: APNs owns the sound and the card shows silently. Tests: a ring seen while hidden starts no ringtone, also after the app comes to the front for the same event; a new ring while visible does.
+- **Web ringtone on native iOS.** In front, Capacitor presents no banner or sound (`capacitor.config.ts` sets no `presentationOptions`), and the web ringtone rings. There is no separate sound-owner policy: on native iOS, hiding the app (`visibilitychange`) stops the web ringtone, and if the app becomes visible again while the ring is still live (`Date.now() < expiresAt` and the call is still active), the web ringtone may play again (so opening the app after an APNs ring within the ring lifetime rings in-app again; accepted). For a muted non-`m.direct` small room, the local ringtone and desktop notification stay silent while the card may still show.
 - **Tap**: `readPushTarget` (`IOSPushFeature.tsx`) reads `mindroom_ring` and opens the room without the event ID, as the ring card's own Open does (`IncomingCalls.tsx:235`). After the first sync the existing UI decides: the ring card inside the lifetime, the call bar and Join if the caller is still there, nothing more if the call is over. No auto-join.
 - **Expired ring**: APNs drops an undelivered ring at its expiry. A delivered banner stays in Notification Center and reads as a missed call.
 - **Limits**: one sound of at most 28.6 s; answering on another device does not stop it.
@@ -194,7 +194,7 @@ class MindroomApnsPushkin(ApnsPushkin):
 | # | Repo | Contents | Est. LOC (code + tests) |
 |---|---|---|---|
 | 1 | mindroom-tuwunel | `pusher/ring_rules.rs` (rules, `merged`), the validation step in `get_actions`, callers of `server_default`, the read paths; tests in `pusher/tests.rs`, `api/client/push/tests.rs`, `main/tests/pusher_notify.rs` | 220 + 320 |
-| 2 | mindroom-chat | Ring trace, retry deadline, `notify` choice, the fix the trace points to, hint in `patches/matrix-js-sdk+45.1.0.patch`, `ring.wav` + script + `project.pbxproj`, 17 strings, tap, sound owner; unit tests and the extended `calls.spec.ts` | 220 + 300 |
+| 2 | mindroom-chat | Ring trace, retry deadline, `notify` choice, the fix the trace points to, hint in `patches/matrix-js-sdk+45.1.0.patch`, `ring.wav` + script + `project.pbxproj`, 17 strings, tap, iOS hide-stops-ringtone and room mute; unit tests and the extended `calls.spec.ts` | 220 + 300 |
 | 3 | dotfiles | `mindroom_pushkin.py`, its tests, `sygnal.nix`, the source offer in `caddy.nix` | 110 + 130 |
 
 Tuwunel tests: clear ring and encrypted ring with a live membership give `sound: ring`; no reference, a reference to another user's membership, to a left or replaced membership, or to another room gives today's actions; a second ring for the same membership is not audible; four members do not ring; a group `notification` is unchanged; room mute and ignore win; a stored old ruleset is merged for evaluation and GET; a ring rule can be disabled before any GET; a GET does not write.

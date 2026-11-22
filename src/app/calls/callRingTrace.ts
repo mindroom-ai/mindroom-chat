@@ -25,7 +25,6 @@ export type CallRingTraceOptions = {
   encrypted: boolean;
   notify?: 'ring' | 'notification';
   notifyInputs?: CallNotifyInputs;
-  timeoutMs?: number;
 };
 
 const emit = (name: string, data: Record<string, boolean | number>, warn = false): void => {
@@ -50,18 +49,16 @@ export const startCallRingTrace = ({
   encrypted,
   notify,
   notifyInputs,
-  timeoutMs = RING_ECHO_TIMEOUT_MS,
 }: CallRingTraceOptions): (() => void) => {
-  const inputs = notifyInputs ?? {
-    peopleInCall: session.memberships.length,
-    direct: false,
-    joinedMembers: room.getJoinedMemberCount(),
-  };
   emit(`calls.ring.join.${notify ?? 'none'}`, {
     encrypted,
-    people_in_call: inputs.peopleInCall,
-    direct: inputs.direct,
-    joined_members: inputs.joinedMembers,
+    ...(notifyInputs
+      ? {
+          people_in_call: notifyInputs.peopleInCall,
+          direct: notifyInputs.direct,
+          joined_members: notifyInputs.joinedMembers,
+        }
+      : {}),
   });
 
   let stopped = false;
@@ -75,10 +72,12 @@ export const startCallRingTrace = ({
       (m) => m.sender === own.userId && m.deviceId === own.deviceId && m.memberId === own.memberId
     );
 
+  let latestMemberships: readonly CallMembership[] = session.memberships;
+
   const onMemberships = (oldList: CallMembership[], newList: CallMembership[]) => {
     if (stopped) return;
-    const current = session.memberships.length > 0 ? session.memberships : newList;
-    const mine = findOwn(current);
+    latestMemberships = newList;
+    const mine = findOwn(newList);
     if (!mine) return;
     if (!recordedOwn || mine.eventId !== ownEventId) {
       recordedOwn = true;
@@ -86,24 +85,24 @@ export const startCallRingTrace = ({
       emit('calls.ring.membership_echo', {
         has_event_id: Boolean(mine.eventId),
         old_member_count: oldList.length,
-        member_count: current.length,
+        member_count: newList.length,
       });
     }
-    if (notify && current.length === 1 && !sawRing && timer === undefined) {
+    if (notify && newList.length === 1 && !sawRing && timer === undefined) {
       timer = setTimeout(() => {
         timer = undefined;
         if (stopped || sawRing) return;
-        const hasId = Boolean(findOwn(session.memberships)?.eventId ?? ownEventId);
+        const hasId = Boolean(findOwn(latestMemberships)?.eventId ?? ownEventId);
         emit(
           'calls.ring.missing_echo',
           {
             has_membership_event_id: hasId,
-            member_count: session.memberships.length,
-            timeout_ms: timeoutMs,
+            member_count: latestMemberships.length,
+            timeout_ms: RING_ECHO_TIMEOUT_MS,
           },
           true
         );
-      }, timeoutMs);
+      }, RING_ECHO_TIMEOUT_MS);
     }
   };
 

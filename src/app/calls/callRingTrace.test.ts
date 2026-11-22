@@ -274,4 +274,25 @@ describe('startCallRingTrace', () => {
       timeout_ms: RING_ECHO_TIMEOUT_MS,
     });
   });
+
+  it('omits notify decision inputs when no notify decision was made', () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const session = new FakeSession();
+    const room = new FakeRoom(2);
+
+    const stop = startCallRingTrace({
+      room: room as unknown as Room,
+      session: session as unknown as MatrixRTCSession,
+      ownMembership: { userId: ME, deviceId: DEVICE, memberId: MEMBER_ID },
+      encrypted: true,
+    });
+    stop();
+
+    expect(info).toHaveBeenCalledWith('[call-ring] calls.ring.join.none', { encrypted: true });
+    expect(deepTraceMocks.recordDeepTraceEvent).toHaveBeenCalledWith(
+      'calls.ring.join.none',
+      { encrypted: true },
+      { flush: true }
+    );
+  });
 });
