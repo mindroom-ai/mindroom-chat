@@ -126,8 +126,8 @@ const RETRY_DELAYS = [3000, 10000, 30000, 60000];
 const STALE_ATTEMPTS = 5;
 const supportsRootModel = ({ response }: Catalog): boolean =>
   response.capabilities.includes('thread_model_on_root');
-const draftMatches = (catalog: Catalog, draft: RootModelDraft): boolean => {
-  if (!supportsRootModel(catalog)) return false;
+const draftMatches = (catalog: Catalog | undefined, draft: RootModelDraft): boolean => {
+  if (catalog?.runtime.id !== draft.catalog.runtime.id || !supportsRootModel(catalog)) return false;
   const entry = catalog.response.models.find(({ key }) => key === draft.key);
   return !!entry && (draft.level === undefined || !!entry.reasoning_levels?.includes(draft.level));
 };
@@ -453,9 +453,9 @@ export class ModelController {
 
   private showCatalogs(scope: Scope, patch?: Partial<ModelPickerSnapshot>): void {
     const runtimes = [...scope.catalogs.values()].map((c) => c.runtime);
-    const targetId = scope.chosenRuntimeId ?? scope.draft?.catalog.runtime.id;
     const runtime =
-      runtimes.find((r) => r.id === targetId) ?? (runtimes.length === 1 ? runtimes[0] : undefined);
+      runtimes.find((r) => r.id === scope.chosenRuntimeId) ??
+      (runtimes.length === 1 ? runtimes[0] : undefined);
     this.publish(scope, { ...patch, eligible: runtimes.length > 0, runtimes, runtime });
     this.showRuntime(scope, runtime);
   }
@@ -528,15 +528,13 @@ export class ModelController {
     // Keep collecting: another signed device may represent a distinct runtime.
     // The shown runtime's answer is the thread's selection now, so show it at once.
     const { scope } = query;
-    if (!scope.threadId) {
-      if (!supportsRootModel({ runtime, response })) {
-        const dropped = scope.draft?.catalog.runtime.userId === runtime.userId;
-        if (dropped) scope.draft = undefined;
-        if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
-        else if (dropped) this.publish(scope, { override: null, reasoning: null });
-        return;
+    if (!scope.threadId && !supportsRootModel({ runtime, response })) {
+      if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
+      else if (scope.draft?.catalog.runtime.id === runtime.id) {
+        scope.draft = undefined;
+        this.publish(scope, { override: null, reasoning: null });
       }
-      this.reconcileDraft(scope, { runtime, response });
+      return;
     }
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
@@ -544,7 +542,7 @@ export class ModelController {
     } else if (
       !scope.catalogs.size &&
       !scope.send &&
-      (scope.chosenRuntimeId ?? scope.draft?.catalog.runtime.id ?? runtime.id) === runtime.id
+      (scope.chosenRuntimeId ?? runtime.id) === runtime.id
     ) {
       // A first discovery shows its first answer now rather than when the window ends, so the chip
       // is there before someone types `!model`, and a runtime that answers it can ask again.
@@ -560,42 +558,14 @@ export class ModelController {
     if (!this.active() || scope.command) return;
     const catalog = scope.catalogs.get(runtimeId);
     if (!catalog) return;
-    if (!scope.threadId && scope.draft && scope.draft.catalog.runtime.id !== runtimeId)
-      scope.draft = undefined;
     scope.chosenRuntimeId = runtimeId;
     this.showRuntime(scope, catalog.runtime);
   };
 
-  private reconcileDraft(scope: Scope, catalog: Catalog): void {
-    const { draft } = scope;
-    if (!draft || draft.catalog.runtime.userId !== catalog.runtime.userId) return;
-    if (!draftMatches(catalog, draft)) {
-      scope.draft = undefined;
-      return;
-    }
-    if (scope.chosenRuntimeId === draft.catalog.runtime.id)
-      scope.chosenRuntimeId = catalog.runtime.id;
-    draft.catalog = catalog;
-  }
-
   private showRuntime(scope: Scope, runtime?: ModelRuntime): void {
     const catalog = runtime && scope.catalogs.get(runtime.id);
-    if (scope.draft) {
-      const owner = [...scope.catalogs.values()].find(
-        (c) => c.runtime.userId === scope.draft!.catalog.runtime.userId
-      );
-      if (owner) this.reconcileDraft(scope, owner);
-      else if (
-        !scope.catalogs.size ||
-        !hasJoinedModelAgent(
-          this.mx,
-          scope.room,
-          scope.draft.catalog.runtime,
-          scope.draft.catalog.response.agent_user_ids
-        )
-      )
-        scope.draft = undefined;
-    }
+    if (scope.draft && !draftMatches(catalog, scope.draft)) scope.draft = undefined;
+    else if (scope.draft && catalog) scope.draft.catalog = catalog;
     const selection = catalog?.response.selection;
     this.publish(scope, {
       runtime,
@@ -671,7 +641,6 @@ export class ModelController {
       if (!catalog) return;
       scope.draft =
         operation === 'set' ? { catalog, key: model!, ...(level && { level }) } : undefined;
-      if (scope.draft) scope.chosenRuntimeId = runtime.id;
       this.publish(scope, {
         override: scope.draft?.key ?? null,
         reasoning: scope.draft?.level ?? null,
@@ -915,6 +884,7 @@ export class ModelController {
     if (
       scope.draft &&
       (!keepDraft ||
+        shown?.runtime?.id !== scope.draft.catalog.runtime.id ||
         !hasJoinedModelAgent(
           this.mx,
           scope.room,
@@ -972,8 +942,7 @@ export class ModelController {
       const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);
-      if (known.some((d) => users.includes(d.userId)))
-        this.invalidateAndRefresh(scope, false, true);
+      if (known.some((d) => users.includes(d.userId))) this.invalidateAndRefresh(scope);
       else if (
         this.waiting(scope) &&
         joinedModelCandidates(this.mx, scope.room).some((id) => users.includes(id))
@@ -984,7 +953,7 @@ export class ModelController {
   };
 
   /** `keepUnshown`: a membership change, after which a thread no composer shows keeps its button. */
-  private invalidateAndRefresh(scope: Scope, keepUnshown = false, keepDraft = keepUnshown): void {
+  private invalidateAndRefresh(scope: Scope, keepUnshown = false): void {
     // Revalidate behind a shown button while its runtime and one of its agents stay joined, and
     // behind a button no composer shows while each of its runtimes and all their agents do.
     const shown = scope.listeners.size > 0;
@@ -999,7 +968,7 @@ export class ModelController {
     this.invalidate(
       scope,
       keep ? { ...scope.snapshot, ...(!intact && { inherited: [] }) } : undefined,
-      keepDraft
+      keepUnshown
     );
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;
