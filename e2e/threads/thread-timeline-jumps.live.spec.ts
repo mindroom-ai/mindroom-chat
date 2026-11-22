@@ -902,6 +902,67 @@ test.describe('thread timeline jumps reproducers', () => {
     });
   });
 
+  const setupColdThreadRoutes = async (page: Page, fixture: FixtureWorld) => {
+    const state = {
+      relationsPages: 0,
+      relationsDone: false,
+      allowRelations: false,
+    };
+    const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
+    await page.route('**/_matrix/client/v1/media/**', async (route) => {
+      try {
+        await wait(350);
+        await route.continue();
+      } catch {
+        // Page closed while media request was delayed.
+      }
+    });
+    // Prevent background room /messages backfill from populating the thread's SDK timeline
+    // before the user opens the thread (keeps open cold at ~10 SDK events on both desktop and phone).
+    await page.route('**/_matrix/client/v3/rooms/*/messages**', async (route) => {
+      try {
+        if (!state.allowRelations) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ chunk: [], start: '', end: '' }),
+          });
+          return;
+        }
+        await route.continue();
+      } catch {
+        // Page closed.
+      }
+    });
+    await page.route('**/relations/**', async (route) => {
+      try {
+        const url = new URL(route.request().url());
+        const isTargetThread =
+          (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) &&
+          url.pathname.includes('/m.thread');
+        if (isTargetThread) {
+          url.searchParams.set('limit', '25');
+          await wait(450);
+          const response = await route.fetch({ url: url.toString() });
+          const body = await response.text();
+          state.relationsPages += 1;
+          try {
+            const parsed = JSON.parse(body) as { next_batch?: string };
+            if (!parsed.next_batch) state.relationsDone = true;
+          } catch {
+            // Ignore non-JSON error responses.
+          }
+          await route.fulfill({ response, body });
+          return;
+        }
+        await route.continue();
+      } catch {
+        // Page closed while an in-flight background /relations request was delayed.
+      }
+    });
+    return state;
+  };
+
   OPEN_SETUPS.forEach((setup) => {
     test(`${setup.engine} ${setup.viewport}: cold open pinned to bottom across 10+ slow /relations pages does not jump`, async ({
       baseURL,
@@ -914,40 +975,7 @@ test.describe('thread timeline jumps reproducers', () => {
       const fixture = world!;
 
       await openAndRun(setup, baseURL, fixture, async (page) => {
-        let relationsPages = 0;
-        let relationsDone = false;
-        const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
-        await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          try {
-            await wait(350);
-            await route.continue();
-          } catch {
-            // Page closed while media request was delayed.
-          }
-        });
-        await page.route('**/relations/**', async (route) => {
-          try {
-            const url = new URL(route.request().url());
-            if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
-              url.searchParams.set('limit', '25');
-              await wait(450);
-              const response = await route.fetch({ url: url.toString() });
-              const body = await response.text();
-              relationsPages += 1;
-              try {
-                const parsed = JSON.parse(body) as { next_batch?: string };
-                if (!parsed.next_batch) relationsDone = true;
-              } catch {
-                // Ignore non-JSON error responses.
-              }
-              await route.fulfill({ response, body });
-              return;
-            }
-            await route.continue();
-          } catch {
-            // Page closed while an in-flight background /relations request was delayed.
-          }
-        });
+        const net = await setupColdThreadRoutes(page, fixture);
 
         await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
         const card = page.locator(
@@ -955,7 +983,6 @@ test.describe('thread timeline jumps reproducers', () => {
         );
         await expect(card).toBeVisible({ timeout: 30_000 });
 
-        // Force a cold open with no cached thread pages in IndexedDB.
         await page.evaluate(async () => {
           await (
             window as unknown as {
@@ -963,18 +990,19 @@ test.describe('thread timeline jumps reproducers', () => {
             }
           ).__threadJumpProbe.clearCacheStore();
         });
+        net.allowRelations = true;
 
         await startProbe(page, 'open');
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
         await expect
-          .poll(() => relationsDone && relationsPages >= 10, { timeout: 60_000 })
+          .poll(() => net.relationsDone && net.relationsPages >= 10, { timeout: 60_000 })
           .toBe(true);
         await page.waitForTimeout(800);
         const report = await stopProbe(page);
 
         const summary = JSON.stringify({
-          relationsPages,
+          relationsPages: net.relationsPages,
           threadCountStart: report.threadCountStart,
           threadCountEnd: report.threadCountEnd,
           minVisibleCount: report.minVisibleCount,
@@ -982,11 +1010,13 @@ test.describe('thread timeline jumps reproducers', () => {
           maxBottomGapJumpPx: report.maxBottomGapJumpPx,
           maxAnchorDriftPx: report.maxAnchorDriftPx,
           topJumps: report.jumps.slice(0, 12),
-          coldFramesSample: report.coldFrames.slice(0, 25),
+          coldFramesSample: report.coldFrames.slice(0, 30),
         });
         // eslint-disable-next-line no-console
         console.log(`[COLD-PINNED ${setup.engine} ${setup.viewport}]`, summary);
-        expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(net.relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(report.threadCountStart, `expected cold open start: ${summary}`).toBeLessThanOrEqual(40);
+        expect(report.threadCountEnd, `expected full thread loaded: ${summary}`).toBeGreaterThanOrEqual(280);
         expect(report.visibleFrames, 'recorded visible cold-open frames').toBeGreaterThan(20);
         expect(
           report.minVisibleCount,
@@ -1018,40 +1048,7 @@ test.describe('thread timeline jumps reproducers', () => {
       const fixture = world!;
 
       await openAndRun(setup, baseURL, fixture, async (page) => {
-        let relationsPages = 0;
-        let relationsDone = false;
-        const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
-        await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          try {
-            await wait(350);
-            await route.continue();
-          } catch {
-            // Page closed while media request was delayed.
-          }
-        });
-        await page.route('**/relations/**', async (route) => {
-          try {
-            const url = new URL(route.request().url());
-            if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
-              url.searchParams.set('limit', '25');
-              await wait(450);
-              const response = await route.fetch({ url: url.toString() });
-              const body = await response.text();
-              relationsPages += 1;
-              try {
-                const parsed = JSON.parse(body) as { next_batch?: string };
-                if (!parsed.next_batch) relationsDone = true;
-              } catch {
-                // Ignore non-JSON error responses.
-              }
-              await route.fulfill({ response, body });
-              return;
-            }
-            await route.continue();
-          } catch {
-            // Page closed while an in-flight background /relations request was delayed.
-          }
-        });
+        const net = await setupColdThreadRoutes(page, fixture);
 
         await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
         const card = page.locator(
@@ -1066,16 +1063,17 @@ test.describe('thread timeline jumps reproducers', () => {
             }
           ).__threadJumpProbe.clearCacheStore();
         });
+        net.allowRelations = true;
 
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
-        // Wait for the first 2 pages so the thread is taller than the viewport and scrollable.
         await expect
-          .poll(() => relationsPages, { timeout: 30_000 })
+          .poll(() => net.relationsPages, { timeout: 30_000 })
           .toBeGreaterThanOrEqual(2);
         await page.waitForTimeout(120);
 
-        // Reader taps & scrolls up mid-thread while remaining ~10 pages are still arriving.
+        // Reader scrolls near the top of the initially loaded slice (just below where older pages
+        // prepend and fold turns) while remaining ~10 pages continue arriving every 450 ms.
         const scrolledUp = await page.evaluate(() => {
           const inner = document.querySelector<HTMLElement>(
             '[data-timeline-rows][data-thread-count]'
@@ -1089,7 +1087,7 @@ test.describe('thread timeline jumps reproducers', () => {
           if (!scroller) return { ok: false, before: 0, after: 0 };
           scroller.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
           const before = scroller.scrollTop;
-          const target = Math.max(0, before - 600);
+          const target = Math.min(Math.max(0, before - 600), 400);
           scroller.scrollTop = target;
           scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
           return { ok: before - scroller.scrollTop >= 150, before, after: scroller.scrollTop };
@@ -1098,13 +1096,13 @@ test.describe('thread timeline jumps reproducers', () => {
 
         await startProbe(page, 'open');
         await expect
-          .poll(() => relationsDone && relationsPages >= 10, { timeout: 60_000 })
+          .poll(() => net.relationsDone && net.relationsPages >= 10, { timeout: 60_000 })
           .toBe(true);
         await page.waitForTimeout(800);
         const report = await stopProbe(page);
 
         const summary = JSON.stringify({
-          relationsPages,
+          relationsPages: net.relationsPages,
           scrolledUp,
           threadCountStart: report.threadCountStart,
           threadCountEnd: report.threadCountEnd,
@@ -1113,12 +1111,13 @@ test.describe('thread timeline jumps reproducers', () => {
           maxBottomGapJumpPx: report.maxBottomGapJumpPx,
           maxAnchorDriftPx: report.maxAnchorDriftPx,
           topJumps: report.jumps.slice(0, 12),
-          coldFramesSample: report.coldFrames.slice(0, 25),
+          coldFramesSample: report.coldFrames.slice(0, 30),
         });
         // eslint-disable-next-line no-console
         console.log(`[COLD-MIDTHREAD ${setup.engine} ${setup.viewport}]`, summary);
         expect(scrolledUp.ok, `failed to scroll mid-thread: ${summary}`).toBe(true);
-        expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(net.relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(report.threadCountEnd, `expected full thread loaded: ${summary}`).toBeGreaterThanOrEqual(280);
         expect(report.visibleFrames, 'recorded visible mid-thread frames').toBeGreaterThan(20);
         expect(
           report.minVisibleCount,
