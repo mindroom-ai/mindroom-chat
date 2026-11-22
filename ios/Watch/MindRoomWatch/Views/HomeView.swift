@@ -208,9 +208,10 @@ private struct RoomHome: View {
         // list each time the room comes on screen, and every 30 s while it stays.
         .task(id: "\(scenePhase == .active) \(model.room.id())") {
             guard scenePhase == .active else { return }
+            model.foregrounded()
             while !Task.isCancelled {
-                model.scheduleRefresh()
                 try? await Task.sleep(for: .seconds(30))
+                if !Task.isCancelled { model.scheduleRefresh() }
             }
         }
         .onAppear { takeRequest() }

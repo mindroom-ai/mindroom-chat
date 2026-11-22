@@ -6,13 +6,20 @@ import WatchKit
 
 private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "thread")
 
-/// One thread, live: its root and every reply, read from a thread-focused timeline.
+/// One thread, live: seeded from the room list's snapshot, reading the newest bounded page on each poll
+/// and paginating older replies on demand via "Load earlier".
 @MainActor
 final class ThreadModel: ObservableObject {
+    private static let pageSize: UInt32 = 30
+    private static let approvalPageSize: UInt32 = 10
+    private static let reactionsPageSize: UInt32 = 50
+
     let room: Room
     let rootId: String
     let userId: String
     @Published private(set) var snapshot: ThreadSnapshot?
+    @Published private(set) var canLoadEarlier = false
+    @Published private(set) var loadingEarlier = false
     @Published var error: String?
     /// Cards and questions answered from this watch, until the thread shows the outcome.
     @Published private(set) var answered: Set<String> = []
@@ -22,12 +29,19 @@ final class ThreadModel: ObservableObject {
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
+    private var rootEvent: JSON?
+    private var eventsById: [String: JSON] = [:]
+    private var reactionsByQuestion: [String: [JSON]] = [:]
+    private var earlierToken: String?
+    private var hasLoadedEarlier = false
+    private var cachedTitle: String?
 
     init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
         snapshot = initial
+        cachedTitle = initial?.knownTitle ?? ThreadTitleCache.get(userId: userId, roomId: room.id(), rootId: rootId)
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
         model = self
@@ -39,8 +53,8 @@ final class ThreadModel: ObservableObject {
                 let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
                 self.timeline = timeline
                 handle = await timeline.addListener(listener: feed)
-                // A thread-focused timeline starts empty: load the thread.
-                _ = try? await timeline.paginateBackwards(numEvents: 50)
+                // A thread-focused timeline starts empty: load the newest window.
+                _ = try? await timeline.paginateBackwards(numEvents: 30)
             } catch {
                 log.error("thread timeline failed: \(String(describing: type(of: error)), privacy: .public)")
             }
@@ -71,7 +85,7 @@ final class ThreadModel: ObservableObject {
     private var fetchAgain = false
     private var poll: Task<Void, Never>?
 
-    /// Reads the thread again as raw JSON (root and everything related to it): the thread-focused
+    /// Reads the newest page of the thread as raw JSON and merges it into loaded history: the thread-focused
     /// timeline leaves MindRoom's approval cards out, so it only says when something changed.
     private func update() {
         failedReplies = feed.events.compactMap { item in
@@ -93,10 +107,75 @@ final class ThreadModel: ObservableObject {
         }
     }
 
+    private func merge(_ events: [JSON], preferIncoming: Bool) {
+        for event in events {
+            guard let id = event.eventId else { continue }
+            if let existing = eventsById[id] {
+                let existingEncrypted = existing["type"] as? String == "m.room.encrypted"
+                let incomingEncrypted = event["type"] as? String == "m.room.encrypted"
+                if preferIncoming {
+                    if !incomingEncrypted || existingEncrypted { eventsById[id] = event }
+                } else {
+                    let existingEditTs = existing.validBundledEdit?.timestamp ?? -1
+                    let incomingEditTs = event.validBundledEdit?.timestamp ?? -1
+                    if (existingEncrypted && !incomingEncrypted) || (!incomingEncrypted && incomingEditTs > existingEditTs) {
+                        eventsById[id] = event
+                    }
+                }
+            } else {
+                eventsById[id] = event
+            }
+        }
+    }
+
+    private func allRelated() -> [JSON] {
+        Array(eventsById.values) + reactionsByQuestion.values.flatMap { $0 }
+    }
+
     private func fetch() async {
-        guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
-              let root = jsons.first.flatMap(parse) else { return }
-        let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+        if let rootJson = try? await room.loadOrFetchEventJson(eventId: rootId), let parsed = parse(rootJson) {
+            rootEvent = parsed
+        }
+        guard let root = rootEvent else { return }
+        guard let page = try? await room.relationsJsonPage(
+            eventId: rootId, relType: "m.thread", eventType: nil,
+            forward: false, limit: Self.pageSize, from: nil
+        ) else { return }
+        merge(page.events.compactMap(parse), preferIncoming: true)
+        if !hasLoadedEarlier {
+            earlierToken = page.nextBatch
+            canLoadEarlier = earlierToken != nil
+        }
+
+        // Pending approval cards outside the newest window (unencrypted rooms only).
+        if earlierToken != nil, room.encryptionState() != .encrypted,
+           let approvalPage = try? await room.relationsJsonPage(
+               eventId: rootId, relType: "m.thread", eventType: ApprovalCard.eventType,
+               forward: false, limit: Self.approvalPageSize, from: nil
+           ) {
+            merge(approvalPage.events.compactMap(parse), preferIncoming: true)
+        }
+
+        var next = ThreadSnapshot.build(
+            root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
+        )
+
+        if let question = next.openQuestion,
+           let reactionsPage = try? await room.relationsJsonPage(
+               eventId: question.eventId, relType: "m.annotation", eventType: nil,
+               forward: false, limit: Self.reactionsPageSize, from: nil
+           ) {
+            reactionsByQuestion[question.eventId] = reactionsPage.events.compactMap(parse)
+            next = ThreadSnapshot.build(
+                root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
+            )
+        }
+
+        if let known = next.knownTitle {
+            cachedTitle = known
+            ThreadTitleCache.set(known, userId: userId, roomId: room.id(), rootId: rootId)
+        }
+
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)
@@ -107,6 +186,31 @@ final class ThreadModel: ObservableObject {
         for card in next.approvals { log.notice("card \(card.eventId, privacy: .public) \(card.status.rawValue, privacy: .public)") }
         E2EHooks.act(on: next, model: self)
         #endif
+    }
+
+    /// Loads one older page of replies via `next_batch` and merges it into the open thread without discarding
+    /// newer history.
+    func loadEarlier() async {
+        guard !loadingEarlier, let token = earlierToken else { return }
+        loadingEarlier = true
+        defer { loadingEarlier = false }
+        guard let page = try? await room.relationsJsonPage(
+            eventId: rootId, relType: "m.thread", eventType: nil,
+            forward: false, limit: Self.pageSize, from: token
+        ) else { return }
+        merge(page.events.compactMap(parse), preferIncoming: false)
+        hasLoadedEarlier = true
+        earlierToken = page.nextBatch
+        canLoadEarlier = earlierToken != nil
+        guard let root = rootEvent else { return }
+        let next = ThreadSnapshot.build(
+            root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
+        )
+        if let known = next.knownTitle {
+            cachedTitle = known
+            ThreadTitleCache.set(known, userId: userId, roomId: room.id(), rootId: rootId)
+        }
+        snapshot = next
     }
 
     /// Approve or deny a tool call, as the web client does. A card answered elsewhere first is not pending

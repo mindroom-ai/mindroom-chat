@@ -26,10 +26,16 @@ struct ThreadView: View {
                         if let heading = snapshot.heading {
                             Text(heading).font(.headline)
                         }
+                        if model.canLoadEarlier, snapshot.entries.first?.id != rootId {
+                            loadEarlierButton
+                        }
                         ForEach(snapshot.entries) { entry in
                             switch entry {
                             case let .message(message): messageView(message, in: snapshot)
                             case let .approval(card): approvalView(card)
+                            }
+                            if model.canLoadEarlier, entry.id == rootId {
+                                loadEarlierButton
                             }
                         }
                         if snapshot.reply == nil {
@@ -144,6 +150,17 @@ struct ThreadView: View {
         return Button(action: action) {
             Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"), systemImage: sounds ? "stop.fill" : "play.fill")
         }
+    }
+
+    private var loadEarlierButton: some View {
+        Button { Task { await model.loadEarlier() } } label: {
+            if model.loadingEarlier {
+                ProgressView().controlSize(.mini).frame(maxWidth: .infinity)
+            } else {
+                Text("Load earlier").frame(maxWidth: .infinity)
+            }
+        }
+        .disabled(model.loadingEarlier)
     }
 
     private func approvalView(_ card: ApprovalCard) -> some View {
