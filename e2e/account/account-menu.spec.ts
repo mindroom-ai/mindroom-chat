@@ -163,8 +163,12 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   // inside the window, with the footer in reach.
   await page.setViewportSize({ width: 640, height: 700 });
   await openAccountMenu(page);
+  // A phone-width page has the account button twice, the top bar's and the rail's; the top
+  // bar's comes first and is the one that opened the menu.
+  const topBarAvatar = avatarButton.first();
+  await expect(topBarAvatar).toHaveAttribute('aria-expanded', 'true');
   const menuStaysBelowAvatar = async (viewportHeight: number) => {
-    const avatarBox = (await avatarButton.boundingBox())!;
+    const avatarBox = (await topBarAvatar.boundingBox())!;
     const menuBox = (await menu.boundingBox())!;
     const footerBox = (await logoutItem.boundingBox())!;
     return (
@@ -201,7 +205,7 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
       const frameBox = frame.getBoundingClientRect();
       return itemBox.top >= frameBox.top && itemBox.bottom <= frameBox.bottom;
     });
-  await avatarButton.focus();
+  await topBarAvatar.focus();
   await page.keyboard.press('Enter');
   await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
   await expect.poll(focusedItemShown).toBe(true);
