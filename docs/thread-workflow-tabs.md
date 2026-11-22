@@ -32,11 +32,14 @@ The edit must be by the reply's sender, an agent the reader trusts (the SDK fetc
 place the edit, without a request from the app), say explicitly that the reply still streams, be at
 most 30 minutes old, and be the newest revision of the reply the client knows; a reaction, an edit
 bundled with the fetched reply, or an edit from the saved sync never counts. The client keeps no
-copy of the reply for this. Working ends when a newer revision that the client learns of ends the
-stream (one from the sync, also where the reply could not be fetched, one bundled with the fetched
-reply, or one a page of the thread brings), at a sync gap of the room, when the reader ignores the
-sender, or after the 5 minutes. Once the thread holds the reply, in its timeline or as the reply
-its summary names, only the usual checks of that reply count. Encrypted rooms are excluded. Known
+copy of the reply for this. Working ends when a later revision that the client learns of ends the
+stream (one from the sync, also where the reply could not be fetched, one bundled with the reply
+fetched for an edit or a reaction, or one a page of the thread brings), at a sync gap of the room,
+when the reader ignores the sender, when the room turns encryption on, or after the 5 minutes.
+After a revision that ended the stream, only a newer edit that says the reply streams brings
+Working back; an edit without a status does not. Once the thread holds the reply, in its timeline
+or as the reply its summary names, only the usual checks of that reply count. Encrypted rooms are
+excluded. Known
 costs: a tool call silent for more than 5 minutes shows Needs you until its next edit, as does a
 stream silent since relaunch; a redaction or a finishing edit that never arrives can leave Working
 for up to 5 minutes; and the thread's details show no tool trace for a reply the thread does not

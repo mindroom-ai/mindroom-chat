@@ -3,6 +3,7 @@ import {
   MatrixEvent,
   RelationType,
   RoomEvent,
+  RoomStateEvent,
   SyncState,
   ThreadEvent,
 } from 'matrix-js-sdk';
@@ -96,39 +97,41 @@ const newContentOf = (edit: MatrixEvent): Record<string, unknown> => {
   return isRecord(content) ? content : {};
 };
 
+/** As `syncedEdits` reads a finish: the status may sit on the edit, beside its new content. */
 const endsStream = (edit: MatrixEvent): boolean => {
-  const content = newContentOf(edit);
+  const content = edit.getOriginalContent<Record<string, unknown>>();
   const status = readStreamStatus(content);
   return hasTerminalStreamMetadata(content) || (!!status && TERMINAL_STREAM_STATUSES.has(status));
 };
 
 /**
- * The newest edit the client knows of the reply `edit` replaces, by the same sender: `edit`, one
- * of `others`, or one that the thread (waiting, unopened) or its room (as from a page) holds.
+ * The edits the client knows of the reply `edit` replaces, by the same sender: those of `others`,
+ * and those that the thread (waiting, unopened) or its room (as from a page) holds.
  */
-const newestRevision = (
+const revisionsOf = (
   thread: Thread,
   edit: MatrixEvent,
   others: Array<MatrixEvent | undefined> = []
-): MatrixEvent => {
+): MatrixEvent[] => {
   const replyId = edit.getAssociatedId();
   const held = thread.room.relations.getChildEventsForEvent(
     replyId ?? '',
     RelationType.Replace,
     edit.getType()
   );
-  return [...others, ...(thread.replayEvents ?? []), ...(held?.getRelations() ?? [])]
-    .filter(
-      (other): other is MatrixEvent =>
-        !!other &&
-        other.isRelation(RelationType.Replace) &&
-        other.getAssociatedId() === replyId &&
-        other.getSender() === edit.getSender() &&
-        other.getType() === edit.getType() &&
-        !other.isRedacted()
-    )
-    .reduce((newest, other) => (isEventOrderedAfter(other, newest) ? other : newest), edit);
+  return [...others, ...(thread.replayEvents ?? []), ...(held?.getRelations() ?? [])].filter(
+    (other): other is MatrixEvent =>
+      !!other &&
+      other.isRelation(RelationType.Replace) &&
+      other.getAssociatedId() === replyId &&
+      other.getSender() === edit.getSender() &&
+      other.getType() === edit.getType()
+  );
 };
+
+/** Whether one of `revisions` since `edit` ended the stream; an edit after that one changes nothing. */
+const finishedSince = (revisions: MatrixEvent[], edit: MatrixEvent): boolean =>
+  revisions.some((other) => endsStream(other) && !isEventOrderedAfter(edit, other));
 
 /** Whether a live edit says that a reply the thread lacks streams, where it may still say so. */
 export const hasStreamHint = (room: Room, thread: Thread | null): boolean =>
@@ -136,12 +139,10 @@ export const hasStreamHint = (room: Room, thread: Thread | null): boolean =>
   [...(clientHints.get(room.client) ?? [])].some(
     ([replyId, hint]) =>
       hint.thread === thread &&
-      !room.hasEncryptionStateEvent() &&
       // As the card reads the thread: its timeline, or else the reply its summary names.
       !thread.findEventById(replyId) &&
       thread.replyToEvent?.getId() !== replyId &&
-      !room.client.isUserIgnored(hint.edit.getSender() ?? '') &&
-      !endsStream(newestRevision(thread, hint.edit))
+      !finishedSince(revisionsOf(thread, hint.edit), hint.edit)
   );
 
 /**
@@ -229,12 +230,17 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
       if (!quiet) hint.thread.emit(ThreadEvent.Update, hint.thread);
     });
 
+  /** No hint in an encrypted room, and none of a sender the reader ignores. */
+  const barred = (room: Room, sender = '') =>
+    room.hasEncryptionStateEvent() || mx.isUserIgnored(sender);
+
   /**
-   * An edit the sync brought. The newest revision of its reply that the client knows decides: the
-   * edit, the one the server bundled with the reply the SDK fetched to place the edit, the synced
-   * edit that finished the reply, or one the thread or the room holds. If it ended the stream, the
-   * reply's hint goes. If it is the edit itself, live, by the fetched reply's sender (an agent
-   * the reader trusts), says that the reply streams and is not idle, the hint starts anew.
+   * An edit the sync brought. The revisions of its reply that the client knows decide: the edit,
+   * the one the server bundled with the reply the SDK fetched to place the edit, the synced edit
+   * that finished the reply, and those the thread or the room holds. If one since the hint's edit
+   * ended the stream, the reply's hint goes. If the edit is the newest, live, by the fetched
+   * reply's sender (an agent the reader trusts), says that the reply streams and is not idle, the
+   * hint starts anew.
    */
   const onEvent = (edit: MatrixEvent) => {
     const room = mx.getRoom(edit.getRoomId());
@@ -242,18 +248,21 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const reply = room?.fetchedRelationParents.get(edit);
     room?.fetchedRelationParents.delete(edit);
     const replyId = edit.getAssociatedId();
-    if (!replyId || !edit.isRelation(RelationType.Replace)) return;
-    const hint = streamHints.get(replyId);
+    const hint = replyId ? streamHints.get(replyId) : undefined;
+    // Another relation, as a reaction, starts no hint; the reply fetched for it may end one.
+    const tells = edit.isRelation(RelationType.Replace) || (!!hint && !!reply);
+    if (!room || !replyId || !tells || barred(room, edit.getSender())) return;
     const thread = hint?.thread ?? edit.getThread();
     if (!thread || (!hint && edit.getSender() !== reply?.getSender())) return;
     const bundled = reply && getSameSenderBundledEdit(reply.event);
     const finishing = reply && getFinishingEdit(reply);
-    const others = [edit, bundled && new MatrixEvent(bundled), finishing];
-    const newest = newestRevision(thread, hint?.edit ?? edit, others);
-    if (endsStream(newest)) {
+    const from = hint?.edit ?? edit;
+    const known = revisionsOf(thread, from, [edit, bundled && new MatrixEvent(bundled), finishing]);
+    if (finishedSince(known, from)) {
       dropHints((_hint, id) => id === replyId);
       return;
     }
+    const newest = known.reduce((a, b) => (isEventOrderedAfter(b, a) ? b : a), from);
     if (!reply || newest !== edit || edit.getType() !== reply.getType()) return;
     const content = newContentOf(edit);
     // The card's rule (`isEventStreaming`): the status must say that the reply streams.
@@ -273,6 +282,8 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     if (room && timelineSet === room.getUnfilteredTimelineSet())
       dropHints(({ thread }) => thread.room === room);
   };
+  /** Room state or account data changed, as when a room turns encryption on: the cards hear of it. */
+  const onBarred = () => dropHints(({ thread, edit }) => barred(thread.room, edit.getSender()));
   const onDeleteRoom = (roomId: string) =>
     dropHints(({ thread }) => thread.roomId === roomId, true);
   const onDeleteThread = (gone: Thread) => dropHints(({ thread }) => thread === gone, true);
@@ -286,6 +297,8 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(RoomEvent.TimelineReset, onReset);
   mx.on(ClientEvent.DeleteRoom, onDeleteRoom);
+  mx.on(RoomStateEvent.Events, onBarred);
+  mx.on(ClientEvent.AccountData, onBarred);
 
   return () => {
     stopped = true;
@@ -294,6 +307,8 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(RoomEvent.TimelineReset, onReset);
     mx.removeListener(ClientEvent.DeleteRoom, onDeleteRoom);
+    mx.removeListener(RoomStateEvent.Events, onBarred);
+    mx.removeListener(ClientEvent.AccountData, onBarred);
     dropHints(() => true, true);
     queue.splice(0);
   };

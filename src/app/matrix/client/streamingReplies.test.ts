@@ -190,18 +190,22 @@ const fixture = () => {
   (mx as MatrixClient & { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise =
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
 
-  /** Answers the client's next /sync with these room events; `limited` makes it a gap. */
-  const deliver = async (events: IEvent[], limited = false, toRoomId = roomId) => {
+  const answerSync = async (response: Record<string, unknown>) => {
     batch += 1;
-    const response = {
-      next_batch: `batch-${batch}`,
-      rooms: { join: { [toRoomId]: joined(events, `before-${batch}`, limited) } },
-    };
+    const body = { next_batch: `batch-${batch}`, ...response };
     const waiting = waitingSyncs.shift();
-    if (waiting) waiting(json(response));
-    else pendingSyncs.push(response);
+    if (waiting) waiting(json(body));
+    else pendingSyncs.push(body);
     await settle();
   };
+  /** Answers the client's next /sync with these room events; `limited` makes it a gap. */
+  const deliver = (events: IEvent[], limited = false, toRoomId = roomId) =>
+    answerSync({
+      rooms: { join: { [toRoomId]: joined(events, `before-${batch + 1}`, limited) } },
+    });
+  /** Answers the client's next /sync with the account's data alone: no room has news. */
+  const deliverAccountData = (type: string, content: Record<string, unknown>) =>
+    answerSync({ account_data: { events: [{ type, content }] } });
   const start = async () => {
     void startClient(mx);
     await vi.waitFor(() => expect(waitingSyncs.length > 0 || pendingSyncs.length > 0).toBe(true));
@@ -237,6 +241,7 @@ const fixture = () => {
   return {
     mx,
     deliver,
+    deliverAccountData,
     start,
     room,
     card,
@@ -721,6 +726,38 @@ describe('streaming replies on thread cards', () => {
     expect(s.workflow()).toBe('needsYou');
   });
 
+  // The SDK fetches the reply to place a reaction too. A reaction starts no hint, but ends one.
+  it('ends Working when the reply fetched for a reaction bundles a finishing edit', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    s.serve(s.ending(now + 1));
+    await s.f.deliver([stopReaction(now + 2)]);
+    expect(s.f.replyRequests()).toBe(2);
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('stays in Needs you by an edit without a status after a page brought the finishing one', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
+    await s.thread.initialize();
+    expect(s.workflow()).toBe('needsYou');
+
+    // The agent corrects its finished text: the edit carries no stream status.
+    const correction = { ...s.completed(now + 1), event_id: '$d-correction' };
+    delete correction.content['io.mindroom.stream_status'];
+    correction.content['m.new_content'] = { msgtype: 'm.text', body: 'The notes, corrected.' };
+    await arrive(s, { newest: correction, live: [[correction]] });
+    expect(s.workflow()).toBe('needsYou');
+    // No later one brings Working back but one that says the reply streams again.
+    await s.f.deliver([{ ...correction, event_id: '$e-correction', origin_server_ts: now + 2 }]);
+    expect(s.workflow()).toBe('needsYou');
+    const again = s.streaming(now + 3, '$f-again');
+    await arrive(s, { newest: again, live: [[again]] });
+    expect(s.workflow()).toBe('working');
+  });
+
   it('leaves the thread in Needs you by a stale edit when a page brought the finishing one', async () => {
     const now = Date.now();
     const s = await relaunchMidStream(now);
@@ -767,20 +804,26 @@ describe('streaming replies on thread cards', () => {
     }
   );
 
-  it.each<[string, Record<string, unknown>]>([
+  it.each<[string, Record<string, unknown>, Record<string, unknown>?]>([
     ['a stream status', { 'io.mindroom.stream_status': 'completed' }],
     ['a stream status in record form', { 'io.mindroom.stream_status': { status: 'completed' } }],
     ['only the run’s status', { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }],
-  ])('ends Working by a live edit that finishes the reply with %s', async (_name, status) => {
-    const now = Date.now();
-    const s = await hintMidStream(now);
-    const done = s.completed(now);
-    delete done.content['io.mindroom.stream_status'];
-    done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
-    await arrive(s, { newest: done, live: [[done]] });
-    expect(hinted(s)).toBe(false);
-    expect(s.workflow()).toBe('needsYou');
-  });
+    // MindRoom writes the status in both places; `syncedEdits` takes it from either.
+    ['a stream status beside its new content', {}, { 'io.mindroom.stream_status': 'completed' }],
+  ])(
+    'ends Working by a live edit that finishes the reply with %s',
+    async (_name, status, beside) => {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      const done = s.completed(now);
+      delete done.content['io.mindroom.stream_status'];
+      Object.assign(done.content, beside);
+      done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
+      await arrive(s, { newest: done, live: [[done]] });
+      expect(hinted(s)).toBe(false);
+      expect(s.workflow()).toBe('needsYou');
+    }
+  );
 
   // Only starting needs the reply the SDK fetched; a finish the client learns of ends Working.
   it('ends Working by a finishing edit whose reply the SDK could not fetch', async () => {
@@ -905,14 +948,48 @@ describe('streaming replies on thread cards', () => {
   it.each<[string, (s: MidStream, now: number) => unknown]>([
     [
       'the reader ignores its sender',
-      (s) => vi.spyOn(s.f.mx, 'isUserIgnored').mockImplementation((userId) => userId === agentId),
+      (s) => s.f.deliverAccountData('m.ignored_user_list', { ignored_users: { [agentId]: {} } }),
     ],
     ['the room turns encryption on', (s, now) => s.f.deliver([encryption(now)])],
-  ])('ends Working once %s', async (_name, change) => {
+  ])(
+    'ends Working once %s, also where the thread is read again only at its update',
+    async (_name, change) => {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      // As the sidebar's index keeps a thread: read again only when the thread says it changed.
+      let kept = s.workflow();
+      s.f.room().on(ThreadEvent.Update, () => {
+        kept = s.workflow();
+      });
+      await change(s, now);
+      expect(hinted(s)).toBe(false);
+      expect(kept).toBe('needsYou');
+    }
+  );
+
+  it('keeps another thread of the room in Needs you', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);
-    await change(s, now);
-    expect(s.workflow()).toBe('needsYou');
+    const otherRoot = { ...root(now - MINUTE), event_id: '$other-root' };
+    const rel = { rel_type: 'm.thread', event_id: otherRoot.event_id };
+    await s.f.deliver([
+      withSummary(otherRoot, message('$other-done', now, { body: 'Done', 'm.relates_to': rel })),
+    ]);
+    const other = defined(s.f.room().getThread(otherRoot.event_id), 'the other thread');
+    expect(hasStreamHint(s.f.room(), other)).toBe(false);
+    const { status } = buildThreadRecord({ room: s.f.room(), threadRootId: otherRoot.event_id });
+    expect(classifyThreadWorkflow(status, now)).toBe('needsYou');
+    expect(s.workflow()).toBe('working');
+  });
+
+  // An edit changes no type: one of another type that waits in the thread is no revision.
+  it('keeps Working by an edit of another type that says the reply finished', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const notice = { ...s.ending(now), type: 'm.room.notice' };
+    await arrive(s, { newest: s.streaming(now - 1_000), live: [[notice]] });
+    expect(s.thread.replayEvents?.map((event) => event.getId())).toContain(notice.event_id);
+    expect(s.workflow()).toBe('working');
   });
 
   it.each(['before', 'after'])(
