@@ -34,6 +34,39 @@ const isEligibleAgent = (userId: string, viewerId: string) =>
 const powerOf = (userId: string, levels: IPowerLevels, creators: ReadonlySet<string>) =>
   creators.has(userId) ? Infinity : readPowerLevel.user(levels, userId);
 
+const requiredModeratorLevel = (levels: IPowerLevels): number =>
+  Math.max(MODERATOR_LEVEL, readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT));
+
+const canViewerGrantLevel = (
+  viewerId: string,
+  levels: IPowerLevels,
+  creators: ReadonlySet<string>,
+  level: number
+): boolean =>
+  getRoomPermissionsAPI(creators, levels).stateEvent(StateEvent.RoomPowerLevels, viewerId) &&
+  powerOf(viewerId, levels, creators) >= level;
+
+export type RoomModeratorGrantDecision =
+  | { readonly kind: 'grant'; readonly level: number }
+  | { readonly kind: 'forbidden' };
+
+/** Evaluates whether `viewerId` can grant agent moderator rights in a v10+ non-Space room. */
+export const evaluateRoomModeratorGrant = (
+  room: Pick<Room, 'isSpaceRoom' | 'getVersion'>,
+  viewerId: string,
+  levels: IPowerLevels,
+  creators: ReadonlySet<string>
+): RoomModeratorGrantDecision => {
+  if (room.isSpaceRoom() || !hasIntegerPowerLevels(room.getVersion())) {
+    return { kind: 'forbidden' };
+  }
+  const level = requiredModeratorLevel(levels);
+  if (!canViewerGrantLevel(viewerId, levels, creators, level)) {
+    return { kind: 'forbidden' };
+  }
+  return { kind: 'grant', level };
+};
+
 type ModeratorGrantDecision =
   | { readonly kind: 'grant'; readonly level: number }
   | { readonly kind: 'levelRaised'; readonly level: number }
@@ -56,16 +89,10 @@ export const evaluateModeratorGrant = (
   ) {
     return { kind: 'forbidden' };
   }
-  const level = Math.max(
-    MODERATOR_LEVEL,
-    readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT)
-  );
+  const level = requiredModeratorLevel(levels);
   if (powerOf(targetId, levels, creators) >= level) return { kind: 'alreadySatisfied' };
   if (maxLevel !== undefined && level > maxLevel) return { kind: 'levelRaised', level };
-  if (
-    !getRoomPermissionsAPI(creators, levels).stateEvent(StateEvent.RoomPowerLevels, viewerId) ||
-    powerOf(viewerId, levels, creators) < level
-  ) {
+  if (!canViewerGrantLevel(viewerId, levels, creators, level)) {
     return { kind: 'forbidden' };
   }
   return { kind: 'grant', level };

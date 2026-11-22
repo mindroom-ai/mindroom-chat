@@ -68,8 +68,8 @@ test('agents publish their room state in a room made with Create Room', async ({
   await expect(roomMoreOptions(page)).toBeVisible({ timeout: 90_000 });
   await roomMoreOptions(page).click();
   await page.getByRole('menuitem', { name: 'Invite', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Invite' });
-  const field = dialog.getByRole('combobox');
+  const dialog = page.getByRole('dialog', { name: /^Invite/ });
+  const field = dialog.getByRole('searchbox');
   await field.fill(stack.agents.helper);
   // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
   await field.press('Enter');
