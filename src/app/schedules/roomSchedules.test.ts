@@ -146,6 +146,38 @@ describe('formatCompactExecutionTime', () => {
     expect(formatCompactExecutionTime(otherYear, now, 'en-US')).toContain('2028');
     expect(formatCompactExecutionTime(otherYear, now, 'en-US')).not.toMatch(/:\d{2}:\d{2}/);
   });
+
+  it('reuses cached Intl.DateTimeFormat instances across repeated calls', () => {
+    const Original = Intl.DateTimeFormat;
+    let constructions = 0;
+    class CountingDateTimeFormat extends Original {
+      constructor(...args: ConstructorParameters<typeof Intl.DateTimeFormat>) {
+        super(...args);
+        constructions += 1;
+      }
+    }
+    Object.defineProperty(Intl, 'DateTimeFormat', {
+      value: CountingDateTimeFormat,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const otherYearA = new Date(2028, 0, 1, 8, 5, 0).getTime();
+      const otherYearB = new Date(2028, 5, 15, 16, 20, 0).getTime();
+      const locale = 'fi-FI';
+      formatRelativeCountdown(otherYearA, now, mockT, locale);
+      formatRelativeCountdown(otherYearB, now, mockT, locale);
+      formatCompactExecutionTime(otherYearA, now, locale);
+      formatCompactExecutionTime(otherYearB, now, locale);
+      expect(constructions).toBe(2);
+    } finally {
+      Object.defineProperty(Intl, 'DateTimeFormat', {
+        value: Original,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
 });
 
 describe('formatShortCadence', () => {

@@ -44,8 +44,6 @@ import { renderSchedulePrompt } from './schedulePrompt';
 import { useScheduleCancelState, type ScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
 
-export { useScheduleCancelState, type ScheduleCancelState } from './useScheduleCancelState';
-
 export type EditScheduledTaskResult = 'prefilled' | 'draft-busy' | void;
 
 type ScheduleFilter = 'all' | 'once' | 'recurring';

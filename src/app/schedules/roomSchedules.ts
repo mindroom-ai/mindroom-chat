@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
+import { dateTimeFormat } from '../lib/time';
 import {
   isPendingScheduledTaskStatus,
   parseScheduleTimestamp,
@@ -13,6 +14,24 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 const WEEK_MS = 7 * DAY_MS;
 const SHORT_CADENCE_MAX_LENGTH = 24;
+
+const SAME_YEAR_DATE_OPTIONS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+const OTHER_YEAR_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+};
+const SAME_DAY_TIME_OPTIONS: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+const SAME_YEAR_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+};
+const OTHER_YEAR_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+};
 
 /** A task that will post to the existing thread, not create another one. */
 export const isScheduleInThread = (task: ParsedScheduledTask, threadId: string): boolean =>
@@ -84,11 +103,11 @@ export const formatRelativeCountdown = (
 
   const execDate = new Date(executionTime);
   const nowDate = new Date(now);
-  return new Intl.DateTimeFormat(
+  return dateTimeFormat(
     locale,
     execDate.getFullYear() === nowDate.getFullYear()
-      ? { month: 'short', day: 'numeric' }
-      : { month: 'short', day: 'numeric', year: 'numeric' }
+      ? SAME_YEAR_DATE_OPTIONS
+      : OTHER_YEAR_DATE_OPTIONS
   ).format(executionTime);
 };
 
@@ -107,23 +126,12 @@ export const formatCompactExecutionTime = (
     execDate.getDate() === nowDate.getDate();
 
   if (sameDay) {
-    return new Intl.DateTimeFormat(locale, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(executionTime);
+    return dateTimeFormat(locale, SAME_DAY_TIME_OPTIONS).format(executionTime);
   }
   if (sameYear) {
-    return new Intl.DateTimeFormat(locale, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(executionTime);
+    return dateTimeFormat(locale, SAME_YEAR_DATETIME_OPTIONS).format(executionTime);
   }
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(executionTime);
+  return dateTimeFormat(locale, OTHER_YEAR_DATETIME_OPTIONS).format(executionTime);
 };
 
 /** Concise cadence pill label for a recurring task; the full description stays in the subtitle. */

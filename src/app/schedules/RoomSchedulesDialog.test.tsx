@@ -4,7 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { RoomSchedulesDialog, useScheduleCancelState } from './RoomSchedulesDialog';
+import { RoomSchedulesDialog } from './RoomSchedulesDialog';
+import { useScheduleCancelState } from './useScheduleCancelState';
 
 const mocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(async () => true),
