@@ -335,8 +335,8 @@ export class ModelController {
     const scope = this.scope(room, threadId);
     if (
       !this.active() ||
-      !threadId ||
-      threadId.length > 1024 ||
+      // Room-scope discovery (`threadId === undefined`) lists models without enabling thread mutations.
+      (threadId !== undefined && (!threadId || threadId.length > 1024)) ||
       room.roomId.length > 1024 ||
       scope.command ||
       scope.query

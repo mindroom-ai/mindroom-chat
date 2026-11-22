@@ -2009,4 +2009,51 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().error).toBeDefined();
     expect(h.snapshot().loading).toBe(true);
   });
+  it('discovers models at room scope with one shared request while keeping mutations thread-only', async () => {
+    const h = setup();
+    const unsub1 = h.controller.subscribe(h.room, undefined, () => {});
+    const unsub2 = h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    expect(h.queued).toHaveLength(1);
+    const req = h.request();
+    expect(req.room_id).toBe(h.room.roomId);
+    expect('thread_id' in req).toBe(false);
+
+    // A response naming a thread does not answer a room-scope query.
+    h.response(req, { thread_id: '$root' });
+    await flush();
+    expect(h.controller.getSnapshot(h.room, undefined).models).toHaveLength(0);
+
+    // A matching room-scope response populates models without enabling thread mutations.
+    h.response(req);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    const snap = h.controller.getSnapshot(h.room, undefined);
+    expect(snap.eligible).toBe(true);
+    expect(snap.loading).toBe(false);
+    expect(snap.models.map((m) => m.key)).toEqual(['fast', 'reset']);
+    expect(snap.canMutate).toBe(false);
+
+    // Thread mutations stay refused at room scope.
+    h.controller.selectModel(h.room, undefined, 'fast');
+    h.controller.resetToRoomDefault(h.room, undefined);
+    await flush();
+    expect(h.send).not.toHaveBeenCalled();
+
+    // An empty threadId string is still refused rather than treated as room scope.
+    h.controller.refresh(h.room, '');
+    await flush();
+    expect(h.queued).toHaveLength(1);
+
+    // Thread-scope discovery stays independent and still allows mutations.
+    const unsubThread = await h.discover();
+    expect(h.snapshot('$root').canMutate).toBe(true);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(1);
+
+    unsubThread();
+    unsub1();
+    unsub2();
+  });
 });
