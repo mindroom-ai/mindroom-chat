@@ -1125,19 +1125,22 @@ export const afterWaitingSlide = (change: () => void): void => {
  * Put away, it goes through `slidePhonePage`, so a tap on a link in it and the navigation that
  * follows run together from the list, where nothing slides.
  */
-export const movePhoneNavDrawer = (open: boolean, set: (open: boolean) => void): void => {
+export const movePhoneNavDrawer = (
+  open: boolean,
+  set: (open: boolean) => void
+): Promise<void> | undefined => {
   if (!open) {
     slidePhonePage(() => set(false));
-    return;
+    return undefined;
   }
   const slide = active;
   if (!slide) {
     set(true);
-    return;
+    return undefined;
   }
   slide.skip();
   // After the slide's own end (`end` in `slidePhonePage`), which takes its marker away.
-  void slide.finished.then(() => {
+  return slide.finished.then(() => {
     if (document.querySelector(`[${PHONE_STAGE}]`)) set(true);
   });
 };

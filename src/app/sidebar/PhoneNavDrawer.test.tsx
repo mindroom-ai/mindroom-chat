@@ -16,7 +16,7 @@ import {
 import { PHONE_STAGE, isPhonePageSlideActive, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { NoticeSlot, drawerNoticeSlotAtom } from '../ui/noticeSlots';
+import { NoticeSlot, drawerNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { MobileFriendlyPageNav } from './MobileFriendly';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
@@ -873,6 +873,153 @@ describe('PhoneNavDrawer interactive swipes', () => {
       expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
     } finally {
       drawer.unmount();
+      raf.mockRestore();
+    }
+  });
+
+  it('keeps settled open styles pinned until a mid-settle phonePageSlide finishes and opens the drawer', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    document.body.append(stage);
+    const change = vi.fn();
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const finishers: Array<() => void> = [];
+    const mockAnimate = () => {
+      let finish = () => {};
+      const finished = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      finishers.push(finish);
+      return { finished, cancel: vi.fn() } as unknown as Animation;
+    };
+    Object.defineProperty(drawer.panel, 'animate', { configurable: true, value: mockAnimate });
+    Object.defineProperty(drawer.scrim, 'animate', { configurable: true, value: mockAnimate });
+
+    try {
+      // Begin interactive open drag past 35% and release so WAAPI settle is in-flight.
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 180, clientY: 200 }], 200);
+        vi.advanceTimersToNextFrame();
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      expect(finishers).toHaveLength(2);
+
+      // A phone page slide starts mid-settle before commit() runs.
+      slidePhonePage(change);
+      expect(isPhonePageSlideActive()).toBe(true);
+
+      // Resolve WAAPI settle so commit() runs, while the skipped page slide's microtask is still pending.
+      // Check synchronously inside the settle resolution before the deferred slide finishes.
+      let pinnedBeforeOpen = false;
+      let translateBeforeOpen = '';
+      let opacityBeforeOpen = '';
+      let railMountedBeforeOpen = false;
+      const originalSet = drawer.store.set.bind(drawer.store);
+      const setSpy = vi.spyOn(drawer.store, 'set').mockImplementation((atom, ...args) => {
+        if (atom === phoneNavDrawerOpenAtom && args[0] === true) {
+          pinnedBeforeOpen =
+            drawer.panel.hasAttribute('data-swiping') && drawer.scrim.hasAttribute('data-swiping');
+          translateBeforeOpen = drawer.panel.style.translate;
+          opacityBeforeOpen = drawer.scrim.style.opacity;
+          railMountedBeforeOpen =
+            drawer.container.querySelector('[data-testid="drawer-rail"]') !== null;
+        }
+        return originalSet(atom, ...args);
+      });
+
+      domAct(() => {
+        finishers.forEach((finish) => finish());
+      });
+      await flushMicrotasks();
+      setSpy.mockRestore();
+
+      // Right up until the deferred open committed, the settled open drawer stayed pinned with zero snap-offscreen.
+      expect(pinnedBeforeOpen).toBe(true);
+      expect(translateBeforeOpen).toBe('300px 0');
+      expect(opacityBeforeOpen).toBe('1');
+      expect(railMountedBeforeOpen).toBe(true);
+
+      // Once open commits, [data-open] takes over cleanly and swipe styles are cleared.
+      expect(change).toHaveBeenCalledWith(true);
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+      expect(drawer.scrim.hasAttribute('data-open')).toBe(true);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
+    } finally {
+      drawer.unmount();
+      stage.remove();
+      delete document.documentElement.dataset.pageSlide;
+      vi.useRealTimers();
+    }
+  });
+
+  it('falls back to discrete open on rail-only pages when pageNoticeSlotAtom has an active notice', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const drawer = mountDomDrawer({ withList: false });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 64,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 64,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const pageNoticeSlot = document.createElement('div');
+    const discardButton = document.createElement('button');
+    discardButton.type = 'button';
+    discardButton.textContent = 'Discard';
+    pageNoticeSlot.append(discardButton);
+    document.body.append(pageNoticeSlot);
+    drawer.store.set(pageNoticeSlotAtom, pageNoticeSlot);
+    discardButton.focus();
+
+    try {
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 130, clientY: 200 }], 200);
+      });
+
+      // Fell back cleanly instead of peeking a rail-only drawer that would jump wider when NoticeSlot mounts.
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.store.get(drawerNoticeSlotAtom)).toBeNull();
+      expect(document.activeElement).toBe(discardButton);
+
+      // Releasing past discrete threshold still opens the drawer cleanly.
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+    } finally {
+      drawer.unmount();
+      pageNoticeSlot.remove();
       raf.mockRestore();
     }
   });
