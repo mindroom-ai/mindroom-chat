@@ -2472,6 +2472,50 @@ describe('useRoomInputSendSessionController root thread model stamping', () => {
     });
   });
 
+  it.each(['!help', ' /schedule tomorrow'])(
+    'does not consume or stamp command caption %s sent with an attachment',
+    async (commandBody) => {
+      const takeRootModelDraft = onceDraft();
+      const { api, mx } = renderHarness({ takeRootModelDraft });
+      const file = createFile('photo.png');
+      api.selectedFilesRef.current = [createUploadItem(file)];
+      api.uploadsRef.current = [successUpload(file)];
+
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: commandBody } });
+      });
+
+      expect(takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+      expect(mx.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    }
+  );
+
+  it('does not consume or stamp a command caption if its staged upload is removed before sending', async () => {
+    const takeRootModelDraft = onceDraft();
+    const { api, mx } = renderHarness({ takeRootModelDraft });
+    const file = createFile('broken.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: '!help' } });
+    });
+    expect(takeRootModelDraft).not.toHaveBeenCalled();
+
+    api.selectedFilesRef.current = [];
+    api.sendSessionUploadItemsRef.current = [];
+    api.uploadsRef.current = [];
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    expect(takeRootModelDraft).not.toHaveBeenCalled();
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+  });
+
   it.each(['!model fast', '  !help', '/schedule tomorrow', ' /status'])(
     'does not consume or stamp command %s',
     async (commandBody) => {

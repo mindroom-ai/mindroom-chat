@@ -5014,4 +5014,23 @@ describe('RoomInput main-room next-thread model pick', () => {
     expect(mxState.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
     renderer.unmount();
   });
+
+  it('does not consume or stamp the draft when voice is sent with a command caption', async () => {
+    threadModeState.mode = 'thread';
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    editorOutputState.emptyEditor = false;
+    editorOutputState.plainText = '  !help';
+    const { renderer } = await renderRoomInput(createStore());
+    await openVoiceRecorder(renderer);
+
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 1200, [0, 512, 1024]);
+    await submitComposer();
+
+    expect(modelPickerState.takeRootModelDraft).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    expect(mxState.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    renderer.unmount();
+  });
 });

@@ -342,7 +342,7 @@ const placeInFork = async (
   };
 };
 
-const isCommandText = (content?: IContent): boolean =>
+export const isCommandText = (content?: IContent): boolean =>
   typeof content?.body === 'string' && /^[!/]/.test(content.body.trim());
 
 /**
@@ -353,8 +353,7 @@ const isCommandText = (content?: IContent): boolean =>
 const placeMessage = async (
   session: SendSession,
   content: IContent,
-  relation: IContent['m.relates_to'] | undefined,
-  allowRootModel = true
+  relation: IContent['m.relates_to'] | undefined
 ): Promise<{
   content: IContent;
   relation: IContent['m.relates_to'] | undefined;
@@ -363,7 +362,7 @@ const placeMessage = async (
   const fork = relation ? undefined : session.forkStart;
   if (!fork) {
     if (relation) return { content: { ...content, 'm.relates_to': relation }, relation };
-    const pick = allowRootModel && !content['m.relates_to'] ? session.rootModel : undefined;
+    const pick = !content['m.relates_to'] ? session.rootModel : undefined;
     return { content: pick ? { ...content, ...pick } : content, relation };
   }
   const place = await placeInFork(fork);
@@ -505,8 +504,7 @@ export const useRoomInputSendSessionController = ({
       const { content, relation, settleFork } = await placeMessage(
         session,
         session.textContent,
-        getTextRelationForSendSession(session),
-        !isCommandText(session.textContent)
+        getTextRelationForSendSession(session)
       );
       const markedContent = withSubmissionMarker(session, content, undefined);
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
@@ -732,17 +730,20 @@ export const useRoomInputSendSessionController = ({
         reportSent,
         mounted: isMounted,
       };
-      const acquireRootModel = (target: RoomInputSendContext, hasFiles = false) =>
-        rootModel !== undefined
-          ? rootModel ?? undefined
-          : target.roomId === roomId &&
-            target.threadingEnabled !== false &&
-            !target.threadId &&
-            !target.replyDraft &&
-            !target.forkStart &&
-            (hasFiles || (!isCommandText(textContent) && !textContent?.['m.relates_to']))
-          ? takeRootModelDraft?.(target.room)
-          : undefined;
+      const acquireRootModel = (target: RoomInputSendContext, hasFiles = false) => {
+        if (rootModel !== undefined) return rootModel ?? undefined;
+        if (
+          target.roomId !== roomId ||
+          target.threadingEnabled === false ||
+          target.threadId ||
+          target.replyDraft ||
+          target.forkStart ||
+          isCommandText(textContent) ||
+          (!hasFiles && textContent?.['m.relates_to'])
+        )
+          return undefined;
+        return takeRootModelDraft?.(target.room);
+      };
       const existingSession = sendSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
