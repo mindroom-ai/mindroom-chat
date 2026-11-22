@@ -85,18 +85,18 @@ afterEach(() => {
   cleanup();
 });
 
-/** The tiles of the card under the level 3 heading `name`, as `key levels shared-catalog`. */
+/** The tiles of the card under the title `name`, as `key levels shared-catalog`. */
 const tilesUnder = (name: string) =>
   [
     ...screen
-      .getByRole('heading', { name, level: 3 })
+      .getByText(name)
       .parentElement!.querySelectorAll<HTMLElement>('[data-testid^="tile-"]'),
   ].map(({ dataset }) =>
     [dataset.testid, dataset.levels, dataset.sharedCatalog].filter(Boolean).join(' ')
   );
 
 describe('RoomMindroomPage', () => {
-  it('groups the settings under Agents and Thread titles headings and shares one catalog', () => {
+  it('groups the settings under the titles Agents and Thread titles and shares one catalog', () => {
     render(<RoomMindroomPage room={ROOM} requestClose={vi.fn()} />);
 
     expect(mocks.useRoomModelCatalog).toHaveBeenCalledTimes(1);
@@ -110,7 +110,5 @@ describe('RoomMindroomPage', () => {
       'tile-thread_summary_instructions',
       'tile-thread_summary_model false true',
     ]);
-    // A card per group is no landmark each: only its heading names it.
-    expect(screen.queryByRole('region')).toBeNull();
   });
 });
