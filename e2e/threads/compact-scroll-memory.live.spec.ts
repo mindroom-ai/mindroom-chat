@@ -151,6 +151,9 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await sendThreadReply(homeserver, session, roomId, lastRootId!, `Elsewhere ${reply}`);
     await sendThreadReply(homeserver, session, roomId, opened, reply);
     await expect(page.getByText(reply, { exact: true })).toBeVisible();
+    // On a phone the thread slides in: a step back before that slide ends changes the page at
+    // once, with the slide's copy of the list still over it.
+    await expect(page.locator('html[data-page-slide]')).toHaveCount(0);
 
     await leave();
     await expect(page).not.toHaveURL(/threadId=/);
