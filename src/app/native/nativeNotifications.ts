@@ -1,0 +1,58 @@
+import { Capacitor, registerPlugin } from '@capacitor/core';
+
+export type NativeNotificationAccount = {
+  accountTag: string;
+  homeserverUrl: string;
+  userId: string;
+  accessToken?: string;
+};
+
+export type NativeNotificationAvatarEntry = {
+  sender: string;
+  mxcUrl: string | null;
+};
+
+export type NativeNotificationAvatarSync = {
+  accountTag: string;
+  avatars: NativeNotificationAvatarEntry[];
+};
+
+/** Plugin `MindRoomNotifications` (ios/App/App/MindRoomNotificationsPlugin.swift). */
+type MindRoomNotificationsPlugin = {
+  syncAccount(account: NativeNotificationAccount): Promise<void>;
+  syncAvatars(payload: NativeNotificationAvatarSync): Promise<void>;
+  clearAccount(payload: { accountTag: string }): Promise<void>;
+};
+
+let notificationsPlugin: MindRoomNotificationsPlugin | undefined;
+
+const getNotificationsPlugin = (): MindRoomNotificationsPlugin => {
+  notificationsPlugin ??= registerPlugin<MindRoomNotificationsPlugin>('MindRoomNotifications');
+  return notificationsPlugin;
+};
+
+export const isNativeNotificationsAvailable = (): boolean =>
+  Capacitor.isNativePlatform() &&
+  Capacitor.getPlatform() === 'ios' &&
+  Capacitor.isPluginAvailable('MindRoomNotifications');
+
+export const syncNativeNotificationAccount = async (
+  account: NativeNotificationAccount
+): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
+  await getNotificationsPlugin().syncAccount(account);
+};
+
+export const syncNativeNotificationAvatars = async (
+  payload: NativeNotificationAvatarSync
+): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
+  await getNotificationsPlugin().syncAvatars(payload);
+};
+
+export const clearNativeNotificationAccount = async (accountTag: string): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
+  const trimmed = accountTag.trim();
+  if (!trimmed) return;
+  await getNotificationsPlugin().clearAccount({ accountTag: trimmed });
+};

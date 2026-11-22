@@ -9,6 +9,7 @@ import {
   type StoredSession,
 } from '../../matrix/session/sessions';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+import { clearNativeNotificationAccount } from '../../native/nativeNotifications';
 
 /**
  * The notification category of every push. The Apple Watch app shows its own long look for it
@@ -333,12 +334,17 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
 };
 
 export const clearIOSPushState = (sessionId?: string) => {
+  const profileTagKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
+  const profileTag = trimConfigValue(readStorage(profileTagKey));
   const storageKeys = [
     resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
-    resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId),
+    profileTagKey,
     resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId),
   ];
   storageKeys.forEach(removeStorage);
+  if (profileTag) {
+    void clearNativeNotificationAccount(profileTag).catch(() => undefined);
+  }
 };
 
 /** Each account's last pusher write, so its writes reach the homeserver in the order they start. */

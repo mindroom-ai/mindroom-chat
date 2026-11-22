@@ -15,7 +15,12 @@ import {
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
 import { SESSION_STORE_KEY } from '../../matrix/session/sessions';
 
+import { clearNativeNotificationAccount } from '../../native/nativeNotifications';
+
 vi.mock('../../native/cloudflareAccess', () => ({ hasCloudflareAccess: vi.fn(() => false) }));
+vi.mock('../../native/nativeNotifications', () => ({
+  clearNativeNotificationAccount: vi.fn(async () => undefined),
+}));
 
 describe('resolveIOSPushConfig', () => {
   const originalWindow = globalThis.window;
@@ -334,6 +339,35 @@ describe('resolveIOSPushConfig', () => {
     expect(storage.has('mindroom_ios_push_token::session-a')).toBe(false);
     expect(storage.has('mindroom_ios_push_enabled::session-a')).toBe(false);
     expect(storage.has('mindroom_ios_push_profile_tag::session-a')).toBe(true);
+  });
+
+  it('clears native notification credentials and avatar cache using the stored profile tag', () => {
+    vi.mocked(clearNativeNotificationAccount).mockClear();
+    const storage = new Map<string, string>([
+      ['mindroom_ios_push_token::session-b', 'token-b'],
+      ['mindroom_ios_push_profile_tag::session-b', 'tag-b'],
+      ['mindroom_ios_push_enabled::session-b', '1'],
+    ]);
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          removeItem: (key: string) => storage.delete(key),
+        },
+        dispatchEvent: () => true,
+      },
+      configurable: true,
+    });
+
+    clearIOSPushState('session-b');
+
+    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-b');
+    expect(storage.size).toBe(0);
+
+    vi.mocked(clearNativeNotificationAccount).mockClear();
+    clearIOSPushState('session-b');
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
   });
 });
 

@@ -44,6 +44,9 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
         bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
+#if !targetEnvironment(macCatalyst)
+        bridge?.registerPluginInstance(MindRoomNotificationsPlugin())
+#endif
 #if targetEnvironment(macCatalyst)
         // Mac Catalyst's WebKit has no media capture. Only the main window records voice.
         if !(self is QuickCaptureViewController) {
