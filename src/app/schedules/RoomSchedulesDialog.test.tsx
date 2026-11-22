@@ -1510,6 +1510,26 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     } finally {
       mount8.unmount();
     }
+
+    // Case 9: Safari row switch — focusing Details in row A then clicking row B moves focus to row B's toggle, not row A.
+    const mount9 = mountDialog({ ...base, tasks: [tA, tB] });
+    try {
+      const toggles = () => [
+        ...mount9.host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]'),
+      ];
+      await click(toggles()[0]!);
+      const detailsBtnA = findButtonByText(mount9.host, 'Details')!;
+      act(() => {
+        detailsBtnA.focus();
+      });
+      expect(document.activeElement).toBe(detailsBtnA);
+
+      // Simulate Safari click on row B toggle without focusing it first.
+      await click(toggles()[1]!);
+      expect(document.activeElement).toBe(toggles()[1]);
+    } finally {
+      mount9.unmount();
+    }
   });
 });
 

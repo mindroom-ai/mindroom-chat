@@ -1090,7 +1090,7 @@ export const RoomSchedulesDialog = forwardRef<
                             cancelSent={cancelSentIds.has(task.taskId)}
                             cancelError={cancelErrors.get(task.taskId) === true}
                             onToggle={() => {
-                              lastCollapsedTaskIdRef.current = open ? task.taskId : null;
+                              lastCollapsedTaskIdRef.current = task.taskId;
                               setExpandedId(open ? null : task.taskId);
                             }}
                             onOpenThread={onOpenThread}

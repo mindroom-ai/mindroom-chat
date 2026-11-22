@@ -107,12 +107,17 @@ const tokenizeInlineCode = (segment: string): PromptToken[] => {
   let i = 0;
 
   while (i < segment.length) {
-    if (segment[i] === '\\' && segment[i + 1] === '`') {
-      i += 2;
+    if (segment[i] !== '`') {
+      i += 1;
       continue;
     }
 
-    if (segment[i] !== '`') {
+    // Only an odd count of immediately preceding backslashes escapes an opening backtick.
+    let backslashCount = 0;
+    while (i - 1 - backslashCount >= 0 && segment[i - 1 - backslashCount] === '\\') {
+      backslashCount += 1;
+    }
+    if (backslashCount % 2 === 1) {
       i += 1;
       continue;
     }

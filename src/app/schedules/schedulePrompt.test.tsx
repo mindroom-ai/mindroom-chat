@@ -260,4 +260,17 @@ describe('renderSchedulePrompt', () => {
       cleanup();
     }
   });
+
+  it('uses backslash parity before opening backticks so even backslashes do not escape', () => {
+    const { host, cleanup } = renderPrompt('\\\\`alpha` and `beta`');
+    try {
+      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
+        'alpha',
+        'beta',
+      ]);
+      expect(host.textContent).toBe('\\\\alpha and beta');
+    } finally {
+      cleanup();
+    }
+  });
 });

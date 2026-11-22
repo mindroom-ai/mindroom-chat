@@ -103,6 +103,8 @@ export const FilterPill = style([
   {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: `max(${toRem(36)}, 36px)`,
     minHeight: `max(${toRem(32)}, 32px)`,
     gap: toRem(6),
     paddingBlock: toRem(5),
@@ -245,7 +247,7 @@ export const RowTopLine = style({
 });
 
 export const RowTitle = style({
-  flex: '1 1 0%',
+  flex: `1 1 min(100%, ${toRem(140)})`,
   minWidth: 0,
   margin: 0,
 });
@@ -511,6 +513,7 @@ export const ActionsSecondary = style({
 
 export const CompactAction = style([
   {
+    minWidth: `max(${toRem(36)}, 36px)`,
     minHeight: `max(${toRem(32)}, 32px)`,
     selectors: {
       '&:focus-visible': {
@@ -561,6 +564,7 @@ export const CopiedStatus = style({
 
 export const CancelBarButton = style([
   {
+    minWidth: `max(${toRem(36)}, 36px)`,
     minHeight: `max(${toRem(32)}, 32px)`,
     selectors: {
       '&:focus-visible': {
