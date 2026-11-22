@@ -104,13 +104,16 @@ public struct ThreadSnapshot: Equatable, Sendable {
             event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
         }
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        // Events rendered as audio messages that can display a folded transcript.
-        let audioIds = Set(([root] + messages).compactMap { event -> String? in
+        // The voice messages a transcript can show under: drawn as audio, with the voice mark on the version
+        // shown (the web client's `isVoiceMessageContent`). An audio file without it keeps its caption.
+        let voiceIds = Set(([root] + messages).compactMap { event -> String? in
+            let content = effectiveContent(event, latestEdit: edit(event))
             guard let id = event.eventId, isMessage(event), isAudio(event),
+                  content["org.matrix.msc3245.voice"] != nil || content["m.voice"] != nil,
                   id == rootId || event.content["io.mindroom.thread_summary"] == nil else { return nil }
             return id
         })
-        // Pair each rendered audio message with its first valid trusted echo (mirroring web's planVoiceTranscripts).
+        // Pair each of them with its first valid trusted echo (mirroring web's planVoiceTranscripts).
         var pairedVoiceIds = Set<String>()
         var transcripts: [String: String] = [:]
         var hiddenEchoIds = Set<String>()
@@ -120,7 +123,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
                   message.content["io.mindroom.thread_summary"] == nil,
                   let echo = VoiceEcho.transcript(message, latestEdit: edit(message)),
                   echo.voiceEventId != id,
-                  audioIds.contains(echo.voiceEventId),
+                  voiceIds.contains(echo.voiceEventId),
                   !pairedVoiceIds.contains(echo.voiceEventId) else { continue }
             pairedVoiceIds.insert(echo.voiceEventId)
             hiddenEchoIds.insert(id)

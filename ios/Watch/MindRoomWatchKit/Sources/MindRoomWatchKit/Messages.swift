@@ -89,14 +89,18 @@ public enum AudioCaption {
 /// A voice message's transcript echo: posted directly or edited from the legacy transcribing placeholder.
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
+    private static let flag = "com.mindroom.visible_router_voice_echo"
 
+    /// As the web client's `planVoiceTranscripts`: the first version and the one shown carry the flag, and the
+    /// one shown is not the raw-audio fallback, holds all of the text (no preview of a long text) and names
+    /// the voice message. An older backend's echo names it by its reply relation, which no edit repeats.
     public static func transcript(_ event: JSON, latestEdit: JSON?) -> (voiceEventId: String, text: String?)? {
         let content = effectiveContent(event, latestEdit: latestEdit)
-        guard jsonBool(event.content["com.mindroom.visible_router_voice_echo"]) == true,
-              jsonBool(content["com.mindroom.voice_raw_audio_fallback"]) != true else { return nil }
+        guard jsonBool(event.content[flag]) == true, jsonBool(content[flag]) == true,
+              jsonBool(content["com.mindroom.voice_raw_audio_fallback"]) != true,
+              !(content["io.mindroom.long_text"] is JSON) else { return nil }
         let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
         guard let voiceId = nonEmpty(content["com.mindroom.voice_source_event_id"])
-            ?? nonEmpty(event.content["com.mindroom.voice_source_event_id"])
             ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
         let body = content["body"] as? String
         return (voiceId, body == placeholder ? nil : body)
