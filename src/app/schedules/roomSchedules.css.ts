@@ -94,8 +94,8 @@ export const FilterBar = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  rowGap: toRem(14),
-  columnGap: config.space.S200,
+  rowGap: `max(${toRem(14)}, 14px)`,
+  columnGap: `max(${config.space.S200}, 8px)`,
   minWidth: 0,
 });
 
@@ -103,7 +103,7 @@ export const FilterPill = style([
   {
     display: 'inline-flex',
     alignItems: 'center',
-    minHeight: toRem(32),
+    minHeight: `max(${toRem(32)}, 32px)`,
     gap: toRem(6),
     paddingBlock: toRem(5),
     paddingInline: toRem(10),
@@ -484,8 +484,8 @@ export const ActionsRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   flexWrap: 'wrap',
-  rowGap: toRem(14),
-  columnGap: config.space.S200,
+  rowGap: `max(${toRem(14)}, 14px)`,
+  columnGap: `max(${config.space.S200}, 8px)`,
   minWidth: 0,
 });
 
@@ -493,8 +493,8 @@ export const ActionsPrimary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  rowGap: toRem(14),
-  columnGap: config.space.S200,
+  rowGap: `max(${toRem(14)}, 14px)`,
+  columnGap: `max(${config.space.S200}, 8px)`,
   minWidth: 0,
 });
 
@@ -502,15 +502,15 @@ export const ActionsSecondary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  rowGap: toRem(14),
-  columnGap: config.space.S300,
+  rowGap: `max(${toRem(14)}, 14px)`,
+  columnGap: `max(${config.space.S300}, 12px)`,
   marginInlineStart: 'auto',
   minWidth: 0,
 });
 
 export const CompactAction = style([
   {
-    minHeight: toRem(32),
+    minHeight: `max(${toRem(32)}, 32px)`,
     selectors: {
       '&:focus-visible': {
         outline: `2px solid ${color.Surface.OnContainer}`,
@@ -518,14 +518,14 @@ export const CompactAction = style([
       },
     },
   },
-  // 30-32 px padding box + 2 * 7 px = 44-46 px tall; 7 + 7 <= 14 px rowGap (zero overlap).
+  // 30-32 px padding box + 2 * 7 px = 44-46 px tall; 7 + 7 <= 14 px rowGap (zero overlap at any zoom).
   touchTarget('4px', '', { blockReach: '7px' }),
 ]);
 
 export const IconAction = style([
   {
-    minWidth: toRem(32),
-    minHeight: toRem(32),
+    minWidth: `max(${toRem(32)}, 32px)`,
+    minHeight: `max(${toRem(32)}, 32px)`,
     selectors: {
       '&:focus-visible': {
         outline: `2px solid ${color.Surface.OnContainer}`,

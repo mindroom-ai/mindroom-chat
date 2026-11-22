@@ -126,11 +126,8 @@ const tokenizeInlineCode = (segment: string): PromptToken[] => {
     if (runLen >= 2) {
       let k = runEnd;
       let matchedEnd = -1;
+      // CommonMark §6.1: backslashes inside a code span are literal, never escaping the closer.
       while (k < segment.length) {
-        if (segment[k] === '\\' && segment[k + 1] === '`') {
-          k += 2;
-          continue;
-        }
         if (segment[k] === '`') {
           let closeEnd = k;
           while (closeEnd < segment.length && segment[closeEnd] === '`') {
@@ -266,7 +263,7 @@ export const renderSchedulePrompt = (prompt: string): ReactNode => {
     tokens.forEach((token, tokenIndex) => {
       if (token.kind === 'code') {
         nodes.push(
-          <code key={`c-${segment.offset + token.offset}`} className={css.InlineCode}>
+          <code key={`c-${segment.offset + token.offset}`} dir="ltr" className={css.InlineCode}>
             {token.value}
           </code>
         );
