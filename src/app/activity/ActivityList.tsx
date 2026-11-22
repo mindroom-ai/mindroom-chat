@@ -160,18 +160,26 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   };
   const appendRef = useRef(appendPage);
   appendRef.current = appendPage;
-  // A live update that shows the last rows takes a focused Show more away as well.
-  if (!hasMore && moreRef.current?.contains(document.activeElement)) {
+  // An update can take away what has focus: Show more when a live one shows the last rows, a
+  // row when one moves it past the window while the index loads. The other of the two gets it.
+  const active = document.activeElement;
+  const focused = rowsRef.current?.contains(active)
+    ? active?.closest<HTMLElement>('[data-motion-row]')?.dataset.motionRow
+    : undefined;
+  if (!hasMore && moreRef.current?.contains(active)) {
     focusKeyRef.current ??= visibleRest.at(-1)?.key;
+  } else if (focused && rest.findIndex((row) => row.key === focused) >= visibleRest.length) {
+    focusKeyRef.current ??= focused;
   }
   useLayoutEffect(() => {
     const key = focusKeyRef.current;
     focusKeyRef.current = undefined;
     if (!key) return;
-    [...(rowsRef.current?.querySelectorAll<HTMLElement>('[data-motion-row]') ?? [])]
-      .find((row) => row.dataset.motionRow === key)
-      ?.querySelector('button')
-      ?.focus();
+    const row = [
+      ...(rowsRef.current?.querySelectorAll<HTMLElement>('[data-motion-row]') ?? []),
+    ].find((element) => element.dataset.motionRow === key);
+    // A row that is not mounted is past the window: Show more stands for it.
+    (row ?? moreRef.current)?.querySelector('button')?.focus();
   });
 
   // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
