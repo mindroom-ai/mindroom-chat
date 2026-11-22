@@ -117,6 +117,7 @@ function ScheduleAccordionItem({
   const promptToggleRef = useRef<HTMLButtonElement>(null);
   const detailsButtonRef = useRef<HTMLButtonElement>(null);
   const detailsRef = useRef<HTMLDListElement>(null);
+  const taskIdInputRef = useRef<HTMLInputElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
   const confirmBarRef = useRef<HTMLDivElement>(null);
@@ -140,7 +141,10 @@ function ScheduleAccordionItem({
     const promptChanged = prevPromptTextRef.current !== promptText;
     if (promptChanged) {
       prevPromptTextRef.current = promptText;
-      setPromptExpanded(false);
+      if (promptExpanded) {
+        setPromptExpanded(false);
+        return undefined;
+      }
     }
     if (!open) return undefined;
     const el = promptTextRef.current;
@@ -154,9 +158,8 @@ function ScheduleAccordionItem({
       updatePromptOverflows(false);
       return undefined;
     }
-    const effectivelyExpanded = promptExpanded && !promptChanged;
     const measure = () => {
-      if (effectivelyExpanded) {
+      if (promptExpanded) {
         updatePromptOverflows(true);
         return;
       }
@@ -306,6 +309,9 @@ function ScheduleAccordionItem({
     const ok = await copyToClipboard(task.taskId);
     if (!mountedRef.current) return;
     if (ok) {
+      if (taskIdInputRef.current && document.activeElement === taskIdInputRef.current) {
+        detailsButtonRef.current?.focus();
+      }
       setCopyFailed(false);
       setCopied(true);
       window.clearTimeout(copyTimerRef.current);
@@ -662,6 +668,7 @@ function ScheduleAccordionItem({
               <Text as="dd" size="T200" className={css.Wrap}>
                 {copyFailed ? (
                   <input
+                    ref={taskIdInputRef}
                     type="text"
                     readOnly
                     dir="ltr"

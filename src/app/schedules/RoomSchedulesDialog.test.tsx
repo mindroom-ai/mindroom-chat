@@ -1363,6 +1363,66 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     } finally {
       mount3.unmount();
     }
+
+    // Case 4: live update replaces an expanded long prompt with another overflowing prompt -> keeps focus on the disclosure button.
+    const mount4 = mountDialog({ ...base, tasks: [longTask] });
+    try {
+      const p = mount4.host.querySelector<HTMLParagraphElement>('article p')!;
+      Object.defineProperty(p, 'clientHeight', {
+        configurable: true,
+        get: () => (p.className.includes('prompt-clamped') ? 60 : 120),
+      });
+      Object.defineProperty(p, 'scrollHeight', { configurable: true, get: () => 120 });
+
+      const showFull = findButtonByText(mount4.host, 'Show full prompt')!;
+      await click(showFull);
+      const showLess = findButtonByText(mount4.host, 'Show less')!;
+      act(() => {
+        showLess.focus();
+      });
+      expect(document.activeElement).toBe(showLess);
+
+      mount4.rerender({
+        ...base,
+        tasks: [{ ...longTask, message: 'B'.repeat(240) }],
+      });
+      const updatedToggle = findButtonByText(mount4.host, 'Show full prompt')!;
+      expect(updatedToggle).toBeDefined();
+      expect(document.activeElement).toBe(updatedToggle);
+    } finally {
+      mount4.unmount();
+    }
+
+    // Case 5: async Copy ID retry succeeds while focus is on the read-only Task ID input -> moves focus to Details button instead of body.
+    let resolveRetry: ((ok: boolean) => void) | undefined;
+    copyToClipboardMock.mockResolvedValueOnce(false).mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRetry = resolve;
+        })
+    );
+    const mount5 = mountDialog({ ...base, tasks: [makeTask({ taskId: 'retry-copy-id' })] });
+    try {
+      const copyBtn = findButtonByText(mount5.host, 'Copy ID')!;
+      await click(copyBtn);
+      const taskIdInput = mount5.host.querySelector<HTMLInputElement>('input[readonly]')!;
+      expect(taskIdInput).not.toBeNull();
+      // Start retry, then move focus onto the read-only input while pending.
+      act(() => {
+        copyBtn.click();
+        taskIdInput.focus();
+      });
+      expect(document.activeElement).toBe(taskIdInput);
+
+      await act(async () => {
+        resolveRetry?.(true);
+        await Promise.resolve();
+      });
+      expect(mount5.host.querySelector('input[readonly]')).toBeNull();
+      expect(document.activeElement).toBe(findButtonByText(mount5.host, 'Hide details'));
+    } finally {
+      mount5.unmount();
+    }
   });
 });
 
