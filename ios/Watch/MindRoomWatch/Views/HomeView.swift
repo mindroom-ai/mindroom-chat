@@ -181,14 +181,14 @@ private struct RoomHome: View {
             if sections.count > 1 {
                 ForEach(sections) { section in
                     Section {
-                        sectionHeader(for: section)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 4, bottom: 2, trailing: 4))
                         if !collapsed.contains(section.kind) {
                             ForEach(section.items) { row in
                                 threadRowLink(row)
                             }
                         }
+                    } header: {
+                        sectionHeader(for: section)
+                            .textCase(nil)
                     }
                 }
             } else if let sole = sections.first {
@@ -199,6 +199,7 @@ private struct RoomHome: View {
                 }
             }
         }
+        .listSectionSpacing(6)
         .containerBackground(for: .navigation) {
             WatchTheme.homeBackground(hasUrgent: hasUrgent)
         }
@@ -214,13 +215,14 @@ private struct RoomHome: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(WatchTheme.tealBright)
                     }
-                    .padding(.horizontal, 9)
+                    .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         Capsule()
                             .fill(Color.white.opacity(0.12))
                             .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
                     )
+                    .frame(maxWidth: 108, alignment: .leading)
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(Text("Rooms"))

@@ -84,7 +84,10 @@ struct ThreadView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 2) {
+                bottomActionBar
             }
             // Opens there, and goes there again when something new waits or is answered.
             .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
@@ -96,41 +99,6 @@ struct ThreadView: View {
         }
         .navigationTitle(model.snapshot?.title ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) {
-                // Marks the thread done (resolved) and goes back to the room.
-                Button {
-                    Task { await roomModel.resolve(rootId); dismiss() }
-                } label: {
-                    Image(systemName: "checkmark")
-                        .font(.body.weight(.semibold))
-                }
-                .accessibilityLabel(Text("Done"))
-
-                Spacer()
-
-                Button {
-                    speaker.stop()
-                    recording = true
-                } label: {
-                    Label("Reply", systemImage: "mic.fill")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(WatchTheme.tealInk)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule().fill(
-                                LinearGradient(
-                                    colors: [WatchTheme.tealBright, WatchTheme.teal],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
         .task { await model.start() }
         .onChange(of: model.snapshot.map(people), initial: true) { _, people in
             if let people { Task { await roomModel.learnNames(people) } }
@@ -156,6 +124,58 @@ struct ThreadView: View {
         .onChange(of: speaker.current) { _, current in E2EHooks.log("sound \(current ?? "ended")") }
         .onChange(of: speaker.failed) { _, failed in if let failed { E2EHooks.log("sound failed \(failed)") } }
         #endif
+    }
+
+    private var bottomActionBar: some View {
+        HStack(spacing: 8) {
+            // Marks the thread done (resolved) and goes back to the room.
+            Button {
+                Task { await roomModel.resolve(rootId); dismiss() }
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(Color.white.opacity(0.16))
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.75))
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Done"))
+
+            Button {
+                speaker.stop()
+                recording = true
+            } label: {
+                Label("Reply", systemImage: "mic.fill")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(WatchTheme.tealInk)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background(
+                        Capsule().fill(
+                            LinearGradient(
+                                colors: [WatchTheme.tealBright, WatchTheme.teal],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 4)
+        .padding(.bottom, 2)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0), Color.black.opacity(0.88), Color.black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     /// Everyone the thread's messages are from or name.
@@ -323,12 +343,13 @@ private struct WorkFoldView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.84))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.82)
                     Spacer(minLength: 2)
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(WatchTheme.tealBright.opacity(0.85))
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 7)
                 .padding(.vertical, 5)
                 .background(
                     Capsule()

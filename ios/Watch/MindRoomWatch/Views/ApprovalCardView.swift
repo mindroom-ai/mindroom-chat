@@ -9,10 +9,10 @@ struct ApprovalCardView: View {
     let decide: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .top, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "lock.shield.fill")
-                    .font(.body)
+                    .font(.footnote)
                     .foregroundStyle(WatchTheme.amber)
                     .padding(.top, 1)
                     .accessibilityHidden(true)
@@ -21,26 +21,39 @@ struct ApprovalCardView: View {
             }
 
             if !card.arguments.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 4) {
                     ForEach(card.arguments, id: \.key) { argument in
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(argument.key)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(argument.value)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.88))
-                                .fixedSize(horizontal: false, vertical: true)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(argument.key)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(argument.value)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.90))
+                                    .lineLimit(1)
+                            }
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(argument.key)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(argument.value)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.90))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                 }
-                .padding(7)
+                .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.black.opacity(0.38))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.6)
                         )
                 )
