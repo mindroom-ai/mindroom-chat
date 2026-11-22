@@ -54,10 +54,11 @@ public struct ResolvedRoots: Equatable, Sendable {
 
     public init(_ roots: Set<String>) { self.roots = roots }
 
-    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago, or
-    /// came before `expire()` or `resolve(_:)`.
+    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago or
+    /// after `now` (the clock was set back, so how old it is cannot be told), or came before `expire()` or
+    /// `resolve(_:)`.
     public func isDue(now: Date) -> Bool {
-        reading == nil && (readAt.map { now.timeIntervalSince($0) >= Self.lifetime } ?? true)
+        reading == nil && (readAt.map { !(0..<Self.lifetime).contains(now.timeIntervalSince($0)) } ?? true)
     }
 
     public mutating func beginRead(now: Date) {
@@ -107,7 +108,7 @@ public struct ThreadListEntry: Equatable, Sendable {
     public let reply: ThreadSnapshot.Message?
     public let voiceFile: String?
 
-    public static func parse(_ root: JSON, ownUserId: String) -> ThreadListEntry? {
+    public static func parse(_ root: JSON, ownUserId: String, trustedAccounts: Set<String> = []) -> ThreadListEntry? {
         guard let rootId = root.eventId else { return nil }
         let thread = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON ?? [:]
         let latest = thread["latest_event"] as? JSON
@@ -118,7 +119,7 @@ public struct ThreadListEntry: Equatable, Sendable {
         }
         let events = Array(bundled.values)
         let snapshot = ThreadSnapshot.build(root: root, related: events + ([root] + events).compactMap(\.bundledEdit),
-                                            ownUserId: ownUserId, now: Date())
+                                            ownUserId: ownUserId, now: Date(), trustedAccounts: trustedAccounts)
         // An encrypted room's newest event cannot be read here; its time still says when the thread last moved.
         let encryptedTs = latest?["type"] as? String == "m.room.encrypted" ? latest?.timestamp ?? 0 : 0
         return ThreadListEntry(

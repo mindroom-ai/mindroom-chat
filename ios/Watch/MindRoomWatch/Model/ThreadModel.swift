@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
@@ -22,18 +23,37 @@ final class ThreadModel: ObservableObject {
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
+    /// The room's trust, the one its threads list reads too: the thread is built with it as it is then.
+    private let trust: RoomTrust
+    private var trustChanges: AnyCancellable?
+    private let refreshTrust: @MainActor () -> Void
+    /// What is kept of the thread's events as last read, when it has a voice echo (`ThreadSnapshot.kept`): the
+    /// thread is built again from them when the room's trust changes. No trust changes a thread without one.
+    private var events: ThreadEvents?
 
-    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?) {
+    /// `initial` and `events`: the thread as the threads list last read it, and what that kept of its events.
+    /// `refreshTrust` asks the room to read its state when that is due, and does not wait for it
+    /// (`RoomModel.readStateIfDue`).
+    init(room: Room, rootId: String, userId: String, trust: RoomTrust, initial: ThreadSnapshot?, events: ThreadEvents?,
+         refreshTrust: @escaping @MainActor () -> Void) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
-        snapshot = initial
+        self.trust = trust
+        self.events = events
+        self.refreshTrust = refreshTrust
+        // A card the list saw waiting may be past its deadline by now.
+        snapshot = initial?.at(Date())
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
+        trustChanges = trust.changed.sink { model?.trustChanged() }
         model = self
     }
 
     func start() async {
+        // The trust is read beside the thread, never ahead of it: the timeline, the messages and Reply do not
+        // wait for the room's state, and the thread shows again once the trust is there.
+        refreshTrust()
         if timeline == nil {
             do {
                 let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
@@ -51,6 +71,7 @@ final class ThreadModel: ObservableObject {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
+                self?.refreshTrust()
                 self?.update()
             }
         }
@@ -95,8 +116,17 @@ final class ThreadModel: ObservableObject {
 
     private func fetch() async {
         guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
-              let root = jsons.first.flatMap(parse) else { return }
-        let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+              let read = threadEvents(jsons) else { return }
+        events = ThreadSnapshot.kept(read)
+        show(threadSnapshot(read, trust: trust, userId: userId))
+    }
+
+    /// The room's trust changed: the thread is built again from the events kept, and nothing is read for it.
+    private func trustChanged() {
+        if let events { show(threadSnapshot(events, trust: trust, userId: userId)) }
+    }
+
+    private func show(_ next: ThreadSnapshot) {
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)
@@ -112,6 +142,8 @@ final class ThreadModel: ObservableObject {
     /// Approve or deny a tool call, as the web client does. A card answered elsewhere first is not pending
     /// any more, so the buttons are gone and nothing is sent.
     func approve(_ card: ApprovalCard, _ yes: Bool) async {
+        // The card's deadline may have passed since the thread was read: then it shows as expired, and nothing is sent.
+        snapshot = snapshot?.at(Date())
         guard snapshot?.pendingApproval?.eventId == card.eventId, !answered.contains(card.eventId),
               card.approvable || !yes else { return }
         error = nil

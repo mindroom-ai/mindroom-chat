@@ -61,7 +61,7 @@ public enum RunState: Equatable, Sendable {
     }
 }
 
-/// The thread's AI title: the router's newest `io.mindroom.thread_summary` notice.
+/// The thread's AI title: the newest `io.mindroom.thread_summary` notice.
 public enum ThreadSummary {
     public static func title(from events: [JSON]) -> String? {
         events
@@ -86,14 +86,31 @@ public enum AudioCaption {
     }
 }
 
-/// The router's echo of a voice message: a reply that says it is transcribing, edited into the transcript.
+/// A voice message's transcript echo: posted directly or edited from the legacy transcribing placeholder.
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
+    static let flag = "com.mindroom.visible_router_voice_echo"
+    private static let source = "com.mindroom.voice_source_event_id"
+    private static let fallback = "com.mindroom.voice_raw_audio_fallback"
+    /// What an echo says of itself: read across its sender's edits (`shownEdits`).
+    static let marks = [flag, source, fallback]
 
+    /// As the web client's `planVoiceTranscripts`: the first version and the one shown carry the flag, and the
+    /// one shown is not the raw-audio fallback, holds all of the text (no preview of a long text) and names
+    /// the voice message. An older backend's echo names it by its reply relation, which no edit repeats.
     public static func transcript(_ event: JSON, latestEdit: JSON?) -> (voiceEventId: String, text: String?)? {
-        guard event.content["com.mindroom.visible_router_voice_echo"] as? Bool == true,
-              let voiceId = (event.relation?["m.in_reply_to"] as? JSON)?["event_id"] as? String else { return nil }
-        let body = effectiveContent(event, latestEdit: latestEdit)["body"] as? String
+        let content = effectiveContent(event, latestEdit: latestEdit)
+        // As the web client's `getLatestMessageContent`: MindRoom metadata an edit carries beside its
+        // `m.new_content` counts where the new content does not name it (never the long-text mark).
+        let beside = latestEdit?.newContent == nil ? nil : latestEdit?.content
+        let shown = { (key: String) in content[key] ?? beside?[key] }
+        guard jsonBool(event.content[flag]) == true, jsonBool(shown(flag)) == true,
+              jsonBool(shown(fallback)) != true,
+              !(content["io.mindroom.long_text"] is JSON) else { return nil }
+        let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        guard let voiceId = nonEmpty(shown(source))
+            ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
+        let body = content["body"] as? String
         return (voiceId, body == placeholder ? nil : body)
     }
 }

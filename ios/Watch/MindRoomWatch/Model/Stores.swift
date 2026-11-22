@@ -12,7 +12,7 @@ enum DefaultRoom {
 }
 
 /// The room's resolved threads as its state last said, per account: the thread list shows without them before
-/// the state is read again. Written only by the default room's model (`RoomModel.persistsResolved`).
+/// the state is read again. Written only for the default room's model (`RoomTrust.persist`).
 enum ResolvedCache {
     private static func key(userId: String, roomId: String) -> String { "resolvedRoots:\(userId):\(roomId)" }
 
