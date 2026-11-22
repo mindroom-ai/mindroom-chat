@@ -654,6 +654,7 @@ describe('CompactRoomView', () => {
   const createScrollElement = (initialMaxScrollTop = Number.POSITIVE_INFINITY) => {
     let maxScrollTop = initialMaxScrollTop;
     let scrollTop = 0;
+    const listeners = new Map<string, Set<() => void>>();
     return {
       get scrollTop() {
         return scrollTop;
@@ -666,8 +667,18 @@ describe('CompactRoomView', () => {
       },
       getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
       querySelectorAll: () => [],
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: (type: string, fn: () => void) => {
+        const set = listeners.get(type) ?? new Set();
+        set.add(fn);
+        listeners.set(type, set);
+      },
+      removeEventListener: (type: string, fn: () => void) => {
+        listeners.get(type)?.delete(fn);
+      },
+      readerScrollTo: (value: number) => {
+        listeners.get('wheel')?.forEach((fn) => fn());
+        scrollTop = Math.min(value, maxScrollTop);
+      },
     };
   };
   const savedAt = (scrollTop: number) => ({ scrollTop, anchors: [] });
@@ -766,7 +777,7 @@ describe('CompactRoomView', () => {
         );
       });
       expect(scrollElement.scrollTop).toBe(100);
-      if (moved) scrollElement.scrollTop = 50;
+      if (moved) scrollElement.readerScrollTo(50);
       scrollElement.setMaxScrollTop(500);
       resize();
       expect(scrollElement.scrollTop).toBe(moved ? 50 : 418);
@@ -838,7 +849,7 @@ describe('CompactRoomView', () => {
 
     expect(scrollElement.scrollTop).toBe(418);
 
-    scrollElement.scrollTop = 315;
+    scrollElement.readerScrollTo(315);
     act(() => {
       renderer?.update(
         renderOverview(room, ['$thread-1', '$thread-2', '$thread-3'], compactRoomScrollStateRef)

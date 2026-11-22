@@ -276,20 +276,25 @@ describe('useCompactScrollFallback', () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
     const { view, writes } = list(ids, 150);
-    view.style.paddingTop = '120px';
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    view.style.paddingTop = '178px';
-    rerender({ live: ids });
-    expect(writes).toEqual([208]);
-    view.style.paddingTop = '156px';
-    rerender({ live: ids });
-    expect(writes).toEqual([208, 186]);
+    document.body.append(view);
+    try {
+      view.style.paddingTop = '120px';
+      const { rerender } = renderHook(
+        ({ live }) => useCompactScrollFallback(live, { current: view }),
+        { initialProps: { live: ids } }
+      );
+      view.style.paddingTop = '178px';
+      rerender({ live: [...ids] });
+      expect(writes).toEqual([208]);
+      view.style.paddingTop = '156px';
+      rerender({ live: [...ids] });
+      expect(writes).toEqual([208, 186]);
+    } finally {
+      view.remove();
+    }
   });
 
-    it('pauses compensation while pausedRef is true for a scroll restore', () => {
+  it('pauses compensation while pausedRef is true for a scroll restore', () => {
     withoutScrollAnchoring();
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);

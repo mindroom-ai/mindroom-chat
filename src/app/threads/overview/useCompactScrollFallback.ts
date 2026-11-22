@@ -197,8 +197,10 @@ export const useCompactScrollFallback = (
     else compensate(view, rows, sectionOfRow);
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
+  const currentView = viewRef.current;
+  const currentContent = contentRef?.current;
   useEffect(() => {
-    const view = viewRef.current;
+    const view = currentView;
     if (!view) return undefined;
     if (browserAnchorsScroll()) {
       const onScroll = () => {
@@ -249,7 +251,7 @@ export const useCompactScrollFallback = (
       cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
       if (scrollingRef.current) scheduleSettle();
     };
-    const content = contentRef?.current;
+    const content = currentContent;
     const resizeObserver =
       typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() =>
@@ -277,7 +279,7 @@ export const useCompactScrollFallback = (
       resizeObserver?.disconnect();
       listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
-  }, [compensate, compensatePadding, contentRef, pausedRef, viewRef]);
+  }, [compensate, compensatePadding, currentContent, currentView, pausedRef]);
 };
 
 /**
