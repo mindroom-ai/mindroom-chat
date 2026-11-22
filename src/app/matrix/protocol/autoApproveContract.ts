@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 
-/** The room's open `!auto_approve` windows, as state the MindRoom router keys by its own user ID. */
+/** The room's open `!auto_approve` windows, as state the room steward keys by its own user ID. */
 export const MINDROOM_AUTO_APPROVE_EVENT = 'io.mindroom.auto_approve';
 
 /** One person's window in which their tool calls in a thread run without approval cards. */
@@ -27,16 +27,35 @@ const parseWindow = (value: unknown): AutoApproveWindow | undefined => {
   return Number.isNaN(timestamp) ? undefined : { threadId, requesterId, expiresAt: timestamp };
 };
 
-/** Read one router's windows from state `agentRoomState` already checked the router published about itself. */
+/** Read one agent's windows from state `agentRoomState` already checked the agent published about itself. */
 export const parseAutoApproveStateEvent = (event: MatrixEvent): AutoApproveWindow[] => {
   const windows = event.getContent().windows;
   if (!Array.isArray(windows)) return [];
   return windows.flatMap((value) => parseWindow(value) ?? []);
 };
 
-/** Every window of the routers' auto-approve state. */
-export const selectAutoApproveWindows = (events: MatrixEvent[]): AutoApproveWindow[] =>
-  events.flatMap(parseAutoApproveStateEvent);
+const isNewerAutoApproveEvent = (candidate: MatrixEvent, current: MatrixEvent): boolean => {
+  const candidateTs = candidate.getTs();
+  const currentTs = current.getTs();
+  if (candidateTs !== currentTs) return candidateTs > currentTs;
+  const candidateSender = candidate.getSender();
+  const currentSender = current.getSender();
+  if (!candidateSender) return false;
+  if (!currentSender) return true;
+  return candidateSender < currentSender;
+};
+
+/**
+ * The windows from the newest agent auto-approve state event (`origin_server_ts`, ties to the
+ * lowest sender Matrix ID), since each write carries the room's full open set.
+ */
+export const selectAutoApproveWindows = (events: MatrixEvent[]): AutoApproveWindow[] => {
+  let newest: MatrixEvent | undefined;
+  for (const event of events) {
+    if (!newest || isNewerAutoApproveEvent(event, newest)) newest = event;
+  }
+  return newest ? parseAutoApproveStateEvent(newest) : [];
+};
 
 /** The windows still open in one thread, the earliest-ending first. */
 export const openAutoApproveWindowsInThread = (

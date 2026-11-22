@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
@@ -47,15 +48,21 @@ final class RoomModel: ObservableObject {
     private var refreshing = false
     private var refreshAgain = false
     private var snapshots: [String: ThreadSnapshot] = [:]
+    /// What is kept of the events of each listed thread with a voice echo (`ThreadSnapshot.kept`): its snapshot
+    /// is built again from them when the room's trust changes. No trust changes the other threads.
+    private var keptEvents: [String: ThreadEvents] = [:]
     /// What the thread list said of each thread when its snapshot was read (newest event, reply count), and when.
     private var snapshotReads: [String: (key: String, at: Date)] = [:]
     /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
     private static let snapshotLifetime: TimeInterval = 60
-    private var resolved: ResolvedRoots
-    /// Whether this model writes `ResolvedCache`: the default room's, which the app shows, does, until another
-    /// takes its place (a read of the state may still be under way then). The background refresh's own model
-    /// and the model of a room a notification opened only read it, so that none overwrites what another resolved.
-    var persistsResolved: Bool
+    /// The room's trusted accounts and resolved threads, of one read of its state: an open thread and a
+    /// notification read the same object, and any of them may have asked for the read.
+    let trust: RoomTrust
+    private var resolved: ResolvedRoots { trust.resolved }
+    private var stateChanges: AnyCancellable?
+    /// The list's root of each thread whose row is still what the list says (`ThreadListEntry`): the row is
+    /// made again from it when the room's trust changes.
+    private var unread: [String: JSON] = [:]
     private var stateRead: Task<Void, Never>?
     /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
     /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
@@ -65,18 +72,22 @@ final class RoomModel: ObservableObject {
     /// The event ids of the messages this watch sent since the model started.
     private var sentHere: Set<String> = []
     private let client: Client
-    private let session: Session?
 
+    /// `persistsResolved`: whether the room's trust writes `ResolvedCache` from now on, with what it already
+    /// read. The default room's model, which the app shows, asks for that, until another takes its place. The
+    /// background refresh's own model and the model of a room a notification opened only read the cache.
     init(room: Room, userId: String, client: Client, persistsResolved: Bool = false) {
         self.room = room
         self.userId = userId
         self.client = client
-        self.persistsResolved = persistsResolved
-        session = try? client.session()
+        let roomId = room.id()
+        let trust = RoomTrust.of(roomId, userId: userId, cached: ResolvedCache.get(userId: userId, roomId: roomId))
+        if persistsResolved { trust.persist = { ResolvedCache.set($0, userId: userId, roomId: roomId) } }
+        self.trust = trust
         roomName = room.displayName() ?? room.id()
-        resolved = ResolvedRoots(ResolvedCache.get(userId: userId, roomId: room.id()))
         weak var model: RoomModel?
         feed = TimelineFeed { model?.scheduleRefresh() }
+        stateChanges = trust.changed.sink { model?.stateChanged() }
         model = self
     }
 
@@ -117,8 +128,7 @@ final class RoomModel: ObservableObject {
         do {
             _ = try await room.sendStateEventRaw(eventType: ThreadTags.eventType, stateKey: ThreadTags.resolvedStateKey(root: rootId),
                                                  content: String(decoding: data, as: UTF8.self))
-            resolved.resolve(rootId)
-            if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
+            trust.resolve(rootId)
             threadRows[rootId] = nil
             unanswered.removeAll { $0.rootId == rootId }
             // Shows the rows without it now, and reads the room's state again: a read that began before the tag
@@ -130,6 +140,30 @@ final class RoomModel: ObservableObject {
     }
 
     func snapshot(of rootId: String) -> ThreadSnapshot? { snapshots[rootId] }
+
+    /// What is kept of a listed thread's events: its screen builds the thread again from them when the room's
+    /// trust changes before it read the thread itself.
+    func events(of rootId: String) -> ThreadEvents? { keptEvents[rootId] }
+
+    /// A read of the room's state, this model's or another caller's, changed its resolved threads or its trust.
+    /// The rows show without the resolved threads, and those the trust can change are made again from what is
+    /// held of them: a thread with a voice echo from the events kept, one not read yet from the list's root.
+    /// A refresh under way goes on with these and writes the complications; outside of one they follow only
+    /// rows that changed (a model that has read no list has none, and leaves the last counts as they are).
+    private func stateChanged() {
+        let before = threadRows
+        threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
+        for (rootId, events) in keptEvents {
+            let snapshot = threadSnapshot(events, trust: trust, userId: userId)
+            snapshots[rootId] = snapshot
+            if threadRows[rootId] != nil { threadRows[rootId] = row(snapshot) }
+        }
+        for (rootId, root) in unread where threadRows[rootId] != nil {
+            if let entry = ThreadListEntry.parse(root, ownUserId: userId, trustedAccounts: trust.accounts) { threadRows[rootId] = row(entry) }
+        }
+        show()
+        if !refreshing, threadRows != before { publishWidgetSnapshot() }
+    }
 
     /// A voice message's audio (`ThreadSnapshot.Message.audio`), decrypted.
     func audio(_ source: String) async throws -> Data {
@@ -165,7 +199,7 @@ final class RoomModel: ObservableObject {
     }
 
     /// The room came to the front: the next refresh reads the room's state again.
-    func foregrounded() { resolved.expire() }
+    func foregrounded() { trust.expire() }
 
     /// Reads the threads now (background refresh). Nobody waits for rows there, so the room's state is read
     /// first: the complications count the threads that are open now. When that read fails and the one a pass
@@ -176,19 +210,11 @@ final class RoomModel: ObservableObject {
         if await !refresh() { await refresh() }
     }
 
-    /// Reads the room's state for its resolved threads when that is due (`ResolvedRoots`), one read at a time.
-    private func readStateIfDue() {
-        guard resolved.isDue(now: Date()) else { return }
-        resolved.beginRead(now: Date())
-        stateRead = Task {
-            let before = resolved.roots
-            let read = await resolvedRoots()
-            resolved.endRead(read)
-            guard resolved.roots != before else { return }
-            if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
-            threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
-            show()
-        }
+    /// Reads the room's state for its resolved threads and its trust when that is due (`ResolvedRoots`), one
+    /// read at a time for the room, and does not wait for it: `stateChanged` shows what it changed. An open
+    /// thread asks too, every 5 s.
+    func readStateIfDue() {
+        stateRead = Task { await trust.refresh { [client, room] in await roomState(client, roomId: room.id()) } }
     }
 
     /// A row is what `/threads` says until its thread has been read; after that it is exactly the
@@ -221,9 +247,12 @@ final class RoomModel: ObservableObject {
             }
             chosenAgainst.append(resolved.roots)
             for json in result.roots where open().count < Self.pageSize {
-                guard let entry = parse(json).flatMap({ ThreadListEntry.parse($0, ownUserId: userId) }),
+                // With the room's trust as it is now, none before its state is read: `stateChanged` makes the row again.
+                guard let root = parse(json),
+                      let entry = ThreadListEntry.parse(root, ownUserId: userId, trustedAccounts: trust.accounts),
                       listed.insert(entry.rootId).inserted, !resolved.roots.contains(entry.rootId) else { continue }
                 entries.append(entry)
+                unread[entry.rootId] = snapshots[entry.rootId] == nil ? root : nil
                 #if DEBUG
                 E2EHooks.trace("listed \(entry.rootId) \(entry.title) | \(line(entry.reply))")
                 #endif
@@ -250,6 +279,11 @@ final class RoomModel: ObservableObject {
             roots.formUnion(others.prefix(max(0, Self.pageSize - roots.count)).map(\.id))
         }
         threadRows = threadRows.filter { roots.contains($0.key) }
+        // What is held of a thread goes with its row, not before: after a failed page the rows of before stay
+        // with their snapshots.
+        snapshots = snapshots.filter { roots.contains($0.key) }
+        keptEvents = keptEvents.filter { roots.contains($0.key) }
+        unread = unread.filter { roots.contains($0.key) }
         show()
         for item in items.sorted(by: { $0.latestTs > $1.latestTs }) {
             let rootId = item.rootId
@@ -264,13 +298,15 @@ final class RoomModel: ObservableObject {
                 continue
             }
             // A thread that cannot be read keeps its row.
-            if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
-               let root = jsons.first.flatMap(parse) {
-                let related = jsons.dropFirst().compactMap(parse)
-                let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date())
+            if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId), let events = threadEvents(jsons) {
+                var snapshot = threadSnapshot(events, trust: trust, userId: userId)
                 snapshots[rootId] = snapshot
+                keptEvents[rootId] = ThreadSnapshot.kept(events)
+                unread[rootId] = nil
                 snapshotReads[rootId] = (key, Date())
                 if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
+                // The room's trust may have changed while the names were read: the snapshot as it is now.
+                snapshot = snapshots[rootId] ?? snapshot
                 if resolved.roots.contains(rootId) { continue }
                 threadRows[rootId] = row(snapshot)
                 show()
@@ -364,26 +400,40 @@ final class RoomModel: ObservableObject {
                              ts: Int(item.timestamp), rootTs: Int(item.timestamp), voiceFile: voiceFile)
         }
     }
+}
 
-    /// The thread tags and pinned events in the room's state, in one request (state events are not encrypted);
-    /// nil when it could not be read.
-    private func resolvedRoots() async -> Set<String>? {
-        guard let session, let base = URL(string: session.homeserverUrl) else { return nil }
-        let roomId = room.id().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "!:/"))) ?? room.id()
-        guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return nil }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
-        #if DEBUG
-        E2EHooks.trace("http GET \(url.path)")
-        #endif
-        guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
-        #if DEBUG
-        E2EHooks.trace("http done \(url.path) \(data.count)")
-        #endif
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-        return ThreadTags.resolvedRoots(state: state)
-    }
+/// A room's state events (they are not encrypted) in one request, which gives up when nothing arrives for
+/// 10 s; nil when they could not be read.
+@MainActor
+func roomState(_ client: Client, roomId: String) async -> [JSON]? {
+    guard let session = try? client.session(), let base = URL(string: session.homeserverUrl) else { return nil }
+    let roomId = roomId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "!:/"))) ?? roomId
+    guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return nil }
+    var request = URLRequest(url: url, timeoutInterval: 10)
+    request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+    #if DEBUG
+    E2EHooks.trace("http GET \(url.path)")
+    #endif
+    guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
+    #if DEBUG
+    E2EHooks.trace("http done \(url.path) \(data.count)")
+    #endif
+    guard (response as? HTTPURLResponse)?.statusCode == 200,
+          let state = try? JSONSerialization.jsonObject(with: data) as? [JSON] else { return nil }
+    return state
+}
+
+/// A thread's events from the JSON the SDK read them as: its root, then every event related to it.
+func threadEvents(_ jsons: [String]) -> ThreadEvents? {
+    guard let root = jsons.first.flatMap(parse) else { return nil }
+    return (root, jsons.dropFirst().compactMap(parse))
+}
+
+/// A thread as the watch shows it, built with the room's trust as it is at this moment: the threads list, an
+/// open thread and a notification all build here, so they fold the same voice echoes.
+@MainActor
+func threadSnapshot(_ events: ThreadEvents, trust: RoomTrust, userId: String) -> ThreadSnapshot {
+    ThreadSnapshot.build(root: events.root, related: events.related, ownUserId: userId, now: Date(), trustedAccounts: trust.accounts)
 }
 
 enum RoomModelError: Error {
