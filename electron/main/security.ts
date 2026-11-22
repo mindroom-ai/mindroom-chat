@@ -10,8 +10,8 @@ const ALLOWED_PERMISSIONS = new Set([
   'persistent-storage',
   ...NETWORK_PERMISSIONS,
 ]);
-const MEDIA_PATH_RE = /(?:^|\/)_matrix\/(?:media\/|client\/[^/]+\/media\/)/i;
-const ACCESS_TOKEN_RE = /(?:^|[?&#])access_token(?:=|&|#|$)/i;
+const MEDIA_PATH_RE = /(?:^|\/)_matrix\/(?:[^/]+\/)*media\//i;
+const MAILTO_BLOCKED_PARAMS = new Set(['attach', 'attachment']);
 
 const decodeOnce = (value: string): string => {
   try {
@@ -21,9 +21,24 @@ const decodeOnce = (value: string): string => {
   }
 };
 
-const hasAccessToken = (q: string): boolean =>
-  ACCESS_TOKEN_RE.test(q) ||
-  Array.from(new URLSearchParams(q).keys()).some((k) => k.toLowerCase() === 'access_token');
+const hasParam = (query: string, match: (lowerKey: string) => boolean): boolean =>
+  Array.from(new URLSearchParams(query).keys()).some((k) => match(k.toLowerCase()));
+
+const hasAccessToken = (u: URL): boolean => {
+  const isToken = (k: string) => k === 'access_token';
+  if (hasParam(u.search, isToken)) return true;
+  const hash = u.hash.slice(1);
+  if (!hash) return false;
+  if (hasParam(hash, isToken)) return true;
+  const qAt = hash.indexOf('?');
+  return qAt >= 0 && hasParam(hash.slice(qAt + 1), isToken);
+};
+
+const isMediaPath = (pathname: string): boolean => {
+  const once = decodeOnce(pathname).replace(/\\/g, '/');
+  const twice = decodeOnce(once).replace(/\\/g, '/');
+  return [pathname, once, twice].some((p) => MEDIA_PATH_RE.test(p.replace(/\/+/g, '/')));
+};
 
 export const isOpenable = (url: string): boolean => {
   if (!url || /[\r\n\0]/.test(url)) return false;
@@ -34,12 +49,12 @@ export const isOpenable = (url: string): boolean => {
     return false;
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') return false;
-  if (hasAccessToken(u.search) || hasAccessToken(u.hash.slice(1))) return false;
-  if (u.protocol === 'mailto:') return u.pathname.trim().length > 0;
-  const once = decodeOnce(u.pathname).replace(/\\/g, '/');
-  return ![u.pathname, once, decodeOnce(once).replace(/\\/g, '/')].some((p) =>
-    MEDIA_PATH_RE.test(p)
-  );
+  if (hasAccessToken(u)) return false;
+  if (u.protocol === 'mailto:') {
+    return u.pathname.trim().length > 0 && !hasParam(u.search, (k) => MAILTO_BLOCKED_PARAMS.has(k));
+  }
+  if (u.username || u.password) return false;
+  return !isMediaPath(u.pathname);
 };
 
 let blockedUrlRecorder: ((url: string) => void) | undefined;
@@ -109,7 +124,9 @@ export const registerExternalOpenHandler = (
     'desktop:open-external',
     owners,
     (args) =>
-      args.length === 1 && typeof args[0] === 'string' && isOpenable(args[0]) ? args[0] : undefined,
+      args.length === 1 && typeof args[0] === 'string' && isOpenable(args[0])
+        ? new URL(args[0]).href
+        : undefined,
     async (url) => ({ ok: true, value: await openUrl(url) })
   );
 };

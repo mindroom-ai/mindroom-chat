@@ -56,9 +56,7 @@ const createExtras = (
   sections,
 });
 
-const section = (
-  overrides: Partial<MessageExtrasSection> = {}
-): MessageExtrasSection => ({
+const section = (overrides: Partial<MessageExtrasSection> = {}): MessageExtrasSection => ({
   title: 'Details',
   contentType: 'text/plain',
   content: 'payload',
@@ -609,5 +607,44 @@ describe('MessageExtras', () => {
     act(() => {
       root?.unmount();
     });
+  });
+
+  it('routes text/html extra links through CheckedMessageLink confirmation', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          React.createElement(MessageExtras, {
+            extras: createExtras(
+              [
+                section({
+                  contentType: 'text/html',
+                  collapsed: false,
+                  content: '<p><a href="https://evil.example/phish">https://good.example</a></p>',
+                }),
+              ],
+              2
+            ),
+            htmlReactParserOptions: {},
+            markerContent: {},
+            toolRows: false,
+          })
+        );
+      });
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe('https://evil.example/phish');
+      expect(link?.getAttribute('title')).toBe('https://evil.example/phish');
+      const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+      act(() => {
+        link?.dispatchEvent(evt);
+      });
+      expect(evt.defaultPrevented).toBe(true);
+      expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 });
