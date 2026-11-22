@@ -194,7 +194,7 @@ export function useCompactBlocks(options: Options) {
           if (heights.get(id) !== height) changed = true;
           heights.set(id, height);
           if (waitingForRange && id === savedKeys[0]) {
-            const destination = view.scrollTop + y - top - saved!.anchors[0]!.offset;
+            const destination = view.scrollTop + y - top - saved.anchors[0]!.offset;
             state.rangeReady = destination <= view.scrollHeight - view.clientHeight + 1;
             changed ||= state.rangeReady;
           }
