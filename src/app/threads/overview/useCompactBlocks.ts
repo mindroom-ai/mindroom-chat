@@ -110,7 +110,8 @@ export function useCompactBlocks(options: Options) {
       ? seed
       : band(visible.slice(0, 1));
   // Keep the visible rows in place while a partial restore discovers its new prefix.
-  const [occupiedFirst, occupiedLast] = band(state.occupied);
+  const [occupiedFirst, occupiedEnd] = band(state.occupied);
+  const occupiedLast = occupiedEnd - occupiedFirst <= BUFFER_BLOCKS ? occupiedEnd : occupiedFirst;
   const keepOccupied = back && indexPending && state.occupied.some((id) => index.has(id));
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
@@ -128,10 +129,7 @@ export function useCompactBlocks(options: Options) {
     for (let slot = start; slot < end; slot += 1) {
       const inBand =
         (slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS) ||
-        (keepOccupied &&
-          slot >= occupiedFirst &&
-          slot <= occupiedLast &&
-          (occupiedLast - occupiedFirst <= BUFFER_BLOCKS || slot === occupiedFirst));
+        (keepOccupied && slot >= occupiedFirst && slot <= occupiedLast);
       const seeking = targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS;
       for (const id of blocks[slot]!) {
         const height = heights.get(id);

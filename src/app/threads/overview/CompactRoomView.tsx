@@ -94,6 +94,33 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
     : undefined;
 const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
+type SpacerProps = { row: Exclude<CompactBlockRow, string> };
+class CompactSpacer extends React.Component<SpacerProps> {
+  private readonly node = React.createRef<HTMLDivElement>();
+
+  override getSnapshotBeforeUpdate({ row }: SpacerProps): null {
+    const height = this.props.row.height;
+    // Transfer measured height before React removes the shells; WebKit clamps during removal.
+    if (this.node.current && height > row.height) this.node.current.style.height = `${height}px`;
+    return null;
+  }
+
+  override componentDidUpdate = () => undefined;
+
+  override render() {
+    const { key, height } = this.props.row;
+    return (
+      <div
+        ref={this.node}
+        aria-hidden
+        data-compact-spacer={key}
+        className={css.Spacer}
+        style={{ height }}
+      />
+    );
+  }
+}
+
 type ThreadActionsMenuState = {
   roomId: string;
   rootId: string;
@@ -673,17 +700,7 @@ export function CompactRoomView({
     );
   };
   const renderRow = (row: CompactBlockRow) => {
-    if (typeof row !== 'string') {
-      return (
-        <div
-          key={`spacer:${row.key}`}
-          aria-hidden
-          data-compact-spacer={row.key}
-          className={css.Spacer}
-          style={{ height: row.height }}
-        />
-      );
-    }
+    if (typeof row !== 'string') return <CompactSpacer key={`spacer:${row.key}`} row={row} />;
     const model = modelByRootId.get(row);
     return model ? renderCard(model) : null;
   };
