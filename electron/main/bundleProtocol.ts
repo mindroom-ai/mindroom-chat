@@ -4,10 +4,40 @@ import { protocol } from 'electron';
 import { contentType } from 'mime-types';
 import { framingHeaders } from '../../scripts/frame-headers.mjs';
 
+declare const __MINDROOM_CANVAS_LIBRARIES__: string | undefined;
+
 const APP_SCHEME = 'capacitor';
 export const APP_ORIGIN = `${APP_SCHEME}://localhost`;
-export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html'];
+const CANVAS_FRAME_FILE = 'canvas-frame.html';
+export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html', CANVAS_FRAME_FILE];
 const OPEN_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+
+const CANVAS_LIB_SOURCE = `${APP_ORIGIN}/${
+  typeof __MINDROOM_CANVAS_LIBRARIES__ === 'string'
+    ? __MINDROOM_CANVAS_LIBRARIES__
+    : 'assets/canvas-libs'
+}/`;
+
+export const CANVAS_FRAME_POLICY = [
+  "sandbox allow-scripts allow-forms; default-src 'none'",
+  `script-src 'unsafe-inline' ${CANVAS_LIB_SOURCE} https:; style-src 'unsafe-inline' ${CANVAS_LIB_SOURCE} https:`,
+  'img-src data: blob: https:; font-src data: https:; media-src data: blob: https:',
+  "connect-src 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'",
+].join('; ');
+
+const withCsp = (pathname: string, policy: string): Record<string, string> => {
+  const framing = framingHeaders(pathname);
+  const csp = [framing['Content-Security-Policy'], policy].filter(Boolean).join('; ');
+  return { ...framing, 'Content-Security-Policy': csp };
+};
+
+export const scriptPolicy = (inlineHashes: readonly string[]): string =>
+  `script-src ${["'self'", ...inlineHashes, "'wasm-unsafe-eval'"].join(
+    ' '
+  )}; worker-src 'self' blob:`;
+
+export const pageHeaders = (pathname: string, hashes: readonly string[]): Record<string, string> =>
+  withCsp(pathname, scriptPolicy(hashes));
 
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
@@ -91,6 +121,23 @@ const readBundleFile = async (
 // write `dist` can already run code as the user, so mid-request parent swaps are out of scope.
 // Serves only a regular file whose real path equals the requested path inside root, from one handle
 // (inside asar, Electron reads packed entries through the archive descriptor, no temp copy).
+const readScriptHashes = (realRoot: string): Record<string, readonly string[]> => {
+  const file = path.resolve(realRoot, 'script-hashes.json');
+  try {
+    if (fs.realpathSync.native(file) !== file) return {};
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string[]] =>
+          Array.isArray(entry[1]) && entry[1].every((v) => typeof v === 'string')
+      )
+    );
+  } catch {
+    return {};
+  }
+};
+
 export const serveBundle = (distDir: string): void => {
   let realRoot: string;
   try {
@@ -98,6 +145,7 @@ export const serveBundle = (distDir: string): void => {
   } catch {
     throw new Error(`No web bundle at ${distDir}: run \`npm run build:desktop\` first`);
   }
+  const scriptHashes = readScriptHashes(realRoot);
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method Not Allowed', { status: 405 });
@@ -116,7 +164,11 @@ export const serveBundle = (distDir: string): void => {
     if (!served) return new Response('Not Found', { status: 404 });
     const headers: Record<string, string> = {
       'Content-Type': contentType(path.basename(served.fullPath)) || 'application/octet-stream',
-      ...(served.file.endsWith('.html') ? framingHeaders(url.pathname) : {}),
+      ...(served.file === CANVAS_FRAME_FILE
+        ? withCsp(url.pathname, CANVAS_FRAME_POLICY)
+        : served.file.endsWith('.html')
+        ? pageHeaders(url.pathname, scriptHashes[served.file] ?? [])
+        : {}),
     };
     return new Response(served.body, { status: 200, headers });
   });

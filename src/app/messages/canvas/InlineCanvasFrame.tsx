@@ -1,5 +1,6 @@
 import {
   type RefObject,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -22,6 +23,7 @@ import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { useCanvasPage } from './useCanvasPage';
 import { useCanvasSavedState } from './useCanvasSavedState';
 import { useCanvasStateShare } from './useCanvasStateShare';
+import { useCanvasFrame } from './canvasFrame';
 import { useCanvasHost } from './useCanvasHost';
 import { CanvasAnswerBar } from './CanvasAnswerBar';
 import { CanvasPageErrors } from './CanvasPageErrors';
@@ -75,6 +77,18 @@ function SizedFrame({
   const [reloads, setReloads] = useState(0);
   const restart = useRef(onRestart);
   restart.current = onRestart;
+  const loaded = useRef(new WeakSet<HTMLIFrameElement>());
+  const handleLoad = useCallback(() => {
+    const el = frame.current;
+    if (!el) return;
+    if (!loaded.current.has(el)) {
+      loaded.current.add(el);
+      return;
+    }
+    setReloads((count) => count + 1);
+    restart.current?.();
+  }, [frame]);
+  const { generation, ...frameProps } = useCanvasFrame(doc, frame, handleLoad);
   useEffect(() => {
     // Size and escapes only; a page's host, when it has one, reads the rest.
     const receive = (event: MessageEvent) => {
@@ -137,10 +151,10 @@ function SizedFrame({
     // origin and its overflow stay on the same side.
     <div ref={box} dir="ltr" style={{ height: shown * scale, overflow: 'hidden' }}>
       <iframe
-        key={reloads}
+        key={`${reloads}:${generation}`}
         ref={frame}
         title={title}
-        srcDoc={doc}
+        {...frameProps}
         sandbox={CANVAS_WRAPPER_SANDBOX}
         allow={CANVAS_PERMISSIONS}
         referrerPolicy="no-referrer"
