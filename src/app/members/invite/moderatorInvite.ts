@@ -38,8 +38,7 @@ type ModeratorGrantDecision =
   | { readonly kind: 'grant'; readonly level: number }
   | { readonly kind: 'levelRaised'; readonly level: number }
   | { readonly kind: 'alreadySatisfied' }
-  | { readonly kind: 'forbidden' }
-  | { readonly kind: 'ineligible' };
+  | { readonly kind: 'forbidden' };
 
 /** Evaluates whether `viewerId` can grant `targetId` moderator rights in a v10+ non-Space room. */
 export const evaluateModeratorGrant = (
@@ -55,7 +54,7 @@ export const evaluateModeratorGrant = (
     !hasIntegerPowerLevels(room.getVersion()) ||
     !isEligibleAgent(targetId, viewerId)
   ) {
-    return { kind: 'ineligible' };
+    return { kind: 'forbidden' };
   }
   const level = Math.max(
     MODERATOR_LEVEL,
@@ -86,15 +85,18 @@ export const hasModeratorMindroomAgent = (
       powerOf(userId, levels, creators) >= level
   );
 
-export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string =>
-  tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
+export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string => {
+  const name = tags[level]?.name;
+  if (!name) return t('sharedUi.powerLevels.team', { power: level });
+  return level > MODERATOR_LEVEL ? `${name} (${level})` : name;
+};
 
 export type GrantFailure =
   | { readonly kind: 'forbidden' }
   | { readonly kind: 'levelRaised'; readonly level: number }
   | { readonly kind: 'failed'; readonly detail: string };
 
-/** Re-reads live power levels before writing; never lowers a target or exceeds the shown level. */
+/** Re-reads synced power levels before writing; never lowers against synced state or exceeds the shown level. */
 export const grantRoomModeratorRights = async (
   client: MatrixClient,
   room: Room,
@@ -113,8 +115,7 @@ export const grantRoomModeratorRights = async (
     maxLevel
   );
   if (decision.kind === 'alreadySatisfied') return null;
-  if (decision.kind === 'levelRaised') return decision;
-  if (decision.kind !== 'grant') return { kind: 'forbidden' };
+  if (decision.kind !== 'grant') return decision;
   try {
     await client.setPowerLevel(room.roomId, targetId, decision.level);
     return null;

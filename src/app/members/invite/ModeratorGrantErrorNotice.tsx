@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
@@ -8,8 +7,6 @@ import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { PageSlot, noticeCard } from '../../ui/noticeSlots.css';
 import { detachedGrantErrorAtom } from './moderatorInvite';
 
-const SHOWN_MS = 12_000;
-
 /** Non-blocking notice when a dialog-submitted moderator grant fails after the dialog closed. */
 export function ModeratorGrantErrorNotice() {
   const { t } = useTranslation();
@@ -17,15 +14,6 @@ export function ModeratorGrantErrorNotice() {
   const coverSlot = useAtomValue(coverNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const slot = coverSlot ?? pageSlot;
-
-  useEffect(() => {
-    if (!failure) return undefined;
-    const timer = window.setTimeout(
-      () => setFailure((cur) => (cur === failure ? undefined : cur)),
-      SHOWN_MS
-    );
-    return () => window.clearTimeout(timer);
-  }, [failure, setFailure]);
 
   if (!failure) return null;
   const card = (

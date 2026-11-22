@@ -19,7 +19,6 @@ import {
   toRem,
 } from 'folds';
 import { RoomMemberEvent, type MatrixEvent, type Room, type RoomMember } from 'matrix-js-sdk';
-import { logger } from 'matrix-js-sdk/lib/logger';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { InviteUserAutocomplete } from './InviteUserAutocomplete';
 import {
@@ -31,6 +30,7 @@ import {
   hasModeratorMindroomAgent,
 } from './moderatorInvite';
 import { usePowerLevelTags } from '../usePowerLevelTags';
+import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
@@ -115,22 +115,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const membersLoaded = room.membersLoaded();
 
   // Load or observe the roster only when the checkbox is offered; take one snapshot after hydration.
+  const memberLoads = useLoadedRoomMembers(client, canOffer ? [room.roomId] : []);
   useEffect(() => {
-    if (!canOffer) return undefined;
-    if (!membersLoaded) {
-      let disposed = false;
-      room
-        .loadMembersIfNeeded()
-        .then(() => {
-          if (!disposed) bumpRoster();
-        })
-        .catch((err: unknown) => {
-          logger.warn('[InviteUserPrompt] Failed to load room members', err);
-        });
-      return () => {
-        disposed = true;
-      };
-    }
+    if (!canOffer || !membersLoaded) return undefined;
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
       if ((event?.getRoomId() ?? member?.roomId) === room.roomId) bumpRoster();
     };
@@ -138,16 +125,17 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
     };
-  }, [canOffer, membersLoaded, client, room, bumpRoster]);
+  }, [canOffer, membersLoaded, client, room.roomId, bumpRoster]);
 
   const hasAgentModerator = useMemo(() => {
+    void memberLoads;
     void rosterVersion;
     return (
       offerLevel !== undefined &&
       membersLoaded &&
       hasModeratorMindroomAgent(room.getMembers(), me, levels, creators, offerLevel)
     );
-  }, [offerLevel, membersLoaded, rosterVersion, room, me, levels, creators]);
+  }, [offerLevel, membersLoaded, memberLoads, rosterVersion, room, me, levels, creators]);
 
   const defaultModerator = membersLoaded && !hasAgentModerator;
   const grantModerator =
@@ -166,8 +154,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     if (inviting) return;
-    const target = userId.trim();
-    if (!isUserId(target)) {
+    if (!isUserId(trimmedTarget)) {
       setError(t('featureUi.createChat.pleaseEnterAValidUserId'));
       return;
     }
@@ -179,7 +166,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     setError(undefined);
     setInvited(undefined);
     try {
-      await client.invite(room.roomId, target, reason);
+      await client.invite(room.roomId, trimmedTarget, reason);
     } catch (inviteError) {
       if (!alive()) return;
       setError(
@@ -194,16 +181,20 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       setUserId('');
       if (form.reasonInput) form.reasonInput.value = '';
       setGrantOverride(undefined);
-      setInvited(target);
+      setInvited(trimmedTarget);
     }
 
     // Finish the submitted grant even if the user closed the dialog while invite was in flight.
     if (grantCeiling !== undefined) {
-      const failure = await grantRoomModeratorRights(client, room, target, grantCeiling);
+      const failure = await grantRoomModeratorRights(client, room, trimmedTarget, grantCeiling);
       if (failure) {
-        const message = formatGrantFailure(failure, target, grantCeiling, tags, t);
-        if (alive()) setError(message);
-        else if (client.clientRunning !== false) store.set(detachedGrantErrorAtom, { message });
+        const message = formatGrantFailure(failure, trimmedTarget, grantCeiling, tags, t);
+        if (alive()) {
+          setInvited(undefined);
+          setError(message);
+        } else if (client.clientRunning !== false) {
+          store.set(detachedGrantErrorAtom, { message });
+        }
       }
     }
     if (alive()) setInviting(false);

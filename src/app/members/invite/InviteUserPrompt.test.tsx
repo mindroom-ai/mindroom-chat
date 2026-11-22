@@ -133,7 +133,7 @@ const makeStateEvent = (content: Record<string, unknown>, sender?: string) => ({
 
 type EventListener = (...args: unknown[]) => void;
 
-const makeMx = (getRoom: () => Room | null) => {
+const makeMx = (getRoom: (roomId: string) => Room | null) => {
   const listeners = new Map<string, Set<EventListener>>();
   const emit = (event: string, ...args: unknown[]) => {
     listeners.get(event)?.forEach((listener) => listener(...args));
@@ -225,7 +225,7 @@ const createNodeMock = (element: React.ReactElement) => {
 const renderPrompt = (options: RoomOptions = {}) => {
   const store = createStore();
   const roomRef: { current: Room | null } = { current: null };
-  const mx = makeMx(() => roomRef.current);
+  const mx = makeMx((roomId) => (roomId === roomRef.current?.roomId ? roomRef.current : null));
   const room = makeRoom(mx, options);
   roomRef.current = room as unknown as Room;
   store.set(userDirectoryCacheAtom, readyCache());
