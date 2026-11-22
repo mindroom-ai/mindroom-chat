@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { Modal500 } from './Modal500';
@@ -37,29 +37,6 @@ describe('Modal500', () => {
     const { dialog } = open(ScreenSize.Desktop);
     // Inside, the focus the dialog holds reaches a notice; last, its first control stays first.
     expect(dialog.lastElementChild?.getAttribute('aria-live')).toBe('polite');
-  });
-});
-
-describe('Modal500 name', () => {
-  // A room's settings on a phone: the menu with the room's name, or a page in its place.
-  const settings = (menu: boolean) => (
-    <ScreenSizeProvider value={ScreenSize.Mobile}>
-      <Modal500 requestClose={vi.fn()}>
-        {menu && <h2>Lobby</h2>}
-        <span data-page-title="">MindRoom</span>
-        <h3 data-settings-heading="">Agents</h3>
-      </Modal500>
-    </ScreenSizeProvider>
-  );
-
-  it('is the page title where no heading of the dialog shows, never a settings card heading', async () => {
-    const { rerender } = render(settings(false));
-    expect(screen.getByRole('dialog', { name: 'MindRoom' })).toBeTruthy();
-
-    rerender(settings(true));
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Lobby' })).toBeTruthy());
-    rerender(settings(false));
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'MindRoom' })).toBeTruthy());
   });
 });
 

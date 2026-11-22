@@ -87,7 +87,7 @@ export function SettingsBreadcrumb({ title }: { title: string }) {
           </Text>
         </>
       )}
-      <Text as="span" size="T300" truncate style={PAGE_NAME_STYLE} data-page-title="">
+      <Text as="span" size="T300" truncate style={PAGE_NAME_STYLE}>
         {title}
       </Text>
     </Box>
