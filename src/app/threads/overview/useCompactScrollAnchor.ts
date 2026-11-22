@@ -177,10 +177,11 @@ export const useCompactScrollAnchor = (
     // carries it on (momentum). A scroll of the list's own starts none.
     const onScroll = (event: Event) => {
       const now = performance.now();
-      if (event.type !== 'scroll' || now - scrolledAtRef.current < SCROLL_SETTLE_MS) {
-        scrolledAtRef.current = now;
+      if (event.type !== 'scroll') scrolledAtRef.current = now;
+      else {
+        if (now - scrolledAtRef.current < SCROLL_SETTLE_MS) scrolledAtRef.current = now;
+        cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
       }
-      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
     const observer =
       typeof ResizeObserver === 'undefined'
