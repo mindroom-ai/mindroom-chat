@@ -42,10 +42,9 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  *   settled position. virtual-core, which hears of the position first, rendered and measured the
  *   rows there without the fold, rows far above the reader, and their size changes moved the
  *   reader's rows for good (580 px).
- * - Not fixed: some of those writes are not gone. WebKit applies them a few frames after it
- *   reported the old position, when the watch has put the fold back, and the rows move by the
- *   fold once more (300 to 800 px). The scroll test in WebKit fails on that in about one run in
- *   eight.
+ * - Some of those writes are not gone. WebKit applies them a few frames after it reported the old
+ *   position, when the watch has put the fold back, and the rows moved by the fold once more
+ *   (300 to 800 px, or to the end of the thread when the write was clamped there).
  */
 
 type Setup = { engine: 'chromium' | 'webkit'; viewport: 'desktop' | 'phone' };
@@ -308,6 +307,7 @@ const installThreadJumpProbe = () => {
     wheelPx: 0,
     wheelAheadPx: 0,
     lastWrite: { px: 0, at: 0 },
+    takenBackAt: Number.NEGATIVE_INFINITY,
     scroller: null as HTMLElement | null,
     jumps: [] as JumpFrame[],
     visibleFrames: 0,
@@ -345,6 +345,7 @@ const installThreadJumpProbe = () => {
       this.wheelPx = 0;
       this.wheelAheadPx = 0;
       this.lastWrite = { px: 0, at: 0 };
+      this.takenBackAt = Number.NEGATIVE_INFINITY;
       this.scroller = this.findScroller();
       this.jumps = [];
       this.visibleFrames = 0;
@@ -517,7 +518,8 @@ const installThreadJumpProbe = () => {
           // without a write of the page, or that moves back most of what the page last wrote, is
           // the browser taking a write back (WebKit discards one that a wheel overtakes): the
           // reader's part of that frame is what their wheel asked for and the rows have not
-          // followed yet, as far as the rows moved.
+          // followed yet, as far as the rows moved. So it is for two seconds after that, while
+          // WebKit may apply that write after all, or one made since.
           const movedPx = dScroll - appDelta;
           if (Math.abs(appDelta) >= 48) probe.lastWrite = { px: appDelta, at: now };
           const { lastWrite } = probe;
@@ -525,10 +527,13 @@ const installThreadJumpProbe = () => {
             now - lastWrite.at < 2_000 &&
             movedPx * lastWrite.px < 0 &&
             Math.abs(movedPx + lastWrite.px) <= Math.abs(lastWrite.px) / 2;
-          if (undone) probe.lastWrite = { px: 0, at: 0 };
+          if (undone) {
+            probe.lastWrite = { px: 0, at: 0 };
+            probe.takenBackAt = now;
+          }
           const wheelAheadPx = wheelPx === 0 && movedPx === 0 ? 0 : probe.wheelAheadPx + wheelPx;
           const userScroll =
-            probe.mode === 'scrollUp' && (movedPx > 0 || undone)
+            probe.mode === 'scrollUp' && (movedPx > 0 || now - probe.takenBackAt < 2_000)
               ? -Math.min(-wheelAheadPx, Math.max(0, median))
               : movedPx;
           probe.wheelAheadPx = Math.min(0, wheelAheadPx - userScroll);
