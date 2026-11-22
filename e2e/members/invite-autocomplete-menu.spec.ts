@@ -274,12 +274,20 @@ const expectInside = (bounds: Box, viewport: Viewport) => {
 };
 
 /**
- * Scrolled to, the element lies inside the visual viewport and nothing lies over its middle. Only
- * a scroll the user could make counts: a script can also scroll a box that hides its overflow.
+ * Where it is, without the test scrolling to it, the element lies inside the visual viewport and
+ * nothing lies over its middle. It may get there a moment after the viewport changed. Only a
+ * scroll the user could make counts: a script can also scroll a box that hides its overflow.
  */
-const expectReachable = async (locator: Locator, viewport: Viewport) => {
-  await locator.scrollIntoViewIfNeeded();
-  expectInside(await box(locator), viewport);
+const expectInSight = async (locator: Locator, viewport: Viewport) => {
+  await expect
+    .poll(async () => {
+      const bounds = await box(locator);
+      return (
+        bounds.y >= viewport.top - 1 &&
+        bounds.y + bounds.height <= viewport.top + viewport.height + 1
+      );
+    })
+    .toBe(true);
   const reached = await locator.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
@@ -299,6 +307,12 @@ const expectReachable = async (locator: Locator, viewport: Viewport) => {
     };
   });
   expect(reached).toEqual({ uncovered: true, scrolledHiddenOverflow: false });
+};
+
+/** Scrolled to, the element is in sight. */
+const expectReachable = async (locator: Locator, viewport: Viewport) => {
+  await locator.scrollIntoViewIfNeeded();
+  await expectInSight(locator, viewport);
 };
 
 /** What scrolls together with the rows: on a tall viewport nothing, on a short one all but the title. */
@@ -360,9 +374,10 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
   await setKeyboardViewport(page, SHORT_PORTRAIT_HEIGHT);
 
   const viewport = { top: 0, height: SHORT_PORTRAIT_HEIGHT };
-  // The focused note field is where the user types, above the keyboard.
+  // The focused note field is where the user types: the sheet itself keeps it above the
+  // keyboard, at the foot of what now scrolls as one, before anything here scrolls to it.
   await expect(parts.note).toBeFocused();
-  await expectReachable(parts.note, viewport);
+  await expectInSight(parts.note, viewport);
   await checkEveryPartReachable(dialog, viewport);
   await shoot(page, 'phone-keyboard-short');
 
@@ -385,8 +400,12 @@ const checkLandscapePhoneViewport = async (page: Page, seeded: Seed) => {
   // Without a keyboard the screen is already short.
   await checkEveryPartReachable(dialog, { top: 0, height: LANDSCAPE_PHONE.height });
 
-  await parts.search.focus();
+  // The keyboard takes the foot of the screen, where the focused note field was.
+  await parts.note.focus();
+  await expectInSight(parts.note, { top: 0, height: LANDSCAPE_PHONE.height });
   await setKeyboardViewport(page, SHORT_LANDSCAPE_HEIGHT);
+  await expect(parts.note).toBeFocused();
+  await expectInSight(parts.note, { top: 0, height: SHORT_LANDSCAPE_HEIGHT });
   await checkEveryPartReachable(dialog, { top: 0, height: SHORT_LANDSCAPE_HEIGHT });
   await shoot(page, 'landscape-keyboard-short');
 

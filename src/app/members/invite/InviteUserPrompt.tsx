@@ -33,6 +33,7 @@ import {
   KnownMembership,
   RoomEvent,
   RoomMemberEvent,
+  type IRoomSummary,
   type MatrixEvent,
   type Room,
   type RoomMember,
@@ -88,8 +89,7 @@ type RowSection = 'direct' | 'directory' | 'search';
 type AttemptState =
   | { status: 'inviting' }
   | { status: 'invited' }
-  | { status: 'failed'; error: unknown }
-  | { status: 'grantFailed'; message: string };
+  | { status: 'failed'; error: unknown };
 
 type Candidate = {
   user: ServerUserDirectoryUser;
@@ -119,7 +119,6 @@ type Attempts = {
  */
 type Submission = {
   membershipSeen: boolean;
-  summarySeen: boolean;
 };
 
 type Announcement = {
@@ -163,17 +162,16 @@ const rowDisplayName = ({ user, listed }: Pick<Candidate, 'user' | 'listed'>): s
   listed ? getDisplayName(user) : user.userId;
 
 /**
- * Keeps in-flight invites, failed invites, and grant failures across query/filter changes so
- * actionable feedback is never lost. Clean completed invites stay in their original view and
- * drop out once the user moves to another search or tab.
+ * Moves the attempts that `carried` keeps to another query or filter, pinned in their order, so
+ * actionable feedback is never lost there. The others stay behind in their own view.
  */
 const carryOver = (
   byUser: Readonly<Record<string, Attempt>>,
-  offered: (attempt: Attempt) => boolean
+  carried: (attempt: Attempt) => boolean
 ): Record<string, Attempt> =>
   Object.fromEntries(
     Object.values(byUser)
-      .filter((attempt) => attempt.state.status !== 'invited' && offered(attempt))
+      .filter(carried)
       .sort((a, b) => a.index - b.index)
       .map((attempt, index) => [attempt.user.userId, { ...attempt, section: 'search', index }])
   );
@@ -239,11 +237,14 @@ const withoutAttempt = (
 
 function InviteDirectoryRow({
   row,
+  grantWarning,
   viewerId,
   authenticatedMedia,
   onInvite,
 }: {
   row: InviteRow;
+  /** Why the rights of an invite sent to this user could not be given; it blocks no new invite. */
+  grantWarning?: string;
   viewerId: string;
   authenticatedMedia: boolean;
   onInvite: () => void;
@@ -258,7 +259,7 @@ function InviteDirectoryRow({
     ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
   const inviting = state?.status === 'inviting';
-  const sent = state?.status === 'invited' || state?.status === 'grantFailed';
+  const sent = state?.status === 'invited';
   const failed = state?.status === 'failed';
 
   let variant: 'Primary' | 'Success' | 'Critical' = 'Primary';
@@ -333,9 +334,9 @@ function InviteDirectoryRow({
             <ErrorDetail error={state.error} />
           </Text>
         )}
-        {state?.status === 'grantFailed' && (
+        {grantWarning !== undefined && (
           <Text as="span" size="T200" role="alert" className={css.RowError}>
-            {state.message}
+            {grantWarning}
           </Text>
         )}
       </div>
@@ -363,6 +364,7 @@ function InviteDirectoryRow({
 
 function RowList({
   rows,
+  grantWarnings,
   viewerId,
   authenticatedMedia,
   ariaLabel,
@@ -370,6 +372,7 @@ function RowList({
   onInvite,
 }: {
   rows: readonly InviteRow[];
+  grantWarnings: Readonly<Record<string, string>>;
   viewerId: string;
   authenticatedMedia: boolean;
   ariaLabel?: string;
@@ -383,6 +386,7 @@ function RowList({
         <InviteDirectoryRow
           key={row.user.userId}
           row={row}
+          grantWarning={grantWarnings[row.user.userId]}
           viewerId={viewerId}
           authenticatedMedia={authenticatedMedia}
           onInvite={() => onInvite(row, index)}
@@ -417,6 +421,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(new Set<string>());
   const submissionsRef = useRef(new Map<string, Submission>());
   // The note as last typed, read when an invite starts: two invites started before the next
@@ -437,8 +442,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [pendingSyncInvited, setPendingSyncInvited] = useState<ReadonlySet<string>>(
     () => new Set()
   );
-  // Of those, the ones the room's invited count cannot hold yet: each adds one to the header.
-  const [optimisticInvited, setOptimisticInvited] = useState<ReadonlySet<string>>(() => new Set());
+  // Why an invited agent got no moderator rights, by user. Apart from the attempts: a warning
+  // never decides whether its user can be invited, and it stays until they are invited again.
+  const [grantWarnings, setGrantWarnings] = useState<Readonly<Record<string, string>>>({});
   const [rosterVersion, bumpRoster] = useForceUpdate();
   // With lazy-loaded members the room knows only the members whose events it has seen; without
   // the full list a joined member would be offered an invite.
@@ -486,9 +492,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         return next.size === current.size ? current : next;
       };
       setPendingSyncInvited(settle);
-      setOptimisticInvited(settle);
-      if (memberId && !isReflectedMembership(room.getMember(memberId)?.membership)) {
-        // The invitee declined or was removed: the row offers the invite again.
+      if (memberId && room.getMember(memberId)?.membership === KnownMembership.Leave) {
+        // The invitee declined or was removed: the row offers the invite again, whatever a
+        // grant warning on it says.
         setAttempts((current) =>
           current.byUser[memberId]?.state.status === 'invited'
             ? { ...current, byUser: withoutAttempt(current.byUser, memberId) }
@@ -497,12 +503,12 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       }
       bumpRoster();
     };
-    const onSummary = () => {
-      // The room's own invited count is current again; a pending invite on top would count twice.
-      submissionsRef.current.forEach((submission) => {
-        submission.summarySeen = true;
-      });
-      setOptimisticInvited((current) => (current.size === 0 ? current : new Set()));
+    const onSummary = (summary: IRoomSummary) => {
+      // A summary that counts no invited member leaves nobody to wait for, also when no member
+      // event told of the decline. One without that count (a join, say) tells nothing about it.
+      if (summary['m.invited_member_count'] === 0) {
+        setPendingSyncInvited((current) => (current.size === 0 ? current : new Set()));
+      }
       bumpRoster();
     };
     client.on(RoomMemberEvent.Membership, onMembership);
@@ -512,6 +518,23 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       room.removeListener(RoomEvent.Summary, onSummary);
     };
   }, [client, room, bumpRoster]);
+
+  // When the keyboard comes up, the short layout makes the body the scroller, with the focused
+  // field (the note, at its foot) out of sight below. The browser scrolled to it on focus, before
+  // the viewport shrank, and does not again.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      const focused = document.activeElement;
+      if (focused?.tagName !== 'INPUT' || !body.contains(focused)) return;
+      // On a tall viewport only the rows scroll, and the fields are always in sight.
+      if (getComputedStyle(body).overflowY === 'visible') return;
+      focused.scrollIntoView({ block: 'nearest' });
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, []);
 
   const hasAgentModerator = useMemo(() => {
     void memberLoads;
@@ -539,20 +562,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     [pendingSyncInvited, room, me, rosterVersion, memberLoads]
   );
 
-  // Live header counts: reflect pending session invites until authoritative room state syncs.
-  const { joinedCount, displayInvitedCount } = useMemo(() => {
-    void rosterVersion;
-    let unreflectedPending = 0;
-    optimisticInvited.forEach((userId) => {
-      if (!isReflectedMembership(room.getMember(userId)?.membership)) {
-        unreflectedPending += 1;
-      }
-    });
-    return {
-      joinedCount: room.getJoinedMemberCount(),
-      displayInvitedCount: room.getInvitedMemberCount() + unreflectedPending,
-    };
-  }, [room, rosterVersion, optimisticInvited]);
+  // The room's own counts, as the members panel shows them; the listeners above refresh them.
+  const joinedCount = room.getJoinedMemberCount();
+  const invitedCount = room.getInvitedMemberCount();
 
   const roomName = useRoomName(room).trim();
   // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading. A
@@ -562,24 +574,30 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const title = roomName
     ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: isolatedRoomName }).replace(
         `${FSI}${isolatedRoomName}${PDI}`,
-        isolatedRoomName
+        // A function, so a "$" in the name stays as written.
+        () => isolatedRoomName
       )
     : t('sharedUi.inviteUserPrompt.invite');
   const membersLabel = t('featureUi.room.membersDrawer.memberCount', { count: joinedCount });
   const subtitle =
-    displayInvitedCount > 0
+    invitedCount > 0
       ? t('sharedUi.inviteUserPrompt.memberSummary', {
           members: membersLabel,
-          invited: t('featureUi.room.membersDrawer.invitedCount', { count: displayInvitedCount }),
+          invited: t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount }),
         })
       : membersLabel;
 
   // Drop failed attempts if the person joined or got invited externally.
   const isAttemptOffered = (attempt: Attempt) =>
     attempt.state.status !== 'failed' || isInvitable(attempt.user.userId);
+  // Into another query or filter go invites on their way, failures to retry, and sent invites
+  // whose grant warning is still to be read. Other sent invites stay behind in their view.
+  const isAttemptCarried = (attempt: Attempt) =>
+    isAttemptOffered(attempt) &&
+    (attempt.state.status !== 'invited' || grantWarnings[attempt.user.userId] !== undefined);
 
   if (attempts.viewKey !== viewKey) {
-    setAttempts({ viewKey, byUser: carryOver(attempts.byUser, isAttemptOffered) });
+    setAttempts({ viewKey, byUser: carryOver(attempts.byUser, isAttemptCarried) });
   } else if (!Object.values(attempts.byUser).every(isAttemptOffered)) {
     setAttempts({
       viewKey,
@@ -763,13 +781,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     if (inFlightRef.current.has(targetId)) return;
     const existingAttempt = placed[targetId];
     const existingState = existingAttempt?.state;
-    if (
-      existingState?.status === 'inviting' ||
-      existingState?.status === 'invited' ||
-      existingState?.status === 'grantFailed'
-    ) {
-      return;
-    }
+    if (existingState?.status === 'inviting' || existingState?.status === 'invited') return;
 
     // A new invite takes the note with it at once, so the next person invited never gets it, also
     // when this invite is still pending or fails. A retry sends the note its attempt took and
@@ -788,9 +800,15 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
-    const submission: Submission = { membershipSeen: false, summarySeen: false };
+    const submission: Submission = { membershipSeen: false };
     submissionsRef.current.set(targetId, submission);
     setEnterHint(undefined);
+    // A new invite starts clean: the warning was about the invite before it.
+    setGrantWarnings((current) =>
+      targetId in current
+        ? Object.fromEntries(Object.entries(current).filter(([userId]) => userId !== targetId))
+        : current
+    );
 
     if (options?.clearQuery) {
       const nextViewKey = `${filter}|`;
@@ -802,7 +820,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       setAttempts((current) => ({
         viewKey: nextViewKey,
         byUser: {
-          ...carryOver(current.byUser, isAttemptOffered),
+          ...carryOver(current.byUser, isAttemptCarried),
           [targetId]: {
             ...candidate,
             section: 'search',
@@ -843,40 +861,36 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
       // Only an invite the room state has not answered yet is tracked here. Once a membership
       // event for the invitee arrived (the invite, or already their answer to it), the room state
-      // is the truth, and tracking a decline as pending would count it and block a new invite.
+      // is the truth, and tracking a decline as pending would block a new invite.
       if (
         alive() &&
         !submission.membershipSeen &&
         !isReflectedMembership(room.getMember(targetId)?.membership)
       ) {
         setPendingSyncInvited((current) => withUser(current, targetId));
-        // A room summary since the invite started may hold this invite in its count already.
-        if (!submission.summarySeen) {
-          setOptimisticInvited((current) => withUser(current, targetId));
-        }
       }
 
       // Finish the submitted grant even if the user closed the dialog while invite was in flight.
-      if (grantCeiling !== undefined) {
-        const failure = await grantRoomModeratorRights(client, room, targetId, grantCeiling);
-        if (failure) {
-          const message = formatGrantFailure(failure, targetId, grantCeiling, tags, t);
-          if (alive()) {
-            updateAttemptState(targetId, { status: 'grantFailed', message });
-          } else if (client.clientRunning !== false) {
-            store.set(detachedGrantErrorAtom, (current) => [
-              ...current,
-              createDetachedGrantError(message),
-            ]);
-          }
-          return;
-        }
+      const grantFailure =
+        grantCeiling === undefined
+          ? null
+          : await grantRoomModeratorRights(client, room, targetId, grantCeiling);
+      const grantWarning =
+        grantFailure && grantCeiling !== undefined
+          ? formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)
+          : undefined;
+      if (grantWarning !== undefined && !alive() && client.clientRunning !== false) {
+        store.set(detachedGrantErrorAtom, (current) => [
+          ...current,
+          createDetachedGrantError(grantWarning),
+        ]);
       }
 
       if (alive()) {
-        const answered =
-          submission.membershipSeen && !isReflectedMembership(room.getMember(targetId)?.membership);
-        if (answered) {
+        const departed =
+          submission.membershipSeen &&
+          room.getMember(targetId)?.membership === KnownMembership.Leave;
+        if (departed) {
           // Invited and already declined or removed: the row offers the invite again.
           setAttempts((current) => ({
             ...current,
@@ -885,7 +899,13 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         } else {
           updateAttemptState(targetId, { status: 'invited' });
         }
-        announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
+        if (grantWarning === undefined) {
+          announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
+        } else {
+          // The invite went out all the same: the warning is the row's alert, and decides nothing
+          // about the invite's own state.
+          setGrantWarnings((current) => ({ ...current, [targetId]: grantWarning }));
+        }
       }
     } finally {
       submissionsRef.current.delete(targetId);
@@ -921,8 +941,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         const busyOrDone =
           inFlightRef.current.has(trimmedQuery) ||
           existing?.status === 'inviting' ||
-          existing?.status === 'invited' ||
-          existing?.status === 'grantFailed';
+          existing?.status === 'invited';
         if (isInvitable(trimmedQuery) && !busyOrDone) {
           event.preventDefault();
           const known = knownUsersMap.get(trimmedQuery);
@@ -931,8 +950,12 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             : { user: { userId: trimmedQuery }, listed: false, section: 'search' };
           void inviteUser(candidate, 0, { clearQuery: true });
         }
-      } else if (trimmedQuery.startsWith('@') || (trimmedQuery.length > 0 && !hasSearchMatches)) {
-        // Plain text that lists matches is a search, not a mistyped ID.
+      } else if (
+        trimmedQuery.startsWith('@') ||
+        (trimmedQuery.length > 0 && !hasSearchMatches && !isFetching)
+      ) {
+        // Plain text that lists matches, or whose search still runs, is a search, not a
+        // mistyped ID.
         event.preventDefault();
         setEnterHint(t('featureUi.createChat.pleaseEnterAValidUserId'));
       }
@@ -989,7 +1012,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
               </Button>
             </Header>
 
-            <div className={css.Body}>
+            <div ref={bodyRef} className={css.Body}>
               <div className={css.Controls}>
                 <Input
                   ref={inputRef}
@@ -1061,6 +1084,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   <>
                     <RowList
                       rows={pinnedRows}
+                      grantWarnings={grantWarnings}
                       viewerId={me}
                       authenticatedMedia={authenticatedMedia}
                       ariaLabel={t('sharedUi.inviteUserPrompt.invite')}
@@ -1079,6 +1103,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         </Text>
                         <RowList
                           rows={directRows}
+                          grantWarnings={grantWarnings}
                           viewerId={me}
                           authenticatedMedia={authenticatedMedia}
                           ariaLabelledBy={directHeadingId}
@@ -1099,6 +1124,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         </Text>
                         <RowList
                           rows={directoryRows}
+                          grantWarnings={grantWarnings}
                           viewerId={me}
                           authenticatedMedia={authenticatedMedia}
                           ariaLabelledBy={directoryHeadingId}
@@ -1110,6 +1136,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                 ) : (
                   <RowList
                     rows={flatRows}
+                    grantWarnings={grantWarnings}
                     viewerId={me}
                     authenticatedMedia={authenticatedMedia}
                     onInvite={handleRowInvite}
