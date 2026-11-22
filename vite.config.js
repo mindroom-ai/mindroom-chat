@@ -130,7 +130,7 @@ const startup = startupPrecache({
   ],
   // The PDF viewer's frame page (public/pdf-frame.html) has no hash in its name, so the worker
   // could not keep it at runtime without serving an old copy after an update.
-  shellFiles: ['index.html', 'pdf-frame.html'],
+  shellFiles: ['index.html', 'viewport.js', 'pdf-frame.html', 'pdf-frame.js'],
   // The added string overlays (src/app/i18n/localeAdditions.ts), one chunk per language: the worker
   // fetches the ones for the languages the pages used when a new build installs.
   localeOverlay: new RegExp(`/${LOCALE_ADDITIONS}([A-Za-z-]+)\\.json$`),

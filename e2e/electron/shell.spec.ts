@@ -7,7 +7,7 @@ import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import { COMPOSER_NAME } from '../helpers/composerName';
 import { createRoom } from '../helpers/createRoom';
 import { DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { launchDesktop } from '../helpers/electronApp';
+import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 
 const APP_ORIGIN = 'capacitor://localhost';
@@ -121,6 +121,8 @@ const startProbeServer = async () => {
 };
 
 test.describe('Electron desktop shell', () => {
+  test.afterEach(() => assertNoUnexpectedViolations());
+
   test('starts offline on capacitor://localhost with secure context, IndexedDB, no SW and persistent storage', async () => {
     const session = await launchDesktop({ offline: true });
     try {
@@ -459,10 +461,13 @@ test.describe('Electron desktop shell', () => {
       });
       await expect
         .poll(() =>
-          page.evaluate(() => {
-            const root = document.getElementById('root');
-            return root ? getComputedStyle(root).paddingTop : null;
-          })
+          page
+            .evaluate(() => {
+              const root = document.getElementById('root');
+              return root ? getComputedStyle(root).paddingTop : null;
+            })
+            // Removing the account may still be reloading the page: ask again after it.
+            .catch(() => null)
         )
         .toBe('0px');
 
@@ -474,10 +479,12 @@ test.describe('Electron desktop shell', () => {
       });
       await expect
         .poll(() =>
-          page.evaluate(() => {
-            const root = document.getElementById('root');
-            return root ? getComputedStyle(root).paddingTop : null;
-          })
+          page
+            .evaluate(() => {
+              const root = document.getElementById('root');
+              return root ? getComputedStyle(root).paddingTop : null;
+            })
+            .catch(() => null)
         )
         .toBe('28px');
     } finally {
@@ -649,6 +656,8 @@ test.describe('Electron desktop shell', () => {
         return res.ok;
       }, lanHomeserver!);
       expect(lanOk).toBe(true);
+      expect(aliceSession.violations).toEqual([]);
+      expect(bobSession.violations).toEqual([]);
     } finally {
       await aliceSession.close();
       await bobSession.close();

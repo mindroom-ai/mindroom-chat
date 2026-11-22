@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopShellEvent } from './desktopBridge';
 import {
   desktopBridge,
+  externalOpenProps,
   isBundledApp,
   isCapacitorApp,
   isDesktopApp,
@@ -39,7 +40,19 @@ const makeBridge = (): {
     return unsubscribe;
   });
   return {
-    bridge: { onShellEvent },
+    bridge: {
+      onShellEvent,
+      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+      startSignIn: vi.fn(async () => ({
+        ok: true as const,
+        value: 'http://127.0.0.1:4321/auth/rand/login',
+      })),
+      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      appUrl: {
+        addListener: vi.fn(async () => ({ remove: vi.fn() })),
+        getLaunchUrl: vi.fn(async () => undefined),
+      },
+    },
     onShellEvent,
     unsubscribe,
     emit: (event) => listener?.(event),
@@ -111,5 +124,13 @@ describe('nativeShell', () => {
     markDesktopShell();
     expect(first.unsubscribe).toHaveBeenCalledTimes(1);
     expect(second.onShellEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns data-open-external props only inside the Electron desktop app', () => {
+    expect(externalOpenProps('https://example.org')).toEqual({});
+    setDesktopBridge(makeBridge().bridge);
+    expect(externalOpenProps('https://example.org')).toEqual({
+      'data-open-external': 'https://example.org',
+    });
   });
 });

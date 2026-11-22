@@ -4,10 +4,41 @@ import { protocol } from 'electron';
 import { contentType } from 'mime-types';
 import { framingHeaders } from '../../scripts/frame-headers.mjs';
 
+declare const __MINDROOM_CANVAS_LIBRARIES__: string | undefined;
+
 const APP_SCHEME = 'capacitor';
 export const APP_ORIGIN = `${APP_SCHEME}://localhost`;
-export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html'];
+const CANVAS_FRAME_FILE = 'canvas-frame.html';
+export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html', CANVAS_FRAME_FILE];
 const OPEN_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+
+const CANVAS_LIB_SOURCE = `${APP_ORIGIN}/${
+  typeof __MINDROOM_CANVAS_LIBRARIES__ === 'string'
+    ? __MINDROOM_CANVAS_LIBRARIES__
+    : 'assets/canvas-libs'
+}/`;
+
+export const CANVAS_FRAME_POLICY = [
+  "sandbox allow-scripts allow-forms; default-src 'none'",
+  `script-src 'unsafe-inline' ${CANVAS_LIB_SOURCE} https:; style-src 'unsafe-inline' ${CANVAS_LIB_SOURCE} https:`,
+  'img-src data: blob: https:; font-src data: https:; media-src data: blob: https:',
+  "connect-src 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'",
+].join('; ');
+
+const withCsp = (pathname: string, policy: string): Record<string, string> => {
+  const framing = framingHeaders(pathname);
+  const csp = [framing['Content-Security-Policy'], policy].filter(Boolean).join('; ');
+  return { ...framing, 'Content-Security-Policy': csp };
+};
+
+export const scriptPolicy = "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:";
+
+export const pageHeaders = (pathname: string): Record<string, string> =>
+  withCsp(pathname, scriptPolicy);
+
+const NON_HTML_CSP = `${scriptPolicy}; object-src 'none'`;
+const textResponse = (body: string, status: number): Response =>
+  new Response(body, { status, headers: { 'Content-Security-Policy': NON_HTML_CSP } });
 
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
@@ -100,23 +131,27 @@ export const serveBundle = (distDir: string): void => {
   }
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method Not Allowed', { status: 405 });
+      return textResponse('Method Not Allowed', 405);
     }
     const url = parseAppUrl(request.url);
-    if (!url) return new Response('Not Found', { status: 404 });
+    if (!url) return textResponse('Not Found', 404);
     const headOnly = request.method === 'HEAD';
     const candidate = resolveBundlePath(url.pathname, () => true);
-    if ('status' in candidate) return new Response('Not Found', { status: candidate.status });
+    if ('status' in candidate) return textResponse('Not Found', candidate.status);
     let served = await readBundleFile(realRoot, candidate.file, headOnly);
     if (!served) {
       const fallback = resolveBundlePath(url.pathname, (rel) => rel === 'index.html');
-      if ('status' in fallback) return new Response('Not Found', { status: fallback.status });
+      if ('status' in fallback) return textResponse('Not Found', fallback.status);
       served = await readBundleFile(realRoot, fallback.file, headOnly);
     }
-    if (!served) return new Response('Not Found', { status: 404 });
+    if (!served) return textResponse('Not Found', 404);
     const headers: Record<string, string> = {
       'Content-Type': contentType(path.basename(served.fullPath)) || 'application/octet-stream',
-      ...(served.file.endsWith('.html') ? framingHeaders(url.pathname) : {}),
+      ...(served.file === CANVAS_FRAME_FILE
+        ? withCsp(url.pathname, CANVAS_FRAME_POLICY)
+        : served.file.endsWith('.html')
+        ? pageHeaders(url.pathname)
+        : { 'Content-Security-Policy': NON_HTML_CSP }),
     };
     return new Response(served.body, { status: 200, headers });
   });
