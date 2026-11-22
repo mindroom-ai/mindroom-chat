@@ -186,6 +186,9 @@ def main() -> int:
     parser.add_argument("--only", help="comma-separated subset of scenarios to run")
     args = parser.parse_args()
     selected = set(args.only.split(",")) if args.only else None
+    unknown = (selected or set()) - {"voice", "approve", "ask", "listen", "resolve", "long_thread"}
+    if unknown:
+        parser.error(f"unknown scenario(s): {', '.join(sorted(unknown))}")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     server = Homeserver(args.homeserver, args.user, args.password)

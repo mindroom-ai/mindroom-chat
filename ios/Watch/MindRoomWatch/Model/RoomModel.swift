@@ -281,9 +281,10 @@ final class RoomModel: ObservableObject {
         }
         await stateRead?.value
         show()
-        // The complications count the room's open threads as their own reads found them, from a whole list only.
+        // The complications count the rows shown, as main; after a failed later page those are the pages read plus
+        // this model's rows of before (none in a room just opened).
         let settled = chosenAgainst.allSatisfy { $0 == resolved.roots }
-        if complete, settled { publishWidgetSnapshot() }
+        if settled { publishWidgetSnapshot() }
         #if DEBUG
         E2EHooks.trace("refresh done rows=\(rows.count)")
         #endif
