@@ -401,7 +401,6 @@ final class RoomModel: ObservableObject {
                              ts: Int(item.timestamp), rootTs: Int(item.timestamp), voiceFile: voiceFile)
         }
     }
-
 }
 
 /// A room's state events (they are not encrypted) in one request, which gives up when nothing arrives for
