@@ -4,7 +4,6 @@ import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 
 const enterOffset = createVar();
-const rowNudge = createVar();
 const arrowSlide = createVar();
 
 const menuEnter = keyframes({
@@ -81,34 +80,17 @@ export const AccountRow = style({
   border: `${config.borderWidth.B300} solid transparent`,
   backgroundColor: 'transparent',
   color: color.Surface.OnContainer,
-  vars: {
-    [rowNudge]: toRem(2),
-  },
+  // The row never moves when highlighted: its box is what the pointer is tested against.
   transition: transition(
-    ['background-color', 'border-color', 'color', 'transform'],
+    ['background-color', 'border-color', 'color'],
     motion.duration.Instant,
     motion.easing.Standard
   ),
   selectors: {
-    '[dir=rtl] &': {
-      vars: {
-        [rowNudge]: toRem(-2),
-      },
-    },
     '&[data-highlighted="true"]': {
       backgroundColor: color.Primary.Container,
       borderColor: color.Primary.ContainerLine,
       color: color.Primary.OnContainer,
-      transform: `translateX(${rowNudge})`,
-    },
-  },
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      selectors: {
-        '&[data-highlighted="true"]': {
-          transform: 'none',
-        },
-      },
     },
   },
 });

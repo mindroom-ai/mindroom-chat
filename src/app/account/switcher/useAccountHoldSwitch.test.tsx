@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { holdModalSheet } from '../../lib/portalOverlay';
 import type { StoredSession } from '../../matrix/session/sessions';
 import type { AccountMenuAccount } from './AccountMenu';
 import { ACCOUNT_HOLD_MS, ACCOUNT_HOLD_SLOP, useAccountHoldSwitch } from './useAccountHoldSwitch';
@@ -73,6 +75,7 @@ type HarnessProps = {
   onClick: () => void;
 };
 
+/** The avatar and its quick menu, which opens at the end of the body as `PopOut` puts it there. */
 function Harness({ enabled = true, others = [BOB, CAROL], onSwitch, onClick }: HarnessProps) {
   const hold = useAccountHoldSwitch({ enabled, others, onSwitch });
   return (
@@ -80,24 +83,26 @@ function Harness({ enabled = true, others = [BOB, CAROL], onSwitch, onClick }: H
       <button type="button" data-testid="trigger" onClick={onClick} {...hold.triggerProps}>
         Avatar
       </button>
-      {hold.holdAnchor && (
-        <div ref={hold.menuRef} data-testid="quick-menu">
-          <div data-testid="quick-list" data-quick-account-list="">
-            {others.map((account) => (
-              <div
-                key={account.session.sessionId}
-                data-testid={`row-${account.session.sessionId}`}
-                data-quick-account-session-id={account.session.sessionId}
-                data-highlighted={
-                  hold.hoveredSessionId === account.session.sessionId ? 'true' : undefined
-                }
-              >
-                {account.displayName}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {hold.holdAnchor &&
+        createPortal(
+          <div ref={hold.menuRef} data-testid="quick-menu" role="menu">
+            <div data-testid="quick-list" data-quick-account-list="">
+              {others.map((account) => (
+                <div
+                  key={account.session.sessionId}
+                  data-testid={`row-${account.session.sessionId}`}
+                  data-quick-account-session-id={account.session.sessionId}
+                  data-highlighted={
+                    hold.hoveredSessionId === account.session.sessionId ? 'true' : undefined
+                  }
+                >
+                  {account.displayName}
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -150,12 +155,17 @@ const openCoveringDialog = (): HTMLElement => {
   return dialog;
 };
 
+/** Closes the modal sheet a test opened with `holdModalSheet`. */
+let closeModalSheet: (() => void) | undefined;
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
 
 afterEach(() => {
   cleanup();
+  closeModalSheet?.();
+  closeModalSheet = undefined;
   vi.restoreAllMocks();
   vi.useRealTimers();
   document.querySelectorAll('body > [role="dialog"]').forEach((dialog) => dialog.remove());
@@ -519,9 +529,13 @@ describe('useAccountHoldSwitch', () => {
     }
   );
 
-  it.each(['the hold time running out', 'focusin'] as const)(
-    'opens no menu when a dialog opens during the hold, seen at %s',
-    (seenAt) => {
+  it.each([
+    { opens: 'dialog', seenAt: 'the hold time running out' },
+    { opens: 'dialog', seenAt: 'focusin' },
+    { opens: 'modal sheet', seenAt: 'the hold time running out' },
+  ] as const)(
+    'opens no menu when a $opens opens during the hold, seen at $seenAt',
+    ({ opens, seenAt }) => {
       const onSwitch = vi.fn();
       const onClick = vi.fn();
       render(<Harness onSwitch={onSwitch} onClick={onClick} />);
@@ -533,10 +547,11 @@ describe('useAccountHoldSwitch', () => {
       act(() => {
         vi.advanceTimersByTime(ACCOUNT_HOLD_MS - 100);
       });
-      const dialog = openCoveringDialog();
+      const dialog = opens === 'dialog' ? openCoveringDialog() : undefined;
+      if (opens === 'modal sheet') closeModalSheet = holdModalSheet();
       expect(trigger.getAttribute('data-quick-switch-pressing')).toBe('true');
       if (seenAt === 'focusin') {
-        fireEvent.focusIn(dialog.querySelector('button') as HTMLElement);
+        fireEvent.focusIn(dialog?.querySelector('button') as HTMLElement);
         expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
       }
       act(() => {
@@ -638,22 +653,39 @@ describe('useAccountHoldSwitch', () => {
     expect(onSwitch).toHaveBeenCalledWith(BOB.session);
   });
 
-  it('keeps the menu for focus that moves while nothing covers it, and for a dialog that was open before it', () => {
-    const onSwitch = vi.fn();
-    const before = openCoveringDialog();
-    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
-    const trigger = screen.getByTestId('trigger');
-    holdOpen(trigger);
-    layoutTriggerAndMenu();
+  it.each(['before', 'after'] as const)(
+    'opens and switches beside a dialog that was open before the press, %s the avatar in the page',
+    (position) => {
+      const onSwitch = vi.fn();
+      // After the avatar is where a phone's members sheet is, below the top bar.
+      const early = position === 'before' ? openCoveringDialog() : undefined;
+      render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+      const trigger = screen.getByTestId('trigger');
+      const sheet = early ?? openCoveringDialog();
+      expect(
+        Boolean(trigger.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING)
+      ).toBe(position === 'after');
 
-    fireEvent.focusIn(trigger);
-    fireEvent.focusIn(before.querySelector('button') as HTMLElement);
-    fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 }));
-    expect(screen.getByTestId('quick-menu')).toBeTruthy();
+      // Focus moves during the wait, to the pressed avatar and within the open sheet.
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+      fireEvent.focusIn(trigger);
+      fireEvent.focusIn(sheet.querySelector('button') as HTMLElement);
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+      });
+      expect(screen.getByTestId('quick-menu')).toBeTruthy();
 
-    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
-    expect(onSwitch).toHaveBeenCalledWith(BOB.session);
-  });
+      // The menu opened after the sheet and over it: the sheet does not cover it either.
+      const { bobRow } = layoutTriggerAndMenu();
+      fireEvent.focusIn(sheet.querySelector('button') as HTMLElement);
+      fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 }));
+      expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+      expect(onSwitch).toHaveBeenCalledTimes(1);
+      expect(onSwitch).toHaveBeenCalledWith(BOB.session);
+    }
+  );
 
   it('suppresses the trailing avatar click after Escape cancel while pointer is still down', () => {
     const onSwitch = vi.fn();
@@ -783,19 +815,19 @@ describe('useAccountHoldSwitch', () => {
         expect(onClick).toHaveBeenCalledTimes(1);
       });
 
-      it('lets the context menu of a new press with another button through', () => {
-        render(<Harness onSwitch={vi.fn()} onClick={vi.fn()} />);
+      it('lets a context menu opened from the keyboard through (Shift+F10), with no press before it', () => {
+        const onClick = vi.fn();
+        render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
         const trigger = screen.getByTestId('trigger');
         holdAndLeave(trigger);
 
-        fireEvent(
-          trigger,
-          pointerEvent('pointerdown', { pointerId: 2, pointerType: 'mouse', button: 2, buttons: 2 })
-        );
         const contextMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
         trigger.dispatchEvent(contextMenu);
         expect(contextMenu.defaultPrevented).toBe(false);
-        expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+
+        // The suppression is still there for what it is for: the held pointer's click.
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).not.toHaveBeenCalled();
       });
     }
   );

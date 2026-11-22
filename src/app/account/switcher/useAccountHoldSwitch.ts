@@ -8,7 +8,8 @@ import {
   useState,
 } from 'react';
 import { holdSelection } from '../../lib/hooks/useLongPress';
-import { hasOpenOverlay } from '../../lib/openOverlay';
+import { OVERLAY_SELECTOR, hasOpenOverlay } from '../../lib/openOverlay';
+import { hasBlockingPortalOverlay } from '../../lib/portalOverlay';
 import type { StoredSession } from '../../matrix/session/sessions';
 import type { AccountMenuAccount } from './AccountMenu';
 
@@ -91,6 +92,22 @@ const hitTestQuickAccountRow = (
 const isCovered = (menu: HTMLElement | null): boolean => !!menu && hasOpenOverlay(menu);
 
 /**
+ * Remembers the dialogs and menus open as a press starts and returns a check for one that opened
+ * since, as Settings or the command palette do from their shortcuts while the hold is pending. One
+ * that was open already, such as a phone's members sheet below the top bar, does not cover the
+ * avatar that was just pressed, wherever it sits in the page.
+ */
+const watchForNewOverlay = (): (() => boolean) => {
+  const before = new Set(document.querySelectorAll(OVERLAY_SELECTOR));
+  const blockedBefore = hasBlockingPortalOverlay();
+  return () =>
+    (!blockedBefore && hasBlockingPortalOverlay()) ||
+    Array.from(document.querySelectorAll(OVERLAY_SELECTOR)).some(
+      (overlay) => !before.has(overlay) && !overlay.closest('[inert]')
+    );
+};
+
+/**
  * Returns a normalized scroll velocity in `[-1, 1]` when `(clientX, clientY)` rests inside the top
  * or bottom edge zone of an overflowing list container, or `0` when no auto-scroll should occur.
  */
@@ -134,6 +151,8 @@ type PointerAtEnd = 'lifted' | 'held' | 'gone';
 
 type ActiveGesture = {
   pointerId: number;
+  /** Whether a dialog or menu opened since the press, for the wait before the menu opens. */
+  overlayOpened: () => boolean;
   startX: number;
   startY: number;
   lastX: number;
@@ -365,8 +384,8 @@ export function useAccountHoldSwitch({
 
       if (event.isPrimary === false) return;
       // A new press, with any button, means the pointer of a previous hold has lifted: a
-      // suppression still armed for it is stale and must not swallow this press's click or
-      // context menu (even when `enabled` is currently false).
+      // suppression still armed for it is stale and must not swallow this press's click (even
+      // when `enabled` is currently false).
       clearSuppressNextClick();
       if (event.button !== 0 || !enabledRef.current) return;
 
@@ -508,7 +527,7 @@ export function useAccountHoldSwitch({
       const onWindowFocusIn = () => {
         const current = gestureRef.current;
         if (!current) return;
-        if (current.open ? isCovered(menuRef.current) : hasOpenOverlay(current.anchor)) close();
+        if (current.open ? isCovered(menuRef.current) : current.overlayOpened()) close();
       };
 
       const onWindowKeyDown = (winEvent: KeyboardEvent) => {
@@ -540,6 +559,7 @@ export function useAccountHoldSwitch({
 
       const gesture: ActiveGesture = {
         pointerId,
+        overlayOpened: watchForNewOverlay(),
         startX,
         startY,
         lastX: startX,
@@ -559,7 +579,7 @@ export function useAccountHoldSwitch({
         if (current !== gesture || !enabledRef.current) return;
         // Settings or the command palette opened from their shortcut during the wait: the hold
         // ends there, with no menu and nothing to suppress.
-        if (hasOpenOverlay(current.anchor)) {
+        if (current.overlayOpened()) {
           close();
           return;
         }
@@ -616,10 +636,10 @@ export function useAccountHoldSwitch({
     [clearSuppressNextClick]
   );
 
+  // Only the context menu of the press itself, which a long touch asks for while the finger is
+  // down. Suppression left armed for a click must not block one a key opens later (Shift+F10).
   const onContextMenu = useCallback((event: ReactMouseEvent<HTMLElement>) => {
-    if (gestureRef.current || suppressNextClickRef.current) {
-      event.preventDefault();
-    }
+    if (gestureRef.current) event.preventDefault();
   }, []);
 
   return {

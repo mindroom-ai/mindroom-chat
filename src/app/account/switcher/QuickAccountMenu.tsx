@@ -81,6 +81,7 @@ export function QuickAccountMenu({
       role="menu"
       aria-label={t('featureUi.accountMenu.otherAccounts')}
       className={css.MenuSurface}
+      data-quick-account-menu=""
       data-below={below ? 'true' : undefined}
       style={{ maxBlockSize }}
     >

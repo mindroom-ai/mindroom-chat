@@ -99,6 +99,8 @@ describe('QuickAccountMenu', () => {
 
     const menu = screen.getByRole('menu', { name: 'Other accounts' });
     expect(within(menu).getByText('Other accounts')).toBeTruthy();
+    // What `useSwipeAway` looks for, to leave the drag to an account alone.
+    expect(document.querySelector('[data-quick-account-menu]')).toBe(menu);
 
     const items = within(menu).getAllByRole('menuitem');
     expect(items.map((el) => el.getAttribute('data-quick-account-session-id'))).toEqual([

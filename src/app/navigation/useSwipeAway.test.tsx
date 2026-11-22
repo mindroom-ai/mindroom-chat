@@ -76,24 +76,52 @@ describe('useSwipeAway', () => {
     expect(onSwipe).toHaveBeenCalledTimes(1);
   });
 
-  it('does not dismiss the panel when an overlay menu is open over it during the gesture', () => {
+  it('leaves the drag of the account quick switcher alone', () => {
     const { onSwipe, row } = setup('start');
-    const menu = document.createElement('div');
-    menu.setAttribute('role', 'menu');
+    const quickMenu = document.createElement('div');
+    quickMenu.setAttribute('role', 'menu');
+    quickMenu.setAttribute('data-quick-account-menu', '');
 
-    // 1. Touch begins while a menu overlay is already open over the panel.
-    document.body.append(menu);
-    swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
-    expect(onSwipe).not.toHaveBeenCalled();
-    menu.remove();
+    try {
+      // A finger holds the avatar in the panel, the quick menu opens, and the finger drags
+      // toward the panel's edge to an account; the menu closes as it lifts.
+      touch(row, 'touchstart', { x: 200, y: 300 });
+      document.body.append(quickMenu);
+      touch(row, 'touchmove', { x: 100, y: 300 });
+      quickMenu.remove();
+      touch(row, 'touchend');
+      expect(onSwipe).not.toHaveBeenCalled();
 
-    // 2. Touch begins on the panel (e.g. avatar hold), a menu overlay opens before dragging back
-    // toward the panel edge, and closes before lift (hold-and-swipe quick switcher sequence).
-    touch(row, 'touchstart', { x: 200, y: 300 });
-    document.body.append(menu);
-    touch(row, 'touchmove', { x: 100, y: 300 });
-    menu.remove();
-    touch(row, 'touchend');
-    expect(onSwipe).not.toHaveBeenCalled();
+      // The same while the menu is still open at the lift, and for a touch that starts under it.
+      touch(row, 'touchstart', { x: 200, y: 300 });
+      document.body.append(quickMenu);
+      touch(row, 'touchmove', { x: 100, y: 300 });
+      touch(row, 'touchend');
+      swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+      expect(onSwipe).not.toHaveBeenCalled();
+
+      // Once it is gone the panel swipes away again.
+      quickMenu.remove();
+      swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+      expect(onSwipe).toHaveBeenCalledTimes(1);
+    } finally {
+      quickMenu.remove();
+    }
   });
+
+  it.each(['alertdialog', 'menu', 'dialog'])(
+    'still swipes away while another layer is open, such as an incoming-call card (%s)',
+    (role) => {
+      const { onSwipe, row } = setup('start');
+      const layer = document.createElement('div');
+      layer.setAttribute('role', role);
+      document.body.append(layer);
+      try {
+        swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+        expect(onSwipe).toHaveBeenCalledTimes(1);
+      } finally {
+        layer.remove();
+      }
+    }
+  );
 });
