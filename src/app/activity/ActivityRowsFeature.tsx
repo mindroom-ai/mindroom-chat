@@ -53,13 +53,15 @@ const useComputedActivityRows = (): ActivityRowsResult => {
       const room = mx.getRoom(entry.roomId);
       return room ? reader.read(room, entry, userId, now) : QUIET;
     };
-    return buildActivityRows({
+    const built = buildActivityRows({
       entries: index.entries.values(),
       signals,
       invites: readActivityInvites(mx, inviteIds),
       now,
       showAutomations,
     });
+    // The list starts its window again with the rows of the loaded index and of the other mode.
+    return { ...built, loading: !index.bootstrapped, showAutomations };
     // roomUnreads only triggers the rebuild; the signals read the counts themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, inviteIds, mx, now, roomUnreads, showAutomations, userId]);
