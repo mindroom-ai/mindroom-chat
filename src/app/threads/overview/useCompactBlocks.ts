@@ -284,8 +284,8 @@ export function useCompactBlocks(options: Options) {
     if (back && !placeReady && state.reachable === order) render();
   });
   // The scrollbar's End reads the extent once the end band is mounted and measured: cached
-  // heights that a width or font change left stale are not the list's end. While the extent is
-  // still discovered, End goes to the end there is, as it does while a list still mounts.
+  // heights that a width or font change left stale are not the list's end. Not for an extent
+  // still being discovered: there a render grows it, and End goes to the end there is.
   const prepareEnd = useMemo(
     () => () => {
       state.end = true;
