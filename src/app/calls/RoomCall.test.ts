@@ -1858,9 +1858,8 @@ describe('RoomCall rejoin after background disconnect', () => {
     setVisibility('hidden');
     connecting.resolve();
     await settle();
-    // LiveKit reconnecting the rejoined room on its own does not end the wait for the page.
-    secondMedia.emit('Reconnected');
-    expect(call.getState().phase).toBe('reconnecting');
+    // The rejoin is done once its media connected; only the inputs wait for the page.
+    expect(call.getState().phase).toBe('connected');
     expect(secondMedia.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
     expect(secondMedia.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
 
@@ -1869,6 +1868,49 @@ describe('RoomCall rejoin after background disconnect', () => {
     expect(call.getState().phase).toBe('connected');
     expect(secondMedia.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
     expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps a rejoined call whose page hid while it connected, past the deadline and through a second drop', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+      const hideWhileConnecting = async () => {
+        const connecting = pending();
+        fakes.connect = () => connecting.promise;
+        setVisibility('visible');
+        await vi.advanceTimersByTimeAsync(0);
+        setVisibility('hidden');
+        connecting.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+      };
+
+      setVisibility('hidden');
+      onlyMediaRoom().emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(0);
+      await hideWhileConnecting();
+      const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+
+      // The deadline ended with the connect: the connected call is not given up.
+      await vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS);
+      expect(call.getState()).toMatchObject({ phase: 'connected', problem: undefined });
+      expect(fakes.releases[0]).not.toHaveBeenCalled();
+
+      // A drop in the background again is the next rejoin, not the end of the call.
+      secondMedia.emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(call.getState()).toMatchObject({ phase: 'reconnecting', problem: undefined });
+      fakes.connect = undefined;
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(0);
+      const thirdMedia = defined(mediaRooms()[2], 'the LiveKit room of the second rejoin');
+      expect(call.getState().phase).toBe('connected');
+      expect(session.join).toHaveBeenCalledTimes(3);
+      expect(secondMedia.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+      expect(thirdMedia.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the camera closed when the page hides during the microphone restore, until it shows again', async () => {

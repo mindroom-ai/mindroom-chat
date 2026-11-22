@@ -524,8 +524,7 @@ export class RoomCall {
     [RoomEvent.AudioPlaybackStatusChanged]: this.refresh,
     [RoomEvent.Reconnecting]: () => this.update({ phase: 'reconnecting' }),
     [RoomEvent.Reconnected]: () => {
-      // A rejoin that waits for the page sets `connected` itself.
-      if (this.stopped || this.rejoin) return;
+      if (this.stopped) return;
       this.hiddenSinceConnected = isPageHidden();
       this.update({ phase: 'connected' });
       this.refresh();
@@ -860,7 +859,7 @@ export class RoomCall {
       await media.dispose().catch(() => undefined);
       return;
     }
-    if (rejoin && !(await this.shown(rejoin))) return;
+    // The rejoin is done: the deadline is over, and a drop from here on is the next one's.
     window.clearTimeout(rejoin?.timer);
     this.rejoin = undefined;
     this.hasConnected = true;
@@ -876,9 +875,10 @@ export class RoomCall {
     }
 
     const cameraOp = this.toggleOps.camera;
+    // A rejoin opens no input in the background, and nothing opens on media that was let go.
+    if (rejoin && !(await this.shown(media))) return;
     await this.setMicrophone(this.requestedInputs.microphone);
-    // The page can hide, and this media drop, while the microphone opens.
-    if (rejoin ? !(await this.shown(media)) : this.stopped) return;
+    if (rejoin ? !(await this.shown(media)) : this.media !== media) return;
     if (this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
       await this.setCamera(true);
     }
