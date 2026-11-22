@@ -10,8 +10,11 @@ const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
 const groups = { cards: ids };
 let width = 390;
 let fontSize = 16;
+const grown = new Set<string>();
 const height = (id: string) =>
-  ((Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1) * fontSize) / 16;
+  grown.has(id)
+    ? 300
+    : ((Number(id.slice(4)) % 2 === 0 ? 81.25 : 109.5) * (width < 390 ? 1.5 : 1) * fontSize) / 16;
 const gap = 4.25;
 const clientHeight = 480;
 
@@ -22,6 +25,7 @@ function List({
   protectedId,
   indexPending,
   onIds,
+  onEnd,
 }: {
   memory: ScrollAnchorMemory;
   shown?: Record<string, string[]>;
@@ -29,6 +33,7 @@ function List({
   protectedId?: string;
   indexPending?: boolean;
   onIds?: (ids: string[]) => void;
+  onEnd?: (prepareEnd: () => void) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -43,6 +48,7 @@ function List({
     indexPending,
   });
   onIds?.(window.liveIds);
+  onEnd?.(window.prepareEnd);
   return (
     <div
       ref={scrollRef}
@@ -80,6 +86,7 @@ beforeEach(() => {
   observers = 0;
   width = 390;
   fontSize = 16;
+  grown.clear();
   vi.useFakeTimers();
   vi.stubGlobal(
     'ResizeObserver',
@@ -305,6 +312,114 @@ it('keeps measured extent while the conversation is hidden', () => {
   resize();
   tick(12);
   expect(extent()).toBe(measured);
+});
+
+it('parks discovery while the list has no size, and resumes it when the list shows', () => {
+  const onIds = vi.fn();
+  const { container } = render(<List memory={new Map()} onIds={onIds} />);
+  tick(2);
+  // Hidden before the extent is discovered, as under a panel that fills the room.
+  width = 0;
+  resize();
+  tick(2);
+  const renders = onIds.mock.calls.length;
+  tick(30);
+  expect(onIds.mock.calls.length).toBe(renders);
+  expect(container.querySelector<HTMLElement>('[data-view]')?.dataset.complete).toBe('false');
+  width = 390;
+  resize();
+  tick(12);
+  expect(container.querySelector<HTMLElement>('[data-view]')?.dataset.complete).toBe('true');
+});
+
+it('mounts the cards a filter brings back into the band in the same commit', () => {
+  const memory = new Map();
+  const { container, rerender } = render(
+    <List memory={memory} shown={{ cards: ids.filter((_, i) => i % 2 === 0) }} />
+  );
+  tick(12);
+  rerender(<List memory={memory} />);
+  const mounted = new Set(
+    [...container.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].map(
+      (row) => row.dataset.scrollAnchor
+    )
+  );
+  expect(ids.slice(0, 24).filter((id) => !mounted.has(id))).toEqual([]);
+});
+
+it('places a warm Back on the saved cards that survive while the index still loads', () => {
+  const memory: ScrollAnchorMemory = new Map();
+  const { container: before, unmount } = render(<List memory={memory} />);
+  tick(12);
+  const left = before.querySelector<HTMLElement>('[data-view]')!;
+  act(() => {
+    left.scrollTop = 30 * 199.25;
+    left.dispatchEvent(new Event('scroll'));
+  });
+  unmount();
+  memory.set('!room', {
+    scrollTop: 30 * 199.25,
+    anchors: ['$row60', '$row61', '$row62'].map((key, i) => ({ key, offset: i * 100 })),
+  });
+  // One saved card was deleted meanwhile: the other two still vote for the place.
+  const { container } = render(
+    <List memory={memory} shown={{ cards: ids.filter((id) => id !== '$row61') }} indexPending />
+  );
+  expect(container.querySelector<HTMLElement>('[data-view]')?.dataset.ready).toBe('true');
+  expect(container.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
+});
+
+it('does not render again when a mounted card resizes, and spaces it by its new height', () => {
+  const onIds = vi.fn();
+  const { container } = render(<List memory={new Map()} onIds={onIds} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  const renders = onIds.mock.calls.length;
+  grown.add('$row3');
+  resize();
+  tick(3);
+  expect(onIds.mock.calls.length).toBe(renders);
+  act(() => {
+    view.scrollTop = 30 * 199.25 + 300 - height('$row1');
+    view.dispatchEvent(new Event('scroll'));
+  });
+  const first = ids.slice(0, 48).reduce((sum, id) => sum + height(id) + gap, -gap);
+  expect(view.querySelector<HTMLElement>('[data-compact-spacer="cards:0"]')?.style.height).toBe(
+    `${first}px`
+  );
+});
+
+it('mounts the end with its real heights before the scrollbar End reads the extent', () => {
+  let prepareEnd = () => {};
+  const { container } = render(
+    <List
+      memory={new Map()}
+      onEnd={(prepare) => {
+        prepareEnd = prepare;
+      }}
+    />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  const move = (top: number) =>
+    act(() => {
+      view.scrollTop = top;
+      view.dispatchEvent(new Event('scroll'));
+    });
+  move(20 * 199.25);
+  // Narrower: every card is taller, and the tail below the reader still has its old heights.
+  width = 320;
+  resize();
+  tick(2);
+  expect(view.querySelector('[data-scroll-anchor="$row95"]')).toBeNull();
+  act(() => prepareEnd());
+  const rows = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
+  expect(rows.at(-1)?.dataset.scrollAnchor).toBe('$row95');
+  expect(view.querySelector('[data-scroll-anchor="$row72"]')).not.toBeNull();
+  expect(rows.at(-1)?.nextElementSibling).toBeNull();
+  // The reader's own scroll lets the end go again.
+  move(20 * 199.25 + 1);
+  expect(view.querySelector('[data-scroll-anchor="$row95"]')).toBeNull();
 });
 
 it('keeps the stationary visible cards when the first jumps to the top', () => {

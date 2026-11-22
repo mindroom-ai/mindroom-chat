@@ -22,14 +22,9 @@ const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   const cache = rooms.get(memory) ?? new Map<string, Geometry>();
   rooms.set(memory, cache);
-  const geometry = cache.get(roomId) ?? {
-    heights: new Map(),
-    fresh: new Set(),
-    visible: [],
-    gap: 0,
-  };
-  cache.set(roomId, geometry);
-  return geometry;
+  if (!cache.has(roomId))
+    cache.set(roomId, { heights: new Map(), fresh: new Set(), visible: [], gap: 0 });
+  return cache.get(roomId)!;
 };
 
 type Options = {
@@ -53,11 +48,12 @@ export function useCompactBlocks(options: Options) {
       geometry,
       saved: memory.get(roomId),
       previousVisible: geometry.visible,
-      readyOrder: undefined as string | undefined,
+      reachable: undefined as string | undefined,
       placed: false,
+      end: false,
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as (() => boolean) | undefined,
-      watch: undefined as ((wake: boolean) => void) | undefined,
+      wake: undefined as (() => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
   }, [memory, roomId]);
@@ -77,27 +73,40 @@ export function useCompactBlocks(options: Options) {
   // A dirty height still occupies space. Only undiscovered space delays placement.
   const extentComplete = missing < 0 || small;
   const slotsOf = (ids: string[]) => ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
-  const band = (slots: number[]): readonly [number, number] =>
-    slots.length ? [slots[0]!, slots.at(-1)!] : [0, 0];
   const median = (slots: number[]) => slots[Math.floor(slots.length / 2)];
-  const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
-  const backSlot = median(slotsOf(savedKeys));
-  const prefixReady = (slot: number | undefined) =>
+  // The blocks `ids` span; after an order change, the median one: a card that jumped is left out.
+  const band = (ids: string[]): readonly [number, number] => {
+    const slots = slotsOf(ids);
+    const [from, to, middle] = [slots[0] ?? 0, slots.at(-1) ?? 0, median(slots) ?? 0];
+    return geometry.order === order || to - from <= BUFFER_BLOCKS ? [from, to] : [middle, middle];
+  };
+  // Offsets through a block are real once it and its buffer are measured.
+  const known = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
+  // One destination places the list: `target` (its caller places it once it is ready), else a
+  // Back to the saved cards that are still shown. Warm ones were in view when the list was left
+  // and place at once on their cached heights; cold ones wait for their prefix, and an address's
+  // one card, while the index loads, for a native range that reaches it. With none shown, Back
+  // waits for cards the index may still bring, then for the whole extent.
   const back = !state.placed && !!saved?.scrollTop;
-  const warm = savedKeys.some((id) => index.has(id) && state.previousVisible.includes(id));
-  const canPlace =
-    !(indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id))) &&
-    (warm || (backSlot === undefined ? extentComplete : prefixReady(backSlot)));
-  const waitingForRange = indexPending && !warm && savedKeys.length === 1;
-  const placeReady = !back || (canPlace && (!waitingForRange || state.readyOrder === order));
+  const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
+  const survivors = savedKeys.filter((id) => index.has(id));
+  const backSlot = median(slotsOf(survivors));
+  const warm = survivors.some((id) => state.previousVisible.includes(id));
+  const arriving = indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
+  const ranged = !indexPending || savedKeys.length > 1 || state.reachable === order;
+  const placeReady =
+    !back ||
+    warm ||
+    (backSlot === undefined ? !arriving && extentComplete : known(backSlot) && ranged);
   const targetSlot = target === undefined ? undefined : index.get(target);
-  const targetReady = prefixReady(targetSlot);
-  const bandSlots = slotsOf(back && backSlot !== undefined ? savedKeys : geometry.visible);
-  const seed = band(bandSlots);
-  const middle = median(bandSlots) ?? 0;
-  const [first, last] =
-    geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS ? seed : [middle, middle];
+  const targetReady = known(targetSlot);
+  // The reader's band stays mounted beside the destination's: the place Back goes to, the
+  // target's block, or the list's end.
+  const [first, last] = band(geometry.visible);
+  const goal = back && survivors.length ? band(survivors) : [];
+  const near = (slot: number, from = -Infinity, to = from) =>
+    slot >= from - BUFFER_BLOCKS && slot <= to + BUFFER_BLOCKS;
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
@@ -105,25 +114,24 @@ export function useCompactBlocks(options: Options) {
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
-  // Keep the visible rows while a partial restore discovers its new prefix.
-  const keep = back ? geometry.visible : [];
-  const retained = new Set([focused, protectedId, state.gesture?.id, ...keep]);
+  const retained = new Set([focused, protectedId, state.gesture?.id]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
     const group: CompactBlockRow[] = [];
     let gapIndex = 0;
     for (let slot = start; slot < end; slot += 1) {
-      const inBand = slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS;
-      const seeking = targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS;
+      // A band's cards mount with or without a height: only cards outside wait for the probe.
+      const inBand =
+        small ||
+        slot === probe ||
+        near(slot, first, last) ||
+        near(slot, goal[0], goal[1]) ||
+        near(slot, targetReady ? targetSlot : undefined) ||
+        near(slot, state.end ? blocks.length - 1 : undefined);
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
-        if (
-          small ||
-          slot === probe ||
-          (heights.size === 0 && slot === 1) ||
-          (height !== undefined && (inBand || seeking || retained.has(id)))
-        ) {
+        if (inBand || retained.has(id)) {
           projectedIds.push(id);
           group.push(id);
         } else if (height) {
@@ -161,20 +169,16 @@ export function useCompactBlocks(options: Options) {
     const scroll = () => {
       const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
       if (takeover) state.placed = true;
-      if (state.measure?.() || takeover) flushSync(render);
+      const wake = takeover || state.end;
+      state.end = false;
+      if (state.measure?.() || wake) flushSync(render);
     };
     const observer =
       typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
+    // A card that resizes resizes the content.
     for (const node of [view, content]) observer?.observe(node);
-    let observed = new Set<Element>();
-    state.watch = (wake) => {
-      const next = new Set(content.querySelectorAll(SHELL));
-      for (const node of observed) if (!next.has(node)) observer?.unobserve?.(node);
-      for (const node of next) if (!observed.has(node)) observer?.observe(node);
-      observed = next;
-      if (wake) schedule();
-    };
-    state.watch(true);
+    state.wake = schedule;
+    schedule();
     const fontsChanged = () => {
       geometry.metrics = undefined;
       schedule();
@@ -196,7 +200,7 @@ export function useCompactBlocks(options: Options) {
     GESTURE_EVENTS.forEach((event) => window.addEventListener(event, track, true));
     view.addEventListener('scroll', scroll, { passive: true });
     return () => {
-      state.watch = undefined;
+      state.wake = undefined;
       observer?.disconnect();
       GESTURE_EVENTS.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
@@ -214,11 +218,12 @@ export function useCompactBlocks(options: Options) {
           heights.delete(id);
           fresh.delete(id);
         }
+    // Undefined while the list has no size (hidden): nothing can be measured there.
     const layout = () => {
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
-      if (width <= 0 || view.clientHeight <= 0) return false;
+      if (width <= 0 || view.clientHeight <= 0) return undefined;
       const metrics = `${width}|${style.fontFamily}|${style.fontSize}|${measuredGap}`;
       let changed = metrics !== geometry.metrics;
       if (changed) fresh.clear();
@@ -232,12 +237,13 @@ export function useCompactBlocks(options: Options) {
         const { top: y, height, bottom: end } = row.getBoundingClientRect();
         const id = row.dataset.scrollAnchor;
         if (id !== undefined) {
-          if (heights.get(id) !== height) changed = true;
+          // A mounted card's height is in no spacer: only a discovered one changes the rows.
+          if (!heights.has(id)) changed = true;
           heights.set(id, height);
-          if (back && canPlace && !placeReady && id === savedKeys[0]) {
+          if (back && !ranged && known(backSlot) && id === savedKeys[0]) {
             const destination = view.scrollTop + y - top - saved.anchors[0]!.offset;
             if (destination <= view.scrollHeight - view.clientHeight + 1) {
-              state.readyOrder = order;
+              state.reachable = order;
               changed = true;
             }
           }
@@ -258,17 +264,30 @@ export function useCompactBlocks(options: Options) {
       }
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
-      const [start, end] = band(slotsOf(geometry.visible));
+      const [start, end] = band(geometry.visible);
       return changed || start !== first || end !== last;
     };
     const measured = layout();
     const pending = measured || (!small && probe >= 0);
     state.onWrite = () => {
-      if (layout()) state.watch?.(true);
+      if (layout()) state.wake?.();
     };
-    state.measure = () => layout() || pending;
-    state.watch?.(pending || (back && placeReady));
-    if (back && !placeReady && state.readyOrder === order) render();
+    // Discovery parks while the list cannot measure; the ResizeObserver wakes it with a size.
+    state.measure = () => {
+      const now = layout();
+      return now !== undefined && (now || pending);
+    };
+    if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
+    if (back && !placeReady && state.reachable === order) render();
   });
-  return { rows, liveIds, extentComplete, placeReady, targetReady, progress: state };
+  // The scrollbar's End reads the extent once the end band is mounted and measured: cached
+  // heights that a width or font change left stale are not the list's end.
+  const prepareEnd = useMemo(
+    () => () => {
+      state.end = true;
+      flushSync(render);
+    },
+    [state]
+  );
+  return { rows, liveIds, extentComplete, placeReady, targetReady, prepareEnd, progress: state };
 }
