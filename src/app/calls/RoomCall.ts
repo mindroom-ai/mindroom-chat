@@ -543,11 +543,12 @@ export class RoomCall {
   }
 
   /**
-   * Resolves once the page shows, with whether `rejoin` is still under way: it joins nothing and
-   * opens no input in the background, nor after the call stopped.
+   * Resolves once the page shows, with whether `owner` (a rejoin under way, then the media room
+   * it connected) is still this call's: a rejoin joins nothing and opens no input in the
+   * background, nor after the call stopped or that media dropped.
    */
-  private async shown(rejoin: Rejoin): Promise<boolean> {
-    const current = () => this.rejoin === rejoin;
+  private async shown(owner: Rejoin | MediaRoom): Promise<boolean> {
+    const current = () => this.rejoin === owner || this.media === owner;
     if (current() && isPageHidden()) {
       await new Promise<void>((resolve) => {
         this.shownWaiters.add(resolve);
@@ -873,7 +874,9 @@ export class RoomCall {
 
     const cameraOp = this.toggleOps.camera;
     await this.setMicrophone(this.requestedInputs.microphone);
-    if (!this.stopped && this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
+    // The page can hide, and this media drop, while the microphone opens.
+    if (rejoin ? !(await this.shown(media)) : this.stopped) return;
+    if (this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
       await this.setCamera(true);
     }
   }

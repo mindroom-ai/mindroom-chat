@@ -1853,6 +1853,81 @@ describe('RoomCall rejoin after background disconnect', () => {
     expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
   });
 
+  it('keeps the camera closed when the page hides during the microphone restore, until it shows again', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call } = setup({ microphone: true, video: true });
+      await call.join();
+
+      setVisibility('hidden');
+      onlyMediaRoom().emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(0);
+
+      const microphone = pending();
+      fakes.connect = async (room) => {
+        const { localParticipant } = room as FakeMediaRoom;
+        localParticipant.setMicrophoneEnabled.mockImplementationOnce(() => microphone.promise);
+      };
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(0);
+      const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+      expect(call.getState().phase).toBe('connected');
+      expect(secondMedia.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+
+      setVisibility('hidden');
+      microphone.resolve();
+      // The rejoin's deadline ended when its media connected: the call stays, without a camera.
+      await vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS);
+      expect(secondMedia.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+      expect(call.getState()).toMatchObject({ phase: 'connected', camera: true });
+      expect(fakes.releases[0]).not.toHaveBeenCalled();
+
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledTimes(1);
+      expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens no camera on a room that dropped, or after the camera was turned off, while it waited for the page', async () => {
+    const { call } = setup({ microphone: true, video: true });
+    await call.join();
+    const hideDuringMicrophoneRestore = async () => {
+      const microphone = pending();
+      fakes.connect = async (room) => {
+        const { localParticipant } = room as FakeMediaRoom;
+        localParticipant.setMicrophoneEnabled.mockImplementationOnce(() => microphone.promise);
+      };
+      setVisibility('visible');
+      await settle();
+      setVisibility('hidden');
+      microphone.resolve();
+      await settle();
+    };
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+    await hideDuringMicrophoneRestore();
+    const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+
+    // The rejoined room drops in the background too: the camera opens on the next room only.
+    secondMedia.emit('Disconnected');
+    await settle();
+    await hideDuringMicrophoneRestore();
+    const thirdMedia = defined(mediaRooms()[2], 'the LiveKit room of the second rejoin');
+    expect(secondMedia.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+
+    await call.setCamera(false);
+    setVisibility('visible');
+    await settle();
+    expect(secondMedia.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+    expect(thirdMedia.localParticipant.setCameraEnabled.mock.calls).toEqual([[false]]);
+    expect(call.getState()).toMatchObject({ phase: 'connected', camera: false });
+  });
+
   it('fails without a second join when the old membership manager reports an error, then a finished leave', async () => {
     const { call, session } = setup();
     await call.join();
