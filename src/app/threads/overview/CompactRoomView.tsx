@@ -418,7 +418,7 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows]);
-  useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
+  useCompactScrollFallback(shownRows, viewRef, sectionOfRow, contentRef);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(

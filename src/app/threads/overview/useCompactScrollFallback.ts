@@ -86,79 +86,149 @@ const browserAnchorsScroll = (): boolean =>
   typeof CSS.supports === 'function' &&
   CSS.supports('overflow-anchor', 'auto');
 
+/** How long after the last wheel, touch or scroll event a reader scroll counts as settled. */
+export const SCROLL_SETTLE_MS = 120;
+
 /**
  * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
  * grow above the ones in view would push them down, so the list scrolls by as much and the cards
  * in view stay where they are, as Chromium's scroll anchoring keeps them by itself. The list
  * scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost card in view
- * from the rows that kept their relative order, even if other cards moved down. It acts only on
- * a render that finds the scroll offset where it recorded the cards. If the reader or another
- * script scrolled since then, it records the cards again without moving them.
+ * from the rows that kept their relative order, even if other cards moved down. It also observes
+ * `contentRef` for card height changes outside a parent commit, and defers `scrollTop` writes until
+ * an active wheel or touch scroll settles so WebKit's scrolling thread is never fought mid-gesture.
  */
 export const useCompactScrollFallback = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
-  sectionOfRow?: SectionOfRow
+  sectionOfRow?: SectionOfRow,
+  contentRef?: RefObject<HTMLElement>
 ): void => {
-  // The scroll listener needs the latest committed rows. This ref does not decide their order.
+  // The scroll and resize listeners need the latest committed rows and section lookup.
   const latestRowsRef = useRef(rows);
+  const latestSectionRef = useRef(sectionOfRow);
   const cardsInViewRef = useRef<CardsInView>();
   // True between reader scroll input and the scroll event or commit that records it, so a real
   // scroll to 0 is kept while WebKit's reset-to-0 during a DOM reorder is compensated.
   const readerScrolledRef = useRef(false);
+  const scrollingRef = useRef(false);
+  const touchingRef = useRef(false);
+  const pendingDeltaRef = useRef(0);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const compensate = useCallback(
+    (view: HTMLElement, nextRows: readonly string[], rowSection?: SectionOfRow) => {
+      const before = cardsInViewRef.current;
+      const webkitReset =
+        !!before &&
+        view.scrollTop === 0 &&
+        before.order !== nextRows &&
+        !readerScrolledRef.current;
+      const inScroll = scrollingRef.current && view.scrollTop > 0;
+      if (
+        before &&
+        before.scrollTop > 0 &&
+        (view.scrollTop === before.scrollTop || webkitReset || inScroll)
+      ) {
+        const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
+        const stationary =
+          before.order === nextRows ? undefined : stationaryRows(before.order, nextRows, rowSection);
+        const anchor = before.cards
+          .filter(({ rootId }) => stationary?.has(rootId) ?? true)
+          .map(({ rootId, top }) => ({
+            top,
+            card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
+          }))
+          .find(({ card }) => card);
+        const rawMoved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
+        const moved = inScroll ? rawMoved + (view.scrollTop - before.scrollTop) : rawMoved;
+        if (Math.abs(moved) >= 0.5) {
+          if (scrollingRef.current) pendingDeltaRef.current += moved;
+          else view.scrollTop += moved;
+        }
+      }
+      readerScrolledRef.current = false;
+      cardsInViewRef.current = cardsInView(view, nextRows);
+    },
+    []
+  );
+
   // Every commit: a card's thread that loads above the view changes its height without an order
   // change.
   useLayoutEffect(() => {
     latestRowsRef.current = rows;
+    latestSectionRef.current = sectionOfRow;
     const view = viewRef.current;
     // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
     if (!view || browserAnchorsScroll()) return;
-    const before = cardsInViewRef.current;
-    const webkitReset =
-      !!before && view.scrollTop === 0 && before.order !== rows && !readerScrolledRef.current;
-    if (before && before.scrollTop > 0 && (view.scrollTop === before.scrollTop || webkitReset)) {
-      const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
-      const stationary =
-        before.order === rows ? undefined : stationaryRows(before.order, rows, sectionOfRow);
-      const anchor = before.cards
-        .filter(({ rootId }) => stationary?.has(rootId) ?? true)
-        .map(({ rootId, top }) => ({
-          top,
-          card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
-        }))
-        .find(({ card }) => card);
-      const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
-      if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
-    }
-    readerScrolledRef.current = false;
-    cardsInViewRef.current = cardsInView(view, rows);
+    compensate(view, rows, sectionOfRow);
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || browserAnchorsScroll()) return undefined;
+    const scheduleSettle = () => {
+      clearTimeout(settleTimerRef.current);
+      if (touchingRef.current) return;
+      settleTimerRef.current = setTimeout(() => {
+        scrollingRef.current = false;
+        const delta = pendingDeltaRef.current;
+        pendingDeltaRef.current = 0;
+        if (view.scrollTop > 0 && Math.abs(delta) >= 0.5) view.scrollTop += delta;
+        cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
+      }, SCROLL_SETTLE_MS);
+    };
     const markReaderScroll = () => {
       readerScrolledRef.current = true;
+    };
+    const onWheel = () => {
+      readerScrolledRef.current = true;
+      scrollingRef.current = true;
+      scheduleSettle();
+    };
+    const onTouchStart = () => {
+      readerScrolledRef.current = true;
+      touchingRef.current = true;
+      scrollingRef.current = true;
+      clearTimeout(settleTimerRef.current);
+    };
+    const onTouchEnd = () => {
+      touchingRef.current = false;
+      if (scrollingRef.current) scheduleSettle();
     };
     const record = () => {
       readerScrolledRef.current = false;
       cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
+      if (scrollingRef.current) scheduleSettle();
     };
-    view.addEventListener('scroll', record, { passive: true });
-    view.addEventListener('wheel', markReaderScroll, { passive: true });
-    view.addEventListener('touchstart', markReaderScroll, { passive: true });
-    view.addEventListener('touchmove', markReaderScroll, { passive: true });
-    view.addEventListener('keydown', markReaderScroll, true);
-    view.addEventListener('pointerdown', markReaderScroll, true);
+    const content = contentRef?.current;
+    const resizeObserver =
+      content && typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() =>
+            compensate(view, latestRowsRef.current, latestSectionRef.current)
+          )
+        : undefined;
+    if (content) resizeObserver?.observe(content);
+    const listeners: [string, EventListener, AddEventListenerOptions | boolean][] = [
+      ['scroll', record, { passive: true }],
+      ['wheel', onWheel, { passive: true }],
+      ['touchstart', onTouchStart, { passive: true }],
+      ['touchmove', markReaderScroll, { passive: true }],
+      ['touchend', onTouchEnd, { passive: true }],
+      ['touchcancel', onTouchEnd, { passive: true }],
+      ['keydown', markReaderScroll, true],
+      ['pointerdown', markReaderScroll, true],
+    ];
+    listeners.forEach(([type, handler, opts]) => view.addEventListener(type, handler, opts));
     return () => {
-      view.removeEventListener('scroll', record);
-      view.removeEventListener('wheel', markReaderScroll);
-      view.removeEventListener('touchstart', markReaderScroll);
-      view.removeEventListener('touchmove', markReaderScroll);
-      view.removeEventListener('keydown', markReaderScroll, true);
-      view.removeEventListener('pointerdown', markReaderScroll, true);
+      clearTimeout(settleTimerRef.current);
+      scrollingRef.current = false;
+      touchingRef.current = false;
+      pendingDeltaRef.current = 0;
+      resizeObserver?.disconnect();
+      listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
-  }, [viewRef]);
+  }, [compensate, contentRef, viewRef]);
 };
 
 /**

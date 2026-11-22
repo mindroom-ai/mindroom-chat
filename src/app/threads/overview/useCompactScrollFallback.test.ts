@@ -202,6 +202,56 @@ describe('useCompactScrollFallback', () => {
     expect(view.scrollTop).toBe(0);
   });
 
+    it('compensates card height growth outside a parent commit via ResizeObserver', () => {
+    withoutScrollAnchoring();
+    let onResize: (() => void) | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          onResize = callback;
+        }
+        observe() {}
+        disconnect() {
+          onResize = undefined;
+        }
+      }
+    );
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes } = list(ids, 150);
+    const content = document.createElement('div');
+    renderHook(() => useCompactScrollFallback(ids, { current: view }, undefined, { current: content }));
+    // Card above grows by 100 px without re-rendering the parent.
+    show(['$d', ...ids]);
+    expect(writes).toEqual([]);
+    act(() => onResize?.());
+    expect(writes).toEqual([250]);
+    expect(view.scrollTop).toBe(250);
+  });
+
+  it('defers scrollTop writes while a wheel scroll is in progress and applies once settled', () => {
+    vi.useFakeTimers();
+    try {
+      withoutScrollAnchoring();
+      const ids = ['$c', '$b', '$a'];
+      const { view, show, writes } = list(ids, 150);
+      const { rerender } = renderHook(
+        ({ live }) => useCompactScrollFallback(live, { current: view }),
+        { initialProps: { live: ids } }
+      );
+      view.dispatchEvent(new Event('wheel'));
+      show(['$d', ...ids]);
+      rerender({ live: ['$d', ...ids] });
+      expect(writes).toEqual([]);
+      expect(view.scrollTop).toBe(150);
+      act(() => vi.advanceTimersByTime(SCROLL_SETTLE_MS));
+      expect(writes).toEqual([250]);
+      expect(view.scrollTop).toBe(250);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
     it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
