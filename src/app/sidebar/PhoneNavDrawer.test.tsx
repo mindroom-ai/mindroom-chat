@@ -2,10 +2,12 @@
 import { Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider, createStore } from 'jotai';
+import { act as domAct } from '@testing-library/react';
 import { act, create } from 'react-test-renderer';
 import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  PHONE_NAV_MENU_BUTTON_ID,
   PHONE_SLIDE_OUT_MS,
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
@@ -13,8 +15,11 @@ import {
 } from '../navigation/phoneNavDrawer';
 import { PHONE_STAGE, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { NoticeSlot } from '../ui/noticeSlots';
+import { MobileFriendlyPageNav } from './MobileFriendly';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
+import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
 // Partly: the app's i18n setup, which the plugin registry loads, takes the rest of the module.
@@ -362,5 +367,313 @@ describe('PhoneNavDrawer', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     act(() => renderer?.unmount());
+  });
+});
+
+const dispatchTouch = (
+  target: EventTarget,
+  type: string,
+  touches: Array<{ clientX: number; clientY: number; identifier?: number }>,
+  timeStamp: number
+) => {
+  const list = touches.map((touch) => ({ identifier: 1, ...touch }));
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'touches', { value: list });
+  Object.defineProperty(event, 'changedTouches', {
+    value: list.length > 0 ? list : [{ identifier: 1, clientX: 0, clientY: 0 }],
+  });
+  Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+  target.dispatchEvent(event);
+};
+
+const flushMicrotasks = async () => {
+  await domAct(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+describe('PhoneNavDrawer interactive swipes', () => {
+  const mountDomDrawer = ({ withList = true }: { withList?: boolean } = {}) => {
+    const store = createStore();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    domAct(() => {
+      root.render(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+            <ScreenSizeProvider value={ScreenSize.Mobile}>
+              <button id={PHONE_NAV_MENU_BUTTON_ID} type="button">
+                Menu
+              </button>
+              <PhoneNavDrawer nav={<nav data-testid="drawer-rail">Rail</nav>} />
+              {withList && (
+                <MobileFriendlyPageNav>
+                  <div data-testid="drawer-list">Section List</div>
+                </MobileFriendlyPageNav>
+              )}
+            </ScreenSizeProvider>
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    const panel = container.querySelector<HTMLElement>(`#${PHONE_NAV_DRAWER_ID}`)!;
+    const scrim = container.querySelector<HTMLElement>('.scrim')!;
+    const menuButton = container.querySelector<HTMLButtonElement>(`#${PHONE_NAV_MENU_BUTTON_ID}`)!;
+    return {
+      store,
+      container,
+      panel,
+      scrim,
+      menuButton,
+      unmount: () => {
+        domAct(() => root.unmount());
+        container.remove();
+      },
+    };
+  };
+
+  it('peeks rail and list during drag without flipping atom or moving focus, and cleans up on cancel', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    try {
+      drawer.menuButton.focus();
+      expect(document.activeElement).toBe(drawer.menuButton);
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.container.querySelector('[data-testid="drawer-list"]')).toBeNull();
+
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        // 10 px lock slop -> lockX = 18; clientX = 108 => offset = 90 (30% of 300, below 35% commit).
+        dispatchTouch(window, 'touchmove', [{ clientX: 108, clientY: 200 }], 250);
+      });
+
+      // Mid-drag: peeking mounted rail + list, inline styles track finger, global atom & focus untouched.
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).not.toBeNull();
+      expect(drawer.container.querySelector('[data-testid="drawer-list"]')).not.toBeNull();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(false);
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(true);
+      expect(drawer.panel.style.translate).toBe('90px 0');
+      expect(drawer.scrim.style.opacity).toBe('0.3');
+      expect(document.activeElement).toBe(drawer.menuButton);
+
+      // Slow release at 30% cancels cleanly.
+      domAct(() => {
+        dispatchTouch(window, 'touchmove', [{ clientX: 108, clientY: 200 }], 500);
+        dispatchTouch(window, 'touchend', [], 520);
+      });
+      await flushMicrotasks();
+
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.container.querySelector('[data-testid="drawer-list"]')).toBeNull();
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
+      expect(document.activeElement).toBe(drawer.menuButton);
+    } finally {
+      drawer.unmount();
+      raf.mockRestore();
+    }
+  });
+
+  it('commits interactive open seamlessly and measures narrower rail-only width after peeking', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const drawer = mountDomDrawer({ withList: false });
+    // Returns 0 while empty, 64 px once the rail mounts during peek (mirroring rail-only pages).
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockImplementation(() => {
+      const hasRail = drawer.panel.querySelector('[data-testid="drawer-rail"]') !== null;
+      const width = hasRail ? 64 : 0;
+      return {
+        width,
+        height: 600,
+        top: 0,
+        left: 0,
+        right: width,
+        bottom: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      };
+    });
+
+    try {
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        // lockX = 18 -> offset = 26 px, which is 40.6% of 64 px (>= 35% commit threshold).
+        dispatchTouch(window, 'touchmove', [{ clientX: 44, clientY: 200 }], 220);
+      });
+
+      expect(drawer.panel.style.translate).toBe('26px 0');
+      expect(drawer.scrim.style.opacity).toBe(String(26 / 64));
+
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 240);
+      });
+      await flushMicrotasks();
+
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+      expect(drawer.scrim.hasAttribute('data-open')).toBe(true);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).not.toBeNull();
+    } finally {
+      drawer.unmount();
+      raf.mockRestore();
+    }
+  });
+
+  it('tracks interactive close, cancels without closing, and commits immediately without 320 ms delay', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    try {
+      domAct(() => {
+        drawer.store.set(phoneNavDrawerOpenAtom, true);
+      });
+      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+
+      // Short drag left (offset = 60 px = 20% of 300) cancels.
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchstart', [{ clientX: 200, clientY: 200 }], 100);
+        dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 130, clientY: 200 }], 300);
+        vi.advanceTimersToNextFrame();
+      });
+
+      expect(drawer.panel.style.translate).toBe('-60px 0');
+      expect(drawer.scrim.style.opacity).toBe('0.8');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 130, clientY: 200 }], 500);
+        dispatchTouch(drawer.panel, 'touchend', [], 520);
+      });
+      await flushMicrotasks();
+
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+
+      // Drag past 35% (offset = 140 px) commits and unmounts content immediately (no 320 ms wait).
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchstart', [{ clientX: 250, clientY: 200 }], 600);
+        dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 100, clientY: 200 }], 700);
+        vi.advanceTimersToNextFrame();
+      });
+      expect(drawer.panel.style.translate).toBe('-140px 0');
+
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchend', [], 720);
+      });
+      await flushMicrotasks();
+
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(false);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
+      // Unmounted immediately without advancing timers by PHONE_SLIDE_OUT_MS.
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.container.querySelector('[data-testid="drawer-list"]')).toBeNull();
+    } finally {
+      drawer.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('mirrors interactive open and close translation in RTL', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const prevDir = document.documentElement.dir;
+    const prevWidth = window.innerWidth;
+    document.documentElement.dir = 'rtl';
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 90,
+      right: 390,
+      bottom: 600,
+      x: 90,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    try {
+      // RTL open: drag inward (left) from physical right edge (x = 382 -> 220; lockX = 372, offset = 152).
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 382, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 220, clientY: 200 }], 200);
+      });
+      expect(drawer.panel.style.translate).toBe('-152px 0');
+
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+
+      // RTL close: drag toward physical right edge (x = 150 -> 300; lockX = 160, offset = 140).
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchstart', [{ clientX: 150, clientY: 200 }], 300);
+        dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 300, clientY: 200 }], 400);
+      });
+      expect(drawer.panel.style.translate).toBe('140px 0');
+
+      domAct(() => {
+        dispatchTouch(drawer.panel, 'touchend', [], 420);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    } finally {
+      drawer.unmount();
+      document.documentElement.dir = prevDir;
+      Object.defineProperty(window, 'innerWidth', { value: prevWidth, configurable: true });
+      raf.mockRestore();
+    }
   });
 });

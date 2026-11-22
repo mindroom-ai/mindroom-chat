@@ -6,6 +6,7 @@ import {
   PHONE_SLIDE_OUT_MS,
   phoneLayerOpenAtom,
   phoneNavDrawerOpenAtom,
+  phoneSheetOpenAtom,
 } from '../navigation/phoneNavDrawer';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { PhoneMembersSheet } from './PhoneMembersSheet';
@@ -159,5 +160,155 @@ describe('PhoneMembersSheet', () => {
     menu.remove();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  const dispatchTouch = (
+    target: EventTarget,
+    type: string,
+    touches: Array<{ clientX: number; clientY: number; identifier?: number }>,
+    timeStamp: number
+  ) => {
+    const list = touches.map((touch) => ({ identifier: 1, ...touch }));
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'touches', { value: list });
+    Object.defineProperty(event, 'changedTouches', {
+      value: list.length > 0 ? list : [{ identifier: 1, clientX: 0, clientY: 0 }],
+    });
+    Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+    target.dispatchEvent(event);
+  };
+
+  const mockPanelWidth = (panel: HTMLElement, width: number) =>
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      width,
+      height: 600,
+      top: 0,
+      left: 90,
+      right: 90 + width,
+      bottom: 600,
+      x: 90,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+  const flushMicrotasks = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  it('tracks interactive drag on panel and scrim, and cancels without closing or clearing phoneSheetOpenAtom', async () => {
+    const { onClose } = mount(true);
+    const panel = sheet()!;
+    const scrim = slot.querySelector<HTMLElement>('.scrim')!;
+    mockPanelWidth(panel, 300);
+
+    // Drag toward end edge (right in LTR) by 70 px -> lockX = 110, offset = 60 (20% < 35%).
+    act(() => {
+      dispatchTouch(panel, 'touchstart', [{ clientX: 100, clientY: 200 }], 100);
+      dispatchTouch(panel, 'touchmove', [{ clientX: 170, clientY: 200 }], 300);
+      vi.advanceTimersToNextFrame();
+    });
+
+    expect(panel.style.translate).toBe('60px 0');
+    expect(scrim.style.opacity).toBe('0.8');
+    expect(panel.hasAttribute('data-swiping')).toBe(true);
+    expect(scrim.hasAttribute('data-swiping')).toBe(true);
+    expect(store.get(phoneSheetOpenAtom)).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Release slowly -> cancels and cleans up styles.
+    act(() => {
+      dispatchTouch(panel, 'touchmove', [{ clientX: 170, clientY: 200 }], 500);
+      dispatchTouch(panel, 'touchend', [], 520);
+    });
+    await flushMicrotasks();
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(store.get(phoneSheetOpenAtom)).toBe(true);
+    expect(panel.style.translate).toBe('');
+    expect(scrim.style.opacity).toBe('');
+    expect(panel.hasAttribute('data-swiping')).toBe(false);
+    expect(scrim.hasAttribute('data-swiping')).toBe(false);
+  });
+
+  it('commits interactive swipe close immediately without waiting PHONE_SLIDE_OUT_MS, and resets for reopen', async () => {
+    let setOpenRef: (next: boolean) => void = () => {};
+    const onClose = vi.fn(() => setOpenRef(false));
+    const { setOpen } = mount(true, onClose);
+    setOpenRef = setOpen;
+
+    const panel = sheet()!;
+    const scrim = slot.querySelector<HTMLElement>('.scrim')!;
+    mockPanelWidth(panel, 300);
+
+    // Drag past 35% of 300 (lockX = 90, x = 240 => offset = 150 = 50%).
+    act(() => {
+      dispatchTouch(panel, 'touchstart', [{ clientX: 80, clientY: 200 }], 100);
+      dispatchTouch(panel, 'touchmove', [{ clientX: 240, clientY: 200 }], 220);
+      vi.advanceTimersToNextFrame();
+    });
+    expect(panel.style.translate).toBe('150px 0');
+    expect(scrim.style.opacity).toBe('0.5');
+
+    act(() => {
+      dispatchTouch(panel, 'touchend', [], 240);
+    });
+    await flushMicrotasks();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // Unmounted immediately without advancing timers by PHONE_SLIDE_OUT_MS.
+    expect(sheet()).toBeNull();
+    expect(store.get(phoneSheetOpenAtom)).toBe(false);
+
+    // Reopening and closing normally (non-swipe) still waits for PHONE_SLIDE_OUT_MS.
+    setOpen(true);
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(sheet()?.hasAttribute('data-open')).toBe(true);
+    setOpen(false);
+    act(() => {
+      vi.advanceTimersByTime(PHONE_SLIDE_OUT_MS - 1);
+    });
+    expect(sheet()).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(sheet()).toBeNull();
+  });
+
+  it('mirrors interactive close translation in RTL', async () => {
+    const prevDir = document.documentElement.dir;
+    document.documentElement.dir = 'rtl';
+    let setOpenRef: (next: boolean) => void = () => {};
+    const onClose = vi.fn(() => setOpenRef(false));
+    const { setOpen } = mount(true, onClose);
+    setOpenRef = setOpen;
+
+    try {
+      const panel = sheet()!;
+      mockPanelWidth(panel, 300);
+
+      // RTL end edge is physical left: drag left from 240 -> 100 (lockX = 230, offset = 130).
+      act(() => {
+        dispatchTouch(panel, 'touchstart', [{ clientX: 240, clientY: 200 }], 100);
+        dispatchTouch(panel, 'touchmove', [{ clientX: 100, clientY: 200 }], 200);
+        vi.advanceTimersToNextFrame();
+      });
+      expect(panel.style.translate).toBe('-130px 0');
+
+      act(() => {
+        dispatchTouch(panel, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(sheet()).toBeNull();
+    } finally {
+      document.documentElement.dir = prevDir;
+    }
   });
 });

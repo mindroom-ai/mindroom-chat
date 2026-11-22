@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import {
@@ -10,6 +11,11 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
+import {
+  type InteractiveSwipeScene,
+  SWIPE_PRIORITY,
+  animateSwipeElements,
+} from '../navigation/interactiveSwipe';
 import { afterWaitingSlide, movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
@@ -80,6 +86,15 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     [setSheetSlot]
   );
   const panelRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const swipedClosedRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   // Motion only from the frame after the drawer first shows the stored state, so a page that opens
   // with the drawer out does not slide it. The page brings it out in a layout effect of the first
   // commit, but the atom's subscription starts with the passive effects, so the drawer renders it
@@ -100,11 +115,18 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   useEffect(() => () => afterWaitingSlide(() => setOpenNow(false)), [setOpenNow]);
 
   // Put away, the drawer drops the rail and the list once it has slid out, as a phone's page had
-  // them unmounted before; out, or sliding, it holds them.
+  // them unmounted before; out, sliding, or peeking during an interactive edge swipe, it holds them.
   const [sliding, setSliding] = useState(false);
+  const [peeking, setPeeking] = useState(false);
   useEffect(() => {
     if (open) {
+      swipedClosedRef.current = false;
       setSliding(true);
+      return undefined;
+    }
+    if (swipedClosedRef.current) {
+      swipedClosedRef.current = false;
+      setSliding(false);
       return undefined;
     }
     // Until its slide out ends, where the browser plays one. A room tapped in the drawer can hold
@@ -126,7 +148,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     const timer = window.setTimeout(() => setSliding(false), PHONE_SLIDE_OUT_MS);
     return () => window.clearTimeout(timer);
   }, [open]);
-  const filled = open || sliding;
+  const filled = open || sliding || peeking;
   // The slot stays on the page and is offered only while the drawer holds the list, so the list
   // leaves while it is still on the page: one that remembers the reader's place reads it then.
   useLayoutEffect(() => {
@@ -178,13 +200,165 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   // thread's) takes it.
   const backSwipeOn = useAtomValue(edgeSwipeBackCountAtom) > 0;
   const openDrawer = useCallback(() => setOpen(true), [setOpen]);
-  useEdgeSwipe({ direction: 'back', enabled: !backSwipeOn, onSwipe: openDrawer });
+  const beginOpenSwipe = useCallback(
+    ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
+      const panel = panelRef.current;
+      const scrim = scrimRef.current;
+      if (!panel || !scrim) return null;
+
+      flushSync(() => setPeeking(true));
+      const extent = panel.getBoundingClientRect().width;
+      if (extent <= 0) {
+        flushSync(() => setPeeking(false));
+        return null;
+      }
+
+      panel.dataset.swiping = '';
+      scrim.dataset.swiping = '';
+
+      let didCommit = false;
+      let cleaned = false;
+
+      const clearSwipeStyles = () => {
+        panel.style.translate = '';
+        scrim.style.opacity = '';
+        void panel.offsetWidth;
+        delete panel.dataset.swiping;
+        delete scrim.dataset.swiping;
+      };
+
+      return {
+        extent,
+        update(offsetPx, progress) {
+          panel.style.translate = `${offsetPx * dirSign}px 0`;
+          scrim.style.opacity = String(progress);
+        },
+        settle(commit, durationMs, currentOffsetPx) {
+          const startProgress = currentOffsetPx / extent;
+          return animateSwipeElements(
+            [
+              {
+                element: panel,
+                keyframes: [
+                  { translate: `${currentOffsetPx * dirSign}px 0` },
+                  { translate: `${(commit ? extent : 0) * dirSign}px 0` },
+                ],
+              },
+              {
+                element: scrim,
+                keyframes: [{ opacity: String(startProgress) }, { opacity: commit ? '1' : '0' }],
+              },
+            ],
+            durationMs
+          );
+        },
+        commit() {
+          didCommit = true;
+          flushSync(() => {
+            setPeeking(false);
+            movePhoneNavDrawer(true, setOpenNow);
+          });
+          if (!cleaned) {
+            cleaned = true;
+            clearSwipeStyles();
+          }
+        },
+        cleanup(committed) {
+          if (cleaned) return;
+          cleaned = true;
+          clearSwipeStyles();
+          if (!committed && !didCommit && mountedRef.current) {
+            setPeeking(false);
+          }
+        },
+      };
+    },
+    [setOpenNow]
+  );
+  useEdgeSwipe({
+    direction: 'back',
+    enabled: !open && !backSwipeOn,
+    priority: SWIPE_PRIORITY.DRAWER_OPEN,
+    onSwipe: openDrawer,
+    begin: beginOpenSwipe,
+  });
 
   // The section's list is portaled in, so React's events from it bubble through the page, not
   // the drawer: the drawer listens on its own element. Following a link puts it away, also a link
   // to the page already shown; a swipe toward the edge does too.
   const close = useCallback(() => setOpen(false), [setOpen]);
-  useSwipeAway(panelRef, 'start', close);
+  const beginCloseSwipe = useCallback(
+    ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
+      const panel = panelRef.current;
+      const scrim = scrimRef.current;
+      if (!panel || !scrim) return null;
+
+      const extent = panel.getBoundingClientRect().width;
+      if (extent <= 0) return null;
+
+      panel.dataset.swiping = '';
+      scrim.dataset.swiping = '';
+
+      let cleaned = false;
+
+      const clearSwipeStyles = () => {
+        if (cleaned) return;
+        cleaned = true;
+        panel.style.translate = '';
+        scrim.style.opacity = '';
+        void panel.offsetWidth;
+        delete panel.dataset.swiping;
+        delete scrim.dataset.swiping;
+      };
+
+      return {
+        extent,
+        update(offsetPx, progress) {
+          panel.style.translate = `${-offsetPx * dirSign}px 0`;
+          scrim.style.opacity = String(1 - progress);
+        },
+        settle(commit, durationMs, currentOffsetPx) {
+          const startProgress = currentOffsetPx / extent;
+          return animateSwipeElements(
+            [
+              {
+                element: panel,
+                keyframes: [
+                  { translate: `${-currentOffsetPx * dirSign}px 0` },
+                  { translate: `${(commit ? -extent : 0) * dirSign}px 0` },
+                ],
+              },
+              {
+                element: scrim,
+                keyframes: [
+                  { opacity: String(1 - startProgress) },
+                  { opacity: commit ? '0' : '1' },
+                ],
+              },
+            ],
+            durationMs
+          );
+        },
+        commit() {
+          swipedClosedRef.current = true;
+          flushSync(() => {
+            setOpenNow(false);
+            setSliding(false);
+          });
+          clearSwipeStyles();
+        },
+        cleanup() {
+          clearSwipeStyles();
+        },
+      };
+    },
+    [setOpenNow]
+  );
+  useSwipeAway(panelRef, 'start', close, {
+    enabled: open,
+    priority: SWIPE_PRIORITY.SHEET,
+    begin: beginCloseSwipe,
+  });
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return undefined;
@@ -202,6 +376,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     <>
       <div ref={sheetSlotRef} className={css.SheetSlot} />
       <div
+        ref={scrimRef}
         className={css.Scrim}
         data-open={open || undefined}
         data-animate={animate || undefined}
