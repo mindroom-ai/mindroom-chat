@@ -288,19 +288,20 @@ test.describe('Compact scroll jump regressions', () => {
         'Long edited title that wraps onto a second line above the active scroll position during fast upward wheel scrolling. '.repeat(
           3
         );
-      const edits = edited.map((root) => editRoot(root, title));
-      // Wheel up until a card grew and for some steps after, so the growth lands inside the
-      // burst, and stop short of the top of the list.
+      // Wheel up, send the edits a few steps in, and go on until a card grew and for some steps
+      // after: the growth lands inside the burst. Stop short of the top of the list.
+      const editAt = 4;
       const stepsAfter = 8;
       const stepsBefore = Math.floor((afterGrow.y - 300) / 100) - stepsAfter;
+      let edits: Promise<string>[] = [];
       let grewAfter = -1;
       for (let step = 0; grewAfter < 0 ? step < stepsBefore : step < grewAfter + stepsAfter; ) {
         await page.mouse.wheel(0, -100);
         await page.waitForTimeout(16);
         step += 1;
-        if (grewAfter < 0 && (await heights()).some((h, i) => h > heightsBefore[i]! + 5)) {
-          grewAfter = step;
-        }
+        if (step === editAt) edits = edited.map((root) => editRoot(root, title));
+        const grew = async () => (await heights()).some((h, i) => h > heightsBefore[i]! + 5);
+        if (grewAfter < 0 && step > editAt && (await grew())) grewAfter = step;
       }
       await Promise.all(edits);
       expect(
@@ -308,7 +309,7 @@ test.describe('Compact scroll jump regressions', () => {
         `[webkit/${form}] no edited card grew within ${stepsBefore} wheel steps (heights ${heightsBefore.join()} -> ${(
           await heights()
         ).join()})`
-      ).toBeGreaterThan(0);
+      ).toBeGreaterThan(editAt);
       await page.waitForTimeout(500);
       const raceFrames = await takeFrames(page);
       const backwardsSnaps: string[] = [];
