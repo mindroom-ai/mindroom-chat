@@ -31,21 +31,25 @@ type RoomStub = {
 const state = vi.hoisted(() => {
   const listeners = new Map<string, Set<() => void>>();
   const storedTags = new Map<string, string>();
+  const pushConfig:
+    | { appId: string; format: 'full' | 'event_id_only'; profileTag?: string }
+    | undefined = {
+    appId: 'chat.example',
+    format: 'full',
+    profileTag: 'shared-deployment-profile-tag',
+  };
+  const activeSession: { sessionId: string; accessToken?: string } | undefined = {
+    sessionId: 's1',
+    accessToken: 'session-token-v1',
+  };
   return {
     signInRequired: true,
     pushAllowed: true,
     pushEnabled: true,
-    pushConfig: {
-      appId: 'chat.example',
-      format: 'full' as const,
-      profileTag: 'shared-deployment-profile-tag',
-    } as { appId: string; format: 'full' | 'event_id_only'; profileTag?: string } | undefined,
+    pushConfig,
     hasCloudflareAccess: false,
     hasCompletedInitialSync: false,
-    activeSession: {
-      sessionId: 's1',
-      accessToken: 'session-token-v1',
-    } as { sessionId: string; accessToken?: string } | undefined,
+    activeSession,
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
     rooms: [] as RoomStub[],
     users: new Map<string, { avatarUrl?: string }>(),
