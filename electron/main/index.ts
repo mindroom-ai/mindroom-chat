@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
+import { createAuthCallback, registerSignInHandlers } from './authCallback';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
@@ -39,7 +40,26 @@ if (telemetry) {
   setBlockedUrlRecorder((url) => telemetry.blockedUrls.push(url));
 }
 
+const focusMainWindow = (): void => {
+  const win = showMainWindow();
+  if (win.isMinimized()) win.restore();
+  app.focus({ steal: true });
+};
+
+// Carries no URL: the page takes the return itself, once, through `desktop:take-app-url`.
+const notifyAppUrl = (): void => getMainWindow()?.webContents.send('desktop:app-url');
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
+
+const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
+
+app.on('second-instance', () => {
+  if (gotLock && app.isReady()) focusMainWindow();
+});
+
 void app.whenReady().then(() => {
+  if (!gotLock) return;
   if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
     session.defaultSession.enableNetworkEmulation({ offline: true });
   }
@@ -52,29 +72,43 @@ void app.whenReady().then(() => {
     app.exit(1);
     return;
   }
-  const appWindows = (): readonly Electron.WebContents[] =>
-    (isTest ? BrowserWindow.getAllWindows() : [getMainWindow()]).flatMap((w) =>
-      w && !w.isDestroyed() ? [w.webContents] : []
-    );
+  const mainOwners = (): readonly Electron.WebContents[] => {
+    const win = getMainWindow();
+    return win ? [win.webContents] : [];
+  };
+  const appWindows = isTest
+    ? (): readonly Electron.WebContents[] =>
+        BrowserWindow.getAllWindows().flatMap((w) => (w.isDestroyed() ? [] : [w.webContents]))
+    : mainOwners;
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
-  registerExternalOpenHandler(appWindows, async (url) => {
+  const openUrl = async (url: string): Promise<void> => {
     if (telemetry) telemetry.externalOpens.push(url);
     else await shell.openExternal(url);
-  });
+  };
+  registerExternalOpenHandler(appWindows, openUrl);
+  registerSignInHandlers(mainOwners, authCallback, openUrl);
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);
     wc.once('destroyed', forget);
     wc.on('render-process-gone', forget);
+    // A sign-in starts only after a click or key press that main itself saw in the main window.
+    wc.on('input-event', (_event, { type }) => {
+      const gesture = type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown';
+      if (gesture && wc === getMainWindow()?.webContents) authCallback.noteGesture();
+    });
   });
   showMainWindow();
 });
 
-app.on('activate', () => showMainWindow());
+app.on('will-quit', () => authCallback.close());
+app.on('activate', () => {
+  if (gotLock) showMainWindow();
+});
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

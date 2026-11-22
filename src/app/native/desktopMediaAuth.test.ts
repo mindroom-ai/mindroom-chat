@@ -26,6 +26,12 @@ const installBridge = () => {
       if (!answer.current) throw new Error('main is gone');
       return answer.current;
     },
+    startSignIn: async () => ({ ok: true, value: '' }),
+    openSignIn: async () => ({ ok: true, value: undefined }),
+    appUrl: {
+      addListener: async () => ({ remove: () => undefined }),
+      getLaunchUrl: async () => undefined,
+    },
   };
   Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
   return { calls, answer };

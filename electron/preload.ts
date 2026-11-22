@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopBridge, DesktopShellEvent } from '../src/app/lib/desktopBridge';
+import type { DesktopBridge, DesktopResult, DesktopShellEvent } from '../src/app/lib/desktopBridge';
 
 const externalUrlForClick = (event: MouseEvent): string | undefined => {
   if (!event.isTrusted || event.button !== (event.type === 'click' ? 0 : 1)) return undefined;
@@ -52,6 +52,26 @@ const bridge = {
     };
   },
   setMediaSession: (session) => ipcRenderer.sendSync('desktop:set-media-session', session),
+  startSignIn: (request) => ipcRenderer.invoke('desktop:start-sign-in', request),
+  openSignIn: (url) => ipcRenderer.invoke('desktop:open-sign-in', url),
+  appUrl: {
+    // A sign-in return never comes this way: main holds it until the listener below takes it.
+    getLaunchUrl: () => Promise.resolve(undefined),
+    addListener: (_eventName, listener) => {
+      const take = (): void => {
+        ipcRenderer
+          .invoke('desktop:take-app-url')
+          .then((res: DesktopResult<string | undefined>) => {
+            if (res.ok && res.value) listener({ url: res.value });
+          })
+          .catch(() => undefined);
+      };
+      // Subscribe first, then take once: a return that came while no page listened waits in main.
+      ipcRenderer.on('desktop:app-url', take);
+      take();
+      return Promise.resolve();
+    },
+  },
 } satisfies DesktopBridge;
 
 contextBridge.exposeInMainWorld('mindroomDesktop', bridge);
