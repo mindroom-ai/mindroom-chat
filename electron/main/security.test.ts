@@ -15,7 +15,7 @@ import {
   guardSession,
   guardWebContents,
   isOpenable,
-  registerExternalOpenHandler,
+  registerExternalOpenHandlers,
 } from './security';
 
 const createFakeWebContents = (
@@ -344,8 +344,8 @@ describe('isOpenable', () => {
   });
 });
 
-describe('external open IPC channel', () => {
-  it('validates sender and openable URLs', async () => {
+describe('external open and sign-in IPC channels', () => {
+  it('validates sender, openable URLs, and pending sign-in URLs', async () => {
     ipcHandlers.clear();
     const opened: string[] = [];
     const mainFrame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
@@ -353,12 +353,27 @@ describe('external open IPC channel', () => {
       isDestroyed: () => false,
       mainFrame,
     } as unknown as Electron.WebContents;
-    registerExternalOpenHandler(
-      () => [owner],
-      async (url) => {
+    let pending: { homeserver: string; redirectUrl: string } | undefined;
+    const authCallback = {
+      start: vi.fn(async (req: { homeserver: string; callback: string }) => {
+        if (!req.homeserver.startsWith('https://')) throw new RangeError('bad');
+        pending = {
+          homeserver: req.homeserver,
+          redirectUrl: `http://127.0.0.1:41234/auth/rand${req.callback}`,
+        };
+        return pending;
+      }),
+      pending: () => pending,
+      close: vi.fn(),
+    };
+    registerExternalOpenHandlers({
+      externalOwners: () => [owner],
+      signInOwners: () => [owner],
+      authCallback,
+      openUrl: async (url) => {
         opened.push(url);
-      }
-    );
+      },
+    });
 
     const event = { sender: owner, senderFrame: mainFrame };
     const badEvent = {
@@ -384,5 +399,42 @@ describe('external open IPC channel', () => {
       value: undefined,
     });
     expect(opened).toEqual(['https://example.org/ok']);
+
+    const startSignIn = ipcHandlers.get('desktop:start-sign-in')!;
+    const openSignIn = ipcHandlers.get('desktop:open-sign-in')!;
+    expect(
+      await openSignIn(event, 'https://hs.example/_matrix/client/v3/login/sso/redirect')
+    ).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    expect(
+      await startSignIn(event, {
+        homeserver: 'http://evil.example',
+        callback: '/login/a/?ssoNonce=1',
+      })
+    ).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    const started = await startSignIn(event, {
+      homeserver: 'https://hs.example',
+      callback: '/login/hs.example/?ssoNonce=n1',
+    });
+    expect(started).toEqual({
+      ok: true,
+      value: 'http://127.0.0.1:41234/auth/rand/login/hs.example/?ssoNonce=n1',
+    });
+    const goodSignInUrl = `https://hs.example/_matrix/client/v3/login/sso/redirect/apple?redirectUrl=${encodeURIComponent(
+      'http://127.0.0.1:41234/auth/rand/login/hs.example/?ssoNonce=n1'
+    )}`;
+    expect(
+      await openSignIn(event, 'https://evil.example/_matrix/client/v3/login/sso/redirect')
+    ).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    expect(await openSignIn(event, goodSignInUrl)).toEqual({ ok: true, value: undefined });
+    expect(opened).toEqual(['https://example.org/ok', goodSignInUrl]);
   });
 });

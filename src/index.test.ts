@@ -6,6 +6,8 @@ import { DEBUG_MODE_KEY } from './app/diagnostics/debugMode';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
+  isNativeApp: vi.fn(() => false),
+  registerNativeAppUrlCallbacks: vi.fn(),
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
   installIndexedDbLossRecovery: vi.fn(),
@@ -31,8 +33,8 @@ vi.mock('@capacitor/app', () => ({
 
 vi.mock('./app/native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
-  isNativeApp: () => false,
-  registerNativeAppUrlCallbacks: vi.fn(),
+  isNativeApp: mocks.isNativeApp,
+  registerNativeAppUrlCallbacks: mocks.registerNativeAppUrlCallbacks,
 }));
 
 vi.mock('./app/diagnostics/flightRecorder', () => ({
@@ -289,6 +291,12 @@ describe('application bootstrap', () => {
         return () => undefined;
       }),
       setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+      startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
+      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      appUrl: {
+        addListener: vi.fn(async () => ({ remove: vi.fn() })),
+        getLaunchUrl: vi.fn(async () => undefined),
+      },
     };
     const win = window as Window & { mindroomDesktop?: typeof bridge };
     win.mindroomDesktop = bridge;
@@ -296,11 +304,13 @@ describe('application bootstrap', () => {
       configurable: true,
       value: { persist },
     });
+    mocks.isNativeApp.mockReturnValueOnce(true);
     try {
       await import('./index');
       expect(document.documentElement.dataset.shell).toBe('desktop');
       expect(persist).toHaveBeenCalledOnce();
       expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
+      expect(mocks.registerNativeAppUrlCallbacks).toHaveBeenCalledWith(bridge.appUrl);
       listeners[0]?.({ type: 'fullscreen', value: true });
       expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
     } finally {

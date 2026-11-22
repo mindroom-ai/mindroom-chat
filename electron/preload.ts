@@ -49,6 +49,19 @@ const bridge = {
     };
   },
   setMediaSession: (session) => ipcRenderer.sendSync('desktop:set-media-session', session),
+  startSignIn: (request) => ipcRenderer.invoke('desktop:start-sign-in', request),
+  openSignIn: (url) => ipcRenderer.invoke('desktop:open-sign-in', url),
+  appUrl: {
+    getLaunchUrl: () => Promise.resolve(undefined),
+    addListener: (eventName, listener) => {
+      if (eventName !== 'appUrlOpen') return Promise.resolve({ remove: () => undefined });
+      const handle = (_event: Electron.IpcRendererEvent, url: string): void => listener({ url });
+      ipcRenderer.on('desktop:app-url', handle);
+      return Promise.resolve({
+        remove: () => ipcRenderer.removeListener('desktop:app-url', handle),
+      });
+    },
+  },
 } satisfies DesktopBridge;
 
 contextBridge.exposeInMainWorld('mindroomDesktop', bridge);

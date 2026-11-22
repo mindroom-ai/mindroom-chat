@@ -1,3 +1,9 @@
+import {
+  isSignInUrl,
+  parseSignInRequest,
+  type PendingSignIn,
+  type SignInRequest,
+} from './authCallback';
 import { APP_ORIGIN, isAllowedAppPage, isFramePage, parseAppUrl } from './bundleProtocol';
 import { handle } from './ipc';
 
@@ -101,15 +107,43 @@ export const guardSession = (
   });
 };
 
-export const registerExternalOpenHandler = (
-  owners: () => readonly Electron.WebContents[],
-  openUrl: (url: string) => Promise<void>
-): void => {
+type ExternalOpenDeps = {
+  externalOwners: () => readonly Electron.WebContents[];
+  signInOwners: () => readonly Electron.WebContents[];
+  authCallback: {
+    start(r: SignInRequest): Promise<PendingSignIn>;
+    pending(): PendingSignIn | undefined;
+  };
+  openUrl: (url: string) => Promise<void>;
+};
+
+const stringArg = (args: unknown[]): string | undefined =>
+  args.length === 1 && typeof args[0] === 'string' ? args[0] : undefined;
+
+export const registerExternalOpenHandlers = ({
+  externalOwners,
+  signInOwners,
+  authCallback,
+  openUrl,
+}: ExternalOpenDeps): void => {
   handle(
     'desktop:open-external',
-    owners,
-    (args) =>
-      args.length === 1 && typeof args[0] === 'string' && isOpenable(args[0]) ? args[0] : undefined,
+    externalOwners,
+    (args) => {
+      const url = stringArg(args);
+      return url && isOpenable(url) ? url : undefined;
+    },
     async (url) => ({ ok: true, value: await openUrl(url) })
   );
+  handle(
+    'desktop:start-sign-in',
+    signInOwners,
+    (args) => (args.length === 1 ? parseSignInRequest(args[0]) : undefined),
+    async (req) => ({ ok: true, value: (await authCallback.start(req)).redirectUrl })
+  );
+  handle('desktop:open-sign-in', signInOwners, stringArg, async (url) => {
+    const pending = authCallback.pending();
+    if (!pending || !isSignInUrl(url, pending)) return { ok: false, code: 'BAD_ARGUMENTS' };
+    return { ok: true, value: await openUrl(url) };
+  });
 };

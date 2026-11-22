@@ -43,6 +43,15 @@ const makeBridge = (): {
     bridge: {
       onShellEvent,
       setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+      startSignIn: vi.fn(async () => ({
+        ok: true as const,
+        value: 'http://127.0.0.1:4321/auth/rand/login',
+      })),
+      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      appUrl: {
+        addListener: vi.fn(async () => ({ remove: vi.fn() })),
+        getLaunchUrl: vi.fn(async () => undefined),
+      },
     },
     onShellEvent,
     unsubscribe,
