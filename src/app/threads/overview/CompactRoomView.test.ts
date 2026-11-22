@@ -326,6 +326,8 @@ describe('CompactRoomView', () => {
         }
       }
     );
+    // The scroll element these tests give the view has no style to read.
+    vi.stubGlobal('getComputedStyle', () => ({}));
     vi.clearAllMocks();
     useCompactThreadCardViewModelsMock.mockReturnValue([]);
     useToggleThreadResolutionMock.mockReturnValue({
@@ -654,7 +656,7 @@ describe('CompactRoomView', () => {
   const createScrollElement = (initialMaxScrollTop = Number.POSITIVE_INFINITY) => {
     let maxScrollTop = initialMaxScrollTop;
     let scrollTop = 0;
-    const listeners = new Map<string, Set<() => void>>();
+    const listeners = new Map<string, Set<(event: { type: string }) => void>>();
     return {
       get scrollTop() {
         return scrollTop;
@@ -667,16 +669,16 @@ describe('CompactRoomView', () => {
       },
       getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
       querySelectorAll: () => [],
-      addEventListener: (type: string, fn: () => void) => {
+      addEventListener: (type: string, fn: (event: { type: string }) => void) => {
         const set = listeners.get(type) ?? new Set();
         set.add(fn);
         listeners.set(type, set);
       },
-      removeEventListener: (type: string, fn: () => void) => {
+      removeEventListener: (type: string, fn: (event: { type: string }) => void) => {
         listeners.get(type)?.delete(fn);
       },
       readerScrollTo: (value: number) => {
-        listeners.get('wheel')?.forEach((fn) => fn());
+        listeners.get('wheel')?.forEach((fn) => fn({ type: 'wheel' }));
         scrollTop = Math.min(value, maxScrollTop);
       },
     };

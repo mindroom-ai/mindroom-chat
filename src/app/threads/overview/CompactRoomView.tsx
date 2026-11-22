@@ -332,7 +332,6 @@ export function CompactRoomView({
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const restoringRef = useRef(false);
   useCompactCardSwipeList(contentRef);
   const [menu, setMenu] = useState<ThreadActionsMenuState>();
   // While the reader points at or focuses a card, or has a card's menu open, the cards keep
@@ -419,7 +418,7 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows]);
-  useCompactScrollFallback(shownRows, viewRef, sectionOfRow, contentRef, restoringRef);
+  const scrollAnchor = useCompactScrollFallback(shownRows, viewRef, sectionOfRow, contentRef);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
@@ -558,7 +557,6 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
-    restoringRef,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
@@ -705,6 +703,7 @@ export function CompactRoomView({
           }
         }}
       >
+        {scrollAnchor}
         {listMotion}
         {!!pinning.error && (
           <Text role="alert" size="T200">

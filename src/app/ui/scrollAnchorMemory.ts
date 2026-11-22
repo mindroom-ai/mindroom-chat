@@ -1,11 +1,4 @@
-import {
-  type MutableRefObject,
-  type RefObject,
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 const SCROLL_ANCHOR_ATTRIBUTE = 'data-scroll-anchor';
 const SCROLL_ANCHOR_SELECTOR = `[${SCROLL_ANCHOR_ATTRIBUTE}]`;
@@ -101,15 +94,10 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
-const READER_SCROLL_KEYS = new Set([
-  'ArrowUp',
-  'ArrowDown',
-  'PageUp',
-  'PageDown',
-  'Home',
-  'End',
-  ' ',
-]);
+// What a reader scrolls with. A scroll alone need not be theirs: the browser's scroll anchoring
+// and other code that keeps the rows in place scroll the list too.
+const READER_INPUT = ['wheel', 'pointerdown', 'keydown'];
+const CAPTURED = { capture: true, passive: true };
 
 type RestoreState = {
   memoryKey: string;
@@ -131,8 +119,6 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
-  /** Held true while a restore is actively following late layout, so other writers pause. */
-  restoringRef?: MutableRefObject<boolean>;
 };
 
 /**
@@ -150,10 +136,8 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-  restoringRef,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
-  const stopFollowingRef = useRef<() => void>();
   const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
   useLayoutEffect(() => {
@@ -172,58 +156,28 @@ export function useScrollAnchorMemory({
       };
     }
     const state = restoreRef.current;
-    const activeObserver = { current: undefined as ResizeObserver | undefined };
 
+    let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
-      if (restoringRef) restoringRef.current = false;
-      stopFollowingRef.current = undefined;
-      activeObserver.current?.disconnect();
-      listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
+      observer?.disconnect();
+      READER_INPUT.forEach((type) => view.removeEventListener(type, stopFollowing, CAPTURED));
     };
-    const onKeyDown = (event: Event) => {
-      const keyEvent = event as KeyboardEvent;
-      if (
-        !keyEvent.altKey &&
-        !keyEvent.ctrlKey &&
-        !keyEvent.metaKey &&
-        READER_SCROLL_KEYS.has(keyEvent.key)
-      ) {
-        stopFollowing();
-      }
-    };
-    const onPointerDown = (event: Event) => {
-      const pointerEvent = event as PointerEvent;
-      const target = pointerEvent.target;
-      const onThumb = target instanceof Element && !!target.closest('[role="scrollbar"]');
-      const rect = view.getBoundingClientRect();
-      const onNativeBar =
-        target === view &&
-        (pointerEvent.clientX >= rect.left + view.clientWidth || pointerEvent.clientX <= rect.left);
-      if (onThumb || onNativeBar) stopFollowing();
-    };
-    const listeners: [string, EventListener, AddEventListenerOptions | boolean][] = [
-      ['wheel', stopFollowing, { passive: true }],
-      ['touchstart', stopFollowing, { passive: true }],
-      ['keydown', onKeyDown, true],
-      ['pointerdown', onPointerDown, true],
-    ];
     const restore = () => {
       const { snapshot } = state;
       if (!snapshot) return;
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
       // A reader who left at the top stays at the top, where rows that moved
-      // up show; one who gave real scroll input keeps their place. Late layout
-      // moves the placed rows together (the header padding settling, cards
-      // loading above). Rows that move apart or change order are the list
-      // changing under the reader, such as a card leaving or a thread sorting
-      // first, and stay where they land.
+      // up show; one who scrolled since (`READER_INPUT`) keeps their place.
+      // Late layout moves the placed rows together (the header padding
+      // settling, cards loading above). Rows that move apart or change order
+      // are the list changing under the reader, such as a card leaving or a
+      // thread sorting first, and stay where they land.
       if (snapshot.scrollTop <= 0 || !placement || !keepsRowOrder(state.rowOrder, rowOrder)) {
         stopFollowing();
         return;
       }
-      if (restoringRef) restoringRef.current = true;
       view.scrollTop = placement.scrollTop;
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
@@ -231,28 +185,15 @@ export function useScrollAnchorMemory({
     restore();
     if (!state.snapshot) return undefined;
 
-    stopFollowingRef.current = stopFollowing;
-    const observer = new ResizeObserver(restore);
-    activeObserver.current = observer;
+    observer = new ResizeObserver(restore);
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
-    listeners.forEach(([type, handler, opts]) => view.addEventListener(type, handler, opts));
+    READER_INPUT.forEach((type) => view.addEventListener(type, stopFollowing, CAPTURED));
     return () => {
-      if (restoringRef) restoringRef.current = false;
-      stopFollowingRef.current = undefined;
-      observer.disconnect();
-      listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
+      observer?.disconnect();
+      READER_INPUT.forEach((type) => view.removeEventListener(type, stopFollowing, CAPTURED));
     };
-  }, [contentRef, memory, memoryKey, ready, restarts, restoringRef, scrollRef]);
-
-  // A live reorder keeps scrollHeight identical so ResizeObserver may not fire; stop following
-  // immediately once committed rows change relative order.
-  useLayoutEffect(() => {
-    const state = restoreRef.current;
-    const view = scrollRef.current;
-    if (!state?.snapshot || !view || state.rowOrder.length === 0) return;
-    if (!keepsRowOrder(state.rowOrder, getRowKeys(view))) stopFollowingRef.current?.();
-  });
+  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -267,7 +208,6 @@ export function useScrollAnchorMemory({
 
   return useCallback(
     (place: ScrollAnchorSnapshot) => {
-      if (restoringRef) restoringRef.current = place.scrollTop > 0;
       restoreRef.current = {
         memoryKey,
         snapshot: place,
@@ -276,6 +216,6 @@ export function useScrollAnchorMemory({
       };
       setRestarts((count) => count + 1);
     },
-    [memoryKey, restoringRef]
+    [memoryKey]
   );
 }

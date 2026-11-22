@@ -1,10 +1,13 @@
 import {
+  Component,
+  createElement,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type PointerEvent,
+  type ReactElement,
   type RefObject,
   type TouchEvent,
 } from 'react';
@@ -19,12 +22,10 @@ type CardsInView = {
 /** How many cards in view are tried, from the top, for one that kept its place. */
 const ANCHOR_CANDIDATES = 8;
 
-/** The topmost cards in view (cards carry `data-scroll-anchor`). */
-const cssPx = (view: HTMLElement, property: 'paddingTop' | 'scrollPaddingTop'): number =>
-  typeof getComputedStyle === 'function' ? parseFloat(getComputedStyle(view)[property]) || 0 : 0;
-
+/** The topmost cards in view below the floating header (cards carry `data-scroll-anchor`). */
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
-  const viewTop = view.getBoundingClientRect().top + cssPx(view, 'scrollPaddingTop');
+  const viewTop =
+    view.getBoundingClientRect().top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
   const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
   // The cards stack in one column: find the first one in view by halving, so a reader far down a
   // long list costs a few layout reads rather than one per card above the view.
@@ -83,91 +84,63 @@ const stationaryRows = (
   return stationary;
 };
 
-/** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
-const browserAnchorsScroll = (): boolean =>
-  typeof CSS !== 'undefined' &&
-  typeof CSS.supports === 'function' &&
-  CSS.supports('overflow-anchor', 'auto');
-
-/** How long after the last wheel, touch or scroll event a reader scroll counts as settled. */
+/** How long after a wheel turn, a finger's move, or a scroll that follows one, the reader scrolls. */
 export const SCROLL_SETTLE_MS = 120;
 
-/**
- * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
- * grow above the ones in view would push them down, so the list scrolls by as much and the cards
- * in view stay where they are, as Chromium's scroll anchoring keeps them by itself. The list
- * scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost card in view
- * from the rows that kept their relative order, even if other cards moved down. It also observes
- * `contentRef` for card height changes outside a parent commit, and defers `scrollTop` writes until
- * an active wheel or touch scroll settles so WebKit's scrolling thread is never fought mid-gesture.
- */
-const keepsOrder = (before: readonly string[], after: readonly string[]): boolean => {
-  const beforeSet = new Set(before);
-  const afterSet = new Set(after);
-  const kept = after.filter((id) => beforeSet.has(id));
-  return before.filter((id) => afterSet.has(id)).every((id, index) => id === kept[index]);
-};
+/** Runs `read` right before React changes the page: only a class is told when that is. */
+class BeforeCommit extends Component<{ read: () => void }> {
+  override getSnapshotBeforeUpdate(): null {
+    const { read } = this.props;
+    read();
+    return null;
+  }
 
+  // React asks for one beside `getSnapshotBeforeUpdate`.
+  override componentDidUpdate(): void {}
+
+  override render(): null {
+    return null;
+  }
+}
+
+/**
+ * A reader at the top of the list sees new cards arrive there. Further down, the cards in view
+ * stay where they are, whatever changes around them: the list scrolls so that the topmost card in
+ * view that kept its place among the rows shows where it did. One rule holds for every browser
+ * and every cause. The cards are read right before a commit (render what the hook returns inside
+ * the list) and compared after it, once React has put the focus back: cards that join, grow or
+ * sort above the view, a thread that sorts first (React moves every other row for it, at which
+ * WebKit scrolls to the top and Chromium's scroll anchoring loses its card), and a focus that
+ * scrolls. Chromium's scroll anchoring stays on, and only what it leaves is scrolled. Outside a
+ * commit (a card that grows by itself, the header's inset), a resize compares with the cards as
+ * the reader's last scroll left them, and only at the scroll offset they were read at: another
+ * script that scrolled the list placed it. While the reader scrolls, WebKit scrolls on a thread
+ * of its own, which a write sets back: what the list is owed waits until the scrolling settles,
+ * unless the commit itself moved the list.
+ */
 export const useCompactScrollFallback = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
   sectionOfRow?: SectionOfRow,
-  contentRef?: RefObject<HTMLElement>,
-  pausedRef?: RefObject<boolean>
-): void => {
-  // The scroll and resize listeners need the latest committed rows and section lookup.
-  const latestRowsRef = useRef(rows);
-  const latestSectionRef = useRef(sectionOfRow);
+  contentRef?: RefObject<HTMLElement>
+): ReactElement => {
+  // What the listeners need of the latest commit. This ref does not decide the rows' order.
+  const latestRef = useRef({ rows, sectionOfRow });
   const cardsInViewRef = useRef<CardsInView>();
-  // True between reader scroll input and the scroll event or commit that records it, so a real
-  // scroll to 0 is kept while WebKit's reset-to-0 during a DOM reorder is compensated.
-  const readerScrolledRef = useRef(false);
-  const scrollingRef = useRef(false);
-  const touchingRef = useRef(false);
-  const pendingDeltaRef = useRef(0);
-  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const paddingRef = useRef<{ pad: number; scrollTop: number }>();
+  // The reader's scrolling: its settle timer, and what the list is owed once it settles.
+  const scrollingRef = useRef<{ timer?: ReturnType<typeof setTimeout>; owed: number }>({ owed: 0 });
 
-  const compensatePadding = useCallback(
-    (view: HTMLElement) => {
-      const pad = cssPx(view, 'paddingTop');
-      const prev = paddingRef.current;
-      if (!pausedRef?.current && prev && view.scrollTop > 0 && Math.abs(pad - prev.pad) >= 0.5) {
-        const moved = pad - prev.pad;
-        const clamped = view.scrollTop - prev.scrollTop;
-        if ((moved > 0 && clamped >= 0) || clamped === 0) view.scrollTop += moved;
-        else if (moved < 0 && clamped < 0 && clamped > moved) view.scrollTop += moved - clamped;
-      }
-      paddingRef.current = { pad, scrollTop: view.scrollTop };
-    },
-    [pausedRef]
-  );
-
-  const compensate = useCallback(
-    (view: HTMLElement, nextRows: readonly string[], rowSection?: SectionOfRow) => {
+  const keepPlace = useCallback(
+    (committed: boolean) => {
+      const view = viewRef.current;
+      if (!view) return;
+      const { rows: order, sectionOfRow: sectionOf } = latestRef.current;
       const before = cardsInViewRef.current;
-      if (
-        pausedRef?.current &&
-        (!before || before.order === nextRows || keepsOrder(before.order, nextRows))
-      ) {
-        pendingDeltaRef.current = 0;
-        readerScrolledRef.current = false;
-        cardsInViewRef.current = cardsInView(view, nextRows);
-        return;
-      }
-      const webkitReset =
-        !!before && view.scrollTop === 0 && before.order !== nextRows && !readerScrolledRef.current;
-      const inScroll = scrollingRef.current && view.scrollTop > 0;
-      if (
-        before &&
-        before.scrollTop > 0 &&
-        (view.scrollTop === before.scrollTop || webkitReset || inScroll)
-      ) {
+      const stayed = view.scrollTop === before?.scrollTop;
+      if (before && before.scrollTop > 0 && (committed || stayed)) {
         const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
         const stationary =
-          before.order === nextRows
-            ? undefined
-            : stationaryRows(before.order, nextRows, rowSection);
+          before.order === order ? undefined : stationaryRows(before.order, order, sectionOf);
         const anchor = before.cards
           .filter(({ rootId }) => stationary?.has(rootId) ?? true)
           .map(({ rootId, top }) => ({
@@ -175,114 +148,61 @@ export const useCompactScrollFallback = (
             card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
           }))
           .find(({ card }) => card);
-        const rawMoved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
-        const moved = inScroll ? rawMoved + (view.scrollTop - before.scrollTop) : rawMoved;
-        if (Math.abs(moved) >= 0.5) {
-          if (scrollingRef.current) pendingDeltaRef.current += moved;
-          else view.scrollTop += moved;
-        }
+        const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
+        const scrolling = scrollingRef.current;
+        if (stayed && scrolling.timer !== undefined) scrolling.owed += moved;
+        else if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
       }
-      readerScrolledRef.current = false;
-      cardsInViewRef.current = cardsInView(view, nextRows);
+      cardsInViewRef.current = cardsInView(view, order);
     },
-    [pausedRef]
+    [viewRef]
   );
-
-  // Every commit: a card's thread that loads above the view changes its height without an order
-  // change, and the floating header or filter bar can change the scroller's padding-top.
-  useLayoutEffect(() => {
-    latestRowsRef.current = rows;
-    latestSectionRef.current = sectionOfRow;
+  // A reader who scrolled since the cards were read, whose scroll event is still to come.
+  const read = useCallback(() => {
     const view = viewRef.current;
-    if (!view) return;
-    if (browserAnchorsScroll()) compensatePadding(view);
-    else compensate(view, rows, sectionOfRow);
-  });
-  // The reader's own scrolling moves the cards; the next commit compares from there.
-  const currentView = viewRef.current;
-  const currentContent = contentRef?.current;
-  useEffect(() => {
-    const view = currentView;
-    if (!view) return undefined;
-    if (browserAnchorsScroll()) {
-      const onScroll = () => {
-        if (paddingRef.current) paddingRef.current.scrollTop = view.scrollTop;
-      };
-      const resizeObserver =
-        typeof ResizeObserver !== 'undefined'
-          ? new ResizeObserver(() => compensatePadding(view))
-          : undefined;
-      resizeObserver?.observe(view);
-      view.addEventListener('scroll', onScroll, { passive: true });
-      return () => {
-        resizeObserver?.disconnect();
-        view.removeEventListener('scroll', onScroll);
-      };
+    if (view && view.scrollTop !== cardsInViewRef.current?.scrollTop) {
+      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     }
-    const scheduleSettle = () => {
-      clearTimeout(settleTimerRef.current);
-      if (touchingRef.current) return;
-      settleTimerRef.current = setTimeout(() => {
-        scrollingRef.current = false;
-        const delta = pendingDeltaRef.current;
-        pendingDeltaRef.current = 0;
-        if (!pausedRef?.current && view.scrollTop > 0 && Math.abs(delta) >= 0.5)
-          view.scrollTop += delta;
-        cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
-      }, SCROLL_SETTLE_MS);
+  }, [viewRef]);
+  useLayoutEffect(() => {
+    latestRef.current = { rows, sectionOfRow };
+    keepPlace(true);
+  });
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return undefined;
+    const scrolling = scrollingRef.current;
+    const settle = () => {
+      scrolling.timer = undefined;
+      if (view.scrollTop > 0) view.scrollTop += scrolling.owed;
+      scrolling.owed = 0;
+      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
-    const markReaderScroll = () => {
-      readerScrolledRef.current = true;
+    // A wheel or a finger starts the reader's scrolling and each scroll within the settle time
+    // carries it on (momentum). A scroll of the list's own starts none.
+    const onScroll = (event: Event) => {
+      if (event.type !== 'scroll' || scrolling.timer !== undefined) {
+        clearTimeout(scrolling.timer);
+        scrolling.timer = setTimeout(settle, SCROLL_SETTLE_MS);
+      }
+      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
-    const onWheel = () => {
-      readerScrolledRef.current = true;
-      scrollingRef.current = true;
-      scheduleSettle();
-    };
-    const onTouchStart = () => {
-      readerScrolledRef.current = true;
-      touchingRef.current = true;
-      scrollingRef.current = true;
-      clearTimeout(settleTimerRef.current);
-    };
-    const onTouchEnd = () => {
-      touchingRef.current = false;
-      if (scrollingRef.current) scheduleSettle();
-    };
-    const record = () => {
-      readerScrolledRef.current = false;
-      cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
-      if (scrollingRef.current) scheduleSettle();
-    };
-    const content = currentContent;
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() =>
-            compensate(view, latestRowsRef.current, latestSectionRef.current)
-          )
-        : undefined;
-    resizeObserver?.observe(view);
-    if (content) resizeObserver?.observe(content);
-    const listeners: [string, EventListener, AddEventListenerOptions | boolean][] = [
-      ['scroll', record, { passive: true }],
-      ['wheel', onWheel, { passive: true }],
-      ['touchstart', onTouchStart, { passive: true }],
-      ['touchmove', markReaderScroll, { passive: true }],
-      ['touchend', onTouchEnd, { passive: true }],
-      ['touchcancel', onTouchEnd, { passive: true }],
-      ['keydown', markReaderScroll, true],
-      ['pointerdown', markReaderScroll, true],
-    ];
-    listeners.forEach(([type, handler, opts]) => view.addEventListener(type, handler, opts));
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(() => keepPlace(false));
+    observer?.observe(view);
+    if (contentRef?.current) observer?.observe(contentRef.current);
+    const events = ['scroll', 'wheel', 'touchmove'];
+    events.forEach((type) => view.addEventListener(type, onScroll, { passive: true }));
     return () => {
-      clearTimeout(settleTimerRef.current);
-      scrollingRef.current = false;
-      touchingRef.current = false;
-      pendingDeltaRef.current = 0;
-      resizeObserver?.disconnect();
-      listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
+      clearTimeout(scrolling.timer);
+      Object.assign(scrolling, { timer: undefined, owed: 0 });
+      observer?.disconnect();
+      events.forEach((type) => view.removeEventListener(type, onScroll));
     };
-  }, [compensate, compensatePadding, currentContent, currentView, pausedRef]);
+  }, [contentRef, keepPlace, viewRef]);
+  return createElement(BeforeCommit, { read });
 };
 
 /**

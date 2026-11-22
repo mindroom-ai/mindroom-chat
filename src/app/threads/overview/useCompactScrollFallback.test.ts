@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react';
-import type { PointerEvent } from 'react';
+import { act, render, renderHook } from '@testing-library/react';
+import { createElement, Fragment, useLayoutEffect, type PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MOUSE_REST_HOLD_MS,
@@ -14,6 +14,12 @@ describe('useCompactScrollFallback', () => {
 
   const SECTION_HEADER = 32;
   const sectionOfRow = (id: string) => (id.startsWith('#') ? id : undefined);
+
+  /** Changes the page as a commit does: after the cards were read, before the list's effects. */
+  const Commit = ({ run }: { run?: () => void }) => {
+    useLayoutEffect(() => run?.());
+    return null;
+  };
 
   /** A list scrolled `scrollTop` down, with optional section headers in the order `ids`. */
   const list = (ids: string[], scrollTop: number) => {
@@ -47,64 +53,79 @@ describe('useCompactScrollFallback', () => {
       );
     };
     show(ids);
+    let resize: (() => void) | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resize = callback;
+        }
+
+        observe = () => undefined;
+
+        disconnect = () => undefined;
+      }
+    );
+    const viewRef = { current: view };
+    const List = ({ order, commit }: { order: string[]; commit?: () => void }) =>
+      createElement(
+        Fragment,
+        null,
+        useCompactScrollFallback(order, viewRef, sectionOfRow),
+        createElement(Commit, { run: commit })
+      );
+    const { rerender } = render(createElement(List, { order: ids }));
     return {
       view,
       show,
       writes,
+      /** A commit that renders `order`; `commit` changes the page inside it. */
+      rerender: (order: string[], commit?: () => void) =>
+        rerender(createElement(List, { order, commit })),
       /** The reader scrolls; the browser fires the scroll event at its next frame. */
       scrollBy: (delta: number) => {
         offset += delta;
       },
+      /** The list or one of its cards changed size outside a commit. */
+      resize: () => act(() => resize?.()),
     };
   };
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  const withoutScrollAnchoring = () =>
-    vi.stubGlobal('CSS', { supports: (property: string) => property !== 'overflow-anchor' });
-
   it("does not undo the reader's scroll that a render sees before its scroll event", () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, writes, scrollBy } = list(ids, 150);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
+    const { view, writes, scrollBy, rerender } = list(ids, 150);
     scrollBy(100);
     // An index refresh renders the same threads before the scroll event fires.
-    rerender({ live: [...ids] });
+    rerender([...ids]);
     expect(view.scrollTop).toBe(250);
     expect(writes).toEqual([]);
   });
 
-  it('keeps the cards in view in place when a card joins above them, without scroll anchoring', () => {
-    withoutScrollAnchoring();
+  it('keeps the cards in view in place when a card joins above them', () => {
     const ids = ['$c', '$b', '$a'];
-    const { view, show } = list(ids, 150);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    show(['$d', ...ids]);
-    rerender({ live: ['$d', ...ids] });
+    const { view, show, rerender } = list(ids, 150);
+    rerender(['$d', ...ids], () => show(['$d', ...ids]));
     expect(view.scrollTop).toBe(250);
   });
 
+  it('shows a reader at the top the card that joins there', () => {
+    const ids = ['$c', '$b', '$a'];
+    const { show, writes, rerender } = list(ids, 0);
+    rerender(['$d', ...ids], () => show(['$d', ...ids]));
+    expect(writes).toEqual([]);
+  });
+
   it('keeps its place when the topmost card in view moves to the top, by the card after it', () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, show, writes } = list(ids, 250);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
+    const { view, show, writes, rerender } = list(ids, 250);
     // $c, topmost in view, got a reply and leads the live order.
     const live = ['$c', '$a', '$b', '$d', '$e', '$f'];
-    show(live);
-    rerender({ live });
+    rerender(live, () => show(live));
     expect(writes).toEqual([]);
     expect(view.scrollTop).toBe(250);
   });
@@ -113,215 +134,122 @@ describe('useCompactScrollFallback', () => {
     ['the topmost card in view', ['$a', '$b', '$d', '$e', '$f', '$c'], '$d'],
     ['a card above the view', ['$b', '$c', '$d', '$e', '$f', '$a'], '$c'],
   ])('anchors the stationary cards when %s moves down', (_label, live, anchor) => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, show, writes } = list(ids, 250);
+    const { view, show, writes, rerender } = list(ids, 250);
     const topOf = () =>
       view.querySelector(`[data-scroll-anchor="${anchor}"]`)!.getBoundingClientRect().top;
-    const { rerender } = renderHook(
-      ({ order }) => useCompactScrollFallback(order, { current: view }),
-      { initialProps: { order: ids } }
-    );
     const top = topOf();
-    show(live);
-    rerender({ order: live });
+    rerender(live, () => show(live));
     expect(writes).toEqual([150]);
     expect(topOf()).toBe(top);
   });
 
   it('anchors the topmost card when the card just above moves down into a new section', () => {
-    withoutScrollAnchoring();
     const later = ['#later', '$c', '$d', '$e', '$f'];
     const ids = ['#needsYou', '$a', '$b', ...later];
-    const { view, show, writes } = list(ids, SECTION_HEADER + CARD + 10);
+    const { view, show, writes, rerender } = list(ids, SECTION_HEADER + CARD + 10);
     const topOfB = () =>
       view.querySelector('[data-scroll-anchor="$b"]')!.getBoundingClientRect().top;
-    const { rerender } = renderHook(
-      ({ order }) => useCompactScrollFallback(order, { current: view }, sectionOfRow),
-      { initialProps: { order: ids } }
-    );
     expect(topOfB()).toBe(-10);
 
     // A and B swap relative order, but only A changed sections. B should still anchor.
     const order = ['#needsYou', '$b', '#working', '$a', ...later];
-    show(order);
-    rerender({ order });
+    rerender(order, () => show(order));
     expect(topOfB()).toBe(-10);
     expect(writes).toEqual([SECTION_HEADER + 10]);
   });
 
   it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {
-    withoutScrollAnchoring();
     const ids = ['$c', '$b', '$a'];
-    const { view, show, writes } = list(ids, 150);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
+    const { view, show, writes, rerender } = list(ids, 150);
     // A card lands above, and another script already scrolled by as much to keep its card in view.
     show(['$d', ...ids]);
     view.scrollTop = 250;
     writes.length = 0;
-    rerender({ live: ['$d', ...ids] });
+    rerender(['$d', ...ids]);
     expect(writes).toEqual([]);
     expect(view.scrollTop).toBe(250);
   });
 
-  it('restores the cards in view when WebKit resets scrollTop to 0 during a reorder commit', () => {
-    withoutScrollAnchoring();
+  it.each([
+    ['scrolls to the top (WebKit)', 0],
+    ['follows the thread that sorted first, or the focus React puts back (Chromium)', 40],
+  ])('puts the cards in view back when the commit of a new order %s', (_label, scrolledTo) => {
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, show, writes } = list(ids, 250);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    // $f from below moves to the top, and WebKit resets scrollTop to 0 during React's insertBefore.
+    const { view, show, writes, rerender } = list(ids, 250);
+    // $f, below the view, got a reply: React moves every other row to put it first.
     const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
-    show(live);
-    view.scrollTop = 0;
-    writes.length = 0;
-    rerender({ live });
+    rerender(live, () => {
+      show(live);
+      view.scrollTop = scrolledTo;
+      writes.length = 0;
+    });
     expect(writes).toEqual([350]);
-    expect(view.scrollTop).toBe(350);
   });
 
-  it('does not undo a reader wheel scroll to 0 just before a reorder commit', () => {
-    withoutScrollAnchoring();
-    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, show, writes } = list(ids, 250);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
-    view.dispatchEvent(new Event('wheel'));
-    show(live);
-    view.scrollTop = 0;
-    writes.length = 0;
-    rerender({ live });
-    expect(writes).toEqual([]);
-    expect(view.scrollTop).toBe(0);
-  });
-
-  it('compensates card height growth outside a parent commit via ResizeObserver', () => {
-    withoutScrollAnchoring();
-    let onResize: (() => void) | undefined;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: () => void) {
-          onResize = callback;
-        }
-        observe() {}
-        disconnect() {
-          onResize = undefined;
-        }
-      }
-    );
+  it('keeps the cards in view in place when a card above them grows outside a commit', () => {
     const ids = ['$c', '$b', '$a'];
-    const { view, show, writes } = list(ids, 150);
-    const content = document.createElement('div');
-    renderHook(() =>
-      useCompactScrollFallback(ids, { current: view }, undefined, { current: content })
-    );
-    // Card above grows by 100 px without re-rendering the parent.
+    const { view, show, writes, resize } = list(ids, 150);
     show(['$d', ...ids]);
     expect(writes).toEqual([]);
-    act(() => onResize?.());
+    resize();
     expect(writes).toEqual([250]);
-    expect(view.scrollTop).toBe(250);
+
+    // Another script's scroll placed the list: the cards are read again where it left them.
+    show(['$e', '$d', ...ids]);
+    view.scrollTop = 300;
+    resize();
+    expect(writes).toEqual([250, 300]);
   });
 
-  it('defers scrollTop writes while a wheel scroll is in progress and applies once settled', () => {
-    vi.useFakeTimers();
-    try {
-      withoutScrollAnchoring();
-      const ids = ['$c', '$b', '$a'];
-      const { view, show, writes } = list(ids, 150);
-      const { rerender } = renderHook(
-        ({ live }) => useCompactScrollFallback(live, { current: view }),
-        { initialProps: { live: ids } }
-      );
-      view.dispatchEvent(new Event('wheel'));
-      show(['$d', ...ids]);
-      rerender({ live: ['$d', ...ids] });
-      expect(writes).toEqual([]);
-      expect(view.scrollTop).toBe(150);
-      act(() => {
-        vi.advanceTimersByTime(SCROLL_SETTLE_MS);
-      });
-      expect(writes).toEqual([250]);
-      expect(view.scrollTop).toBe(250);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('anchors below scroll-padding-top rather than to a card hidden under the floating header', () => {
-    withoutScrollAnchoring();
+  it('anchors a card below the floating header, not one it hides', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e'];
-    const { view, show, writes } = list(ids, 120);
-    view.style.scrollPaddingTop = '120px';
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    // At scrollTop 120 with scrollPaddingTop 120, $b (bottom 80) is hidden under the header and
-    // $c (top 80, bottom 180) is the first visible card below it. Growing $b must move scrollTop.
-    const next = ['$a', '$b', '$extra', '$c', '$d', '$e'];
-    show(next);
-    rerender({ live: next });
+    const { view, show, writes, rerender } = list(ids, 120);
+    // The header covers 120 px: $b ends under it, and $c is the first card the reader sees.
+    vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '120px' }));
+    view.dispatchEvent(new Event('scroll'));
+    // A card joins between the two.
+    const next = ['$a', '$b', '$new', '$c', '$d', '$e'];
+    rerender(next, () => show(next));
     expect(writes).toEqual([220]);
   });
 
-  it('compensates scroller padding-top changes when scrolled down even with native scroll anchoring', () => {
-    vi.stubGlobal('CSS', { supports: () => true });
-    const ids = ['$c', '$b', '$a'];
-    const { view, writes } = list(ids, 150);
-    document.body.append(view);
-    try {
-      view.style.paddingTop = '120px';
-      const { rerender } = renderHook(
-        ({ live }) => useCompactScrollFallback(live, { current: view }),
-        { initialProps: { live: ids } }
-      );
-      view.style.paddingTop = '178px';
-      rerender({ live: [...ids] });
-      expect(writes).toEqual([208]);
-      view.style.paddingTop = '156px';
-      rerender({ live: [...ids] });
-      expect(writes).toEqual([208, 186]);
-    } finally {
-      view.remove();
+  it.each(['wheel', 'touchmove'])(
+    'scrolls by what a change during a %s scroll moved the cards once the scroll settles',
+    (input) => {
+      vi.useFakeTimers();
+      const ids = ['$c', '$b', '$a'];
+      const { view, show, writes, rerender, scrollBy } = list(ids, 150);
+      view.dispatchEvent(new Event(input));
+      rerender(['$d', ...ids], () => show(['$d', ...ids]));
+      expect(writes).toEqual([]);
+
+      // The scroll goes on (momentum), and each of its events holds the write back.
+      vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
+      scrollBy(-20);
+      view.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
+      expect(writes).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(writes).toEqual([230]);
+
+      // The list's own scroll is no scrolling of the reader's.
+      view.dispatchEvent(new Event('scroll'));
+      rerender(['$e', '$d', ...ids], () => show(['$e', '$d', ...ids]));
+      expect(writes).toEqual([230, 330]);
     }
-  });
+  );
 
-  it('pauses compensation while pausedRef is true for a scroll restore', () => {
-    withoutScrollAnchoring();
-    const ids = ['$c', '$b', '$a'];
-    const { view, show, writes } = list(ids, 150);
-    const paused = { current: true };
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }, undefined, undefined, paused),
-      { initialProps: { live: ids } }
-    );
-    show(['$d', ...ids]);
-    rerender({ live: ['$d', ...ids] });
-    expect(writes).toEqual([]);
-    expect(view.scrollTop).toBe(150);
-  });
-
-  it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
-    vi.stubGlobal('CSS', { supports: () => true });
-    const ids = ['$c', '$b', '$a'];
-    const { view, show, writes } = list(ids, 150);
-    const { rerender } = renderHook(
-      ({ live }) => useCompactScrollFallback(live, { current: view }),
-      { initialProps: { live: ids } }
-    );
-    show(['$d', ...ids]);
-    rerender({ live: ['$d', ...ids] });
-    expect(writes).toEqual([]);
+  it('scrolls at once, also during a scroll, when the commit itself moved the list', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes, rerender } = list(ids, 250);
+    view.dispatchEvent(new Event('wheel'));
+    const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
+    rerender(live, () => {
+      show(live);
+      view.scrollTop = 0;
+    });
+    expect(writes).toEqual([0, 350]);
   });
 });
 

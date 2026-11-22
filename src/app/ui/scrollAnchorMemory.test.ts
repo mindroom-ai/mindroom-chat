@@ -314,33 +314,15 @@ describe('useScrollAnchorMemory', () => {
     expect(observers.size).toBe(1);
   });
 
-  it('stops following on touch, scroll keys and scrollbar thumb drag', () => {
-    const cases: [string, (view: HTMLElement) => void][] = [
-      ['touchstart', (view) => view.dispatchEvent(new Event('touchstart'))],
-      [
-        'ArrowDown',
-        (view) => view.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' })),
-      ],
-      [
-        'scrollbar thumb',
-        (view) => {
-          const bar = document.createElement('div');
-          bar.setAttribute('role', 'scrollbar');
-          view.append(bar);
-          bar.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-        },
-      ],
-    ];
-    for (const [, trigger] of cases) {
-      const memory: ScrollAnchorMemory = new Map();
-      const keys = rowKeys(20);
-      leaveAt(memory, keys, 300);
-      const layout = createLayout(keys);
-      mount(memory, layout);
-      trigger(layout.view);
-      expect(observers.size).toBe(0);
-      unmount();
-    }
+  it.each(['wheel', 'pointerdown', 'keydown'])('stops following at a %s of the reader', (input) => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    leaveAt(memory, keys, 300);
+    const layout = createLayout(keys);
+    mount(memory, layout);
+    // On a row: the list hears it first, also if the row keeps it to itself.
+    layout.view.querySelector('[data-scroll-anchor]')!.dispatchEvent(new Event(input));
+    expect(observers.size).toBe(0);
   });
 
   it('stops following once the reader scrolls, even back to the same place', () => {

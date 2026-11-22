@@ -163,10 +163,6 @@ test.describe('Compact scroll jump regressions', () => {
       page,
       browserName,
     }) => {
-      test.fixme(
-        browserName === 'chromium',
-        'Holding order while scrolled down (1A Chromium) is decided separately.'
-      );
       test.setTimeout(120_000);
       test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
       await page.setViewportSize(viewport);
@@ -382,7 +378,6 @@ test.describe('Compact scroll jump regressions', () => {
     page,
     browserName,
   }) => {
-    test.fixme(true, 'Holding order while scrolled down (2B) is decided separately.');
     test.setTimeout(120_000);
     test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
     await page.setViewportSize({ width: 1440, height: 900 });
