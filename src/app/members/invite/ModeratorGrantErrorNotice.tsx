@@ -39,7 +39,11 @@ export function ModeratorGrantErrorNotice() {
       }}
     >
       <Box alignItems="Center" gap="200">
-        <Icon size="200" src={Icons.Warning} style={{ color: color.Critical.Main, flexShrink: 0 }} />
+        <Icon
+          size="200"
+          src={Icons.Warning}
+          style={{ color: color.Critical.Main, flexShrink: 0 }}
+        />
         <Text size="T300" style={{ flexGrow: 1, minInlineSize: 0, overflowWrap: 'anywhere' }}>
           {failure.message}
         </Text>

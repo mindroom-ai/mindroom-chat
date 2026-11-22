@@ -42,7 +42,10 @@ export const moderatorGrantLevel = (levels: IPowerLevels): number =>
 export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string =>
   tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
 
-const getStateEvent = (room: Pick<Room, 'getLiveTimeline'>, type: StateEvent): MatrixEvent | undefined =>
+const getStateEvent = (
+  room: Pick<Room, 'getLiveTimeline'>,
+  type: StateEvent
+): MatrixEvent | undefined =>
   room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, '') ?? undefined;
 
 export const getRawPowerLevels = (room: Pick<Room, 'getLiveTimeline'>): Record<string, unknown> => {
@@ -56,7 +59,11 @@ const isOptionalMap = (v: unknown): v is Record<string, unknown> | undefined =>
 const isOptionalNum = (v: unknown): boolean =>
   v === undefined || (typeof v === 'number' && Number.isFinite(v));
 
-const hasUnreadableGrantLevels = (raw: Record<string, unknown>, viewerId: string, targetId: string) =>
+const hasUnreadableGrantLevels = (
+  raw: Record<string, unknown>,
+  viewerId: string,
+  targetId: string
+) =>
   !isOptionalMap(raw.events) ||
   !isOptionalMap(raw.users) ||
   [
@@ -69,7 +76,9 @@ const hasUnreadableGrantLevels = (raw: Record<string, unknown>, viewerId: string
   ].some((v) => !isOptionalNum(v));
 
 const isEligibleAgent = (userId: string, viewerId: string) =>
-  isUserId(userId) && isMindroomAgentUserIdForViewer(userId, viewerId) && !isMindroomOwnerUserId(userId);
+  isUserId(userId) &&
+  isMindroomAgentUserIdForViewer(userId, viewerId) &&
+  !isMindroomOwnerUserId(userId);
 
 const powerOf = (userId: string, levels: IPowerLevels, creators: ReadonlySet<string>) =>
   creators.has(userId) ? Infinity : readPowerLevel.user(levels, userId);

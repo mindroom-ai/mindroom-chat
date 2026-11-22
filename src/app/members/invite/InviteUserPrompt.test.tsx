@@ -769,7 +769,8 @@ describe('InviteUserPrompt', () => {
     const store = createStore();
     store.set(detachedGrantErrorAtom, {
       id: 1,
-      message: 'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden',
+      message:
+        'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden',
     });
     let notice: ReactTestRenderer;
     act(() => {
