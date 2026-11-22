@@ -366,6 +366,23 @@ it('gives a card whose model came late its height, though the reader is far from
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
 });
 
+it('does not discover a card that drew nothing again when the index rebuilds its record', () => {
+  const memory = new Map();
+  const blank = (id: string) => id === '$row60';
+  const records = () => new Map(ids.map((id) => [id, {} as ThreadRecord]));
+  const onIds = vi.fn();
+  const { container, rerender } = render(
+    <List memory={memory} blank={blank} records={records()} onIds={onIds} />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  expect(view.dataset.complete).toBe('true');
+  // The same threads in new objects: nothing the card could draw has changed.
+  rerender(<List memory={memory} blank={blank} records={records()} onIds={onIds} />);
+  expect(view.dataset.complete).toBe('true');
+  expect(onIds.mock.lastCall?.[0]).not.toContain('$row60');
+});
+
 it('mounts a window, not the list, when the models of all its cards come at once', () => {
   const memory = new Map();
   const { container, rerender } = render(<List memory={memory} blank={() => true} />);

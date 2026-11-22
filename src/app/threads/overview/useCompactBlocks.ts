@@ -41,7 +41,7 @@ export function useCompactBlocks(options: Options) {
       geometry: rooms.get(memory)?.get(roomId) ?? empty,
       saved: memory.get(roomId),
       order: undefined as string | undefined,
-      blank: new Map<string, ThreadRecord | undefined>(),
+      blank: new Map<string, boolean>(),
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
@@ -62,9 +62,9 @@ export function useCompactBlocks(options: Options) {
     return { key, start, end: blocks.length };
   });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
-  // A card that drew nothing (no view model) has no height to wait for until its record changes:
-  // then it is measured like a new card, so it takes its space wherever the reader is.
-  const drawn = (id: string) => !state.blank.has(id) || state.blank.get(id) !== records?.get(id);
+  // A card that drew nothing (no view model) has no height to wait for until its record comes or
+  // goes: then it is measured like a new card, so it takes its space wherever the reader is.
+  const drawn = (id: string) => state.blank.get(id) !== !!records?.has(id);
   const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id) && drawn(id)));
   const order = useMemo(() => JSON.stringify(groups), [groups]);
   const small = index.size <= 2 * BLOCK_CARDS;
@@ -273,7 +273,7 @@ export function useCompactBlocks(options: Options) {
           edge = next + measuredGap;
         }
       }
-      for (const id of liveIds) if (!heights.has(id)) state.blank.set(id, records?.get(id));
+      for (const id of liveIds) if (!heights.has(id)) state.blank.set(id, !!records?.has(id));
       if (back && !state.placed) return changed;
       if (visible.length) geometry.visible = visible;
       state.order = order;
