@@ -38,7 +38,13 @@ export const callPanelRequestAtom = atom<{ roomId: string } | undefined>(undefin
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
 /** The start running in this tab, if any; a second start would race it for the one call. */
-const callStartingAtom = atom<object | undefined>(undefined);
+export type CallStart = { roomId: string; originRoomId?: string };
+
+export const callStartingAtom = atom<CallStart | undefined>(undefined);
+
+/** Whether a call for this room (its own, or an agent call started there) is starting in this tab. */
+export const isCallStartingIn = (starting: CallStart | undefined, roomId: string): boolean =>
+  !!starting && (starting.roomId === roomId || starting.originRoomId === roomId);
 
 /**
  * Why the newest start of a room's call in this tab did not start it: `busy` while another tab
@@ -405,7 +411,10 @@ export const useCallActions = (mx: MatrixClient) => {
   const startCall = useCallback(
     async (options: StartCallOptions): Promise<StartCallResult> => {
       if (store.get(activeCallAtom) || store.get(callStartingAtom)) return 'busy';
-      const start = {};
+      const start: CallStart = {
+        roomId: options.room.roomId,
+        originRoomId: options.origin?.roomId,
+      };
       store.set(callStartingAtom, start);
       let made: Awaited<ReturnType<typeof makeCall>>;
       try {

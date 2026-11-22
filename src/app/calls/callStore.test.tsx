@@ -5,6 +5,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   activeCallAtom,
   callPanelRoomAtom,
+  callStartingAtom,
   callStartProblemAtom,
   callViewStateAtom,
   forgetCallState,
@@ -364,9 +365,11 @@ describe('useCallActions startCall', () => {
     const store = createStore();
     const { room, finishLoading } = slowRoom();
     const starting = actionsIn(store, runningClient()).startCall({ room, kind: 'room' });
+    expect(store.get(callStartingAtom)).toEqual({ roomId: room.roomId, originRoomId: undefined });
     await finishLoading();
 
     await expect(starting).resolves.toBe('started');
+    expect(store.get(callStartingAtom)).toBeUndefined();
     expect(store.get(activeCallAtom)?.call.room).toBe(room);
   });
 
