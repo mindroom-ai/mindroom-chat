@@ -83,8 +83,11 @@ export const installMediaAuth = (
   owners: () => readonly Electron.WebContents[]
 ): ((windowId: number) => void) => {
   const auth = createMediaAuth();
-  // Set while a needed cache clear has not succeeded; no session is accepted until one does.
-  let clearOwed = false;
+  // A clear is owed while one failed or is still running; no session is accepted until one succeeds.
+  let clearFailed = false;
+  let clearsRunning = 0;
+  // Each window's latest push; a deferred clear installs its session only if still the latest.
+  const latestPush = new Map<number, object>();
   // The one synchronous channel (all others go through `handle()`): main must hold the token
   // before the page can send any request after its session store changed.
   ipcMain.on('desktop:set-media-session', (event, ...args) => {
@@ -96,6 +99,8 @@ export const installMediaAuth = (
       const owner = owners().find((candidate) => isAuthorized(event, candidate));
       if (!owner) return reply();
       const next = parseSession(args);
+      const push = {};
+      latestPush.set(owner.id, push);
       const previous = auth.set(owner.id, next ?? undefined);
       result =
         next === undefined ? { ok: false, code: 'BAD_ARGUMENTS' } : { ok: true, value: undefined };
@@ -105,19 +110,22 @@ export const installMediaAuth = (
       const left =
         previous !== undefined &&
         (previous.baseUrl !== next?.baseUrl || previous.userId !== next?.userId);
-      if (left || clearOwed) {
+      if (left || clearFailed || clearsRunning > 0) {
         // The new session is withheld until the clear succeeds.
         auth.set(owner.id, undefined);
+        clearsRunning += 1;
         return void Promise.resolve()
           .then(() => ses.clearCache())
           .then(
             () => {
-              clearOwed = false;
-              if (!owner.isDestroyed()) auth.set(owner.id, next ?? undefined);
+              clearsRunning -= 1;
+              clearFailed = false;
+              if (latestPush.get(owner.id) === push) auth.set(owner.id, next ?? undefined);
               reply();
             },
             () => {
-              clearOwed = true;
+              clearsRunning -= 1;
+              clearFailed = true;
               result = { ok: false, code: 'CACHE_CLEAR_FAILED' };
               reply();
             }
@@ -164,5 +172,8 @@ export const installMediaAuth = (
   ses.webRequest.onBeforeRedirect(HTTP_URLS, (d) => auth.redirected(d.id));
   ses.webRequest.onCompleted(HTTP_URLS, (d) => auth.done(d.id));
   ses.webRequest.onErrorOccurred(HTTP_URLS, (d) => auth.done(d.id));
-  return (windowId) => auth.set(windowId, undefined);
+  return (windowId) => {
+    latestPush.delete(windowId);
+    auth.set(windowId, undefined);
+  };
 };

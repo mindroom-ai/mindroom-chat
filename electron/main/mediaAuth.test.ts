@@ -326,6 +326,69 @@ describe('installMediaAuth', () => {
       });
   };
 
+  it('installs no session from a deferred clear after the window was forgotten or pushed again', async () => {
+    const clears: (() => void)[] = [];
+    const clearCache = vi.fn(() => new Promise<void>((resolve) => clears.push(resolve)));
+    let beforeSend!: (
+      details: Electron.OnBeforeSendHeadersListenerDetails,
+      cb: (response: Electron.BeforeSendResponse) => void
+    ) => void;
+    const noop = vi.fn();
+    const ses = {
+      clearCache,
+      webRequest: {
+        onBeforeSendHeaders: (_filter: unknown, listener: typeof beforeSend) => {
+          beforeSend = listener;
+        },
+        onBeforeRedirect: noop,
+        onCompleted: noop,
+        onErrorOccurred: noop,
+      },
+    } as unknown as Electron.Session;
+    const forget = installMediaAuth(ses, () => [owner]);
+    const push = pushChannel();
+    const alice = { baseUrl: 'https://hs.example', userId: '@alice:hs', accessToken: 'tok-a' };
+    const bob = { ...alice, userId: '@bob:hs', accessToken: 'tok-b' };
+    const carol = { ...alice, userId: '@carol:hs', accessToken: 'tok-c' };
+    const headerFor = () =>
+      new Promise<Electron.BeforeSendResponse>((resolve) =>
+        beforeSend(
+          {
+            id: Math.floor(Math.random() * 1e9),
+            url: 'https://hs.example/_matrix/client/v1/media/download/hs/abc',
+            method: 'GET',
+            resourceType: 'image',
+            requestHeaders: {},
+            webContentsId: owner.id,
+            frame: mainFrame,
+          } as unknown as Electron.OnBeforeSendHeadersListenerDetails,
+          resolve
+        )
+      );
+
+    expect(await push(validEvent, alice)).toEqual({ ok: true, value: undefined });
+    // The renderer goes while the switch to Bob waits for its clear.
+    const toBob = push(validEvent, bob);
+    await Promise.resolve();
+    forget(owner.id);
+    clears.shift()!();
+    await toBob;
+    expect((await headerFor()).requestHeaders).toBeUndefined();
+
+    // A newer push wins over an older one whose clear finishes later.
+    expect(await push(validEvent, alice)).toEqual({ ok: true, value: undefined });
+    const toBobAgain = push(validEvent, bob);
+    await Promise.resolve();
+    const toCarol = push(validEvent, carol);
+    await Promise.resolve();
+    clears.shift()!();
+    await toBobAgain;
+    expect((await headerFor()).requestHeaders).toBeUndefined();
+    clears.shift()!();
+    await toCarol;
+    expect((await headerFor()).requestHeaders).toMatchObject({ Authorization: 'Bearer tok-c' });
+  });
+
   it('clears the HTTP cache before answering a logout, a switch, and a rejected push, not a sign-in or a same-account refresh', async () => {
     let cleared!: () => void;
     const clearCache = vi.fn(
