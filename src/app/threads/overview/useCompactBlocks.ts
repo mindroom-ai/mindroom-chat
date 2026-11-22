@@ -118,8 +118,7 @@ export function useCompactBlocks(options: Options) {
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
-    const group: CompactBlockRow[] =
-      !small && end > start ? [{ key: `${groupKey}:lead`, height: 0, ids: [] }] : [];
+    const group: CompactBlockRow[] = [];
     let gapIndex = 0;
     for (let slot = start; slot < end; slot += 1) {
       const inBand = slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS;
@@ -137,11 +136,9 @@ export function useCompactBlocks(options: Options) {
         } else if (height) {
           const tail = group.at(-1);
           if (tail && typeof tail !== 'string') {
-            if (!tail.ids.length) spacers.set(tail.key, tail.ids);
             tail.ids.push(id);
-            tail.height += height + (tail.height ? gap : 0);
+            tail.height += height + gap;
           } else {
-            // Keep this gap mounted as its boundaries move: WebKit clamps if it is removed.
             const spacer = { key: `${groupKey}:${gapIndex++}`, height, ids: [id] };
             spacers.set(spacer.key, spacer.ids);
             group.push(spacer);

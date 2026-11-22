@@ -680,6 +680,13 @@ describe('a focus request on the mounted Compact room', () => {
       this: HTMLElement
     ) {
       if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, VIEW_HEIGHT);
+      if (this.parentElement?.dataset.compactRoomView)
+        return new DOMRect(
+          0,
+          -scrollTop,
+          300,
+          Math.max(extent(), Number.parseFloat(this.style.minHeight) || 0)
+        );
       let top = -scrollTop;
       for (let row = this.previousElementSibling; row; row = row.previousElementSibling)
         top += rowHeight(row);
@@ -811,6 +818,41 @@ describe('a focus request on the mounted Compact room', () => {
       scrollTop = 0;
       fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
       expect(document.querySelector('[data-scroll-anchor="$card0"]')).not.toBeNull();
+    });
+
+    it('pins the content minHeight across card/spacer swaps when overflow-anchor is absent', () => {
+      memory.clear();
+      const origSupports = globalThis.CSS?.supports;
+      Object.defineProperty(globalThis, 'CSS', {
+        configurable: true,
+        value: { supports: () => false },
+      });
+      try {
+        render(at(undefined, large.slice(0, 36)));
+        measure();
+        const view = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+        const content = view.firstElementChild as HTMLElement;
+        const observedDuringRemoval: string[] = [];
+        const removeChild = content.removeChild.bind(content);
+        const spy = vi.spyOn(content, 'removeChild').mockImplementation((child) => {
+          observedDuringRemoval.push(content.style.minHeight);
+          return removeChild(child);
+        });
+        try {
+          scrollTop = 3300;
+          fireEvent.scroll(view);
+        } finally {
+          spy.mockRestore();
+        }
+        expect(observedDuringRemoval.length).toBeGreaterThan(0);
+        expect(observedDuringRemoval.every((value) => value === '3600px')).toBe(true);
+        expect(content.style.minHeight).toBe('');
+      } finally {
+        Object.defineProperty(globalThis, 'CSS', {
+          configurable: true,
+          value: origSupports ? { supports: origSupports } : undefined,
+        });
+      }
     });
   });
 

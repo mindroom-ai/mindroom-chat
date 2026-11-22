@@ -94,37 +94,30 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
     : undefined;
 const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
-type SpacerProps = { row: Exclude<CompactBlockRow, string> };
-class CompactSpacer extends React.Component<SpacerProps> {
-  private readonly node = React.createRef<HTMLDivElement>();
-
-  override getSnapshotBeforeUpdate({ row }: SpacerProps): null {
-    const height = this.props.row.height;
-    const node = this.node.current;
-    // Commit the larger measured gap to WebKit's layout before React removes the shells.
-    if (node && height > row.height && !globalThis.CSS?.supports?.('overflow-anchor', 'auto')) {
-      node.style.display = '';
-      node.style.height = `${height}px`;
-      node.getBoundingClientRect();
-    }
-    return null;
+type GuardProps = {
+  scrollRef: RefObject<HTMLDivElement>;
+  contentRef: RefObject<HTMLDivElement>;
+  liveIds: readonly string[];
+};
+class CompactHeightGuard extends React.Component<GuardProps> {
+  override getSnapshotBeforeUpdate(prev: GuardProps): boolean {
+    const [view, content] = [this.props.scrollRef.current, this.props.contentRef.current];
+    if (!view?.scrollTop || !content || prev.liveIds === this.props.liveIds) return false;
+    if (globalThis.CSS?.supports?.('overflow-anchor', 'auto')) return false;
+    // Pin height across React's mutation phase so WebKit does not clamp scrollTop between removals
+    // and insertions.
+    const height = content.getBoundingClientRect().height;
+    if (height <= 0) return false;
+    content.style.minHeight = `${height}px`;
+    content.getBoundingClientRect();
+    return true;
   }
 
-  // Required by React so getSnapshotBeforeUpdate runs on updates.
-  override componentDidUpdate = () => undefined;
-
-  override render() {
-    const { key, height } = this.props.row;
-    return (
-      <div
-        ref={this.node}
-        aria-hidden
-        data-compact-spacer={height ? key : undefined}
-        className={css.Spacer}
-        style={height ? { height } : { height: 0, display: 'none' }}
-      />
-    );
+  override componentDidUpdate(_prev: GuardProps, _state: unknown, pinned: boolean) {
+    if (pinned && this.props.contentRef.current) this.props.contentRef.current.style.minHeight = '';
   }
+
+  override render = () => null;
 }
 
 type ThreadActionsMenuState = {
@@ -713,9 +706,19 @@ export function CompactRoomView({
     );
   };
   const renderRow = (row: CompactBlockRow) => {
-    if (typeof row !== 'string') return <CompactSpacer key={`spacer:${row.key}`} row={row} />;
-    const model = modelByRootId.get(row);
-    return model ? renderCard(model) : null;
+    if (typeof row === 'string') {
+      const model = modelByRootId.get(row);
+      return model ? renderCard(model) : null;
+    }
+    return (
+      <div
+        key={`spacer:${row.key}`}
+        aria-hidden
+        data-compact-spacer={row.key}
+        className={css.Spacer}
+        style={{ height: row.height }}
+      />
+    );
   };
   return (
     <Box
@@ -747,6 +750,7 @@ export function CompactRoomView({
           }
         }}
       >
+        <CompactHeightGuard scrollRef={viewRef} contentRef={contentRef} liveIds={blocks.liveIds} />
         {listMotion}
         {!!pinning.error && (
           <Text role="alert" size="T200">
