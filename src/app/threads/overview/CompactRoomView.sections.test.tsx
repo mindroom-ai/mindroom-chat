@@ -871,6 +871,19 @@ describe('a focus request on the mounted Compact room', () => {
       expect(document.querySelector('[data-scroll-anchor="$card100"]')).not.toBeNull();
     });
 
+    it('leaves the reader who scrolled while a far link waited for its card to be measured', () => {
+      memory.clear();
+      const cold = large.map((id) => `${id}-cold`);
+      const far = { eventId: cold[100]!, entryKey: 'far-push', pushed: true };
+      const { rerender } = render(at(undefined, cold));
+      rerender(at(far, cold));
+      expect(scrollTop).toBe(0);
+      scrollTop = 150;
+      measure();
+      rerender(at(far, cold));
+      expect(scrollTop).toBe(150);
+    });
+
     it('places warm Back in its first commit when 48 unseen roots were prepended', () => {
       memory.clear();
       const { unmount } = render(at(undefined, large));
