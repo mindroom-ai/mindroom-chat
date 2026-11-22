@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe('desktopMediaAuth', () => {
-  it('follows the active session across 21 stored accounts, keeps ready during same-account refresh, drops on switch and logout', async () => {
+  it('follows the active session across 21 stored accounts and drops ready until ack on refresh, switch, and logout', async () => {
     const { desktopMediaAuthReady, startDesktopMediaAuth, subscribeDesktopMediaAuth } =
       await import('./desktopMediaAuth');
     const { pending, calls } = installBridge();
@@ -96,14 +96,14 @@ describe('desktopMediaAuth', () => {
       expect(calls).toHaveLength(1);
       expect(desktopMediaAuthReady()).toBe(true);
 
-      // Same-account token refresh keeps readiness true throughout the delayed ack.
+      // Same-account token refresh drops readiness to false until main acks the new token.
       updateSessionCredentials(session21Id, { accessToken: 'tok-21-refreshed' });
       expect(calls[calls.length - 1]).toEqual({
         baseUrl: 'https://hs-1.example',
         accessToken: 'tok-21-refreshed',
       });
-      expect(desktopMediaAuthReady()).toBe(true);
-      expect(notifications).toHaveBeenCalledTimes(1);
+      expect(desktopMediaAuthReady()).toBe(false);
+      expect(notifications).toHaveBeenCalledTimes(2);
 
       pending.shift()!.resolve({ ok: true, value: undefined });
       await flushMicrotasks();

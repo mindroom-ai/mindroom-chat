@@ -82,6 +82,40 @@ describe('createMediaAuth', () => {
     ).toBeUndefined();
   });
 
+  it('refuses ambiguous media paths (encoded slashes/backslashes/dots, dot segments, wrong route shape) and allows optional filename', () => {
+    const auth = createMediaAuth();
+    auth.set(10, { baseUrl: 'https://hs.example/base', accessToken: 'tok-a' });
+
+    expect(
+      auth.authorize(
+        makeReq({
+          id: 1,
+          url: 'https://hs.example/base/_matrix/client/v1/media/download/hs.example/abc/photo.png',
+        })
+      )
+    ).toBe('Bearer tok-a');
+
+    const refused = [
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/a%2fb',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/a%2Fb',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/a%5cb',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/a%5Cb',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/%2e%2e/other',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/%2E/other',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/id/../other',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/./id',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/id\\evil',
+      'https://hs.example/base/_matrix/client/v1/media/download',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example/id/name/extra',
+      'https://hs.example/base/_matrix/client/v1/media/download/hs.example//id',
+      'https://hs.example/other/../base/_matrix/client/v1/media/download/hs.example/id',
+    ];
+    refused.forEach((url, idx) => {
+      expect(auth.authorize(makeReq({ id: 20 + idx, url })), url).toBeUndefined();
+    });
+  });
+
   it('refuses non-GET methods such as POST and OPTIONS', () => {
     const auth = createMediaAuth();
     auth.set(10, { baseUrl: 'https://hs.example', accessToken: 'tok-a' });
@@ -411,6 +445,51 @@ describe('installMediaAuth', () => {
     );
     expect(cb).toHaveBeenCalledOnce();
     expect(cb).toHaveBeenCalledWith({});
+
+    // Redirected request carrying main's header still strips it even if frame getter throws.
+    expect(sendReq(105).requestHeaders?.Authorization).toBe('Bearer tok-local');
+    beforeRedirect({ id: 105 });
+    const stripCb = vi.fn();
+    beforeSend(
+      {
+        id: 105,
+        url: 'https://evil.example/steal',
+        method: 'GET',
+        webContentsId: 42,
+        get frame(): Electron.WebFrameMain {
+          throw new Error('frame disposed');
+        },
+        resourceType: 'image',
+        referrer: '',
+        timestamp: 0,
+        requestHeaders: { Authorization: 'Bearer tok-local', Accept: 'image/*' },
+      },
+      stripCb
+    );
+    expect(stripCb).toHaveBeenCalledOnce();
+    expect(stripCb).toHaveBeenCalledWith({ requestHeaders: { Accept: 'image/*' } });
+
+    // Redirected request carrying a caller's bearer with a throwing frame getter stays unchanged.
+    const callerCb = vi.fn();
+    beforeSend(
+      {
+        id: 105,
+        url: 'https://evil.example/steal',
+        method: 'GET',
+        webContentsId: 42,
+        get frame(): Electron.WebFrameMain {
+          throw new Error('frame disposed');
+        },
+        resourceType: 'image',
+        referrer: '',
+        timestamp: 0,
+        requestHeaders: { Authorization: 'Bearer caller-tok', Accept: 'image/*' },
+      },
+      callerCb
+    );
+    expect(callerCb).toHaveBeenCalledOnce();
+    expect(callerCb).toHaveBeenCalledWith({});
+    completed({ id: 105 });
 
     // Forgetting the window clears its session.
     forget(42);

@@ -1,14 +1,11 @@
 import type { DesktopMediaSession } from '../lib/desktopBridge';
 import { desktopBridge } from '../lib/nativeShell';
 
-type ActiveMediaSession = DesktopMediaSession & { sessionId?: string; userId?: string };
-
 let ready = false;
-// Ignores stale IPC acks that resolve after a newer session switch or logout.
-let seq = 0;
+// Ignores stale IPC acks that resolve after a newer session push.
+let latest: object | undefined;
 // Skips duplicate IPC pushes on metadata-only session store writes.
 let sentKey: string | undefined;
-let ackedAccountKey: string | undefined;
 const listeners = new Set<() => void>();
 
 const setReady = (next: boolean): void => {
@@ -25,30 +22,22 @@ export const subscribeDesktopMediaAuth = (listener: () => void): (() => void) =>
 };
 
 export const startDesktopMediaAuth = (
-  readActiveSession: () => ActiveMediaSession | undefined,
+  readActiveSession: () => DesktopMediaSession | undefined,
   subscribe: (listener: () => void) => () => void
 ): void => {
   const bridge = desktopBridge();
   if (!bridge) return;
-  const send = (
-    session: DesktopMediaSession | null,
-    accountKey: string | undefined,
-    id: number,
-    retried: boolean
-  ): void => {
+  const send = (session: DesktopMediaSession | null, token: object, retried: boolean): void => {
     void bridge
       .setMediaSession(session)
       .catch(() => ({ ok: false as const, code: 'IPC_ERROR' }))
       .then((res) => {
-        if (id !== seq) return;
-        if (res?.ok) {
-          ackedAccountKey = session ? accountKey : undefined;
-          setReady(session !== null);
-        } else if (!retried) {
-          send(session, accountKey, id, true);
-        } else {
+        if (latest !== token) return;
+        if (res?.ok) setReady(session !== null);
+        else if (!retried) send(session, token, true);
+        else {
+          // If a logout push fails twice at IPC, readiness stays false so the page requests no authenticated media.
           sentKey = undefined;
-          ackedAccountKey = undefined;
           setReady(false);
         }
       });
@@ -61,13 +50,10 @@ export const startDesktopMediaAuth = (
     const key = session ? `${session.baseUrl}\0${session.accessToken}` : '';
     if (key === sentKey) return;
     sentKey = key;
-    const accountId = raw?.sessionId ?? raw?.userId;
-    const accountKey = session && accountId ? `${session.baseUrl}\0${accountId}` : undefined;
-    if (!(ready && accountKey !== undefined && accountKey === ackedAccountKey)) {
-      ackedAccountKey = undefined;
-      setReady(false);
-    }
-    send(session, accountKey, ++seq, false);
+    setReady(false);
+    const token = {};
+    latest = token;
+    send(session, token, false);
   };
   subscribe(push);
   push();

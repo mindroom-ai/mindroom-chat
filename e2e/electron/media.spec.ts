@@ -60,6 +60,7 @@ const startMediaServer = async (
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Authorization, Range',
       'Access-Control-Expose-Headers': 'Accept-Ranges, Content-Range',
+      'Cache-Control': 'no-store',
     };
 
     if (req.method === 'OPTIONS') {

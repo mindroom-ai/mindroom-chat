@@ -13,6 +13,19 @@ export type MediaRequest = {
 };
 
 const HTTP_URLS = { urls: ['http://*/*', 'https://*/*'] };
+const MEDIA_ROUTE =
+  /^\/_matrix\/client\/v1\/media\/(?:download|thumbnail)\/[^/]+\/[^/]+(?:\/[^/]+)?$/;
+
+const isStrictMediaUrl = (url: string, baseUrl: string): boolean => {
+  if (!validMediaRequest(url, baseUrl)) return false;
+  const basePath = new URL(baseUrl).pathname.replace(/\/+$/, '');
+  const rawPath = url.replace(/^https?:\/\/[^/?#]+/i, '').split(/[?#]/, 1)[0] ?? '';
+  if (!rawPath.startsWith(basePath)) return false;
+  const suffix = rawPath.slice(basePath.length);
+  if (/%(?:2f|5c|2e)/i.test(suffix) || suffix.includes('\\')) return false;
+  if (suffix.split('/').some((seg) => seg === '.' || seg === '..')) return false;
+  return MEDIA_ROUTE.test(suffix);
+};
 
 export const createMediaAuth = () => {
   const sessions = new Map<number, MediaSession>();
@@ -27,7 +40,7 @@ export const createMediaAuth = () => {
       if (redirectedIds.has(req.id) || req.authorization !== undefined || req.method !== 'GET')
         return undefined;
       const s = req.fromMainFrameOf === undefined ? undefined : sessions.get(req.fromMainFrameOf);
-      if (!s || !validMediaRequest(req.url, s.baseUrl)) return undefined;
+      if (!s || !isStrictMediaUrl(req.url, s.baseUrl)) return undefined;
       const header = `Bearer ${s.accessToken}`;
       owned.set(req.id, header);
       return header;
@@ -80,24 +93,27 @@ export const installMediaAuth = (
     try {
       const h = d.requestHeaders;
       const authKey = Object.keys(h).find((k) => k.toLowerCase() === 'authorization');
-      const f = d.resourceType === 'subFrame' ? null : d.frame;
-      const owner =
-        f && f.origin === APP_ORIGIN && isAllowedAppPage(f.url)
-          ? owners().find((w) => !w.isDestroyed() && w.id === d.webContentsId && f === w.mainFrame)
-          : undefined;
-      const req: MediaRequest = {
+      const authorization = authKey !== undefined ? h[authKey] : undefined;
+      const baseReq: MediaRequest = {
         id: d.id,
         url: d.url,
         method: d.method,
-        authorization: authKey !== undefined ? h[authKey] : undefined,
-        fromMainFrameOf: owner?.id,
+        authorization,
+        fromMainFrameOf: undefined,
       };
-      if (auth.ownedHeaderToRemove(req)) {
+      if (auth.ownedHeaderToRemove(baseReq)) {
         const next = { ...h };
         if (authKey !== undefined) delete next[authKey];
         res = { requestHeaders: next };
-      } else {
-        const header = auth.authorize(req);
+      } else if (authorization === undefined) {
+        const f = d.resourceType === 'subFrame' ? null : d.frame;
+        const owner =
+          f && f.origin === APP_ORIGIN && isAllowedAppPage(f.url)
+            ? owners().find(
+                (w) => !w.isDestroyed() && w.id === d.webContentsId && f === w.mainFrame
+              )
+            : undefined;
+        const header = auth.authorize({ ...baseReq, fromMainFrameOf: owner?.id });
         if (header) res = { requestHeaders: { ...h, Authorization: header } };
       }
     } catch {
