@@ -31,7 +31,10 @@ let selectionHolds = 0;
  * has opened under the finger it selects the menu's text instead. With nothing selectable it does
  * neither.
  */
-const holdSelection = (): (() => void) => {
+export const holdSelection = (): (() => void) => {
+  if (typeof document === 'undefined' || !document.documentElement) {
+    return () => undefined;
+  }
   const { style } = document.documentElement;
   if (selectionHolds === 0) {
     style.setProperty('-webkit-user-select', 'none');
