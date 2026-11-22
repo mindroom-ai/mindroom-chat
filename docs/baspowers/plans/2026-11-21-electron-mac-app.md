@@ -164,11 +164,11 @@ export const startDesktopMediaAuth = (): void; export const desktopMediaAuthRead
 export const isOpenable = (url: string): boolean;     // http(s) or mailto, no media path, no access_token
 export type PendingSignIn = { homeserver: string; redirectUrl: string };   // redirectUrl: http://127.0.0.1:<port>/auth/<random><callback>
 export const isSignInUrl = (url: string, pending: PendingSignIn): boolean;
-export const returnToken = (request: { method: string; host: string; url: string }, pending: PendingSignIn): string | undefined;   // the return's loginToken
+export const returnToken = (request: Pick<http.IncomingMessage, 'method' | 'url' | 'headersDistinct'>, pending: PendingSignIn): string | undefined;   // the return's loginToken
 export const createAuthCallback = (notify: () => void, focus: () => void): {
   noteGesture(): void;   // main saw a click or key press in the main window
-  start(request: { homeserver: string; callback: string }): Promise<PendingSignIn | undefined>;   // binds the listener once; replaces the attempt; undefined without a gesture of the last 10 seconds
-  open(url: string): boolean;   // once per attempt, only its own sign-in URL
+  start(request: { homeserver: string; callback: string }): Promise<string | undefined>;   // binds the listener once; replaces the attempt; answers its redirectUrl, or undefined without a gesture of the last 10 seconds
+  open(url: string, openUrl: (url: string) => Promise<void>): Promise<boolean>;   // once per attempt, only its own sign-in URL; a failed open ends the attempt
   take(): string | undefined;   // the return, once
   close(): void;   // at Quit
 };

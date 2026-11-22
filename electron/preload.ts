@@ -69,7 +69,7 @@ const bridge = {
       // Subscribe first, then take once: a return that came while no page listened waits in main.
       ipcRenderer.on('desktop:app-url', take);
       take();
-      return Promise.resolve({ remove: () => ipcRenderer.removeListener('desktop:app-url', take) });
+      return Promise.resolve();
     },
   },
 } satisfies DesktopBridge;

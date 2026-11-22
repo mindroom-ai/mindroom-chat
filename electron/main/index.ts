@@ -47,13 +47,7 @@ const focusMainWindow = (): void => {
 };
 
 // Carries no URL: the page takes the return itself, once, through `desktop:take-app-url`.
-const notifyAppUrl = (): void => {
-  try {
-    getMainWindow()?.webContents.send('desktop:app-url');
-  } catch {
-    // The window was disposed: its next page takes the return when it loads.
-  }
-};
+const notifyAppUrl = (): void => getMainWindow()?.webContents.send('desktop:app-url');
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();

@@ -3,12 +3,13 @@ export type DesktopShellEvent = { type: 'fullscreen'; value: boolean };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
-export type DesktopAppUrlPlugin = {
-  addListener: (
+/** What hands the page a URL the system opened: Capacitor's App plugin, or the desktop bridge. */
+export type AppUrlPlugin = {
+  addListener(
     eventName: 'appUrlOpen',
     listener: (event: { url?: string }) => void
-  ) => Promise<{ remove: () => void }>;
-  getLaunchUrl: () => Promise<{ url?: string } | undefined>;
+  ): Promise<unknown>;
+  getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
 /**
@@ -21,7 +22,7 @@ export type DesktopBridge = {
   setMediaSession: (session: DesktopMediaSession | null) => DesktopResult<void>;
   startSignIn: (request: DesktopSignInRequest) => Promise<DesktopResult<string>>;
   openSignIn: (url: string) => Promise<DesktopResult<void>>;
-  appUrl: DesktopAppUrlPlugin;
+  appUrl: AppUrlPlugin;
 };
 
 declare global {

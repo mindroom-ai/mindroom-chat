@@ -14,6 +14,7 @@ vi.mock('electron', () => ({
 import {
   createAuthCallback,
   isSignInUrl,
+  parseSignInRequest,
   registerSignInHandlers,
   returnToken,
   type PendingSignIn,
@@ -50,12 +51,19 @@ const rawRequest = (
   });
 
 /** A request written by hand, so it can carry the `Host` header more than once. */
-const statusWithHosts = (port: number, path: string, hosts: string[]): Promise<number> =>
+const statusWithHosts = (
+  port: number,
+  path: string,
+  [first, ...more]: string[],
+  fillers = 0
+): Promise<number> =>
   new Promise((resolve, reject) => {
     const socket = net.connect(port, '127.0.0.1', () => {
       const lines = [
         `GET ${path} HTTP/1.1`,
-        ...hosts.map((h) => `Host: ${h}`),
+        `Host: ${first}`,
+        ...Array.from({ length: fillers }, () => 'a:'),
+        ...more.map((h) => `Host: ${h}`),
         'Connection: close',
       ];
       socket.write(`${lines.join('\r\n')}\r\n\r\n`);
@@ -150,8 +158,8 @@ describe('returnToken', () => {
   const HOST = '127.0.0.1:43210';
   const PATH = '/auth/deadbeef/login/matrix.example.org/';
   const QUERY = 'ssoNonce=nonce123&addAccount=1';
-  const get = (url: string, host = HOST, method = 'GET') =>
-    returnToken({ method, host, url }, PENDING);
+  const get = (url: string, host: string | string[] = HOST, method = 'GET') =>
+    returnToken({ method, url, headersDistinct: { host: [host].flat() } }, PENDING);
 
   it('yields the one loginToken of a GET with the exact Host, path and stored query', () => {
     expect(get(`${PATH}?${QUERY}&loginToken=tok_ok`)).toBe('tok_ok');
@@ -164,7 +172,13 @@ describe('returnToken', () => {
     ['HEAD', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, HOST, 'HEAD')],
     ['another host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, 'localhost:43210')],
     ['another port', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, '127.0.0.1:9999')],
-    ['no Host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, '')],
+    ['no Host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, [])],
+    ['an empty Host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, '')],
+    ['the Host twice', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, [HOST, HOST])],
+    ['a fragment', () => get(`${PATH}?${QUERY}&loginToken=tok_ok#frag`)],
+    ['a fragment before the query', () => get(`${PATH}#?${QUERY}&loginToken=tok_ok`)],
+    ['a control character', () => get(`${PATH}?${QUERY}&loginToken=tok\u0000ok`)],
+    ['no URL', () => returnToken({ method: 'GET', headersDistinct: { host: [HOST] } }, PENDING)],
     ['another path', () => get(`/auth/other/login/matrix.example.org/?${QUERY}&loginToken=tok_ok`)],
     [
       'a dot segment',
@@ -189,6 +203,73 @@ describe('returnToken', () => {
   });
 });
 
+describe('parseSignInRequest', () => {
+  const hs = 'https://matrix.example.org';
+
+  it('accepts an allowed homeserver with a canonical callback that has one ssoNonce', () => {
+    for (const request of [
+      { homeserver: hs, callback: '/login/matrix.example.org/?ssoNonce=n1' },
+      { homeserver: hs, callback: '/login/matrix.example.org/?addAccount=1&ssoNonce=n1' },
+      // A homeserver named with its scheme sits in the path with its slashes encoded.
+      {
+        homeserver: 'http://127.0.0.1:28008',
+        callback: '/login/http%3A%2F%2F127.0.0.1%3A28008/?ssoNonce=n1',
+      },
+    ]) {
+      expect(parseSignInRequest(request), request.callback).toEqual(request);
+    }
+  });
+
+  it.each([
+    ['an HTTP homeserver that is not local', 'http://matrix.example.org', '/login/a/?ssoNonce=n1'],
+    [
+      'a homeserver with credentials',
+      'https://user:pass@matrix.example.org',
+      '/login/a/?ssoNonce=n1',
+    ],
+    ['a fragment', hs, '/login/a/?ssoNonce=n1#frag'],
+    ['two nonces', hs, '/login/a/?ssoNonce=n1&ssoNonce=n2'],
+    ['a loginToken', hs, '/login/a/?ssoNonce=n1&loginToken=tok'],
+    ['no nonce', hs, '/login/a/'],
+    ['an empty nonce', hs, '/login/a/?ssoNonce='],
+    ['a relative path', hs, 'login/a/?ssoNonce=n1'],
+    ['another host', hs, '//evil.example/?ssoNonce=n1'],
+    ['an absolute URL', hs, 'http://127.0.0.1/login/a/?ssoNonce=n1'],
+    ['a backslash', hs, '/login\\a/?ssoNonce=n1'],
+    ['a space', hs, '/login/a b/?ssoNonce=n1'],
+    ['a trailing space', hs, '/login/a/?ssoNonce=n1 '],
+    ['a tab', hs, '/login/a/?ssoNonce=n1\t'],
+    ['a newline', hs, '/login/a/\n?ssoNonce=n1'],
+    ['a NUL', hs, '/login/a\0/?ssoNonce=n1'],
+    ['a DEL', hs, '/login/a\x7f/?ssoNonce=n1'],
+    ['a leading dot segment', hs, '/../evil?ssoNonce=n1'],
+    ['a single dot segment', hs, '/./login?ssoNonce=n1'],
+    ['dot segments inside', hs, '/login/../../evil?ssoNonce=n1'],
+    ['encoded dot segments', hs, '/%2e%2e/evil?ssoNonce=n1'],
+    ['an encoded single dot', hs, '/%2E/evil?ssoNonce=n1'],
+    ['an encoded dot inside a segment', hs, '/login/a%2eb/?ssoNonce=n1'],
+    ['an encoded backslash', hs, '/login%5Ca/?ssoNonce=n1'],
+    ['a dot segment before an encoded slash', hs, '/..%2fevil?ssoNonce=n1'],
+    ['a dot segment after an encoded slash', hs, '/login%2F..?ssoNonce=n1'],
+  ])('refuses %s', (_label, homeserver, callback) => {
+    expect(parseSignInRequest({ homeserver, callback })).toBeUndefined();
+  });
+
+  it('refuses anything that is not a request', () => {
+    for (const raw of [
+      undefined,
+      null,
+      'x',
+      [],
+      {},
+      { homeserver: hs },
+      { homeserver: hs, callback: 1 },
+    ]) {
+      expect(parseSignInRequest(raw)).toBeUndefined();
+    }
+  });
+});
+
 describe('createAuthCallback', () => {
   const closers: Array<() => void> = [];
   afterEach(() => {
@@ -196,8 +277,11 @@ describe('createAuthCallback', () => {
     vi.restoreAllMocks();
   });
 
-  const make = (focus: () => void = () => undefined) => {
-    const notify = vi.fn();
+  const open = (cb: ReturnType<typeof createAuthCallback>, url: string): Promise<boolean> =>
+    cb.open(url, async () => undefined);
+
+  const make = (focus: () => void = () => undefined, notified: () => void = () => undefined) => {
+    const notify = vi.fn(notified);
     const focused = vi.fn(focus);
     const cb = createAuthCallback(notify, focused);
     closers.push(() => cb.close());
@@ -207,16 +291,16 @@ describe('createAuthCallback', () => {
   /** A start after a gesture, with the sign-in URL the page would open and a way to return. */
   const begin = async (cb: ReturnType<typeof make>['cb'], name: string) => {
     cb.noteGesture();
-    const pending = await cb.start({
+    const redirectUrl = await cb.start({
       homeserver: `https://${name}.example`,
       callback: `/login/${name}.example/?ssoNonce=${name}`,
     });
-    if (!pending) throw new Error('start was refused');
-    const redirect = new URL(pending.redirectUrl);
+    if (!redirectUrl) throw new Error('start was refused');
+    const redirect = new URL(redirectUrl);
     return {
       redirect,
       signInUrl: `https://${name}.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${encodeURIComponent(
-        pending.redirectUrl
+        redirectUrl
       )}`,
       appUrl: `mindroom://auth/login/${name}.example/?ssoNonce=${name}&loginToken=tok_${name}`,
       sendReturn: async () =>
@@ -228,30 +312,6 @@ describe('createAuthCallback', () => {
         ).status,
     };
   };
-
-  it('refuses a non-local HTTP homeserver, a fragment, two nonces, or a loginToken in callback', async () => {
-    const { cb } = make();
-    const hs = 'https://matrix.example.org';
-    for (const request of [
-      { homeserver: 'http://matrix.example.org', callback: '/login/a/?ssoNonce=n1' },
-      { homeserver: 'https://user:pass@matrix.example.org', callback: '/login/a/?ssoNonce=n1' },
-      { homeserver: hs, callback: '/login/a/?ssoNonce=n1#frag' },
-      { homeserver: hs, callback: '/login/a/?ssoNonce=n1&ssoNonce=n2' },
-      { homeserver: hs, callback: '/login/a/?ssoNonce=n1&loginToken=tok' },
-      { homeserver: hs, callback: 'login/a/?ssoNonce=n1' },
-      { homeserver: hs, callback: '//evil.example/?ssoNonce=n1' },
-      { homeserver: hs, callback: '/login/a/' },
-      { homeserver: hs, callback: '/../evil?ssoNonce=n1' },
-      { homeserver: hs, callback: '/./login?ssoNonce=n1' },
-      { homeserver: hs, callback: '/login/../../evil?ssoNonce=n1' },
-      { homeserver: hs, callback: '/%2e%2e/evil?ssoNonce=n1' },
-      { homeserver: hs, callback: '/%2E/evil?ssoNonce=n1' },
-      { homeserver: hs, callback: '/..%2fevil?ssoNonce=n1' },
-    ]) {
-      cb.noteGesture();
-      await expect(cb.start(request), request.callback).rejects.toThrow(RangeError);
-    }
-  });
 
   it('starts only after a gesture of the last 10 seconds, and uses it up', async () => {
     const { cb } = make();
@@ -267,15 +327,16 @@ describe('createAuthCallback', () => {
     cb.noteGesture();
     clock.mockReturnValue(now + 20_000);
     const first = await cb.start(request);
-    expect(first?.redirectUrl).toMatch(
+    expect(first).toMatch(
       /^http:\/\/127\.0\.0\.1:\d+\/auth\/[0-9a-f]{32}\/login\/a\.example\/\?ssoNonce=a$/
     );
     // The gesture is spent: a second start is refused and leaves the first attempt as it was.
     expect(await cb.start(request)).toBeUndefined();
     expect(
-      cb.open(
+      await open(
+        cb,
         `https://a.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${encodeURIComponent(
-          first?.redirectUrl ?? ''
+          first ?? ''
         )}`
       )
     ).toBe(true);
@@ -283,16 +344,16 @@ describe('createAuthCallback', () => {
 
   it('opens once per attempt, only its own openable sign-in URL', async () => {
     const { cb } = make();
-    expect(cb.open('https://a.example/_matrix/client/v3/login/sso/redirect')).toBe(false);
+    expect(await open(cb, 'https://a.example/_matrix/client/v3/login/sso/redirect')).toBe(false);
     const a = await begin(cb, 'a');
     // Refused URLs leave the attempt waiting for its own.
-    expect(cb.open('https://example.org/')).toBe(false);
-    expect(cb.open(a.signInUrl.replace('a.example', 'b.example'))).toBe(false);
-    expect(cb.open(`${a.signInUrl}&access_token=syt_placeholder`)).toBe(false);
-    expect(cb.open(`${a.signInUrl}&action=login`)).toBe(true);
-    expect(cb.open(a.signInUrl)).toBe(false);
+    expect(await open(cb, 'https://example.org/')).toBe(false);
+    expect(await open(cb, a.signInUrl.replace('a.example', 'b.example'))).toBe(false);
+    expect(await open(cb, `${a.signInUrl}&access_token=syt_placeholder`)).toBe(false);
+    expect(await open(cb, `${a.signInUrl}&action=login`)).toBe(true);
+    expect(await open(cb, a.signInUrl)).toBe(false);
     expect(await a.sendReturn()).toBe(200);
-    expect(cb.open(a.signInUrl)).toBe(false);
+    expect(await open(cb, a.signInUrl)).toBe(false);
   });
 
   it('takes one valid return, only once opened, after any wrong requests, and hands it over once', async () => {
@@ -303,7 +364,7 @@ describe('createAuthCallback', () => {
 
     // Started but not opened: the browser cannot have the URL yet.
     expect(await a.sendReturn()).toBe(404);
-    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await open(cb, a.signInUrl)).toBe(true);
 
     expect((await rawRequest(port, { path: '/wrong' })).status).toBe(404);
     expect((await rawRequest(port, { method: 'POST', host: a.redirect.host, path })).status).toBe(
@@ -313,6 +374,8 @@ describe('createAuthCallback', () => {
     // The Host header twice, even with the right value both times.
     expect(await statusWithHosts(port, path, [a.redirect.host, a.redirect.host])).toBe(404);
     expect(await statusWithHosts(port, path, ['evil.example', a.redirect.host])).toBe(404);
+    // A second Host behind more headers than Node counts by default must not go unseen.
+    expect(await statusWithHosts(port, path, [a.redirect.host, 'evil.example'], 2100)).toBe(404);
     expect(notify).not.toHaveBeenCalled();
     expect(focus).not.toHaveBeenCalled();
     expect(cb.take()).toBeUndefined();
@@ -332,22 +395,33 @@ describe('createAuthCallback', () => {
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
-  it('still notifies when the window cannot be focused', async () => {
-    const { cb, notify } = make(() => {
+  it('still notifies when the window cannot be focused, and keeps the return when neither works', async () => {
+    const gone = () => {
       throw new Error('window is gone');
-    });
+    };
+    const { cb, notify } = make(gone, gone);
     const a = await begin(cb, 'a');
-    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await open(cb, a.signInUrl)).toBe(true);
     expect(await a.sendReturn()).toBe(200);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(cb.take()).toBe(a.appUrl);
+  });
+
+  it('ends the attempt when the sign-in URL could not be opened', async () => {
+    const { cb } = make();
+    const a = await begin(cb, 'a');
+    const failed = new Error('no browser');
+    await expect(cb.open(a.signInUrl, () => Promise.reject(failed))).rejects.toBe(failed);
+    // Nothing is out there: no return is accepted and the URL cannot be opened again.
+    expect(await a.sendReturn()).toBe(404);
+    expect(await open(cb, a.signInUrl)).toBe(false);
   });
 
   it('replaces an earlier attempt in any state on a new start, its untaken return included', async () => {
     const { cb } = make();
     // A returned but was not taken; then B starts.
     const a = await begin(cb, 'a');
-    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await open(cb, a.signInUrl)).toBe(true);
     expect(await a.sendReturn()).toBe(200);
     const b = await begin(cb, 'b');
     expect(cb.take()).toBeUndefined();
@@ -355,13 +429,13 @@ describe('createAuthCallback', () => {
     expect(b.redirect.pathname).not.toBe(a.redirect.pathname);
 
     // B is open in the browser; then C starts: B's return and B's sign-in URL are dead.
-    expect(cb.open(b.signInUrl)).toBe(true);
+    expect(await open(cb, b.signInUrl)).toBe(true);
     const c = await begin(cb, 'c');
     expect(await b.sendReturn()).toBe(404);
-    expect(cb.open(b.signInUrl)).toBe(false);
-    expect(cb.open(a.signInUrl)).toBe(false);
+    expect(await open(cb, b.signInUrl)).toBe(false);
+    expect(await open(cb, a.signInUrl)).toBe(false);
 
-    expect(cb.open(c.signInUrl)).toBe(true);
+    expect(await open(cb, c.signInUrl)).toBe(true);
     expect(await a.sendReturn()).toBe(404);
     expect(await c.sendReturn()).toBe(200);
     expect(cb.take()).toBe(c.appUrl);
@@ -375,16 +449,16 @@ describe('createAuthCallback', () => {
 
     const a = await begin(cb, 'a');
     now += HALF_HOUR;
-    expect(cb.open(a.signInUrl)).toBe(false);
+    expect(await open(cb, a.signInUrl)).toBe(false);
 
     const b = await begin(cb, 'b');
     now += HALF_HOUR - 1;
-    expect(cb.open(b.signInUrl)).toBe(true);
+    expect(await open(cb, b.signInUrl)).toBe(true);
     now += 1;
     expect(await b.sendReturn()).toBe(404);
 
     const c = await begin(cb, 'c');
-    expect(cb.open(c.signInUrl)).toBe(true);
+    expect(await open(cb, c.signInUrl)).toBe(true);
     now += HALF_HOUR - 1;
     expect(await c.sendReturn()).toBe(200);
     now += 1;
@@ -394,7 +468,7 @@ describe('createAuthCallback', () => {
   it('forgets everything and refuses a start once closed', async () => {
     const { cb } = make();
     const a = await begin(cb, 'a');
-    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await open(cb, a.signInUrl)).toBe(true);
     expect(await a.sendReturn()).toBe(200);
     cb.close();
     expect(cb.take()).toBeUndefined();

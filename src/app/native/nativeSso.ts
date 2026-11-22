@@ -1,5 +1,6 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import type { AppUrlPlugin } from '../lib/desktopBridge';
 import { desktopBridge, isDesktopApp } from '../lib/nativeShell';
 import { getConnectPath } from '../routes/pathUtils';
 
@@ -18,13 +19,6 @@ type MindRoomAuthPlugin = {
     callbackScheme: string;
     ephemeral: boolean;
   }): Promise<NativeAppleCredential>;
-};
-type NativeAppUrlPlugin = {
-  addListener(
-    eventName: 'appUrlOpen',
-    listener: (event: { url?: string }) => void
-  ): Promise<unknown>;
-  getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
@@ -161,7 +155,7 @@ const isPageReload = (): boolean => {
   }
 };
 
-export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
+export const registerNativeAppUrlCallbacks = (nativeApp: AppUrlPlugin): void => {
   let handledOpenUrl = false;
   const handleNativeAppUrl = (url: string): boolean => {
     if (routeNativeSsoCallback(url)) return true;
