@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
@@ -14,6 +15,7 @@ import { detachedGrantErrorAtom } from './moderatorInvite';
  */
 export function ModeratorGrantErrorNotice() {
   const { t } = useTranslation();
+  const messageId = useId();
   const [failures, setFailures] = useAtom(detachedGrantErrorAtom);
   const coverSlot = useAtomValue(coverNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
@@ -35,7 +37,13 @@ export function ModeratorGrantErrorNotice() {
           style={{ color: color.Critical.Main, flexShrink: 0 }}
         />
         <Text
+          id={messageId}
           size="T300"
+          // Focusable, so the keyboard can scroll a long message where the browser does not make
+          // a scrolling box focusable itself (Safari). Its own text is the region's name.
+          role="region"
+          aria-labelledby={messageId}
+          tabIndex={0}
           style={{
             flexGrow: 1,
             minInlineSize: 0,

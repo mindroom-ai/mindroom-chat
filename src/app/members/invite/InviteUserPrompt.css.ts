@@ -2,8 +2,8 @@ import { createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
 const sheetViewport = createContainer();
-// Too short to pin the title, the search, the filters and the footer around a scrolling list: a
-// phone with its keyboard up, or one held sideways.
+// Too short to pin the title, the search, the filters, the moderator checkbox and the footer
+// around a scrolling list: a phone with its keyboard up, or one held sideways.
 const shortViewport = `${sheetViewport} (max-height: ${toRem(480)})`;
 
 // On mobile Safari the fixed Overlay spans the layout viewport while the keyboard shrinks the
@@ -76,9 +76,9 @@ export const FilterChip = style({
   '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
 });
 
-// Everything below the title. On a tall viewport the search, the filters and the footer stay in
-// place and only the rows scroll; on a short one they scroll together, so the search field, every
-// row, the note and the moderator checkbox can all be reached.
+// Everything below the title. On a tall viewport the search, the filters, the moderator checkbox
+// and the footer stay in place and only the rows scroll; on a short one they scroll together, so
+// the search field, the checkbox, every row and the note can all be reached, in that order.
 export const Body = style({
   flexGrow: 1,
   minHeight: 0,
@@ -87,6 +87,41 @@ export const Body = style({
   '@container': {
     [shortViewport]: { overflowY: 'auto', overscrollBehavior: 'contain' },
   },
+});
+
+// Moderator grants that failed, between the controls and the rows. A long error or a row of them
+// scrolls inside the strip, so the rows keep their room. No list: a list item here is a person.
+export const GrantAlerts = style({
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  maxBlockSize: toRem(96),
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  marginInline: config.space.S400,
+  marginBlockEnd: config.space.S200,
+});
+
+// The dismiss button stays at the top, in sight however long the message is.
+export const GrantAlert = style({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: config.space.S200,
+  paddingBlock: config.space.S100,
+  paddingInlineStart: config.space.S200,
+  paddingInlineEnd: config.space.S100,
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Critical.Container,
+  color: color.Critical.OnContainer,
+});
+
+export const GrantAlertText = style({
+  flexGrow: 1,
+  alignSelf: 'center',
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
 });
 
 export const ListArea = style({
@@ -194,6 +229,16 @@ export const InlineHint = style({
 });
 
 export const EmptyState = style({
+  paddingBlock: config.space.S500,
+  paddingInline: config.space.S400,
+  textAlign: 'center',
+});
+
+export const DirectoryError = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: config.space.S200,
   paddingBlock: config.space.S500,
   paddingInline: config.space.S400,
   textAlign: 'center',

@@ -14,7 +14,8 @@ import {
 // IDs onto multiple lines with zero sideways overflow, mirrors cleanly in RTL, and stays bounded
 // inside Safari's visual viewport when the virtual keyboard shrinks the screen: on a phone held
 // upright and on one held sideways, which is as wide as a tablet. Where that leaves too little
-// height to keep the search and the footer in place around the rows, they scroll together.
+// height to keep the search and the footer in place around the rows, they scroll together. The
+// moderator checkbox sits above the first row at every height, never in the footer.
 // Checked with classic scrollbars in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set INVITE_MENU_SHOTS=<directory> to save screenshots.
 const SHOTS = process.env.INVITE_MENU_SHOTS;
@@ -339,7 +340,32 @@ const sheetParts = (dialog: Locator) => ({
   note: dialog.getByPlaceholder('Add a note to your invite...'),
   noteToggle: dialog.locator('button[aria-expanded]'),
   moderator: dialog.getByText(/^Give invited agents .+ rights$/),
+  moderatorCheckbox: dialog.getByRole('checkbox'),
 });
+
+/**
+ * The moderator checkbox, on by default, comes before the first row on the screen and in the
+ * page, and the footer does not hold it: nobody reaches an Invite button without passing it.
+ */
+const checkModeratorAboveRows = async (dialog: Locator) => {
+  const parts = sheetParts(dialog);
+  await expect(parts.moderatorCheckbox).toBeChecked();
+  const label = await box(parts.moderator);
+  const firstAction = await box(parts.rows.first().getByRole('button'));
+  expect(label.y + label.height).toBeLessThanOrEqual(firstAction.y);
+  const placement = await parts.moderatorCheckbox.evaluate((checkbox) => {
+    const sheet = checkbox.closest('[role="dialog"]');
+    const firstRow = sheet?.querySelector('li');
+    const noteToggle = sheet?.querySelector('button[aria-expanded]');
+    return {
+      beforeFirstRow: Boolean(
+        firstRow && checkbox.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING
+      ),
+      inFooter: Boolean(noteToggle?.parentElement?.contains(checkbox)),
+    };
+  });
+  expect(placement).toEqual({ beforeFirstRow: true, inFooter: false });
+};
 
 const checkEveryPartReachable = async (dialog: Locator, viewport: Viewport) => {
   const parts = sheetParts(dialog);
@@ -347,6 +373,11 @@ const checkEveryPartReachable = async (dialog: Locator, viewport: Viewport) => {
   // The title bar stays in place; everything below it scrolls as one.
   expect(await scrollsWithRows(dialog)).toEqual({ search: true, footer: true, title: false });
   expectInside(await box(parts.done), viewport);
+  await checkModeratorAboveRows(dialog);
+  // From the top of what scrolls, the checkbox is in sight before the first row is passed.
+  await parts.search.scrollIntoViewIfNeeded();
+  await expectReachable(parts.moderator, viewport);
+  await checkModeratorAboveRows(dialog);
   await expectReachable(parts.rows.first().getByRole('button'), viewport);
   await expectReachable(parts.rows.last().getByRole('button'), viewport);
   await expectReachable(parts.note, viewport);
@@ -367,9 +398,11 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
   // Tall enough: the search and the footer stay in place and only the rows scroll.
   expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
   expectInside(await box(parts.noteToggle), { top: 0, height: PHONE.height });
+  // The moderator checkbox stays in place above the rows, with the search and the filters.
+  await expectInSight(parts.moderator, { top: 0, height: PHONE.height });
+  await checkModeratorAboveRows(dialog);
 
   await parts.noteToggle.click();
-  await expect(parts.moderator).toBeVisible();
   await parts.note.focus();
   await setKeyboardViewport(page, SHORT_PORTRAIT_HEIGHT);
 
@@ -395,7 +428,6 @@ const checkLandscapePhoneViewport = async (page: Page, seeded: Seed) => {
   const parts = sheetParts(dialog);
   await expect(parts.rows).toHaveCount(8, { timeout: 30_000 });
   await parts.noteToggle.click();
-  await expect(parts.moderator).toBeVisible();
 
   // Without a keyboard the screen is already short.
   await checkEveryPartReachable(dialog, { top: 0, height: LANDSCAPE_PHONE.height });
@@ -440,6 +472,7 @@ const checkDesktopFraming = async (page: Page, dialog: Locator) => {
   expect(Math.abs(bounds.y + bounds.height / 2 - DESKTOP.height / 2)).toBeLessThan(2);
   expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
   expectInside(await box(sheetParts(dialog).noteToggle), { top: 0, height: DESKTOP.height });
+  await checkModeratorAboveRows(dialog);
 };
 
 const exercise = async (page: Page, engine: string) => {

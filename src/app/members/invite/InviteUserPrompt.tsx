@@ -33,7 +33,6 @@ import {
   KnownMembership,
   RoomEvent,
   RoomMemberEvent,
-  type IRoomSummary,
   type MatrixEvent,
   type Room,
   type RoomMember,
@@ -41,7 +40,7 @@ import {
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { ErrorDetail } from '../../ui/ErrorDetail';
-import { ownDirectionLine } from '../../ui/directional';
+import { isolateInSentence, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { nameInitials } from '../../lib/common';
 import { describeError } from '../../lib/describeError';
 import { useAlive } from '../../lib/hooks/useAlive';
@@ -74,6 +73,7 @@ import {
   grantRoleName,
   grantRoomModeratorRights,
   hasModeratorMindroomAgent,
+  type DetachedGrantError,
 } from './moderatorInvite';
 import * as modalCss from '../../ui/Modal500.css';
 import * as css from './InviteUserPrompt.css';
@@ -162,8 +162,8 @@ const rowDisplayName = ({ user, listed }: Pick<Candidate, 'user' | 'listed'>): s
   listed ? getDisplayName(user) : user.userId;
 
 /**
- * Moves the attempts that `carried` keeps to another query or filter, pinned in their order, so
- * actionable feedback is never lost there. The others stay behind in their own view.
+ * Moves the attempts that `carried` keeps (invites on their way and failures to retry) to another
+ * query or filter, pinned in their order. The others stay behind in their own view.
  */
 const carryOver = (
   byUser: Readonly<Record<string, Attempt>>,
@@ -237,14 +237,11 @@ const withoutAttempt = (
 
 function InviteDirectoryRow({
   row,
-  grantWarning,
   viewerId,
   authenticatedMedia,
   onInvite,
 }: {
   row: InviteRow;
-  /** Why the rights of an invite sent to this user could not be given; it blocks no new invite. */
-  grantWarning?: string;
   viewerId: string;
   authenticatedMedia: boolean;
   onInvite: () => void;
@@ -334,11 +331,6 @@ function InviteDirectoryRow({
             <ErrorDetail error={state.error} />
           </Text>
         )}
-        {grantWarning !== undefined && (
-          <Text as="span" size="T200" role="alert" className={css.RowError}>
-            {grantWarning}
-          </Text>
-        )}
       </div>
       <Button
         type="button"
@@ -364,7 +356,6 @@ function InviteDirectoryRow({
 
 function RowList({
   rows,
-  grantWarnings,
   viewerId,
   authenticatedMedia,
   ariaLabel,
@@ -372,7 +363,6 @@ function RowList({
   onInvite,
 }: {
   rows: readonly InviteRow[];
-  grantWarnings: Readonly<Record<string, string>>;
   viewerId: string;
   authenticatedMedia: boolean;
   ariaLabel?: string;
@@ -386,7 +376,6 @@ function RowList({
         <InviteDirectoryRow
           key={row.user.userId}
           row={row}
-          grantWarning={grantWarnings[row.user.userId]}
           viewerId={viewerId}
           authenticatedMedia={authenticatedMedia}
           onInvite={() => onInvite(row, index)}
@@ -442,9 +431,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [pendingSyncInvited, setPendingSyncInvited] = useState<ReadonlySet<string>>(
     () => new Set()
   );
-  // Why an invited agent got no moderator rights, by user. Apart from the attempts: a warning
-  // never decides whether its user can be invited, and it stays until they are invited again.
-  const [grantWarnings, setGrantWarnings] = useState<Readonly<Record<string, string>>>({});
+  // Grants that failed while the sheet is open, shown above the list until dismissed. They belong
+  // to the sheet and to no row: a row can leave (another filter, a decline) and be invited again
+  // while its alert is still to be read.
+  const [grantAlerts, setGrantAlerts] = useState<readonly DetachedGrantError[]>([]);
   const [rosterVersion, bumpRoster] = useForceUpdate();
   // With lazy-loaded members the room knows only the members whose events it has seen; without
   // the full list a joined member would be offered an invite.
@@ -493,8 +483,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       };
       setPendingSyncInvited(settle);
       if (memberId && room.getMember(memberId)?.membership === KnownMembership.Leave) {
-        // The invitee declined or was removed: the row offers the invite again, whatever a
-        // grant warning on it says.
+        // The invitee declined or was removed: the row offers the invite again.
         setAttempts((current) =>
           current.byUser[memberId]?.state.status === 'invited'
             ? { ...current, byUser: withoutAttempt(current.byUser, memberId) }
@@ -503,19 +492,15 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       }
       bumpRoster();
     };
-    const onSummary = (summary: IRoomSummary) => {
-      // A summary that counts no invited member leaves nobody to wait for, also when no member
-      // event told of the decline. One without that count (a join, say) tells nothing about it.
-      if (summary['m.invited_member_count'] === 0) {
-        setPendingSyncInvited((current) => (current.size === 0 ? current : new Set()));
-      }
-      bumpRoster();
-    };
+    // Invariant: a room summary is for display only. It re-renders the header's joined and invited
+    // counts and settles nobody. Who can be invited (`pendingSyncInvited` and the rows' attempts)
+    // settles from that user's own membership event alone, which /sync delivers for a joined
+    // room; a summary's counts name no user, and can be stale or about someone else.
     client.on(RoomMemberEvent.Membership, onMembership);
-    room.on(RoomEvent.Summary, onSummary);
+    room.on(RoomEvent.Summary, bumpRoster);
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
-      room.removeListener(RoomEvent.Summary, onSummary);
+      room.removeListener(RoomEvent.Summary, bumpRoster);
     };
   }, [client, room, bumpRoster]);
 
@@ -567,10 +552,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const invitedCount = room.getInvitedMemberCount();
 
   const roomName = useRoomName(room).trim();
-  // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading. A
-  // right-to-left catalog isolates every placeholder itself (localeAdditions.test.ts), and one
-  // pair of isolates is enough.
-  const isolatedRoomName = `${FSI}${roomName}${PDI}`;
+  // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading. Direction
+  // controls in the name show as their code points first, as a room's name does elsewhere, so
+  // none can end the isolate early or reorder the heading. A right-to-left catalog isolates every
+  // placeholder itself (localeAdditions.test.ts), and one pair of isolates is enough.
+  const isolatedRoomName = isolateInSentence(revealDirectionControls(roomName));
   const title = roomName
     ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: isolatedRoomName }).replace(
         `${FSI}${isolatedRoomName}${PDI}`,
@@ -590,11 +576,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   // Drop failed attempts if the person joined or got invited externally.
   const isAttemptOffered = (attempt: Attempt) =>
     attempt.state.status !== 'failed' || isInvitable(attempt.user.userId);
-  // Into another query or filter go invites on their way, failures to retry, and sent invites
-  // whose grant warning is still to be read. Other sent invites stay behind in their view.
+  // Into another query or filter go invites on their way and failures to retry. Sent invites stay
+  // behind in their view.
   const isAttemptCarried = (attempt: Attempt) =>
-    isAttemptOffered(attempt) &&
-    (attempt.state.status !== 'invited' || grantWarnings[attempt.user.userId] !== undefined);
+    isAttemptOffered(attempt) && attempt.state.status !== 'invited';
 
   if (attempts.viewKey !== viewKey) {
     setAttempts({ viewKey, byUser: carryOver(attempts.byUser, isAttemptCarried) });
@@ -747,6 +732,8 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     ? pinnedRows.length + directRows.length + directoryRows.length
     : flatRows.length;
   const isDirectoryLoading = !isSearching && cache.status === 'loading' && totalVisibleRows === 0;
+  // The directory never loaded, and nothing retries it by itself.
+  const directoryFailed = !isSearching && cache.status === 'error' && cache.users.length === 0;
 
   const updateAttemptState = (userId: string, state: AttemptState) => {
     setAttempts((current) => {
@@ -803,12 +790,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const submission: Submission = { membershipSeen: false };
     submissionsRef.current.set(targetId, submission);
     setEnterHint(undefined);
-    // A new invite starts clean: the warning was about the invite before it.
-    setGrantWarnings((current) =>
-      targetId in current
-        ? Object.fromEntries(Object.entries(current).filter(([userId]) => userId !== targetId))
-        : current
-    );
 
     if (options?.clearQuery) {
       const nextViewKey = `${filter}|`;
@@ -850,66 +831,55 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
 
     try {
-      try {
-        await client.invite(room.roomId, targetId, reason);
-      } catch (inviteError) {
-        if (alive()) {
-          updateAttemptState(targetId, { status: 'failed', error: inviteError });
-        }
-        return;
+      await client.invite(room.roomId, targetId, reason);
+    } catch (inviteError) {
+      if (alive()) {
+        updateAttemptState(targetId, { status: 'failed', error: inviteError });
       }
+      return;
+    } finally {
+      // The invite is answered: from here the row and the room state speak for this user, and a
+      // decline while the grant below is still written lets them be invited again at once.
+      submissionsRef.current.delete(targetId);
+      inFlightRef.current.delete(targetId);
+    }
 
+    if (alive()) {
       // Only an invite the room state has not answered yet is tracked here. Once a membership
       // event for the invitee arrived (the invite, or already their answer to it), the room state
       // is the truth, and tracking a decline as pending would block a new invite.
       if (
-        alive() &&
         !submission.membershipSeen &&
         !isReflectedMembership(room.getMember(targetId)?.membership)
       ) {
         setPendingSyncInvited((current) => withUser(current, targetId));
       }
-
-      // Finish the submitted grant even if the user closed the dialog while invite was in flight.
-      const grantFailure =
-        grantCeiling === undefined
-          ? null
-          : await grantRoomModeratorRights(client, room, targetId, grantCeiling);
-      const grantWarning =
-        grantFailure && grantCeiling !== undefined
-          ? formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)
-          : undefined;
-      if (grantWarning !== undefined && !alive() && client.clientRunning !== false) {
-        store.set(detachedGrantErrorAtom, (current) => [
+      const departed =
+        submission.membershipSeen && room.getMember(targetId)?.membership === KnownMembership.Leave;
+      if (departed) {
+        // Invited and already declined or removed: the row offers the invite again.
+        setAttempts((current) => ({
           ...current,
-          createDetachedGrantError(grantWarning),
-        ]);
+          byUser: withoutAttempt(current.byUser, targetId),
+        }));
+      } else {
+        updateAttemptState(targetId, { status: 'invited' });
       }
+      // The invite is sent, whatever becomes of the grant: the row and the live region say so now.
+      announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
+    }
 
-      if (alive()) {
-        const departed =
-          submission.membershipSeen &&
-          room.getMember(targetId)?.membership === KnownMembership.Leave;
-        if (departed) {
-          // Invited and already declined or removed: the row offers the invite again.
-          setAttempts((current) => ({
-            ...current,
-            byUser: withoutAttempt(current.byUser, targetId),
-          }));
-        } else {
-          updateAttemptState(targetId, { status: 'invited' });
-        }
-        if (grantWarning === undefined) {
-          announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
-        } else {
-          // The invite went out all the same: the warning is the row's alert, and decides nothing
-          // about the invite's own state.
-          setGrantWarnings((current) => ({ ...current, [targetId]: grantWarning }));
-        }
-      }
-    } finally {
-      submissionsRef.current.delete(targetId);
-      inFlightRef.current.delete(targetId);
+    // Finish the submitted grant even if the user closed the dialog while invite was in flight.
+    if (grantCeiling === undefined) return;
+    const grantFailure = await grantRoomModeratorRights(client, room, targetId, grantCeiling);
+    if (!grantFailure) return;
+    const failure = createDetachedGrantError(
+      formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)
+    );
+    if (alive()) {
+      setGrantAlerts((current) => [...current, failure]);
+    } else if (client.clientRunning !== false) {
+      store.set(detachedGrantErrorAtom, (current) => [...current, failure]);
     }
   };
 
@@ -967,6 +937,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const handleQueryChange = (evt: ChangeEvent<HTMLInputElement>) => {
     setEnterHint(undefined);
     setQuery(evt.target.value);
+  };
+
+  const handleFilterChange = (next: InviteFilter) => {
+    setEnterHint(undefined);
+    setFilter(next);
   };
 
   const handleClearSearch = () => {
@@ -1060,13 +1035,61 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                       variant={entry === filter ? 'Primary' : 'SurfaceVariant'}
                       radii="Pill"
                       aria-pressed={entry === filter}
-                      onClick={() => setFilter(entry)}
+                      onClick={() => handleFilterChange(entry)}
                     >
                       <Text size="T200">{t(FILTER_LABEL_KEY[entry])}</Text>
                     </Chip>
                   ))}
                 </div>
+                {/* Above the rows, also where a short viewport scrolls them all as one: nobody
+                    reaches an Invite button without passing the choice it acts on. */}
+                {showGrantCheckbox && (
+                  <div className={css.ModeratorRow}>
+                    <label className={css.ModeratorLabel}>
+                      <Checkbox
+                        variant="Primary"
+                        size="200"
+                        checked={grantModerator}
+                        aria-describedby={moderatorHelpId}
+                        // folds leaves onChange out of its Checkbox type; the click toggles the choice.
+                        readOnly
+                        onClick={() => setGrantOverride(!grantModerator)}
+                      />
+                      <Text as="span" size="T300">
+                        {t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })}
+                      </Text>
+                    </label>
+                    <Text id={moderatorHelpId} size="T200" priority="300">
+                      {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
+                    </Text>
+                  </div>
+                )}
               </div>
+
+              {grantAlerts.length > 0 && (
+                <div className={css.GrantAlerts}>
+                  {grantAlerts.map((alert) => (
+                    <div key={alert.id} className={css.GrantAlert}>
+                      <Text as="span" size="T200" role="alert" className={css.GrantAlertText}>
+                        {alert.message}
+                      </Text>
+                      <IconButton
+                        type="button"
+                        size="300"
+                        radii="300"
+                        aria-label={t('mindroomUi.notices.dismiss')}
+                        onClick={() =>
+                          setGrantAlerts((current) =>
+                            current.filter((item) => item.id !== alert.id)
+                          )
+                        }
+                      >
+                        <Icon size="100" src={Icons.Cross} />
+                      </IconButton>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Arrow keys move focus between row actions and back up into the search field. */}
               {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
@@ -1084,7 +1107,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   <>
                     <RowList
                       rows={pinnedRows}
-                      grantWarnings={grantWarnings}
                       viewerId={me}
                       authenticatedMedia={authenticatedMedia}
                       ariaLabel={t('sharedUi.inviteUserPrompt.invite')}
@@ -1103,7 +1125,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         </Text>
                         <RowList
                           rows={directRows}
-                          grantWarnings={grantWarnings}
                           viewerId={me}
                           authenticatedMedia={authenticatedMedia}
                           ariaLabelledBy={directHeadingId}
@@ -1124,7 +1145,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         </Text>
                         <RowList
                           rows={directoryRows}
-                          grantWarnings={grantWarnings}
                           viewerId={me}
                           authenticatedMedia={authenticatedMedia}
                           ariaLabelledBy={directoryHeadingId}
@@ -1136,7 +1156,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                 ) : (
                   <RowList
                     rows={flatRows}
-                    grantWarnings={grantWarnings}
                     viewerId={me}
                     authenticatedMedia={authenticatedMedia}
                     onInvite={handleRowInvite}
@@ -1154,7 +1173,30 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   </div>
                 )}
 
+                {directoryFailed && (
+                  <div className={css.DirectoryError}>
+                    <Text as="p" size="T200" priority="300" role="alert">
+                      {t('sharedUi.invites.actionFailed')}
+                    </Text>
+                    <Button
+                      type="button"
+                      size="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      radii="300"
+                      onClick={() => {
+                        void cache.refresh();
+                      }}
+                    >
+                      <Text as="span" size="B300">
+                        {t('sharedUi.roomCard.retry')}
+                      </Text>
+                    </Button>
+                  </div>
+                )}
+
                 {!isDirectoryLoading &&
+                  !directoryFailed &&
                   !(isSearching && isFetching) &&
                   totalVisibleRows === 0 &&
                   !activeHint && (
@@ -1192,27 +1234,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                     aria-label={t('sharedUi.inviteUserPrompt.notePlaceholder')}
                     autoComplete="off"
                   />
-                )}
-                {showGrantCheckbox && (
-                  <div className={css.ModeratorRow}>
-                    <label className={css.ModeratorLabel}>
-                      <Checkbox
-                        variant="Primary"
-                        size="200"
-                        checked={grantModerator}
-                        aria-describedby={moderatorHelpId}
-                        // folds leaves onChange out of its Checkbox type; the click toggles the choice.
-                        readOnly
-                        onClick={() => setGrantOverride(!grantModerator)}
-                      />
-                      <Text as="span" size="T300">
-                        {t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })}
-                      </Text>
-                    </label>
-                    <Text id={moderatorHelpId} size="T200" priority="300">
-                      {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
-                    </Text>
-                  </div>
                 )}
               </div>
             </div>

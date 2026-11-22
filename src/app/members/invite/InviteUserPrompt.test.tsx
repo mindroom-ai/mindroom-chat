@@ -56,6 +56,9 @@ vi.mock('./InviteUserPrompt.css', () => ({
   FilterRow: 'InviteFilterRow',
   FilterChip: 'InviteFilterChip',
   Body: 'InviteBody',
+  GrantAlerts: 'InviteGrantAlerts',
+  GrantAlert: 'InviteGrantAlert',
+  GrantAlertText: 'InviteGrantAlertText',
   ListArea: 'InviteListArea',
   SectionHeader: 'InviteSectionHeader',
   List: 'InviteList',
@@ -71,6 +74,7 @@ vi.mock('./InviteUserPrompt.css', () => ({
   RowActionSent: 'InviteRowActionSent',
   InlineHint: 'InviteInlineHint',
   EmptyState: 'InviteEmptyState',
+  DirectoryError: 'InviteDirectoryError',
   FetchingRow: 'InviteFetchingRow',
   Footer: 'InviteFooter',
   NoteToggle: 'InviteNoteToggle',
@@ -367,6 +371,32 @@ const textContentByRole = (renderer: ReactTestRenderer, role: string) =>
     .filter((text) => text.length > 0)
     .join(' ');
 
+/** The moderator grants that failed while the sheet is open, as its alert strip shows them. */
+const getGrantAlerts = (renderer: ReactTestRenderer) =>
+  renderer.root.findAll(
+    (node) => node.type === 'div' && node.props.className === 'InviteGrantAlert'
+  );
+
+const getHeading = (renderer: ReactTestRenderer) =>
+  extractText(renderer.root.findByProps({ id: 'invite-user-prompt-title' }));
+
+/** A grant whose write stays pending until the returned function fails it. */
+const holdNextGrant = (mx: ReturnType<typeof makeMx>) => {
+  let fail: (error: Error) => void = () => undefined;
+  vi.mocked(mx.sendStateEvent).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      })
+  );
+  return async (error: Error) => {
+    await act(async () => {
+      fail(error);
+      await settle();
+    });
+  };
+};
+
 const getSubtitle = (renderer: ReactTestRenderer) =>
   extractText(
     renderer.root
@@ -636,6 +666,19 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       .filter((child): child is ReactTestInstance => typeof child !== 'string')
       .map((child) => child.props.className);
     expect(sections).toEqual(['InviteControls', 'InviteListArea', 'InviteFooter']);
+
+    // The moderator checkbox is in the controls, above the first row; the footer holds the note.
+    const part = (className: string) =>
+      body.find((node) => node.type === 'div' && node.props.className === className);
+    const checkboxes = (node: ReactTestInstance) =>
+      node.findAll((child) => child.type === 'input' && child.props.type === 'checkbox');
+    expect(checkboxes(part('InviteControls'))).toHaveLength(1);
+    expect(checkboxes(part('InviteControls'))[0]!.props.checked).toBe(true);
+    expect(extractText(part('InviteControls'))).toContain('Give invited agents Moderator rights');
+    expect(checkboxes(part('InviteListArea'))).toHaveLength(0);
+    expect(checkboxes(part('InviteFooter'))).toHaveLength(0);
+    expect(extractText(part('InviteFooter'))).toBe('+ Add invite note');
+    expect(part('InviteListArea').findAllByType('li').length).toBeGreaterThan(0);
     expect(
       body.findAll((node) => node.props.id === 'invite-user-prompt-title', { deep: true })
     ).toHaveLength(0);
@@ -701,27 +744,38 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getSubtitle(renderer)).toBe('3 Members · 5 Invited');
   });
 
-  it('lets a user be invited again after a decline that only room summaries told of, and not after a joined-only summary', async () => {
+  it("never settles an invite from a room summary: only the user's own membership event lets them be invited again", async () => {
     const { renderer, mx, room } = renderPrompt({ joinedCount: 2, invitedCount: 0 });
     await clickRowInvite(renderer, 'Maya Chen');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
 
-    // No member event arrives: the summaries alone count the invite.
+    // A summary that counts no invited member arrives before Maya's membership event: it is
+    // stale, or about another invite that ended. The header follows it; Maya stays held back.
+    emitSummary(room, { joined: 3, invited: 0 });
+    expect(getSubtitle(renderer)).toBe('3 Members');
+    typeSearch(renderer, '@maya:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Already invited');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+    typeSearch(renderer, '');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
+
+    // More summaries change the counts and nothing else.
     emitSummary(room, { invited: 1 });
-    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+    emitSummary(room, { invited: 0 });
+    expect(getSubtitle(renderer)).toBe('3 Members');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
 
-    // A summary without an invited count tells nothing about Maya: she stays held back.
-    emitSummary(room, { joined: 3 });
+    // Her own membership event settles it: the invite first, which the room state now holds.
+    emitMembership(mx, room, '@maya:example.org', 'invite');
     typeSearch(renderer, '@maya:example.org');
     expect(extractText(getDialog(renderer))).toContain('Already invited');
     await pressKeyInSearch(renderer, 'Enter');
     expect(mx.invite).toHaveBeenCalledTimes(1);
 
-    // Maya declines: the invited count is back at zero, so nobody is waited for.
-    typeSearch(renderer, '');
-    emitSummary(room, { invited: 0 });
-    expect(getSubtitle(renderer)).toBe('3 Members');
-    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
-    typeSearch(renderer, '@maya:example.org');
+    // Then her decline: she can be invited again.
+    emitMembership(mx, room, '@maya:example.org', 'leave');
     expect(extractText(getDialog(renderer))).not.toContain('Already invited');
     await pressKeyInSearch(renderer, 'Enter');
     expect(mx.invite).toHaveBeenCalledTimes(2);
@@ -1359,12 +1413,16 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expectGrant(mx, room, '@mindroom_helper:example.org', 50);
     expect(getSearchInput(renderer).props.value).toBe('');
     expect(focusInput).toHaveBeenCalled();
-    expect(textContentByRole(renderer, 'status')).toBe('');
-    expect(textContentByRole(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
-    expect(textContentByRole(renderer, 'alert')).toContain('Forbidden');
+    // The invite is announced as sent; the failed grant is the sheet's alert, in no row.
+    expect(textContentByRole(renderer, 'status')).toBe('Invited @mindroom_helper:example.org.');
+    expect(textContentByRole(renderer, 'alert')).toBe(
+      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden'
+    );
+    expect(getGrantAlerts(renderer)).toHaveLength(1);
 
     const helperRow = getRowByText(renderer, 'Helper')!;
     expect(extractText(getRowActionButton(helperRow))).toBe('Invited');
+    expect(extractText(helperRow)).not.toContain('Forbidden');
   });
 
   it('loads members lazily, ignores out-of-band membership events during hydration, takes one snapshot, and flips ON', async () => {
@@ -1769,101 +1827,201 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(mx.invite).toHaveBeenCalledTimes(2);
   });
 
-  it.each(['click', 'Enter'] as const)(
-    'keeps a grant warning on the row and takes a new invite by %s once the agent left after the grant failed',
-    async (way) => {
-      const helper = '@mindroom_helper:example.org';
-      const { renderer, mx, room } = renderPrompt();
-      vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
-      await clickRowInvite(renderer, 'Helper');
-
-      const warning = `Invited ${helper}, but could not give Moderator rights: Forbidden`;
-      expect(extractText(getRowActionButton(getRowByText(renderer, 'Helper')!))).toBe('Invited');
-      expect(textContentByRole(renderer, 'alert')).toBe(warning);
-
-      emitMembership(mx, room, helper, 'invite');
-      emitMembership(mx, room, helper, 'leave');
-
-      // The warning stays to be read, and decides nothing about the invite.
-      const row = getRowByText(renderer, 'Helper')!;
-      expect(extractText(row)).toContain(warning);
-      expect(extractText(getRowActionButton(row))).toBe('Invite');
-      expect(getRowActionButton(row).props['aria-disabled']).toBe(false);
-
-      if (way === 'click') {
-        await clickRowInvite(renderer, 'Helper');
-      } else {
-        typeSearch(renderer, helper);
-        expect(extractText(getRowByText(renderer, 'Helper')!)).toContain(warning);
-        await pressKeyInSearch(renderer, 'Enter');
-      }
-      expect(mx.invite).toHaveBeenCalledTimes(2);
-      // The new invite and its grant went through: the old warning is gone.
-      expect(textContentByRole(renderer, 'alert')).toBe('');
-      expect(extractText(getRowActionButton(getRowByText(renderer, 'Helper')!))).toBe('Invited');
-      expectGrant(mx, room, helper, 50);
-    }
-  );
-
-  it.each(['click', 'Enter'] as const)(
-    'shows a grant warning and takes a new invite by %s when the agent left while the grant was on its way',
-    async (way) => {
-      const helper = '@mindroom_helper:example.org';
-      const { renderer, mx, room } = renderPrompt();
-      let failGrant: (error: Error) => void = () => undefined;
-      vi.mocked(mx.sendStateEvent).mockImplementationOnce(
-        () =>
-          new Promise((_resolve, reject) => {
-            failGrant = reject;
-          })
-      );
-      await clickRowInvite(renderer, 'Helper');
-      // The invite is out and the grant is still being written.
-      expect(mx.invite).toHaveBeenCalledTimes(1);
-      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
-      expect(getRowActionButton(getRowByText(renderer, 'Helper')!).props['aria-disabled']).toBe(
-        true
-      );
-
-      emitMembership(mx, room, helper, 'invite');
-      emitMembership(mx, room, helper, 'leave');
-      await act(async () => {
-        failGrant(new Error('Forbidden'));
-        await settle();
-      });
-
-      const warning = `Invited ${helper}, but could not give Moderator rights: Forbidden`;
-      const row = getRowByText(renderer, 'Helper')!;
-      expect(extractText(row)).toContain(warning);
-      expect(extractText(getRowActionButton(row))).toBe('Invite');
-      expect(getRowActionButton(row).props['aria-disabled']).toBe(false);
-      // The live region says nothing: the row's alert tells of the invite and of the rights.
-      expect(textContentByRole(renderer, 'status')).toBe('');
-
-      if (way === 'click') {
-        await clickRowInvite(renderer, 'Helper');
-      } else {
-        typeSearch(renderer, helper);
-        await pressKeyInSearch(renderer, 'Enter');
-      }
-      expect(mx.invite).toHaveBeenCalledTimes(2);
-      expect(textContentByRole(renderer, 'alert')).toBe('');
-      expect(extractText(getRowActionButton(getRowByText(renderer, 'Helper')!))).toBe('Invited');
-    }
-  );
-
-  it('carries a sent invite with a grant warning to other filters and searches, and leaves a clean one behind', async () => {
-    const { renderer, mx } = renderPrompt();
-    await clickRowInvite(renderer, 'Maya Chen');
-    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
+  it('shows the row as Invited and announces it as soon as the invite call returns, before the grant settles', async () => {
+    const helper = '@mindroom_helper:example.org';
+    const { renderer, mx, room } = renderPrompt();
+    const failGrant = holdNextGrant(mx);
+    const finishInvite = holdNextInvite(mx);
     await clickRowInvite(renderer, 'Helper');
 
+    const action = () => getRowActionButton(getRowByText(renderer, 'Helper')!);
+    expect(extractText(action())).toBe('Invite');
+    expect(action().props['aria-disabled']).toBe(true);
+    expect(textContentByRole(renderer, 'status')).toBe('');
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+    // The invite call returns; the grant is being written and stays unanswered.
+    await finishInvite();
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(extractText(action())).toBe('Invited');
+    expect(textContentByRole(renderer, 'status')).toBe(`Invited ${helper}.`);
+    expect(getGrantAlerts(renderer)).toHaveLength(0);
+
+    await failGrant(new Error('Forbidden'));
+    expect(extractText(action())).toBe('Invited');
+    expect(textContentByRole(renderer, 'status')).toBe(`Invited ${helper}.`);
+    expect(textContentByRole(renderer, 'alert')).toBe(
+      `Invited ${helper}, but could not give Moderator rights: Forbidden`
+    );
+    expectGrant(mx, room, helper, 50);
+  });
+
+  // An agent of this homeserver that no directory lists: its row exists only while it is invited.
+  const UNLISTED_AGENT = '@mindroom_scout:example.org';
+
+  describe.each([
+    { agent: '@mindroom_helper:example.org', listed: true, start: 'click' },
+    { agent: '@mindroom_helper:example.org', listed: true, start: 'Enter' },
+    { agent: UNLISTED_AGENT, listed: false, start: 'Enter' },
+  ] as const)('a failed grant for $agent invited by $start', ({ agent, listed, start }) => {
+    const warning = `Invited ${agent}, but could not give Moderator rights: Forbidden`;
+    const rowName = listed ? 'Helper' : agent;
+
+    const startInvite = async (renderer: ReactTestRenderer) => {
+      if (start === 'click') {
+        await clickRowInvite(renderer, rowName);
+      } else {
+        typeSearch(renderer, agent);
+        await pressKeyInSearch(renderer, 'Enter');
+      }
+    };
+
+    /** The agent left: the sheet's alert is still there, and the agent can be invited again. */
+    const expectAlertAndNewInvite = async (
+      renderer: ReactTestRenderer,
+      mx: ReturnType<typeof makeMx>,
+      room: ReturnType<typeof makeRoom>
+    ) => {
+      expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+      expect(textContentByRole(renderer, 'alert')).toBe(warning);
+      const row = getRowByText(renderer, rowName);
+      if (listed) {
+        // No row holds the warning; the agent's own row offers the invite.
+        expect(extractText(row!)).not.toContain('Forbidden');
+        expect(extractText(getRowActionButton(row!))).toBe('Invite');
+        expect(getRowActionButton(row!).props['aria-disabled']).toBe(false);
+      } else {
+        expect(row).toBeUndefined();
+      }
+
+      await startInvite(renderer);
+      expect(mx.invite).toHaveBeenCalledTimes(2);
+      expect(mx.invite).toHaveBeenLastCalledWith(room.roomId, agent, undefined);
+      expect(extractText(getRowActionButton(getRowByText(renderer, rowName)!))).toBe('Invited');
+      // The new invite's grant went through; the alert about the first stays until dismissed.
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(2);
+      expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+    };
+
+    it('keeps the alert in the sheet and takes a new invite when the agent declines after the grant failed', async () => {
+      const { renderer, mx, room } = renderPrompt();
+      vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
+      await startInvite(renderer);
+      expect(extractText(getRowActionButton(getRowByText(renderer, rowName)!))).toBe('Invited');
+      expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+
+      emitMembership(mx, room, agent, 'invite');
+      emitMembership(mx, room, agent, 'leave');
+      await expectAlertAndNewInvite(renderer, mx, room);
+    });
+
+    it('shows the alert in the sheet and takes a new invite when the agent declines while the grant is on its way', async () => {
+      const { renderer, mx, room } = renderPrompt();
+      const failGrant = holdNextGrant(mx);
+      await startInvite(renderer);
+      // The invite is out and announced; the grant is still being written.
+      expect(mx.invite).toHaveBeenCalledTimes(1);
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expect(extractText(getRowActionButton(getRowByText(renderer, rowName)!))).toBe('Invited');
+      expect(textContentByRole(renderer, 'status')).toBe(`Invited ${agent}.`);
+
+      emitMembership(mx, room, agent, 'invite');
+      emitMembership(mx, room, agent, 'leave');
+      // The row is gone or offers the invite again, and nothing told of the grant yet.
+      expect(getGrantAlerts(renderer)).toHaveLength(0);
+
+      await failGrant(new Error('Forbidden'));
+      await expectAlertAndNewInvite(renderer, mx, room);
+    });
+  });
+
+  it('keeps a grant alert in the sheet across filters and searches until it is dismissed, and leaves the sent invite behind', async () => {
+    const warning =
+      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden';
+    const { renderer, mx } = renderPrompt();
+    const failGrant = holdNextGrant(mx);
+    await clickRowInvite(renderer, 'Helper');
+
+    // Another filter, then a search, while the grant is still on its way: the row stays behind.
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
     typeSearch(renderer, 'liam');
-    expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
-    const helperRow = getRowByText(renderer, 'Helper')!;
-    expect(extractText(helperRow)).toContain('could not give Moderator rights: Forbidden');
-    expect(extractText(getRowActionButton(helperRow))).toBe('Invited');
-    expect(getRowActionButton(helperRow).props['aria-disabled']).toBe(true);
+    expect(getRowByText(renderer, 'Helper')).toBeUndefined();
+
+    await failGrant(new Error('Forbidden'));
+    expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+    expect(getRowByText(renderer, 'Helper')).toBeUndefined();
+    expect(getRowByText(renderer, 'Liam Park')).toBeDefined();
+
+    typeSearch(renderer, '');
+    act(() => {
+      getFilterButton(renderer, 'Agents').props.onClick();
+    });
+    expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+
+    // The strip sits between the controls and the rows.
+    const body = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'InviteBody'
+    );
+    expect(
+      body.children
+        .filter((child): child is ReactTestInstance => typeof child !== 'string')
+        .map((child) => child.props.className)
+    ).toEqual(['InviteControls', 'InviteGrantAlerts', 'InviteListArea', 'InviteFooter']);
+
+    const dismiss = getGrantAlerts(renderer)[0]!.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Dismiss notice'
+    );
+    act(() => {
+      dismiss.props.onClick();
+    });
+    expect(getGrantAlerts(renderer)).toHaveLength(0);
+    expect(textContentByRole(renderer, 'alert')).toBe('');
+  });
+
+  it('clears the hint that asks for a valid ID when the filter changes', async () => {
+    const { renderer } = renderPrompt();
+    act(() => {
+      getFilterButton(renderer, 'Agents').props.onClick();
+    });
+    typeSearch(renderer, '@maya');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(extractText(getDialog(renderer))).toContain('Please enter a valid User ID.');
+
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
+    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+    expect(extractText(getDialog(renderer))).not.toContain('Please enter a valid User ID.');
+  });
+
+  it('says that the directory failed to load and loads it again on Retry', async () => {
+    const { renderer, mx } = renderPrompt({ cache: readyCache([], 'error') });
+    const retryButton = () =>
+      renderer.root.findAll((node) => node.type === 'button' && extractText(node) === 'Retry');
+    expect(mx.searchUserDirectory).not.toHaveBeenCalled();
+    expect(textContentByRole(renderer, 'alert')).toBe('Something went wrong. Try again.');
+    expect(extractText(getDialog(renderer))).not.toContain('No users to invite yet');
+    expect(retryButton()).toHaveLength(1);
+
+    // A search is the search's own business: the directory's failure shows while browsing only.
+    typeSearch(renderer, 'maya');
+    expect(retryButton()).toHaveLength(0);
+    typeSearch(renderer, '');
+
+    vi.mocked(mx.searchUserDirectory).mockResolvedValueOnce({
+      limited: false,
+      results: [{ user_id: '@nora:example.org', display_name: 'Nora Quinn' }],
+    });
+    await act(async () => {
+      retryButton()[0]!.props.onClick();
+      await settle();
+    });
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith(expect.objectContaining({ term: '@' }));
+    expect(getRowByText(renderer, 'Nora Quinn')).toBeDefined();
+    expect(retryButton()).toHaveLength(0);
+    expect(textContentByRole(renderer, 'alert')).toBe('');
   });
 
   it('scrolls the focused field into view when a short viewport makes the body the scroller', () => {
@@ -2012,6 +2170,39 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     }
   });
 
+  it('shows direction controls in the room name as code points inside one isolate, and keeps a "$" as written', async () => {
+    // A right-to-left override, and an isolate's end that would close the heading's own early.
+    const hostile = renderPrompt({ name: 'Plans \u202Efdp.exe\u2069 $$' });
+    expect(getHeading(hostile.renderer)).toBe(
+      'Invite to \u2068Plans <U+202E>fdp.exe<U+2069> $$\u2069'
+    );
+    expect(getHeading(renderPrompt({ name: 'Budget $$' }).renderer)).toBe(
+      'Invite to \u2068Budget $$\u2069'
+    );
+    // A name of controls alone is still a name.
+    expect(getHeading(renderPrompt({ name: '\u202E' }).renderer)).toBe(
+      'Invite to \u2068<U+202E>\u2069'
+    );
+
+    const template = arAdditions.sharedUi.inviteUserPrompt.inviteToRoom;
+    i18next.addResourceBundle('ar', 'translation', arAdditions, true, true);
+    await act(async () => {
+      await i18next.changeLanguage('ar');
+    });
+    try {
+      const heading = getHeading(renderPrompt({ name: 'Plans \u202Efdp.exe\u2069 $$' }).renderer);
+      expect(heading).toBe(template.replace('{{room}}', () => 'Plans <U+202E>fdp.exe<U+2069> $$'));
+      expect(heading).not.toMatch(/[\u202A-\u202E]/);
+      expect(heading.split('\u2068')).toHaveLength(2);
+      expect(heading.split('\u2069')).toHaveLength(2);
+    } finally {
+      await act(async () => {
+        await i18next.changeLanguage('en');
+      });
+      i18next.removeResourceBundle('ar', 'translation');
+    }
+  });
+
   it('follows a rename of the room in the heading while the sheet is open', () => {
     const { renderer, room } = renderPrompt({ name: 'Design Review' });
     const heading = () =>
@@ -2065,7 +2256,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(mx.invite).not.toHaveBeenCalled();
   });
 
-  it('announces every invite that finishes, two at once included, and keeps them when a grant fails', async () => {
+  it('announces every invite that finishes, two at once included, also one whose grant fails', async () => {
     const { renderer, mx } = renderPrompt();
     const announcementRegion = () =>
       renderer.root.find(
@@ -2098,12 +2289,17 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
     await clickRowInvite(renderer, 'Helper');
     expect(textContentByRole(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
-    expect(lines()).toEqual(['Invited @maya:example.org.', 'Invited @liam:example.org.']);
+    expect(lines()).toEqual([
+      'Invited @maya:example.org.',
+      'Invited @liam:example.org.',
+      'Invited @mindroom_helper:example.org.',
+    ]);
 
     await clickRowInvite(renderer, 'Coder');
     expect(lines()).toEqual([
       'Invited @maya:example.org.',
       'Invited @liam:example.org.',
+      'Invited @mindroom_helper:example.org.',
       'Invited @mindroom_coder:example.org.',
     ]);
   });
@@ -2170,6 +2366,14 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       );
     expect(findAlerts().map(extractText)).toEqual([coderFailure]);
     expect(findDismissButtons()).toHaveLength(1);
+    // The message scrolls past three lines, so the keyboard can focus it, as a named region.
+    const message = findAlerts()[0]!.find(
+      (node) => typeof node.type === 'string' && node.props.tabIndex === 0
+    );
+    expect(extractText(message)).toBe(coderFailure);
+    expect(message.props.role).toBe('region');
+    expect(message.props['aria-labelledby']).toBe(message.props.id);
+    expect(message.props.id).toEqual(expect.any(String));
 
     act(() => {
       findDismissButtons()[0]!.props.onClick();
