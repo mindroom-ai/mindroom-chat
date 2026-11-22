@@ -144,27 +144,29 @@ const inviteRows = (
 const rowName = ({ user, listed }: Candidate): string =>
   listed ? getDisplayName(user) : user.userId;
 
-function InviteRowItem({
-  row,
-  canPromote,
-  grantLevel,
-  roleName,
-  grantedRoleName,
-  roomGrantInFlight,
-  inviteRetired,
-  onInvite,
-  onMakeModerator,
-}: {
-  row: InviteRow;
-  canPromote: boolean;
+type ModeratorControls = {
+  canPromote: (userId: string) => boolean;
   grantLevel: number;
   roleName: string;
   grantedRoleName: (level: number) => string;
-  roomGrantInFlight: boolean;
-  inviteRetired: boolean;
+  inFlight: boolean;
+  isRetired: (row: InviteRow) => boolean;
+  onGrant: (row: InviteRow) => void;
+};
+
+function InviteRowItem({
+  row,
+  controls,
+  onInvite,
+}: {
+  row: InviteRow;
+  controls: ModeratorControls;
   onInvite: () => void;
-  onMakeModerator: () => void;
 }) {
+  const canPromote = controls.canPromote(row.user.userId);
+  const inviteRetired = controls.isRetired(row);
+  const { grantLevel, roleName, grantedRoleName, inFlight: roomGrantInFlight } = controls;
+  const onMakeModerator = () => controls.onGrant(row);
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
@@ -309,29 +311,12 @@ function InviteRowItem({
 type InviteListProps = {
   rows: InviteRow[];
   isFetching: boolean;
-  canPromote: (userId: string) => boolean;
-  grantLevel: number;
-  roleName: string;
-  grantedRoleName: (level: number) => string;
-  roomGrantInFlight: boolean;
-  isRowRetired: (row: InviteRow) => boolean;
+  controls: ModeratorControls;
   onInvite: (row: InviteRow, index: number) => void;
-  onMakeModerator: (row: InviteRow) => void;
 };
 
 /** The section itself: its title after a line, then the rows, or nothing when there are none. */
-function InviteList({
-  rows,
-  isFetching,
-  canPromote,
-  grantLevel,
-  roleName,
-  grantedRoleName,
-  roomGrantInFlight,
-  isRowRetired,
-  onInvite,
-  onMakeModerator,
-}: InviteListProps) {
+function InviteList({ rows, isFetching, controls, onInvite }: InviteListProps) {
   const { t } = useTranslation();
   const headingId = useId();
   if (rows.length === 0 && !isFetching) return null;
@@ -352,14 +337,8 @@ function InviteList({
             <InviteRowItem
               key={row.user.userId}
               row={row}
-              canPromote={canPromote(row.user.userId)}
-              grantLevel={grantLevel}
-              roleName={roleName}
-              grantedRoleName={grantedRoleName}
-              roomGrantInFlight={roomGrantInFlight}
-              inviteRetired={isRowRetired(row)}
+              controls={controls}
               onInvite={() => onInvite(row, index)}
-              onMakeModerator={() => onMakeModerator(row)}
             />
           ))}
         </ul>
@@ -375,19 +354,7 @@ type InviteSearchProps = Omit<InviteListProps, 'rows' | 'isFetching'> & {
 };
 
 /** The directory's matches for a search, with the invitations placed for it. */
-function InviteSearch({
-  room,
-  query,
-  attempts,
-  canPromote,
-  grantLevel,
-  roleName,
-  grantedRoleName,
-  roomGrantInFlight,
-  isRowRetired,
-  onInvite,
-  onMakeModerator,
-}: InviteSearchProps) {
+function InviteSearch({ room, query, attempts, controls, onInvite }: InviteSearchProps) {
   const client = useMatrixClient();
   const { suggestions, isFetching } = useInviteUserSearch(room, query);
   const typedUser = isUserId(query)
@@ -396,18 +363,7 @@ function InviteSearch({
   const typed = typedUser ? { user: typedUser, listed: false } : undefined;
   const rows = inviteRows(suggestions, typed, attempts);
   return (
-    <InviteList
-      rows={rows}
-      isFetching={isFetching}
-      canPromote={canPromote}
-      grantLevel={grantLevel}
-      roleName={roleName}
-      grantedRoleName={grantedRoleName}
-      roomGrantInFlight={roomGrantInFlight}
-      isRowRetired={isRowRetired}
-      onInvite={onInvite}
-      onMakeModerator={onMakeModerator}
-    />
+    <InviteList rows={rows} isFetching={isFetching} controls={controls} onInvite={onInvite} />
   );
 }
 
@@ -583,7 +539,15 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   };
 
   const onInvite = (row: InviteRow, index: number) => void invite(row, index);
-  const onMakeModerator = (row: InviteRow) => void makeModerator(row);
+  const controls: ModeratorControls = {
+    canPromote,
+    grantLevel,
+    roleName,
+    grantedRoleName,
+    inFlight: roomGrantInFlight,
+    isRetired: isRowRetired,
+    onGrant: (row) => void makeModerator(row),
+  };
 
   return (
     <>
@@ -591,28 +555,16 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
         <InviteList
           rows={inviteRows([], undefined, placed)}
           isFetching={false}
-          canPromote={canPromote}
-          grantLevel={grantLevel}
-          roleName={roleName}
-          grantedRoleName={grantedRoleName}
-          roomGrantInFlight={roomGrantInFlight}
-          isRowRetired={isRowRetired}
+          controls={controls}
           onInvite={onInvite}
-          onMakeModerator={onMakeModerator}
         />
       ) : (
         <InviteSearch
           room={room}
           query={trimmed}
           attempts={placed}
-          canPromote={canPromote}
-          grantLevel={grantLevel}
-          roleName={roleName}
-          grantedRoleName={grantedRoleName}
-          roomGrantInFlight={roomGrantInFlight}
-          isRowRetired={isRowRetired}
+          controls={controls}
           onInvite={onInvite}
-          onMakeModerator={onMakeModerator}
         />
       )}
       {/* An invitation that went out is said aloud; a failure is an alert in its row. */}
