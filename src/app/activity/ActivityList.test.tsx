@@ -216,12 +216,50 @@ const renderList = (
   return store;
 };
 
+const replies = (prefix: string, count: number): ActivityRow[] =>
+  Array.from({ length: count }, (_, index) =>
+    threadRow(`${prefix}${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+  );
+
+const listItems = () => within(screen.getByRole('list')).getAllByRole('listitem');
+
+/** An IntersectionObserver that reports only what the test delivers with `intersect`. */
+const standInForIntersectionObserver = () => {
+  const observers: { callback: IntersectionObserverCallback; live: boolean }[] = [];
+  class FakeIntersectionObserver {
+    live = true;
+
+    observe = vi.fn();
+
+    unobserve = vi.fn();
+
+    disconnect = vi.fn(() => {
+      this.live = false;
+    });
+
+    constructor(public callback: IntersectionObserverCallback) {
+      observers.push(this);
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+  /** Delivers an intersection to `observer`, by default to the one that still observes. */
+  const intersect = (observer = observers.findLast((candidate) => candidate.live)!) =>
+    act(() =>
+      observer.callback(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        observer as unknown as IntersectionObserver
+      )
+    );
+  return { observers, intersect };
+};
+
 const rowByTitle = (title: string) =>
   screen.getByText(title).closest('[data-activity-row]') as HTMLElement;
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   mocks.plugins.splice(0);
   mocks.roots.clear();
 });
@@ -997,20 +1035,21 @@ describe('ActivityList', () => {
       fireEvent.focus(showMore);
       expect(within(list).getAllByRole('listitem')).toHaveLength(40);
 
-      // Keyboard activation (detail: 0) appends one page and moves focus to the first new row.
+      // Activation appends one page and moves focus from Show more to the first new row.
       fireEvent.click(showMore, { detail: 0 });
       expect(within(list).getAllByRole('listitem')).toHaveLength(80);
       const firstNewRow = screen.getByText('Thread k40').closest('button');
       expect(document.activeElement).toBe(firstNewRow);
 
-      // Pointer click (detail: 1) with >40 remaining rows appends exactly one page (80 -> 120).
+      // Pointer click (detail: 1) with >40 remaining rows appends exactly one page (80 -> 120);
+      // where the press focused Show more, focus moves on to the first new row just the same.
       const showMoreAgain = screen.getByRole('button', { name: 'Show more' });
       fireEvent.pointerDown(showMoreAgain);
       showMoreAgain.focus();
       fireEvent.focus(showMoreAgain);
       fireEvent.click(showMoreAgain, { detail: 1 });
       expect(within(list).getAllByRole('listitem')).toHaveLength(120);
-      expect(document.activeElement).toBe(showMoreAgain);
+      expect(document.activeElement).toBe(screen.getByText('Thread k80').closest('button'));
       expect(screen.getByRole('button', { name: 'Show more' })).toBeTruthy();
 
       fireEvent.click(showMoreAgain, { detail: 1 });
@@ -1021,9 +1060,12 @@ describe('ActivityList', () => {
     }
   });
 
-  it('does not bypass the 40-row window when the current thread is deep in the list', () => {
+  it.each([
+    [80, 100],
+    [700, 700],
+  ])('mounts 40 rows on first open when the current thread ranks %i of %i', (rank, count) => {
     const loaders = new Map<string, ReturnType<typeof vi.fn>>();
-    const rows = Array.from({ length: 700 }, (_, index) => {
+    const rows = Array.from({ length: count }, (_, index) => {
       const key = `d${index}`;
       const row = threadRow(key, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] });
       const roomId = `!${key}:x`;
@@ -1042,7 +1084,7 @@ describe('ActivityList', () => {
       true,
       {},
       'sheet',
-      '/home/!d699:x?threadId=$d699-root'
+      `/home/!d${rank - 1}:x?threadId=$d${rank - 1}-root`
     );
 
     const list = screen.getByRole('list');
@@ -1050,7 +1092,7 @@ describe('ActivityList', () => {
     const loadedCount = [...loaders.values()].filter((fn) => fn.mock.calls.length > 0).length;
     expect(loadedCount).toBeLessThanOrEqual(40);
     expect(loaders.get('!d40:x')).not.toHaveBeenCalled();
-    expect(loaders.get('!d699:x')).not.toHaveBeenCalled();
+    expect(loaders.get(`!d${rank - 1}:x`)).not.toHaveBeenCalled();
   });
 
   it('does not restore an earlier tab limit when returning to it (A -> B -> A)', () => {
@@ -1114,26 +1156,124 @@ describe('ActivityList', () => {
     expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(41);
   });
 
-  it('does not play a leave fade when a live prepend pushes an ordinary row past the window edge', () => {
+  it('keeps every mounted row when a prepend moves the current row from rank 80 to 81', () => {
+    // The observer stays silent: only Show more pages.
+    standInForIntersectionObserver();
+    const rows = replies('e', 100);
+    const store = renderList(
+      { rows, hiddenAutomations: 0 },
+      true,
+      {},
+      'page',
+      '/activity/!e79:x?threadId=$e79-root'
+    );
+    // The reader reaches the open thread, by Show more where the first open did not mount it.
+    if (!screen.queryByText('Thread e79')) {
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    }
+    expect(listItems()).toHaveLength(80);
+    const current = screen.getByText('Thread e79').closest('button')!;
+    const reading = screen.getByText('Thread e54').closest('button')!;
+    current.focus();
+
+    act(() =>
+      store.set(activityRowsAtom, { rows: [...replies('e-new', 1), ...rows], hiddenAutomations: 0 })
+    );
+
+    expect(listItems()).toHaveLength(81);
+    expect(screen.getByText('Thread e54').closest('button')).toBe(reading);
+    expect(screen.getByText('Thread e79').closest('button')).toBe(current);
+    expect(current.getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(current);
+  });
+
+  it('keeps a focused row mounted through a bulk prepend', () => {
+    const rows = replies('f', 50);
+    const store = renderList({ rows, hiddenAutomations: 0 });
+    const focused = screen.getByText('Thread f39').closest('button')!;
+    focused.focus();
+
+    act(() =>
+      store.set(activityRowsAtom, { rows: [...replies('g', 41), ...rows], hiddenAutomations: 0 })
+    );
+
+    expect(screen.getByText('Thread f39').closest('button')).toBe(focused);
+    expect(document.activeElement).toBe(focused);
+    expect(listItems()).toHaveLength(81);
+    // Once the last mounted row leaves the list, the window ends at the one before it.
+    act(() =>
+      store.set(activityRowsAtom, {
+        rows: [...replies('g', 41), ...rows.filter((row) => row.key !== 'f39')],
+        hiddenAutomations: 0,
+      })
+    );
+    expect(listItems()).toHaveLength(80);
+    expect(screen.queryByText('Thread f40')).toBeNull();
+  });
+
+  it('keeps the first page while the index still fills in', () => {
+    const rows = replies('h', 40);
+    const store = renderList({ rows, hiddenAutomations: 0 }, false);
+    act(() =>
+      store.set(activityRowsAtom, { rows: [...replies('i', 300), ...rows], hiddenAutomations: 0 })
+    );
+    expect(listItems()).toHaveLength(40);
+  });
+
+  it('moves focus from Show more to the first new row when the observer appends a page', () => {
+    const { intersect } = standInForIntersectionObserver();
+    renderList({ rows: replies('o', 90), hiddenAutomations: 0 });
+
+    screen.getByRole('button', { name: 'Show more' }).focus();
+    intersect();
+    expect(listItems()).toHaveLength(80);
+    expect(document.activeElement).toBe(screen.getByText('Thread o40').closest('button'));
+
+    // The last page takes Show more away; its focus goes to the first new row all the same.
+    screen.getByRole('button', { name: 'Show more' }).focus();
+    intersect();
+    expect(listItems()).toHaveLength(90);
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByText('Thread o80').closest('button'));
+  });
+
+  it('leaves focus alone when the observer appends a page while a row has it', () => {
+    const { intersect } = standInForIntersectionObserver();
+    renderList({ rows: replies('n', 90), hiddenAutomations: 0 });
+    const focused = screen.getByText('Thread n10').closest('button')!;
+    focused.focus();
+    intersect();
+    expect(listItems()).toHaveLength(80);
+    expect(document.activeElement).toBe(focused);
+  });
+
+  it('ignores an observer callback from before a filter switch', () => {
+    const { observers, intersect } = standInForIntersectionObserver();
+    renderList({ rows: replies('s', 95), hiddenAutomations: 0 });
+    const stale = observers.at(-1)!;
+
+    fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
+    intersect(stale);
+    expect(listItems()).toHaveLength(40);
+
+    // The new filter's own observer still pages.
+    intersect();
+    expect(listItems()).toHaveLength(80);
+  });
+
+  it('does not play a leave fade for rows a filter change leaves past the window edge', () => {
     const motion = standInForListMotion();
     const prevHeight = window.innerHeight;
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 3000 });
     try {
-      const rows = Array.from({ length: 45 }, (_, index) =>
-        threadRow(`w${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
-      );
-      const store = renderList({ rows, hiddenAutomations: 0 });
-      const incoming = threadRow(
-        'w-new',
-        'reply',
-        { newCount: 1 },
-        { actorIds: ['@mindroom_code:x'], title: 'Thread w-new' }
-      );
-      act(() => store.set(activityRowsAtom, { rows: [incoming, ...rows], hiddenAutomations: 0 }));
+      renderList({ rows: replies('w', 45), hiddenAutomations: 0 });
+      fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+      expect(listItems()).toHaveLength(45);
 
-      // Row w39 fell past the 40-row window edge; it was not read/removed so it must not fade out.
+      // Replies holds the same rows and starts again at 40: w40 to w44 were not read or removed.
+      fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
+      expect(listItems()).toHaveLength(40);
       expect(motion.left()).toEqual([]);
-      expect(motion.glided()).toContain('w0');
     } finally {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: prevHeight });
       motion.restore();
