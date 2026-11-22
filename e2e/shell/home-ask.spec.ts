@@ -91,7 +91,7 @@ const openedEvent = async (page: Page, reader: MatrixSession, roomId: string) =>
   const eventId = url.searchParams.get('threadId') ?? '';
   // A confirmed ID, never the client's temporary one.
   expect(eventId).toMatch(/^\$/);
-  return matrixFetch<{ sender: string; content: Record<string, unknown> }>(
+  return matrixFetch<{ type: string; sender: string; content: Record<string, unknown> }>(
     HOMESERVER,
     `/rooms/${encodeURIComponent(roomId)}/event/${encodeURIComponent(eventId)}`,
     { accessToken: reader.accessToken }
@@ -233,6 +233,12 @@ test('an agent never used gets its direct chat started, which waits for the agen
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/direct\/.*threadId=/, { timeout: 30_000 });
   const sent = await openedEvent(page, reader, dmId);
-  expect(sent.content.body).toBe('Draft the release notes');
+  expect(sent.sender).toBe(reader.userId);
+  // New direct chats are encrypted, so the plaintext body shows in the opened thread while the
+  // server event still carries any relation in the clear.
+  expect(sent.type).toBe('m.room.encrypted');
   expect(sent.content['m.relates_to']).toBeUndefined();
+  await expect(
+    page.locator('[data-body-direction]').filter({ hasText: 'Draft the release notes' })
+  ).toBeVisible({ timeout: 30_000 });
 });
