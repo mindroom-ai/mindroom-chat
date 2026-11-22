@@ -78,6 +78,12 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
   const container = document.createElement('div');
   const root = createRoot(container);
   const render = () => flushSync(() => root.render(<Harness />));
+  // virtual-core listens for the scroll before the ledger does, and renders the rows at the
+  // offset of the event.
+  const marginAtRender: (string | undefined)[] = [];
+  scrollElement.addEventListener('scroll', () => {
+    marginAtRender.push(container.querySelector<HTMLElement>('[data-list]')?.style.marginTop);
+  });
   try {
     render();
     render();
@@ -117,9 +123,13 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     expect(readRowFoldPx()).toBe(0);
 
     // The compositor puts the position back where it was before the settle: the margin returns,
-    // and with it the part the row brought, so the end clamp reads no shrink in it.
+    // and with it the part the row brought, so the end clamp reads no shrink in it. It returns
+    // in the scroll event itself, before the frame paints the rows without it.
     scrollElement.scrollTop = 400;
     scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);
+    // virtual-core renders the rows of that offset with the margin back.
+    expect(marginAtRender.at(-1)).toBe(held.marginTop);
     render();
     render();
     expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);

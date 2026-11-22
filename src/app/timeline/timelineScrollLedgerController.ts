@@ -855,20 +855,31 @@ export const useTimelineScrollLedgerController = ({
       // gesture's, never a late reassertion of a pre-settle offset.
       settleDiscardWatchRef.current = undefined;
     };
-    // How far the reader's wheel asked to scroll since the last scroll event. A mouse wheel's
-    // notch moves about as far as a settle can: a move back toward the pre-settle offset that the
-    // wheel accounts for is the reader's, not the compositor reasserting it (a trackpad's momentum
-    // ticks are far shorter than such a reassertion). Lines and pages account for any move.
+    // How far the reader's wheel asked to scroll since the last scroll event that moved the
+    // offset (a write's own event moves nothing, and the wheel's scroll comes after it). A mouse
+    // wheel's notch moves about as far as a settle can: a move back toward the pre-settle offset
+    // that the wheel accounts for is the reader's, not the compositor reasserting it (a trackpad's
+    // momentum ticks are far shorter than such a reassertion). Lines and pages account for any move.
     let wheelPx = 0;
     const onLedgerBoundaryWheel = (event: WheelEvent) => {
       wheelPx += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * Infinity;
     };
-    const onLedgerBoundaryScroll = () => {
+    // The scroll event's first half listens in the capture phase, which comes first on the scroll
+    // area itself: a discarded settle has its fold back before virtual-core, which listens there
+    // too, renders the rows at the reasserted offset. Without the fold those are rows far above
+    // the reader, and they were measured as if in view: their size changes moved the reader's
+    // rows for good (580 px after a 16,626 px settle). It leaves the event's direction for the
+    // boundary half, or nothing after a restore.
+    let boundaryScroll:
+      | { currentScrollTop: number; scrollDirection: 'forward' | 'backward' | null }
+      | undefined;
+    const onLedgerScroll = () => {
+      boundaryScroll = undefined;
       const currentScrollTop = scrollElement.scrollTop;
       const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
       const wheeledPx = wheelPx;
-      wheelPx = 0;
       const delta = currentScrollTop - previousScrollTop;
+      if (delta !== 0) wheelPx = 0;
       const wheeled =
         delta !== 0 &&
         Math.sign(wheeledPx) === Math.sign(delta) &&
@@ -894,6 +905,7 @@ export const useTimelineScrollLedgerController = ({
             preSettleScrollTop: watch.preSettleScrollTop,
             previousScrollTop,
             currentScrollTop,
+            wheeledPx,
           })
         ) {
           // The compositor reasserted the pre-settle offset: the settle's
@@ -907,7 +919,8 @@ export const useTimelineScrollLedgerController = ({
           // The rows' part comes back with the margin, in the render that paints it: without
           // it the end clamp read that part of the restored margin as rows that shrank.
           droppedRowFoldPxRef.current += watch.rowFoldPx;
-          handleDroppedCorrection(watch.px);
+          // Rendered now, before this event's frame paints the rows without their fold.
+          flushSync(() => handleDroppedCorrection(watch.px));
           return;
         } else if (
           Math.abs(currentScrollTop - watch.settledScrollTop) > SETTLE_DISCARD_HELD_SLACK_PX
@@ -916,6 +929,11 @@ export const useTimelineScrollLedgerController = ({
           settleDiscardWatchRef.current = undefined;
         }
       }
+      boundaryScroll = { currentScrollTop, scrollDirection };
+    };
+    const onLedgerBoundaryScroll = () => {
+      if (!boundaryScroll) return;
+      const { currentScrollTop, scrollDirection } = boundaryScroll;
       const px = scrollCompensationPxRef.current;
       // Cheap early exit on the hot path (direction tracking above is just
       // scrollTop arithmetic; the common px=0 case still avoids rect reads).
@@ -952,10 +970,12 @@ export const useTimelineScrollLedgerController = ({
       passive: true,
     });
     scrollElement.addEventListener('wheel', onLedgerBoundaryWheel, { passive: true });
+    scrollElement.addEventListener('scroll', onLedgerScroll, { capture: true, passive: true });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
     return () => {
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
       scrollElement.removeEventListener('wheel', onLedgerBoundaryWheel);
+      scrollElement.removeEventListener('scroll', onLedgerScroll, true);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
     };
   }, [

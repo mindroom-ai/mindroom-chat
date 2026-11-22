@@ -54,7 +54,13 @@ const mountRoomLedger = ({ settle = true } = {}) => {
     scrollHeight: 1663,
     getBoundingClientRect: () => ({ top: 0, bottom: 704 }),
     addEventListener: (type: string, listener: () => void) => {
-      if (type === 'scroll') onScroll = listener;
+      if (type !== 'scroll') return;
+      // The ledger listens twice, in the capture phase and after it.
+      const earlier = onScroll;
+      onScroll = () => {
+        earlier?.();
+        listener();
+      };
     },
     removeEventListener: () => undefined,
     get scrollTop() {
