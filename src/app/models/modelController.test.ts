@@ -2485,6 +2485,19 @@ describe('ModelController main-room next-thread draft', () => {
     });
   });
 
+  it('does not seed existing threads from a room-scope reply lacking model_selection', async () => {
+    const h = setup();
+    await discoverMainRoom(h, { capabilities: ['thread_model_on_root'] });
+    expect(h.controller.getSnapshot(h.room, undefined).eligible).toBe(true);
+
+    // A root-only runtime must not enter the shared room cache for existing threads.
+    expect(h.controller.getSnapshot(h.room, '$existing-thread')).toMatchObject({
+      eligible: false,
+      runtimes: [],
+      models: [],
+    });
+  });
+
   it('does not reset an existing thread chosenRuntimeId when a refresh falls back to another runtime', async () => {
     const h = setup();
     const alpha = '@mindroom_alpha:test';

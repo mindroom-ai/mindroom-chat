@@ -439,8 +439,13 @@ export class ModelController {
       : new Map([...query.replies].filter(([, catalog]) => supportsRootModel(catalog)));
     const { rooms, save } = this.roomCatalogs;
     const { roomId } = scope.room;
+    const cached = roomCatalogsOf(
+      [...query.replies.values()].filter(({ response }) =>
+        response.capabilities.includes('model_selection')
+      )
+    );
     rooms.delete(roomId);
-    rooms.set(roomId, roomCatalogsOf(query.replies.values()));
+    if (cached.length) rooms.set(roomId, cached);
     if (rooms.size > ROOM_CATALOG_LIMIT) rooms.delete(rooms.keys().next().value);
     save();
     scope.needsRefresh = !!scope.send;
