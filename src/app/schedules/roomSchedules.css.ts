@@ -579,6 +579,11 @@ export const Metadata = style({
 
 globalStyle(`${Metadata} dd`, { margin: 0, minWidth: 0 });
 
+export const MetaLabel = style({
+  color: `color-mix(in srgb, ${color.Surface.OnContainer} 88%, transparent)`,
+  fontWeight: config.fontWeight.W500,
+});
+
 export const TaskId = style([
   Wrap,
   {
@@ -586,6 +591,27 @@ export const TaskId = style([
     userSelect: 'text',
   },
 ]);
+
+export const TaskIdInput = style({
+  width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
+  paddingBlock: toRem(4),
+  paddingInline: toRem(8),
+  borderRadius: config.radii.R300,
+  border: solid(config.borderWidth.B300, subtleBorder),
+  backgroundColor: subtleSurface,
+  color: color.Surface.OnContainer,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  fontSize: 'inherit',
+  lineHeight: 1.4,
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${color.Surface.OnContainer}`,
+      outlineOffset: toRem(2),
+    },
+  },
+});
 
 export const Awaiting = style({
   color: color.Warning.OnContainer,

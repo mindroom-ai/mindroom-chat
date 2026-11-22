@@ -149,22 +149,31 @@ describe('formatCompactExecutionTime', () => {
 });
 
 describe('formatShortCadence', () => {
-  it('uses short descriptions directly, extracts leading phrases, and falls back to Recurring', () => {
+  it('strips only a trailing timezone and falls back to Recurring instead of truncating comma-separated schedules', () => {
     expect(formatShortCadence(baseTask({ cronDescription: 'Every 15 minutes' }), mockT)).toBe(
       'Every 15 minutes'
     );
     expect(
       formatShortCadence(
-        baseTask({ cronDescription: 'At 09:30, Monday through Friday (America/Los_Angeles)' }),
+        baseTask({ cronDescription: 'Daily at 9:00 AM (America/Los_Angeles)' }),
         mockT
       )
-    ).toBe('At 09:30');
+    ).toBe('Daily at 9:00 AM');
     expect(
       formatShortCadence(
         baseTask({ cronDescription: 'Every weekday at 09:00 (America/Los_Angeles)' }),
         mockT
       )
     ).toBe('Every weekday at 09:00');
+    expect(
+      formatShortCadence(baseTask({ cronDescription: 'At 09:00, 12:00 and 15:00 (UTC)' }), mockT)
+    ).toBe('Recurring');
+    expect(
+      formatShortCadence(
+        baseTask({ cronDescription: 'At 09:30, Monday through Friday (America/Los_Angeles)' }),
+        mockT
+      )
+    ).toBe('Recurring');
     expect(
       formatShortCadence(
         baseTask({ cronDescription: 'Every Monday Tuesday Wednesday Thursday at nine' }),

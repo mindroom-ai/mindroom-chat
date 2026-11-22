@@ -64,7 +64,9 @@ vi.mock('./roomSchedules.css', () => ({
   CancelBarButton: 'cancel-bar-button',
   IconMuted: 'icon-muted',
   Metadata: 'metadata',
+  MetaLabel: 'meta-label',
   TaskId: 'task-id',
+  TaskIdInput: 'task-id-input',
   Awaiting: 'awaiting',
   SrOnly: 'sr-only',
 }));
@@ -434,7 +436,6 @@ describe('RoomSchedulesDialog prompt formatting and details', () => {
       const promptEl = shortView.host.querySelector('p.prompt')!;
       expect(promptEl.textContent).toBe('@helper remind me to stretch');
       expect(promptEl.querySelector('.prompt-mention')?.textContent).toBe('@helper');
-      expect(promptEl.className).not.toContain('prompt-clamped');
       expect(findButtonByText(shortView.host, 'Show full prompt')).toBeUndefined();
     } finally {
       shortView.unmount();
@@ -1104,6 +1105,134 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       expect(document.activeElement).toBe(secondToggle);
     } finally {
       unmount();
+    }
+  });
+
+  it('clears lastCollapsedTaskIdRef after a normal collapse so removing another row focuses the first surviving row', async () => {
+    const taskA = makeTask({ taskId: 'row-a', description: 'Row A' });
+    const taskB = makeTask({ taskId: 'row-b', description: 'Row B' });
+    const taskC = makeTask({ taskId: 'row-c', description: 'Row C' });
+    const base = {
+      roomId: '!room:example.org',
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+    const { host, rerender, unmount } = mountDialog({
+      ...base,
+      tasks: [taskA, taskB, taskC],
+    });
+    try {
+      const toggleOf = (id: string) =>
+        host.querySelector<HTMLButtonElement>(
+          `button[data-schedule-toggle][data-schedule-task-id="${id}"]`
+        )!;
+
+      // Expand and collapse C while its toggle keeps focus.
+      const toggleC = toggleOf('row-c');
+      act(() => {
+        toggleC.focus();
+      });
+      await click(toggleC);
+      await click(toggleC);
+      expect(document.activeElement).toBe(toggleC);
+
+      // Move focus to A, then remove A from tasks; focus must land on B (first surviving row), not C.
+      const toggleA = toggleOf('row-a');
+      act(() => {
+        toggleA.focus();
+      });
+      expect(document.activeElement).toBe(toggleA);
+
+      rerender({ ...base, tasks: [taskB, taskC] });
+      expect(document.activeElement).toBe(toggleOf('row-b'));
+    } finally {
+      unmount();
+    }
+  });
+
+  it('opens Details with a focusable read-only Task ID input that selects text when Copy ID fails', async () => {
+    const task = makeTask({ taskId: 'copy-fallback-99', description: 'Copy fallback task' });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    });
+    try {
+      mocks.copyToClipboard.mockResolvedValueOnce(false);
+      await click(findButtonByText(host, 'Copy ID')!);
+      const input = host.querySelector<HTMLInputElement>(
+        'dl input[readonly][aria-label="Task ID"]'
+      );
+      expect(input).not.toBeNull();
+      expect(input?.value).toBe('copy-fallback-99');
+
+      const selectSpy = vi.spyOn(input!, 'select');
+      act(() => {
+        input!.focus();
+      });
+      expect(document.activeElement).toBe(input);
+      expect(selectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('measures real prompt overflow when layout heights exist and wires aria-controls on the prompt toggle', async () => {
+    const longText = 'word '.repeat(50).trim();
+    const task = makeTask({
+      taskId: 'measure-1',
+      description: 'Measured prompt',
+      message: longText,
+    });
+    const clientHeightGetter = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get');
+    const scrollHeightGetter = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get');
+    try {
+      // Non-overflowing prompt (scrollHeight <= clientHeight): toggle is hidden even though text > 180 chars.
+      clientHeightGetter.mockReturnValue(60);
+      scrollHeightGetter.mockReturnValue(60);
+      const nonOverflow = mountDialog({
+        roomId: '!room:example.org',
+        tasks: [task],
+        onClose: vi.fn(),
+        onOpenThread: vi.fn(),
+      });
+      try {
+        expect(findButtonByText(nonOverflow.host, 'Show full prompt')).toBeUndefined();
+      } finally {
+        nonOverflow.unmount();
+      }
+
+      // Overflowing prompt (scrollHeight > clientHeight + 1): toggle appears with aria-controls pointing to <p>.
+      clientHeightGetter.mockReturnValue(60);
+      scrollHeightGetter.mockReturnValue(120);
+      const overflow = mountDialog({
+        roomId: '!room:example.org',
+        tasks: [task],
+        onClose: vi.fn(),
+        onOpenThread: vi.fn(),
+      });
+      try {
+        const toggleBtn = findButtonByText(overflow.host, 'Show full prompt')!;
+        expect(toggleBtn).toBeDefined();
+        const promptP = overflow.host.querySelector<HTMLParagraphElement>('p.prompt')!;
+        expect(promptP.id).toBeTruthy();
+        expect(toggleBtn.getAttribute('aria-controls')).toBe(promptP.id);
+        expect(toggleBtn.getAttribute('aria-expanded')).toBe('false');
+
+        // Expanding keeps Show less visible even once scrollHeight equals clientHeight.
+        scrollHeightGetter.mockReturnValue(120);
+        clientHeightGetter.mockReturnValue(120);
+        await click(toggleBtn);
+        expect(findButtonByText(overflow.host, 'Show less')?.getAttribute('aria-expanded')).toBe(
+          'true'
+        );
+      } finally {
+        overflow.unmount();
+      }
+    } finally {
+      clientHeightGetter.mockRestore();
+      scrollHeightGetter.mockRestore();
     }
   });
 

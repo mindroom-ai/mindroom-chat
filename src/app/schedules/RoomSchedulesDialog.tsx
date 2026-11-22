@@ -94,6 +94,7 @@ function ScheduleAccordionItem({
 }) {
   const { t } = useTranslation();
   const drawerId = useId();
+  const promptTextId = useId();
   const detailsId = useId();
   const confirmId = useId();
   const confirmQuestionId = useId();
@@ -102,12 +103,17 @@ function ScheduleAccordionItem({
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const promptText = task.message;
+  const [promptOverflows, setPromptOverflows] = useState(
+    () => promptText !== undefined && isLongPrompt(promptText)
+  );
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const promptTextRef = useRef<HTMLParagraphElement>(null);
   const detailsButtonRef = useRef<HTMLButtonElement>(null);
   const detailsRef = useRef<HTMLDListElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -127,6 +133,38 @@ function ScheduleAccordionItem({
       window.clearTimeout(copyTimerRef.current);
     };
   }, []);
+
+  const prevPromptTextRef = useRef(promptText);
+  useLayoutEffect(() => {
+    const promptChanged = prevPromptTextRef.current !== promptText;
+    if (promptChanged) {
+      prevPromptTextRef.current = promptText;
+      setPromptExpanded(false);
+    }
+    if (!open) return undefined;
+    const el = promptTextRef.current;
+    if (!el || promptText === undefined) {
+      setPromptOverflows(false);
+      return undefined;
+    }
+    const effectivelyExpanded = promptExpanded && !promptChanged;
+    const measure = () => {
+      if (effectivelyExpanded) {
+        setPromptOverflows(true);
+        return;
+      }
+      if (el.clientHeight > 0) {
+        setPromptOverflows(el.scrollHeight > el.clientHeight + 1);
+      } else {
+        setPromptOverflows(isLongPrompt(promptText));
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open, promptExpanded, promptText]);
 
   useEffect(() => {
     if (!open || !onCancelTask) {
@@ -257,9 +295,6 @@ function ScheduleAccordionItem({
     if (task.model) subtitleItems.push({ key: 'model', node: <bdi>{task.model}</bdi> });
   }
 
-  const promptText = task.message;
-  const promptLong = promptText !== undefined && isLongPrompt(promptText);
-
   const handleCopyId = async () => {
     const ok = await copyToClipboard(task.taskId);
     if (!mountedRef.current) return;
@@ -381,19 +416,25 @@ function ScheduleAccordionItem({
 
           <div className={css.PromptWell} role="region" aria-label={t('roomSchedules.prompt')}>
             <Text
+              ref={promptTextRef}
+              id={promptTextId}
               as="p"
               size="T300"
-              className={classNames(css.Prompt, promptLong && !promptExpanded && css.PromptClamped)}
+              className={classNames(
+                css.Prompt,
+                promptText !== undefined && !promptExpanded && css.PromptClamped
+              )}
               dir="auto"
             >
               {promptText !== undefined
                 ? renderSchedulePrompt(promptText)
                 : t('roomSchedules.promptUnavailable')}
             </Text>
-            {promptLong && (
+            {promptOverflows && (
               <button
                 type="button"
                 className={css.PromptToggle}
+                aria-controls={promptTextId}
                 aria-expanded={promptExpanded}
                 onClick={() => setPromptExpanded((expanded) => !expanded)}
               >
@@ -607,18 +648,30 @@ function ScheduleAccordionItem({
 
           {detailsOpen && (
             <dl id={detailsId} ref={detailsRef} className={css.Metadata}>
-              <Text as="dt" size="T200" priority="300">
+              <Text as="dt" size="T200" className={css.MetaLabel}>
                 {t('roomSchedules.taskId')}
               </Text>
               <Text as="dd" size="T200" className={css.Wrap}>
-                <code className={css.TaskId}>
-                  <bdi>{task.taskId}</bdi>
-                </code>
+                {copyFailed ? (
+                  <input
+                    type="text"
+                    readOnly
+                    dir="ltr"
+                    value={task.taskId}
+                    aria-label={t('roomSchedules.taskId')}
+                    className={css.TaskIdInput}
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                ) : (
+                  <code className={css.TaskId}>
+                    <bdi>{task.taskId}</bdi>
+                  </code>
+                )}
               </Text>
 
               {task.createdBy && (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.owner')}
                   </Text>
                   <Text as="dd" size="T200" className={css.Wrap}>
@@ -627,7 +680,7 @@ function ScheduleAccordionItem({
                 </>
               )}
 
-              <Text as="dt" size="T200" priority="300">
+              <Text as="dt" size="T200" className={css.MetaLabel}>
                 {t('roomSchedules.model')}
               </Text>
               <Text as="dd" size="T200" className={css.Wrap}>
@@ -636,7 +689,7 @@ function ScheduleAccordionItem({
 
               {task.historyLimit !== undefined && (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.historyLimit')}
                   </Text>
                   <Text as="dd" size="T200">
@@ -651,7 +704,7 @@ function ScheduleAccordionItem({
 
               {recurring ? (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.recurrence')}
                   </Text>
                   <Text as="dd" size="T200" className={css.Wrap}>
@@ -659,7 +712,11 @@ function ScheduleAccordionItem({
                       <Box direction="Column" gap="100">
                         <span dir="auto">{task.cronDescription}</span>
                         {utcCronExpression && (
-                          <Text as="span" size="T200" priority="300" className={css.Wrap}>
+                          <Text
+                            as="span"
+                            size="T200"
+                            className={classNames(css.MetaLabel, css.Wrap)}
+                          >
                             {utcCronExpression}
                           </Text>
                         )}
@@ -671,7 +728,7 @@ function ScheduleAccordionItem({
                 </>
               ) : (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.executionTime')}
                   </Text>
                   <Text as="dd" size="T200" className={css.Wrap}>
@@ -688,7 +745,7 @@ function ScheduleAccordionItem({
 
               {createdTime !== undefined && (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.createdAt')}
                   </Text>
                   <Text as="dd" size="T200">
@@ -701,7 +758,7 @@ function ScheduleAccordionItem({
 
               {showUpdated && (
                 <>
-                  <Text as="dt" size="T200" priority="300">
+                  <Text as="dt" size="T200" className={css.MetaLabel}>
                     {t('roomSchedules.updatedAt')}
                   </Text>
                   <Text as="dd" size="T200">
@@ -712,7 +769,7 @@ function ScheduleAccordionItem({
                 </>
               )}
 
-              <Text as="dt" size="T200" priority="300">
+              <Text as="dt" size="T200" className={css.MetaLabel}>
                 {t('roomSchedules.destination')}
               </Text>
               <Text as="dd" size="T200">
@@ -818,14 +875,14 @@ export const RoomSchedulesDialog = forwardRef<
 
     // Recover focus inside the dialog only when the previously focused element unmounted.
     useLayoutEffect(() => {
+      const collapsedId = lastCollapsedTaskIdRef.current;
+      lastCollapsedTaskIdRef.current = null;
       const modal = dialogRef.current;
       const lastFocused = lastFocusedRef.current;
       if (!modal || !lastFocused || lastFocused.isConnected) return;
       const doc = modal.ownerDocument;
       if (doc.activeElement && doc.activeElement !== doc.body) return;
       lastFocusedRef.current = null;
-      const collapsedId = lastCollapsedTaskIdRef.current;
-      lastCollapsedTaskIdRef.current = null;
       const collapsedToggle = collapsedId
         ? [...modal.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]')].find(
             (button) => button.dataset.scheduleTaskId === collapsedId

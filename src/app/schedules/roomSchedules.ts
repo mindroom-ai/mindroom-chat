@@ -130,9 +130,10 @@ export const formatCompactExecutionTime = (
 export const formatShortCadence = (task: ParsedScheduledTask, t: TFunction): string => {
   const description = task.cronDescription?.trim();
   if (description) {
-    if (description.length <= SHORT_CADENCE_MAX_LENGTH) return description;
-    const leading = description.split(/[,(]/, 1)[0]?.trim();
-    if (leading && leading.length <= SHORT_CADENCE_MAX_LENGTH) return leading;
+    const withoutZone = description.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (withoutZone && withoutZone.length <= SHORT_CADENCE_MAX_LENGTH) {
+      return withoutZone;
+    }
   }
   return t('roomSchedules.recurring');
 };
