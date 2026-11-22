@@ -88,12 +88,9 @@ struct ThreadView: View {
                     .padding(.bottom, 6)
                 }
                 .clipped()
-                // Opens there, and goes there again when something new waits or is answered.
+                // Opens at the top of what waits (so an approval card's tool name is always read first) or the newest answer.
                 .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
-                    if let focus {
-                        let anchor: UnitPoint = focus == model.snapshot?.pendingApproval?.eventId ? .bottom : .top
-                        scroll.scrollTo(focus, anchor: anchor)
-                    }
+                    if let focus { scroll.scrollTo(focus, anchor: .top) }
                 }
             }
             bottomActionBar
