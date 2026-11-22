@@ -303,7 +303,9 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
               );
             })}
           </div>
-          {hasMore && <div ref={sentinelRef} aria-hidden data-activity-sentinel style={SENTINEL_STYLE} />}
+          {hasMore && (
+            <div ref={sentinelRef} aria-hidden data-activity-sentinel style={SENTINEL_STYLE} />
+          )}
         </>
       )}
       {(hiddenAutomations > 0 || showAutomations) && (
