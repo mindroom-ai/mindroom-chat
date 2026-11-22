@@ -20,11 +20,13 @@ function List({
   shown = groups,
   records,
   protectedId,
+  indexPending,
 }: {
   memory: ScrollAnchorMemory;
   shown?: Record<string, string[]>;
   records?: ReadonlyMap<string, ThreadRecord>;
   protectedId?: string;
+  indexPending?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -36,6 +38,7 @@ function List({
     roomId: '!room',
     records,
     protectedId,
+    indexPending,
   });
   return (
     <div
@@ -193,6 +196,28 @@ it('does not insert a stale probe above the reader after a late font change', ()
   rerender(<List memory={memory} />);
   tick(1);
   expect(first()).toBeNull();
+});
+
+it('retains a saved card when the partial index clamps the restore', () => {
+  const id = '$row10';
+  const memory: ScrollAnchorMemory = new Map([
+    ['!room', { scrollTop: 1, anchors: [{ key: id, offset: 160 }] }],
+  ]);
+  const { container, rerender } = render(
+    <List memory={memory} shown={{ cards: ids.slice(0, 11) }} indexPending />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  Object.defineProperty(view, 'scrollHeight', { value: 1030 });
+  view.scrollTop = 550;
+  tick(1);
+  rerender(
+    <List
+      memory={memory}
+      shown={{ cards: [...ids.filter((root) => root !== id), id] }}
+      indexPending
+    />
+  );
+  expect(view.querySelector('[data-scroll-anchor="$row10"]')).not.toBeNull();
 });
 
 it('can place a warm Back while occupied spacer heights await a font refresh', () => {

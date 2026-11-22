@@ -192,7 +192,9 @@ export function useCompactBlocks(options: Options) {
     if (back && canPlace && !placeReady) render();
     state.checked = true;
     const update = () => {
-      state.placed ||= placeReady && liveIds.length > 0;
+      const partialEnd =
+        back && indexPending && view.scrollTop >= view.scrollHeight - view.clientHeight;
+      state.placed ||= placeReady && liveIds.length > 0 && !partialEnd;
       return layout();
     };
     let frame = 0;
