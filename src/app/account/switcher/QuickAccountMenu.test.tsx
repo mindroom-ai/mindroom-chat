@@ -125,7 +125,7 @@ describe('QuickAccountMenu', () => {
     ]);
   });
 
-  it('marks data-highlighted and aria-current on the hovered session', () => {
+  it('marks data-highlighted on the hovered session without setting aria-current', () => {
     const { anchor } = anchorAt(640, 12);
     render(
       <QuickAccountMenu anchor={anchor} others={[BOB, CAROL]} hoveredSessionId="carol" below />
@@ -138,7 +138,32 @@ describe('QuickAccountMenu', () => {
     expect(bob.getAttribute('data-highlighted')).toBeNull();
     expect(bob.getAttribute('aria-current')).toBeNull();
     expect(carol.getAttribute('data-highlighted')).toBe('true');
-    expect(carol.getAttribute('aria-current')).toBe('true');
+    expect(carol.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('scrolls the overflowing rail list to the bottom on open so the MRU row stays visible', () => {
+    const scrollHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(360);
+    const clientHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockReturnValue(120);
+    try {
+      const { anchor } = anchorAt(640, 12);
+      const { rerender } = render(
+        <QuickAccountMenu anchor={anchor} others={[BOB, CAROL]} below={false} />
+      );
+      const list = document.querySelector<HTMLElement>('[data-quick-account-list]')!;
+      expect(list.scrollTop).toBe(240);
+
+      // When the account list grows while open, keep the rail list pinned to the bottom MRU row.
+      scrollHeightSpy.mockReturnValue(420);
+      rerender(<QuickAccountMenu anchor={anchor} others={[BOB, CAROL, DAVE]} below={false} />);
+      expect(list.scrollTop).toBe(300);
+    } finally {
+      scrollHeightSpy.mockRestore();
+      clientHeightSpy.mockRestore();
+    }
   });
 
   it('caps height to available viewport space and re-measures on window resize', () => {

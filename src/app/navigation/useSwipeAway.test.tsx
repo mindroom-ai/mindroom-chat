@@ -75,4 +75,25 @@ describe('useSwipeAway', () => {
     touch(row, 'touchcancel');
     expect(onSwipe).toHaveBeenCalledTimes(1);
   });
+
+  it('does not dismiss the panel when an overlay menu is open over it during the gesture', () => {
+    const { onSwipe, row } = setup('start');
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+
+    // 1. Touch begins while a menu overlay is already open over the panel.
+    document.body.append(menu);
+    swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+    expect(onSwipe).not.toHaveBeenCalled();
+    menu.remove();
+
+    // 2. Touch begins on the panel (e.g. avatar hold), a menu overlay opens before dragging back
+    // toward the panel edge, and closes before lift (hold-and-swipe quick switcher sequence).
+    touch(row, 'touchstart', { x: 200, y: 300 });
+    document.body.append(menu);
+    touch(row, 'touchmove', { x: 100, y: 300 });
+    menu.remove();
+    touch(row, 'touchend');
+    expect(onSwipe).not.toHaveBeenCalled();
+  });
 });

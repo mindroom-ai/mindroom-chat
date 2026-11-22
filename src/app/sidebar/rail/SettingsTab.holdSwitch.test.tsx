@@ -135,6 +135,7 @@ const pointerEvent = (
   });
   Object.defineProperty(event, 'pointerId', { value: init.pointerId ?? 1 });
   Object.defineProperty(event, 'pointerType', { value: 'touch' });
+  Object.defineProperty(event, 'isPrimary', { value: true });
   return event;
 };
 
@@ -207,7 +208,9 @@ describe('SettingsTab hold-and-swipe account switch', () => {
         expectedOrder
       );
 
-      // Give rows geometry and drag onto Bob.
+      // Give list container and rows geometry and drag onto Bob.
+      const list = menu.querySelector<HTMLElement>('[data-quick-account-list]')!;
+      list.getBoundingClientRect = () => rect(76, 256, 228, 98);
       const bobRow = menu.querySelector<HTMLElement>(
         '[data-quick-account-session-id="session-b"]'
       )!;
@@ -258,5 +261,28 @@ describe('SettingsTab hold-and-swipe account switch', () => {
 
     expect(screen.queryByRole('menu')).toBeNull();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('does not open AccountMenu after Escape cancels an open quick menu and pointer lifts on the avatar', () => {
+    renderTab({ inTopBar: false });
+    const trigger = screen.getByRole('button', { name: 'Open account menu for Alice' });
+
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(screen.getByRole('menu', { name: 'Other accounts' })).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
+    fireEvent.click(trigger);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // A subsequent keyboard activation opens AccountMenu normally.
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
   });
 });

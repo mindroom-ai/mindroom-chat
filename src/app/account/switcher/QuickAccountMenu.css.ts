@@ -171,26 +171,12 @@ export const HoldTrigger = style({
   WebkitUserSelect: 'none',
   WebkitTouchCallout: 'none',
   selectors: {
-    '&[data-quick-switch-enabled="true"]': {
+    '&[data-quick-switch-open="true"]': {
       touchAction: 'none',
     },
     '&&[data-quick-switch-pressing="true"]': {
-      scale: '0.94',
       boxShadow: `0 0 0 ${toRem(2)} ${color.Primary.Main}`,
-      transition: transition(
-        ['scale', 'box-shadow'],
-        motion.duration.Instant,
-        motion.easing.Standard
-      ),
-    },
-  },
-  '@media': {
-    '(prefers-reduced-motion: reduce)': {
-      selectors: {
-        '&&[data-quick-switch-pressing="true"]': {
-          scale: 'none',
-        },
-      },
+      transition: transition(['box-shadow'], motion.duration.Instant, motion.easing.Standard),
     },
   },
 });

@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import { hasOpenOverlay } from '../lib/openOverlay';
 
 /** How far a finger moves a panel toward its edge to put it away. */
 const SWIPE_AWAY_DISTANCE = 56;
@@ -32,14 +33,29 @@ export const useSwipeAway = (
     let start: Point | undefined;
     let last: Point | undefined;
     const startSwipe = (event: TouchEvent) => {
+      if (hasOpenOverlay(panel)) {
+        start = undefined;
+        last = undefined;
+        return;
+      }
       start = pointOf(event);
       last = start;
     };
     const moveSwipe = (event: TouchEvent) => {
+      if (hasOpenOverlay(panel)) {
+        start = undefined;
+        last = undefined;
+        return;
+      }
       last = pointOf(event);
     };
     // Decided from the last move, so a lift the browser reports as a cancel counts too.
     const endSwipe = () => {
+      if (hasOpenOverlay(panel)) {
+        start = undefined;
+        last = undefined;
+        return;
+      }
       const from = start;
       const to = last;
       start = undefined;

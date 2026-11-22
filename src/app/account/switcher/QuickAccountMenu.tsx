@@ -1,4 +1,4 @@
-import { type Ref, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { type Ref, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { PopOut, ownDirectionLine } from '../../ui/directional';
@@ -35,6 +35,7 @@ export function QuickAccountMenu({
   below = false,
 }: QuickAccountMenuProps) {
   const { t } = useTranslation();
+  const listRef = useRef<HTMLDivElement>(null);
   const measure = useCallback(
     () => ({
       anchorRect: anchor.getBoundingClientRect(),
@@ -65,6 +66,15 @@ export function QuickAccountMenu({
   // bottom-left rail MRU sits at the bottom right next to the avatar.
   const orderedAccounts = useMemo(() => (below ? others : [...others].reverse()), [others, below]);
 
+  // Beside the bottom-left rail, scroll to the bottom on open (and when the account count changes)
+  // so the MRU row sits immediately next to the avatar even when the list overflows.
+  useLayoutEffect(() => {
+    if (below) return;
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+  }, [below, others.length]);
+
   const menu = (
     <Menu
       ref={menuRef}
@@ -79,7 +89,7 @@ export function QuickAccountMenu({
           {t('featureUi.accountMenu.otherAccounts')}
         </Text>
       </div>
-      <div className={css.AccountList}>
+      <div ref={listRef} className={css.AccountList} data-quick-account-list="">
         {orderedAccounts.map((account) => {
           const highlighted = account.session.sessionId === hoveredSessionId;
           return (
@@ -88,7 +98,6 @@ export function QuickAccountMenu({
               role="menuitem"
               data-quick-account-session-id={account.session.sessionId}
               data-highlighted={highlighted ? 'true' : undefined}
-              aria-current={highlighted ? 'true' : undefined}
               aria-label={t('accountsRail.switchAria', {
                 name: account.displayName,
                 userId: account.session.userId,
