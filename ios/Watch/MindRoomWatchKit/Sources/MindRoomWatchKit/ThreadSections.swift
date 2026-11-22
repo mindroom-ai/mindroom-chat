@@ -1,7 +1,7 @@
 import Foundation
 
 /// Workflow buckets on the watch home screen, matching MindRoom Chat's room sections.
-public enum ThreadSectionKind: String, CaseIterable, Equatable, Hashable, Sendable {
+public enum ThreadSectionKind: CaseIterable, Equatable, Hashable, Sendable {
     case needsYou
     case working
     case recent
@@ -24,14 +24,14 @@ extension ThreadSection: Equatable where Item: Equatable {}
 extension ThreadSection: Sendable where Item: Sendable {}
 
 /// Splits thread rows into non-empty workflow sections in `[.needsYou, .working, .recent]` order,
-/// preserving input order within each section. Outgoing queued or failed sends stay in `.needsYou`
-/// so they are never hidden below idle threads.
+/// preserving input order within each section. Failed sends stay in `.needsYou` because they require
+/// user action; queued sends appear under `.working` while in flight.
 public func groupThreadRows<Item>(_ items: [Item], state: (Item) -> ThreadRowState) -> [ThreadSection<Item>] {
     var buckets: [ThreadSectionKind: [Item]] = [:]
     for item in items {
         let kind: ThreadSectionKind = switch state(item) {
-        case .failed, .queued, .needsYou: .needsYou
-        case .running: .working
+        case .failed, .needsYou: .needsYou
+        case .queued, .running: .working
         case .idle: .recent
         }
         buckets[kind, default: []].append(item)

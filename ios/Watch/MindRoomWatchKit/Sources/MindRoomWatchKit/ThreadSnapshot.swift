@@ -194,16 +194,21 @@ public struct ThreadSnapshot: Equatable, Sendable {
                                workText: nil, answerText: spoken)
             }
             let details = PlainText.withToolDetails(body)
-            var toolNames = details.toolNames
-            var splitWork = details.workText
-            var splitAnswer = details.answerText
             // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
             // those lines whoever sent them, and a count shows no call and trusts no one.
-            if MindRoomAgent.hasAgentName(sender) {
-                let trace = toolTraceOutOfText(content)
-                toolNames.append(contentsOf: trace.names)
+            let trace = MindRoomAgent.hasAgentName(sender) ? toolTraceOutOfText(content) : (names: [String](), maxBodyLine: nil as Int?)
+            let totalTools = details.toolNames.count + trace.names.count
+            let trustedAgent = !isOwn && isAgent(sender)
+            var toolNames: [String] = []
+            var workText: String?
+            var answerText = details.text
+            var durationSeconds: Int?
+            if trustedAgent {
+                toolNames = details.toolNames + trace.names
+                var splitWork = details.workText
+                var splitAnswer = details.answerText
                 if splitWork == nil, let maxBodyLine = trace.maxBodyLine {
-                    let rawLines = body.components(separatedBy: .newlines)
+                    let rawLines = body.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
                     if maxBodyLine > 0 && maxBodyLine < rawLines.count {
                         let before = PlainText.of(markdown: rawLines[..<maxBodyLine].joined(separator: "\n"))
                         let after = PlainText.of(markdown: rawLines[maxBodyLine...].joined(separator: "\n"))
@@ -213,16 +218,15 @@ public struct ThreadSnapshot: Equatable, Sendable {
                         }
                     }
                 }
-            }
-            let workText = run == .streaming ? nil : splitWork
-            let answerText = workText != nil ? splitAnswer : details.text
-            var durationSeconds: Int?
-            if !isOwn, MindRoomAgent.hasAgentName(sender), let latestEdit {
-                let secs = (latestEdit.timestamp - event.timestamp) / 1000
-                if secs >= 1 { durationSeconds = secs }
+                workText = run == .streaming ? nil : splitWork
+                answerText = workText != nil ? splitAnswer : details.text
+                if let latestEdit, event.timestamp > 0, latestEdit.timestamp > 0 {
+                    let (delta, overflow) = latestEdit.timestamp.subtractingReportingOverflow(event.timestamp)
+                    if !overflow && delta >= 1000 { durationSeconds = delta / 1000 }
+                }
             }
             return Message(eventId: id, sender: sender, isOwn: isOwn, text: details.text,
-                           audio: nil, tools: toolNames.count, run: run,
+                           audio: nil, tools: totalTools, run: run,
                            toolNames: toolNames, durationSeconds: durationSeconds,
                            workText: workText, answerText: answerText)
         }
@@ -280,10 +284,6 @@ func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?)
         maxLine = max(maxLine ?? line, line)
     }
     return (names, maxLine)
-}
-
-func toolCallsOutOfText(_ content: JSON) -> Int {
-    toolTraceOutOfText(content).names.count
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an

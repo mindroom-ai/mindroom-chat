@@ -15,22 +15,9 @@ struct ApprovalCardView: View {
                     .font(.body)
                     .foregroundStyle(WatchTheme.amber)
                     .padding(.top, 1)
-                VStack(alignment: .leading, spacing: 1) {
-                    if let agent {
-                        Text("\(agent) asks to run")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else {
-                        Text("Run")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(card.toolName)
-                        .font(.system(.footnote, design: .monospaced).weight(.bold))
-                        .foregroundStyle(WatchTheme.amberWarm)
-                        .lineLimit(2)
-                }
+                    .accessibilityHidden(true)
+                Text(styledTitle)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !card.arguments.isEmpty {
@@ -43,6 +30,7 @@ struct ApprovalCardView: View {
                             Text(argument.value)
                                 .font(.system(.caption2, design: .monospaced))
                                 .foregroundStyle(.white.opacity(0.88))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -62,26 +50,28 @@ struct ApprovalCardView: View {
                 Text("Some arguments are cut short. Open the thread on the iPhone to see them all.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             switch card.status {
             case .pending:
                 if card.approvable {
-                    HStack(spacing: 6) {
-                        actionPill(title: "Deny", foreground: WatchTheme.coral, fill: WatchTheme.coral.opacity(0.20), border: WatchTheme.coral.opacity(0.42)) {
-                            decide(false)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 6) {
+                            denyButton(singleLine: true)
+                            approveButton(singleLine: true)
                         }
-                        actionPill(title: "Approve", foreground: .green, fill: Color.green.opacity(0.22), border: Color.green.opacity(0.45)) {
-                            decide(true)
+                        VStack(spacing: 6) {
+                            approveButton(singleLine: false)
+                            denyButton(singleLine: false)
                         }
                     }
                 } else {
                     Text("Review it on the iPhone to approve.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    actionPill(title: "Deny", foreground: WatchTheme.coral, fill: WatchTheme.coral.opacity(0.20), border: WatchTheme.coral.opacity(0.42)) {
-                        decide(false)
-                    }
+                        .fixedSize(horizontal: false, vertical: true)
+                    denyButton(singleLine: false)
                 }
             case .approved:
                 StatusPill(text: "Approved", foreground: .green, background: Color.green.opacity(0.20), systemImage: "checkmark.circle.fill")
@@ -105,18 +95,75 @@ struct ApprovalCardView: View {
         )
     }
 
-    private func actionPill(title: LocalizedStringKey, foreground: Color, fill: Color, border: Color, action: @escaping () -> Void) -> some View {
+    private var styledTitle: AttributedString {
+        let raw: String = if let agent {
+            String(localized: "\(agent) asks to run \(card.toolName)")
+        } else {
+            String(localized: "Run \(card.toolName)?")
+        }
+        var attributed = AttributedString(raw)
+        attributed.font = .footnote.weight(.medium)
+        attributed.foregroundColor = .white.opacity(0.86)
+        if let range = attributed.range(of: card.toolName, options: .backwards) {
+            attributed[range].font = .system(.footnote, design: .monospaced).weight(.bold)
+            attributed[range].foregroundColor = WatchTheme.amberWarm
+        }
+        return attributed
+    }
+
+    private func approveButton(singleLine: Bool) -> some View {
+        actionPill(
+            title: "Approve",
+            foreground: .green,
+            fill: Color.green.opacity(0.22),
+            border: Color.green.opacity(0.45),
+            singleLine: singleLine
+        ) {
+            decide(true)
+        }
+    }
+
+    private func denyButton(singleLine: Bool) -> some View {
+        actionPill(
+            title: "Deny",
+            foreground: WatchTheme.coral,
+            fill: WatchTheme.coral.opacity(0.20),
+            border: WatchTheme.coral.opacity(0.42),
+            singleLine: singleLine
+        ) {
+            decide(false)
+        }
+    }
+
+    private func actionPill(
+        title: LocalizedStringKey,
+        foreground: Color,
+        fill: Color,
+        border: Color,
+        singleLine: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(foreground)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(fill)
-                        .overlay(Capsule().strokeBorder(border, lineWidth: 0.75))
-                )
+            Group {
+                if singleLine {
+                    Text(title)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Text(title)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity)
+            .background(
+                Capsule()
+                    .fill(fill)
+                    .overlay(Capsule().strokeBorder(border, lineWidth: 0.75))
+            )
         }
         .buttonStyle(.plain)
         .disabled(busy)
@@ -136,6 +183,7 @@ struct QuestionView: View {
                 Text(question.text)
                     .font(.headline)
                     .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             ForEach(question.options, id: \.key) { option in
                 Button { answer(option.key) } label: {
@@ -143,25 +191,30 @@ struct QuestionView: View {
                         Text(option.key)
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(WatchTheme.tealBright)
-                            .frame(width: 22, height: 22)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 22, minHeight: 22)
                             .background(
-                                Circle()
+                                Capsule()
                                     .fill(WatchTheme.teal.opacity(0.24))
-                                    .overlay(Circle().strokeBorder(WatchTheme.tealBright.opacity(0.4), lineWidth: 0.6))
+                                    .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.4), lineWidth: 0.6))
                             )
                         Text(option.label)
                             .font(.footnote.weight(.medium))
                             .foregroundStyle(.white)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 2)
                     }
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 7)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        Capsule()
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(Color.white.opacity(0.09))
-                            .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.25), lineWidth: 0.75))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .strokeBorder(WatchTheme.tealBright.opacity(0.25), lineWidth: 0.75)
+                            )
                     )
                 }
                 .buttonStyle(.plain)

@@ -81,9 +81,11 @@ struct RoomStatusWidget: Widget {
                                     Circle()
                                         .fill(WidgetPalette.tealBright)
                                         .frame(width: 5, height: 5)
-                                    Text("\(snapshot.running)")
+                                        .accessibilityHidden(true)
+                                    Text("\(snapshot.running) running")
                                         .font(.caption2.weight(.semibold).monospacedDigit())
                                         .foregroundStyle(WidgetPalette.tealBright)
+                                        .lineLimit(1)
                                 }
                             }
                         }
@@ -93,6 +95,7 @@ struct RoomStatusWidget: Widget {
                                 .fill(WidgetPalette.tealBright)
                                 .frame(width: 6, height: 6)
                                 .widgetAccentable()
+                                .accessibilityHidden(true)
                             Text("\(snapshot.running) running")
                                 .font(.footnote.weight(.medium))
                                 .foregroundStyle(WidgetPalette.tealBright)
@@ -112,11 +115,20 @@ struct RoomStatusWidget: Widget {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityLabel(for: entry.snapshot))
             .containerBackground(for: .widget) { Color.clear }
         }
         .configurationDisplayName("MindRoom")
         .description("What needs you in your MindRoom room.")
         .supportedFamilies([.accessoryRectangular])
+    }
+
+    private func accessibilityLabel(for snapshot: WidgetSnapshot?) -> String {
+        guard let snapshot else {
+            return String(localized: "MindRoom") + ", " + String(localized: "Open MindRoom to choose a room")
+        }
+        return "\(snapshot.roomName), \(snapshot.summary)"
     }
 }
 

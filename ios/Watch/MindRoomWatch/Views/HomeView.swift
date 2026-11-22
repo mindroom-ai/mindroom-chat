@@ -152,7 +152,10 @@ private struct RoomHome: View {
         // The simulator run's screenshot shows the rows, which start below the mic.
         ScrollViewReader { scroll in
             list.onChange(of: model.rows) { _, rows in
-                if E2EHooks.scrollToRows, let first = rows.first { scroll.scrollTo(first.id, anchor: .top) }
+                if E2EHooks.scrollToRows,
+                   let first = groupThreadRows(rows, state: \.state).first?.items.first {
+                    scroll.scrollTo(first.id, anchor: .top)
+                }
             }
         }
         #else
@@ -318,6 +321,7 @@ private struct RoomHome: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Record a voice message"))
+        .accessibilityValue(Text(summary))
     }
 
     private func sectionHeader(for section: ThreadSection<ThreadRow>) -> some View {
@@ -341,7 +345,7 @@ private struct RoomHome: View {
                 Text(sectionTitle(for: section.kind))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(sectionTint(for: section.kind))
-                Text("· \(section.items.count)")
+                Text(verbatim: "· \(section.items.count)")
                     .font(.caption2.weight(.semibold).monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -349,6 +353,8 @@ private struct RoomHome: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: "\(sectionTitleString(for: section.kind)), \(section.items.count)"))
+        .accessibilityValue(Text(isCollapsed ? String(localized: "Collapsed") : String(localized: "Expanded")))
     }
 
     @ViewBuilder
@@ -381,6 +387,14 @@ private struct RoomHome: View {
         case .needsYou: "Needs you"
         case .working: "Working"
         case .recent: "Recent"
+        }
+    }
+
+    private func sectionTitleString(for kind: ThreadSectionKind) -> String {
+        switch kind {
+        case .needsYou: String(localized: "Needs you")
+        case .working: String(localized: "Working")
+        case .recent: String(localized: "Recent")
         }
     }
 

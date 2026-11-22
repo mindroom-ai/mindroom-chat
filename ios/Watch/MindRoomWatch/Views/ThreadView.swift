@@ -216,7 +216,7 @@ struct ThreadView: View {
 
     private func agentMessageCard(_ message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> some View {
         let senderName = roomModel.name(message.sender)
-        let showsWorkFold = message.tools > 0 || message.workText != nil || (message.run == .streaming && !message.toolNames.isEmpty)
+        let showsWorkFold = message.tools > 0 || message.workText != nil
         let displayText = message.answerText.isEmpty ? message.text : message.answerText
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
@@ -337,6 +337,8 @@ private struct WorkFoldView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text(verbatim: accessibilityLabel))
+            .accessibilityValue(Text(expanded ? String(localized: "Expanded") : String(localized: "Collapsed")))
 
             if expanded {
                 VStack(alignment: .leading, spacing: 5) {
@@ -401,14 +403,14 @@ private struct WorkFoldView: View {
     @ViewBuilder private var labelText: some View {
         if message.run == .streaming {
             if message.tools > 0 {
-                Text("\(String(localized: "Working…")) · \(message.tools)")
+                Text(verbatim: "\(String(localized: "Working…")) · \(message.tools)")
             } else {
                 Text("Working…")
             }
         } else if let secs = message.durationSeconds {
             let worked = String(localized: "Worked for \(DurationLabel.format(seconds: secs))")
             if message.tools > 0 {
-                Text("\(worked) · \(message.tools)")
+                Text(verbatim: "\(worked) · \(message.tools)")
             } else {
                 Text(worked)
             }
@@ -417,6 +419,19 @@ private struct WorkFoldView: View {
         } else {
             Text("\(message.tools) tools")
         }
+    }
+
+    private var accessibilityLabel: String {
+        let toolLabel: String? = message.tools == 0 ? nil : (message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
+        if message.run == .streaming {
+            let working = String(localized: "Working…")
+            return toolLabel.map { "\(working), \($0)" } ?? working
+        }
+        if let secs = message.durationSeconds {
+            let worked = String(localized: "Worked for \(DurationLabel.format(seconds: secs))")
+            return toolLabel.map { "\(worked), \($0)" } ?? worked
+        }
+        return toolLabel ?? String(localized: "Working")
     }
 }
 

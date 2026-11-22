@@ -12,7 +12,7 @@ struct RecordingView: View {
     @State private var pulsing = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 5) {
             if denied {
                 VStack(spacing: 8) {
                     Image(systemName: "mic.slash.fill")
@@ -54,7 +54,7 @@ struct RecordingView: View {
                 liveBadge
                 Spacer(minLength: 2)
                 MirroredWaveform(levels: recorder.levels.suffix(10))
-                    .frame(height: 46)
+                    .frame(height: 38)
                 Text(Duration.seconds(recorder.elapsed), format: .time(pattern: .minuteSecond))
                     .font(.system(size: 28, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.white)
@@ -67,7 +67,7 @@ struct RecordingView: View {
                         .font(.headline)
                         .foregroundStyle(WatchTheme.tealInk)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 7)
                         .background(
                             Capsule()
                                 .fill(
@@ -87,9 +87,6 @@ struct RecordingView: View {
         .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(WatchTheme.recordingBackground.ignoresSafeArea())
-        .containerBackground(for: .navigation) {
-            WatchTheme.recordingBackground
-        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { recorder.cancel(); dismiss() } label: { Image(systemName: "xmark") }
@@ -162,7 +159,7 @@ private struct MirroredWaveform: View {
                             endPoint: .top
                         )
                     )
-                    .frame(width: 3.5, height: max(6, value * 44))
+                    .frame(width: 3.5, height: max(5, value * 36))
             }
         }
         .accessibilityHidden(true)

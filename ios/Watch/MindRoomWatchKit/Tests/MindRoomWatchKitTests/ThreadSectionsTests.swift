@@ -38,19 +38,20 @@ final class ThreadSectionsTests: XCTestCase {
         ]
         let sections = groupThreadRows(rows, state: \.state)
         XCTAssertEqual(sections.map(\.kind), [.needsYou, .working, .recent])
-        XCTAssertEqual(sections[0].items.map(\.id), ["needs-1", "failed-1", "queued-1", "needs-2"])
-        XCTAssertEqual(sections[1].items.map(\.id), ["working-1", "working-2"])
+        XCTAssertEqual(sections[0].items.map(\.id), ["needs-1", "failed-1", "needs-2"])
+        XCTAssertEqual(sections[1].items.map(\.id), ["working-1", "working-2", "queued-1"])
         XCTAssertEqual(sections[2].items.map(\.id), ["recent-1", "recent-2"])
     }
 
-    func testFailedAndQueuedGoToNeedsYouBucket() {
+    func testFailedStaysInNeedsYouWhileQueuedGoesToWorking() {
         let rows = [
             Row(id: "f", state: .failed),
             Row(id: "q", state: .queued),
         ]
         let sections = groupThreadRows(rows, state: \.state)
-        XCTAssertEqual(sections.map(\.kind), [.needsYou])
-        XCTAssertEqual(sections[0].items.map(\.id), ["f", "q"])
+        XCTAssertEqual(sections.map(\.kind), [.needsYou, .working])
+        XCTAssertEqual(sections[0].items.map(\.id), ["f"])
+        XCTAssertEqual(sections[1].items.map(\.id), ["q"])
     }
 
     func testDurationLabelFormatting() {

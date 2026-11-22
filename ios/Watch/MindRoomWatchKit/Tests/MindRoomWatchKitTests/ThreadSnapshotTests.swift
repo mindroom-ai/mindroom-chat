@@ -903,4 +903,93 @@ final class ThreadSnapshotTests: XCTestCase {
         let fastSnap = ThreadSnapshot.build(root: voiceRoot, related: [initial, fastEdit], ownUserId: me, now: now)
         XCTAssertNil(fastSnap.reply?.durationSeconds)
     }
+
+    func testNonAgentAndRemoteSendersDoNotGetWorkFoldNamesOrDuration() {
+        let v2Body = "Pre-work prose.\n🔧 `web_search` [1]\nFinal answer."
+        let v3Content: JSON = [
+            "msgtype": "m.text",
+            "body": "Pre-work prose.\n\nFinal answer.",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "read_file", "body_line": 2] as JSON],
+            ] as JSON,
+        ]
+        let buildEditedReply = { (sender: String, content: JSON) -> ThreadSnapshot.Message? in
+            let initial = event("$r", 1_700_000_000_000, sender: sender, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$e", 1_700_000_012_000, sender: sender, [
+                "m.new_content": content,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            return ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: self.now).reply
+        }
+
+        // Ordinary local user with v2 markdown tool line: keeps legacy count, no names/fold/duration.
+        let userV2 = buildEditedReply("@anna:x", ["msgtype": "m.text", "body": v2Body])
+        XCTAssertEqual(userV2?.tools, 1)
+        XCTAssertEqual(userV2?.toolNames, [String]())
+        XCTAssertNil(userV2?.workText)
+        XCTAssertEqual(userV2?.answerText, userV2?.text)
+        XCTAssertNil(userV2?.durationSeconds)
+
+        // Ordinary local user with v3 tool trace: zero tools, no names/fold/duration.
+        let userV3 = buildEditedReply("@anna:x", v3Content)
+        XCTAssertEqual(userV3?.tools, 0)
+        XCTAssertEqual(userV3?.toolNames, [String]())
+        XCTAssertNil(userV3?.workText)
+        XCTAssertEqual(userV3?.answerText, userV3?.text)
+        XCTAssertNil(userV3?.durationSeconds)
+
+        // Remote homeserver mindroom_* sender: keeps legacy count, no names/fold/duration.
+        let remote = "@mindroom_mind:elsewhere.example"
+        let remoteV2 = buildEditedReply(remote, ["msgtype": "m.text", "body": v2Body])
+        XCTAssertEqual(remoteV2?.tools, 1)
+        XCTAssertEqual(remoteV2?.toolNames, [String]())
+        XCTAssertNil(remoteV2?.workText)
+        XCTAssertEqual(remoteV2?.answerText, remoteV2?.text)
+        XCTAssertNil(remoteV2?.durationSeconds)
+
+        let remoteV3 = buildEditedReply(remote, v3Content)
+        XCTAssertEqual(remoteV3?.tools, 1)
+        XCTAssertEqual(remoteV3?.toolNames, [String]())
+        XCTAssertNil(remoteV3?.workText)
+        XCTAssertEqual(remoteV3?.answerText, remoteV3?.text)
+        XCTAssertNil(remoteV3?.durationSeconds)
+    }
+
+    func testV3BodyLineSplitsStrictlyOnLFNotUnicodeLineSeparator() {
+        // \u{2028} inside line 0 must NOT increment the LF line index.
+        let body = "Checking\u{2028}calendar.\nBooked for 3 PM."
+        let reply = event("$r", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Checking\ncalendar.")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked for 3 PM.")
+    }
+
+    func testDurationSecondsHandlesExtremeAndNonPositiveTimestampsWithoutOverflow() {
+        let cases: [(Int, Int)] = [
+            (Int.min, Int.max),
+            (Int.max, Int.min),
+            (0, 10_000),
+            (-5_000, 10_000),
+            (10_000, 0),
+            (10_000, -1),
+        ]
+        for (startTs, editTs) in cases {
+            let initial = event("$r", startTs, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$e", editTs, [
+                "m.new_content": ["msgtype": "m.text", "body": "Done."] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
+            XCTAssertNil(snapshot.reply?.durationSeconds, "Expected nil for (\(startTs), \(editTs))")
+        }
+    }
 }
