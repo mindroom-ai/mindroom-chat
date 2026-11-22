@@ -27,7 +27,10 @@ function List({
   onIds,
   onEnd,
   roomId = '!room',
+  blank,
 }: {
+  /** A card without a view model: its row renders nothing. */
+  blank?: string;
   roomId?: string;
   memory: ScrollAnchorMemory;
   shown?: Record<string, string[]>;
@@ -60,7 +63,8 @@ function List({
     >
       <div ref={contentRef} style={{ rowGap: gap, fontSize }}>
         {window.rows.flat().map((row) =>
-          typeof row === 'string' ? (
+          // eslint-disable-next-line no-nested-ternary
+          row === blank ? null : typeof row === 'string' ? (
             <button key={row} type="button" data-scroll-anchor={row}>
               {row}
             </button>
@@ -342,6 +346,22 @@ it('places a Back in its first commit after nine other rooms were shown', () => 
   expect(view.dataset.ready).toBe('true');
   expect(view.dataset.complete).toBe('true');
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
+});
+
+it('gives a card whose model came late its height, though the reader is far from it', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} blank="$row60" />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  // A card that draws nothing does not hold the discovery of the others up.
+  expect(view.dataset.complete).toBe('true');
+  rerender(<List memory={memory} />);
+  tick(3);
+  const rows = [...view.firstElementChild!.children] as HTMLElement[];
+  const extent = rows.reduce((sum, row) => sum + getHeight(row) + gap, 0);
+  expect(extent).toBeCloseTo(ids.reduce((sum, id) => sum + height(id) + gap, 0));
+  // Measured, it leaves the window again.
+  expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
 });
 
 it('lets no room go for a render that React throws away', () => {

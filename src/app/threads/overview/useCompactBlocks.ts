@@ -40,6 +40,7 @@ export function useCompactBlocks(options: Options) {
       geometry: rooms.get(memory)?.get(roomId) ?? empty,
       saved: memory.get(roomId),
       order: undefined as string | undefined,
+      blank: new Set<string>(),
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
@@ -60,7 +61,10 @@ export function useCompactBlocks(options: Options) {
     return { key, start, end: blocks.length };
   });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
-  const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id)));
+  // A card that draws nothing (no view model yet) has no height to wait for.
+  const missing = blocks.findIndex((block) =>
+    block.some((id) => !heights.has(id) && !state.blank.has(id))
+  );
   const order = useMemo(() => JSON.stringify(groups), [groups]);
   const small = index.size <= 2 * BLOCK_CARDS;
   // A dirty height still occupies space. Only undiscovered space delays placement.
@@ -121,7 +125,7 @@ export function useCompactBlocks(options: Options) {
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
-  const retained = new Set([focused, protectedId, state.gesture?.id, ...held]);
+  const retained = new Set([focused, protectedId, state.gesture?.id, ...held, ...state.blank]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
@@ -273,7 +277,8 @@ export function useCompactBlocks(options: Options) {
           edge = next + measuredGap;
         }
       }
-      for (const id of liveIds) if (!heights.has(id)) heights.set(id, 0);
+      // It stays mounted for its height: when it draws, far from the reader, it takes its space.
+      state.blank = new Set(liveIds.filter((id) => !heights.has(id)));
       if (back && !state.placed) return changed;
       if (visible.length) geometry.visible = visible;
       state.order = order;
