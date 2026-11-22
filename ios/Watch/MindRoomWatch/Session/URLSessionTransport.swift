@@ -39,6 +39,9 @@ final class URLSessionTransport: HttpTransport, @unchecked Sendable {
         do {
             let (body, response) = try await session.data(for: urlRequest)
             guard let response = response as? HTTPURLResponse else { return .failure(message: "not an HTTP response") }
+            #if DEBUG
+            E2EHooks.log("http done \(url.path) \(body.count)")
+            #endif
             var headers: [String: String] = [:]
             for (name, value) in response.allHeaderFields {
                 if let name = name as? String, let value = value as? String { headers[name] = value }

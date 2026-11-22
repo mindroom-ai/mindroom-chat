@@ -24,8 +24,9 @@ app's log:
            answer in order, and the audio plays to its end (not run in an encrypted room: the script cannot
            encrypt the answer)
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
-  long_thread  a dedicated room with 4 short placeholder threads and 1 long thread (150 replies, each streamed
-           with 3 edits): verifies rows appear on first paint before hydration finishes
+  long_thread  a room of its own with 4 short threads and a long one (150 replies, each streamed in 3 edits):
+           the rows show from the thread list alone (at most 2 requests and 30 KB, before any thread or the
+           room's state is read), and the long thread's row then says what its full read finds
 
 It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots in --out, and exits 1 on a failure.
 """
@@ -33,6 +34,7 @@ It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import re
 import secrets
@@ -350,37 +352,48 @@ def main() -> int:
 
         def check_long_thread(_new, log):
             lines = log.splitlines()
-            fp_idx = next((i for i, l in enumerate(lines) if "refresh first-paint " in l and "rows=5" in l), None)
-            if fp_idx is None:
-                fp_idx = next((i for i, l in enumerate(lines) if "refresh first-paint " in l and not "rows=0" in l), None)
-            if fp_idx is None:
-                return "no refresh first-paint log with rows > 0"
-            done_idx = next((i for i in range(fp_idx + 1, len(lines)) if "refresh done " in lines[i]), None)
-            if done_idx is None:
-                return "no refresh done log after first-paint"
-            fp_m = re.search(r"refresh first-paint (\d+)ms rows=(\d+) reqs=(\d+) bytes=(\d+)", lines[fp_idx])
-            done_m = re.search(r"refresh done (\d+)ms rows=(\d+) hydrated=(\d+) reqs=(\d+) bytes=(\d+)", lines[done_idx])
-            if not fp_m or not done_m:
-                return f"could not parse metrics: {lines[fp_idx]!r} / {lines[done_idx]!r}"
-            fp_ms, fp_rows, fp_reqs, fp_bytes = map(int, fp_m.groups())
-            done_ms, done_rows, done_hyd, done_reqs, done_bytes = map(int, done_m.groups())
-            print(f"  long_thread metrics: first-paint={fp_ms}ms rows={fp_rows} reqs={fp_reqs} bytes={fp_bytes} | "
-                  f"done={done_ms}ms rows={done_rows} hydrated={done_hyd} reqs={done_reqs} bytes={done_bytes}", flush=True)
-            if fp_rows < 5:
-                return f"expected >= 5 rows on first paint, got {fp_rows}"
-            if f"row {long_root} " not in log:
-                return f"long thread row {long_root} never appeared"
-            if fp_ms > done_ms:
-                return f"first paint ({fp_ms}ms) did not precede hydration completion ({done_ms}ms)"
-            if fp_reqs > 2 or fp_bytes > 30_000:
-                return f"first paint exceeded budget (reqs={fp_reqs} > 2 or bytes={fp_bytes} > 30000)"
-            before_fp_http = [l for l in lines[:fp_idx] if "http " in l]
-            bad_state = [l for l in before_fp_http if "/state" in l]
-            bad_rels = [l for l in before_fp_http if "/relations/" in l]
-            if bad_state:
-                return f"/state request started before first paint: {bad_state[0]}"
-            if bad_rels:
-                return f"/relations request started before first paint: {bad_rels[0]}"
+
+            def read(line: str) -> tuple[str, str, int] | None:
+                """A request for the room's threads, a thread's events or the room's state, as the app logs it
+                when it starts ("http GET <path>") and when its answer is in ("http done <path> <bytes>")."""
+                match = re.search(rf"http (GET|done) \S*/rooms/{re.escape(long_room)}/(threads|state|relations/\S+|event/\S+)"
+                                  r"(?: (\d+))?$", line)
+                return match and (match[1], match[2].split("/")[0], int(match[3] or 0))
+
+            def at(index: int) -> datetime.datetime:
+                return datetime.datetime.strptime(lines[index][:23], "%Y-%m-%d %H:%M:%S.%f")
+
+            painted = next((i for i, line in enumerate(lines)
+                            if (match := re.search(r"refresh painted rows=(\d+)", line)) and int(match[1]) >= 5), None)
+            if painted is None:
+                return "the room's 5 rows did not show with the thread list's first page"
+            before = [found for line in lines[:painted] if (found := read(line))]
+            early = [kind for verb, kind, _ in before if verb == "GET" and kind in ("relations", "state")]
+            if early:
+                return f"read before the first rows showed: {early}"
+            requests = sum(1 for verb, kind, _ in before if verb == "GET" and kind == "threads")
+            size = sum(size for verb, kind, size in before if verb == "done" and kind == "threads")
+            first = next(i for i, line in enumerate(lines) if (found := read(line)) and found[1] == "threads")
+            done = next((i for i in range(painted, len(lines)) if "refresh done " in lines[i]), None)
+            if done is None:
+                return "the refresh did not finish"
+            all_reads = [found for line in lines[first:done] if (found := read(line))]
+            print(f"  long_thread: first rows after {(at(painted) - at(first)).total_seconds() * 1000:.0f} ms, "
+                  f"{requests} request(s), {size} bytes; every thread read after "
+                  f"{(at(done) - at(first)).total_seconds() * 1000:.0f} ms, "
+                  f"{sum(1 for verb, _, _ in all_reads if verb == 'GET')} requests, "
+                  f"{sum(size for verb, _, size in all_reads if verb == 'done')} bytes", flush=True)
+            if requests > 2 or size > 30_000:
+                return f"the first rows took {requests} requests and {size} bytes (at most 2 and 30000)"
+            shown = next((i for i, line in enumerate(lines) if f"row {long_root} " in line), None)
+            read_at = next((i for i, line in enumerate(lines) if f"hydrated {long_root} " in line), None)
+            if shown is None or read_at is None or shown > read_at:
+                return "the long thread's row did not show before the thread was read"
+            # What reading the whole thread finds: its title, the last reply as its last edit left it, no chip.
+            final = lines[read_at].split(f"hydrated {long_root} ")[-1]
+            if not (final.startswith("idle(") and " Long Streamed Thread | " in final
+                    and final.endswith(": Placeholder step 150 of 150 complete.")):
+                return f"the long thread's row after its read is {final!r}"
             return None
 
         scenario("long_thread", {"MINDROOM_WATCH_E2E_SCROLL_ROWS": "1"}, 25, check_long_thread, room_id=long_room)

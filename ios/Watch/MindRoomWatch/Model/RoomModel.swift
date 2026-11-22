@@ -25,16 +25,6 @@ struct ThreadRow: Identifiable, Equatable {
 @MainActor
 final class RoomModel: ObservableObject {
     static let pageSize = 30
-    private static let firstThreadsPageSize: UInt32 = 10
-    private static let nextThreadsPageSize: UInt32 = 20
-    private static let maxExtraThreadsPages = 5
-    private static let hydrationPageSize: UInt32 = 20
-    private static let approvalPageSize: UInt32 = 10
-    private static let encryptedCardScanPageSize: UInt32 = 50
-    private static let encryptedCardScanMaxPages = 3
-    private static let cardEditsPageSize: UInt32 = 10
-    private static let headTitlePageSize: UInt32 = 20
-    private static let reactionsPageSize: UInt32 = 50
 
     let room: Room
     let userId: String
@@ -55,30 +45,18 @@ final class RoomModel: ObservableObject {
     private var refreshing = false
     private var refreshAgain = false
     private var snapshots: [String: ThreadSnapshot] = [:]
-    /// What `/threads` said of each thread when its snapshot was read (latest event, count, bundled edits), and when.
+    /// What the thread list said of each thread when its snapshot was read (newest event, reply count), and when.
     private var snapshotReads: [String: (key: String, at: Date)] = [:]
-    /// How long a quiet thread's snapshot stands before it is read again (the cache key is edit-aware).
-    private static let snapshotLifetime: TimeInterval = 5 * 60
-    /// Minimum interval between `/state` refreshes (persisted per account+room), and backoff after failure.
-    private static let stateLifetime: TimeInterval = 5 * 60
-    private static let stateFailureBackoff: TimeInterval = 60
-    private var stateTask: Task<Void, Never>?
-    private var stateGeneration = 0
-    private var locallyResolvedSinceState: Set<String> = []
-    private var resolved: Set<String>
-    private var cachedTitles: [String: KnownTitle]
-    /// Resumable forward title-search cursor per thread (advanced only after a successful head page).
-    private enum HeadTitleSearch: Equatable { case cursor(String?), exhausted }
-    private var headTitleSearch: [String: HeadTitleSearch] = [:]
-    /// Pending approval card ids remembered per thread so older cards in encrypted rooms keep refreshing until decided.
-    private var knownPendingCardIds: [String: Set<String>] = [:]
-    /// Encrypted threads already given a bounded cold scan for older approval cards.
-    private var coldScannedEncryptedRoots: Set<String> = []
-    /// Cached question source events fetched by id when `source_event_id` falls outside the recent window.
-    private var questionSources: [String: JSON] = [:]
-    /// The thread rows keyed by root id, merged incrementally across `/threads` pages and pruned only after a full list read.
-    private var threadRowsByRoot: [String: ThreadRow] = [:]
-    private var threadRoots: [String] = []
+    /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
+    private static let snapshotLifetime: TimeInterval = 60
+    private var resolved: ResolvedRoots
+    /// Whether this model writes `ResolvedCache`: the one the app shows does. The background refresh's own model
+    /// only reads it, so that neither overwrites what the other resolved.
+    private let persistsResolved: Bool
+    private var stateRead: Task<Void, Never>?
+    /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
+    /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
+    private var threadRows: [String: ThreadRow] = [:]
     /// The person's messages nobody answered, as the last refresh found them.
     private var unanswered: [ThreadRow] = []
     /// The event ids of the messages this watch sent since the model started.
@@ -86,14 +64,14 @@ final class RoomModel: ObservableObject {
     private let client: Client
     private let session: Session?
 
-    init(room: Room, userId: String, client: Client) {
+    init(room: Room, userId: String, client: Client, persistsResolved: Bool = true) {
         self.room = room
         self.userId = userId
         self.client = client
+        self.persistsResolved = persistsResolved
         session = try? client.session()
         roomName = room.displayName() ?? room.id()
-        resolved = ResolvedCache.get(userId: userId, roomId: room.id())
-        cachedTitles = ThreadTitleCache.all(userId: userId, roomId: room.id())
+        resolved = ResolvedRoots(ResolvedCache.get(userId: userId, roomId: room.id()))
         weak var model: RoomModel?
         feed = TimelineFeed { model?.scheduleRefresh() }
         model = self
@@ -113,12 +91,6 @@ final class RoomModel: ObservableObject {
         } catch {
             log.error("timeline failed: \(String(describing: error), privacy: .public)")
         }
-        scheduleRefresh()
-    }
-
-    /// Called when the room comes to the front: schedules a thread list refresh (which kicks off `/state`
-    /// only after first paint and subject to the shared 5-minute deadline).
-    func foregrounded() {
         scheduleRefresh()
     }
 
@@ -142,17 +114,12 @@ final class RoomModel: ObservableObject {
         do {
             _ = try await room.sendStateEventRaw(eventType: ThreadTags.eventType, stateKey: ThreadTags.resolvedStateKey(root: rootId),
                                                  content: String(decoding: data, as: UTF8.self))
-            stateGeneration += 1
-            locallyResolvedSinceState.insert(rootId)
-            resolved.insert(rootId)
-            ResolvedCache.set(resolved, userId: userId, roomId: room.id())
-            threadRowsByRoot.removeValue(forKey: rootId)
-            threadRoots.removeAll { $0 == rootId }
+            resolved.resolve(rootId)
+            if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
+            threadRows[rootId] = nil
             unanswered.removeAll { $0.rootId == rootId }
-            // Shows the rows without it now. A refresh that read the room's state before the tag was there
-            // would bring the thread back.
-            publish()
-            publishWidgetSnapshot()
+            // Shows the rows without it now, and reads the room's state again: a read that began before the tag
+            // was there does not bring the thread back (`ResolvedRoots`).
             scheduleRefresh()
         } catch {
             log.error("resolve failed: \(String(describing: error), privacy: .public)")
@@ -193,382 +160,122 @@ final class RoomModel: ObservableObject {
         }
     }
 
-    /// Reads the threads now (background refresh).
-    func refreshNow() async { await refresh() }
+    /// The room came to the front: the next refresh reads the room's state again.
+    func foregrounded() { resolved.expire() }
 
-    private func rememberTitle(_ title: KnownTitle, for rootId: String) {
-        guard !title.text.isEmpty, cachedTitles[rootId] != title else { return }
-        cachedTitles[rootId] = title
-        ThreadTitleCache.set(title, userId: userId, roomId: room.id(), rootId: rootId)
+    /// Reads the threads now (background refresh). Nobody waits for rows there, so the room's state is read
+    /// first: the complications count the threads that are open now.
+    func refreshNow() async {
+        readStateIfDue()
+        await stateRead?.value
+        await refresh()
     }
 
-    private func forgetTitle(for rootId: String) {
-        guard cachedTitles.removeValue(forKey: rootId) != nil else { return }
-        ThreadTitleCache.remove(userId: userId, roomId: room.id(), rootId: rootId)
-    }
-
-    /// Starts a concurrent `/state` read only after first paint and when the persisted per-account+room
-    /// deadline has elapsed (5 min on success, 1 min backoff on failure).
-    private func refreshStateIfNeeded() {
-        guard stateTask == nil,
-              StateDeadlineCache.isDue(userId: userId, roomId: room.id()) else { return }
-        let startedGen = stateGeneration
-        locallyResolvedSinceState = []
-        stateTask = Task { [weak self] in
-            guard let self else { return }
-            let started = Date()
-            let result = await self.resolvedRoots()
-            self.stateTask = nil
-            guard let (fetched, stateBytes) = result else {
-                StateDeadlineCache.setNextAllowed(Date().addingTimeInterval(Self.stateFailureBackoff),
-                                                  userId: self.userId, roomId: self.room.id())
-                return
-            }
-            StateDeadlineCache.setNextAllowed(Date().addingTimeInterval(Self.stateLifetime),
-                                              userId: self.userId, roomId: self.room.id())
-            let merged = startedGen == self.stateGeneration ? fetched : fetched.union(self.locallyResolvedSinceState)
-            self.resolved = merged
-            ResolvedCache.set(merged, userId: self.userId, roomId: self.room.id())
-            if !merged.isEmpty {
-                for id in merged { self.threadRowsByRoot.removeValue(forKey: id) }
-                self.threadRoots.removeAll { merged.contains($0) }
-                self.unanswered.removeAll { row in row.rootId.map(merged.contains) ?? false }
-                self.publish()
-                self.publishWidgetSnapshot()
-            }
-            #if DEBUG
-            let stateMs = Int(Date().timeIntervalSince(started) * 1000)
-            E2EHooks.log("state done \(stateMs)ms bytes=\(stateBytes) resolved=\(merged.count)")
-            #endif
+    /// Reads the room's state for its resolved threads when that is due (`ResolvedRoots`), one read at a time.
+    private func readStateIfDue() {
+        guard resolved.isDue(now: Date()) else { return }
+        resolved.beginRead(now: Date())
+        stateRead = Task {
+            let before = resolved.roots
+            let read = await resolvedRoots()
+            resolved.endRead(read)
+            guard resolved.roots != before else { return }
+            if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
+            threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
+            show()
+            // The threads resolved elsewhere left the list short, and one opened again is not in it: the list
+            // is read once more after this refresh.
+            refreshAgain = true
         }
     }
 
+    /// A row is what `/threads` says until its thread has been read; after that it is exactly the
+    /// `ThreadSnapshot` of the thread's full fetch, read again by the same rule as ever. Only the order and the
+    /// time of showing differ from reading every thread first: rows show with the list's first page, before
+    /// anything else is read, and then thread by thread, newest first (a long thread is megabytes).
     private func refresh() async {
         // Left, or replaced by a new version of the room: the person picks another.
         if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
-
-        let started = Date()
-        var requests = 0
-        var bytes = 0
-
-        // First page of /threads: publish rows immediately before any relation, name, or /state read.
-        let firstPage: ThreadsJsonPage
-        do {
-            firstPage = try await room.threadsJsonPage(from: nil, limit: Self.firstThreadsPageSize)
-            requests += 1
-            bytes += firstPage.roots.reduce(0) { $0 + $1.utf8.count }
-        } catch {
-            // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
-            // messages, queued or failed, kept current.
-            unanswered = ownRows(sentHere: false, notIn: Set(threadRoots).union(resolved))
-            publish()
-            return
-        }
-
-        var seenRoots = Set<String>()
-        var openEntries: [ThreadListEntry] = []
-        var rootJsonByRoot: [String: JSON] = [:]
-
-        func ingest(_ roots: [String]) {
-            for json in roots {
-                guard let parsed = parse(json), let entry = ThreadListEntry.parse(parsed, ownUserId: userId),
-                      seenRoots.insert(entry.rootId).inserted else { continue }
-                rootJsonByRoot[entry.rootId] = parsed
-                if let serverTitle = entry.serverTitle { rememberTitle(serverTitle, for: entry.rootId) }
-                guard !resolved.contains(entry.rootId) else { continue }
-                openEntries.append(entry)
-                // Keep any existing hydrated snapshot row until re-hydration completes so chips do not flicker.
-                if let cached = snapshots[entry.rootId] {
-                    threadRowsByRoot[entry.rootId] = row(cached)
-                } else {
-                    threadRowsByRoot[entry.rootId] = provisionalRow(entry)
-                }
-            }
-        }
-
-        func publishMerged() {
-            for id in resolved { threadRowsByRoot.removeValue(forKey: id) }
-            let mergedRoots = Set(threadRowsByRoot.keys)
-            threadRoots = Array(mergedRoots)
-            unanswered = ownRows(sentHere: false, notIn: mergedRoots.union(resolved))
-            publish()
-        }
-
-        ingest(firstPage.roots)
-        publishMerged()
-
-        #if DEBUG
-        let firstPaintMs = Int(Date().timeIntervalSince(started) * 1000)
-        E2EHooks.log("refresh first-paint \(firstPaintMs)ms rows=\(rows.count) reqs=\(requests) bytes=\(bytes)")
-        #endif
-
-        // Start `/state` only after first paint has published.
-        refreshStateIfNeeded()
-
-        // Read further pages of /threads until we have 30 open threads or reach the end, merging each page.
-        var nextBatch = firstPage.nextBatch
-        var extraPages = 0
-        var pageError = false
-        while openEntries.filter({ !resolved.contains($0.rootId) }).count < Self.pageSize,
-              let token = nextBatch, extraPages < Self.maxExtraThreadsPages {
-            extraPages += 1
-            do {
-                let page = try await room.threadsJsonPage(from: token, limit: Self.nextThreadsPageSize)
-                requests += 1
-                bytes += page.roots.reduce(0) { $0 + $1.utf8.count }
-                nextBatch = page.nextBatch
-                ingest(page.roots)
-                publishMerged()
-            } catch {
-                pageError = true
+        var entries: [ThreadListEntry] = []
+        var listed = Set<String>()
+        var from: String?
+        var complete = true
+        // Resolved threads do not count: read a few more pages while they fill the first one.
+        for page in 0...3 {
+            guard let result = try? await room.threadsJsonPage(from: from, limit: UInt32(Self.pageSize)) else {
+                // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's
+                // own messages, queued or failed, kept current.
+                if page == 0 { show(); return }
+                complete = false
                 break
             }
+            for json in result.roots {
+                guard let entry = parse(json).flatMap({ ThreadListEntry.parse($0, ownUserId: userId) }),
+                      listed.insert(entry.rootId).inserted, !resolved.roots.contains(entry.rootId) else { continue }
+                entries.append(entry)
+                // A thread read before keeps that row until it is read again.
+                threadRows[entry.rootId] = snapshots[entry.rootId].map { row($0) } ?? row(entry)
+            }
+            show()
+            if page == 0 {
+                #if DEBUG
+                E2EHooks.log("refresh painted rows=\(rows.count)")
+                #endif
+                // Not before the first rows show.
+                readStateIfDue()
+            }
+            from = result.nextBatch
+            if from == nil || entries.filter({ !resolved.roots.contains($0.rootId) }).count >= Self.pageSize { break }
         }
-
-        let openItems = Array(openEntries.filter { !resolved.contains($0.rootId) }.prefix(Self.pageSize))
-        // Prune rows not seen in this refresh only after a completely successful list read (30 open or end reached).
-        let listComplete = !pageError && (openItems.count >= Self.pageSize || nextBatch == nil)
-        if listComplete {
-            let keep = Set(openItems.map(\.rootId))
-            threadRowsByRoot = threadRowsByRoot.filter { keep.contains($0.key) }
-            publishMerged()
+        let items = entries.filter { !resolved.roots.contains($0.rootId) }.prefix(Self.pageSize)
+        // Only a list read without a failure (to its end, to 30 open threads or to the last page) says which
+        // threads are no longer in it.
+        if complete {
+            let roots = Set(items.map(\.rootId))
+            threadRows = threadRows.filter { roots.contains($0.key) }
+            show()
         }
-
-        // Hydrate one thread at a time, visible rows (newest activity) first, publishing after each thread.
-        let items = openItems.sorted { $0.latestTs > $1.latestTs }
-        var hydratedCount = 0
-
-        for item in items {
+        for item in items.sorted(by: { $0.latestTs > $1.latestTs }) {
             let rootId = item.rootId
-            if resolved.contains(rootId) { continue }
-            let key = item.cacheKey
-            // A quiet thread nothing new happened in keeps its snapshot for 5 minutes, unless it streams or waits
-            // for the person (running / needs-you re-read only their newest page).
+            let key = item.key
+            // Resolved while the threads before it were read.
+            if resolved.roots.contains(rootId) { continue }
+            // A thread nothing new happened in keeps its snapshot for a minute, unless it streams or waits for
+            // the person (edits and reactions do not show in the list).
             if let cached = snapshots[rootId], let read = snapshotReads[rootId], read.key == key,
                Date().timeIntervalSince(read.at) < Self.snapshotLifetime,
                ![.running, .needsYou].contains(cached.rowState) {
-                threadRowsByRoot[rootId] = row(cached)
                 continue
             }
-
-            do {
-                // Hydrate from the fresh root returned by `/threads` (carries its bundled m.replace edit);
-                // only fall back to load_or_fetch_event_json if missing or undecrypted.
-                var root: JSON? = rootJsonByRoot[rootId]
-                if root == nil || root?["type"] as? String == "m.room.encrypted" {
-                    let rootJson = try await room.loadOrFetchEventJson(eventId: rootId)
-                    requests += 1
-                    bytes += rootJson.utf8.count
-                    root = parse(rootJson) ?? root
-                }
-                guard let root else { continue }
-
-                let tailPage = try await room.relationsJsonPage(
-                    eventId: rootId, relType: "m.thread", eventType: nil,
-                    forward: false, limit: Self.hydrationPageSize, from: nil
-                )
-                requests += 1
-                bytes += tailPage.events.reduce(0) { $0 + $1.utf8.count }
-
-                var related = tailPage.events.compactMap(parse)
-                var pageCursor = tailPage.nextBatch
-                let isEncrypted = room.encryptionState() == .encrypted
-
-                var snapshot = ThreadSnapshot.build(
-                    root: root, related: related, ownUserId: userId, now: Date(),
-                    serverTitle: item.serverTitle, cachedTitle: cachedTitles[rootId]
-                )
-
-                // If no reply from someone else was found and next_batch exists, read one more page.
-                if snapshot.reply == nil, let token = pageCursor,
-                   let page2 = try? await room.relationsJsonPage(
-                       eventId: rootId, relType: "m.thread", eventType: nil,
-                       forward: false, limit: Self.hydrationPageSize, from: token
-                   ) {
-                    requests += 1
-                    bytes += page2.events.reduce(0) { $0 + $1.utf8.count }
-                    related.append(contentsOf: page2.events.compactMap(parse))
-                    pageCursor = page2.nextBatch
-                }
-
-                // Pending approval cards outside the recent window.
-                if !isEncrypted {
-                    if pageCursor != nil,
-                       let approvalPage = try? await room.relationsJsonPage(
-                           eventId: rootId, relType: "m.thread", eventType: ApprovalCard.eventType,
-                           forward: false, limit: Self.approvalPageSize, from: nil
-                       ) {
-                        requests += 1
-                        bytes += approvalPage.events.reduce(0) { $0 + $1.utf8.count }
-                        related.append(contentsOf: approvalPage.events.compactMap(parse))
-                    }
-                } else if pageCursor != nil, !coldScannedEncryptedRoots.contains(rootId) {
-                    // Cold encrypted thread: scan at most 3 more pages of 50 looking for older approval cards.
-                    var scanCursor: String? = pageCursor
-                    var scanComplete = true
-                    for _ in 0..<Self.encryptedCardScanMaxPages {
-                        guard let token = scanCursor else { break }
-                        do {
-                            let scanPage = try await room.relationsJsonPage(
-                                eventId: rootId, relType: "m.thread", eventType: nil,
-                                forward: false, limit: Self.encryptedCardScanPageSize, from: token
-                            )
-                            requests += 1
-                            bytes += scanPage.events.reduce(0) { $0 + $1.utf8.count }
-                            let parsed = scanPage.events.compactMap(parse)
-                            let cards = parsed.filter { ApprovalCard.parse($0) != nil }
-                            if !cards.isEmpty {
-                                related.append(contentsOf: cards)
-                                for card in cards {
-                                    if let id = card.eventId { knownPendingCardIds[rootId, default: []].insert(id) }
-                                }
-                                break
-                            }
-                            scanCursor = scanPage.nextBatch
-                        } catch {
-                            scanComplete = false
-                            break
-                        }
-                    }
-                    if scanComplete { coldScannedEncryptedRoots.insert(rootId) }
-                }
-
-                // Re-read any previously seen pending cards by id (+ their m.replace edits) until decided.
-                if let pendingIds = knownPendingCardIds[rootId], !pendingIds.isEmpty {
-                    let loadedIds = Set(related.compactMap(\.eventId))
-                    for cardId in pendingIds {
-                        if !loadedIds.contains(cardId),
-                           let cardJson = try? await room.loadOrFetchEventJson(eventId: cardId),
-                           let parsedCard = parse(cardJson) {
-                            requests += 1
-                            bytes += cardJson.utf8.count
-                            related.append(parsedCard)
-                        }
-                        if let editsPage = try? await room.relationsJsonPage(
-                            eventId: cardId, relType: "m.replace", eventType: nil,
-                            forward: false, limit: Self.cardEditsPageSize, from: nil
-                        ) {
-                            requests += 1
-                            bytes += editsPage.events.reduce(0) { $0 + $1.utf8.count }
-                            related.append(contentsOf: editsPage.events.compactMap(parse))
-                        }
-                    }
-                }
-
-                snapshot = ThreadSnapshot.build(
-                    root: root, related: related, ownUserId: userId, now: Date(),
-                    serverTitle: item.serverTitle, cachedTitle: cachedTitles[rootId]
-                )
-
-                // Drop cached title if its source event was observed redacted or a complete read shows no title.
-                if snapshot.cachedTitleWasRedacted {
-                    forgetTitle(for: rootId)
-                } else if let cached = cachedTitles[rootId], snapshot.knownTitle == nil {
-                    let completeReadNoTitle = pageCursor == nil
-                    let serverConfirmedNoSummary = !isEncrypted && item.serverTitle == nil
-                        && item.count <= 50 && cached.kind == .summary
-                    if completeReadNoTitle || serverConfirmedNoSummary {
-                        forgetTitle(for: rootId)
-                        snapshot = ThreadSnapshot.build(
-                            root: root, related: related, ownUserId: userId, now: Date(),
-                            serverTitle: item.serverTitle, cachedTitle: nil
-                        )
-                    }
-                }
-
-                // Resumable forward title cursor: read one head page of 20 per refresh until a title is found or end.
-                if snapshot.knownTitle == nil, cachedTitles[rootId] == nil, pageCursor != nil,
-                   headTitleSearch[rootId] != .exhausted {
-                    let fromToken: String? = if case let .cursor(t) = headTitleSearch[rootId] { t } else { nil }
-                    if let headPage = try? await room.relationsJsonPage(
-                        eventId: rootId, relType: "m.thread", eventType: nil,
-                        forward: true, limit: Self.headTitlePageSize, from: fromToken
-                    ) {
-                        requests += 1
-                        bytes += headPage.events.reduce(0) { $0 + $1.utf8.count }
-                        let headEvents = ThreadSnapshot.headTitleEvents(rootId: rootId, from: headPage.events.compactMap(parse))
-                        if !headEvents.isEmpty {
-                            related.append(contentsOf: headEvents)
-                            snapshot = ThreadSnapshot.build(
-                                root: root, related: related, ownUserId: userId, now: Date(),
-                                serverTitle: item.serverTitle, cachedTitle: cachedTitles[rootId]
-                            )
-                        }
-                        if snapshot.knownTitle != nil || headPage.nextBatch == nil {
-                            headTitleSearch[rootId] = .exhausted
-                        } else {
-                            headTitleSearch[rootId] = .cursor(headPage.nextBatch)
-                        }
-                    }
-                }
-
-                // Fetch missing question source_event_id by id before offering an open question.
-                var questionSource: JSON?
-                if let sourceId = snapshot.missingQuestionSourceId {
-                    if questionSources[sourceId] == nil,
-                       let sourceJson = try? await room.loadOrFetchEventJson(eventId: sourceId),
-                       let parsedSource = parse(sourceJson) {
-                        requests += 1
-                        bytes += sourceJson.utf8.count
-                        questionSources[sourceId] = parsedSource
-                    }
-                    questionSource = questionSources[sourceId]
-                    if questionSource != nil {
-                        snapshot = ThreadSnapshot.build(
-                            root: root, related: related, ownUserId: userId, now: Date(),
-                            serverTitle: item.serverTitle, cachedTitle: cachedTitles[rootId],
-                            questionSource: questionSource
-                        )
-                    }
-                }
-
-                // Question candidate: read reactions on the question event so viewer answers clear the chip.
-                if let qId = snapshot.questionCandidateId ?? snapshot.openQuestion?.eventId,
-                   let reactionsPage = try? await room.relationsJsonPage(
-                       eventId: qId, relType: "m.annotation", eventType: nil,
-                       forward: false, limit: Self.reactionsPageSize, from: nil
-                   ) {
-                    requests += 1
-                    bytes += reactionsPage.events.reduce(0) { $0 + $1.utf8.count }
-                    related.append(contentsOf: reactionsPage.events.compactMap(parse))
-                    snapshot = ThreadSnapshot.build(
-                        root: root, related: related, ownUserId: userId, now: Date(),
-                        serverTitle: item.serverTitle, cachedTitle: cachedTitles[rootId],
-                        questionSource: questionSource
-                    )
-                }
-
-                // Update remembered pending approval card ids for this thread.
-                for card in snapshot.approvals {
-                    if card.status == .pending {
-                        knownPendingCardIds[rootId, default: []].insert(card.eventId)
-                    } else {
-                        knownPendingCardIds[rootId]?.remove(card.eventId)
-                    }
-                }
-
-                if let known = snapshot.knownTitle { rememberTitle(known, for: rootId) }
+            // A thread that cannot be read keeps its row.
+            if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
+               let root = jsons.first.flatMap(parse) {
+                let related = jsons.dropFirst().compactMap(parse)
+                let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date())
                 snapshots[rootId] = snapshot
                 snapshotReads[rootId] = (key, Date())
-                hydratedCount += 1
                 if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
-                if !resolved.contains(rootId) {
-                    threadRowsByRoot[rootId] = row(snapshot)
-                    publishMerged()
-                }
-            } catch {
-                // Keep the provisional or previously cached row on transient fetch failure.
-                continue
+                if resolved.roots.contains(rootId) { continue }
+                threadRows[rootId] = row(snapshot)
+                show()
+                #if DEBUG
+                E2EHooks.log("hydrated \(rootId) \(String(describing: snapshot.rowState)) \(snapshot.title) | \(row(snapshot).line)")
+                #endif
             }
         }
-
-        publishMerged()
+        // The complications count what the threads' own reads found, without the threads the state resolves.
+        await stateRead?.value
+        show()
         publishWidgetSnapshot()
-
         #if DEBUG
-        let totalMs = Int(Date().timeIntervalSince(started) * 1000)
-        E2EHooks.log("refresh done \(totalMs)ms rows=\(rows.count) hydrated=\(hydratedCount) reqs=\(requests) bytes=\(bytes)")
+        E2EHooks.log("refresh done rows=\(rows.count)")
         #endif
+    }
+
+    /// Shows the thread rows as they are now, with the person's messages that nobody answered.
+    private func show() {
+        unanswered = ownRows(sentHere: false, notIn: Set(threadRows.keys).union(resolved.roots))
+        publish()
     }
 
     /// Shows the threads and the person's unanswered messages as the last refresh found them, and with them the
@@ -579,47 +286,30 @@ final class RoomModel: ObservableObject {
         for item in feed.events {
             if case let .sent(eventId) = item.localSendState { sentHere.insert(eventId) }
         }
-        let own = unanswered + ownRows(sentHere: true, notIn: Set(threadRoots).union(resolved))
-        let rows = (Array(threadRowsByRoot.values) + own).sorted { $0.ts > $1.ts }
+        let own = unanswered + ownRows(sentHere: true, notIn: Set(threadRows.keys).union(resolved.roots))
+        // By id where the times are equal: the thread rows come in no order.
+        let rows = (Array(threadRows.values) + own).sorted { ($0.ts, $0.id) > ($1.ts, $1.id) }
         if rows != self.rows { self.rows = rows }
     }
 
-    private func provisionalRow(_ entry: ThreadListEntry) -> ThreadRow {
-        let title = entry.serverTitle?.text ?? cachedTitles[entry.rootId]?.text ?? entry.fallbackTitle
-        let line: String
-        if let sender = entry.previewSender, !sender.isEmpty {
-            let text: String
-            if entry.previewIsEncrypted {
-                text = String(localized: "Encrypted message")
-            } else if entry.previewIsVoiceOnly {
-                text = String(localized: "Voice message")
-            } else if let previewText = entry.previewText, !previewText.isEmpty {
-                text = named(previewText)
-            } else {
-                text = "…"
-            }
-            line = "\(name(sender)): \(text)"
-        } else {
-            line = String(localized: "Sent")
-        }
-        return ThreadRow(
-            id: entry.rootId, rootId: entry.rootId, title: title, line: line,
-            state: .idle(Date(timeIntervalSince1970: Double(entry.latestTs) / 1000)),
-            ts: entry.latestTs, rootTs: entry.rootTs, voiceFile: entry.voiceFile
-        )
+    private func line(_ reply: ThreadSnapshot.Message?) -> String {
+        guard let reply else { return String(localized: "Sent") }
+        let text = reply.isVoiceOnly ? String(localized: "Voice message") : reply.text.isEmpty ? "…" : named(reply.text)
+        return "\(name(reply.sender)): \(text)"
     }
 
     private func row(_ snapshot: ThreadSnapshot) -> ThreadRow {
-        let line: String
-        if let reply = snapshot.reply {
-            let text = reply.isVoiceOnly ? String(localized: "Voice message") : reply.text.isEmpty ? "…" : named(reply.text)
-            line = "\(name(reply.sender)): \(text)"
-        } else {
-            line = String(localized: "Sent")
-        }
-        return ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line,
-                         state: snapshot.rowState, ts: snapshot.latestTs,
-                         rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
+        ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line(snapshot.reply),
+                  state: snapshot.rowState, ts: snapshot.latestTs,
+                  rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
+    }
+
+    /// The row of a thread not read yet. What it waits for or whether it runs only the thread's own read says:
+    /// until then the row says how old it is.
+    private func row(_ entry: ThreadListEntry) -> ThreadRow {
+        ThreadRow(id: entry.rootId, rootId: entry.rootId, title: entry.title, line: line(entry.reply),
+                  state: .idle(Date(timeIntervalSince1970: Double(entry.latestTs) / 1000)), ts: entry.latestTs,
+                  rootTs: entry.rootTs, voiceFile: entry.voiceFile)
     }
 
     /// The user's own messages in the room that none of these threads holds, as rows. With `sentHere`: the ones
@@ -656,9 +346,9 @@ final class RoomModel: ObservableObject {
         }
     }
 
-    /// The thread tags and pinned events in the room's state (state events are not encrypted), plus byte size;
+    /// The thread tags and pinned events in the room's state, in one request (state events are not encrypted);
     /// nil when it could not be read.
-    private func resolvedRoots() async -> (Set<String>, Int)? {
+    private func resolvedRoots() async -> Set<String>? {
         guard let session, let base = URL(string: session.homeserverUrl) else { return nil }
         let roomId = room.id().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "!:/"))) ?? room.id()
         guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return nil }
@@ -667,10 +357,13 @@ final class RoomModel: ObservableObject {
         #if DEBUG
         E2EHooks.log("http GET \(url.path)")
         #endif
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
+        guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
+        #if DEBUG
+        E2EHooks.log("http done \(url.path) \(data.count)")
+        #endif
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
               let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-        return (ThreadTags.resolvedRoots(state: state), data.count)
+        return ThreadTags.resolvedRoots(state: state)
     }
 }
 

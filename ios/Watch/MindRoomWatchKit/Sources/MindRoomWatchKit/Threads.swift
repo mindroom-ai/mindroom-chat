@@ -38,6 +38,90 @@ public enum ThreadTags {
     }
 }
 
+/// The room's resolved threads as one model knows them between reads of the room's state, which is megabytes in
+/// a busy room: read when the room comes to the front, after a thread is resolved here, and every 5 minutes.
+public struct ResolvedRoots: Equatable, Sendable {
+    /// How long a read stands.
+    public static let lifetime: TimeInterval = 5 * 60
+
+    public private(set) var roots: Set<String>
+    /// When the last read that succeeded began; nil asks the next refresh for one.
+    private var readAt: Date?
+    /// When the read under way began, and the roots resolved here since.
+    private var reading: Date?
+    private var resolvedSince: Set<String> = []
+
+    public init(_ roots: Set<String>) { self.roots = roots }
+
+    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago, or
+    /// came before `expire()` or `resolve(_:)`.
+    public func isDue(now: Date) -> Bool {
+        reading == nil && (readAt.map { now.timeIntervalSince($0) >= Self.lifetime } ?? true)
+    }
+
+    public mutating func beginRead(now: Date) {
+        reading = now
+        resolvedSince = []
+    }
+
+    /// The read's answer, nil when it failed. A thread resolved here since the read began stays resolved (the
+    /// answer may be from before its tag was there), and the next refresh reads again.
+    public mutating func endRead(_ read: Set<String>?) {
+        if let read {
+            roots = read.union(resolvedSince)
+            readAt = resolvedSince.isEmpty ? reading : nil
+        }
+        reading = nil
+    }
+
+    /// A thread resolved here.
+    public mutating func resolve(_ root: String) {
+        roots.insert(root)
+        resolvedSince.insert(root)
+        readAt = nil
+    }
+
+    /// The room came to the front: the next refresh reads its state.
+    public mutating func expire() { readAt = nil }
+}
+
+/// A thread as the room's thread list (`/threads`) gives it, before the thread itself is read: what
+/// `ThreadSnapshot` makes of the root and the events bundled with it (`latest_event` and, from our homeserver,
+/// `io.mindroom.title` and `io.mindroom.latest_reply`; each with its newest edit).
+public struct ThreadListEntry: Equatable, Sendable {
+    public let rootId: String
+    /// The newest event's id and the reply count: another when something new happened in the thread.
+    public let key: String
+    public let rootTs: Int
+    /// Milliseconds since the epoch of the newest message the list carries, or its newest edit.
+    public let latestTs: Int
+    /// The bundled title, else what a thread without one is called.
+    public let title: String
+    /// The newest reply, when it is from someone else and no relay, echo or title.
+    public let reply: ThreadSnapshot.Message?
+    public let voiceFile: String?
+
+    public static func parse(_ root: JSON, ownUserId: String) -> ThreadListEntry? {
+        guard let rootId = root.eventId else { return nil }
+        let thread = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON ?? [:]
+        let latest = thread["latest_event"] as? JSON
+        // The newest reply is mostly both `latest_event` and `io.mindroom.latest_reply`: once.
+        var bundled: [String: JSON] = [:]
+        for name in ["io.mindroom.title", "io.mindroom.latest_reply", "latest_event"] {
+            if let event = thread[name] as? JSON, let id = event.eventId { bundled[id] = event }
+        }
+        let events = Array(bundled.values)
+        let snapshot = ThreadSnapshot.build(root: root, related: events + ([root] + events).compactMap(\.bundledEdit),
+                                            ownUserId: ownUserId, now: Date())
+        // An encrypted room's newest event cannot be read here; its time still says when the thread last moved.
+        let encryptedTs = latest?["type"] as? String == "m.room.encrypted" ? latest?.timestamp ?? 0 : 0
+        return ThreadListEntry(
+            rootId: rootId, key: "\(latest?.eventId ?? rootId) \((thread["count"] as? NSNumber)?.intValue ?? 0)",
+            rootTs: snapshot.rootTs, latestTs: max(snapshot.latestTs, encryptedTs), title: snapshot.title,
+            reply: snapshot.reply, voiceFile: snapshot.voiceFile)
+    }
+}
+
 /// What a thread's row says at its end, most urgent first.
 public enum ThreadRowState: Equatable, Sendable {
     case failed, queued, needsYou, running, idle(Date)
@@ -54,148 +138,5 @@ public enum Waveform {
             let slice = scaled[min(start, scaled.count - 1)..<min(end, scaled.count)]
             return slice.reduce(0, +) / Float(slice.count)
         }
-    }
-}
-
-
-/// A thread's resolved title together with its source event id and kind (summary notice vs voice-root transcript).
-public struct KnownTitle: Equatable, Sendable {
-    public enum Kind: String, Equatable, Sendable {
-        case summary
-        case transcript
-    }
-
-    public let text: String
-    public let sourceEventId: String
-    public let kind: Kind
-
-    public init(text: String, sourceEventId: String, kind: Kind) {
-        self.text = text
-        self.sourceEventId = sourceEventId
-        self.kind = kind
-    }
-}
-
-/// One thread root returned by `/threads`, carrying Tuwunel's bundled summary fields
-/// (`io.mindroom.title`, `io.mindroom.latest_reply`, `latest_event`, `count`) for instant first paint
-/// and edit-aware cache invalidation.
-public struct ThreadListEntry: Equatable, Sendable {
-    public let rootId: String
-    public let rootTs: Int
-    public let latestTs: Int
-    public let count: Int
-    public let serverTitle: KnownTitle?
-    public let fallbackTitle: String
-    public let previewSender: String?
-    public let previewText: String?
-    public let previewIsEncrypted: Bool
-    public let previewIsVoiceOnly: Bool
-    public let voiceFile: String?
-    /// Changes on any new reply, count change, or bundled edit of the latest reply / latest event / title / root.
-    public let cacheKey: String
-
-    public static func parse(_ root: JSON, ownUserId: String) -> ThreadListEntry? {
-        guard let rootId = root.eventId else { return nil }
-        let threadRel = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON
-        let count = (threadRel?["count"] as? NSNumber)?.intValue ?? 0
-        let latestEvent = threadRel?["latest_event"] as? JSON
-        let latestReply = threadRel?["io.mindroom.latest_reply"] as? JSON
-        let titleEvent = threadRel?["io.mindroom.title"] as? JSON
-
-        let serverTitle: KnownTitle? = titleEvent.flatMap { event in
-            let content = effectiveContent(event, latestEdit: event.validBundledEdit)
-            let summaryObj = content["io.mindroom.thread_summary"] as? JSON
-            let raw: String?
-            if let summaryObj, (summaryObj["version"] as? NSNumber)?.intValue == 1,
-               let summary = summaryObj["summary"] as? String, !summary.isEmpty {
-                raw = summary
-            } else {
-                raw = content["body"] as? String
-            }
-            guard let raw, !raw.isEmpty else { return nil }
-            return KnownTitle(text: raw, sourceEventId: event.eventId ?? "", kind: .summary)
-        }
-
-        let rootEdit = root.validBundledEdit
-        let rootContent = effectiveContent(root, latestEdit: rootEdit)
-        let isAudioRoot = (rootContent["msgtype"] ?? root.content["msgtype"]) as? String == "m.audio"
-        let encryptedRoot = root["type"] as? String == "m.room.encrypted"
-        let rootText = PlainText.of(markdown: rootContent["body"] as? String ?? "")
-        let fallbackTitle = isAudioRoot ? String(localized: "Voice message")
-            : encryptedRoot ? String(localized: "Encrypted message") : rootText
-
-        let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        let voiceFile = isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil
-
-        let isTitleNotice = { (event: JSON) in event.content["io.mindroom.thread_summary"] != nil }
-        let isPreviewCandidate = { (event: JSON) -> Bool in
-            guard !isTitleNotice(event),
-                  (event["sender"] as? String) != ownUserId,
-                  event.content["com.mindroom.original_sender"] == nil,
-                  VoiceEcho.transcript(event, latestEdit: nil) == nil else { return false }
-            return true
-        }
-
-        var previewSender: String?
-        var previewText: String?
-        var previewIsEncrypted = false
-        var previewIsVoiceOnly = false
-        if let preview = [latestReply, latestEvent].compactMap({ $0 }).first(where: isPreviewCandidate) {
-            previewSender = preview["sender"] as? String
-            let type = preview["type"] as? String
-            if type == "m.room.encrypted" {
-                previewIsEncrypted = true
-            } else if type == ApprovalCard.eventType {
-                previewText = ApprovalCard.parse(preview)?.toolName
-            } else if type == "m.room.message" {
-                let content = effectiveContent(preview, latestEdit: preview.validBundledEdit)
-                let isAudio = (content["msgtype"] ?? preview.content["msgtype"]) as? String == "m.audio"
-                if isAudio {
-                    let caption = AudioCaption.of(content)
-                    previewText = caption
-                    previewIsVoiceOnly = caption == nil
-                } else {
-                    previewText = PlainText.of(markdown: content["body"] as? String ?? "")
-                }
-            }
-        }
-
-        var timestamps = [
-            root.timestamp,
-            rootEdit?.timestamp ?? 0,
-            latestReply?.timestamp ?? 0,
-            latestReply?.validBundledEdit?.timestamp ?? 0,
-        ]
-        if let latestEvent, !isTitleNotice(latestEvent) {
-            timestamps.append(latestEvent.timestamp)
-            timestamps.append(latestEvent.validBundledEdit?.timestamp ?? 0)
-        }
-        let latestTs = timestamps.max() ?? root.timestamp
-
-        let cacheKey = [
-            latestEvent?.eventId ?? rootId,
-            String(count),
-            latestEvent?.bundledEdit?.eventId ?? "",
-            latestReply?.eventId ?? "",
-            latestReply?.bundledEdit?.eventId ?? "",
-            titleEvent?.eventId ?? "",
-            titleEvent?.bundledEdit?.eventId ?? "",
-            root.bundledEdit?.eventId ?? "",
-        ].joined(separator: "|")
-
-        return ThreadListEntry(
-            rootId: rootId,
-            rootTs: root.timestamp,
-            latestTs: latestTs,
-            count: count,
-            serverTitle: serverTitle,
-            fallbackTitle: fallbackTitle,
-            previewSender: previewSender,
-            previewText: previewText,
-            previewIsEncrypted: previewIsEncrypted,
-            previewIsVoiceOnly: previewIsVoiceOnly,
-            voiceFile: voiceFile,
-            cacheKey: cacheKey
-        )
     }
 }

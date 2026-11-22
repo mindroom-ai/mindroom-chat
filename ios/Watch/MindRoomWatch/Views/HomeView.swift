@@ -133,7 +133,19 @@ private struct RoomHome: View {
     @State private var following: String?
 
     var body: some View {
+        #if DEBUG
+        // The simulator run's screenshot shows the rows, which start below the mic.
         ScrollViewReader { scroll in
+            list.onChange(of: model.rows) { _, rows in
+                if E2EHooks.scrollToRows, let first = rows.first { scroll.scrollTo(first.id, anchor: .top) }
+            }
+        }
+        #else
+        list
+        #endif
+    }
+
+    private var list: some View {
         List {
             Section {
                 // The room's name switches rooms.
@@ -211,8 +223,8 @@ private struct RoomHome: View {
             guard scenePhase == .active else { return }
             model.foregrounded()
             while !Task.isCancelled {
+                model.scheduleRefresh()
                 try? await Task.sleep(for: .seconds(30))
-                if !Task.isCancelled { model.scheduleRefresh() }
             }
         }
         .onAppear { takeRequest() }
@@ -225,16 +237,12 @@ private struct RoomHome: View {
                row.rootTs >= E2EHooks.launchedAt, let rootId = row.rootId {
                 path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
             }
-            if E2EHooks.scrollToRows, let first = rows.first {
-                scroll.scrollTo(first.id, anchor: .top)
-            }
             if E2EHooks.resolveNewest, !E2EHooks.resolved, let rootId = rows.first(where: { $0.state != .queued })?.rootId {
                 E2EHooks.resolved = true
                 Task { await model.resolve(rootId); E2EHooks.log("resolved \(rootId)") }
             }
         }
         #endif
-        }
     }
 
     private var summary: String {

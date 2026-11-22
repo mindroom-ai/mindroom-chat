@@ -35,11 +35,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// Milliseconds since the epoch of the root.
     public let rootTs: Int
     public let title: String
-    /// A real title seen in this build (`io.mindroom.title`, a thread summary, or a root voice transcript),
-    /// suitable for persisting in the title cache; nil when falling back to cache or root text.
-    public let knownTitle: KnownTitle?
-    /// True when the supplied `cachedTitle`'s source event was observed redacted in `related`.
-    public let cachedTitleWasRedacted: Bool
     /// The title where the first entry does not give it already: the router's own title, or what stands for a
     /// root that is no entry (one that cannot be read).
     public let heading: String?
@@ -55,12 +50,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// The newest card from an agent that waits for this person's decision.
     public let pendingApproval: ApprovalCard?
     public let openQuestion: Question?
-    /// Event id of the newest non-stale, viewer-eligible question (even if currently answered by a reaction),
-    /// so polls re-read its annotations and detect withdrawn reactions.
-    public let questionCandidateId: String?
-    /// When the newest agent question names a `source_event_id` outside the loaded events, its event id so the
-    /// caller can fetch it by id before offering the question.
-    public let missingQuestionSourceId: String?
     /// Milliseconds since the epoch of the newest message or its newest edit: a reply streams on in edits.
     public let latestTs: Int
 
@@ -76,23 +65,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
         return .idle(Date(timeIntervalSince1970: Double(latestTs) / 1000))
     }
 
-    public static func build(
-        root: JSON,
-        related: [JSON],
-        ownUserId: String,
-        now: Date,
-        serverTitle: KnownTitle? = nil,
-        cachedTitle: KnownTitle? = nil,
-        questionSource: JSON? = nil
-    ) -> ThreadSnapshot {
+    public static func build(root: JSON, related: [JSON], ownUserId: String, now: Date) -> ThreadSnapshot {
         let rootId = root.eventId ?? ""
-        let uniqueRelated = MatrixEvents.deduplicate(related, excluding: rootId)
-
         var edits: [JSON] = []
         var reactions: [JSON] = []
         var messages: [JSON] = []
-        if let rootEdit = root.validBundledEdit { edits.append(rootEdit) }
-        for event in uniqueRelated {
+        for event in related {
             let type = event["type"] as? String
             if type == "m.reaction" {
                 reactions.append(event)
@@ -100,7 +78,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
                 edits.append(event)
             } else if type == "m.room.message" || type == ApprovalCard.eventType {
                 messages.append(event)
-                if let bundled = event.validBundledEdit { edits.append(bundled) }
             }
         }
         messages.sort { $0.timestamp < $1.timestamp }
@@ -124,30 +101,11 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
         // What the router wrote out of each voice message.
         var transcripts: [String: String] = [:]
-        var rootTranscriptEventId: String?
         for message in messages {
             if let echo = VoiceEcho.transcript(message, latestEdit: edit(message)), let text = echo.text,
-               transcripts[echo.voiceEventId] == nil {
-                transcripts[echo.voiceEventId] = text
-                if echo.voiceEventId == rootId { rootTranscriptEventId = message.eventId }
-            }
+               transcripts[echo.voiceEventId] == nil { transcripts[echo.voiceEventId] = text }
         }
-        let cachedTitleWasRedacted: Bool = {
-            guard let cachedTitle, !cachedTitle.sourceEventId.isEmpty else { return false }
-            return uniqueRelated.contains { event in
-                (event.eventId == cachedTitle.sourceEventId && event.isRedacted)
-                    || (event["type"] as? String == "m.room.redaction" && event["redacts"] as? String == cachedTitle.sourceEventId)
-            }
-        }()
-        let cleanedServerTitle = serverTitle.flatMap { $0.text.isEmpty ? nil : $0 }
-        let cleanedCachedTitle = cachedTitleWasRedacted ? nil : cachedTitle.flatMap { $0.text.isEmpty ? nil : $0 }
-        // A cached voice-root transcript stands in for the voice echo when the thread has scrolled past it.
-        if transcripts[rootId] == nil, let cached = cleanedCachedTitle, cached.kind == .transcript {
-            transcripts[rootId] = cached.text
-        }
-        let liveRootTranscript: KnownTitle? = rootTranscriptEventId.flatMap { id in
-            transcripts[rootId].map { KnownTitle(text: $0, sourceEventId: id, kind: .transcript) }
-        }
+        let transcript = transcripts[rootId]
         // Each message as its newest edit says it (the whole new content, keeping its thread relation).
         let notices = messages.map { message in edit(message).flatMap(\.newContent).map { newContent -> JSON in
             var merged = message
@@ -158,11 +116,9 @@ public struct ThreadSnapshot: Equatable, Sendable {
         } ?? message }
         let rootText = PlainText.of(markdown: effectiveContent(root, latestEdit: edit(root))["body"] as? String ?? "")
         let encryptedRoot = root["type"] as? String == "m.room.encrypted"
-        let summary = ThreadSummary.titleWithEventId(from: notices)
-            .map { KnownTitle(text: $0.title, sourceEventId: $0.eventId, kind: .summary) }
-        let knownTitle = cleanedServerTitle ?? summary ?? liveRootTranscript
+        let summary = ThreadSummary.title(from: notices)
         // Audio's body is its file's name, with the voice mark or without it.
-        let title = cleanedServerTitle?.text ?? summary?.text ?? cleanedCachedTitle?.text ?? liveRootTranscript?.text
+        let title = summary ?? transcript
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
@@ -196,8 +152,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
         // As the web client: only the newest agent reply asks (not the router's relay of a message), until
         // the person writes or reacts, for 7 days, and only when it answers this person.
         var openQuestion: Question?
-        var questionCandidateId: String?
-        var missingQuestionSourceId: String?
         if let asking = conversation.last(where: {
             isAgent($0["sender"] as? String) && $0["type"] as? String == "m.room.message"
                 && $0.content["com.mindroom.original_sender"] == nil
@@ -210,20 +164,11 @@ public struct ThreadSnapshot: Equatable, Sendable {
                     && keys.contains($0.relation?["key"] as? String ?? "")
             }
             let sourceId = (effectiveContent(asking, latestEdit: edit(asking))["io.mindroom.interactive"] as? JSON)?["source_event_id"] as? String
-            let sourceCandidates = [root] + messages + (questionSource.map { [$0] } ?? [])
-            let source = sourceId.flatMap { id in sourceCandidates.first { $0.eventId == id } }
+            let source = ([root] + messages).first { $0.eventId == sourceId }
+            let asker = source.flatMap { ($0.content["com.mindroom.original_sender"] as? String) ?? $0["sender"] as? String }
+            let askedSomeoneElse = asker.map { $0 != ownUserId && !isAgent($0) } ?? false
             let stale = Double(askedAt) / 1000 < now.timeIntervalSince1970 - 7 * 24 * 3600
-            if sourceId != nil && source == nil {
-                // Unknown source outside the loaded window: do not offer the question until fetched by id.
-                if !wroteSince && !stale { missingQuestionSourceId = sourceId }
-            } else {
-                let asker = source.flatMap { ($0.content["com.mindroom.original_sender"] as? String) ?? $0["sender"] as? String }
-                let askedSomeoneElse = asker.map { $0 != ownUserId && !isAgent($0) } ?? false
-                if !wroteSince && !askedSomeoneElse && !stale {
-                    questionCandidateId = question.eventId
-                    if !reacted { openQuestion = question }
-                }
-            }
+            if !wroteSince && !reacted && !askedSomeoneElse && !stale { openQuestion = question }
         }
         let entries = ([root] + conversation).compactMap { event -> Entry? in
             if let card = approvals.first(where: { $0.eventId == event.eventId }) {
@@ -232,16 +177,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
             return isMessage(event) ? .message(message(event)) : nil
         }
         let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
-        let explicitHeading = cleanedServerTitle?.text ?? summary?.text
-            ?? (cleanedCachedTitle?.kind == .summary ? cleanedCachedTitle?.text : nil)
         return ThreadSnapshot(
-            rootId: rootId, rootTs: root.timestamp, title: title, knownTitle: knownTitle,
-            cachedTitleWasRedacted: cachedTitleWasRedacted,
-            heading: explicitHeading ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
+            rootId: rootId, rootTs: root.timestamp, title: title,
+            heading: summary ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
             voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
-            entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval,
-            openQuestion: openQuestion, questionCandidateId: questionCandidateId,
-            missingQuestionSourceId: missingQuestionSourceId, latestTs: latestTs)
+            entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
+            latestTs: latestTs)
     }
 }
 
@@ -297,15 +238,5 @@ extension ThreadSnapshot {
         if event.relation?["rel_type"] as? String == "m.thread", let root = event.relation?["event_id"] as? String { return root }
         if event["type"] as? String == ApprovalCard.eventType, let root = event.content["thread_id"] as? String { return root }
         return event.eventId ?? ""
-    }
-
-    /// Extracts only root voice-echo and thread-summary events from a non-recursive `m.thread` head page
-    /// (`forward: true`), so early titles and transcripts can be read without mixing old replies into a
-    /// tail-window snapshot.
-    public static func headTitleEvents(rootId: String, from events: [JSON]) -> [JSON] {
-        events.filter { event in
-            event.content["io.mindroom.thread_summary"] is JSON
-                || VoiceEcho.transcript(event, latestEdit: nil)?.voiceEventId == rootId
-        }
     }
 }
