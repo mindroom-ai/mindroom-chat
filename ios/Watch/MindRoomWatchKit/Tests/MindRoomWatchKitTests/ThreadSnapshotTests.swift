@@ -796,6 +796,24 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(late, ThreadSnapshot.build(root: voiceRoot, related: [expiring], ownUserId: me, now: now.addingTimeInterval(200)))
     }
 
+    func testACardPastItsDeadlineLeavesAnOlderOneThatWaitsToDecide() {
+        let related = [card("$older", 3, sender: agent),
+                       card("$newer", 4, sender: agent, extra: ["expires_at": "1970-01-01T00:20:00Z"]),
+                       card("$annas", 5, sender: agent, extra: ["approver_user_id": "@anna:x"])]
+        let read = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now)
+        XCTAssertEqual(read.pendingApproval?.eventId, "$newer")
+        XCTAssertEqual(ids(read), ["$root", "$newer"])
+        // After the newer card's deadline and with no network, the snapshot read before says what the thread
+        // read at that time would: the older card is the one to decide, in its place among the entries.
+        let late = read.at(now.addingTimeInterval(200))
+        XCTAssertEqual(late.pendingApproval?.eventId, "$older")
+        XCTAssertEqual(ids(late), ["$root", "$older", "$newer"])
+        XCTAssertEqual(late.rowState, .needsYou)
+        XCTAssertEqual(late, ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now.addingTimeInterval(200)))
+        // A clock set back: again as the thread read at that time.
+        XCTAssertEqual(late.at(now), read)
+    }
+
     func testAnApprovalCardIsNeverAVoiceEcho() {
         // A card with an echo's marks stays a card: what a notification shows of it without the room's trust
         // is what the thread shows with it.

@@ -116,6 +116,24 @@ final class RoomTrustTests: XCTestCase {
         XCTAssertEqual(reads, 5)
     }
 
+    func testAClockSetBackAfterAReadThatSucceededReadsAgain() async {
+        let trust = RoomTrust()
+        var reads = 0
+        let read: @MainActor () async -> [JSON]? = { reads += 1; return self.state(roster: reads == 1 ? [self.helper] : []) }
+        await trust.refresh(now: start, read)
+        XCTAssertEqual(trust.accounts, [router, helper])
+        // The clock went back an hour: how long ago the state was read cannot be told, so it is read again,
+        // and an account taken off the roster since is not trusted for that hour and 5 minutes more.
+        await trust.refresh(now: start.addingTimeInterval(-3600), read)
+        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(trust.accounts, [router])
+        // From there on the 5 minutes count from the read at the new time.
+        for seconds in [-3595, -3301] as [TimeInterval] { await trust.refresh(now: start.addingTimeInterval(seconds), read) }
+        XCTAssertEqual(reads, 2)
+        await trust.refresh(now: start.addingTimeInterval(-3300), read)
+        XCTAssertEqual(reads, 3)
+    }
+
     func testChangedSendsWithTheNewValuesAndOnlyWhenTheyChange() async {
         let trust = RoomTrust()
         var seen: [Set<String>] = []
