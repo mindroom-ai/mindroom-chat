@@ -507,6 +507,19 @@ describe('RoomSchedulesDialog', () => {
     );
   });
 
+  it('recovers focus when cancel permission is revoked while Keep is focused', async () => {
+    const tasks = [makeTask({ taskId: 'perm-1', description: 'Perm task' })];
+    const base = { roomId: '!r:example.org', tasks, onClose: vi.fn(), onOpenThread: vi.fn() };
+    const view = mountDialog({ ...base, onCancelTask: vi.fn(async () => undefined) });
+    cleanup = view.unmount;
+
+    await click(btnAria(view.host, 'Cancel')!);
+    expect(document.activeElement).toBe(btnText(view.host, 'Keep'));
+
+    view.rerender({ ...base, onCancelTask: undefined });
+    expect(document.activeElement).toBe(view.host.querySelector('button[data-schedule-toggle]'));
+  });
+
   it('recovers focus when a focused task row unmounts and ticks imminent countdowns every second', () => {
     vi.useFakeTimers();
     const baseNow = new Date('2026-09-15T10:00:00Z').getTime();

@@ -597,7 +597,10 @@ export const RoomSchedulesDialog = forwardRef<HTMLDivElement, RoomSchedulesDialo
       if (!showFilterBar && filter !== 'all') setFilter('all');
     }, [expandedId, filter, showFilterBar, tasks]);
 
-    // Recover focus inside the dialog if a focused task row, filter button, or cancel bar unmounted.
+    const hasCancel = Boolean(onCancelTask);
+    const hasEdit = Boolean(onEditTask);
+
+    // Recover focus inside the dialog if a focused task row, filter button, or action control unmounted.
     useLayoutEffect(() => {
       const modal = dialogRef.current;
       if (!modal) return;
@@ -608,7 +611,7 @@ export const RoomSchedulesDialog = forwardRef<HTMLDivElement, RoomSchedulesDialo
           '[data-expanded="true"] button[data-schedule-toggle]'
         ) ?? modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
       (fallback ?? closeButtonRef.current)?.focus();
-    }, [cancel.statusByTaskId, expandedId, filteredTasks, showFilterBar]);
+    }, [cancel.statusByTaskId, expandedId, filteredTasks, hasCancel, hasEdit, showFilterBar]);
 
     const inThread = (task: ParsedScheduledTask) =>
       openThreadId !== undefined && sched.isScheduleInThread(task, openThreadId);
