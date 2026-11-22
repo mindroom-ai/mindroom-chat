@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -30,6 +30,17 @@ import { ActivityInvitesRow, INVITES_GATHERED_FROM } from './ActivityInvitesRow'
 import * as css from './ActivityList.css';
 
 const TABS: ActivityTab[] = ['all', 'mentions', 'replies', 'needsYou'];
+const PAGE_SIZE = 40;
+const SENTINEL_MARGIN = '400px 0px';
+const SENTINEL_STYLE = { blockSize: 1 } as const;
+
+const findScrollParent = (element: HTMLElement): HTMLElement | null => {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    const { overflowY } = getComputedStyle(parent);
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return parent;
+  }
+  return null;
+};
 
 type ActivityListProps = {
   /** Where the list shows: the rail's popover, the Activity page, or the phone sheet. */
@@ -86,11 +97,10 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  // Senders are named from the member lists, which a room the user has not opened lacks.
-  const namesVersion = useLoadedRoomMembers(
-    mx,
-    shown.map((row) => (row.type === 'thread' ? row.entry.roomId : row.roomId))
-  );
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [tab, unreadOnly]);
 
   const open = useCallback(
     (row: ActivityRow) => {
@@ -108,14 +118,47 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const gathered = invites.length >= INVITES_GATHERED_FROM;
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
 
+  // Render one page at a time and grow as the reader nears the end, keeping large windows cheap.
+  const visibleWaiting = waitingRows.slice(0, limit);
+  const showGathered = gathered && visibleWaiting.length < limit;
+  const restLimit = Math.max(0, limit - visibleWaiting.length - (showGathered ? 1 : 0));
+  const visibleRest = rest.slice(0, restLimit);
+  const visibleRows = [...visibleWaiting, ...visibleRest];
+  const hasMore =
+    visibleWaiting.length < waitingRows.length ||
+    (gathered && !showGathered) ||
+    visibleRest.length < rest.length;
+
+  // Senders are named from the member lists, which a room the user has not opened lacks.
+  const namesVersion = useLoadedRoomMembers(
+    mx,
+    visibleRows.map((row) => (row.type === 'thread' ? row.entry.roomId : row.roomId))
+  );
+
   // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
   // The rows that wait come first, so their number tells when one moves under the day's divider
   // while the order stays.
   const rowsRef = useRef<HTMLDivElement>(null);
   const listMotion = useListMotion(
     rowsRef,
-    `${waiting.length}|${gathered}|${shown.map((row) => row.key).join(',')}`
+    `${visibleWaiting.length}|${showGathered}|${visibleRows.map((row) => row.key).join(',')}`
   );
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!hasMore || !sentinel || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setLimit((count) => count + PAGE_SIZE);
+        }
+      },
+      { root: findScrollParent(sentinel), rootMargin: SENTINEL_MARGIN }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, limit]);
   const openInvites = () => {
     void navigate(getActivityInvitesPath());
     onNavigate?.();
@@ -213,52 +256,55 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
           )}
         </div>
       ) : (
-        <div ref={rowsRef} role="list" className={css.Rows}>
-          {listMotion}
-          {waitingRows.map((row) => (
-            <div role="listitem" key={row.key} data-motion-row={row.key}>
-              <ActivityRowItem
-                row={row}
-                onOpen={open}
-                namesVersion={namesVersion}
-                current={isCurrent(row)}
-              />
-            </div>
-          ))}
-          {gathered && (
-            <div role="listitem" data-motion-row="invites">
-              <ActivityInvitesRow invites={invites} onOpen={openInvites} />
-            </div>
-          )}
-          {rest.map((row, index) => {
-            const day = activityDay(row.ts, now);
-            const previous = rest[index - 1];
-            const divider = !previous || activityDay(previous.ts, now) !== day;
-            return (
-              <Fragment key={row.key}>
-                {divider && (
-                  <Text
-                    size="L400"
-                    priority="300"
-                    className={css.Divider}
-                    role="presentation"
-                    data-motion-row={`day:${day}`}
-                  >
-                    {t(`activity.days.${day}`)}
-                  </Text>
-                )}
-                <div role="listitem" data-motion-row={row.key}>
-                  <ActivityRowItem
-                    row={row}
-                    onOpen={open}
-                    namesVersion={namesVersion}
-                    current={isCurrent(row)}
-                  />
-                </div>
-              </Fragment>
-            );
-          })}
-        </div>
+        <>
+          <div ref={rowsRef} role="list" className={css.Rows}>
+            {listMotion}
+            {visibleWaiting.map((row) => (
+              <div role="listitem" key={row.key} data-motion-row={row.key}>
+                <ActivityRowItem
+                  row={row}
+                  onOpen={open}
+                  namesVersion={namesVersion}
+                  current={isCurrent(row)}
+                />
+              </div>
+            ))}
+            {showGathered && (
+              <div role="listitem" data-motion-row="invites">
+                <ActivityInvitesRow invites={invites} onOpen={openInvites} />
+              </div>
+            )}
+            {visibleRest.map((row, index) => {
+              const day = activityDay(row.ts, now);
+              const previous = visibleRest[index - 1];
+              const divider = !previous || activityDay(previous.ts, now) !== day;
+              return (
+                <Fragment key={row.key}>
+                  {divider && (
+                    <Text
+                      size="L400"
+                      priority="300"
+                      className={css.Divider}
+                      role="presentation"
+                      data-motion-row={`day:${day}`}
+                    >
+                      {t(`activity.days.${day}`)}
+                    </Text>
+                  )}
+                  <div role="listitem" data-motion-row={row.key}>
+                    <ActivityRowItem
+                      row={row}
+                      onOpen={open}
+                      namesVersion={namesVersion}
+                      current={isCurrent(row)}
+                    />
+                  </div>
+                </Fragment>
+              );
+            })}
+          </div>
+          {hasMore && <div ref={sentinelRef} aria-hidden data-activity-sentinel style={SENTINEL_STYLE} />}
+        </>
       )}
       {(hiddenAutomations > 0 || showAutomations) && (
         <div className={css.Footer}>
