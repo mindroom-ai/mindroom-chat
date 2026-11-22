@@ -6,7 +6,7 @@ import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { SpaceProvider } from '../matrix/hooks/useSpace';
-import { getHomeRoomPath, withSearchParam } from '../routes/pathUtils';
+import { getHomeRoomPath, getSpaceRoomPath, withSearchParam } from '../routes/pathUtils';
 import { useMentionClickHandler } from './useMentionClickHandler';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigateSpace: vi.fn(),
   openProfile: vi.fn(),
+  // The path `useRoomNavigate` picks for a room: Home here, unless a test puts it in a space.
+  roomPath: vi.fn<(roomId: string, eventId?: string) => string>(),
 }));
 
 vi.mock('../navigation/useRoomNavigate', () => ({
@@ -23,6 +25,7 @@ vi.mock('../navigation/useRoomNavigate', () => ({
     navigatePath: mocks.navigatePath,
     navigateRoom: mocks.navigateRoom,
     navigateSpace: mocks.navigateSpace,
+    roomPath: mocks.roomPath,
   }),
 }));
 
@@ -97,6 +100,8 @@ describe('useMentionClickHandler', () => {
     mocks.navigateRoom.mockReset();
     mocks.navigateSpace.mockReset();
     mocks.openProfile.mockReset();
+    mocks.roomPath.mockReset();
+    mocks.roomPath.mockImplementation((roomId, eventId) => getHomeRoomPath(roomId, eventId));
   });
 
   afterEach(() => {
@@ -208,7 +213,7 @@ describe('useMentionClickHandler', () => {
     expect(mocks.navigateSpace).not.toHaveBeenCalled();
   });
 
-  it('navigates to the home room route for an unjoined room alias, preserving eventId and viaServers', () => {
+  it('navigates to the route roomPath gives for an unjoined room alias, preserving eventId and viaServers', () => {
     const client = makeClient([]);
     const alias = '#field-notes:remote.example.org';
 
@@ -231,7 +236,7 @@ describe('useMentionClickHandler', () => {
     );
   });
 
-  it('navigates to the home room route for an unjoined room ID and preserves viaServers and eventId', () => {
+  it('navigates to the route roomPath gives for an unjoined room ID and preserves viaServers and eventId', () => {
     const client = makeClient([]);
     const roomId = '!field-notes:remote.example.org';
 
@@ -258,6 +263,27 @@ describe('useMentionClickHandler', () => {
         viaServers: 'remote.example.org,backup.example.org',
       })
     );
+  });
+
+  it('keeps an unjoined room in the section roomPath picks, such as the selected space', () => {
+    const client = makeClient([]);
+    const roomId = '!field-notes:remote.example.org';
+    mocks.roomPath.mockImplementation((room, eventId) =>
+      getSpaceRoomPath(CURRENT_SPACE_ID, room, eventId)
+    );
+
+    const { event } = renderAndClick(client, {
+      mentionId: roomId,
+      eventId: '$entry-9',
+      via: 'remote.example.org',
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mocks.roomPath).toHaveBeenCalledWith(roomId, '$entry-9');
+    expect(mocks.navigatePath).toHaveBeenCalledWith(
+      '/!ops-space%3Aexample.org/!field-notes%3Aremote.example.org/%24entry-9?viaServers=remote.example.org'
+    );
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
   });
 
   it('routes known non-joined rooms (invite or leave) through navigatePath using knownRoom.roomId and preserving viaServers', () => {

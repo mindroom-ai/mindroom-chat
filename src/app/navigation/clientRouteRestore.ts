@@ -1,12 +1,12 @@
-// Room and space routes as a session stores and opens them: an account's last path keeps room IDs
-// so a renamed or removed alias never strands a return visit, and the shell swaps an incoming alias
+// Room and space routes name a room by alias (`#room:server`) or by room ID (`!id:server`). The
+// signed-in layout stores room ID routes as each session's last route, and swaps a visible alias
 // route for its room ID route before the page renders, so no page flashes a join prompt while an
 // alias resolves.
 
 import type { MatrixClient } from 'matrix-js-sdk';
 import { generatePath, matchPath } from 'react-router-dom';
-import { getCanonicalAliasRoomId, isRoomAlias, isRoomId } from '../matrix/matrix';
-import { Membership } from '../matrix/types/room';
+import { rememberDirectoryViaServers } from '../matrix/directoryViaServers';
+import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
@@ -25,10 +25,6 @@ const EVENT_SEGMENT = 'eventId';
 type Segment = { name: string; text: string };
 
 type RoomRoute = { pattern: string; segments: Segment[] };
-
-type DirectoryLookup = { roomId: string; servers: string[] };
-
-export type ResolvedCanonicalRoute = { pathname: string; search: string };
 
 /**
  * The first room route that matches the whole pathname (case-sensitive, trailing slash
@@ -67,31 +63,19 @@ const knownRoomId = (mx: MatrixClient, roomIdOrAlias: string): string | undefine
   isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias;
 
 /**
- * The room ID and routing servers the homeserver's room directory gives for an alias; else the
- * alias with no servers, never a throw.
+ * The room ID the homeserver's room directory gives for an alias; else the alias, never a throw.
+ * The servers the directory names for the room are remembered for its join page.
  */
-const directoryAlias = async (mx: MatrixClient, alias: string): Promise<DirectoryLookup> => {
+const directoryRoomId = async (mx: MatrixClient, alias: string): Promise<string> => {
   try {
     const { room_id: roomId, servers } = await mx.getRoomIdForAlias(alias);
-    if (!roomId) return { roomId: alias, servers: [] };
-    const via = Array.isArray(servers)
-      ? servers.filter((server): server is string => typeof server === 'string' && server !== '')
-      : [];
-    return { roomId, servers: via };
+    if (!roomId) return alias;
+    rememberDirectoryViaServers(mx, roomId, servers);
+    return roomId;
   } catch {
-    return { roomId: alias, servers: [] };
+    return alias;
   }
 };
-
-const isAlreadyJoined = (mx: MatrixClient, roomId: string): boolean =>
-  mx
-    .getRooms()
-    .find((room) => room.roomId === roomId)
-    ?.getMyMembership?.() === Membership.Join;
-
-const hasExplicitVia = (params: URLSearchParams): boolean =>
-  params.getAll('viaServers').some((value) => value.split(',').some(Boolean)) ||
-  params.getAll('via').some(Boolean);
 
 /** Whether a room or space segment of the route is an alias. Event segments never count. */
 export const pathnameContainsAliasRoute = (pathname: string): boolean =>
@@ -116,56 +100,6 @@ export const canonicalizeSessionPathname = (mx: MatrixClient, pathname: string):
 };
 
 /**
- * The pathname and search with room IDs for the visible route: like `canonicalizeSessionPathname`,
- * and aliases the client does not know are looked up in the homeserver's room directory, all at
- * once. The routing servers the directory gave for the room or space whose join page the route
- * shows are preserved in `viaServers`, unless `search` already provides `viaServers` or `via`.
- * That is the space while the account has not joined it, since its join page comes before the
- * room's, else the room while the account has not joined it. Only its own servers count: a space
- * named by its room ID never borrows the servers of the room below it. A failed lookup keeps its
- * alias, so the promise rejects only when the client itself throws.
- */
-export const resolveCanonicalizedRoute = async (
-  mx: MatrixClient,
-  pathname: string,
-  search = ''
-): Promise<ResolvedCanonicalRoute> => {
-  const route = matchRoomRoute(pathname);
-  if (!route) return { pathname, search };
-  const segments = await Promise.all(
-    route.segments.map(async (segment) => {
-      if (!namesRoom(segment)) return { ...segment, servers: [] as string[] };
-      const local = knownRoomId(mx, segment.text);
-      if (local !== undefined) return { ...segment, text: local, servers: [] as string[] };
-      const { roomId, servers } = await directoryAlias(mx, segment.text);
-      return { ...segment, text: roomId, servers };
-    })
-  );
-  const resolvedPathname = buildPathname(route.pattern, segments);
-  // Only a directory answer brings servers: a route without one reads no membership.
-  if (segments.every((segment) => segment.servers.length === 0)) {
-    return { pathname: resolvedPathname, search };
-  }
-  const namedRoom = (name: string) =>
-    segments.find(
-      (segment) => segment.name === name && (isRoomId(segment.text) || isRoomAlias(segment.text))
-    );
-  const spaceSegment = namedRoom('spaceIdOrAlias');
-  const roomSegment = namedRoom('roomIdOrAlias');
-  let target: typeof spaceSegment;
-  if (spaceSegment && !isAlreadyJoined(mx, spaceSegment.text)) target = spaceSegment;
-  else if (roomSegment && !isAlreadyJoined(mx, roomSegment.text)) target = roomSegment;
-  if (target && target.servers.length > 0) {
-    const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
-    if (!hasExplicitVia(params)) {
-      params.set('viaServers', target.servers.join(','));
-      return { pathname: resolvedPathname, search: `?${params.toString()}` };
-    }
-  }
-  return { pathname: resolvedPathname, search };
-};
-
-/**
  * The pathname with room IDs for the visible route: like `canonicalizeSessionPathname`, and the
  * aliases the client does not know are looked up in the homeserver's room directory, all at once.
  * A failed lookup keeps its alias, so the promise rejects only when the client itself throws.
@@ -173,4 +107,18 @@ export const resolveCanonicalizedRoute = async (
 export const resolveCanonicalizedPathname = async (
   mx: MatrixClient,
   pathname: string
-): Promise<string> => (await resolveCanonicalizedRoute(mx, pathname)).pathname;
+): Promise<string> => {
+  const route = matchRoomRoute(pathname);
+  if (!route) return pathname;
+  const segments = await Promise.all(
+    route.segments.map(async (segment) =>
+      namesRoom(segment)
+        ? {
+            ...segment,
+            text: knownRoomId(mx, segment.text) ?? (await directoryRoomId(mx, segment.text)),
+          }
+        : segment
+    )
+  );
+  return buildPathname(route.pattern, segments);
+};

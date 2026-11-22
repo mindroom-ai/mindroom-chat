@@ -23,6 +23,7 @@ import {
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
 import { useRoomRouteParams } from './useRoomRouteParams';
+import { isJoinedRoom } from './routeVisibility';
 import { currentHistoryLocation } from '../routes/historyStack';
 
 /**
@@ -64,7 +65,12 @@ const getRoomPath = (
   roomId: string,
   eventId?: string
 ): string => {
-  const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
+  // A room the account is in goes by its canonical alias. One it is invited to, left or was
+  // removed from keeps its room ID: its alias may no longer lead to it.
+  const existing = mx.getRoom(roomId);
+  const membership = existing?.getMyMembership?.();
+  const roomIdOrAlias =
+    membership && !isJoinedRoom(existing) ? roomId : getCanonicalAliasOrRoomId(mx, roomId);
   // The room the route shows stays in the route's section: another section is another page,
   // which mounts the room view again (a phone's keyboard closes, the view starts over).
   const shown = routeShowsRoom(mx, route.roomSegment, roomId);

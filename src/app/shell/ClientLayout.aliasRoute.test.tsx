@@ -19,6 +19,7 @@ import {
 } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
+import { allRoomsAtom } from '../matrix/state/roomList';
 import { RoomRoute } from '../room/RoomRoute';
 import { SpaceRouteProvider } from '../sidebar/space/Space';
 import { ClientLayout } from './ClientLayout';
@@ -83,7 +84,8 @@ const mockClientState = vi.hoisted(() => ({
   leave: vi.fn(),
 }));
 
-const clientStub = {
+// A client of its own for each test: the servers a directory lookup names are kept per client.
+const makeClientStub = () => ({
   getRooms: () => mockClientState.rooms,
   getRoom: (roomId: string) => mockClientState.rooms.find((room) => room.roomId === roomId) ?? null,
   getRoomIdForAlias: mockClientState.getRoomIdForAlias,
@@ -94,7 +96,8 @@ const clientStub = {
   getSyncState: () => 'SYNCING',
   on: vi.fn(),
   removeListener: vi.fn(),
-};
+});
+let clientStub = makeClientStub();
 
 mockClientState.rooms = [defaultRoom];
 
@@ -114,6 +117,7 @@ const { getRoomIdForAlias } = mockClientState;
 followRouterSignalsInNode();
 afterEach(() => {
   localStorage.clear();
+  clientStub = makeClientStub();
   mockClientState.rooms = [defaultRoom];
   mockClientState.getRoomIdForAlias.mockReset();
   mockClientState.getRoomSummary.mockReset();
@@ -325,7 +329,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
     }
   };
 
-  const renderWithRoomRoute = async (initialEntry: string) => {
+  const renderWithRoomRoute = async (initialEntry: string, beside?: React.ReactElement) => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -337,6 +341,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
           <JotaiProvider store={store}>
             <ClientStartupProvider hasCompletedInitialSync>
               <MemoryRouter initialEntries={[initialEntry]}>
+                {beside}
                 <ClientLayout nav={null}>
                   <Routes>
                     <Route
@@ -373,7 +378,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
       );
       await flush();
     });
-    return { renderer, queryClient };
+    return { renderer, queryClient, store };
   };
 
   const textOf = (node: unknown): string =>
@@ -466,13 +471,20 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
   });
 
   describe('on a space room route whose space and room live on different servers', () => {
-    const SPACE_ID = '!space:space.example.org';
-    const ROOM_ID = '!room:room.example.org';
-    const NESTED_ALIAS_ROUTE = '/%23space%3Aspace.example.org/%23room%3Aroom.example.org';
+    const SPACE_ID = '!space:one.example';
+    const ROOM_ID = '!room:two.example';
+    const NESTED_ALIAS_ROUTE = '/%23space%3Aone.example/%23room%3Atwo.example';
     const directory: Record<string, { room_id: string; servers: string[] }> = {
-      '#space:space.example.org': { room_id: SPACE_ID, servers: ['space.example.org'] },
-      '#room:room.example.org': { room_id: ROOM_ID, servers: ['room.example.org'] },
+      '#space:one.example': { room_id: SPACE_ID, servers: ['one.example'] },
+      '#room:two.example': { room_id: ROOM_ID, servers: ['two.example'] },
     };
+    const joinedSpace = {
+      roomId: SPACE_ID,
+      getMyMembership: () => KnownMembership.Join,
+      getCanonicalAlias: () => null,
+      getAltAliases: () => [],
+      isSpaceRoom: () => true,
+    } as unknown as Room;
     const answerDirectoryAndSummaries = () => {
       mockClientState.getRoomIdForAlias.mockImplementation(async (alias: string) => {
         const answer = directory[alias];
@@ -506,14 +518,53 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
       const { renderer, queryClient } = await renderWithRoomRoute(NESTED_ALIAS_ROUTE);
 
       // The space's join page comes before the room's: only the space is asked about.
-      expect(mockClientState.getRoomSummary.mock.calls).toEqual([
-        [SPACE_ID, ['space.example.org']],
-      ]);
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[SPACE_ID, ['one.example']]]);
 
       await clickJoin(renderer);
 
       expect(mockClientState.joinRoom.mock.calls).toEqual([
-        [SPACE_ID, { viaServers: ['space.example.org'] }],
+        [SPACE_ID, { viaServers: ['one.example'] }],
+      ]);
+
+      act(() => renderer.unmount());
+      queryClient.clear();
+    });
+
+    it("turns to the room's own servers when the space is joined while the route stays open", async () => {
+      signIn();
+      answerDirectoryAndSummaries();
+      let location: Location | undefined;
+      const Probe = () => {
+        location = useLocation();
+        return null;
+      };
+
+      const { renderer, queryClient, store } = await renderWithRoomRoute(
+        NESTED_ALIAS_ROUTE,
+        <Probe />
+      );
+
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[SPACE_ID, ['one.example']]]);
+      // The address names both by room ID and carries the servers of neither.
+      expect(location?.pathname).toBe('/!space%3Aone.example/!room%3Atwo.example');
+      expect(location?.search).toBe('');
+
+      // The space is joined elsewhere (another device, or the first sync brings it): the same
+      // mounted route goes on to the room's join page.
+      mockClientState.getRoomSummary.mockClear();
+      await act(async () => {
+        mockClientState.rooms = [defaultRoom, joinedSpace];
+        store.set(allRoomsAtom, { type: 'PUT', roomId: SPACE_ID });
+        await flush();
+      });
+
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[ROOM_ID, ['two.example']]]);
+      expect(location?.search).toBe('');
+
+      await clickJoin(renderer);
+
+      expect(mockClientState.joinRoom.mock.calls).toEqual([
+        [ROOM_ID, { viaServers: ['two.example'] }],
       ]);
 
       act(() => renderer.unmount());
@@ -523,26 +574,36 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
     it("asks for and joins an unjoined room of a joined space through the room's servers", async () => {
       signIn();
       answerDirectoryAndSummaries();
-      mockClientState.rooms = [
-        defaultRoom,
-        {
-          roomId: SPACE_ID,
-          getMyMembership: () => KnownMembership.Join,
-          getCanonicalAlias: () => null,
-          getAltAliases: () => [],
-          isSpaceRoom: () => true,
-        } as unknown as Room,
-      ];
+      mockClientState.rooms = [defaultRoom, joinedSpace];
 
       const { renderer, queryClient } = await renderWithRoomRoute(NESTED_ALIAS_ROUTE);
 
-      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[ROOM_ID, ['room.example.org']]]);
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[ROOM_ID, ['two.example']]]);
 
       await clickJoin(renderer);
 
       expect(mockClientState.joinRoom.mock.calls).toEqual([
-        [ROOM_ID, { viaServers: ['room.example.org'] }],
+        [ROOM_ID, { viaServers: ['two.example'] }],
       ]);
+
+      act(() => renderer.unmount());
+      queryClient.clear();
+    });
+
+    it("never lends the room's servers to an unjoined space named by its room ID", async () => {
+      signIn();
+      answerDirectoryAndSummaries();
+
+      const { renderer, queryClient } = await renderWithRoomRoute(
+        '/!space%3Aone.example/%23room%3Atwo.example'
+      );
+
+      expect(mockClientState.getRoomIdForAlias.mock.calls).toEqual([['#room:two.example']]);
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[SPACE_ID, undefined]]);
+
+      await clickJoin(renderer);
+
+      expect(mockClientState.joinRoom.mock.calls).toEqual([[SPACE_ID, { viaServers: undefined }]]);
 
       act(() => renderer.unmount());
       queryClient.clear();
