@@ -5,17 +5,15 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
-import {
-  ROOM_SETTING_DEFINITIONS,
-  type RoomChoiceSettingDefinition,
-} from './roomSettingDefinitions';
+import { ROOM_SETTING_SECTIONS, type RoomChoiceSettingDefinition } from './roomSettingDefinitions';
 import { RoomChoiceSettingTile } from './RoomChoiceSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const DEFINITION = ROOM_SETTING_DEFINITIONS.find(
+const ALL_SETTINGS = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);
+const DEFINITION = ALL_SETTINGS.find(
   (definition): definition is RoomChoiceSettingDefinition => definition.key === 'reply_mode'
 );
-const THREAD_MODE_DEFINITION = ROOM_SETTING_DEFINITIONS.find(
+const THREAD_MODE_DEFINITION = ALL_SETTINGS.find(
   (definition): definition is RoomChoiceSettingDefinition => definition.key === 'thread_mode'
 );
 const FAILED = "Couldn't save the setting. Try again.";

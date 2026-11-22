@@ -116,7 +116,3 @@ export const ROOM_SETTING_SECTIONS: readonly RoomSettingSection[] = [
     ],
   },
 ];
-
-/** Flat list of every setting on the MindRoom page, in display order. */
-export const ROOM_SETTING_DEFINITIONS: readonly RoomSettingDefinition[] =
-  ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);

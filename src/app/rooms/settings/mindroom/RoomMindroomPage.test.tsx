@@ -10,7 +10,7 @@ import { RoomMindroomPage } from './RoomMindroomPage';
 const ROOM = { roomId: '!room:example.test' } as Room;
 
 const mocks = vi.hoisted(() => ({
-  useModelPicker: vi.fn(),
+  useRoomModelCatalog: vi.fn(),
 }));
 
 const CATALOG: ModelPickerState = {
@@ -34,26 +34,21 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('../../../models/useModelPicker', () => ({
-  useModelPicker: (...args: unknown[]) => {
-    mocks.useModelPicker(...args);
+  useRoomModelCatalog: (...args: unknown[]) => {
+    mocks.useRoomModelCatalog(...args);
     return CATALOG;
   },
 }));
 vi.mock('../../../ui/settings/SettingsPageFrame', () => ({
   SettingsPageFrame: ({ title, children }: { title: string; children: React.ReactNode }) => (
     <main aria-label={title}>
-      <h1>{title}</h1>
+      <h2>{title}</h2>
       {children}
     </main>
   ),
 }));
-vi.mock('../../../ui/settings/SettingsSection', () => ({
-  SettingsSection: ({ title, children }: { title?: string; children: React.ReactNode }) => (
-    <section aria-label={title}>
-      {title && <h2>{title}</h2>}
-      {children}
-    </section>
-  ),
+vi.mock('../../../ui/settings/SettingsCard', () => ({
+  SettingsCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('./RoomModelSettingTile', () => ({
   RoomModelSettingTile: ({
@@ -83,7 +78,7 @@ vi.mock('./RoomTextSettingTile', () => ({
 }));
 
 beforeEach(() => {
-  mocks.useModelPicker.mockClear();
+  mocks.useRoomModelCatalog.mockClear();
 });
 
 afterEach(() => {
@@ -91,12 +86,13 @@ afterEach(() => {
 });
 
 describe('RoomMindroomPage', () => {
-  it('groups settings into Agents and Thread titles and shares one room-scope model catalog', () => {
+  it('groups settings into Agents and Thread titles sections with real headings and shares one catalog', () => {
     render(<RoomMindroomPage room={ROOM} requestClose={vi.fn()} />);
 
-    expect(mocks.useModelPicker).toHaveBeenCalledTimes(1);
-    expect(mocks.useModelPicker).toHaveBeenCalledWith(ROOM, undefined);
+    expect(mocks.useRoomModelCatalog).toHaveBeenCalledTimes(1);
+    expect(mocks.useRoomModelCatalog).toHaveBeenCalledWith(ROOM);
 
+    expect(screen.getByRole('heading', { name: 'Agents', level: 3 })).toBeTruthy();
     const agents = screen.getByRole('region', { name: 'Agents' });
     const agentKeys = [...agents.querySelectorAll('[data-testid^="tile-"]')].map((el) =>
       el.getAttribute('data-testid')
@@ -107,6 +103,7 @@ describe('RoomMindroomPage', () => {
       'true'
     );
 
+    expect(screen.getByRole('heading', { name: 'Thread titles', level: 3 })).toBeTruthy();
     const titles = screen.getByRole('region', { name: 'Thread titles' });
     const titleKeys = [...titles.querySelectorAll('[data-testid^="tile-"]')].map((el) =>
       el.getAttribute('data-testid')

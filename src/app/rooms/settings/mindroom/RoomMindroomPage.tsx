@@ -1,6 +1,6 @@
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
-import { useModelPicker } from '../../../models/useModelPicker';
+import { useRoomModelCatalog } from '../../../models/useModelPicker';
 import { SettingsPageFrame } from '../../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../../ui/settings/SettingsSection';
 import { ROOM_SETTING_SECTIONS, type RoomSettingDefinition } from './roomSettingDefinitions';
@@ -11,7 +11,7 @@ import { RoomTextSettingTile } from './RoomTextSettingTile';
 /** The room's MindRoom settings, which its agents read from room state, grouped into sections. */
 export function RoomMindroomPage({ room, requestClose }: { room: Room; requestClose: () => void }) {
   const { t } = useTranslation();
-  const catalog = useModelPicker(room, undefined);
+  const catalog = useRoomModelCatalog(room);
 
   const renderTile = (definition: RoomSettingDefinition) => {
     switch (definition.kind) {
