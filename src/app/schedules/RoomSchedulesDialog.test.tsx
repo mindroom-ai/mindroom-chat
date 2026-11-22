@@ -60,6 +60,7 @@ vi.mock('./roomSchedules.css', () => ({
   ActionsSecondary: 'actions-secondary',
   CompactAction: 'compact-action',
   IconAction: 'icon-action',
+  CopiedStatus: 'copied-status',
   CancelBarButton: 'cancel-bar-button',
   AriaDisabledButton: 'aria-disabled-button',
   Metadata: 'metadata',
@@ -520,18 +521,19 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       onOpenThread: vi.fn(),
     });
     try {
-      const copyBtn = findButtonByAriaLabel(host, 'Copy ID')!;
+      const copyBtn = findButtonByText(host, 'Copy ID')!;
       await click(copyBtn);
       expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
-      expect(copyBtn.getAttribute('aria-label')).toBe('Copy ID');
-      expect(copyBtn.querySelector('p[aria-hidden="true"]')?.textContent).toBe('Copied');
-      const liveRegion = host.querySelector('.sr-only[role="status"][aria-live="polite"]');
+      expect(copyBtn.textContent?.trim()).toBe('Copy ID');
+      const liveRegion = host.querySelector('[role="status"][aria-live="polite"]');
+      expect(liveRegion?.className).toBe('copied-status');
       expect(liveRegion?.textContent).toBe('Copied');
 
       act(() => {
         vi.advanceTimersByTime(2_000);
       });
-      expect(copyBtn.querySelector('p[aria-hidden="true"]')?.textContent).toBe('Copy ID');
+      expect(copyBtn.textContent?.trim()).toBe('Copy ID');
+      expect(liveRegion?.className).toBe('sr-only');
       expect(liveRegion?.textContent).toBe('');
 
       mocks.copyToClipboard.mockResolvedValueOnce(false);

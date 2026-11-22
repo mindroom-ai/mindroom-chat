@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type FocusEvent,
@@ -14,15 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
-import {
-  MsgType,
-  RoomMemberEvent,
-  RoomStateEvent,
-  type MatrixEvent,
-  type Room,
-  type RoomMember,
-} from 'matrix-js-sdk';
-import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/types';
+import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
@@ -62,12 +53,11 @@ import {
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
-import { useScheduleCancelState } from '../schedules/useScheduleCancelState';
-import { isMindroomOwnerUserId } from '../matrix/protocol/agentIdentity';
-import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
+import {
+  useScheduleCancelState,
+  type ScheduleCancelState,
+} from '../schedules/useScheduleCancelState';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
-import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
   composerOfferAtom,
   getRoomInputDraftKey,
@@ -93,6 +83,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
+import { sendCancelScheduledTask } from './roomScheduleActions';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
   HeaderActionButton,
@@ -122,6 +113,8 @@ export type RoomViewHeaderProps = {
   onFocusComposer?: (targetThreadId?: string) => void;
   /** False when the active view has no eligible composer to receive an edit command. */
   canEditSchedule?: boolean;
+  /** Shared per-room schedule cancel state, lifted by RoomView across layout switches. */
+  scheduleCancelState?: ScheduleCancelState;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -243,6 +236,7 @@ export function RoomViewHeader({
   threadFilterState,
   onFocusComposer,
   canEditSchedule = true,
+  scheduleCancelState,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -276,62 +270,11 @@ export function RoomViewHeader({
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const store = useStore();
-  const roomCreators = useRoomCreators(room);
-  const powerLevels = usePowerLevelsContext();
-  const permissions = useRoomPermissions(roomCreators, powerLevels);
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const routerBindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
-  const routerBinding =
-    typeof routerBindingEvent?.isRedacted === 'function' && !routerBindingEvent.isRedacted()
-      ? routerBindingEvent
-      : undefined;
-  const rawPowerLevelsEvent = useStateEvent(room, StateEvent.RoomPowerLevels);
-  const rawPowerLevels =
-    typeof rawPowerLevelsEvent?.getContent === 'function'
-      ? rawPowerLevelsEvent.getContent()
-      : undefined;
-  const boundRouterId = useMemo(
-    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
-    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
-  );
-  const [membershipRevision, setMembershipRevision] = useState(0);
-  useEffect(() => {
-    if (typeof mx.on !== 'function' || typeof mx.removeListener !== 'function') return undefined;
-    let disposed = false;
-    const refresh = () => {
-      if (!disposed) setMembershipRevision((rev) => rev + 1);
-    };
-    const onMember = (event: MatrixEvent | undefined, member?: RoomMember) => {
-      const eventRoomId = event?.getRoomId?.() ?? member?.roomId;
-      if (eventRoomId === room.roomId) refresh();
-    };
-    const onStateMembers = (_event: MatrixEvent, state: { roomId?: string }) => {
-      if (state?.roomId === room.roomId) refresh();
-    };
-    mx.on(RoomMemberEvent.Membership, onMember);
-    mx.on(RoomStateEvent.Members, onStateMembers);
-    if (typeof room.loadMembersIfNeeded === 'function') {
-      room.loadMembersIfNeeded().then(refresh, () => undefined);
-    }
-    return () => {
-      disposed = true;
-      mx.removeListener(RoomMemberEvent.Membership, onMember);
-      mx.removeListener(RoomStateEvent.Members, onStateMembers);
-    };
-  }, [mx, room]);
-  const hasJoinedRouter = useMemo(() => {
-    void membershipRevision;
-    const joinedMembers =
-      typeof room.getJoinedMembers === 'function' ? room.getJoinedMembers() : [];
-    const joinedIds = new Set(joinedMembers.map((member) => member.userId));
-    return (
-      (!!boundRouterId && joinedIds.has(boundRouterId)) ||
-      joinedMembers.some((member) => isMindroomOwnerUserId(member.userId))
-    );
-  }, [boundRouterId, membershipRevision, room]);
-  const canManageSchedules = canSendMessages && !tombstone && hasJoinedRouter;
+  const canManageSchedules = Boolean(hasMindroomAgents && canSendMessages && !tombstone);
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -478,33 +421,15 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
-  const cancelScheduledTask = async (task: ParsedScheduledTask) => {
-    if (!isCommandSafeTaskId(task.taskId)) return;
-    // Always post the cancel command to the task's own destination (never an unrelated or local thread).
-    const cancelTargetThreadId =
-      !task.newThread && task.threadId
-        ? isConfirmedMatrixEventId(task.threadId)
-          ? task.threadId
-          : undefined
-        : undefined;
-    const relation = getMessageRelation(undefined, undefined, cancelTargetThreadId);
-    const content = {
-      msgtype: MsgType.Text,
-      body: `!cancel_schedule ${task.taskId}`,
-      ...(relation ? { 'm.relates_to': relation } : {}),
-    } as RoomMessageEventContent;
-    const txnId = mx.makeTxnId();
-    try {
-      await mx.sendMessage(room.roomId, cancelTargetThreadId ?? null, content, txnId);
-    } catch (error) {
-      discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
-      throw error;
-    }
-  };
-  const scheduleCancelState = useScheduleCancelState(
-    room.roomId,
-    canManageSchedules ? cancelScheduledTask : undefined
+  const cancelScheduledTask = useCallback(
+    (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
+    [mx, room]
   );
+  const localScheduleCancelState = useScheduleCancelState(
+    room.roomId,
+    !scheduleCancelState && canManageSchedules ? cancelScheduledTask : undefined
+  );
+  const activeScheduleCancelState = scheduleCancelState ?? localScheduleCancelState;
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
     if (
@@ -917,7 +842,7 @@ export function RoomViewHeader({
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
           onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
-          cancelState={scheduleCancelState}
+          cancelState={activeScheduleCancelState}
         />
       )}
       {dialog}

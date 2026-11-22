@@ -502,15 +502,45 @@ export const ActionsSecondary = style({
   minWidth: 0,
 });
 
-export const CompactAction = style([touchTarget('4px', '', { blockReach: '10px' })]);
+export const CompactAction = style([
+  {
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${color.Surface.OnContainer}`,
+        outlineOffset: toRem(2),
+      },
+    },
+  },
+  touchTarget('4px', '', { blockReach: '10px' }),
+]);
 
 export const IconAction = style([
   {
     minWidth: toRem(32),
     minHeight: toRem(32),
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${color.Surface.OnContainer}`,
+        outlineOffset: toRem(2),
+      },
+    },
   },
   touchTarget('6px', '', { blockReach: '6px' }),
 ]);
+
+export const CopiedStatus = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  paddingBlock: toRem(2),
+  paddingInline: toRem(8),
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+  border: solid(config.borderWidth.B300, color.Success.ContainerLine),
+  fontSize: config.fontSize.L400,
+  fontWeight: config.fontWeight.W600,
+  lineHeight: 1.35,
+});
 
 export const CancelBarButton = style({
   selectors: {

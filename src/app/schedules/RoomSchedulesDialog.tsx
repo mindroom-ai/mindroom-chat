@@ -96,6 +96,7 @@ function ScheduleAccordionItem({
   const drawerId = useId();
   const detailsId = useId();
   const confirmId = useId();
+  const confirmQuestionId = useId();
   const mx = useMatrixClient();
   const mentionClickHandler = useMentionClickHandler(roomId);
 
@@ -126,9 +127,6 @@ function ScheduleAccordionItem({
 
   useEffect(() => {
     if (!open || !onCancelTask) {
-      if (confirmingCancel && confirmBarRef.current?.contains(document.activeElement)) {
-        toggleButtonRef.current?.focus();
-      }
       setConfirmingCancel(false);
       focusInsideConfirmRef.current = false;
     }
@@ -136,7 +134,7 @@ function ScheduleAccordionItem({
       setEditBusy(false);
       setCopyFailed(false);
     }
-  }, [confirmingCancel, onCancelTask, open]);
+  }, [onCancelTask, open]);
 
   const showCancelBar = Boolean(onCancelTask && (confirmingCancel || isCancelling || cancelError));
 
@@ -427,15 +425,16 @@ function ScheduleAccordionItem({
                 fill="None"
                 radii="300"
                 className={css.CompactAction}
-                aria-label={t('roomSchedules.copyId')}
                 onClick={() => void handleCopyId()}
               >
                 {copied ? <Icon size="100" src={Icons.Check} /> : <CopyIcon />}
-                <Text size="T200" aria-hidden="true">
-                  {copied ? t('roomSchedules.copied') : t('roomSchedules.copyId')}
-                </Text>
+                <Text size="T200">{t('roomSchedules.copyId')}</Text>
               </Button>
-              <span className={css.SrOnly} role="status" aria-live="polite">
+              <span
+                className={copied ? css.CopiedStatus : css.SrOnly}
+                role="status"
+                aria-live="polite"
+              >
                 {copied ? t('roomSchedules.copied') : ''}
               </span>
 
@@ -493,6 +492,8 @@ function ScheduleAccordionItem({
             <div
               id={confirmId}
               ref={confirmBarRef}
+              role="group"
+              aria-labelledby={confirmQuestionId}
               className={css.CancelBar}
               onFocusCapture={() => {
                 focusInsideConfirmRef.current = true;
@@ -503,7 +504,9 @@ function ScheduleAccordionItem({
                 }
               }}
             >
-              <Text size="T200">{t('roomSchedules.cancelConfirm')}</Text>
+              <Text id={confirmQuestionId} size="T200">
+                {t('roomSchedules.cancelConfirm')}
+              </Text>
               {cancelError && (
                 <Text size="T200" role="alert" className={css.CancelError}>
                   {t('roomSchedules.cancelError')}
@@ -518,6 +521,7 @@ function ScheduleAccordionItem({
                   fill="Soft"
                   radii="300"
                   className={css.CancelBarButton}
+                  aria-describedby={confirmQuestionId}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleKeepCancel}
                 >
