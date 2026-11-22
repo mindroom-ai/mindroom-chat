@@ -172,7 +172,7 @@ index cf71a3a..a3e6fb8 100644
  #[derive(uniffi::Enum)]
  pub enum DetectedSecretsBundle {
 diff --git a/bindings/matrix-sdk-ffi/src/room/mod.rs b/bindings/matrix-sdk-ffi/src/room/mod.rs
-index ee11d99..e7a622e 100644
+index ee11d99..466a1a1 100644
 --- a/bindings/matrix-sdk-ffi/src/room/mod.rs
 +++ b/bindings/matrix-sdk-ffi/src/room/mod.rs
 @@ -275,6 +275,14 @@ impl Room {
@@ -190,7 +190,7 @@ index ee11d99..e7a622e 100644
              TimelineFilter::EventFilter { filter: event_filter } => {
                  builder = builder.event_filter(move |event, room_version_id| {
                      // Always perform the default filter first
-@@ -1343,6 +1351,35 @@ impl Room {
+@@ -1343,6 +1351,118 @@ impl Room {
              .into())
      }
  
@@ -223,9 +223,115 @@ index ee11d99..e7a622e 100644
 +        Ok(events.into_iter().map(|event| event.kind.into_raw().json().get().to_owned()).collect())
 +    }
 +
++    /// The event as JSON (its decrypted form when it was encrypted), from the
++    /// event cache or fetched from the homeserver.
++    pub async fn load_or_fetch_event_json(&self, event_id: String) -> Result<String, ClientError> {
++        let event_id = EventId::parse(event_id)?;
++        let event = self.inner.load_or_fetch_event(&event_id, None).await?;
++        Ok(event.kind.into_raw().json().get().to_owned())
++    }
++
++    /// One page of events related to `event_id` as JSON (decrypted form when
++    /// encrypted), without recursion.
++    pub async fn relations_json_page(
++        &self,
++        event_id: String,
++        rel_type: Option<String>,
++        event_type: Option<String>,
++        forward: bool,
++        limit: u32,
++        from: Option<String>,
++    ) -> Result<RelationsJsonPage, ClientError> {
++        let event_id = EventId::parse(event_id)?;
++        let include_relations = match (rel_type, event_type) {
++            (Some(rel), Some(ev)) => {
++                matrix_sdk::room::IncludeRelations::RelationsOfTypeAndEventType(
++                    RumaRelationType::from(rel),
++                    matrix_sdk::ruma::events::TimelineEventType::from(ev),
++                )
++            }
++            (Some(rel), None) => {
++                matrix_sdk::room::IncludeRelations::RelationsOfType(RumaRelationType::from(rel))
++            }
++            (None, None) => matrix_sdk::room::IncludeRelations::AllRelations,
++            (None, Some(_)) => {
++                return Err(ClientError::Generic {
++                    msg: "event_type requires rel_type".to_owned(),
++                    details: None,
++                });
++            }
++        };
++        let options = matrix_sdk::room::RelationsOptions {
++            from,
++            dir: if forward {
++                matrix_sdk::ruma::api::Direction::Forward
++            } else {
++                matrix_sdk::ruma::api::Direction::Backward
++            },
++            limit: Some(matrix_sdk::ruma::UInt::from(limit)),
++            include_relations,
++            recurse: false,
++        };
++        let relations = self.inner.relations(event_id, options).await?;
++        Ok(RelationsJsonPage {
++            events: relations
++                .chunk
++                .into_iter()
++                .map(|event| event.kind.into_raw().json().get().to_owned())
++                .collect(),
++            next_batch: relations.next_batch_token,
++        })
++    }
++
++    /// One page of thread roots as JSON (decrypted form when encrypted),
++    /// keeping `unsigned` fields such as `m.relations.m.thread`.
++    pub async fn threads_json_page(
++        &self,
++        from: Option<String>,
++        limit: u32,
++    ) -> Result<ThreadsJsonPage, ClientError> {
++        let options = matrix_sdk::room::ListThreadsOptions {
++            from,
++            limit: Some(matrix_sdk::ruma::UInt::from(limit)),
++            ..Default::default()
++        };
++        let page = self.inner.list_threads(options).await?;
++        Ok(ThreadsJsonPage {
++            roots: page
++                .chunk
++                .into_iter()
++                .map(|event| event.kind.into_raw().json().get().to_owned())
++                .collect(),
++            next_batch: page.prev_batch_token,
++        })
++    }
++
      /// Either loads the event associated with the `event_id` from the event
      /// cache or fetches it from the homeserver, along with the events related
      /// to it (e.g. reactions and edits), fetched recursively.
+@@ -1417,6 +1537,22 @@ pub struct EventWithRelations {
+     pub related_events: Vec<Arc<TimelineEvent>>,
+ }
+ 
++/// One page of raw JSON events related to an event, as returned by
++/// [`Room::relations_json_page`].
++#[derive(uniffi::Record)]
++pub struct RelationsJsonPage {
++    pub events: Vec<String>,
++    pub next_batch: Option<String>,
++}
++
++/// One page of raw JSON thread root events, as returned by
++/// [`Room::threads_json_page`].
++#[derive(uniffi::Record)]
++pub struct ThreadsJsonPage {
++    pub roots: Vec<String>,
++    pub next_batch: Option<String>,
++}
++
+ /// A listener for receiving call decline events in a room.
+ #[matrix_sdk_ffi_macros::export(callback_interface)]
+ pub trait CallDeclineListener: SyncOutsideWasm + SendOutsideWasm {
 diff --git a/bindings/matrix-sdk-ffi/src/timeline/configuration.rs b/bindings/matrix-sdk-ffi/src/timeline/configuration.rs
 index 09d20bd..686ac7c 100644
 --- a/bindings/matrix-sdk-ffi/src/timeline/configuration.rs
