@@ -651,6 +651,11 @@ export const useTimelineScrollLedgerController = ({
         preSettleScrollTop: number;
         settledScrollTop: number;
         at: number;
+        /**
+         * After the fold came back in a wheel's scroll: the offset of a write WebKit has not
+         * applied yet (the settle's at first), which it may still apply a few frames late.
+         */
+        landsAt?: number;
       }
     | undefined
   >(undefined);
@@ -789,7 +794,9 @@ export const useTimelineScrollLedgerController = ({
       // virtual-core writes this correction itself, so the view moves without the compositor: a
       // move back toward the pre-settle offset is no discarded settle any more (a row above that
       // grew and shrank again landed 8 px from it and had the settle folded in a second time).
-      settleDiscardWatchRef.current = undefined;
+      if (settleDiscardWatchRef.current?.landsAt === undefined) {
+        settleDiscardWatchRef.current = undefined;
+      }
       // Only upward movement can look like relinquished opening ownership. A downward growth
       // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
       measurementCorrectionPxRef.current += Math.min(0, deltaPx);
@@ -914,14 +921,38 @@ export const useTimelineScrollLedgerController = ({
           // commit + fresh true-rest wait); the position itself belongs to
           // the still-live session. Skip the boundary evaluation for this
           // event — its geometry is mid-restoration.
-          settleDiscardWatchRef.current = undefined;
+          // Under a wheel WebKit may still apply the write: the watch goes on for that.
+          watch.landsAt = watch.settledScrollTop;
+          if (wheeledPx === 0) settleDiscardWatchRef.current = undefined;
           countCacheProbe('ledgerSettleWriteDiscarded');
           // The rows' part comes back with the margin, in the render that paints it: without
           // it the end clamp read that part of the restored margin as rows that shrank.
           droppedRowFoldPxRef.current += watch.rowFoldPx;
+          watch.rowFoldPx = -watch.rowFoldPx;
           // Rendered now, before this event's frame paints the rows without their fold.
           flushSync(() => handleDroppedCorrection(watch.px));
           return;
+        } else if (watch.landsAt !== undefined) {
+          // WebKit applies a write it reported as gone, the settle's or one made since at the
+          // offset it reported, once its scrolling thread gets to it: the offset lands where
+          // that write asked (the scroll range's end at most), give or take the wheel's travel.
+          // That move is the browser's, so the ledger takes it and the rows stay where the
+          // reader has them (main shows them a fold away until the write lands).
+          const wheel = Number.isFinite(wheeledPx) ? wheeledPx : 0;
+          const end = scrollElement.scrollHeight - scrollElement.clientHeight;
+          const off = currentScrollTop - wheel - Math.min(watch.landsAt, end);
+          const movedPx = delta - wheel;
+          if (
+            !wheeled &&
+            Math.abs(movedPx) > SETTLE_DISCARD_HELD_SLACK_PX &&
+            Math.abs(off) <= SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel)
+          ) {
+            watch.landsAt = previousScrollTop;
+            droppedRowFoldPxRef.current += watch.rowFoldPx;
+            watch.rowFoldPx = -watch.rowFoldPx;
+            flushSync(() => handleDroppedCorrection(-movedPx));
+            return;
+          }
         } else if (
           Math.abs(currentScrollTop - watch.settledScrollTop) > SETTLE_DISCARD_HELD_SLACK_PX
         ) {

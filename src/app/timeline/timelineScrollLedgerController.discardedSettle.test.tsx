@@ -133,6 +133,33 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     render();
     render();
     expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);
+
+    // The ledger settles again, and a wheel turns 40 px up before WebKit's scrolling thread has
+    // the write: the position comes back as it was plus the wheel's travel, and so does the margin.
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect({ marginTop: inner.style.marginTop, scrollTop: scrollElement.scrollTop }).toEqual({
+      marginTop: '',
+      scrollTop: 492,
+    });
+    const wheelUp = () => scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    wheelUp();
+    scrollElement.scrollTop = 360;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);
+    // WebKit applies the write after all, and the wheel turns once more: the position lands
+    // where the settle asked plus that turn. The ledger takes the browser's move, 132 px of it,
+    // so the rows stay where the two turns of the wheel put them, in the event itself.
+    Object.defineProperty(scrollElement, 'scrollHeight', { value: 5000 });
+    wheelUp();
+    scrollElement.scrollTop = 452;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '40px',
+      rowFoldPx: 0,
+    });
+    expect(marginAtRender.at(-1)).toBe('40px');
   } finally {
     flushSync(() => root.unmount());
     rect.mockRestore();
