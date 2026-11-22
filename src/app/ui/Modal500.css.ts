@@ -5,7 +5,7 @@ import { surfaceContainer } from './styles/Glass.css';
 // Larger screens center the dialog clear of the status bar and the home indicator, so it never
 // slides under a notch and its shadow stays off the strip the page shows there.
 export const SafeOverlayCenter = style({
-  paddingTop: 'var(--app-inset-top, 0px)',
+  paddingTop: 'var(--app-inset-top, env(safe-area-inset-top, 0px))',
   paddingBottom: 'env(safe-area-inset-bottom, 0px)',
 });
 
@@ -16,7 +16,7 @@ export const SafeOverlayCenter = style({
 const phoneMargin = (safeAreaInset: string) => `calc(${safeAreaInset} + ${config.space.S400})`;
 
 export const PhoneInsetOverlayCenter = style({
-  paddingTop: phoneMargin('var(--app-inset-top, 0px)'),
+  paddingTop: phoneMargin('var(--app-inset-top, env(safe-area-inset-top, 0px))'),
   paddingRight: phoneMargin('env(safe-area-inset-right, 0px)'),
   paddingBottom: phoneMargin('env(safe-area-inset-bottom, 0px)'),
   paddingLeft: phoneMargin('env(safe-area-inset-left, 0px)'),
@@ -52,7 +52,7 @@ export const PhoneModal = style({
       maxHeight: 'none',
       borderRadius: 0,
       border: 'none',
-      paddingTop: 'var(--app-inset-top, 0px)',
+      paddingTop: 'var(--app-inset-top, env(safe-area-inset-top, 0px))',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       paddingLeft: 'env(safe-area-inset-left, 0px)',
       paddingRight: 'env(safe-area-inset-right, 0px)',

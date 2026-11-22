@@ -9,27 +9,27 @@ export const desktopBridge = (): DesktopBridge | undefined =>
 export const isDesktopApp = (): boolean => desktopBridge() !== undefined;
 
 /** Whether the page runs inside a Capacitor native shell (iOS, Android, or Mac Catalyst). */
-export const isCapacitorApp = (): boolean => {
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
-};
+export const isCapacitorApp = (): boolean => Capacitor.isNativePlatform();
 
 /** Whether the page runs inside any bundled app shell (Capacitor or Electron). */
 export const isBundledApp = (): boolean => isDesktopApp() || isCapacitorApp();
 
+let subscribedBridge: DesktopBridge | undefined;
+let stopShellEvents: (() => void) | undefined;
+
 /**
  * Marks `<html>` with `data-shell="desktop"` and toggles `data-fullscreen` from shell events.
- * No-op outside the Electron desktop app.
+ * Idempotent for the active bridge; no-op outside the Electron desktop app.
  */
 export const markDesktopShell = (): void => {
   const bridge = desktopBridge();
   if (!bridge || typeof document === 'undefined') return;
   const root = document.documentElement;
   root.dataset.shell = 'desktop';
-  bridge.onShellEvent((event) => {
+  if (subscribedBridge === bridge) return;
+  stopShellEvents?.();
+  subscribedBridge = bridge;
+  stopShellEvents = bridge.onShellEvent((event) => {
     if (event.type !== 'fullscreen') return;
     if (event.value) root.setAttribute('data-fullscreen', '');
     else root.removeAttribute('data-fullscreen');

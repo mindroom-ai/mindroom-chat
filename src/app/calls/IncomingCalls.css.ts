@@ -7,7 +7,7 @@ export const Host = style({
   display: 'grid',
   rowGap: config.space.S200,
   position: 'fixed',
-  top: `calc(var(--app-inset-top, 0px) + ${config.space.S400})`,
+  top: `calc(var(--app-inset-top, env(safe-area-inset-top, 0px)) + ${config.space.S400})`,
   insetInlineEnd: `calc(env(safe-area-inset-right, 0px) + ${config.space.S400})`,
   zIndex: 1000,
   width: `min(${toRem(360)}, calc(100vw - 2 * ${config.space.S400}))`,

@@ -270,14 +270,17 @@ describe('buildBugReport', () => {
   });
 
   it('reports platform as desktop when the desktop bridge is present', async () => {
-    window.mindroomDesktop = { onShellEvent: vi.fn(() => vi.fn()) };
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { onShellEvent: vi.fn(() => vi.fn()) },
+    });
     try {
       const event = fakeEvent('$e1', 1);
       const room = fakeRoom({ live: [event] });
       const report = await buildBugReport(mx as never, room as never, event as never);
       expect(report.client.platform).toBe('desktop');
     } finally {
-      delete window.mindroomDesktop;
+      Reflect.deleteProperty(window, 'mindroomDesktop');
     }
   });
 

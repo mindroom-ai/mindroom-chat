@@ -73,7 +73,7 @@ body {
   margin-top: var(--app-viewport-offset-top, 0px);
   /* The page reaches under the status bar (viewport-fit=cover) with the theme's background,
      which applyThemeToDom gives html and body; the app itself starts below it. */
-  padding-top: var(--app-inset-top, 0px);
+  padding-top: var(--app-inset-top, env(safe-area-inset-top, 0px));
   display: flex;
   flex-direction: column;
 }

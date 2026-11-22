@@ -672,7 +672,9 @@ export function ModelPicker({
   // The room above the button, less a phone's status bar: folds puts a pop-out that does not fit
   // above beside the button instead.
   const room = anchor
-    ? `calc(${anchor.y - POP_OUT_OFFSET}px - var(--app-inset-top, 0px) - ${config.space.S200})`
+    ? `calc(${
+        anchor.y - POP_OUT_OFFSET
+      }px - var(--app-inset-top, env(safe-area-inset-top, 0px)) - ${config.space.S200})`
     : '';
 
   return (

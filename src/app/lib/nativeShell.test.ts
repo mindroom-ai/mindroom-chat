@@ -16,27 +16,39 @@ vi.mock('@capacitor/core', () => ({
   },
 }));
 
+const setDesktopBridge = (bridge: DesktopBridge | undefined): void => {
+  if (bridge === undefined) {
+    Reflect.deleteProperty(window, 'mindroomDesktop');
+  } else {
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+  }
+};
+
 const makeBridge = (): {
   bridge: DesktopBridge;
+  onShellEvent: ReturnType<typeof vi.fn>;
+  unsubscribe: ReturnType<typeof vi.fn>;
   emit: (event: DesktopShellEvent) => void;
 } => {
   let listener: ((event: DesktopShellEvent) => void) | undefined;
+  const unsubscribe = vi.fn(() => {
+    listener = undefined;
+  });
+  const onShellEvent = vi.fn((next: (event: DesktopShellEvent) => void) => {
+    listener = next;
+    return unsubscribe;
+  });
   return {
-    bridge: {
-      onShellEvent: (next) => {
-        listener = next;
-        return () => {
-          if (listener === next) listener = undefined;
-        };
-      },
-    },
+    bridge: { onShellEvent },
+    onShellEvent,
+    unsubscribe,
     emit: (event) => listener?.(event),
   };
 };
 
 describe('nativeShell', () => {
   afterEach(() => {
-    delete window.mindroomDesktop;
+    setDesktopBridge(undefined);
     delete document.documentElement.dataset.shell;
     document.documentElement.removeAttribute('data-fullscreen');
     vi.mocked(Capacitor.isNativePlatform).mockReset();
@@ -55,10 +67,18 @@ describe('nativeShell', () => {
     expect(isBundledApp()).toBe(true);
   });
 
+  it('propagates Capacitor detection errors from isCapacitorApp', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockImplementation(() => {
+      throw new Error('capacitor failed');
+    });
+
+    expect(() => isCapacitorApp()).toThrow('capacitor failed');
+  });
+
   it('treats the Electron bridge as a bundled desktop app while Capacitor reports web', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     const { bridge } = makeBridge();
-    window.mindroomDesktop = bridge;
+    setDesktopBridge(bridge);
 
     expect(desktopBridge()).toBe(bridge);
     expect(isDesktopApp()).toBe(true);
@@ -66,22 +86,30 @@ describe('nativeShell', () => {
     expect(isCapacitorApp()).toBe(false);
   });
 
-  it('marks the document shell and tracks fullscreen events in the desktop app', () => {
+  it('marks the document shell, tracks fullscreen events, and stays idempotent', () => {
     markDesktopShell();
     expect(document.documentElement.dataset.shell).toBeUndefined();
     expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false);
 
-    const { bridge, emit } = makeBridge();
-    window.mindroomDesktop = bridge;
+    const first = makeBridge();
+    setDesktopBridge(first.bridge);
 
     markDesktopShell();
+    markDesktopShell();
+    expect(first.onShellEvent).toHaveBeenCalledTimes(1);
     expect(document.documentElement.dataset.shell).toBe('desktop');
     expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false);
 
-    emit({ type: 'fullscreen', value: true });
+    first.emit({ type: 'fullscreen', value: true });
     expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
 
-    emit({ type: 'fullscreen', value: false });
+    first.emit({ type: 'fullscreen', value: false });
     expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(false);
+
+    const second = makeBridge();
+    setDesktopBridge(second.bridge);
+    markDesktopShell();
+    expect(first.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(second.onShellEvent).toHaveBeenCalledTimes(1);
   });
 });

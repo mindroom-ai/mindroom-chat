@@ -36,7 +36,11 @@ const runsInNativeShell = (): boolean => {
   if (isDesktopApp()) return false;
   const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
   if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
-  return isCapacitorApp();
+  try {
+    return isCapacitorApp();
+  } catch {
+    return false;
+  }
 };
 
 const hasServiceWorkerControl = (): boolean =>

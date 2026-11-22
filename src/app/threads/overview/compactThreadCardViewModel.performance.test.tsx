@@ -174,14 +174,17 @@ describe('compact card formatting work', () => {
       location: { protocol: 'capacitor:' },
       mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
     });
+    const getAccessToken = vi.spyOn(state.mx!, 'getAccessToken');
     const r = record('$a');
     const harness = mount(room, [r]);
     const firstModel = harness.models[0]!;
     expect(firstModel.participants[0]!.avatarUrl).not.toContain('access_token');
+    expect(getAccessToken).not.toHaveBeenCalled();
 
     state.mx!.setAccessToken('rotated-token');
     harness.update([r]);
     expect(harness.models[0]).toBe(firstModel);
+    expect(getAccessToken).not.toHaveBeenCalled();
     harness.unmount();
   });
 

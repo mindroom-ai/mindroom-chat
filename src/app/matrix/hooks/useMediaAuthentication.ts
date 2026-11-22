@@ -15,7 +15,11 @@ const hasNativeMediaTransport = (): boolean => {
   if (isDesktopApp()) return false;
   const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
   if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
-  return isCapacitorApp();
+  try {
+    return isCapacitorApp();
+  } catch {
+    return false;
+  }
 };
 
 /** Whether some transport can attach the access token to media requests. */
