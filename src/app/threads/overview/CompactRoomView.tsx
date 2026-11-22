@@ -472,12 +472,8 @@ export function CompactRoomView({
   }, [folded, heldSections, pinnedRootIds, shownRows]);
   const ids = useMemo(() => Object.values(groups).flat(), [groups]);
   const keyScope = `${room.roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
-  const [intent, setIntent] = useState<{
-    id: string;
-    scope: string;
-    from: Element | null;
-    preventScroll?: boolean;
-  }>();
+  type Intent = { id: string; scope: string; from: Element | null; preventScroll?: boolean };
+  const [intent, setIntent] = useState<Intent>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
   const blocks = useCompactBlocks({
     groups,

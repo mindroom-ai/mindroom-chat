@@ -202,7 +202,11 @@ describe('the thread keys on the compact thread list', () => {
       const actions = [...firstShell.querySelectorAll<HTMLElement>('button:not([disabled])')];
       const lastAction = actions.at(-1)!;
       lastAction.focus();
-      const crossTab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      const crossTab = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        bubbles: true,
+        cancelable: true,
+      });
       act(() => {
         lastAction.dispatchEvent(crossTab);
       });

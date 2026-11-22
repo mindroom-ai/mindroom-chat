@@ -101,7 +101,7 @@ const openOrchard = async (
   });
   const mounted = await cardOrder(page);
   if (mounted.length === topics.length) return mounted;
-  const order = (await walkCompactCards(view, roots)).map(({ id }) => id);
+  const order = await walkCompactCards(view, roots);
   expect(order).toHaveLength(topics.length);
   await view.evaluate((element) => {
     element.scrollTop = 0;

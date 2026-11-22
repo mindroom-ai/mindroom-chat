@@ -218,7 +218,7 @@ test.fixme(
     annotation: {
       type: 'known failure',
       description:
-        'Pre-existing WebKit reduced-motion mobile Back shifts the card by 90 px on main.',
+        'Pre-existing WebKit reduced-motion mobile Back shifts card 1 from 210 to 300 px on main (aabc4e009, M2 control a1202cdb4).',
     },
   },
   async ({ baseURL }) => {

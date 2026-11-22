@@ -8,7 +8,11 @@ import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
-import { compactCardNavigation, compactCardsIn, focusCompactCard } from '../threads/overview/compactCardKeys';
+import {
+  compactCardNavigation,
+  compactCardsIn,
+  focusCompactCard,
+} from '../threads/overview/compactCardKeys';
 import { useThreadKeys } from './useThreadKeys';
 
 const ROOM = '!room:server';

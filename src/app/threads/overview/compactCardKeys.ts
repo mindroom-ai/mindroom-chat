@@ -90,16 +90,14 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
   const { key, target, shiftKey } = event;
   if (key === 'Tab' && target instanceof HTMLElement) {
     const shell = target.closest<HTMLElement>('[data-scroll-anchor]');
-    if (!shell) return;
+    const gap = shiftKey ? shell?.previousElementSibling : shell?.nextElementSibling;
+    if (!shell || !gap?.hasAttribute('data-compact-spacer')) return;
     const tabbable = [...shell.querySelectorAll<HTMLElement>(TABBABLE)].filter(
       (node) => !node.closest('[inert], [hidden]')
     );
-    const edge = shiftKey ? tabbable[0] : tabbable.at(-1);
-    const gap = shiftKey ? shell.previousElementSibling : shell.nextElementSibling;
-    if (target !== edge || !gap?.hasAttribute('data-compact-spacer')) return;
     const at = navigation.ids.indexOf(shell.dataset.scrollAnchor ?? '');
     const next = at < 0 ? undefined : navigation.ids[at + (shiftKey ? -1 : 1)];
-    if (!next) return;
+    if (target !== (shiftKey ? tabbable[0] : tabbable.at(-1)) || !next) return;
     event.preventDefault();
     navigation.focus(next);
     return;

@@ -610,12 +610,7 @@ const switchFromCompact = async (page: Page, fixture: Fixture, label: string) =>
   await expect(view.locator(`[data-thread-root-id="${oldestRoot(fixture)}"]`)).toHaveCount(0);
   const wanted = new Set(fixture.roots);
   const read = await walkCompactCards(view);
-  expect(
-    read
-      .map(({ id }) => id)
-      .filter((id) => wanted.has(id))
-      .sort()
-  ).toEqual([...wanted].sort());
+  expect(read.filter((id) => wanted.has(id)).sort()).toEqual([...wanted].sort());
   await view.evaluate((scroller) => {
     scroller.scrollTop = 0;
   });
