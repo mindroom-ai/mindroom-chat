@@ -7,8 +7,6 @@ import { framingHeaders } from '../../scripts/frame-headers.mjs';
 const APP_SCHEME = 'capacitor';
 export const APP_ORIGIN = `${APP_SCHEME}://localhost`;
 export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html'];
-const OPEN_FLAGS =
-  fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
 
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
@@ -75,24 +73,30 @@ const readBundleFile = async (
 ): Promise<{ file: string; fullPath: string; body: Buffer | null } | undefined> => {
   const lexical = path.resolve(realRoot, relative);
   if (!lexical.startsWith(`${realRoot}${path.sep}`)) return undefined;
-  let handle: fs.promises.FileHandle | undefined;
   try {
     if ((await fs.promises.realpath(lexical)) !== lexical) return undefined;
-    handle = await fs.promises.open(lexical, OPEN_FLAGS);
-    if (!(await handle.stat()).isFile()) return undefined;
-    return { file: relative, fullPath: lexical, body: headOnly ? null : await handle.readFile() };
+    if (!(await fs.promises.stat(lexical)).isFile()) return undefined;
+    return {
+      file: relative,
+      fullPath: lexical,
+      body: headOnly ? null : await fs.promises.readFile(lexical),
+    };
   } catch {
     return undefined;
-  } finally {
-    await handle?.close();
   }
 };
 
 // Packaged, `dist` lives inside the signed, read-only `app.asar`; from a checkout, anyone who can
 // write `dist` can already run code as the user, so mid-request parent swaps are out of scope.
-// Serves only a regular file whose real path equals the requested path inside root, from one handle.
+// Serves only a regular file whose real path equals the requested path inside root. No open handle:
+// inside asar, `fs.open` copies the file out to a temporary file first.
 export const serveBundle = (distDir: string): void => {
-  const realRoot = fs.realpathSync.native(path.resolve(distDir));
+  let realRoot: string;
+  try {
+    realRoot = fs.realpathSync.native(path.resolve(distDir));
+  } catch {
+    throw new Error(`No web bundle at ${distDir}: run \`npm run build:desktop\` first`);
+  }
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method Not Allowed', { status: 405 });

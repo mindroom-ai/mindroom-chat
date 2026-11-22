@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { app, session } from 'electron';
+import { app, dialog, session } from 'electron';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
 import { guardSession, setBlockedUrlRecorder } from './security';
@@ -30,7 +30,13 @@ void app.whenReady().then(() => {
   if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
     session.defaultSession.enableNetworkEmulation({ offline: true });
   }
-  serveBundle(distDir);
+  try {
+    serveBundle(distDir);
+  } catch (error) {
+    dialog.showErrorBox('MindRoom', String(error instanceof Error ? error.message : error));
+    app.exit(1);
+    return;
+  }
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
