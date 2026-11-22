@@ -12,6 +12,7 @@ import {
   type Participant,
   type RemoteTrack,
   type RemoteVideoTrack,
+  type RoomEventCallbacks,
 } from 'livekit-client';
 import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
@@ -64,6 +65,7 @@ const isPageHidden = () => document.visibilityState === 'hidden';
 const CONNECTION_LOST: ReadonlySet<DisconnectReason | undefined> = new Set([
   undefined,
   DisconnectReason.UNKNOWN_REASON,
+  DisconnectReason.SERVER_SHUTDOWN,
   DisconnectReason.STATE_MISMATCH,
   DisconnectReason.JOIN_FAILURE,
   DisconnectReason.MIGRATION,
@@ -498,43 +500,50 @@ export class RoomCall {
     });
   }
 
-  private watchMedia(media: MediaRoom) {
-    media
-      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.TrackUnsubscribed, (track) => {
-        this.detachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantConnected, (participant) => {
-        this.keyPeers.add(participant.identity);
-        this.resendOwnKey();
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantDisconnected, this.refresh)
-      .on(RoomEvent.TrackMuted, this.refresh)
-      .on(RoomEvent.TrackUnmuted, this.refresh)
-      .on(RoomEvent.LocalTrackPublished, this.onLocalTrackPublished)
-      .on(RoomEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-      .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
-      .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
-      .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
-      .on(RoomEvent.Reconnected, () => {
-        if (this.stopped) return;
-        this.hiddenSinceConnected = isPageHidden();
-        this.update({ phase: 'connected' });
-        this.refresh();
-      })
-      // The media server dropped this device for good (LiveKit retries before giving up); after
-      // a leave or another failure this is the teardown's own disconnect.
-      .on(RoomEvent.Disconnected, this.onMediaDisconnected)
-      .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
-        this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-        // A switched microphone is a new media track.
-        this.refresh();
-      });
+  /** This call's handlers of its media room's events; LiveKit has its own on the room. */
+  private readonly mediaHandlers = {
+    [RoomEvent.TrackSubscribed]: (track, _publication, participant) => {
+      if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
+      this.refresh();
+    },
+    [RoomEvent.TrackUnsubscribed]: (track) => {
+      this.detachAudio(track);
+      this.refresh();
+    },
+    [RoomEvent.ParticipantConnected]: (participant) => {
+      this.keyPeers.add(participant.identity);
+      this.resendOwnKey();
+      this.refresh();
+    },
+    [RoomEvent.ParticipantDisconnected]: this.refresh,
+    [RoomEvent.TrackMuted]: this.refresh,
+    [RoomEvent.TrackUnmuted]: this.refresh,
+    [RoomEvent.LocalTrackPublished]: this.onLocalTrackPublished,
+    [RoomEvent.LocalTrackUnpublished]: this.onLocalTrackUnpublished,
+    [RoomEvent.ActiveSpeakersChanged]: this.refresh,
+    [RoomEvent.AudioPlaybackStatusChanged]: this.refresh,
+    [RoomEvent.Reconnecting]: () => this.update({ phase: 'reconnecting' }),
+    [RoomEvent.Reconnected]: () => {
+      // A rejoin that waits for the page sets `connected` itself.
+      if (this.stopped || this.rejoin) return;
+      this.hiddenSinceConnected = isPageHidden();
+      this.update({ phase: 'connected' });
+      this.refresh();
+    },
+    // The media server dropped this device for good (LiveKit retries before giving up); after
+    // a leave or another failure this is the teardown's own disconnect.
+    [RoomEvent.Disconnected]: (reason) => this.onMediaDisconnected(reason),
+    [RoomEvent.ActiveDeviceChanged]: (kind, deviceId) => {
+      this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
+      // A switched microphone is a new media track.
+      this.refresh();
+    },
+  } satisfies Partial<RoomEventCallbacks>;
+
+  private watchMedia(media: MediaRoom, method: 'on' | 'off') {
+    Object.entries(this.mediaHandlers).forEach(([event, handler]) =>
+      media[method](event as keyof RoomEventCallbacks, handler)
+    );
   }
 
   private wakeShownWaiters() {
@@ -571,7 +580,6 @@ export class RoomCall {
    */
   private onMediaDisconnected = (reason?: DisconnectReason) => {
     if (
-      this.stopped ||
       !this.hasConnected ||
       this.rejoin ||
       (!this.hiddenSinceConnected && !isPageHidden()) ||
@@ -582,9 +590,8 @@ export class RoomCall {
     }
     // What this device really had: an input that failed to open stays off.
     Object.assign(this.requestedInputs, this.getResumeInputs());
-    void this.detachMedia()
-      ?.dispose()
-      .catch(() => undefined);
+    const retired = this.detachMedia();
+    void retired?.dispose().catch(() => undefined);
     this.worker?.terminate();
     this.worker = undefined;
     this.ownMembership = undefined;
@@ -731,10 +738,8 @@ export class RoomCall {
 
   /** A grant for the call service: the one asked for while preparing, or a new one. */
   private async grantFor(serviceUrl: string, deviceId: string, fresh = false): Promise<SfuGrant> {
-    if (!fresh) {
-      const early = await this.options.grant;
-      if (early?.serviceUrl === serviceUrl) return early.grant;
-    }
+    const early = fresh ? undefined : await this.options.grant;
+    if (early?.serviceUrl === serviceUrl) return early.grant;
     const token = await this.mx.getOpenIdToken();
     return requestSfuGrant(serviceUrl, { roomId: this.room.roomId, deviceId, token });
   }
@@ -840,7 +845,7 @@ export class RoomCall {
           : {}),
       });
       this.media = media;
-      this.watchMedia(media);
+      this.watchMedia(media, 'on');
       if (this.encrypted) await media.setE2EEEnabled(true);
       // The teardown of a call left meanwhile disconnected this room already; it stays so.
       if (this.stopped) return;
@@ -855,11 +860,9 @@ export class RoomCall {
       await media.dispose().catch(() => undefined);
       return;
     }
-    if (rejoin) {
-      if (!(await this.shown(rejoin))) return;
-      window.clearTimeout(rejoin.timer);
-      this.rejoin = undefined;
-    }
+    if (rejoin && !(await this.shown(rejoin))) return;
+    window.clearTimeout(rejoin?.timer);
+    this.rejoin = undefined;
     this.hasConnected = true;
     this.hiddenSinceConnected = isPageHidden();
     this.update({ phase: 'connected' });
@@ -1010,7 +1013,7 @@ export class RoomCall {
     this.media = undefined;
     this.watchInputTrack('microphone');
     this.watchInputTrack('camera');
-    media?.removeAllListeners();
+    if (media) this.watchMedia(media, 'off');
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
     });

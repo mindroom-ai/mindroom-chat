@@ -1813,6 +1813,22 @@ describe('RoomCall rejoin after background disconnect', () => {
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 
+  it('rejoins after the media server shut down while the page was hidden', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected', DisconnectReason.SERVER_SHUTDOWN);
+    await settle();
+    expect(call.getState()).toMatchObject({ phase: 'reconnecting', problem: undefined });
+
+    setVisibility('visible');
+    await settle();
+    expect(mediaRooms()).toHaveLength(2);
+    expect(session.join).toHaveBeenCalledTimes(2);
+    expect(call.getState().phase).toBe('connected');
+  });
+
   it('never reopens microphone or camera while hidden again during rejoin', async () => {
     const { call, session } = setup({ microphone: true, video: true });
     await call.join();
@@ -1842,6 +1858,8 @@ describe('RoomCall rejoin after background disconnect', () => {
     setVisibility('hidden');
     connecting.resolve();
     await settle();
+    // LiveKit reconnecting the rejoined room on its own does not end the wait for the page.
+    secondMedia.emit('Reconnected');
     expect(call.getState().phase).toBe('reconnecting');
     expect(secondMedia.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
     expect(secondMedia.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
@@ -1982,11 +2000,19 @@ describe('RoomCall rejoin after background disconnect', () => {
     const { call, session } = setup();
     await call.join();
     const firstMedia = onlyMediaRoom();
+    // LiveKit has listeners of its own on the room, which the call leaves there.
+    const liveKitCleanup = vi.fn();
+    firstMedia.once('Disconnected', liveKitCleanup);
+    const liveKitListener = vi.fn();
+    firstMedia.on('TrackSubscribed', liveKitListener);
 
     setVisibility('hidden');
     firstMedia.emit('Disconnected');
     await settle();
     expect(firstMedia.dispose).toHaveBeenCalledTimes(1);
+    expect(liveKitCleanup).toHaveBeenCalledTimes(1);
+    expect(firstMedia.eventNames()).toEqual(['TrackSubscribed']);
+    expect(firstMedia.listeners('TrackSubscribed')).toEqual([liveKitListener]);
 
     setVisibility('visible');
     await settle();
