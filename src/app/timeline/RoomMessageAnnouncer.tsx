@@ -9,7 +9,11 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
-import { isAiRunStreaming } from '../matrix/protocol/aiRun';
+import {
+  hasTerminalStreamMetadata,
+  isAiRunStreaming,
+  readStreamStatus,
+} from '../matrix/protocol/aiRun';
 import { isThreadListTimeline } from '../event-store/timeline/roomLiveEventArrive';
 import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -132,18 +136,22 @@ export function RoomMessageAnnouncer({
       setAnnouncements((previous) => [...previous, { key: id, text }].slice(-KEPT));
     };
 
+    const isInFlightRun = (content: Content): boolean =>
+      isAiRunStreaming(content) ||
+      (!hasTerminalStreamMetadata(content) && readStreamStatus(content) === 'approval_pending');
+
     const consider = (event: MatrixEvent) => {
       const target = replacedId(event);
       if (target) {
         const original = streaming.get(target);
-        if (!original || isAiRunStreaming(event.getContent<Content>())) return;
+        if (!original || isInFlightRun(event.getContent<Content>())) return;
         streaming.delete(target);
         announce(original, shownContent(event));
         return;
       }
       if (!isAnnounceable(event, scope)) return;
       const id = event.getId();
-      if (id && isAiRunStreaming(event.getContent<Content>())) {
+      if (id && isInFlightRun(event.getContent<Content>())) {
         streaming.set(id, event);
         return;
       }

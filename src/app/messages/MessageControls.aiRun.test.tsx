@@ -73,6 +73,44 @@ describe('AiRunControls', () => {
 
     renderer.unmount();
   });
+
+  it('resets dialog open state when details stop being renderable so it does not reopen later', () => {
+    let latestControls: AiRunControlsRenderProps | undefined;
+    const renderWithCapture = (info: AiRunInfo | undefined) => (
+      <AiRunControls info={info}>
+        {(controls) => {
+          latestControls = controls;
+          return <Row controls={controls} />;
+        }}
+      </AiRunControls>
+    );
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(renderWithCapture({ modelDisplayName: 'Gemini 4 Neon' }));
+    });
+    expect(latestControls?.open).toBe(false);
+
+    act(() => {
+      latestControls?.openDetails();
+    });
+    expect(latestControls?.open).toBe(true);
+    expect(renderer.root.findAllByProps({ 'data-modal': '' })).toHaveLength(1);
+
+    // An edit with bare status-only completed hides the dialog and resets open to false.
+    act(() => renderer.update(renderWithCapture({ status: 'completed' })));
+    expect(latestControls).toBeUndefined();
+    expect(renderer.root.findAllByProps({ 'data-modal': '' })).toHaveLength(0);
+
+    // If renderable metadata later returns, the dialog must stay closed.
+    act(() =>
+      renderer.update(renderWithCapture({ status: 'completed', modelDisplayName: 'Gemini 4 Neon' }))
+    );
+    expect(latestControls?.open).toBe(false);
+    expect(renderer.root.findAllByProps({ 'data-modal': '' })).toHaveLength(0);
+
+    renderer.unmount();
+  });
 });
 
 describe('useMessageControls', () => {

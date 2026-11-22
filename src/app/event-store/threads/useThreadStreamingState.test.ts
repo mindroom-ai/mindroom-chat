@@ -1,13 +1,15 @@
 import React from 'react';
 import { EventEmitter } from 'events';
-import { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEvent, Room, Thread, type MatrixClient } from 'matrix-js-sdk';
 import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
 import {
   getThreadStreamingReplies,
   getThreadStreamingState,
+  isEventStreaming,
   useThreadStreamingState,
 } from './useThreadStreamingState';
 
@@ -873,5 +875,112 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.ai_run': { ...earlyAiRun, status: 'interrupted' },
     });
     expect(getThreadStreamingState(room, '$root')).toBe(false);
+  });
+
+  it('does not let an older cached finishing edit veto a newer streaming revision', () => {
+    const roomStub = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => roomStub,
+    }) as unknown as MatrixClient;
+    const stop = keepSyncedEdits(mx);
+    try {
+      const relationMap = new Map<string, MockRelations>();
+      const timelineSet = makeTimelineSet(relationMap, () => []);
+      const makeSyncedEdit = (
+        id: string,
+        ts: number,
+        targetId: string,
+        content: Record<string, unknown>
+      ) => makeEditEvent(id, ts, targetId, content);
+
+      // Case A: completed synced edit followed by a newer edit with ai_run.status === 'streaming'
+      const replyA = makeThreadReplyEvent('$regen-a', 200, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      const finishA = makeSyncedEdit('$regen-a-done', 300, '$regen-a', {
+        body: 'First answer',
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.ai_run': { version: 1, status: 'completed' },
+      });
+      mx.emit(ClientEvent.Event, finishA);
+      replyA.makeReplaced(finishA);
+      expect(isEventStreaming(replyA, undefined, timelineSet as never)).toBe(false);
+
+      const regenStreamingA = makeSyncedEdit('$regen-a-retry', 400, '$regen-a', {
+        body: 'Retrying...',
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      });
+      mx.emit(ClientEvent.Event, regenStreamingA);
+      replyA.makeReplaced(regenStreamingA);
+      expect(isEventStreaming(replyA, undefined, timelineSet as never)).toBe(true);
+
+      // Case B: completed synced edit followed by a newer edit with early model-only ai_run + stream_status: 'streaming'
+      const replyB = makeThreadReplyEvent('$regen-b', 200, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      const finishB = makeSyncedEdit('$regen-b-done', 300, '$regen-b', {
+        body: 'First answer',
+        'io.mindroom.stream_status': 'completed',
+      });
+      mx.emit(ClientEvent.Event, finishB);
+      replyB.makeReplaced(finishB);
+      expect(isEventStreaming(replyB, undefined, timelineSet as never)).toBe(false);
+
+      const regenStreamingB = makeSyncedEdit('$regen-b-retry', 400, '$regen-b', {
+        body: 'Retrying with model...',
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.ai_run': {
+          version: 1,
+          model: { config: 'gemini4_neon', display_name: 'Gemini 4 Neon' },
+        },
+      });
+      mx.emit(ClientEvent.Event, regenStreamingB);
+      replyB.makeReplaced(regenStreamingB);
+      expect(isEventStreaming(replyB, undefined, timelineSet as never)).toBe(true);
+
+      // Case C: redacted finishing edit with no newer edit still returns false
+      const replyC = makeThreadReplyEvent('$redacted-finish', 200, {
+        body: 'Streaming...',
+        'io.mindroom.stream_status': 'streaming',
+      });
+      const finishC = makeSyncedEdit('$redacted-finish-done', 300, '$redacted-finish', {
+        body: 'Done',
+        'io.mindroom.stream_status': 'completed',
+      });
+      mx.emit(ClientEvent.Event, finishC);
+      replyC.makeReplaced(finishC);
+      finishC.makeRedacted(
+        makeMessageEvent('$redaction-c', 310, { redacts: '$redacted-finish-done' }),
+        {} as Parameters<MatrixEvent['makeRedacted']>[1]
+      );
+      replyC.makeReplaced();
+      expect(isEventStreaming(replyC, undefined, timelineSet as never)).toBe(false);
+
+      // Case D: streaming edit followed by terminal edit returns false
+      const replyD = makeThreadReplyEvent('$stream-then-end', 200, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      const streamingD = makeSyncedEdit('$stream-then-end-1', 250, '$stream-then-end', {
+        body: 'Working...',
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      });
+      mx.emit(ClientEvent.Event, streamingD);
+      replyD.makeReplaced(streamingD);
+      expect(isEventStreaming(replyD, undefined, timelineSet as never)).toBe(true);
+
+      const terminalD = makeSyncedEdit('$stream-then-end-2', 300, '$stream-then-end', {
+        body: 'Stopped.',
+        'io.mindroom.stream_status': 'cancelled',
+      });
+      mx.emit(ClientEvent.Event, terminalD);
+      replyD.makeReplaced(terminalD);
+      expect(isEventStreaming(replyD, undefined, timelineSet as never)).toBe(false);
+    } finally {
+      stop();
+    }
   });
 });

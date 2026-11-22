@@ -393,7 +393,10 @@ const STATUS_LABEL_KEYS = {
   cancelled: 'mindroomUi.messages.mindroomReplyDetails.stopped',
 } as const;
 
-/** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
+/**
+ * What a MindRoom reply ran on, what it and the conversation cost, and what it used.
+ * Keep any new rendered section in sync with `hasRenderableAiRunDetails` in `../agent-run/aiRunDisplay.ts`.
+ */
 export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: string }) {
   const { t } = useTranslation();
   const modelLabel = getAiRunCompactModelLabel(info);

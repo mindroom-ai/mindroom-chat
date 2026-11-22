@@ -528,6 +528,55 @@ describe('readThreadSignals', () => {
       kind: 'finished',
       durationMs: FINISHED_AFTER_MS + 10_000,
     });
+
+    const stoppedRecordStatus = event({
+      id: '$stop-record-status',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': { ...earlyRun, status: 'streaming' },
+        'io.mindroom.stream_status': { status: 'cancelled' },
+      },
+    });
+    const { room: r4 } = await setup(ME, [stoppedRecordStatus]);
+    expect(readThreadSignals(r4, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+  });
+
+  it('uses the borrowed stream finish timestamp so a later text-only edit does not inflate a short run', async () => {
+    const reply = event({ id: '$short-reply', ts: 2000, sender: AGENT });
+    const makeReplace = (id: string, ts: number, newContent: Record<string, unknown>) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: ROOM_ID,
+        sender: AGENT,
+        type: 'm.room.message',
+        origin_server_ts: ts,
+        content: {
+          msgtype: 'm.text',
+          body: `* ${id}`,
+          'm.new_content': { msgtype: 'm.text', body: id, ...newContent },
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$short-reply' },
+        },
+      });
+
+    const progressEdit = makeReplace('$short-progress', 4000, {
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+    const completedEdit = makeReplace('$short-completed', 12_000, {
+      'io.mindroom.stream_status': 'completed',
+    });
+    const textOnlyEdit = makeReplace('$short-typo-fix', 122_000, {
+      body: 'Fixed a typo.',
+    });
+
+    const { room, thread } = await setup(ME, [reply], { opened: true });
+    [progressEdit, completedEdit, textOnlyEdit].forEach((edit) => {
+      thread.timelineSet.addLiveEvent(edit, { addToState: false });
+    });
+    reply.makeReplaced(textOnlyEdit);
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).outcome).toBeUndefined();
   });
 
   it('calls an agent thread nobody wrote in an automation', async () => {

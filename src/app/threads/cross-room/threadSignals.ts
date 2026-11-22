@@ -11,7 +11,8 @@ import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish'
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
-import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, readStreamStatus } from '../../matrix/protocol/aiRun';
+import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import {
@@ -220,11 +221,16 @@ const questionSourceId = ({ event, content }: Shown): string | undefined =>
 const readOutcome = ({ event, content, editTs }: Shown): ThreadOutcome | undefined => {
   const run = getAiRunInfo(content);
   const runStatus = run?.status?.toLowerCase();
-  const status =
+  const terminalRunStatus =
     runStatus && (STOPPED_STATUSES.has(runStatus) || FINISHED_STATUSES.has(runStatus))
       ? runStatus
-      : (getStreamStatusFromContent(content) ?? '').toLowerCase();
-  const ts = editTs ?? event.getTs();
+      : undefined;
+  const status = terminalRunStatus ?? readStreamStatus(content) ?? '';
+  const borrowedStreamStatusTs =
+    !terminalRunStatus && typeof content[STREAM_STATUS_TS_KEY] === 'number'
+      ? content[STREAM_STATUS_TS_KEY]
+      : undefined;
+  const ts = borrowedStreamStatusTs ?? editTs ?? event.getTs();
   const durationMs = ts - event.getTs();
   const base = {
     senderId: event.getSender() ?? '',

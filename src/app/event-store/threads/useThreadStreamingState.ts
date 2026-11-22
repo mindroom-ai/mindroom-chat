@@ -13,11 +13,16 @@ import {
   isSameSenderEditEvent,
 } from '../../matrix/editEvent';
 import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotations';
-import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
+import {
+  getEditedEvent,
+  getEventReactions,
+  getLatestMessageContent,
+  isEventOrderedAfter,
+} from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
-import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
+import { getFinishingEdit, getSyncedEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -27,23 +32,28 @@ type ThreadStreamingSnapshot = {
   trackedRelations: Relations[];
 };
 
-const getPreferredEventContent = (
+const resolvePreferredEvent = (
   mEvent: MatrixEvent,
   timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
-): Record<string, unknown> => {
+): { content: Record<string, unknown>; latestEdit: MatrixEvent | undefined } => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
+  const eventId = mEvent.getId();
+  const syncedEditCandidate = eventId ? getSyncedEdit(eventId) : undefined;
   // Every record rebuild checks the tail of every thread, so copy only what
   // getEditedEvent writes to instead of deep-copying each bundled edit.
   const serializedReplacementCandidate = getShallowSerializedReplacementEvent(mEvent);
   const hasResolvableReplacement =
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
-    isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
+    isSameSenderEditEvent(mEvent, serializedReplacementCandidate) ||
+    isSameSenderEditEvent(mEvent, syncedEditCandidate);
 
   if (!hasResolvableReplacement || !timelineSet) {
-    return mEvent.getContent() ?? {};
+    const latestEdit = isSameSenderEditEvent(mEvent, replacingEventCandidate)
+      ? replacingEventCandidate
+      : undefined;
+    return { content: mEvent.getContent() ?? {}, latestEdit };
   }
 
-  const eventId = mEvent.getId();
   // Reuse the detached bundle from the eligibility check. The shared resolver
   // still owns ordering, sender validation and metadata fallbacks.
   const editedEvent =
@@ -51,7 +61,10 @@ const getPreferredEventContent = (
       ? getEditedEvent(eventId, mEvent, timelineSet, serializedReplacementCandidate)
       : undefined;
 
-  return getLatestMessageContent(mEvent, editedEvent);
+  return {
+    content: getLatestMessageContent(mEvent, editedEvent),
+    latestEdit: editedEvent,
+  };
 };
 
 const hasStopReaction = (relations: Relations | undefined): boolean =>
@@ -74,15 +87,18 @@ export const isEventStreaming = (
   relations: Relations | undefined,
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
 ): boolean => {
-  const content = getPreferredEventContent(mEvent, timelineSet);
+  const { content, latestEdit } = resolvePreferredEvent(mEvent, timelineSet);
   const streamStatus = readStreamStatus(content);
+  const finishingEdit = getFinishingEdit(mEvent);
+  const finishedByEdit =
+    !!finishingEdit && (!latestEdit || !isEventOrderedAfter(latestEdit, finishingEdit));
   // hasTerminalStreamMetadata owns both the ai_run terminal set (which
   // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) and string- or
   // record-form terminal stream statuses. A device without the room's keys
   // reads the finishing edit's status in the clear, and a redacted finishing
-  // edit still ended the stream.
+  // edit still ended the stream — unless a newer revision has started streaming.
   const terminalMetadata =
-    hasTerminalStreamMetadata(content) || !!getFinishingEdit(mEvent) || hasStreamEnded(mEvent);
+    hasTerminalStreamMetadata(content) || finishedByEdit || hasStreamEnded(mEvent, latestEdit);
 
   if (terminalMetadata || streamStatus === 'approval_pending') {
     return false;

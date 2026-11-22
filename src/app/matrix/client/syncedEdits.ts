@@ -133,11 +133,12 @@ export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => 
  * revision since. Redacting that edit takes the reply back to the one before, which still says it
  * streams, but the stream is over all the same (P3-webkit-cards-F004).
  */
-export const hasStreamEnded = (reply: MatrixEvent): boolean => {
+export const hasStreamEnded = (reply: MatrixEvent, latestEdit?: MatrixEvent): boolean => {
   const replyId = reply.getId();
   const finish = replyId ? finishes.get(replyId) : undefined;
   if (!finish || finish.sender !== reply.getSender()) return false;
-  return finish.ts >= (reply.replacingEvent?.() ?? reply).getTs();
+  const shown = latestEdit ?? reply.replacingEvent?.() ?? reply;
+  return finish.ts >= shown.getTs();
 };
 
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
