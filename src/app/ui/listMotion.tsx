@@ -206,30 +206,26 @@ const holdsRow = ({ effect, playState }: Animation): boolean =>
   playState === 'running' &&
   !('opacity' in ((effect as KeyframeEffect | null)?.getKeyframes()[0] ?? {}));
 
-type BeforeChangeProps<Snapshot> = {
+type BeforeChangeProps = {
   order: string;
-  read: () => Snapshot | undefined;
-  keep: (before: Snapshot | undefined) => void;
+  read: () => Before | undefined;
+  keep: (before: Before | undefined) => void;
 };
 
 /**
  * Reads the rows right before React changes them. Only a class is told when that is: an effect
  * runs after the change, when the rows that left are gone and the others have moved.
  */
-export class BeforeChange<Snapshot> extends PureComponent<BeforeChangeProps<Snapshot>> {
-  override componentDidMount(): void {
-    this.props.keep(undefined);
-  }
-
-  override getSnapshotBeforeUpdate(): Snapshot | null {
+class BeforeChange extends PureComponent<BeforeChangeProps> {
+  override getSnapshotBeforeUpdate(): Before | null {
     const { read } = this.props;
     return read() ?? null;
   }
 
   override componentDidUpdate(
-    _props: BeforeChangeProps<Snapshot>,
+    _props: BeforeChangeProps,
     _state: unknown,
-    before: Snapshot | null
+    before: Before | null
   ): void {
     const { keep } = this.props;
     keep(before ?? undefined);
@@ -260,7 +256,8 @@ export class BeforeChange<Snapshot> extends PureComponent<BeforeChangeProps<Snap
  * show where they did run on, and ends the fades of rows that left at once; a play the browser
  * has not ended after `LONGEST_PLAY_MS` is ended. Nothing plays
  * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
- * Animations, or in a commit whose scroll owner jumped to a requested place.
+ * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
+ * where that leaves them.
  *
  * A press in the list holds the plays of its rows where they show until its click or cancel, so
  * the pressed row stays under the pointer and gets the click. A row that glided on took the
@@ -275,11 +272,7 @@ export class BeforeChange<Snapshot> extends PureComponent<BeforeChangeProps<Snap
  * plays held until `LONGEST_PLAY_MS` ends them. A row that comes in, and the copy of one that
  * left, always fade on.
  */
-export const useListMotion = (
-  listRef: RefObject<HTMLElement>,
-  order: string,
-  skip?: () => boolean
-): ReactElement => {
+export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
@@ -303,7 +296,7 @@ export const useListMotion = (
     const before = beforeRef.current;
     beforeRef.current = undefined;
     const list = listRef.current;
-    if (!before || !list || skip?.()) return;
+    if (!before || !list) return;
     // A row that still shows where it did keeps its play. Started again, a glide the browser has
     // not begun shows its first frame: a Compact room's cards jumped back to where the last
     // filter had them for each chunk of cards a filter change mounted. A row that moved was read
@@ -338,7 +331,7 @@ export const useListMotion = (
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
     }
-  }, [letGo, listRef, order, skip]);
+  }, [letGo, listRef, order]);
 
   useEffect(() => {
     // Rendered outside a page (a unit test in node), there is no press to listen for.

@@ -2,7 +2,11 @@
 import { fireEvent, render } from '@testing-library/react';
 import { useCallback, useRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { type CompactScrollRequest, useCompactScrollOwner } from './compactScrollOwner';
+import {
+  type CompactScrollRequest,
+  MOUNT_REQUEST,
+  useCompactScrollOwner,
+} from './compactScrollOwner';
 
 const CARD = 100;
 const HEADER = 30;
@@ -70,7 +74,7 @@ const list = (
   }) {
     const viewRef = useRef<HTMLDivElement | null>(null);
     const contentRef = useRef<HTMLDivElement>(null);
-    const { phase } = useCompactScrollOwner({
+    const phase = useCompactScrollOwner({
       viewRef,
       contentRef,
       rows,
@@ -108,9 +112,10 @@ const list = (
     scrollBy: (delta: number) => {
       offset += delta;
     },
+    /** Late layout: the browser tells the observer, in no commit. */
+    resize: () => resizeCallback?.(),
     setInset: (px: number) => {
       inset = px;
-      resizeCallback?.();
     },
   };
 };
@@ -198,6 +203,26 @@ describe('Compact scroll owner', () => {
     expect(writes).toEqual([350]);
   });
 
+  it('keeps the cards in place across a layout shift that came between commits', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { show, setInset, writes } = list(ids, 150);
+    // The header grows before the next render, which finds the cards already lower.
+    setInset(80);
+    show([...ids]);
+    expect(writes).toEqual([230]);
+  });
+
+  it('keeps the cards in place again once a place without cards is reached', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 0, { id: MOUNT_REQUEST, scrollTop: 150, anchors: [] });
+    expect(writes).toEqual([150]);
+    fireEvent.scroll(view);
+    show(['$new', ...ids]);
+    expect(writes).toEqual([150, 250]);
+  });
+
   it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
@@ -217,55 +242,73 @@ describe('Compact scroll owner', () => {
     expect(writes).toEqual([175, 75]);
   });
 
-  it('places a target that stages late and follows it until the last chunk', () => {
-    const { view, show } = list(['$a'], 0, focus, true);
+  it("uses up the room's saved place with the first request the list takes", () => {
+    const ids = ['$a', '$b', '$target'];
+    const { show, writes } = list(ids, 0, focus);
+    show(ids, false, { id: MOUNT_REQUEST, scrollTop: 50, anchors: [] });
+    expect(writes).toEqual([175]);
+  });
+
+  it('places a target that stages late, as each chunk resizes the list', () => {
+    const { view, show, resize } = list(['$a'], 0, focus, true);
     expect(view.scrollTop).toBe(1);
     show(['$a', '$target'], true);
+    resize();
     expect(view.scrollTop).toBe(75);
     show(['$a', '$b', '$target']);
+    resize();
     expect(view.scrollTop).toBe(175);
   });
 
   it('ends a pending placement when the reader scrolls', () => {
-    const { view, show, scrollBy } = list(['$a'], 0, focus, true);
+    const { view, show, scrollBy, resize } = list(['$a'], 0, focus, true);
     scrollBy(30);
     fireEvent.scroll(view);
     show(['$a', '$b', '$target']);
+    resize();
     expect(view.scrollTop).toBe(31);
   });
 
   it('follows a late top inset resize after placing a mounted card without staging', () => {
-    const { view, setInset } = list(['$a', '$b', '$target'], 0, focus);
+    const { view, setInset, resize } = list(['$a', '$b', '$target'], 0, focus);
     expect(view.scrollTop).toBe(175);
     setInset(86);
+    resize();
     expect(view.scrollTop).toBe(261);
   });
 
   it('keeps a focused card in place when threads arrive above it after mount', () => {
     vi.stubGlobal('CSS', { supports: () => true });
-    const { view, show } = list(['$a', '$target'], 0, focus);
+    const { view, show, resize } = list(['$a', '$target'], 0, focus);
     expect(view.scrollTop).toBe(75);
     show(['$x', '$y', '$z', '$a', '$target']);
+    resize();
     expect(view.scrollTop).toBe(375);
   });
 
-  it('stops following a pending placement on reorder and hands off to passive keep', () => {
+  it('ends a placement the first phase moved on from, when a card sorts above the view', () => {
     withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e'];
-    const saved = { id: 'mount', scrollTop: 150, anchors: [{ key: '$c', offset: 50 }] };
-    const { view, show } = list(ids, 0, saved);
+    const saved = { id: MOUNT_REQUEST, scrollTop: 150, anchors: [{ key: '$c', offset: 50 }] };
+    const { view, show, resize, setInset } = list(ids, 0, saved);
     expect(view.scrollTop).toBe(150);
+    fireEvent.scroll(view);
 
-    // $e sorts to the top: the pending restore ends and passive keep holds $c at 50.
+    // $e sorts to the top: the cards in view are kept, so $c stays 50 below the top.
     show(['$e', '$a', '$b', '$c', '$d']);
+    expect(view.scrollTop).toBe(250);
+    // The placement ended there: late layout no longer moves the list.
+    setInset(40);
+    resize();
     expect(view.scrollTop).toBe(250);
   });
 
   it('does not chase a focused card that later reorders to the top', () => {
     vi.stubGlobal('CSS', { supports: () => true });
-    const { view, show } = list(['$a', '$b', '$target'], 0, focus);
+    const { view, show, resize } = list(['$a', '$b', '$target'], 0, focus);
     expect(view.scrollTop).toBe(175);
     show(['$target', '$a', '$b']);
+    resize();
     expect(view.scrollTop).toBe(175);
   });
 });

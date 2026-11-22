@@ -520,6 +520,14 @@ describe('the Compact room in sections', () => {
   });
 
   it("meets the address's request for a card once the card shows, not while its section is folded", () => {
+    // The mount places the list for the request, and follows late layout from there.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
     const memory: ScrollAnchorMemory = new Map();
     // What a return to the entry finds: the place the reader left, unless its request is unmet.
     const placeOnReturn = (eventId: string) => {
@@ -646,11 +654,13 @@ describe('a focus request on the mounted Compact room', () => {
   const VIEW_HEIGHT = 300;
   const cards = Array.from({ length: 10 }, (_unused, index) => `$card${index}`);
   let scrollTop = 0;
+  let inset = 0;
 
   // jsdom lays nothing out: each card is ROW_HEIGHT tall, one under the other, in a list
   // VIEW_HEIGHT tall that scrolls.
   beforeEach(() => {
     scrollTop = 0;
+    inset = 0;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -663,7 +673,8 @@ describe('a focus request on the mounted Compact room', () => {
     ) {
       if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, VIEW_HEIGHT);
       const index = [...document.querySelectorAll('[data-scroll-anchor]')].indexOf(this);
-      return new DOMRect(0, index * ROW_HEIGHT - scrollTop, 300, index < 0 ? 0 : ROW_HEIGHT);
+      const top = inset + index * ROW_HEIGHT - scrollTop;
+      return new DOMRect(0, top, 300, index < 0 ? 0 : ROW_HEIGHT);
     });
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
@@ -676,10 +687,10 @@ describe('a focus request on the mounted Compact room', () => {
   });
 
   const memory: ScrollAnchorMemory = new Map();
-  const at = (focusRequest?: CompactFocusRequest) => (
+  const at = (focusRequest?: CompactFocusRequest, threadRootIds = cards, shownRoom = room) => (
     <CompactRoomView
-      room={room}
-      threadRootIds={cards}
+      room={shownRoom}
+      threadRootIds={threadRootIds}
       threadRecordMap={new Map()}
       onThreadClick={vi.fn()}
       compactRoomScrollStateRef={{ current: memory }}
@@ -732,5 +743,91 @@ describe('a focus request on the mounted Compact room', () => {
     rerender(at({ eventId: '$card2', entryKey: 'pin', pushed: true }));
     expect(scrollTop).toBe(100);
     expect(memory.get(ROOM_ID)).toBe(left);
+  });
+
+  describe('when the next room opens in the mounted view', () => {
+    const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+
+    it('opens it at the place it was left, and the first room again at its own', () => {
+      memory.clear();
+      memory.set(ROOM_ID, { scrollTop: 200, anchors: [] });
+      memory.set(nextRoom.roomId, { scrollTop: 540, anchors: [] });
+      const { rerender } = render(at());
+      expect(scrollTop).toBe(200);
+
+      rerender(at(undefined, cards, nextRoom));
+      expect(scrollTop).toBe(540);
+
+      // Leaving a room saves its place, as an unmount does.
+      scrollTop = 300;
+      rerender(at());
+      scrollTop = 0;
+      rerender(at(undefined, cards, nextRoom));
+      expect(scrollTop).toBe(300);
+    });
+
+    it('mounts its cards down to the place it was left, not to the first room place', () => {
+      const many = Array.from({ length: 100 }, (_unused, index) => `$many${index}`);
+      memory.clear();
+      // The first room was left where none of its cards is listed: the whole list would mount.
+      memory.set(ROOM_ID, { scrollTop: 900, anchors: [{ key: '$gone', offset: 0 }] });
+      memory.set(nextRoom.roomId, { scrollTop: 100, anchors: [{ key: '$many2', offset: 100 }] });
+      const { rerender } = render(at());
+
+      rerender(at(undefined, many, nextRoom));
+      expect(document.querySelectorAll('[data-scroll-anchor]')).toHaveLength(
+        3 + FIRST_SCREEN_CARDS
+      );
+    });
+  });
+
+  it('leaves the list alone when the card of a link the reader went back from comes later', () => {
+    memory.clear();
+    const fewer = cards.slice(0, 4);
+    const { rerender } = render(at(undefined, fewer));
+    rerender(at({ eventId: '$card8', entryKey: 'missing', pushed: true }, fewer));
+    rerender(at(undefined, fewer));
+    rerender(at());
+    expect(scrollTop).toBe(0);
+  });
+
+  describe('without scroll anchoring', () => {
+    const scrollEvent = () => fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+    beforeEach(() => {
+      vi.stubGlobal('CSS', { supports: () => false });
+      memory.clear();
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('keeps the cards in view when the header grows between two renders', () => {
+      const { rerender } = render(at());
+      scrollTop = 350;
+      scrollEvent();
+      inset = 80;
+      rerender(at());
+      expect(scrollTop).toBe(430);
+    });
+
+    it('keeps the cards in view when one joins above, after a restore by offset alone', () => {
+      memory.set(ROOM_ID, { scrollTop: 350, anchors: [] });
+      const { rerender } = render(at());
+      expect(scrollTop).toBe(350);
+      scrollEvent();
+      rerender(at(undefined, ['$new', ...cards]));
+      expect(scrollTop).toBe(450);
+    });
+
+    it('keeps the cards in view when a restored card is pinned and moves to the top', () => {
+      memory.set(ROOM_ID, { scrollTop: 340, anchors: [{ key: '$card5', offset: 160 }] });
+      const { rerender } = render(at());
+      expect(scrollTop).toBe(340);
+      scrollEvent();
+      const top = topOf('$card4');
+      state.pinned = ['$card5'];
+      rerender(at());
+      expect(topOf('$card4')).toBe(top);
+    });
   });
 });

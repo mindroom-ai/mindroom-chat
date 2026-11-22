@@ -58,21 +58,22 @@ export const isCompactFocusRequestOpen = (
   return !!key && !metRequests.get(memory)?.has(key);
 };
 
-/** A mounted link's place. Null waits for the card; undefined means it already shows whole. */
+/** A request that comes to the mounted list `view`: its card's place, unless it shows whole. */
 export const compactFocusPlace = (
   request: CompactFocusRequest,
   view: HTMLElement
-): ScrollAnchorSnapshot | null | undefined => {
+): ScrollAnchorSnapshot | undefined => {
   const card = Array.from(view.querySelectorAll('[data-scroll-anchor]')).find(
     (row) => row.getAttribute('data-scroll-anchor') === request.eventId
   );
-  if (!card) return null;
   const style = getComputedStyle(view);
   const shown = view.getBoundingClientRect();
   const top = shown.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
   const bottom = shown.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
-  const rect = card.getBoundingClientRect();
-  return rect.top >= top && rect.bottom <= bottom ? undefined : focusedPlace(request.eventId);
+  const rect = card?.getBoundingClientRect();
+  return rect && rect.top >= top && rect.bottom <= bottom
+    ? undefined
+    : focusedPlace(request.eventId);
 };
 
 /** The list shows the card `request` asks for. For an effect: a render can be abandoned. */
