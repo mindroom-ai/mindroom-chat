@@ -461,10 +461,13 @@ test.describe('Electron desktop shell', () => {
       });
       await expect
         .poll(() =>
-          page.evaluate(() => {
-            const root = document.getElementById('root');
-            return root ? getComputedStyle(root).paddingTop : null;
-          })
+          page
+            .evaluate(() => {
+              const root = document.getElementById('root');
+              return root ? getComputedStyle(root).paddingTop : null;
+            })
+            // Removing the account may still be reloading the page: ask again after it.
+            .catch(() => null)
         )
         .toBe('0px');
 
@@ -476,10 +479,12 @@ test.describe('Electron desktop shell', () => {
       });
       await expect
         .poll(() =>
-          page.evaluate(() => {
-            const root = document.getElementById('root');
-            return root ? getComputedStyle(root).paddingTop : null;
-          })
+          page
+            .evaluate(() => {
+              const root = document.getElementById('root');
+              return root ? getComputedStyle(root).paddingTop : null;
+            })
+            .catch(() => null)
         )
         .toBe('28px');
     } finally {
