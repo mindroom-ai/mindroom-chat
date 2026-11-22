@@ -21,6 +21,15 @@ import { usePanelPresence } from '../ui/panels/panelPresence';
 import { NoticeSlot } from '../ui/noticeSlots';
 import * as css from './PhoneMembersSheet.css';
 
+const isPanelTransformTransitionRunning = (panel: HTMLElement): boolean =>
+  panel
+    .getAnimations?.()
+    .some(
+      (animation) =>
+        (animation as CSSTransition).transitionProperty === 'transform' &&
+        animation.playState === 'running'
+    ) ?? false;
+
 /** The layer below a phone's top bar that the members slide into; null without the phone layout. */
 export const usePhoneSheetSlot = (): HTMLElement | null => useAtomValue(phoneSheetSlotAtom);
 
@@ -113,6 +122,7 @@ export function PhoneMembersSheet({
       const panel = panelRef.current;
       const scrim = scrimRef.current;
       if (!panel || !scrim) return null;
+      if (isPanelTransformTransitionRunning(panel)) return null;
 
       const extent = panel.getBoundingClientRect().width;
       if (extent <= 0) return null;

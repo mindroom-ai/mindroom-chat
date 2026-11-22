@@ -311,4 +311,34 @@ describe('PhoneMembersSheet', () => {
       document.documentElement.dir = prevDir;
     }
   });
+
+  it('falls back to discrete dismiss without snapping when entry transform transition is running', async () => {
+    const { onClose } = mount(true);
+    const panel = sheet()!;
+    const scrim = slot.querySelector<HTMLElement>('.scrim')!;
+    mockPanelWidth(panel, 300);
+    Object.defineProperty(panel, 'getAnimations', {
+      configurable: true,
+      value: () => [{ transitionProperty: 'transform', playState: 'running' }],
+    });
+
+    act(() => {
+      dispatchTouch(panel, 'touchstart', [{ clientX: 80, clientY: 200 }], 100);
+      dispatchTouch(panel, 'touchmove', [{ clientX: 180, clientY: 200 }], 200);
+      vi.advanceTimersToNextFrame();
+    });
+
+    // Entry transition is not interrupted by data-swiping or inline translate.
+    expect(panel.hasAttribute('data-swiping')).toBe(false);
+    expect(scrim.hasAttribute('data-swiping')).toBe(false);
+    expect(panel.style.translate).toBe('');
+    expect(scrim.style.opacity).toBe('');
+
+    // Releasing past discrete threshold (>= 56 px) still dismisses cleanly.
+    act(() => {
+      dispatchTouch(panel, 'touchend', [], 220);
+    });
+    await flushMicrotasks();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

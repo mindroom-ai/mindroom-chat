@@ -16,7 +16,11 @@ import {
   SWIPE_PRIORITY,
   animateSwipeElements,
 } from '../navigation/interactiveSwipe';
-import { afterWaitingSlide, movePhoneNavDrawer } from '../navigation/phonePageSlide';
+import {
+  afterWaitingSlide,
+  isPhonePageSlideActive,
+  movePhoneNavDrawer,
+} from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
@@ -28,6 +32,15 @@ import { NoticeSlot } from '../ui/noticeSlots';
 import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
+
+const isPanelTransformTransitionRunning = (panel: HTMLElement): boolean =>
+  panel
+    .getAnimations?.()
+    .some(
+      (animation) =>
+        (animation as CSSTransition).transitionProperty === 'transform' &&
+        animation.playState === 'running'
+    ) ?? false;
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
@@ -202,6 +215,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const openDrawer = useCallback(() => setOpen(true), [setOpen]);
   const beginOpenSwipe = useCallback(
     ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
+      if (isPhonePageSlideActive()) return null;
       const panel = panelRef.current;
       const scrim = scrimRef.current;
       if (!panel || !scrim) return null;
@@ -292,6 +306,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       const panel = panelRef.current;
       const scrim = scrimRef.current;
       if (!panel || !scrim) return null;
+      if (isPanelTransformTransitionRunning(panel)) return null;
 
       const extent = panel.getBoundingClientRect().width;
       if (extent <= 0) return null;
@@ -340,19 +355,27 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
           );
         },
         commit() {
+          const focused = document.activeElement;
+          const handOff = store.get(focusHandOffAtom);
+          const shouldReturnFocus =
+            Boolean(focused && panel.contains(focused)) &&
+            (handOff?.to !== 'panel' || handOff.from !== focused);
           swipedClosedRef.current = true;
           flushSync(() => {
             setOpenNow(false);
             setSliding(false);
           });
           clearSwipeStyles();
+          if (shouldReturnFocus) {
+            document.getElementById(PHONE_NAV_MENU_BUTTON_ID)?.focus({ preventScroll: true });
+          }
         },
         cleanup() {
           clearSwipeStyles();
         },
       };
     },
-    [setOpenNow]
+    [setOpenNow, store]
   );
   useSwipeAway(panelRef, 'start', close, {
     enabled: open,
@@ -394,7 +417,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         <div className={css.ListColumn}>
           {/* The drawer covers the page's notice place: what must stay in reach shows here, until
               the drawer has slid away, so a notice does not jump to the page mid-slide. */}
-          {filled && <NoticeSlot place="drawer" />}
+          {(open || sliding) && <NoticeSlot place="drawer" />}
           <div ref={slotRef} className={css.Slot} data-nav-slot />
         </div>
       </div>

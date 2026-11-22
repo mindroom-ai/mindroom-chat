@@ -1103,6 +1103,9 @@ export const slidePhonePage = (change: Change): void => {
  * Runs `change` now, or after the changes that wait for a slide's frame: what it sets is how
  * the page is left when they have run.
  */
+/** Whether a phone page slide is currently waiting for its frame or playing. */
+export const isPhonePageSlideActive = (): boolean => Boolean(waiting || playing || active);
+
 export const afterWaitingSlide = (change: () => void): void => {
   if (waiting) waiting.push(change);
   else change();
