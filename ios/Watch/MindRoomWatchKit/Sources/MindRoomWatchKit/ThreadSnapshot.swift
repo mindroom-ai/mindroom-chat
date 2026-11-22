@@ -35,6 +35,9 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// Milliseconds since the epoch of the root.
     public let rootTs: Int
     public let title: String
+    /// A real title seen in this build (`io.mindroom.title`, a thread summary, or a root voice transcript),
+    /// suitable for persisting in the title cache; nil when falling back to cache or root text.
+    public let knownTitle: String?
     /// The title where the first entry does not give it already: the router's own title, or what stands for a
     /// root that is no entry (one that cannot be read).
     public let heading: String?
@@ -65,12 +68,40 @@ public struct ThreadSnapshot: Equatable, Sendable {
         return .idle(Date(timeIntervalSince1970: Double(latestTs) / 1000))
     }
 
-    public static func build(root: JSON, related: [JSON], ownUserId: String, now: Date) -> ThreadSnapshot {
+    public static func build(
+        root: JSON,
+        related: [JSON],
+        ownUserId: String,
+        now: Date,
+        serverTitle: String? = nil,
+        cachedTitle: String? = nil
+    ) -> ThreadSnapshot {
         let rootId = root.eventId ?? ""
+        // Deduplicate merged pages by event_id, preferring decrypted copies and fresher bundled edits.
+        var byId: [String: JSON] = [:]
+        var anonymous: [JSON] = []
+        for event in related {
+            guard let id = event.eventId else { anonymous.append(event); continue }
+            if id == rootId { continue }
+            if let existing = byId[id] {
+                let existingEncrypted = existing["type"] as? String == "m.room.encrypted"
+                let incomingEncrypted = event["type"] as? String == "m.room.encrypted"
+                let existingEditTs = existing.validBundledEdit?.timestamp ?? -1
+                let incomingEditTs = event.validBundledEdit?.timestamp ?? -1
+                if (existingEncrypted && !incomingEncrypted) || (!incomingEncrypted && incomingEditTs > existingEditTs) {
+                    byId[id] = event
+                }
+            } else {
+                byId[id] = event
+            }
+        }
+        let uniqueRelated = Array(byId.values) + anonymous
+
         var edits: [JSON] = []
         var reactions: [JSON] = []
         var messages: [JSON] = []
-        for event in related {
+        if let rootEdit = root.validBundledEdit { edits.append(rootEdit) }
+        for event in uniqueRelated {
             let type = event["type"] as? String
             if type == "m.reaction" {
                 reactions.append(event)
@@ -78,6 +109,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
                 edits.append(event)
             } else if type == "m.room.message" || type == ApprovalCard.eventType {
                 messages.append(event)
+                if let bundled = event.validBundledEdit { edits.append(bundled) }
             }
         }
         messages.sort { $0.timestamp < $1.timestamp }
@@ -116,9 +148,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
         } ?? message }
         let rootText = PlainText.of(markdown: effectiveContent(root, latestEdit: edit(root))["body"] as? String ?? "")
         let encryptedRoot = root["type"] as? String == "m.room.encrypted"
+        let cleanedServerTitle = serverTitle.flatMap { $0.isEmpty ? nil : $0 }
+        let cleanedCachedTitle = cachedTitle.flatMap { $0.isEmpty ? nil : $0 }
         let summary = ThreadSummary.title(from: notices)
+        let knownTitle = cleanedServerTitle ?? summary ?? transcript
         // Audio's body is its file's name, with the voice mark or without it.
-        let title = summary ?? transcript
+        let title = cleanedServerTitle ?? summary ?? cleanedCachedTitle ?? transcript
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
@@ -177,9 +212,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
             return isMessage(event) ? .message(message(event)) : nil
         }
         let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
+        let explicitHeading = cleanedServerTitle ?? summary ?? (cleanedCachedTitle != transcript ? cleanedCachedTitle : nil)
         return ThreadSnapshot(
-            rootId: rootId, rootTs: root.timestamp, title: title,
-            heading: summary ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
+            rootId: rootId, rootTs: root.timestamp, title: title, knownTitle: knownTitle,
+            heading: explicitHeading ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
             voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
             entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
             latestTs: latestTs)
@@ -238,5 +274,27 @@ extension ThreadSnapshot {
         if event.relation?["rel_type"] as? String == "m.thread", let root = event.relation?["event_id"] as? String { return root }
         if event["type"] as? String == ApprovalCard.eventType, let root = event.content["thread_id"] as? String { return root }
         return event.eventId ?? ""
+    }
+
+    /// Extracts only root voice-echo and thread-summary events (plus unbundled edits targeting them) from a
+    /// head page (`forward: true`), so early titles and transcripts can be read without mixing old replies
+    /// into a tail-window snapshot.
+    public static func headTitleEvents(rootId: String, from events: [JSON]) -> [JSON] {
+        var keepIds: Set<String> = []
+        var kept: [JSON] = []
+        for event in events {
+            let isSummary = event.content["io.mindroom.thread_summary"] is JSON
+            let isRootEcho = VoiceEcho.transcript(event, latestEdit: nil)?.voiceEventId == rootId
+            if isSummary || isRootEcho {
+                kept.append(event)
+                if let id = event.eventId { keepIds.insert(id) }
+            }
+        }
+        for event in events {
+            if let target = event.replacedEventId, keepIds.contains(target) {
+                kept.append(event)
+            }
+        }
+        return kept
     }
 }

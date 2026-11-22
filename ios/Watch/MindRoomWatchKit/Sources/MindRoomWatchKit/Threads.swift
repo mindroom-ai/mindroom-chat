@@ -56,3 +56,116 @@ public enum Waveform {
         }
     }
 }
+
+
+/// One thread root returned by `/threads`, carrying Tuwunel's bundled summary fields
+/// (`io.mindroom.title`, `io.mindroom.latest_reply`, `latest_event`, `count`) for instant first paint
+/// and edit-aware cache invalidation.
+public struct ThreadListEntry: Equatable, Sendable {
+    public let rootId: String
+    public let rootTs: Int
+    public let latestTs: Int
+    public let count: Int
+    public let serverTitle: String?
+    public let fallbackTitle: String
+    public let previewSender: String?
+    public let previewText: String?
+    public let previewIsEncrypted: Bool
+    public let previewIsVoiceOnly: Bool
+    public let voiceFile: String?
+    /// Changes on any new reply, count change, or bundled edit of the latest reply / latest event / title / root.
+    public let cacheKey: String
+
+    public static func parse(_ root: JSON) -> ThreadListEntry? {
+        guard let rootId = root.eventId else { return nil }
+        let threadRel = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON
+        let count = (threadRel?["count"] as? NSNumber)?.intValue ?? 0
+        let latestEvent = threadRel?["latest_event"] as? JSON
+        let latestReply = threadRel?["io.mindroom.latest_reply"] as? JSON
+        let titleEvent = threadRel?["io.mindroom.title"] as? JSON
+
+        let serverTitle: String? = titleEvent.flatMap { event in
+            let content = effectiveContent(event, latestEdit: event.validBundledEdit)
+            let summaryObj = content["io.mindroom.thread_summary"] as? JSON
+            let raw: String?
+            if let summaryObj, (summaryObj["version"] as? NSNumber)?.intValue == 1,
+               let summary = summaryObj["summary"] as? String, !summary.isEmpty {
+                raw = summary
+            } else {
+                raw = content["body"] as? String
+            }
+            guard let raw, !raw.isEmpty else { return nil }
+            return raw
+        }
+
+        let rootEdit = root.validBundledEdit
+        let rootContent = effectiveContent(root, latestEdit: rootEdit)
+        let isAudioRoot = (rootContent["msgtype"] ?? root.content["msgtype"]) as? String == "m.audio"
+        let encryptedRoot = root["type"] as? String == "m.room.encrypted"
+        let rootText = PlainText.of(markdown: rootContent["body"] as? String ?? "")
+        let fallbackTitle = isAudioRoot ? String(localized: "Voice message")
+            : encryptedRoot ? String(localized: "Encrypted message") : rootText
+
+        let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
+        let voiceFile = isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil
+
+        var previewSender: String?
+        var previewText: String?
+        var previewIsEncrypted = false
+        var previewIsVoiceOnly = false
+        if let preview = latestReply ?? latestEvent {
+            previewSender = preview["sender"] as? String
+            let type = preview["type"] as? String
+            if type == "m.room.encrypted" {
+                previewIsEncrypted = true
+            } else if type == ApprovalCard.eventType {
+                previewText = ApprovalCard.parse(preview)?.toolName
+            } else if type == "m.room.message" {
+                let content = effectiveContent(preview, latestEdit: preview.validBundledEdit)
+                let isAudio = (content["msgtype"] ?? preview.content["msgtype"]) as? String == "m.audio"
+                if isAudio {
+                    let caption = AudioCaption.of(content)
+                    previewText = caption
+                    previewIsVoiceOnly = caption == nil
+                } else {
+                    previewText = PlainText.of(markdown: content["body"] as? String ?? "")
+                }
+            }
+        }
+
+        let latestTs = [
+            root.timestamp,
+            rootEdit?.timestamp ?? 0,
+            latestReply?.timestamp ?? 0,
+            latestReply?.validBundledEdit?.timestamp ?? 0,
+            latestEvent?.timestamp ?? 0,
+            latestEvent?.validBundledEdit?.timestamp ?? 0,
+        ].max() ?? root.timestamp
+
+        let cacheKey = [
+            latestEvent?.eventId ?? rootId,
+            String(count),
+            latestEvent?.bundledEdit?.eventId ?? "",
+            latestReply?.eventId ?? "",
+            latestReply?.bundledEdit?.eventId ?? "",
+            titleEvent?.eventId ?? "",
+            titleEvent?.bundledEdit?.eventId ?? "",
+            root.bundledEdit?.eventId ?? "",
+        ].joined(separator: "|")
+
+        return ThreadListEntry(
+            rootId: rootId,
+            rootTs: root.timestamp,
+            latestTs: latestTs,
+            count: count,
+            serverTitle: serverTitle,
+            fallbackTitle: fallbackTitle,
+            previewSender: previewSender,
+            previewText: previewText,
+            previewIsEncrypted: previewIsEncrypted,
+            previewIsVoiceOnly: previewIsVoiceOnly,
+            voiceFile: voiceFile,
+            cacheKey: cacheKey
+        )
+    }
+}

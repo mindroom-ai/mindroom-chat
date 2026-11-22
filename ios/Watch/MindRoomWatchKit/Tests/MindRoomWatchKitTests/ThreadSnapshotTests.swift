@@ -446,4 +446,185 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.reply)
         XCTAssertEqual(snapshot.latestTs, 1)
     }
+
+    private func withBundledEdit(_ base: JSON, _ edit: JSON) -> JSON {
+        var copy = base
+        var unsigned = copy["unsigned"] as? JSON ?? [:]
+        var relations = unsigned["m.relations"] as? JSON ?? [:]
+        relations["m.replace"] = edit
+        unsigned["m.relations"] = relations
+        copy["unsigned"] = unsigned
+        return copy
+    }
+
+    func testBundledEditUnfoldsIntoMessageAndApprovalCard() {
+        let replyEdit = event("$e1", 5, sender: agent, [
+            "msgtype": "m.text", "body": "* Final answer",
+            "m.new_content": ["msgtype": "m.text", "body": "Final answer", "io.mindroom.stream_status": "completed"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let reply = withBundledEdit(
+            event("$r1", 2, sender: agent, inThread(["msgtype": "m.text", "body": "Working…", "io.mindroom.stream_status": "streaming"])),
+            replyEdit
+        )
+        let cardEdit = event("$ce1", 6, sender: "@mindroom_router:x", type: ApprovalCard.eventType, [
+            "m.new_content": ["tool_name": "send_email", "status": "approved"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$c1"] as JSON,
+        ])
+        let approval = withBundledEdit(card("$c1", 3), cardEdit)
+
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply, approval], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.text, "Final answer")
+        XCTAssertEqual(snapshot.reply?.run, .finished)
+        XCTAssertEqual(snapshot.latestTs, 6)
+        XCTAssertNil(snapshot.pendingApproval)
+        XCTAssertEqual(snapshot.approvals.first?.status, .approved)
+    }
+
+    func testWrongSenderOrWrongTargetBundledEditIsIgnored() {
+        let wrongSenderEdit = event("$bad1", 10, sender: "@mallory:x", [
+            "m.new_content": ["msgtype": "m.text", "body": "Hijacked"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let r1 = withBundledEdit(event("$r1", 2, sender: agent, inThread(["msgtype": "m.text", "body": "Original"])), wrongSenderEdit)
+
+        let wrongTargetEdit = event("$bad2", 11, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Wrong target"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$other"] as JSON,
+        ])
+        let r2 = withBundledEdit(event("$r2", 3, sender: agent, inThread(["msgtype": "m.text", "body": "Intact"])), wrongTargetEdit)
+
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [r1, r2], ownUserId: me, now: now)
+        let texts = snapshot.entries.compactMap { entry -> String? in
+            if case let .message(m) = entry { return m.text }
+            return nil
+        }
+        XCTAssertTrue(texts.contains("Original"))
+        XCTAssertTrue(texts.contains("Intact"))
+        XCTAssertFalse(texts.contains("Hijacked"))
+        XCTAssertFalse(texts.contains("Wrong target"))
+    }
+
+    func testNewerUnbundledEditBeatsBundledEdit() {
+        let bundled = event("$e1", 5, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Bundled v1"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let reply = withBundledEdit(event("$r1", 2, sender: agent, inThread(["msgtype": "m.text", "body": "Initial"])), bundled)
+        let unbundled = event("$e2", 8, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Unbundled v2"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply, unbundled], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.text, "Unbundled v2")
+        XCTAssertEqual(snapshot.latestTs, 8)
+    }
+
+    func testTitlePrecedenceAndNeverOverwritingKnownTitleWithRootText() {
+        let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Raw root message"])
+        let windowSummary = event("$sum", 4, sender: "@mindroom_router:x", inThread([
+            "msgtype": "m.notice", "body": "Window Summary",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Window Summary"] as JSON,
+        ]))
+
+        // 1. io.mindroom.title (serverTitle) wins over window summary and cache.
+        let s1 = ThreadSnapshot.build(root: root, related: [windowSummary], ownUserId: me, now: now,
+                                      serverTitle: "Server Title", cachedTitle: "Cached Title")
+        XCTAssertEqual(s1.title, "Server Title")
+        XCTAssertEqual(s1.knownTitle, "Server Title")
+
+        // 2. Window summary wins over cache when serverTitle is nil.
+        let s2 = ThreadSnapshot.build(root: root, related: [windowSummary], ownUserId: me, now: now,
+                                      serverTitle: nil, cachedTitle: "Cached Title")
+        XCTAssertEqual(s2.title, "Window Summary")
+        XCTAssertEqual(s2.knownTitle, "Window Summary")
+
+        // 3. Cached title wins over root text when summary scrolled out of the window.
+        let s3 = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now,
+                                      serverTitle: nil, cachedTitle: "Cached Title")
+        XCTAssertEqual(s3.title, "Cached Title")
+        XCTAssertNil(s3.knownTitle)
+
+        // 4. Fallback to root text only when no serverTitle, summary, cache, or transcript exists.
+        let s4 = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now)
+        XCTAssertEqual(s4.title, "Raw root message")
+        XCTAssertNil(s4.knownTitle)
+    }
+
+    func testPendingApprovalCardOutsideRecentWindowIsDetectedAndDeduplicated() {
+        // Older pending card merged from filtered approval page alongside 20 newer replies.
+        let oldCard = card("$oldCard", 2)
+        let recent = (10..<30).map { i in
+            event("$m\(i)", i, sender: agent, inThread(["msgtype": "m.text", "body": "Reply \(i)"]))
+        }
+        // Pass oldCard twice to ensure merging pages deduplicates by event_id.
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: recent + [oldCard, oldCard], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.pendingApproval?.eventId, "$oldCard")
+        XCTAssertEqual(snapshot.rowState, .needsYou)
+        XCTAssertEqual(snapshot.approvals.count, 1)
+    }
+
+    func testThreadListEntryParsesServerPreviewsAndEditOnlyCacheKeyChanges() {
+        let titleEdit = event("$te1", 12, sender: "@mindroom_router:x", [
+            "m.new_content": ["msgtype": "m.notice", "body": "Renamed Thread",
+                              "io.mindroom.thread_summary": ["version": 1, "summary": "Renamed Thread"] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$t1"] as JSON,
+        ])
+        let titleEvent = withBundledEdit(event("$t1", 5, sender: "@mindroom_router:x", [
+            "msgtype": "m.notice", "body": "Old Title",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Old Title"] as JSON,
+        ]), titleEdit)
+
+        let replyEdit1 = event("$re1", 20, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Draft 1"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let replyEdit2 = event("$re2", 25, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Final 2"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$r1"] as JSON,
+        ])
+        let reply1 = withBundledEdit(event("$r1", 15, sender: agent, ["msgtype": "m.text", "body": "Init"]), replyEdit1)
+        let reply2 = withBundledEdit(event("$r1", 15, sender: agent, ["msgtype": "m.text", "body": "Init"]), replyEdit2)
+
+        func makeRoot(reply: JSON) -> JSON {
+            var r = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Root body"])
+            r["unsigned"] = ["m.relations": ["m.thread": [
+                "count": 3,
+                "latest_event": titleEvent,
+                "io.mindroom.title": titleEvent,
+                "io.mindroom.latest_reply": reply,
+            ] as JSON] as JSON] as JSON
+            return r
+        }
+
+        let entry1 = ThreadListEntry.parse(makeRoot(reply: reply1))
+        let entry2 = ThreadListEntry.parse(makeRoot(reply: reply2))
+        XCTAssertEqual(entry1?.serverTitle, "Renamed Thread")
+        XCTAssertEqual(entry1?.previewSender, agent)
+        XCTAssertEqual(entry1?.previewText, "Draft 1")
+        XCTAssertEqual(entry2?.previewText, "Final 2")
+        XCTAssertEqual(entry2?.latestTs, 25)
+        // Same latest_event and count, only the reply's bundled edit changed -> cacheKey MUST change.
+        XCTAssertNotEqual(entry1?.cacheKey, entry2?.cacheKey)
+    }
+
+    func testHeadTitleEventsKeepsOnlySummariesAndRootVoiceEchoes() {
+        let root = voiceRoot
+        let echo = event("$echo", 2, sender: "@mindroom_router:x", [
+            "msgtype": "m.text", "body": "🎤 Hello watch",
+            "com.mindroom.visible_router_voice_echo": true,
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$root"]] as JSON,
+        ])
+        let summary = event("$sum", 3, sender: "@mindroom_router:x", inThread([
+            "msgtype": "m.notice", "body": "Early title",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Early title"] as JSON,
+        ]))
+        let oldMsg = event("$old", 4, sender: agent, inThread(["msgtype": "m.text", "body": "Old message"]))
+        let filtered = ThreadSnapshot.headTitleEvents(rootId: "$root", from: [echo, summary, oldMsg])
+        XCTAssertEqual(Set(filtered.compactMap(\.eventId)), Set(["$echo", "$sum"]))
+        let snapshot = ThreadSnapshot.build(root: root, related: filtered, ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.title, "Early title")
+        // Old message was not added to entries!
+        XCTAssertEqual(snapshot.entries.map(\.id), ["$root"])
+    }
 }
