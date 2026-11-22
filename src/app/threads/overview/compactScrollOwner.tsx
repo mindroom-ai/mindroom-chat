@@ -42,6 +42,11 @@ const cardsInView = (
   return cards.length > 0 ? { cards, scrollTop, order } : undefined;
 };
 
+const browserAnchorsScroll = (): boolean =>
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('overflow-anchor', 'auto');
+
 export type CompactScrollRequest = { id: string } & (
   | ScrollAnchorSnapshot
   | { focus: CompactFocusRequest }
@@ -139,7 +144,7 @@ export const useCompactScrollOwner = ({
   }));
   const read = () => {
     const view = viewRef.current;
-    if (!view) return undefined;
+    if (!view || browserAnchorsScroll()) return undefined;
     const offset = view.scrollTop;
     // A scroll whose event is still pending is the reader's, not a layout change to undo.
     return offset > 0 && offset === state.offset
