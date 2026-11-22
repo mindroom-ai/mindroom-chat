@@ -595,15 +595,7 @@
         "notInRoom": "このルームにいない人",
         "inviteUser": "{{user}} を招待する",
         "inviteSent": "招待済み",
-        "noMatchingMembers": "一致するメンバーはいません",
-        "makeModerator": "モデレータにする",
-        "makeModeratorUser": "{{user}} をモデレータにする",
-        "madeModerator": "{{user}} にモデレータ権限を付与しました。",
-        "makeRole": "{{role}} にする",
-        "makeRoleUser": "{{user}} を {{role}} にする",
-        "makingModerator": "{{user}} にモデレータ権限を付与しています...",
-        "makingRole": "{{user}} に {{role}} 権限を付与しています...",
-        "madeRole": "{{user}} に {{role}} 権限を付与しました。"
+        "noMatchingMembers": "一致するメンバーはいません"
       }
     },
     "accountMenu": {

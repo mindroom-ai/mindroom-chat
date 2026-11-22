@@ -608,15 +608,7 @@
         "notInRoom": "इस रूम में नहीं",
         "inviteUser": "{{user}} को आमंत्रित करें",
         "inviteSent": "आमंत्रित",
-        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं",
-        "makeModerator": "मध्यस्थ बनाएं",
-        "makeModeratorUser": "{{user}} को मध्यस्थ बनाएं",
-        "madeModerator": "{{user}} को मध्यस्थ अधिकार दिए गए।",
-        "makeRole": "{{role}} बनाएं",
-        "makeRoleUser": "{{user}} को {{role}} बनाएं",
-        "makingModerator": "{{user}} को मध्यस्थ अधिकार दिए जा रहे हैं...",
-        "makingRole": "{{user}} को {{role}} अधिकार दिए जा रहे हैं...",
-        "madeRole": "{{user}} को {{role}} अधिकार दिए गए।"
+        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं"
       }
     },
     "accountMenu": {

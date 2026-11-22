@@ -2,29 +2,24 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
-import { Box, Icon, IconButton, Icons, Text, color } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, color, config, toRem } from 'folds';
 import { Surface } from '../../ui/glass/GlassPrimitives';
 import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { PageSlot } from '../../ui/noticeSlots.css';
 import { detachedGrantErrorAtom } from './moderatorInvite';
-import * as css from '../MembersDrawer.css';
 
 const SHOWN_MS = 12_000;
 
-/**
- * Non-blocking notice for a moderator grant that failed after the Invite dialog had closed.
- * Renders in the app's existing notice slot (`ui/noticeSlots.tsx`) until dismissed or timed out.
- */
+/** Non-blocking notice when a dialog-submitted moderator grant fails after the dialog closed. */
 export function ModeratorGrantErrorNotice() {
   const { t } = useTranslation();
   const [failure, setFailure] = useAtom(detachedGrantErrorAtom);
-  const coverSlot = useAtomValue(coverNoticeSlotAtom);
-  const pageSlot = useAtomValue(pageNoticeSlotAtom);
+  const slot = useAtomValue(coverNoticeSlotAtom) ?? useAtomValue(pageNoticeSlotAtom);
 
   useEffect(() => {
     if (!failure) return undefined;
     const timer = window.setTimeout(
-      () => setFailure((current) => (current?.id === failure.id ? undefined : current)),
+      () => setFailure((cur) => (cur?.id === failure.id ? undefined : cur)),
       SHOWN_MS
     );
     return () => window.clearTimeout(timer);
@@ -32,14 +27,20 @@ export function ModeratorGrantErrorNotice() {
 
   if (!failure) return null;
   const card = (
-    <Surface className={css.GrantErrorNotice} variant="Critical" role="alert">
+    <Surface
+      variant="Critical"
+      role="alert"
+      style={{
+        padding: config.space.S300,
+        borderRadius: config.radii.R500,
+        pointerEvents: 'auto',
+        maxInlineSize: toRem(440),
+        flexShrink: 0,
+      }}
+    >
       <Box alignItems="Center" gap="200">
-        <Icon
-          size="200"
-          src={Icons.Warning}
-          style={{ color: color.Critical.Main, flexShrink: 0 }}
-        />
-        <Text size="T300" style={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+        <Icon size="200" src={Icons.Warning} style={{ color: color.Critical.Main, flexShrink: 0 }} />
+        <Text size="T300" style={{ flexGrow: 1, minInlineSize: 0, overflowWrap: 'anywhere' }}>
           {failure.message}
         </Text>
         <IconButton
@@ -55,7 +56,5 @@ export function ModeratorGrantErrorNotice() {
       </Box>
     </Surface>
   );
-
-  const slot = coverSlot ?? pageSlot;
   return slot ? createPortal(card, slot) : <div className={PageSlot({ phone: false })}>{card}</div>;
 }

@@ -621,15 +621,7 @@
         "notInRoom": "Pas dans ce salon",
         "inviteUser": "Inviter {{user}}",
         "inviteSent": "Invité",
-        "noMatchingMembers": "Aucun membre correspondant",
-        "makeModerator": "Nommer modérateur",
-        "makeModeratorUser": "Nommer {{user}} modérateur",
-        "madeModerator": "Droits de modérateur accordés à {{user}}.",
-        "makeRole": "Nommer {{role}}",
-        "makeRoleUser": "Nommer {{user}} {{role}}",
-        "makingModerator": "Attribution des droits de modérateur à {{user}}...",
-        "makingRole": "Attribution des droits {{role}} à {{user}}...",
-        "madeRole": "Droits {{role}} accordés à {{user}}."
+        "noMatchingMembers": "Aucun membre correspondant"
       }
     },
     "accountMenu": {

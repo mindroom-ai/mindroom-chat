@@ -634,15 +634,7 @@
         "notInRoom": "Не в этой комнате",
         "inviteUser": "Пригласить {{user}}",
         "inviteSent": "Приглашён",
-        "noMatchingMembers": "Нет подходящих участников",
-        "makeModerator": "Сделать модератором",
-        "makeModeratorUser": "Сделать {{user}} модератором",
-        "madeModerator": "Пользователю {{user}} выданы права модератора.",
-        "makeRole": "Назначить: {{role}}",
-        "makeRoleUser": "Назначить {{user}} на роль «{{role}}»",
-        "makingModerator": "Выдача прав модератора пользователю {{user}}...",
-        "makingRole": "Выдача прав роли «{{role}}» пользователю {{user}}...",
-        "madeRole": "Пользователю {{user}} выданы права роли «{{role}}»."
+        "noMatchingMembers": "Нет подходящих участников"
       }
     },
     "accountMenu": {

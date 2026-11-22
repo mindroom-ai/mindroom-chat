@@ -660,15 +660,7 @@
         "notInRoom": "ليسوا في هذه الغرفة",
         "inviteUser": "دعوة ⁨{{user}}⁩",
         "inviteSent": "تمت الدعوة",
-        "noMatchingMembers": "لا يوجد أعضاء مطابقون",
-        "makeModerator": "تعيين كمراقب",
-        "makeModeratorUser": "تعيين ⁨{{user}}⁩ كمراقب",
-        "madeModerator": "تم منح صلاحيات المراقب إلى ⁨{{user}}⁩.",
-        "makeRole": "تعيين كـ⁨{{role}}⁩",
-        "makeRoleUser": "تعيين ⁨{{user}}⁩ كـ⁨{{role}}⁩",
-        "makingModerator": "جارٍ منح صلاحيات المراقب إلى ⁨{{user}}⁩...",
-        "makingRole": "جارٍ منح صلاحيات ⁨{{role}}⁩ إلى ⁨{{user}}⁩...",
-        "madeRole": "تم منح صلاحيات ⁨{{role}}⁩ إلى ⁨{{user}}⁩."
+        "noMatchingMembers": "لا يوجد أعضاء مطابقون"
       }
     },
     "accountMenu": {

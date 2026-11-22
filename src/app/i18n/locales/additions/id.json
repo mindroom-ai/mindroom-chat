@@ -595,15 +595,7 @@
         "notInRoom": "Tidak ada di ruangan ini",
         "inviteUser": "Undang {{user}}",
         "inviteSent": "Diundang",
-        "noMatchingMembers": "Tidak ada anggota yang cocok",
-        "makeModerator": "Jadikan moderator",
-        "makeModeratorUser": "Jadikan {{user}} moderator",
-        "madeModerator": "Hak moderator diberikan kepada {{user}}.",
-        "makeRole": "Jadikan {{role}}",
-        "makeRoleUser": "Jadikan {{user}} {{role}}",
-        "makingModerator": "Memberikan hak moderator kepada {{user}}...",
-        "makingRole": "Memberikan hak {{role}} kepada {{user}}...",
-        "madeRole": "Hak {{role}} diberikan kepada {{user}}."
+        "noMatchingMembers": "Tidak ada anggota yang cocok"
       }
     },
     "accountMenu": {

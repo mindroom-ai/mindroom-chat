@@ -595,15 +595,7 @@
         "notInRoom": "不在此聊天室",
         "inviteUser": "邀请 {{user}}",
         "inviteSent": "已邀请",
-        "noMatchingMembers": "没有匹配的成员",
-        "makeModerator": "设为版主",
-        "makeModeratorUser": "将 {{user}} 设为版主",
-        "madeModerator": "已授予 {{user}} 版主权限。",
-        "makeRole": "设为{{role}}",
-        "makeRoleUser": "将 {{user}} 设为{{role}}",
-        "makingModerator": "正在授予 {{user}} 版主权限...",
-        "makingRole": "正在授予 {{user}} {{role}}权限...",
-        "madeRole": "已授予 {{user}} {{role}}权限。"
+        "noMatchingMembers": "没有匹配的成员"
       }
     },
     "accountMenu": {

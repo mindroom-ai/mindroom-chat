@@ -608,15 +608,7 @@
         "notInRoom": "Not in this room",
         "inviteUser": "Invite {{user}}",
         "inviteSent": "Invited",
-        "noMatchingMembers": "No matching members",
-        "makeModerator": "Make moderator",
-        "makeModeratorUser": "Make {{user}} moderator",
-        "madeModerator": "Gave moderator rights to {{user}}.",
-        "makeRole": "Make {{role}}",
-        "makeRoleUser": "Make {{user}} {{role}}",
-        "makingModerator": "Giving moderator rights to {{user}}...",
-        "makingRole": "Giving {{role}} rights to {{user}}...",
-        "madeRole": "Gave {{role}} rights to {{user}}."
+        "noMatchingMembers": "No matching members"
       }
     },
     "accountMenu": {

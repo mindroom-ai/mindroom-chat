@@ -595,15 +595,7 @@
         "notInRoom": "이 방에 없는 사람",
         "inviteUser": "{{user}} 초대",
         "inviteSent": "초대됨",
-        "noMatchingMembers": "일치하는 멤버 없음",
-        "makeModerator": "중재자로 지정",
-        "makeModeratorUser": "{{user}} 님을 중재자로 지정",
-        "madeModerator": "{{user}} 님에게 중재자 권한을 부여했습니다.",
-        "makeRole": "{{role}}(으)로 지정",
-        "makeRoleUser": "{{user}} 님을 {{role}}(으)로 지정",
-        "makingModerator": "{{user}} 님에게 중재자 권한을 부여하는 중...",
-        "makingRole": "{{user}} 님에게 {{role}} 권한을 부여하는 중...",
-        "madeRole": "{{user}} 님에게 {{role}} 권한을 부여했습니다."
+        "noMatchingMembers": "일치하는 멤버 없음"
       }
     },
     "accountMenu": {

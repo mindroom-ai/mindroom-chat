@@ -621,15 +621,7 @@
         "notInRoom": "Non in questa stanza",
         "inviteUser": "Invita {{user}}",
         "inviteSent": "Invitato",
-        "noMatchingMembers": "Nessun membro corrispondente",
-        "makeModerator": "Rendi moderatore",
-        "makeModeratorUser": "Rendi {{user}} moderatore",
-        "madeModerator": "Permessi di moderatore assegnati a {{user}}.",
-        "makeRole": "Rendi {{role}}",
-        "makeRoleUser": "Rendi {{user}} {{role}}",
-        "makingModerator": "Assegnazione dei permessi di moderatore a {{user}}...",
-        "makingRole": "Assegnazione dei permessi di {{role}} a {{user}}...",
-        "madeRole": "Permessi di {{role}} assegnati a {{user}}."
+        "noMatchingMembers": "Nessun membro corrispondente"
       }
     },
     "accountMenu": {

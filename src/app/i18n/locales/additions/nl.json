@@ -608,15 +608,7 @@
         "notInRoom": "Niet in deze ruimte",
         "inviteUser": "{{user}} uitnodigen",
         "inviteSent": "Uitgenodigd",
-        "noMatchingMembers": "Geen overeenkomende leden",
-        "makeModerator": "Moderator maken",
-        "makeModeratorUser": "{{user}} moderator maken",
-        "madeModerator": "Moderatorrechten gegeven aan {{user}}.",
-        "makeRole": "{{role}} maken",
-        "makeRoleUser": "{{user}} {{role}} maken",
-        "makingModerator": "Moderatorrechten geven aan {{user}}...",
-        "makingRole": "{{role}}-rechten geven aan {{user}}...",
-        "madeRole": "{{role}}-rechten gegeven aan {{user}}."
+        "noMatchingMembers": "Geen overeenkomende leden"
       }
     },
     "accountMenu": {

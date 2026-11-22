@@ -1,6 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { noticeCard, noticeCardOnPage } from '../ui/noticeSlots.css';
 
 // Measured from the members panel of docs/design/reference/room-light.png (1x): the header is
 // folds Header size 600 (54 px) with the count 12 px in; the filter and sort row, the search
@@ -159,29 +158,13 @@ export const InviteList = style({
   listStyle: 'none',
 });
 
-/** A person to invite: main line (48 px) plus optional moderator action underneath. */
+/** A person to invite: avatar, name over user ID, and the Invite button; 48 px high. */
 export const InviteRow = style({
-  display: 'flex',
-  flexDirection: 'column',
-  paddingInline: config.space.S200,
-});
-
-/** Avatar, name over user ID, and the Invite button; 48 px high. */
-export const InviteRowMain = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S200,
   minBlockSize: toRem(48),
-});
-
-/** Compact moderator grant button and error under an invited agent row, aligned with the name. */
-export const InviteRowModerator = style({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-  gap: config.space.S100,
-  paddingInlineStart: `calc(${toRem(32)} + ${config.space.S200})`,
-  paddingBlockEnd: config.space.S100,
+  paddingInline: config.space.S200,
 });
 
 export const InviteAvatar = style({
@@ -222,11 +205,4 @@ export const VisuallyHidden = style({
   overflow: 'hidden',
   clip: 'rect(0, 0, 0, 0)',
   whiteSpace: 'nowrap',
-});
-
-/** Non-blocking alert shown in the page notice slot if a grant fails after the dialog closed. */
-export const GrantErrorNotice = style({
-  ...noticeCard,
-  ...noticeCardOnPage,
-  maxInlineSize: toRem(440),
 });

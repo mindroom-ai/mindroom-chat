@@ -621,15 +621,7 @@
         "notInRoom": "Fora desta sala",
         "inviteUser": "Convidar {{user}}",
         "inviteSent": "Convidado",
-        "noMatchingMembers": "Nenhum membro corresponde",
-        "makeModerator": "Tornar moderador",
-        "makeModeratorUser": "Tornar {{user}} moderador",
-        "madeModerator": "Permissões de moderador concedidas a {{user}}.",
-        "makeRole": "Tornar {{role}}",
-        "makeRoleUser": "Tornar {{user}} {{role}}",
-        "makingModerator": "Concedendo permissões de moderador a {{user}}...",
-        "makingRole": "Concedendo permissões de {{role}} a {{user}}...",
-        "madeRole": "Permissões de {{role}} concedidas a {{user}}."
+        "noMatchingMembers": "Nenhum membro corresponde"
       }
     },
     "accountMenu": {

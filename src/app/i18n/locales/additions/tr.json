@@ -608,15 +608,7 @@
         "notInRoom": "Bu odada değil",
         "inviteUser": "{{user}} kişisini davet et",
         "inviteSent": "Davet edildi",
-        "noMatchingMembers": "Eşleşen üye yok",
-        "makeModerator": "Moderatör yap",
-        "makeModeratorUser": "{{user}} kişisini moderatör yap",
-        "madeModerator": "{{user}} kişisine moderatör yetkisi verildi.",
-        "makeRole": "{{role}} yap",
-        "makeRoleUser": "{{user}} kişisini {{role}} yap",
-        "makingModerator": "{{user}} kişisine moderatör yetkisi veriliyor...",
-        "makingRole": "{{user}} kişisine {{role}} yetkisi veriliyor...",
-        "madeRole": "{{user}} kişisine {{role}} yetkisi verildi."
+        "noMatchingMembers": "Eşleşen üye yok"
       }
     },
     "accountMenu": {

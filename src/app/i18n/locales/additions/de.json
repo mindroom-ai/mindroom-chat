@@ -608,15 +608,7 @@
         "notInRoom": "Nicht in diesem Raum",
         "inviteUser": "{{user}} einladen",
         "inviteSent": "Eingeladen",
-        "noMatchingMembers": "Keine passenden Mitglieder",
-        "makeModerator": "Zum Moderator machen",
-        "makeModeratorUser": "{{user}} zum Moderator machen",
-        "madeModerator": "{{user}} hat Moderatorrechte erhalten.",
-        "makeRole": "Zu {{role}} machen",
-        "makeRoleUser": "{{user}} zu {{role}} machen",
-        "makingModerator": "Moderatorrechte werden an {{user}} erteilt...",
-        "makingRole": "{{role}}-Rechte werden an {{user}} erteilt...",
-        "madeRole": "{{user}} hat {{role}}-Rechte erhalten."
+        "noMatchingMembers": "Keine passenden Mitglieder"
       }
     },
     "accountMenu": {

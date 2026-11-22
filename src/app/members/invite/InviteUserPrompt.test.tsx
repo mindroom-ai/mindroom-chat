@@ -8,6 +8,7 @@ import { config, toRem } from 'folds';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { userDirectoryCacheAtom, type UserDirectoryCacheState } from '../userDirectoryCache';
 import { detachedGrantErrorAtom } from './moderatorInvite';
+import { ModeratorGrantErrorNotice } from './ModeratorGrantErrorNotice';
 import { InviteUserPrompt } from './InviteUserPrompt';
 
 const directUsersMock = vi.hoisted(() => ({
@@ -762,5 +763,29 @@ describe('InviteUserPrompt', () => {
     await submitInvite(renderer);
 
     expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
+  });
+
+  it('renders and dismisses a detached grant failure notice', () => {
+    const store = createStore();
+    store.set(detachedGrantErrorAtom, {
+      id: 1,
+      message: 'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden',
+    });
+    let notice: ReactTestRenderer;
+    act(() => {
+      notice = create(
+        <Provider store={store}>
+          <ModeratorGrantErrorNotice />
+        </Provider>
+      );
+    });
+    const alert = notice!.root.findByProps({ role: 'alert' });
+    expect(alert).toBeDefined();
+    const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss' });
+    act(() => {
+      dismiss.props.onClick();
+    });
+    expect(store.get(detachedGrantErrorAtom)).toBeUndefined();
+    expect(notice!.toJSON()).toBeNull();
   });
 });

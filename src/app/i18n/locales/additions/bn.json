@@ -608,15 +608,7 @@
         "notInRoom": "এই রুমে নেই",
         "inviteUser": "{{user}}-কে আমন্ত্রণ জানান",
         "inviteSent": "আমন্ত্রিত",
-        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই",
-        "makeModerator": "মডারেটর করুন",
-        "makeModeratorUser": "{{user}}-কে মডারেটর করুন",
-        "madeModerator": "{{user}}-কে মডারেটরের অধিকার দেওয়া হয়েছে।",
-        "makeRole": "{{role}} করুন",
-        "makeRoleUser": "{{user}}-কে {{role}} করুন",
-        "makingModerator": "{{user}}-কে মডারেটরের অধিকার দেওয়া হচ্ছে...",
-        "makingRole": "{{user}}-কে {{role}}-এর অধিকার দেওয়া হচ্ছে...",
-        "madeRole": "{{user}}-কে {{role}}-এর অধিকার দেওয়া হয়েছে।"
+        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই"
       }
     },
     "accountMenu": {

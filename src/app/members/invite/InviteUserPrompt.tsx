@@ -28,11 +28,10 @@ import {
   detachedGrantErrorAtom,
   getRawPowerLevels,
   grantRoleName,
+  grantRoomModeratorRights,
   hasModeratorMindroomAgent,
   moderatorGrantLevel,
   nextDetachedGrantFailure,
-  runRoomModeratorGrant,
-  useRoomModeratorGrantState,
 } from './moderatorInvite';
 import { usePowerLevelTags } from '../usePowerLevelTags';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -104,7 +103,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const creators = useRoomCreators(room);
   const members = useRoomMembers(client, room.roomId);
   const tags = usePowerLevelTags(room);
-  const { hasPendingGrant } = useRoomModeratorGrantState(client, room.roomId);
   const me = client.getSafeUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState('');
@@ -127,9 +125,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const roleName = grantRoleName(tags, grantLevel, t);
   const membersLoaded = typeof room.membersLoaded === 'function' ? room.membersLoaded() : false;
   const defaultModerator =
-    membersLoaded &&
-    !hasPendingGrant &&
-    !hasModeratorMindroomAgent(members, me, levels, creators, rawLevels);
+    membersLoaded && !hasModeratorMindroomAgent(members, me, levels, creators, rawLevels);
   const grantModerator =
     grantOverride?.target === trimmedTarget ? grantOverride.checked : defaultModerator;
 
@@ -180,34 +176,29 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     // Finish the submitted grant even if the user closed the dialog while invite was in flight.
     if (shouldGrant) {
       try {
-        await runRoomModeratorGrant(client, room, target);
+        await grantRoomModeratorRights(client, room, target);
       } catch (powerError) {
-        const failedLevel =
-          powerError instanceof ModeratorGrantError ? powerError.level : grantLevel;
-        const failedRole = grantRoleName(tags, failedLevel, t);
+        const level = powerError instanceof ModeratorGrantError ? powerError.level : grantLevel;
+        const role = grantRoleName(tags, level, t);
         const detail =
           powerError instanceof Error && powerError.message
             ? powerError.message
             : String(powerError);
+        const isRole = level > MODERATOR_LEVEL;
         if (alive()) {
           setError(
-            failedLevel > MODERATOR_LEVEL
-              ? t('sharedUi.inviteUserPrompt.roleFailed', { role: failedRole, error: detail })
+            isRole
+              ? t('sharedUi.inviteUserPrompt.roleFailed', { role, error: detail })
               : t('sharedUi.inviteUserPrompt.moderatorFailed', { error: detail })
           );
         } else if (client.clientRunning !== false) {
-          const detachedMessage =
-            failedLevel > MODERATOR_LEVEL
-              ? t('sharedUi.inviteUserPrompt.roleFailedDetached', {
-                  user: target,
-                  role: failedRole,
-                  error: detail,
-                })
-              : t('sharedUi.inviteUserPrompt.moderatorFailedDetached', {
-                  user: target,
-                  error: detail,
-                });
-          store.set(detachedGrantErrorAtom, nextDetachedGrantFailure(detachedMessage));
+          const key = isRole
+            ? 'sharedUi.inviteUserPrompt.roleFailedDetached'
+            : 'sharedUi.inviteUserPrompt.moderatorFailedDetached';
+          store.set(
+            detachedGrantErrorAtom,
+            nextDetachedGrantFailure(t(key, { user: target, role, error: detail }))
+          );
         }
       }
     }

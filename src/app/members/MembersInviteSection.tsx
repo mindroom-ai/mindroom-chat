@@ -1,55 +1,28 @@
-import { useCallback, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Icon, Icons, Spinner, Text, color } from 'folds';
 import classNames from 'classnames';
-import type { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
 import { describeError } from '../lib/describeError';
 import { useAlive } from '../lib/hooks/useAlive';
-import { useForceUpdate } from '../lib/hooks/useForceUpdate';
-import { matchesEnum } from '../lib/matchesEnum';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
-import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { useStateEventCallback } from '../matrix/hooks/useStateEventCallback';
 import { getMxIdLocalPart, isUserId } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
-import { Membership, StateEvent } from '../matrix/types/room';
 import { ownDirectionLine } from '../ui/directional';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { getDisplayName } from './invite/InviteUserAutocomplete';
-import {
-  MODERATOR_LEVEL,
-  ModeratorGrantError,
-  canOfferModeratorGrant,
-  getRawPowerLevels,
-  grantRoleName,
-  moderatorGrantLevel,
-  runRoomModeratorGrant,
-  useRoomModeratorGrantState,
-} from './invite/moderatorInvite';
-import { usePowerLevelTags } from './usePowerLevelTags';
 import { useInviteUserSearch } from './useInviteUserSearch';
 import type { ServerUserDirectoryUser } from './userDirectoryCache';
 import { filterInviteUserCandidates } from './userDirectorySearch';
 import * as css from './MembersDrawer.css';
 
-type ModeratorState =
-  | { status: 'granting'; level: number }
-  | { status: 'granted'; level: number }
+type InviteState =
+  | { status: 'inviting' }
+  | { status: 'invited' }
   | { status: 'failed'; error: unknown };
-
-type InvitedState = {
-  status: 'invited';
-  preInviteMembership?: string;
-  preInviteMemberEventId?: string;
-  seenInviteOrJoin?: boolean;
-  moderator?: ModeratorState;
-};
-
-type InviteState = { status: 'inviting' } | InvitedState | { status: 'failed'; error: unknown };
 
 /** Someone the section offers: a directory match, or a typed user ID the directory does not list. */
 type Candidate = { user: ServerUserDirectoryUser; listed: boolean };
@@ -62,27 +35,6 @@ type InviteRow = Candidate & { state?: InviteState };
 /** The invitations started from the panel, placed for the search they show under. */
 type Attempts = { query: string; byUser: Record<string, Attempt> };
 
-const memberEventId = (member: RoomMember | null): string | undefined =>
-  member?.events?.member?.getId?.();
-
-/**
- * True when live membership superseded our invite with a leave or ban, without hiding the action
- * merely because the invite (or a re-invite over a pre-invite leave) has not reached local sync.
- */
-const isInviteGone = (state: InvitedState, member: RoomMember | null): boolean => {
-  const membership = member?.membership;
-  if (matchesEnum(membership, Membership.Ban)) return true;
-  if (!matchesEnum(membership, Membership.Leave)) return false;
-  if (state.seenInviteOrJoin) return true;
-  if (!matchesEnum(state.preInviteMembership, Membership.Leave)) return true;
-  const currentId = memberEventId(member);
-  return (
-    state.preInviteMemberEventId !== undefined &&
-    currentId !== undefined &&
-    currentId !== state.preInviteMemberEventId
-  );
-};
-
 /**
  * The invitations to keep showing under a new search: those still going and those that failed,
  * at the top in their order, so a failure is never lost while someone types the next name. An
@@ -94,13 +46,7 @@ const carryOver = (
 ): Record<string, Attempt> =>
   Object.fromEntries(
     Object.values(byUser)
-      .filter(
-        (attempt) =>
-          (attempt.state.status !== 'invited' ||
-            attempt.state.moderator?.status === 'granting' ||
-            attempt.state.moderator?.status === 'failed') &&
-          offered(attempt)
-      )
+      .filter((attempt) => attempt.state.status !== 'invited' && offered(attempt))
       .sort((a, b) => a.index - b.index)
       .map((attempt, index) => [attempt.user.userId, { ...attempt, index }])
   );
@@ -144,29 +90,7 @@ const inviteRows = (
 const rowName = ({ user, listed }: Candidate): string =>
   listed ? getDisplayName(user) : user.userId;
 
-type ModeratorControls = {
-  canPromote: (userId: string) => boolean;
-  grantLevel: number;
-  roleName: string;
-  grantedRoleName: (level: number) => string;
-  inFlight: boolean;
-  isRetired: (row: InviteRow) => boolean;
-  onGrant: (row: InviteRow) => void;
-};
-
-function InviteRowItem({
-  row,
-  controls,
-  onInvite,
-}: {
-  row: InviteRow;
-  controls: ModeratorControls;
-  onInvite: () => void;
-}) {
-  const canPromote = controls.canPromote(row.user.userId);
-  const inviteRetired = controls.isRetired(row);
-  const { grantLevel, roleName, grantedRoleName, inFlight: roomGrantInFlight } = controls;
-  const onMakeModerator = () => controls.onGrant(row);
+function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
@@ -179,131 +103,71 @@ function InviteRowItem({
   const failure = state?.status === 'failed' ? { error: state.error } : undefined;
   const inviting = state?.status === 'inviting';
   const invited = state?.status === 'invited';
-  const moderator = state?.status === 'invited' ? state.moderator : undefined;
-  const granting = moderator?.status === 'granting';
-  const granted = moderator?.status === 'granted';
-  const moderatorFailure = moderator?.status === 'failed' ? { error: moderator.error } : undefined;
-  const showModerator =
-    invited && (granted || (!inviteRetired && (canPromote || moderator !== undefined)));
-  const moderatorDisabled = granting || granted || !canPromote || roomGrantInFlight;
-
-  const actionLabel =
-    grantLevel > MODERATOR_LEVEL
-      ? t('featureUi.room.membersDrawer.makeRole', { role: roleName })
-      : t('featureUi.room.membersDrawer.makeModerator');
-  const actionAriaLabel =
-    grantLevel > MODERATOR_LEVEL
-      ? t('featureUi.room.membersDrawer.makeRoleUser', { user: name, role: roleName })
-      : t('featureUi.room.membersDrawer.makeModeratorUser', { user: name });
 
   return (
     <li className={css.InviteRow}>
-      <div className={css.InviteRowMain}>
-        {/* The name follows; the avatar only decorates the row. */}
-        <Avatar className={css.InviteAvatar} size="300" radii="Pill" aria-hidden>
-          <UserAvatar
-            alt=""
-            userId={user.userId}
-            src={avatarSrc}
-            renderFallback={() => (
-              <Text as="span" size="L400">
-                {nameInitials(listed ? name : getMxIdLocalPart(user.userId))}
-              </Text>
-            )}
-          />
-        </Avatar>
-        <span className={css.InviteIdentity}>
-          <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
-            {name}
-          </Text>
-          {/* A typed user ID is the name already. */}
-          {listed && (
-            <Text
-              as="span"
-              id={userIdLine}
-              size="T200"
-              priority="300"
-              truncate
-              {...ownDirectionLine}
-            >
-              {user.userId}
+      {/* The name follows; the avatar only decorates the row. */}
+      <Avatar className={css.InviteAvatar} size="300" radii="Pill" aria-hidden>
+        <UserAvatar
+          alt=""
+          userId={user.userId}
+          src={avatarSrc}
+          renderFallback={() => (
+            <Text as="span" size="L400">
+              {nameInitials(listed ? name : getMxIdLocalPart(user.userId))}
             </Text>
           )}
-          {/* The whole reason, on as many lines as it takes. */}
-          {failure && (
-            <Text
-              as="span"
-              size="T200"
-              role="alert"
-              style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
-            >
-              {describeError(t, failure.error)}
-              <ErrorDetail error={failure.error} />
-            </Text>
-          )}
-        </span>
-        {/* One button through every state, so it keeps the keyboard focus once pressed. */}
-        <Button
-          size="300"
-          variant={invited ? 'Success' : 'Primary'}
-          fill={invited ? 'None' : 'Soft'}
-          radii="300"
-          className={classNames(css.InviteButton, invited && css.InviteSent)}
-          aria-disabled={inviting || invited}
-          aria-label={
-            invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
-          }
-          // The user ID under the name tells apart two people of the same name.
-          aria-describedby={listed ? userIdLine : undefined}
-          onClick={inviting || invited ? undefined : onInvite}
-          before={
-            (inviting && <Spinner size="50" variant="Primary" />) || (
-              <Icon size="50" src={invited ? Icons.Check : Icons.Plus} />
-            )
-          }
-        >
-          <Text as="span" size="B300">
-            {invited
-              ? t('featureUi.room.membersDrawer.inviteSent')
-              : t('featureUi.room.membersDrawer.invite')}
+        />
+      </Avatar>
+      <span className={css.InviteIdentity}>
+        <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
+          {name}
+        </Text>
+        {/* A typed user ID is the name already. */}
+        {listed && (
+          <Text as="span" id={userIdLine} size="T200" priority="300" truncate {...ownDirectionLine}>
+            {user.userId}
           </Text>
-        </Button>
-      </div>
-      {showModerator && (
-        <div className={css.InviteRowModerator}>
-          <Button
-            size="300"
-            variant={granted ? 'Success' : 'Secondary'}
-            fill={granted ? 'None' : 'Soft'}
-            radii="300"
-            className={classNames(css.InviteButton, granted && css.InviteSent)}
-            aria-disabled={moderatorDisabled}
-            aria-label={granted ? undefined : actionAriaLabel}
-            aria-describedby={listed ? userIdLine : undefined}
-            onClick={moderatorDisabled ? undefined : onMakeModerator}
-            before={
-              (granting && <Spinner size="50" variant="Secondary" />) || (
-                <Icon size="50" src={Icons.Shield} />
-              )
-            }
+        )}
+        {/* The whole reason, on as many lines as it takes. */}
+        {failure && (
+          <Text
+            as="span"
+            size="T200"
+            role="alert"
+            style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
           >
-            <Text as="span" size="B300">
-              {granted ? grantedRoleName(moderator.level) : actionLabel}
-            </Text>
-          </Button>
-          {moderatorFailure && (
-            <Text
-              as="span"
-              size="T200"
-              role="alert"
-              style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
-            >
-              {describeError(t, moderatorFailure.error)}
-              <ErrorDetail error={moderatorFailure.error} />
-            </Text>
-          )}
-        </div>
-      )}
+            {describeError(t, failure.error)}
+            <ErrorDetail error={failure.error} />
+          </Text>
+        )}
+      </span>
+      {/* One button through every state, so it keeps the keyboard focus once pressed. */}
+      <Button
+        size="300"
+        variant={invited ? 'Success' : 'Primary'}
+        fill={invited ? 'None' : 'Soft'}
+        radii="300"
+        className={classNames(css.InviteButton, invited && css.InviteSent)}
+        aria-disabled={inviting || invited}
+        aria-label={
+          invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
+        }
+        // The user ID under the name tells apart two people of the same name.
+        aria-describedby={listed ? userIdLine : undefined}
+        onClick={inviting || invited ? undefined : onInvite}
+        before={
+          (inviting && <Spinner size="50" variant="Primary" />) || (
+            <Icon size="50" src={invited ? Icons.Check : Icons.Plus} />
+          )
+        }
+      >
+        <Text as="span" size="B300">
+          {invited
+            ? t('featureUi.room.membersDrawer.inviteSent')
+            : t('featureUi.room.membersDrawer.invite')}
+        </Text>
+      </Button>
     </li>
   );
 }
@@ -311,12 +175,11 @@ function InviteRowItem({
 type InviteListProps = {
   rows: InviteRow[];
   isFetching: boolean;
-  controls: ModeratorControls;
   onInvite: (row: InviteRow, index: number) => void;
 };
 
 /** The section itself: its title after a line, then the rows, or nothing when there are none. */
-function InviteList({ rows, isFetching, controls, onInvite }: InviteListProps) {
+function InviteList({ rows, isFetching, onInvite }: InviteListProps) {
   const { t } = useTranslation();
   const headingId = useId();
   if (rows.length === 0 && !isFetching) return null;
@@ -334,12 +197,7 @@ function InviteList({ rows, isFetching, controls, onInvite }: InviteListProps) {
       ) : (
         <ul className={css.InviteList}>
           {rows.map((row, index) => (
-            <InviteRowItem
-              key={row.user.userId}
-              row={row}
-              controls={controls}
-              onInvite={() => onInvite(row, index)}
-            />
+            <InviteRowItem key={row.user.userId} row={row} onInvite={() => onInvite(row, index)} />
           ))}
         </ul>
       )}
@@ -354,7 +212,7 @@ type InviteSearchProps = Omit<InviteListProps, 'rows' | 'isFetching'> & {
 };
 
 /** The directory's matches for a search, with the invitations placed for it. */
-function InviteSearch({ room, query, attempts, controls, onInvite }: InviteSearchProps) {
+function InviteSearch({ room, query, attempts, onInvite }: InviteSearchProps) {
   const client = useMatrixClient();
   const { suggestions, isFetching } = useInviteUserSearch(room, query);
   const typedUser = isUserId(query)
@@ -362,9 +220,7 @@ function InviteSearch({ room, query, attempts, controls, onInvite }: InviteSearc
     : undefined;
   const typed = typedUser ? { user: typedUser, listed: false } : undefined;
   const rows = inviteRows(suggestions, typed, attempts);
-  return (
-    <InviteList rows={rows} isFetching={isFetching} controls={controls} onInvite={onInvite} />
-  );
+  return <InviteList rows={rows} isFetching={isFetching} onInvite={onInvite} />;
 }
 
 type MembersInviteSectionProps = {
@@ -384,25 +240,6 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
-  const levels = usePowerLevels(room);
-  const rawLevels = getRawPowerLevels(room);
-  const creators = useRoomCreators(room);
-  const tags = usePowerLevelTags(room);
-  const { inFlight: roomGrantInFlight } = useRoomModeratorGrantState(client, room.roomId);
-  const [, refreshMembers] = useForceUpdate();
-  const onMemberState = useCallback(
-    (event: MatrixEvent) => {
-      if (
-        event.getRoomId() === room.roomId &&
-        matchesEnum(event.getType(), StateEvent.RoomMember)
-      ) {
-        refreshMembers();
-      }
-    },
-    [room.roomId, refreshMembers]
-  );
-  useStateEventCallback(client, onMemberState);
-
   const trimmed = query.trim();
   const [attempts, setAttempts] = useState<Attempts>({ query: trimmed, byUser: {} });
   const [announcement, setAnnouncement] = useState('');
@@ -412,52 +249,27 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
     attempt.state.status !== 'failed' ||
     filterInviteUserCandidates([attempt.user], room, selfUserId).length > 0;
   // A new search places the invitations for it, and a failure no longer offered goes for good,
-  // before this render shows them. Also note when an invited user reaches invite/join in sync.
-  const needsSeenSync = Object.values(attempts.byUser).some((attempt) => {
-    if (attempt.state.status !== 'invited' || attempt.state.seenInviteOrJoin) return false;
-    const membership = room.getMember(attempt.user.userId)?.membership;
-    return matchesEnum(membership, Membership.Invite) || matchesEnum(membership, Membership.Join);
-  });
+  // before this render shows them.
   if (attempts.query !== trimmed) {
     setAttempts({ query: trimmed, byUser: carryOver(attempts.byUser, offered) });
-  } else if (!Object.values(attempts.byUser).every(offered) || needsSeenSync) {
+  } else if (!Object.values(attempts.byUser).every(offered)) {
     setAttempts({
       query: trimmed,
       byUser: Object.fromEntries(
-        Object.entries(attempts.byUser)
-          .filter(([, attempt]) => offered(attempt))
-          .map(([userId, attempt]) => {
-            if (attempt.state.status !== 'invited' || attempt.state.seenInviteOrJoin) {
-              return [userId, attempt];
-            }
-            const membership = room.getMember(userId)?.membership;
-            if (
-              matchesEnum(membership, Membership.Invite) ||
-              matchesEnum(membership, Membership.Join)
-            ) {
-              return [userId, { ...attempt, state: { ...attempt.state, seenInviteOrJoin: true } }];
-            }
-            return [userId, attempt];
-          })
+        Object.entries(attempts.byUser).filter(([, attempt]) => offered(attempt))
       ),
     });
   }
   const placed = attempts.query === trimmed ? attempts.byUser : {};
 
-  const updateState = (userId: string, updater: (current: InviteState) => InviteState) =>
+  const setState = (userId: string, state: InviteState) =>
     setAttempts((current) => {
       const attempt = current.byUser[userId];
       if (attempt === undefined) return current;
-      return {
-        ...current,
-        byUser: { ...current.byUser, [userId]: { ...attempt, state: updater(attempt.state) } },
-      };
+      return { ...current, byUser: { ...current.byUser, [userId]: { ...attempt, state } } };
     });
 
   const invite = async ({ user, listed }: InviteRow, index: number) => {
-    const beforeMember = room.getMember(user.userId);
-    const preInviteMembership = beforeMember?.membership;
-    const preInviteMemberEventId = memberEventId(beforeMember);
     setAttempts((current) => {
       const attempt: Attempt = {
         user,
@@ -470,84 +282,13 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
     try {
       await client.invite(room.roomId, user.userId);
       if (!alive()) return;
-      updateState(user.userId, () => ({
-        status: 'invited',
-        preInviteMembership,
-        preInviteMemberEventId,
-      }));
+      setState(user.userId, { status: 'invited' });
       setAnnouncement(t('sharedUi.inviteUserPrompt.invited', { user: rowName({ user, listed }) }));
     } catch (error) {
-      if (alive()) updateState(user.userId, () => ({ status: 'failed', error }));
+      if (alive()) setState(user.userId, { status: 'failed', error });
     }
   };
-
-  const grantLevel = moderatorGrantLevel(levels);
-  const roleName = grantRoleName(tags, grantLevel, t);
-  const grantedRoleName = (level: number) => grantRoleName(tags, level, t);
-  const canPromote = (userId: string) =>
-    canOfferModeratorGrant(room, userId, selfUserId, levels, creators, rawLevels);
-  const isRowRetired = (row: InviteRow) =>
-    row.state?.status === 'invited' && isInviteGone(row.state, room.getMember(row.user.userId));
-
-  const makeModerator = async ({ user, listed, state }: InviteRow) => {
-    const name = rowName({ user, listed });
-    const invitedSnapshot: InvitedState =
-      state?.status === 'invited' ? state : { status: 'invited' };
-    updateState(user.userId, (current) =>
-      current.status === 'invited'
-        ? { ...current, moderator: { status: 'granting', level: grantLevel } }
-        : current
-    );
-    setAnnouncement(
-      grantLevel > MODERATOR_LEVEL
-        ? t('featureUi.room.membersDrawer.makingRole', { user: name, role: roleName })
-        : t('featureUi.room.membersDrawer.makingModerator', { user: name })
-    );
-    try {
-      const result = await runRoomModeratorGrant(client, room, user.userId, {
-        isInviteGone: () => isInviteGone(invitedSnapshot, room.getMember(user.userId)),
-      });
-      if (!alive()) return;
-      if (result.status === 'skipped') {
-        updateState(user.userId, (current) =>
-          current.status === 'invited' ? { ...current, moderator: undefined } : current
-        );
-        return;
-      }
-      updateState(user.userId, (current) =>
-        current.status === 'invited'
-          ? { ...current, moderator: { status: 'granted', level: result.level } }
-          : current
-      );
-      setAnnouncement(
-        result.level > MODERATOR_LEVEL
-          ? t('featureUi.room.membersDrawer.madeRole', {
-              user: name,
-              role: grantedRoleName(result.level),
-            })
-          : t('featureUi.room.membersDrawer.madeModerator', { user: name })
-      );
-    } catch (error) {
-      if (!alive()) return;
-      const cause = error instanceof ModeratorGrantError ? error.causeError : error;
-      updateState(user.userId, (current) =>
-        current.status === 'invited'
-          ? { ...current, moderator: { status: 'failed', error: cause } }
-          : current
-      );
-    }
-  };
-
   const onInvite = (row: InviteRow, index: number) => void invite(row, index);
-  const controls: ModeratorControls = {
-    canPromote,
-    grantLevel,
-    roleName,
-    grantedRoleName,
-    inFlight: roomGrantInFlight,
-    isRetired: isRowRetired,
-    onGrant: (row) => void makeModerator(row),
-  };
 
   return (
     <>
@@ -555,17 +296,10 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
         <InviteList
           rows={inviteRows([], undefined, placed)}
           isFetching={false}
-          controls={controls}
           onInvite={onInvite}
         />
       ) : (
-        <InviteSearch
-          room={room}
-          query={trimmed}
-          attempts={placed}
-          controls={controls}
-          onInvite={onInvite}
-        />
+        <InviteSearch room={room} query={trimmed} attempts={placed} onInvite={onInvite} />
       )}
       {/* An invitation that went out is said aloud; a failure is an alert in its row. */}
       <p role="status" className={css.VisuallyHidden}>
