@@ -499,7 +499,11 @@ export function CompactRoomView({
     const focus = (id: string | undefined, preventScroll?: boolean) => {
       if (!id) return false;
       if (focusCompactCard(card(id), preventScroll)) setIntent(undefined);
-      else setIntent({ id, scope: keyScope, from: document.activeElement, preventScroll });
+      else {
+        if (!document.activeElement || document.activeElement === document.body)
+          view.focus({ preventScroll: true });
+        setIntent({ id, scope: keyScope, from: document.activeElement, preventScroll });
+      }
       return true;
     };
     compactCardNavigation.set(view, { ids, focus });
