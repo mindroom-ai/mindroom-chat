@@ -194,6 +194,44 @@ describe('InsetScrollbar', () => {
     key('End');
     expect(beforeEnd).toHaveBeenCalledTimes(1);
     expect(scrollRef.current!.scrollTop).toBe(1600);
+    // A chord is the browser's: nothing is prepared for it.
+    key('End', { ctrlKey: true });
+    expect(beforeEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a drag while the list starts or stops offering its end', () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const contentRef = createRef<HTMLDivElement>();
+    const bar = (beforeEnd?: () => void) => (
+      <div ref={scrollRef}>
+        <div ref={contentRef} />
+        <InsetScrollbar
+          scrollRef={scrollRef}
+          contentRef={contentRef}
+          label="Messages"
+          className="placement"
+          beforeEnd={beforeEnd}
+        />
+      </div>
+    );
+    act(() => root.render(bar()));
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = vi.fn(() => false);
+    const pointer = (type: string, clientY: number) => {
+      const event = new MouseEvent(type, { button: 0, clientY, bubbles: true, cancelable: true });
+      Object.defineProperties(event, { isPrimary: { value: true }, pointerId: { value: 1 } });
+      track.dispatchEvent(event);
+    };
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    pointer('pointerdown', 100);
+    const pressed = scrollRef.current!.scrollTop;
+    // The last block is measured mid-drag: the list now offers to prepare its end.
+    act(() => root.render(bar(() => {})));
+    expect(blocked()).toBe(true);
+    pointer('pointermove', 200);
+    expect(scrollRef.current!.scrollTop).toBeGreaterThan(pressed);
+    pointer('pointerup', 200);
+    expect(blocked()).toBe(false);
   });
 
   it.each([0, -1] as const)('preserves composite focus when tabIndex is %s', (tabIndex) => {

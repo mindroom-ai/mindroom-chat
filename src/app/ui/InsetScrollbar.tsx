@@ -26,6 +26,9 @@ export function InsetScrollbar({
   const id = useId();
   const trackRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
+  // Read at the key: a change of it must not reinstall the listeners under a drag.
+  const beforeEndRef = useRef(beforeEnd);
+  beforeEndRef.current = beforeEnd;
 
   // Ancestor scroll refs are attached after child layout effects.
   useEffect(() => {
@@ -126,7 +129,8 @@ export function InsetScrollbar({
       reveal();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'End') beforeEnd?.();
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === 'End') beforeEndRef.current?.();
       const { maximum } = geometry();
       const page = track.clientHeight;
       const positions: Record<string, number> = {
@@ -138,7 +142,7 @@ export function InsetScrollbar({
         End: maximum,
       };
       const position = positions[event.key];
-      if (position === undefined || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (position === undefined) return;
       event.preventDefault();
       scroll.scrollTop = position;
       reveal();
@@ -168,7 +172,7 @@ export function InsetScrollbar({
       track.removeEventListener('keydown', onKeyDown);
       if (!previousId && scroll.id === id) scroll.removeAttribute('id');
     };
-  }, [scrollRef, contentRef, id, tabIndex, beforeEnd]);
+  }, [scrollRef, contentRef, id, tabIndex]);
 
   return (
     <div
