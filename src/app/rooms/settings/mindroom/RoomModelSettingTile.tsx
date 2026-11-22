@@ -1,4 +1,4 @@
-import { MouseEvent, useMemo, useRef, useState } from 'react';
+import { MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Icon, Icons, Text, color, type RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
@@ -64,6 +64,15 @@ export function RoomModelSettingTile({
   );
   const [anchor, setAnchor] = useState<RectCords>();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  // The right to edit went under the open menu: it closes, as a ChoiceButton's does. The button is
+  // disabled by then, so the keys go to the line under it that says why.
+  if (!canEdit && anchor) setAnchor(undefined);
+  const readOnlyRef = useRef<HTMLParagraphElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (!canEdit && wasOpen.current) readOnlyRef.current?.focus();
+    wasOpen.current = anchor !== undefined;
+  });
   const label = t(definition.label);
   const hasCatalog = Boolean(catalog.runtime);
   const stored = useMemo(
@@ -98,6 +107,9 @@ export function RoomModelSettingTile({
   const unavailable = catalog.runtimes.length === 0;
   const state: ModelPickerState = {
     ...catalog,
+    // A list that waits for its runtime's answer says so, also while no query runs: one refused
+    // for want of capacity is asked again in a moment.
+    loading: catalog.loading || (hasCatalog && !catalog.canMutate),
     models,
     inherited: [],
     override:
@@ -216,7 +228,7 @@ export function RoomModelSettingTile({
         </Text>
       )}
       {!canEdit && (
-        <Text size="T200" priority="300">
+        <Text ref={readOnlyRef} tabIndex={-1} size="T200" priority="300">
           {t(`${STRINGS}.readOnly`)}
         </Text>
       )}

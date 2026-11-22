@@ -333,6 +333,9 @@ describe('RoomModelSettingTile', () => {
     expect(trigger().textContent).toBe('Quick');
     open();
     expect(screen.queryByRole('alert')).toBeNull();
+    expect(within(screen.getByRole('dialog')).getByRole('status').textContent).toBe(
+      'Loading models'
+    );
     const deep = screen.getByRole('option', { name: /Deep/ });
     expect(deep.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(deep);
@@ -397,18 +400,22 @@ describe('RoomModelSettingTile', () => {
     expect(screen.getByText(READ_ONLY)).toBeTruthy();
   });
 
-  it('keeps the keys in the open menu when the right to edit goes while the list loads', () => {
+  it('closes its menu when the right to edit goes, and moves the keys to the line that says why', async () => {
     const loading = createCatalog({ ...NO_CATALOG, loading: true });
     const { rerender } = renderTile(MODEL_DEF, loading);
-    const dialog = open();
+    open();
 
     live.canSend = false;
     rerender(tile(MODEL_DEF, loading));
-    expect(defaultRow().getAttribute('aria-disabled')).toBe('true');
-    fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
-    expect(dialog.contains(document.activeElement)).toBe(true);
-    fireEvent.click(defaultRow());
-    expect(client.sendStateEvent).not.toHaveBeenCalled();
+    await settle();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(trigger().disabled).toBe(true);
+    expect(document.activeElement).toBe(screen.getByText(READ_ONLY));
+
+    // Allowed again, the menu stays closed until asked for.
+    live.canSend = true;
+    rerender(tile(MODEL_DEF, loading));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('places the menu again when the list that arrives makes it taller', () => {
