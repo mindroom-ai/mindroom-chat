@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "Tutup",
-      "invited": "{{user}} telah diundang."
+      "invited": "{{user}} telah diundang.",
+      "giveRoleRights": "Berikan hak {{role}}",
+      "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
+      "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
+      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -592,7 +597,8 @@
     },
     "accountMenu": {
       "open": "Buka menu akun untuk {{name}}",
-      "manageAccounts": "Kelola akun"
+      "otherAccounts": "Akun lain",
+      "manage": "Kelola"
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"
@@ -722,6 +728,36 @@
           "default": "Default",
           "auto": "Setiap pesan",
           "mentions": "Hanya saat disebut"
+        },
+        "sections": {
+          "agents": "Agen",
+          "threadTitles": "Judul utas"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Model bawaan untuk setiap agen, tim, dan perute di ruang ini. Pengaturan khusus utas tetap diutamakan.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "defaultDescription": "Ikuti pengaturan bawaan MindRoom untuk ruang ini.",
+          "unknown": "Model tidak dikenal: \"{{value}}\" tidak ada dalam daftar model ruang ini.",
+          "catalogUnavailable": "Daftar model tidak tersedia saat ini. Anda tetap dapat mengatur ulang ke bawaan yang dikonfigurasi.",
+          "storedRaw": "Pengaturan ruang: {{value}}"
+        },
+        "threadMode": {
+          "label": "Mode utas",
+          "description": "Apakah agen membalas di dalam utas atau di linimasa utama ruang ini.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "thread": "Utas",
+          "room": "Linimasa utama",
+          "effective": "Mode efektif saat ini: {{mode}}",
+          "effectiveModes": {
+            "thread": "Utas",
+            "room": "Linimasa utama",
+            "mixed": "Campuran (berbeda tiap agen)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Model judul",
+          "description": "Model yang menulis judul utas otomatis di ruang ini."
         }
       }
     },

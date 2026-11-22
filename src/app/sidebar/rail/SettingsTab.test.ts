@@ -151,18 +151,25 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
     onOpenSettings,
     onSwitchAccount,
     onAddAccount,
+    onSignOut,
     onManageAccounts,
   }: {
     others: Array<{ session: StoredSession; displayName: string }>;
     onOpenSettings: () => void;
     onSwitchAccount: (session: StoredSession) => void;
     onAddAccount: () => void;
+    onSignOut: () => void;
     onManageAccounts?: () => void;
   }) =>
     React.createElement(
       'div',
       { 'data-testid': 'account-menu' },
       React.createElement('button', { 'aria-label': 'Settings', onClick: onOpenSettings }),
+      onManageAccounts &&
+        React.createElement('button', {
+          'aria-label': 'Manage',
+          onClick: onManageAccounts,
+        }),
       others.map((account) =>
         React.createElement('button', {
           key: account.session.sessionId,
@@ -171,11 +178,7 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
         })
       ),
       React.createElement('button', { 'aria-label': 'Add account', onClick: onAddAccount }),
-      onManageAccounts &&
-        React.createElement('button', {
-          'aria-label': 'Manage accounts',
-          onClick: onManageAccounts,
-        })
+      React.createElement('button', { 'aria-label': 'Logout', onClick: onSignOut })
     ),
 }));
 
@@ -278,28 +281,49 @@ describe('SettingsTab', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('shows the manage accounts trigger only when multiple sessions exist', () => {
+  it('shows the Manage trigger only when multiple sessions exist', () => {
     const { renderer: multiSessionRenderer } = renderSettingsTab();
     openAccountMenu(multiSessionRenderer);
-    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage accounts')).toBeDefined();
+    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage')).toBeDefined();
 
     const { renderer: singleSessionRenderer } = renderSettingsTab([activeSession]);
     openAccountMenu(singleSessionRenderer);
-    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage accounts')).toBeUndefined();
+    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage')).toBeUndefined();
   });
 
-  it('opens the account switcher from the manage accounts trigger', async () => {
+  it('opens the account switcher from the Manage trigger', async () => {
     const { renderer, store } = renderSettingsTab();
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
     });
 
     expect(
       renderer.root.findAll((node) => node.props['data-testid'] === 'account-switcher')
     ).toHaveLength(1);
     expect(store.get(settingsModalAtom)).toBeUndefined();
+  });
+
+  it('opens the shared active-account logout confirmation from Logout and closes it on cancel', async () => {
+    const { renderer } = renderSettingsTab([activeSession]);
+    openAccountMenu(renderer);
+    const dialogs = () =>
+      renderer.root.findAll(
+        (node) => node.type === 'div' && node.props['data-testid'] === 'logout-dialog'
+      );
+
+    await act(async () => {
+      findButtonByAriaLabel(renderer, 'Logout')!.props.onClick();
+    });
+
+    expect(dialogs()).toHaveLength(1);
+    // Active-account sign out uses LogoutDialog without an inactive session prop.
+    expect(dialogs()[0]?.props['data-user-id']).toBeUndefined();
+    await act(async () => {
+      renderer.root.findByProps({ 'data-testid': 'cancel-logout' }).props.onClick();
+    });
+    expect(dialogs()).toHaveLength(0);
   });
 
   it('restores the stored last route when switching to another account', async () => {
@@ -353,7 +377,7 @@ describe('SettingsTab', () => {
     const { renderer } = renderSettingsTab();
     openAccountMenu(renderer);
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
     });
     const dialogs = () =>
       renderer.root.findAll(

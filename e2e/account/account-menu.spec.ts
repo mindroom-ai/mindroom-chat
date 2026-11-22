@@ -93,11 +93,11 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}`);
   await signIn(page, first);
 
-  // One account: the menu names it and offers Settings and Add Account only.
+  // One account: the menu names it and offers Settings, Add Account and Logout.
   await openAccountMenu(page);
   const menu = page.getByRole('menu');
   await expect(menu).toHaveAccessibleName(`Avery Menu ${firstId}`);
-  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account', 'Logout']);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Only the active account's button is on the rail.
@@ -110,15 +110,121 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await signIn(page, second);
   await expect.poll(() => activeUserId(page)).toBe(secondId);
 
-  // Two accounts: the other one is listed with its Matrix ID, and Manage Accounts appears.
+  // Two accounts: Manage and the other account appear in the Other accounts well.
   await openAccountMenu(page);
   await expect(menu).toHaveAccessibleName(`Blake Menu ${secondId}`);
   await expect(menu.getByRole('menuitem')).toHaveText([
     'Settings',
+    'Manage',
     new RegExp(`Avery Menu.*${firstId}`),
     'Add Account',
-    'Manage Accounts',
+    'Logout',
   ]);
+  // Manage is named by its visible word, and the well's heading says what it manages.
+  await expect(
+    menu.getByRole('menuitem', { name: 'Manage', exact: true })
+  ).toHaveAccessibleDescription('Other accounts');
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // Keyboard flow: open the menu via keyboard, arrow to Logout, cancel the confirmation, and
+  // verify focus returns to the rail avatar button.
+  const avatarButton = page.getByRole('button', { name: 'Open account menu for Blake Menu' });
+  await avatarButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(menu.getByRole('menuitem', { name: 'Logout', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const logoutDialog = page.getByRole('dialog', { name: 'Logout' });
+  await expect(logoutDialog).toBeVisible();
+  await expect(logoutDialog.locator(':focus')).toBeVisible();
+  await logoutDialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await expect(logoutDialog).toHaveCount(0);
+  await expect(avatarButton).toBeFocused();
+
+  // Short landscape viewport: the menu caps to available height and keeps the footer reachable.
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 640, height: 320 });
+  await openAccountMenu(page);
+  const logoutItem = menu.getByRole('menuitem', { name: 'Logout', exact: true });
+  const addItem = menu.getByRole('menuitem', { name: 'Add Account', exact: true });
+  await expect(logoutItem).toBeVisible();
+  await expect(addItem).toBeVisible();
+  const logoutBox = (await logoutItem.boundingBox())!;
+  const addBox = (await addItem.boundingBox())!;
+  expect(logoutBox.y + logoutBox.height).toBeLessThanOrEqual(320);
+  expect(addBox.y + addBox.height).toBeLessThanOrEqual(320);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // A window that shrinks under the open menu: the menu stays below the top bar's avatar and
+  // inside the window, with the footer in reach.
+  await page.setViewportSize({ width: 640, height: 700 });
+  await openAccountMenu(page);
+  // A phone-width page has the account button twice, the top bar's and the rail's; the top
+  // bar's comes first and is the one that opened the menu.
+  const topBarAvatar = avatarButton.first();
+  await expect(topBarAvatar).toHaveAttribute('aria-expanded', 'true');
+  const menuStaysBelowAvatar = async (viewportHeight: number) => {
+    const avatarBox = (await topBarAvatar.boundingBox())!;
+    const menuBox = (await menu.boundingBox())!;
+    const footerBox = (await logoutItem.boundingBox())!;
+    return (
+      menuBox.y >= avatarBox.y + avatarBox.height &&
+      menuBox.y + menuBox.height <= viewportHeight &&
+      footerBox.y + footerBox.height <= viewportHeight
+    );
+  };
+  await expect.poll(() => menuStaysBelowAvatar(700)).toBe(true);
+  await page.setViewportSize({ width: 640, height: 280 });
+  await expect.poll(() => menuStaysBelowAvatar(280)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // A very short window (a short one zoomed in): the item the keyboard focuses is scrolled into
+  // view inside the menu's scrolling body, so its focus ring shows.
+  await page.setViewportSize({ width: 427, height: 213 });
+  /** Whether the focused menu item lies inside its scrolling ancestor's box, or the menu's. */
+  const focusedItemShown = () =>
+    menu.evaluate((menuElement) => {
+      const item = document.activeElement;
+      if (!item || item.getAttribute('role') !== 'menuitem' || !menuElement.contains(item)) {
+        return false;
+      }
+      let frame: Element = menuElement;
+      for (let parent = item.parentElement; parent; parent = parent.parentElement) {
+        if (parent === menuElement) break;
+        if (getComputedStyle(parent).overflowY === 'auto') {
+          frame = parent;
+          break;
+        }
+      }
+      const itemBox = item.getBoundingClientRect();
+      const frameBox = frame.getBoundingClientRect();
+      return itemBox.top >= frameBox.top && itemBox.bottom <= frameBox.bottom;
+    });
+  await topBarAvatar.focus();
+  await page.keyboard.press('Enter');
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await expect.poll(focusedItemShown).toBe(true);
+  // The arrow keys keep each item they reach in view too: Manage, the account, the footer.
+  for (const name of ['Manage', new RegExp(`^Switch to account Avery Menu`), 'Add Account']) {
+    await page.keyboard.press('ArrowDown');
+    await expect(
+      menu.getByRole('menuitem', { name, exact: typeof name === 'string' })
+    ).toBeFocused();
+    await expect.poll(focusedItemShown).toBe(true);
+  }
+  await page.keyboard.press('Home');
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await expect.poll(focusedItemShown).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  if (originalViewport) await page.setViewportSize(originalViewport);
+
+  await openAccountMenu(page);
   await menu.getByRole('menuitem', { name: `Switch to account Avery Menu (${firstId})` }).click();
   await waitForShell(page);
   await expect.poll(() => activeUserId(page)).toBe(firstId);

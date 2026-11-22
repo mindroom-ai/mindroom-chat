@@ -25,13 +25,15 @@ final class ThreadSnapshotTests: XCTestCase {
         let echo = event("$echo", 2, sender: "@mindroom_router:x", ["msgtype": "m.text", "body": "Router agent is transcribing…",
             "com.mindroom.visible_router_voice_echo": true,
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$root"]] as JSON])
-        let echoEdit = event("$echoEdit", 3, sender: "@mindroom_router:x", ["m.new_content": ["body": "🎤 Remind me to call the dentist"] as JSON,
+        let echoEdit = event("$echoEdit", 3, sender: "@mindroom_router:x", ["m.new_content": ["body": "🎤 Remind me to call the dentist",
+            "com.mindroom.visible_router_voice_echo": true] as JSON,
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$echo"] as JSON])
         let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "…"]))
         let replyEdit = event("$replyEdit", 5, ["m.new_content": ["body": "🔧 `scheduler` [1]\nReminder set for **Saturday**.",
             "io.mindroom.ai_run": ["version": 1, "status": "completed"]] as JSON,
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
-        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now)
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x"])
         XCTAssertTrue(snapshot.isVoiceRoot)
         XCTAssertEqual(snapshot.title, "🎤 Remind me to call the dentist")
         XCTAssertEqual(snapshot.reply?.sender, agent)
@@ -257,7 +259,7 @@ final class ThreadSnapshotTests: XCTestCase {
                              ["m.new_content": ["status": "approved"] as JSON,
                               "m.relates_to": ["rel_type": "m.replace", "event_id": "$annas"] as JSON])
         let snapshot = ThreadSnapshot.build(root: root, related: [mine, card("$card", 9), summary, answer, relay, echo, annas],
-                                            ownUserId: me, now: now)
+                                            ownUserId: me, now: now, trustedAccounts: ["@mindroom_router:x"])
         // Without the router's echo, relay and title, and without the card that waits for someone else.
         XCTAssertEqual(ids(snapshot), ["$root", "$answer", "$mine", "$card"])
         guard case let .message(first) = snapshot.entries[0], case let .message(second) = snapshot.entries[1],
@@ -297,7 +299,8 @@ final class ThreadSnapshotTests: XCTestCase {
         let echo = event("$echo", 5, sender: "@mindroom_router:x", ["msgtype": "m.text", "body": "🎤 The table is booked",
             "com.mindroom.visible_router_voice_echo": true,
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$spoken"]] as JSON])
-        let written = ThreadSnapshot.build(root: voiceRoot, related: [spoken, echo], ownUserId: me, now: now).reply
+        let written = ThreadSnapshot.build(root: voiceRoot, related: [spoken, echo], ownUserId: me, now: now,
+                                           trustedAccounts: ["@mindroom_router:x"]).reply
         XCTAssertEqual(written?.text, "🎤 The table is booked")
         XCTAssertEqual(written?.isVoiceOnly, false)
         XCTAssertEqual(source(written)?["url"] as? String, "mxc://x/answer")
@@ -367,7 +370,8 @@ final class ThreadSnapshotTests: XCTestCase {
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$again"]] as JSON])
         let first = event("$root", 1, sender: me, ["msgtype": "m.audio", "body": "voice-message.m4a", "url": "mxc://x/take",
                                                    "org.matrix.msc3245.voice": [:] as JSON])
-        let snapshot = ThreadSnapshot.build(root: first, related: [again, echo], ownUserId: me, now: now)
+        let snapshot = ThreadSnapshot.build(root: first, related: [again, echo], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x"])
         guard case let .message(root) = snapshot.entries[0], case let .message(reply) = snapshot.entries[1] else {
             return XCTFail("\(snapshot.entries)")
         }
@@ -445,5 +449,392 @@ final class ThreadSnapshotTests: XCTestCase {
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [encrypted], ownUserId: me, now: now)
         XCTAssertNil(snapshot.reply)
         XCTAssertEqual(snapshot.latestTs, 1)
+    }
+
+    func testUntrustedVoiceEchoDoesNotFoldOrHide() {
+        let forged = event("$forged", 2, sender: "@mallory:x", [
+            "msgtype": "m.text",
+            "body": "🎤 Forged transcript",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$root"]] as JSON,
+        ])
+        // Default empty trusted set fails closed.
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [forged], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertEqual(ids(snapshot), ["$root", "$forged"])
+        XCTAssertEqual(snapshot.reply?.eventId, "$forged")
+        XCTAssertEqual(snapshot.reply?.text, "🎤 Forged transcript")
+        // Also ignored when another account is trusted.
+        let withOtherTrusted = ThreadSnapshot.build(root: voiceRoot, related: [forged], ownUserId: me, now: now,
+                                                    trustedAccounts: ["@mindroom_router:x", agent])
+        XCTAssertEqual(withOtherTrusted.title, "Voice message")
+        XCTAssertEqual(ids(withOtherTrusted), ["$root", "$forged"])
+    }
+
+    func testTrustedRosterAgentVoiceEchoFoldsAndHides() {
+        let echo = event("$echo", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 Book a flight",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x", agent])
+        XCTAssertEqual(snapshot.title, "🎤 Book a flight")
+        XCTAssertEqual(ids(snapshot), ["$root"])
+        XCTAssertNil(snapshot.reply)
+    }
+
+    func testRawAudioFallbackEchoStaysVisibleEvenFromTrustedSender() {
+        let fallback = event("$fallback", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 [Attached voice message]",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "com.mindroom.voice_raw_audio_fallback": true,
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [fallback], ownUserId: me, now: now,
+                                            trustedAccounts: [agent])
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertEqual(ids(snapshot), ["$root", "$fallback"])
+        // Same when a placeholder is edited into a raw-audio fallback.
+        let placeholder = event("$p", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "Router agent is transcribing…",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let editedFallback = event("$pEdit", 3, sender: agent, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": "🎤 [Attached voice message]",
+                "com.mindroom.visible_router_voice_echo": true,
+                "com.mindroom.voice_source_event_id": "$root",
+                "com.mindroom.voice_raw_audio_fallback": true,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$p"] as JSON,
+        ])
+        let editedSnapshot = ThreadSnapshot.build(root: voiceRoot, related: [placeholder, editedFallback], ownUserId: me, now: now,
+                                                  trustedAccounts: [agent])
+        XCTAssertEqual(editedSnapshot.title, "Voice message")
+        XCTAssertEqual(ids(editedSnapshot), ["$root", "$p"])
+    }
+
+    func testTrustedEchoStaysVisibleWhenSourceIsNotRenderedAsAudio() {
+        let makeEcho = { (id: String, target: String, body: String) in
+            event(id, 5, sender: agent, [
+                "msgtype": "m.text",
+                "body": body,
+                "com.mindroom.visible_router_voice_echo": true,
+                "com.mindroom.voice_source_event_id": target,
+                "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+            ])
+        }
+        // Source missing from the thread.
+        let missing = ThreadSnapshot.build(root: voiceRoot, related: [makeEcho("$e1", "$missing", "🎤 Orphan")],
+                                           ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(missing), ["$root", "$e1"])
+        XCTAssertEqual(missing.reply?.text, "🎤 Orphan")
+
+        // Source is an undecryptable reply.
+        let encryptedReply = event("$locked", 2, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
+        let onEncryptedReply = ThreadSnapshot.build(root: voiceRoot, related: [encryptedReply, makeEcho("$e2", "$locked", "🎤 Locked")],
+                                                    ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(onEncryptedReply), ["$root", "$e2"])
+
+        // Source is an undecryptable root.
+        let encryptedRoot = event("$root", 1, sender: me, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
+        let onEncryptedRoot = ThreadSnapshot.build(root: encryptedRoot, related: [makeEcho("$e3", "$root", "🎤 Root locked")],
+                                                   ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(onEncryptedRoot.title, "Encrypted message")
+        XCTAssertEqual(ids(onEncryptedRoot), ["$e3"])
+
+        // Source was redacted (empty content, no msgtype).
+        let redacted = event("$redacted", 2, sender: me, [:])
+        let onRedacted = ThreadSnapshot.build(root: voiceRoot, related: [redacted, makeEcho("$e4", "$redacted", "🎤 Redacted")],
+                                              ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(onRedacted), ["$root", "$redacted", "$e4"])
+
+        // Source is a plain text message, not audio.
+        let textMsg = event("$txt", 2, sender: me, inThread(["msgtype": "m.text", "body": "Hello"]))
+        let onText = ThreadSnapshot.build(root: voiceRoot, related: [textMsg, makeEcho("$e5", "$txt", "🎤 Not audio")],
+                                          ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(onText), ["$root", "$txt", "$e5"])
+    }
+
+    func testOnlyFirstTrustedEchoForSameVoiceMessageFoldsAndHides() {
+        let echo1 = event("$first", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 First transcript",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let echo2 = event("$second", 3, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 Second transcript",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo1, echo2], ownUserId: me, now: now,
+                                            trustedAccounts: [agent])
+        XCTAssertEqual(snapshot.title, "🎤 First transcript")
+        XCTAssertEqual(ids(snapshot), ["$root", "$second"])
+        XCTAssertEqual(snapshot.reply?.eventId, "$second")
+
+        // A paired legacy placeholder also claims the voice message, so a second echo stays visible.
+        let placeholder = event("$p", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "Router agent is transcribing…",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let withPlaceholder = ThreadSnapshot.build(root: voiceRoot, related: [placeholder, echo2], ownUserId: me, now: now,
+                                                   trustedAccounts: [agent])
+        XCTAssertEqual(withPlaceholder.title, "Voice message")
+        XCTAssertEqual(ids(withPlaceholder), ["$root", "$second"])
+    }
+
+    private func echo(_ id: String, _ ts: Int, of voiceId: String, _ body: String, extra: JSON = [:]) -> JSON {
+        event(id, ts, inThread(["msgtype": "m.text", "body": body, "com.mindroom.visible_router_voice_echo": true,
+                                "com.mindroom.voice_source_event_id": voiceId].merging(extra) { $1 }))
+    }
+
+    func testATrustedEchoOfAnAudioFileThatIsNoVoiceMessageKeepsItsRow() {
+        // An audio file (music, a recording somebody attached) has no voice mark: the web client folds nothing under it.
+        let song = event("$song", 2, sender: me, inThread(["msgtype": "m.audio", "body": "song.mp3", "url": "mxc://x/song"]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [song, echo("$echo", 3, of: "$song", "🎤 Not its words")],
+                                            ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(snapshot), ["$root", "$song", "$echo"])
+        guard case let .message(shown) = snapshot.entries[1] else { return XCTFail("\(snapshot.entries)") }
+        XCTAssertEqual(shown.text, "")
+        // The stable mark counts as the unstable one does.
+        let voice = event("$voice", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/v", "m.voice": [:] as JSON]))
+        XCTAssertEqual(ids(ThreadSnapshot.build(root: voiceRoot, related: [voice, echo("$echo", 3, of: "$voice", "🎤 Its words")],
+                                                ownUserId: me, now: now, trustedAccounts: [agent])), ["$root", "$voice"])
+        // A voice message edited into an audio file is one no more.
+        let unmarked = event("$unmark", 3, sender: me, ["m.new_content": ["msgtype": "m.audio", "body": "song.mp3", "url": "mxc://x/song"] as JSON,
+                                                         "m.relates_to": ["rel_type": "m.replace", "event_id": "$voice"] as JSON])
+        XCTAssertEqual(ids(ThreadSnapshot.build(root: voiceRoot, related: [voice, unmarked, echo("$echo", 4, of: "$voice", "🎤 Its words")],
+                                                ownUserId: me, now: now, trustedAccounts: [agent])), ["$root", "$voice", "$echo"])
+    }
+
+    func testAnEchoThatIsOnlyAPreviewOfALongTextKeepsItsRow() {
+        let preview = echo("$preview", 2, of: "$root", "🎤 The first words…", extra: ["io.mindroom.long_text": ["version": 2] as JSON])
+        let alone = ThreadSnapshot.build(root: voiceRoot, related: [preview], ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(alone.title, "Voice message")
+        XCTAssertEqual(ids(alone), ["$root", "$preview"])
+        // It does not take the voice message from an echo with all of the text.
+        let whole = ThreadSnapshot.build(root: voiceRoot, related: [preview, echo("$whole", 3, of: "$root", "🎤 Every word")],
+                                         ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(whole.title, "🎤 Every word")
+        XCTAssertEqual(ids(whole), ["$root", "$preview"])
+    }
+
+    func testAnEchoEditedIntoAnOrdinaryMessageKeepsItsRow() {
+        let edited = { (newContent: JSON) in
+            event("$edit", 3, ["m.new_content": newContent, "m.relates_to": ["rel_type": "m.replace", "event_id": "$echo"] as JSON])
+        }
+        let first = echo("$echo", 2, of: "$root", "🎤 Book a flight")
+        // The newest version is no echo (the flag left out, or false): its text is the agent's, not the speaker's.
+        for flag in [nil, false] as [Bool?] {
+            var content: JSON = ["msgtype": "m.text", "body": "I never said that", "com.mindroom.voice_source_event_id": "$root"]
+            content["com.mindroom.visible_router_voice_echo"] = flag
+            let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [first, edited(content)], ownUserId: me, now: now,
+                                                trustedAccounts: [agent])
+            XCTAssertEqual(snapshot.title, "Voice message")
+            XCTAssertEqual(ids(snapshot), ["$root", "$echo"])
+            XCTAssertEqual(snapshot.reply?.text, "I never said that")
+        }
+        // The newest version names the voice message: an edit can move the echo to another one.
+        let again = event("$again", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice-2.m4a", "url": "mxc://x/again",
+                                                             "org.matrix.msc3245.voice": [:] as JSON]))
+        let moved = ThreadSnapshot.build(root: voiceRoot, related: [again, first, edited([
+            "msgtype": "m.text", "body": "🎤 And for two", "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$again",
+        ])], ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(moved.title, "Voice message")
+        XCTAssertEqual(ids(moved), ["$root", "$again"])
+        guard case let .message(shown) = moved.entries[1] else { return XCTFail("\(moved.entries)") }
+        XCTAssertEqual(shown.text, "🎤 And for two")
+    }
+
+    func testAPushedQuestionKeepsItsButtonsAfterATrustedEchoOfSomeoneElsesRecording() {
+        // Anna spoke after the agent asked, and her recording was written out by an agent of the room.
+        let annas = event("$annas", 4, sender: "@anna:x", inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/anna",
+                                                                    "org.matrix.msc3245.voice": [:] as JSON]))
+        let related = [question("$q", 3), annas, echo("$echo", 5, of: "$annas", "🎤 Take the early one")]
+        // A notification reads the thread with the room's trust, as the thread screen does: the same events and
+        // trust give the same answer buttons.
+        let trusted = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(trusted), ["$root", "$q", "$annas"])
+        XCTAssertEqual(trusted.openQuestion?.eventId, "$q")
+        guard case let .question(asked) = trusted.pushed(eventId: "$q") else { return XCTFail("\(trusted.pushed(eventId: "$q"))") }
+        XCTAssertEqual(asked.options.map(\.key), ["🌙", "✈️"])
+        // With no trust read yet nothing is hidden: the echo is the newest agent reply, and it asks nothing.
+        let untrusted = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now)
+        XCTAssertEqual(ids(untrusted), ["$root", "$q", "$annas", "$echo"])
+        XCTAssertEqual(untrusted.pushed(eventId: "$q"), .message)
+    }
+
+    func testARedactedVoiceMessageTakesNoTranscriptEvenWithAnEditOfItLeft() {
+        // An edit sent before the redaction can still be read, with the audio and the voice mark.
+        let left = event("$rootEdit", 2, sender: me, [
+            "m.new_content": ["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/take", "org.matrix.msc3245.voice": [:] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$root"] as JSON,
+        ])
+        // A redaction leaves a message no content; the server also marks the event.
+        var marked = event("$root", 1, sender: me, [:])
+        marked["unsigned"] = ["redacted_because": ["type": "m.room.redaction"] as JSON] as JSON
+        for redacted in [marked, event("$root", 1, sender: me, [:])] {
+            let snapshot = ThreadSnapshot.build(root: redacted, related: [left, echo("$echo", 3, of: "$root", "🎤 Deleted words")],
+                                                ownUserId: me, now: now, trustedAccounts: [agent])
+            XCTAssertEqual(snapshot.title, "Voice message")
+            XCTAssertEqual(ids(snapshot), ["$root", "$echo"])
+        }
+    }
+
+    func testTheEventsKeptForAnotherTrustBuildTheSameThread() throws {
+        let replace = { (id: String) in ["rel_type": "m.replace", "event_id": id] as JSON }
+        // A reply streams in edits, each with all of the text so far: only the newest is read.
+        let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "…", "io.mindroom.stream_status": "streaming"]))
+        let parts = (1...3).map { part in
+            event("$part\(part)", 4 + part, ["m.new_content": ["msgtype": "m.text", "body": "Part \(part)"] as JSON, "m.relates_to": replace("$reply")])
+        }
+        let foreign = event("$foreign", 9, sender: "@mallory:x", ["m.new_content": ["body": "Not mine to edit"] as JSON, "m.relates_to": replace("$reply")])
+        let locked = event("$locked", 10, type: "m.room.encrypted", ["ciphertext": "x", "m.relates_to": replace("$reply")])
+        let placeholder = echo("$echo", 2, of: "$root", VoiceEcho.placeholder)
+        let written = event("$written", 3, ["m.new_content": ["msgtype": "m.text", "body": "🎤 Book a flight",
+            "com.mindroom.visible_router_voice_echo": true, "com.mindroom.voice_source_event_id": "$root"] as JSON, "m.relates_to": replace("$echo")])
+        // A card reads every edit of it.
+        let cardEdits = ["denied", "approved"].enumerated().map { index, status in
+            event("$card\(index)", 12 + index, sender: "@mindroom_router:x", type: "io.mindroom.tool_approval",
+                  ["m.new_content": ["status": status] as JSON, "m.relates_to": replace("$card")])
+        }
+        let reaction = event("$reaction", 14, sender: me, type: "m.reaction", ["m.relates_to": ["rel_type": "m.annotation", "event_id": "$reply", "key": "👍"] as JSON])
+        let related = [placeholder, written, reply] + parts + [foreign, locked, card("$card", 11)] + cardEdits + [reaction]
+        let kept = try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, related)))
+        XCTAssertEqual(kept.related.compactMap { $0["event_id"] as? String }.sorted(),
+                       ["$card", "$card0", "$card1", "$echo", "$part3", "$reaction", "$reply", "$written"])
+        for trusted in [[], [agent]] as [Set<String>] {
+            let whole = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now, trustedAccounts: trusted)
+            XCTAssertEqual(ThreadSnapshot.build(root: kept.root, related: kept.related, ownUserId: me, now: now, trustedAccounts: trusted), whole)
+            XCTAssertEqual(whole.reply?.text, "Part 3")
+            XCTAssertEqual(whole.approvals.first?.status, .approved)
+        }
+        // No trust changes a thread without a message marked as a voice echo: nothing is kept of it.
+        XCTAssertNil(ThreadSnapshot.kept((voiceRoot, [reply] + parts + [card("$card", 11)] + cardEdits)))
+    }
+
+    /// The thread from all of its events, and from what is kept of them for another trust.
+    private func wholeAndKept(_ related: [JSON], file: StaticString = #filePath, line: UInt = #line) throws -> [ThreadSnapshot] {
+        let kept = try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, related)), file: file, line: line)
+        return [(voiceRoot, related), kept].map {
+            ThreadSnapshot.build(root: $0.root, related: $0.related, ownUserId: me, now: now, trustedAccounts: [agent])
+        }
+    }
+
+    func testAnEchoTakesWhatItsNewestEditLeavesOutFromTheSendersOlderEdits() throws {
+        let fallback = "com.mindroom.voice_raw_audio_fallback", source = "com.mindroom.voice_source_event_id"
+        let flagged: JSON = ["msgtype": "m.text", "body": "🎤 [Attached voice message]", "com.mindroom.visible_router_voice_echo": true]
+        let edit = { (id: String, ts: Int, extra: JSON) in
+            event(id, ts, ["m.new_content": flagged.merging(extra) { $1 }, "m.relates_to": ["rel_type": "m.replace", "event_id": "$echo"] as JSON])
+        }
+        let first = echo("$echo", 3, of: "$root", VoiceEcho.placeholder)
+        // As the web client's `getEditedEvent`: an edit says transcription failed, and the next one repeats the
+        // flag and the voice message but not that. It is still the fallback, a row of its own.
+        let failed = [first, edit("$failed", 4, [source: "$root", fallback: true]), edit("$later", 5, [source: "$root"])]
+        for snapshot in try wholeAndKept(failed) {
+            XCTAssertEqual(snapshot.title, "Voice message")
+            XCTAssertEqual(ids(snapshot), ["$root", "$echo"])
+        }
+        // What is kept is the edit shown with what it took from the older ones, not every edit.
+        XCTAssertEqual(try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, failed))).related.count, 2)
+        // What the newest edit says itself wins.
+        for snapshot in try wholeAndKept([first, edit("$failed", 4, [source: "$root", fallback: true]), edit("$later", 5, [source: "$root", fallback: false])]) {
+            XCTAssertEqual(ids(snapshot), ["$root"])
+        }
+        // The voice message an older edit names stands when the newest names none.
+        let again = event("$again", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice-2.m4a", "url": "mxc://x/again",
+                                                             "org.matrix.msc3245.voice": [:] as JSON]))
+        for snapshot in try wholeAndKept([again, first, edit("$moved", 4, [source: "$again"]), edit("$later", 5, [:])]) {
+            XCTAssertEqual(ids(snapshot), ["$root", "$again"])
+            XCTAssertEqual(snapshot.title, "Voice message")
+        }
+    }
+
+    func testEditsOfTheSameMillisecondCountByTheGreaterEventId() throws {
+        // As the web client's `isEventOrderedAfter`, in whatever order the server gives them.
+        let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "…"]))
+        let edits = ["$a", "$b"].map { id in
+            event(id, 5, ["m.new_content": ["msgtype": "m.text", "body": "From \(id)"] as JSON, "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        }
+        for edits in [edits, edits.reversed()] {
+            for snapshot in try wholeAndKept([echo("$echo", 2, of: "$root", "🎤 Hi"), reply] + edits) {
+                XCTAssertEqual(snapshot.reply?.text, "From $b")
+            }
+        }
+    }
+
+    func testACardPastItsDeadlineIsNotOfferedFromASnapshotReadBefore() {
+        let expiring = card("$card", 3, sender: agent, extra: ["expires_at": "1970-01-01T00:20:00Z"])
+        let read = ThreadSnapshot.build(root: voiceRoot, related: [expiring], ownUserId: me, now: now)
+        XCTAssertEqual(read.pendingApproval?.eventId, "$card")
+        XCTAssertEqual(read.at(now.addingTimeInterval(199)), read)
+        // The thread opens from the snapshot the list read, after the deadline and with no network: as the
+        // thread read at that time would say, the card is expired and nothing waits for the person.
+        let late = read.at(now.addingTimeInterval(200))
+        XCTAssertNil(late.pendingApproval)
+        XCTAssertEqual(late.approvals.map(\.status), [.expired])
+        XCTAssertNotEqual(late.rowState, .needsYou)
+        XCTAssertEqual(late, ThreadSnapshot.build(root: voiceRoot, related: [expiring], ownUserId: me, now: now.addingTimeInterval(200)))
+    }
+
+    func testACardPastItsDeadlineLeavesAnOlderOneThatWaitsToDecide() {
+        let related = [card("$older", 3, sender: agent),
+                       card("$newer", 4, sender: agent, extra: ["expires_at": "1970-01-01T00:20:00Z"]),
+                       card("$annas", 5, sender: agent, extra: ["approver_user_id": "@anna:x"])]
+        let read = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now)
+        XCTAssertEqual(read.pendingApproval?.eventId, "$newer")
+        XCTAssertEqual(ids(read), ["$root", "$newer"])
+        // After the newer card's deadline and with no network, the snapshot read before says what the thread
+        // read at that time would: the older card is the one to decide, in its place among the entries.
+        let late = read.at(now.addingTimeInterval(200))
+        XCTAssertEqual(late.pendingApproval?.eventId, "$older")
+        XCTAssertEqual(ids(late), ["$root", "$older", "$newer"])
+        XCTAssertEqual(late.rowState, .needsYou)
+        XCTAssertEqual(late, ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now.addingTimeInterval(200)))
+        // A clock set back: again as the thread read at that time.
+        XCTAssertEqual(late.at(now), read)
+    }
+
+    func testAnApprovalCardIsNeverAVoiceEcho() {
+        // A card with an echo's marks stays a card: what a notification shows of it without the room's trust
+        // is what the thread shows with it.
+        let marked = card("$card", 3, sender: agent, extra: ["com.mindroom.visible_router_voice_echo": true,
+                                                             "com.mindroom.voice_source_event_id": "$root"])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [marked], ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(snapshot.pendingApproval?.eventId, "$card")
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertNil(ThreadSnapshot.kept((voiceRoot, [marked])))
+    }
+
+    func testAVoiceMessageWhoseShownVersionNamesNoKindTakesNoTranscript() {
+        // As the web client: the version shown is audio by its own `msgtype`, not by the first version's.
+        let voice = event("$voice", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/v",
+                                                             "org.matrix.msc3245.voice": [:] as JSON]))
+        let unnamed = event("$voiceEdit", 3, sender: me, [
+            "m.new_content": ["body": "voice.m4a", "url": "mxc://x/v", "org.matrix.msc3245.voice": [:] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$voice"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [voice, unnamed, echo("$echo", 4, of: "$voice", "🎤 Its words")],
+                                            ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(snapshot), ["$root", "$voice", "$echo"])
     }
 }

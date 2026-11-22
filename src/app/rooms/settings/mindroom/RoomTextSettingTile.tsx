@@ -56,7 +56,7 @@ export function RoomTextSettingTile({
     countId,
   ].filter(Boolean);
   return (
-    <Box as="form" direction="Column" gap="200" onSubmit={save}>
+    <Box as="form" direction="Column" gap="200" data-room-setting={definition.key} onSubmit={save}>
       <Box direction="Column" gap="100">
         <Text as="label" htmlFor={fieldId} size="T300">
           {t(definition.label)}

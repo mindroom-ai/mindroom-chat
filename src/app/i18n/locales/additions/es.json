@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
-      "invited": "Se invitó a {{user}}."
+      "invited": "Se invitó a {{user}}.",
+      "giveRoleRights": "Dar permisos de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
+      "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -618,7 +623,8 @@
     },
     "accountMenu": {
       "open": "Abrir el menú de la cuenta de {{name}}",
-      "manageAccounts": "Gestionar cuentas"
+      "otherAccounts": "Otras cuentas",
+      "manage": "Gestionar"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de la A a la Z"
@@ -748,6 +754,36 @@
           "default": "Predeterminado",
           "auto": "A cualquier mensaje",
           "mentions": "Solo si los mencionan"
+        },
+        "sections": {
+          "agents": "Agentes",
+          "threadTitles": "Títulos de hilos"
+        },
+        "model": {
+          "label": "Modelo",
+          "description": "Modelo predeterminado para cada agente, equipo y enrutador en esta sala. Las selecciones por hilo siguen teniendo prioridad.",
+          "default": "Usar el valor predeterminado configurado",
+          "defaultDescription": "Seguir el valor predeterminado configurado en MindRoom para esta sala.",
+          "unknown": "Modelo desconocido: «{{value}}» no está en la lista de modelos de esta sala.",
+          "catalogUnavailable": "No hay ninguna lista de modelos disponible en este momento. Aun así puedes restablecer al valor predeterminado configurado.",
+          "storedRaw": "Ajuste de la sala: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modo de hilos",
+          "description": "Si los agentes responden en hilos o en la línea temporal principal de esta sala.",
+          "default": "Usar el valor predeterminado configurado",
+          "thread": "Hilos",
+          "room": "Línea temporal principal",
+          "effective": "Modo efectivo actual: {{mode}}",
+          "effectiveModes": {
+            "thread": "Hilos",
+            "room": "Línea temporal principal",
+            "mixed": "Mixto (varía según el agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modelo de títulos",
+          "description": "Modelo que genera los títulos automáticos de los hilos de esta sala."
         }
       }
     },

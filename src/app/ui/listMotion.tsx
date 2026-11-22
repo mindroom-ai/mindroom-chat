@@ -122,7 +122,7 @@ const samePlace = (now: DOMRect, was: DOMRect): boolean =>
   Math.abs(now.left - was.left) < 0.5 && Math.abs(now.top - was.top) < 0.5;
 
 /** Plays the change from `before` to the list as it is now; returns what it started. */
-const play = (list: HTMLElement, before: Before): Animation[] => {
+const play = (list: HTMLElement, before: Before, offWindow?: ReadonlySet<string>): Animation[] => {
   const all = rowsOf(list);
   // The change made the list too long.
   if (all.length > MOST_ROWS_IN_MOTION) return [];
@@ -137,13 +137,15 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
 
   const moves: { row: HTMLElement; dx: number; dy: number }[] = [];
   const left: Place[] = [];
+  let stayedCount = 0;
   before.rows.forEach((was, key) => {
     const now = inView.get(key);
     const row = now?.row ?? find(key, was.row);
     if (!row) {
-      left.push(was);
+      if (!offWindow?.has(key)) left.push(was);
       return;
     }
+    stayedCount += 1;
     const rect = now?.rect ?? row.getBoundingClientRect();
     if (!samePlace(rect, was.rect)) {
       moves.push({ row, dx: was.rect.left - rect.left, dy: was.rect.top - rect.top });
@@ -151,7 +153,7 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
   });
   // No row in view stayed: the list shows something else (another room, another search), and
   // nothing of the old one is left to follow.
-  if (left.length === before.rows.size) return [];
+  if (stayedCount === 0) return [];
 
   const started = moves.map(({ row, dx, dy }) =>
     row.animate([{ translate: `${dx}px ${dy}px` }, { translate: 'none' }], GLIDE)
@@ -271,9 +273,15 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * plays held until `LONGEST_PLAY_MS` ends them. A row that comes in, and the copy of one that
  * left, always fade on.
  */
-export const useListMotion = (listRef: RefObject<HTMLElement>, order?: string) => {
+export const useListMotion = (
+  listRef: RefObject<HTMLElement>,
+  order?: string,
+  offWindow?: ReadonlySet<string>
+) => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
+  const offWindowRef = useRef(offWindow);
+  offWindowRef.current = offWindow;
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
   const pressRef = useRef<{ id: number; at: number; up?: boolean; held: Animation[] }>();
   const read = useCallback(
@@ -317,7 +325,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order?: string) =
       animation.cancel();
       return false;
     });
-    const started = play(list, before);
+    const started = play(list, before, offWindowRef.current);
     runningRef.current = [...kept, ...started];
     const press = pressRef.current;
     if (press && !press.up && performance.now() - press.at < LONGEST_PLAY_MS) {

@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
-      "invited": "{{user}} è stato invitato."
+      "invited": "{{user}} è stato invitato.",
+      "giveRoleRights": "Assegna i permessi di {{role}}",
+      "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
+      "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
+      "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",
@@ -618,7 +623,8 @@
     },
     "accountMenu": {
       "open": "Apri il menu dell'account di {{name}}",
-      "manageAccounts": "Gestisci account"
+      "otherAccounts": "Altri account",
+      "manage": "Gestisci"
     },
     "roomOrder": {
       "sortByName": "Ordina le stanze dalla A alla Z"
@@ -748,6 +754,36 @@
           "default": "Predefinito",
           "auto": "A ogni messaggio",
           "mentions": "Solo se menzionati"
+        },
+        "sections": {
+          "agents": "Agenti",
+          "threadTitles": "Titoli dei thread"
+        },
+        "model": {
+          "label": "Modello",
+          "description": "Modello predefinito per ogni agente, team e router in questa stanza. Le scelte sui singoli thread hanno comunque la precedenza.",
+          "default": "Usa predefinito configurato",
+          "defaultDescription": "Segui il modello predefinito configurato in MindRoom per questa stanza.",
+          "unknown": "Modello sconosciuto: \"{{value}}\" non è presente nell’elenco modelli di questa stanza.",
+          "catalogUnavailable": "Nessun elenco modelli disponibile al momento. Puoi comunque ripristinare il valore predefinito configurato.",
+          "storedRaw": "Impostazione della stanza: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modalità thread",
+          "description": "Indica se gli agenti rispondono nei thread o nella sequenza principale di questa stanza.",
+          "default": "Usa predefinito configurato",
+          "thread": "Thread",
+          "room": "Sequenza principale",
+          "effective": "Modalità effettiva attuale: {{mode}}",
+          "effectiveModes": {
+            "thread": "Thread",
+            "room": "Sequenza principale",
+            "mixed": "Mista (varia per agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modello per i titoli",
+          "description": "Modello che genera i titoli automatici dei thread di questa stanza."
         }
       }
     },

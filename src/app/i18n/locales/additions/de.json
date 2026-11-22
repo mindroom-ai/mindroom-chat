@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Schließen",
-      "invited": "{{user}} wurde eingeladen."
+      "invited": "{{user}} wurde eingeladen.",
+      "giveRoleRights": "{{role}}-Rechte erteilen",
+      "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
+      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Schließen",
@@ -605,7 +610,8 @@
     },
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
-      "manageAccounts": "Konten verwalten"
+      "otherAccounts": "Andere Konten",
+      "manage": "Verwalten"
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"
@@ -735,6 +741,36 @@
           "default": "Standard",
           "auto": "Auf jede Nachricht",
           "mentions": "Nur bei Erwähnung"
+        },
+        "sections": {
+          "agents": "Agenten",
+          "threadTitles": "Thread-Titel"
+        },
+        "model": {
+          "label": "Modell",
+          "description": "Standardmodell für alle Agenten, Teams und den Router in diesem Raum. Thread-spezifische Vorgaben haben weiterhin Vorrang.",
+          "default": "Konfigurierten Standard verwenden",
+          "defaultDescription": "Folgt dem in MindRoom konfigurierten Standard für diesen Raum.",
+          "unknown": "Unbekanntes Modell: „{{value}}“ steht nicht in der Modellliste dieses Raums.",
+          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen.",
+          "storedRaw": "Raumeinstellung: {{value}}"
+        },
+        "threadMode": {
+          "label": "Thread-Modus",
+          "description": "Ob Agenten in diesem Raum in Threads oder im Hauptverlauf antworten.",
+          "default": "Konfigurierten Standard verwenden",
+          "thread": "Threads",
+          "room": "Hauptverlauf",
+          "effective": "Aktuell wirksamer Modus: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Hauptverlauf",
+            "mixed": "Gemischt (je nach Agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Titelmodell",
+          "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
         }
       }
     },

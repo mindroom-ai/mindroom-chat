@@ -186,16 +186,22 @@ final class ThreadListEntryTests: XCTestCase {
         let none: [JSON] = [
             ["count": 1, "latest_event": reply(sender: me)],
             ["count": 1, "latest_event": reply(["msgtype": "m.text", "body": "Relayed", "com.mindroom.original_sender": me], sender: router)],
-            ["count": 1, "latest_event": reply(echo, sender: router)],
             ["count": 1, "latest_event": title, "io.mindroom.title": title],
         ]
         for thread in none {
             XCTAssertNil(ThreadListEntry.parse(root(thread: thread), ownUserId: me)?.reply, "\(thread)")
         }
-        XCTAssertEqual(ThreadListEntry.parse(root(thread: none[3]), ownUserId: me)?.title, "Old title")
-        // What the router wrote out of a voice root names it, as in the thread.
-        let voice = root(["msgtype": "m.audio", "body": "voice-message.m4a", "org.matrix.msc3245.voice": [:] as JSON], thread: none[2])
-        XCTAssertEqual(ThreadListEntry.parse(voice, ownUserId: me)?.title, "🎤 Hello watch")
+        XCTAssertEqual(ThreadListEntry.parse(root(thread: none[2]), ownUserId: me)?.title, "Old title")
+        // What an account the room trusts wrote out of a voice root names it and is no reply, as in the thread.
+        let voice = root(["msgtype": "m.audio", "body": "voice-message.m4a", "org.matrix.msc3245.voice": [:] as JSON],
+                         thread: ["count": 1, "latest_event": reply(echo, sender: router)])
+        let trusted = ThreadListEntry.parse(voice, ownUserId: me, trustedAccounts: [router])
+        XCTAssertEqual(trusted?.title, "🎤 Hello watch")
+        XCTAssertNil(trusted?.reply)
+        // From anyone else, or before the room's trust is read, it is a reply like any other.
+        let untrusted = ThreadListEntry.parse(voice, ownUserId: me)
+        XCTAssertEqual(untrusted?.title, "Voice message")
+        XCTAssertEqual(untrusted?.reply?.text, "🎤 Hello watch")
     }
 
     func testABundledEditCountsOnlyFromTheSenderReadableAndNamingItsEvent() {

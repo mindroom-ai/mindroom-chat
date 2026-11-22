@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%2$@ %3$@ in %1$@";
 "IMAGE_FROM_USER" = "%1$@ ha inviato un'immagine: %2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@ ha inviato un'immagine in %3$@: %2$@";
-"VOICE_CALL_FROM_USER" = "Chiamata vocale da %1$@";
-"VIDEO_CALL_FROM_USER" = "Videochiamata da %1$@";
+"VOICE_CALL_FROM_USER" = "Chiamata in arrivo da %1$@";
+"VIDEO_CALL_FROM_USER" = "Videochiamata in arrivo da %1$@";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ ti ha invitato in %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ ti ha invitato a una chat";
 "QUICK_CAPTURE" = "Cattura rapida";

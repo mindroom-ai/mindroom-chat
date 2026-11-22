@@ -30,7 +30,7 @@ export type PowerLevelAction = 'ban' | 'invite' | 'kick' | 'redact';
 
 // Matrix spec, client-server API, `m.room.power_levels`: most levels default to 50 when the
 // event leaves them out; `invite` defaults to 0.
-const MODERATOR_LEVEL = 50;
+export const MODERATOR_LEVEL = 50;
 
 const DEFAULT_ACTION_LEVEL: Record<PowerLevelAction, number> = {
   invite: 0,

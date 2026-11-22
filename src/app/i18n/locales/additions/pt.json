@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Fechar",
-      "invited": "{{user}} foi convidado."
+      "invited": "{{user}} foi convidado.",
+      "giveRoleRights": "Conceder permissões de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
+      "roleFailed": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Fechar",
@@ -618,7 +623,8 @@
     },
     "accountMenu": {
       "open": "Abrir o menu da conta de {{name}}",
-      "manageAccounts": "Gerir contas"
+      "otherAccounts": "Outras contas",
+      "manage": "Gerir"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de A a Z"
@@ -748,6 +754,36 @@
           "default": "Padrão",
           "auto": "A qualquer mensagem",
           "mentions": "Só quando mencionados"
+        },
+        "sections": {
+          "agents": "Agentes",
+          "threadTitles": "Títulos de tópicos"
+        },
+        "model": {
+          "label": "Modelo",
+          "description": "Modelo padrão para todos os agentes, equipes e roteador nesta sala. Substituições por tópico continuam tendo prioridade.",
+          "default": "Usar padrão configurado",
+          "defaultDescription": "Seguir o padrão configurado no MindRoom para esta sala.",
+          "unknown": "Modelo desconhecido: \"{{value}}\" não está na lista de modelos desta sala.",
+          "catalogUnavailable": "Nenhuma lista de modelos está disponível no momento. Você ainda pode redefinir para o padrão configurado.",
+          "storedRaw": "Definição da sala: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modo de tópico",
+          "description": "Se os agentes respondem em tópicos ou na linha do tempo principal desta sala.",
+          "default": "Usar padrão configurado",
+          "thread": "Tópicos",
+          "room": "Linha do tempo principal",
+          "effective": "Modo efetivo atual: {{mode}}",
+          "effectiveModes": {
+            "thread": "Tópicos",
+            "room": "Linha do tempo principal",
+            "mixed": "Misto (varia por agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modelo de títulos",
+          "description": "Modelo que escreve os títulos automáticos dos tópicos desta sala."
         }
       }
     },
