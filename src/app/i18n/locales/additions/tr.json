@@ -496,7 +496,15 @@
         "playSound": "Sesi çal",
         "resize": "Arama panelini yeniden boyutlandır",
         "screenOf": "{{name}} adlı kişinin ekranı",
-        "fullScreen": "Tam ekran"
+        "fullScreen": "Tam ekran",
+        "startAppShare": "Bu uygulamayı paylaş",
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur",
+        "screenShareStoppedInBackground": "Uygulamadan ayrıldığınızda ekran paylaşımı durdu.",
+        "shareAgain": "Tekrar paylaş",
+        "microphoneStopped": "Mikrofonunuz durdu.",
+        "cameraStopped": "Kameranız durdu.",
+        "turnBackOn": "Tekrar aç",
+        "dismissNotice": "Kapat"
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",

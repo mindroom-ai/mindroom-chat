@@ -496,7 +496,15 @@
         "playSound": "Play sound",
         "resize": "Resize the call panel",
         "screenOf": "{{name}}'s screen",
-        "fullScreen": "Full screen"
+        "fullScreen": "Full screen",
+        "startAppShare": "Share this app",
+        "stopAppShare": "Stop sharing this app",
+        "screenShareStoppedInBackground": "Screen sharing stopped when you left the app.",
+        "shareAgain": "Share again",
+        "microphoneStopped": "Your microphone stopped.",
+        "cameraStopped": "Your camera stopped.",
+        "turnBackOn": "Turn back on",
+        "dismissNotice": "Dismiss"
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",

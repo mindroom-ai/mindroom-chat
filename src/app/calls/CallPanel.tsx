@@ -30,7 +30,12 @@ import {
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { chooseCallNotify } from './callRings';
-import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
+import {
+  browserSharesScreens,
+  browserSupportsCalls,
+  screenShareIsInAppOnly,
+  useCallSupport,
+} from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar } from './CallTile';
@@ -234,6 +239,16 @@ function JoinedCall({
     ? t('featureUi.call.controls.turnOffMicrophone')
     : t('featureUi.call.controls.turnOnMicrophone');
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
+  let screenShareLabel: string;
+  if (screenShareIsInAppOnly()) {
+    screenShareLabel = state.screenShare
+      ? t('featureUi.calls.panel.stopAppShare')
+      : t('featureUi.calls.panel.startAppShare');
+  } else {
+    screenShareLabel = state.screenShare
+      ? t('featureUi.call.controls.stopScreenshare')
+      : t('featureUi.call.controls.startScreenshare');
+  }
   const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
   const leaveLabel = t('featureUi.call.callControls.end');
   const barControlSize = coarsePointer() ? '400' : '300';
@@ -273,11 +288,7 @@ function JoinedCall({
         />
         {browserSharesScreens() && (
           <CallControl
-            label={
-              state.screenShare
-                ? t('featureUi.call.controls.stopScreenshare')
-                : t('featureUi.call.controls.startScreenshare')
-            }
+            label={screenShareLabel}
             icon={Icons.ScreenShare}
             pressed={state.screenShare}
             onClick={() => void call.setScreenShare(!state.screenShare)}
@@ -332,12 +343,20 @@ function JoinedCall({
   const stageArea =
     stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
+  const stoppedInputStatus =
+    !finished && state.stoppedInputs?.[0]
+      ? t(
+          state.stoppedInputs[0] === 'microphone'
+            ? 'featureUi.calls.panel.microphoneStopped'
+            : 'featureUi.calls.panel.cameraStopped'
+        )
+      : undefined;
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
     // or why the microphone it just turned on stays off.
-    status: problem,
+    status: problem ?? stoppedInputStatus,
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
@@ -414,6 +433,70 @@ function JoinedCall({
           {t('featureUi.calls.panel.audioBlocked')}
         </Notice>
       )}
+      {!finished && state.screenShareStoppedInBackground && (
+        <Notice
+          action={
+            <Box gap="100" alignItems="Center">
+              <Button
+                size="300"
+                radii="300"
+                variant="Warning"
+                fill="Solid"
+                onClick={() => void call.setScreenShare(true)}
+              >
+                <Text size="B300">{t('featureUi.calls.panel.shareAgain')}</Text>
+              </Button>
+              <IconButton
+                size="300"
+                radii="300"
+                variant="Warning"
+                aria-label={t('featureUi.calls.panel.dismissNotice')}
+                onClick={() => call.dismissScreenShareNotice()}
+              >
+                <Icon size="100" src={Icons.Cross} />
+              </IconButton>
+            </Box>
+          }
+        >
+          {t('featureUi.calls.panel.screenShareStoppedInBackground')}
+        </Notice>
+      )}
+      {!finished &&
+        state.stoppedInputs?.map((kind) => (
+          <Notice
+            key={kind}
+            action={
+              <Box gap="100" alignItems="Center">
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  fill="Solid"
+                  onClick={() =>
+                    void (kind === 'microphone' ? call.setMicrophone(true) : call.setCamera(true))
+                  }
+                >
+                  <Text size="B300">{t('featureUi.calls.panel.turnBackOn')}</Text>
+                </Button>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  aria-label={t('featureUi.calls.panel.dismissNotice')}
+                  onClick={() => call.dismissStoppedInput(kind)}
+                >
+                  <Icon size="100" src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            }
+          >
+            {t(
+              kind === 'microphone'
+                ? 'featureUi.calls.panel.microphoneStopped'
+                : 'featureUi.calls.panel.cameraStopped'
+            )}
+          </Notice>
+        ))}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

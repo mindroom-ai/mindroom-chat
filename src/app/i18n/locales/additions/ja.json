@@ -486,7 +486,15 @@
         "playSound": "音声を再生",
         "resize": "通話パネルのサイズを変更",
         "screenOf": "{{name}}さんの画面",
-        "fullScreen": "全画面表示"
+        "fullScreen": "全画面表示",
+        "startAppShare": "このアプリを共有",
+        "stopAppShare": "このアプリの共有を停止",
+        "screenShareStoppedInBackground": "アプリを離れたため、画面共有が停止しました。",
+        "shareAgain": "もう一度共有",
+        "microphoneStopped": "マイクが停止しました。",
+        "cameraStopped": "カメラが停止しました。",
+        "turnBackOn": "もう一度オンにする",
+        "dismissNotice": "閉じる"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",

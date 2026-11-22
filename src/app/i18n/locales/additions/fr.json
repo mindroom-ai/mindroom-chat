@@ -506,7 +506,15 @@
         "playSound": "Lire le son",
         "resize": "Redimensionner le panneau d’appel",
         "screenOf": "Écran de {{name}}",
-        "fullScreen": "Plein écran"
+        "fullScreen": "Plein écran",
+        "startAppShare": "Partager cette application",
+        "stopAppShare": "Arrêter de partager cette application",
+        "screenShareStoppedInBackground": "Le partage d’écran s’est arrêté lorsque vous avez quitté l’application.",
+        "shareAgain": "Partager à nouveau",
+        "microphoneStopped": "Votre microphone s’est arrêté.",
+        "cameraStopped": "Votre caméra s’est arrêtée.",
+        "turnBackOn": "Réactiver",
+        "dismissNotice": "Fermer"
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",

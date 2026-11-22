@@ -506,7 +506,15 @@
         "playSound": "Reproducir sonido",
         "resize": "Cambiar el tamaño del panel de la llamada",
         "screenOf": "Pantalla de {{name}}",
-        "fullScreen": "Pantalla completa"
+        "fullScreen": "Pantalla completa",
+        "startAppShare": "Compartir esta aplicación",
+        "stopAppShare": "Dejar de compartir esta aplicación",
+        "screenShareStoppedInBackground": "Se detuvo la pantalla compartida al salir de la aplicación.",
+        "shareAgain": "Compartir de nuevo",
+        "microphoneStopped": "Tu micrófono se ha detenido.",
+        "cameraStopped": "Tu cámara se ha detenido.",
+        "turnBackOn": "Volver a activar",
+        "dismissNotice": "Descartar"
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",

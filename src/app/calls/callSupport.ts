@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { isIOS } from '../lib/user-agent';
 import { getLivekitServiceUrl } from './rtcFocus';
 
 /** Whether this browser can place calls at all. */
@@ -11,6 +12,19 @@ export const browserSupportsCalls = (): boolean =>
 /** Whether this browser can share a screen; phone browsers cannot. */
 export const browserSharesScreens = (): boolean =>
   typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+
+/**
+ * Whether screen sharing captures only this app (iOS / iPadOS WebKit, including iPadOS desktop-mode
+ * UAs, where `getDisplayMedia` is in-app capture and goes black when the app moves to the background).
+ */
+export const screenShareIsInAppOnly = (): boolean => {
+  if (isIOS()) return true;
+  return (
+    typeof navigator !== 'undefined' &&
+    /Macintosh|Mac OS X/i.test(navigator.userAgent) &&
+    (navigator.maxTouchPoints ?? 0) > 1
+  );
+};
 
 export type CallSupport = 'checking' | 'supported' | 'unsupported';
 

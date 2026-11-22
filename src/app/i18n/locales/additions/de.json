@@ -496,7 +496,15 @@
         "playSound": "Ton abspielen",
         "resize": "Größe der Anrufansicht ändern",
         "screenOf": "Bildschirm von {{name}}",
-        "fullScreen": "Vollbild"
+        "fullScreen": "Vollbild",
+        "startAppShare": "Diese App teilen",
+        "stopAppShare": "Teilen dieser App beenden",
+        "screenShareStoppedInBackground": "Die Bildschirmfreigabe wurde beendet, als du die App verlassen hast.",
+        "shareAgain": "Erneut teilen",
+        "microphoneStopped": "Dein Mikrofon wurde gestoppt.",
+        "cameraStopped": "Deine Kamera wurde gestoppt.",
+        "turnBackOn": "Wieder einschalten",
+        "dismissNotice": "Schließen"
       },
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",

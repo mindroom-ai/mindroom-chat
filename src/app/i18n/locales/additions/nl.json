@@ -496,7 +496,15 @@
         "playSound": "Geluid afspelen",
         "resize": "Grootte van het oproepvenster wijzigen",
         "screenOf": "Scherm van {{name}}",
-        "fullScreen": "Volledig scherm"
+        "fullScreen": "Volledig scherm",
+        "startAppShare": "Deze app delen",
+        "stopAppShare": "Stoppen met delen van deze app",
+        "screenShareStoppedInBackground": "Scherm delen is gestopt toen je de app verliet.",
+        "shareAgain": "Opnieuw delen",
+        "microphoneStopped": "Je microfoon is gestopt.",
+        "cameraStopped": "Je camera is gestopt.",
+        "turnBackOn": "Weer inschakelen",
+        "dismissNotice": "Sluiten"
       },
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
