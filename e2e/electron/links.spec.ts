@@ -266,6 +266,29 @@ test.describe('Electron external link handling', () => {
         .poll(async () => (await readTelemetry(app)).externalOpens)
         .toEqual(['https://example.org/docs', 'https://evil.example/phish']);
 
+      // A middle click on the misleading link asks too: Cancel opens nothing, Open exactly once.
+      await misleadingLink.click({ button: 'middle' });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('button', { name: /cancel/i }).click();
+      await expect(dialog).toHaveCount(0);
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 250)));
+      expect((await readTelemetry(app)).externalOpens).toEqual([
+        'https://example.org/docs',
+        'https://evil.example/phish',
+      ]);
+      await misleadingLink.click({ button: 'middle' });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('button', { name: /open link/i }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect
+        .poll(async () => (await readTelemetry(app)).externalOpens)
+        .toEqual([
+          'https://example.org/docs',
+          'https://evil.example/phish',
+          'https://evil.example/phish',
+        ]);
+      expect(app.windows()).toHaveLength(1);
+
       // Profile menu -> ServerChip -> Open in Browser opens once.
       await page.getByRole('button', { name: /alice/i }).first().click();
       const serverChip = page.getByRole('button', { name: 'example.test' });
@@ -279,6 +302,7 @@ test.describe('Electron external link handling', () => {
         .poll(async () => (await readTelemetry(app)).externalOpens)
         .toEqual([
           'https://example.org/docs',
+          'https://evil.example/phish',
           'https://evil.example/phish',
           'https://example.test/',
         ]);
