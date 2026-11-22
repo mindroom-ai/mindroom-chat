@@ -33,13 +33,11 @@ export const resolveBundlePath = (
   const parts = decoded.split('/');
   if (parts.some((p) => p === '.' || p === '..')) return { status: 404 };
   const segments = parts.filter(Boolean);
-  if (segments.length === 0) return { file: 'index.html' };
   const relative = segments.join('/');
-  if (!decoded.endsWith('/') && isFile(relative)) return { file: relative };
+  if (segments.length > 0 && !decoded.endsWith('/') && isFile(relative)) return { file: relative };
   const first = segments[0] ?? '';
-  return first === 'assets' || first.startsWith('_capacitor_')
-    ? { status: 404 }
-    : { file: 'index.html' };
+  if (first === 'assets' || first.startsWith('_capacitor_')) return { status: 404 };
+  return isFile('index.html') ? { file: 'index.html' } : { status: 404 };
 };
 
 export const isFramePage = (pathname: string): boolean => {
@@ -82,10 +80,7 @@ export const serveBundle = (distDir: string): void => {
     }
     const url = parseAppUrl(request.url);
     if (!url) return new Response('Not Found', { status: 404 });
-    const pathname = request.url.startsWith(`${APP_ORIGIN}/`)
-      ? request.url.slice(APP_ORIGIN.length).split(/[?#]/, 1)[0] ?? url.pathname
-      : url.pathname;
-    const resolved = resolveBundlePath(pathname, (rel) => files.has(rel));
+    const resolved = resolveBundlePath(url.pathname, (rel) => files.has(rel));
     if ('status' in resolved) return new Response('Not Found', { status: resolved.status });
     const fullPath = path.resolve(root, resolved.file);
     if (!fullPath.startsWith(rootPrefix)) return new Response('Not Found', { status: 404 });

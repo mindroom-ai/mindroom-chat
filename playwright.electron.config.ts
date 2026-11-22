@@ -11,6 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
+    baseURL: 'capacitor://localhost',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron';
 import { APP_ORIGIN } from './bundleProtocol';
 import { guardWebContents } from './security';
 
+const CRASH_RESET_MS = 60_000;
 let mainWindow: BrowserWindow | undefined;
 
 export const getMainWindow = (): BrowserWindow | undefined =>
@@ -39,19 +40,32 @@ export const showMainWindow = (onBlockedUrl?: (url: string) => void): BrowserWin
     if (!win.isDestroyed()) win.show();
   });
   const sendFullscreen = (value: boolean): void => {
-    if (!win.isDestroyed())
+    if (!win.isDestroyed()) {
       win.webContents.send('desktop:shell-event', { type: 'fullscreen', value });
+    }
   };
   win.on('enter-full-screen', () => sendFullscreen(true));
   win.on('leave-full-screen', () => sendFullscreen(false));
-  win.webContents.on('did-finish-load', () => sendFullscreen(win.isFullScreen()));
+
   let reloadedAfterCrash = false;
+  let crashResetTimer: ReturnType<typeof setTimeout> | undefined;
+  win.webContents.on('did-finish-load', () => {
+    sendFullscreen(win.isFullScreen());
+    clearTimeout(crashResetTimer);
+    if (reloadedAfterCrash) {
+      crashResetTimer = setTimeout(() => {
+        reloadedAfterCrash = false;
+      }, CRASH_RESET_MS);
+    }
+  });
   win.webContents.on('render-process-gone', (_event, details) => {
+    clearTimeout(crashResetTimer);
     if (details.reason === 'clean-exit' || reloadedAfterCrash || win.isDestroyed()) return;
     reloadedAfterCrash = true;
     win.webContents.reload();
   });
   win.on('closed', () => {
+    clearTimeout(crashResetTimer);
     if (mainWindow === win) mainWindow = undefined;
   });
   void win.loadURL(`${APP_ORIGIN}/`);

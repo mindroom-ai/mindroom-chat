@@ -31,8 +31,6 @@ html[data-shell='desktop'] #portalContainer {
   z-index: 1;
 }
 
-html[data-shell='desktop'] #portalContainer,
-html[data-shell='desktop'] #portalContainer *,
 html[data-shell='desktop'] body > :not(#root),
 html[data-shell='desktop'] body > :not(#root) * {
   -webkit-app-region: no-drag;

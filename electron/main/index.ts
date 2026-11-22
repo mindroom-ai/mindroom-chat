@@ -7,37 +7,32 @@ import { guardSession } from './security';
 registerBundleScheme();
 
 const unpackaged = !app.isPackaged;
-const isTest = unpackaged && process.env.MINDROOM_E2E_TEST === '1';
-if (unpackaged && process.env.MINDROOM_USER_DATA_DIR) {
-  app.setPath('userData', path.resolve(process.env.MINDROOM_USER_DATA_DIR));
+const isTest = unpackaged && process.env.MINDROOM_DESKTOP_TEST === '1';
+if (unpackaged && process.env.MINDROOM_DESKTOP_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.MINDROOM_DESKTOP_USER_DATA));
 }
 const distDir =
-  unpackaged && process.env.MINDROOM_DIST_DIR
-    ? path.resolve(process.env.MINDROOM_DIST_DIR)
+  unpackaged && process.env.MINDROOM_DESKTOP_DIST
+    ? path.resolve(process.env.MINDROOM_DESKTOP_DIST)
     : app.isPackaged
     ? path.join(app.getAppPath(), 'dist')
     : path.resolve(__dirname, '../../dist');
 
 const telemetry = isTest
-  ? {
-      blockedUrls: [] as string[],
-      permissions: [] as Array<{ kind: 'check' | 'request'; permission: string; granted: boolean }>,
-    }
+  ? { blockedUrls: [] as string[], networkPermissions: [] as string[] }
   : undefined;
 if (telemetry) Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
 const onBlockedUrl = telemetry ? (url: string) => telemetry.blockedUrls.push(url) : undefined;
 
 void app.whenReady().then(() => {
-  if (isTest && process.env.MINDROOM_E2E_OFFLINE === '1') {
+  if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
     session.defaultSession.enableNetworkEmulation({ offline: true });
   }
   serveBundle(distDir);
   guardSession(
     session.defaultSession,
-    (wc) => wc !== null && wc === getMainWindow()?.webContents,
-    telemetry
-      ? (k, p, g) => telemetry.permissions.push({ kind: k, permission: p, granted: g })
-      : undefined
+    (wc) => wc === getMainWindow()?.webContents,
+    telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
   showMainWindow(onBlockedUrl);
 });

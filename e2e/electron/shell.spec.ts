@@ -3,11 +3,18 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { expect, test } from '@playwright/test';
+import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
+import { COMPOSER_NAME } from '../helpers/composerName';
+import { createRoom } from '../helpers/createRoom';
+import { DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
 import { launchDesktop } from '../helpers/electronApp';
+import { loginToMatrix } from '../helpers/matrix';
+
+const APP_ORIGIN = 'capacitor://localhost';
 
 type Telemetry = {
   blockedUrls: string[];
-  permissions: Array<{ kind: 'check' | 'request'; permission: string; granted: boolean }>;
+  networkPermissions: string[];
 };
 
 const readTelemetry = async (
@@ -17,7 +24,7 @@ const readTelemetry = async (
     () =>
       (globalThis as { __mindroomTestTelemetry?: Telemetry }).__mindroomTestTelemetry ?? {
         blockedUrls: [],
-        permissions: [],
+        networkPermissions: [],
       }
   );
 
@@ -146,7 +153,7 @@ test.describe('Electron desktop shell', () => {
       });
 
       expect(env).toEqual({
-        origin: 'capacitor://localhost',
+        origin: APP_ORIGIN,
         isSecureContext: true,
         shell: 'desktop',
         idbOk: true,
@@ -184,20 +191,17 @@ test.describe('Electron desktop shell', () => {
 
       expect(clientResult).toEqual({ status: 200, wsOpened: true });
       expect(probe.result()).toEqual({
-        fetchOrigin: 'capacitor://localhost',
+        fetchOrigin: APP_ORIGIN,
         fetchAuth: 'Bearer desktop-e2e-token',
-        wsOrigin: 'capacitor://localhost',
+        wsOrigin: APP_ORIGIN,
       });
 
       const telemetry = await readTelemetry(app);
-      const networkPermissions = telemetry.permissions.filter((entry) =>
-        ['local-network', 'local-network-access', 'loopback-network'].includes(entry.permission)
-      );
       test.info().annotations.push({
         type: 'network-permission-queries',
         description:
-          networkPermissions.length > 0
-            ? networkPermissions.map((p) => `${p.kind}:${p.permission}=${p.granted}`).join(', ')
+          telemetry.networkPermissions.length > 0
+            ? telemetry.networkPermissions.join(', ')
             : 'none',
       });
     } finally {
@@ -223,9 +227,10 @@ test.describe('Electron desktop shell', () => {
         '/pdf-frame.html?x=1',
       ];
       for (const targetPath of spellings) {
+        const targetUrl = `${APP_ORIGIN}${targetPath}`;
         await page.evaluate((target: string) => {
           window.location.assign(target);
-        }, targetPath);
+        }, targetUrl);
         await page.waitForTimeout(150);
         await page.waitForLoadState('domcontentloaded');
         const state = await page.evaluate(() => ({
@@ -233,13 +238,40 @@ test.describe('Electron desktop shell', () => {
           title: document.title,
           hasRobotsNoIndex: document.querySelector('meta[name="robots"]') !== null,
         }));
-        expect(state.origin, targetPath).toBe('capacitor://localhost');
-        expect(state.title, targetPath).not.toBe('PDF');
-        expect(state.hasRobotsNoIndex, targetPath).toBe(false);
+        expect(state.origin, targetUrl).toBe(APP_ORIGIN);
+        expect(state.title, targetUrl).not.toBe('PDF');
+        expect(state.hasRobotsNoIndex, targetUrl).toBe(false);
+      }
+
+      // Exercise webRequest.onBeforeRequest directly by loading frame pages from main (bypasses will-navigate).
+      for (const directUrl of [
+        `${APP_ORIGIN}/pdf-frame.html`,
+        `${APP_ORIGIN}/%70df-frame%2ehtml`,
+      ]) {
+        const result = await app.evaluate(async ({ BrowserWindow }, target: string) => {
+          const win = BrowserWindow.getAllWindows()[0];
+          if (!win) return { rejected: false, code: '', title: '', hasRobots: false };
+          let rejected = false;
+          let code = '';
+          try {
+            await win.loadURL(target);
+          } catch (err) {
+            rejected = true;
+            code = String((err as { code?: unknown }).code ?? '');
+          }
+          const doc = (await win.webContents.executeJavaScript(
+            `({ title: document.title, hasRobots: document.querySelector('meta[name="robots"]') !== null })`
+          )) as { title: string; hasRobots: boolean };
+          return { rejected, code, ...doc };
+        }, directUrl);
+        expect(result.rejected, directUrl).toBe(true);
+        expect(result.code, directUrl).toBe('ERR_BLOCKED_BY_CLIENT');
+        expect(result.title, directUrl).not.toBe('PDF');
+        expect(result.hasRobots, directUrl).toBe(false);
       }
 
       // Return to the sign-in root after exercising blocked and SPA spellings.
-      await page.goto('capacitor://localhost/');
+      await page.goto(`${APP_ORIGIN}/`);
       await expect(page.locator('input[name="serverInput"]')).toBeVisible();
 
       // Click outside link, window.open, and top-level navigation away.
@@ -264,7 +296,7 @@ test.describe('Electron desktop shell', () => {
 
       expect(opened).toBe(false);
       expect(app.windows()).toHaveLength(1);
-      expect(await page.evaluate(() => window.location.origin)).toBe('capacitor://localhost');
+      expect(await page.evaluate(() => window.location.origin)).toBe(APP_ORIGIN);
 
       const telemetry = await readTelemetry(app);
       expect(telemetry.blockedUrls).toEqual(
@@ -439,7 +471,7 @@ test.describe('Electron desktop shell', () => {
         )
         .toEqual({
           pid: expect.any(Number),
-          origin: 'capacitor://localhost',
+          origin: APP_ORIGIN,
           beforeCrash: false,
           hasServerInput: true,
         });
@@ -454,32 +486,51 @@ test.describe('Electron desktop shell', () => {
     }
   });
 
-  test('@homeserver signs in with password, sends and reads a message in an encrypted room', async () => {
-    const homeserver = process.env.E2E_HOMESERVER_URL ?? 'http://127.0.0.1:28008';
+  test('@homeserver signs in with password, sends and decrypts a message in an encrypted room', async () => {
+    const homeserver = process.env.E2E_HOMESERVER_URL ?? DISPOSABLE_HOMESERVER;
     const lanHomeserver = process.env.E2E_LAN_HOMESERVER_URL;
-    const username = `desktop_${Date.now()}`;
+    const suffix = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const username = `desktop_${suffix}`;
     const password = `Pass_${crypto.randomBytes(8).toString('hex')}`;
 
     const reg = await fetch(`${homeserver}/_matrix/client/v3/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
+      body: JSON.stringify({
+        username,
+        password,
+        auth: { type: 'm.login.dummy' },
+        inhibit_login: true,
+      }),
     });
-    test.skip(!reg.ok, `Homeserver at ${homeserver} did not accept registration (${reg.status})`);
+    expect(reg.ok, `registering ${username} on ${homeserver} (${reg.status})`).toBe(true);
+
+    const apiSession = await loginToMatrix(homeserver, username, password);
+    const roomName = `Desktop E2EE ${suffix}`;
+    const roomId = await createRoom(homeserver, apiSession.accessToken, {
+      name: roomName,
+      encrypted: true,
+    });
+    const messageText = `Encrypted desktop check ${suffix}`;
 
     const session = await launchDesktop();
     try {
       const { page } = session;
-      const serverInput = page.locator('input[name="serverInput"]');
-      await expect(serverInput).toBeVisible();
-      await serverInput.fill(homeserver);
-      await page.locator('input[name="usernameInput"]').fill(username);
-      await page.locator('input[name="passwordInput"]').fill(password);
-      await page.getByRole('button', { name: 'Login' }).click();
+      await loginWithPassword(page, { homeserver, username, password });
 
-      await expect(
-        page.getByRole('button', { name: /Open account menu for / }).first()
-      ).toBeVisible({ timeout: 30_000 });
+      await page.goto(`${APP_ORIGIN}/home/${encodeURIComponent(roomId)}`);
+      const composer = page.getByRole('textbox', { name: COMPOSER_NAME }).first();
+      await expect(composer).toBeVisible({ timeout: 20_000 });
+      await composer.click();
+      await page.keyboard.type(messageText);
+      await page.keyboard.press('Enter');
+      await expect(page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+
+      // Reload the desktop window and verify the encrypted message still decrypts from persistent crypto storage.
+      await page.reload();
+      await waitForLoggedInShell(page);
+      await expect(page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText(/Unable to decrypt/i)).toHaveCount(0);
 
       if (lanHomeserver) {
         const lanOk = await page.evaluate(async (url: string) => {

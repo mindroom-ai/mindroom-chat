@@ -1,14 +1,20 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('electron', () => ({}));
+
 import { APP_ORIGIN } from './bundleProtocol';
 import { guardSession, guardWebContents } from './security';
 
-const createFakeWebContents = () => {
+const createFakeWebContents = (
+  mainFrame: { url: string; origin: string } = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN }
+) => {
   const emitter = new EventEmitter();
   let openHandler: ((details: { url: string }) => { action: string }) | undefined;
   return {
     emitter,
     contents: Object.assign(emitter, {
+      mainFrame,
       setWindowOpenHandler: vi.fn((fn: (details: { url: string }) => { action: string }) => {
         openHandler = fn;
       }),
@@ -135,8 +141,9 @@ describe('security', () => {
 
   describe('guardSession', () => {
     it('cancels non-subFrame requests for frame pages in every spelling', () => {
+      const mainContents = createFakeWebContents().contents;
       const { session, runBeforeRequest } = createFakeSession();
-      guardSession(session);
+      guardSession(session, (wc) => wc === mainContents);
 
       for (const url of [
         `${APP_ORIGIN}/pdf-frame.html`,
@@ -153,11 +160,24 @@ describe('security', () => {
       expect(runBeforeRequest(`${APP_ORIGIN}/home`, 'mainFrame')).toEqual({ cancel: false });
     });
 
-    it('grants only the allowed permissions to the main window main frame', () => {
+    it('grants only allowed permissions to the main window main frame with APP_ORIGIN', () => {
       const mainContents = createFakeWebContents().contents;
       const otherContents = createFakeWebContents().contents;
+      const opaqueContents = createFakeWebContents({
+        url: `${APP_ORIGIN}/home`,
+        origin: 'null',
+      }).contents;
+      const framePageContents = createFakeWebContents({
+        url: `${APP_ORIGIN}/pdf-frame.html`,
+        origin: APP_ORIGIN,
+      }).contents;
+      const queriedNetwork: string[] = [];
       const { session, runPermissionCheck, runPermissionRequest } = createFakeSession();
-      guardSession(session, (wc) => wc === mainContents);
+      guardSession(
+        session,
+        (wc) => wc === mainContents || wc === opaqueContents || wc === framePageContents,
+        (perm) => queriedNetwork.push(perm)
+      );
 
       const allowed = [
         'media',
@@ -185,8 +205,16 @@ describe('security', () => {
           `request ${permission}`
         ).toBe(true);
       }
+      expect(queriedNetwork).toEqual([
+        'local-network',
+        'local-network',
+        'local-network-access',
+        'local-network-access',
+        'loopback-network',
+        'loopback-network',
+      ]);
 
-      // Denied: other permissions, subframes, other origins, frame pages, other windows.
+      // Denied: other permissions, subframes, other origins, opaque origin, frame pages, other windows.
       for (const permission of ['geolocation', 'display-capture', 'openExternal', 'usb']) {
         expect(
           runPermissionCheck(mainContents, permission, APP_ORIGIN, {
@@ -204,6 +232,26 @@ describe('security', () => {
         ).toBe(false);
       }
 
+      // Same app URL, but opaque mainFrame origin ("null") must be denied on both handlers.
+      expect(
+        runPermissionCheck(opaqueContents, 'media', APP_ORIGIN, {
+          isMainFrame: true,
+          requestingUrl: `${APP_ORIGIN}/home`,
+        })
+      ).toBe(false);
+      expect(
+        runPermissionRequest(opaqueContents, 'media', {
+          isMainFrame: true,
+          requestingUrl: `${APP_ORIGIN}/home`,
+        })
+      ).toBe(false);
+
+      expect(
+        runPermissionCheck(framePageContents, 'media', APP_ORIGIN, {
+          isMainFrame: true,
+          requestingUrl: `${APP_ORIGIN}/home`,
+        })
+      ).toBe(false);
       expect(
         runPermissionCheck(mainContents, 'media', APP_ORIGIN, {
           isMainFrame: false,

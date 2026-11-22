@@ -28,10 +28,10 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE') env[key] = value;
   }
-  env.MINDROOM_E2E_TEST = '1';
-  env.MINDROOM_USER_DATA_DIR = userData;
-  if (options?.dist) env.MINDROOM_DIST_DIR = options.dist;
-  if (options?.offline) env.MINDROOM_E2E_OFFLINE = '1';
+  env.MINDROOM_DESKTOP_TEST = '1';
+  env.MINDROOM_DESKTOP_USER_DATA = userData;
+  if (options?.dist) env.MINDROOM_DESKTOP_DIST = options.dist;
+  if (options?.offline) env.MINDROOM_DESKTOP_OFFLINE = '1';
 
   const args = [MAIN_ENTRY];
   if (process.platform === 'linux' && process.env.MINDROOM_E2E_NO_SANDBOX === '1') {

@@ -62,6 +62,13 @@ describe('bundleProtocol', () => {
       expect(resolveBundlePath('/home/room.with.dots', isFile)).toEqual({ file: 'index.html' });
     });
 
+    it('returns 404 when index.html is missing even on SPA fallback', () => {
+      const withoutIndex = (relative: string) => relative === 'assets/app.js';
+      expect(resolveBundlePath('/', withoutIndex)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/home', withoutIndex)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/assets/app.js', withoutIndex)).toEqual({ file: 'assets/app.js' });
+    });
+
     it('returns 404 for missing assets and capacitor paths', () => {
       expect(resolveBundlePath('/assets/missing.js', isFile)).toEqual({ status: 404 });
       expect(resolveBundlePath('/assets/', isFile)).toEqual({ status: 404 });
@@ -95,7 +102,7 @@ describe('bundleProtocol', () => {
       const probed: string[] = [];
       const trackingIsFile = (relative: string) => {
         probed.push(relative);
-        return false;
+        return relative === 'index.html';
       };
       expect(resolveBundlePath('/etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
       expect(resolveBundlePath('//etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
@@ -205,16 +212,31 @@ describe('bundleProtocol', () => {
       const otherPort = await handler(new Request('capacitor://localhost:8080/index.html'));
       expect(otherPort.status).toBe(404);
 
-      const escaped = await handler({
-        method: 'GET',
-        url: `${APP_ORIGIN}/%2e%2e/secret.txt`,
-      } as Request);
-      expect(escaped.status).toBe(404);
       const normalizedEscape = await handler(new Request(`${APP_ORIGIN}/%2e%2e/secret.txt`));
       expect(await normalizedEscape.text()).not.toContain('TOP_SECRET');
 
       const symlink = await handler(new Request(`${APP_ORIGIN}/leak.txt`));
       expect(await symlink.text()).not.toContain('TOP_SECRET');
+    });
+
+    it('returns 404 when dist/index.html is a symlink outside dist', async () => {
+      const parent = makeDist({
+        'secret.txt': 'TOP_SECRET',
+        'dist/assets/app.js': 'console.log(1);',
+      });
+      const distDir = path.join(parent, 'dist');
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'index.html'));
+
+      serveBundle(distDir);
+      const handler = protocolMock.handle.mock.calls[0]?.[1] as (
+        request: Request
+      ) => Promise<Response>;
+
+      for (const route of ['/', '/home', '/index.html']) {
+        const res = await handler(new Request(`${APP_ORIGIN}${route}`));
+        expect(res.status, route).toBe(404);
+        expect(await res.text(), route).not.toContain('TOP_SECRET');
+      }
     });
   });
 });

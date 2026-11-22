@@ -10,6 +10,8 @@ on:
       - src/app/messages/canvas/**
       - src/app/canvas/**
       - src/index.tsx
+      - src/index.css
+      - src/app/shell/App.tsx
       - index.html
       - public/*.html
       - scripts/frame-headers.json
