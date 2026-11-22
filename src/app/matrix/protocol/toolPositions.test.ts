@@ -7,12 +7,23 @@ import { installEventContentGuard, sanitizeContent, trustAgentsOfViewer } from '
 const TRACE = 'io.mindroom.tool_trace';
 
 type Case = (typeof positions.cases)[number];
-type Wire = { body: string; formatted_body: string; body_line: unknown[]; at: unknown[] };
+type Sent = Case['sent'] & { stream_status?: string };
+type Wire = {
+  body: string;
+  formatted_body: string;
+  placeholder_body?: boolean;
+  body_line: unknown[];
+  at: unknown[];
+};
 
-type Trace = { version: number; events: Record<string, unknown>[] };
+type Trace = {
+  version: number;
+  events: Record<string, unknown>[];
+  placeholder_body?: boolean;
+};
 
 /** A case's wire content, with `place` in place of each call's positions when given. */
-const wireContent = ({ sent, wire }: { sent: Case['sent']; wire: Wire }, place?: unknown[]) => {
+const wireContent = ({ sent, wire }: { sent: Sent; wire: Wire }, place?: unknown[]) => {
   const events = sent.events.map((event, index): Record<string, unknown> => {
     const line = place ? place[index] : wire.body_line[index];
     const at = place ? place[index] : wire.at[index];
@@ -22,12 +33,17 @@ const wireContent = ({ sent, wire }: { sent: Case['sent']; wire: Wire }, place?:
       ...(at === null ? {} : { at }),
     };
   });
-  const trace: Trace = { version: 3, events };
+  const trace: Trace = {
+    version: 3,
+    events,
+    ...(wire.placeholder_body ? { placeholder_body: true } : {}),
+  };
   return {
     msgtype: 'm.text',
     body: wire.body,
     format: 'org.matrix.custom.html',
     formatted_body: wire.formatted_body,
+    ...(sent.stream_status ? { 'io.mindroom.stream_status': sent.stream_status } : {}),
     [TRACE]: trace,
   };
 };
@@ -49,7 +65,9 @@ describe('tool positions', () => {
       const content = withToolMarkersRestored(wireContent({ sent, wire: wire as Wire }));
       expect(content.body).toBe(sent.body);
       expect(content.formatted_body).toBe(sent.formatted_body);
-      expect((content[TRACE] as { version: unknown }).version).toBe(2);
+      const trace = content[TRACE] as Record<string, unknown>;
+      expect(trace.version).toBe(2);
+      expect('placeholder_body' in trace).toBe(false);
     }
   );
 
@@ -141,6 +159,69 @@ describe('tool positions', () => {
     expect(withToolMarkersRestored(plain).body).toBe(heading.sent.body);
   });
 
+  it('restores a legacy empty-body v3 reply without placeholder_body byte for byte', () => {
+    const callsAlone = caseNamed('a reply of calls alone');
+    const legacy = {
+      msgtype: 'm.text',
+      body: '',
+      format: 'org.matrix.custom.html',
+      formatted_body: '',
+      [TRACE]: {
+        version: 3,
+        events: callsAlone.sent.events.map((event) => ({ ...event, body_line: 0, at: 0 })),
+      },
+    };
+    const restored = withToolMarkersRestored(legacy);
+    expect(restored.body).toBe(callsAlone.sent.body);
+    expect(restored.formatted_body).toBe(callsAlone.sent.formatted_body);
+    const trace = restored[TRACE] as Record<string, unknown>;
+    expect(trace.version).toBe(2);
+    expect('placeholder_body' in trace).toBe(false);
+  });
+
+  it('does not erase body or formatted_body when placeholder_body is true with zero placed calls', () => {
+    const malformed = {
+      msgtype: 'm.text',
+      body: '2 tool calls',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>2 tool calls</p>\n',
+      [TRACE]: {
+        version: 3,
+        placeholder_body: true,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+      },
+    };
+    const restored = withToolMarkersRestored(malformed);
+    expect(restored.body).toBe('2 tool calls');
+    expect(restored.formatted_body).toBe('<p>2 tool calls</p>\n');
+    const trace = restored[TRACE] as Record<string, unknown>;
+    expect(trace.version).toBe(2);
+    expect('placeholder_body' in trace).toBe(false);
+  });
+
+  it('restores a placeholder_body edit envelope and removes placeholder_body from outer trace', () => {
+    const streaming = caseNamed('a streaming reply of calls alone');
+    const wire = wireContent(streaming);
+    const edit = {
+      ...wire,
+      body: `* ${wire.body}`,
+      'm.new_content': wire,
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    };
+    const restored = withToolMarkersRestored(edit);
+    const replacement = restored['m.new_content'] as Record<string, unknown>;
+    expect(restored.body).toBe(`* ${streaming.sent.body}`);
+    expect(restored.formatted_body).toBe(streaming.sent.formatted_body);
+    expect(replacement.body).toBe(streaming.sent.body);
+    expect(replacement.formatted_body).toBe(streaming.sent.formatted_body);
+    const outerTrace = restored[TRACE] as Record<string, unknown>;
+    const innerTrace = replacement[TRACE] as Record<string, unknown>;
+    expect(outerTrace.version).toBe(2);
+    expect(innerTrace.version).toBe(2);
+    expect('placeholder_body' in outerTrace).toBe(false);
+    expect('placeholder_body' in innerTrace).toBe(false);
+  });
+
   // Each "<a" that no ">" closes was read to the end of the text: a quarter of a megabyte took
   // tens of seconds on the thread that draws the timeline.
   it.each([
@@ -202,7 +283,10 @@ describe('tool positions on read', () => {
   });
 
   /** The edit the backend sends for `layer`: the fallback repeats it after "* ". */
-  const editOf = (layer: Record<string, unknown>, fallbackTrace = true) => {
+  const editOf = (
+    layer: Record<string, unknown>,
+    fallbackTrace = true
+  ): Record<string, unknown> => {
     const { [TRACE]: trace, ...rest } = layer;
     return {
       ...rest,
@@ -269,15 +353,29 @@ describe('tool positions on read', () => {
     (_name, { sent, wire }) => {
       const held = wireContent({ sent, wire: wire as Wire });
       const built = { ...held, body: sent.body, formatted_body: sent.formatted_body };
-      const { [TRACE]: _trace, ...text } = built;
+      const { [TRACE]: _trace, 'io.mindroom.stream_status': _stream, ...text } = built;
       expect(event(ELSEWHERE, held).getContent()).toEqual(text);
       for (const fallbackTrace of [true, false]) {
         const read = event(ELSEWHERE, editOf(held, fallbackTrace)).getContent();
-        const { [TRACE]: _outer, ...fallback } = editOf(built, fallbackTrace);
+        const {
+          [TRACE]: _outer,
+          'io.mindroom.stream_status': _outerStream,
+          ...fallback
+        } = editOf(built, fallbackTrace);
         expect(read).toEqual({ ...fallback, 'm.new_content': text });
       }
     }
   );
+
+  it('leaves placeholder_body text untouched and drops the trace for a non-agent sender', () => {
+    const streaming = caseNamed('a streaming reply of calls alone');
+    const wire = wireContent(streaming);
+    const content = sanitizeContent(wire, false);
+    expect(content.body).toBe('Thinking...');
+    expect(content.formatted_body).toBe('<p>Thinking...</p>\n');
+    expect(content[TRACE]).toBeUndefined();
+    expect(content['io.mindroom.stream_status']).toBeUndefined();
+  });
 
   it('puts back no markers for a sender that is no agent, on any homeserver', () => {
     const content = sanitizeContent(wireContent(between), false);

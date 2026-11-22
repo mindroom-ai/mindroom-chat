@@ -34,6 +34,7 @@ type LongTextTextProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   longTextSource: LongTextSource;
+  transformContent?: (content: Record<string, unknown>) => Record<string, unknown>;
   renderBody: (
     content: Record<string, unknown>,
     props: RenderBodyProps,
@@ -167,6 +168,7 @@ export function LongTextText({
   renderStateSuffix,
   content,
   longTextSource,
+  transformContent,
   renderBody,
   renderAfterBody,
   renderUrlsPreview,
@@ -299,7 +301,8 @@ export function LongTextText({
   // module cache for the current source; the effect converges state to the
   // same value.
   const warmResolvedContent = hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined;
-  const displayContent = warmResolvedContent ?? resolvedContent;
+  const rawDisplayContent = warmResolvedContent ?? resolvedContent;
+  const displayContent = transformContent ? transformContent(rawDisplayContent) : rawDisplayContent;
   const toolMetadataStatus: ToolMetadataStatus =
     !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
       ? 'loading'

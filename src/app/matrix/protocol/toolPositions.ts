@@ -81,27 +81,33 @@ const placed = (events: unknown[], key: 'body_line' | 'at', end: number): Call[]
 const layerWithMarkers = (content: Record<string, unknown>): Record<string, unknown> => {
   const trace = positionsOf(content);
   const events = trace?.events;
-  if (!Array.isArray(events)) return content;
+  if (!trace || !Array.isArray(events)) return content;
+  const { placeholder_body: placeholderBody, ...restTrace } = trace;
+  const isPlaceholderBody = placeholderBody === true;
   const restored: Record<string, unknown> = {
     ...content,
-    [MINDROOM_TOOL_TRACE_KEY]: { ...trace, version: 2 },
+    [MINDROOM_TOOL_TRACE_KEY]: { ...restTrace, version: 2 },
   };
   const { body, formatted_body: html } = content;
   if (typeof body === 'string') {
+    const placeholderCalls = isPlaceholderBody ? placed(events, 'body_line', 0) : undefined;
+    const baseBody = placeholderCalls && placeholderCalls.length > 0 ? '' : body;
     // Before line `body_line` with a blank line after it, or at the end after one.
-    const lines = body ? body.split('\n') : [];
+    const lines = baseBody ? baseBody.split('\n') : [];
     const end = lines.length;
-    placed(events, 'body_line', end).forEach(({ at, line }) =>
+    (placeholderCalls ?? placed(events, 'body_line', end)).forEach(({ at, line }) =>
       lines.splice(at, 0, ...(at < end ? [line, ''] : ['', line]))
     );
     // No blank line opens a reply that is its markers alone.
-    restored.body = lines.join('\n').slice(body ? 0 : 1);
+    restored.body = lines.join('\n').slice(baseBody ? 0 : 1);
   }
   if (typeof html === 'string') {
-    const starts = htmlBlockStarts(html);
-    let text = html;
-    placed(events, 'at', starts.length).forEach((call) => {
-      const offset = starts[call.at] ?? html.length;
+    const placeholderCalls = isPlaceholderBody ? placed(events, 'at', 0) : undefined;
+    const baseHtml = placeholderCalls && placeholderCalls.length > 0 ? '' : html;
+    const starts = htmlBlockStarts(baseHtml);
+    let text = baseHtml;
+    (placeholderCalls ?? placed(events, 'at', starts.length)).forEach((call) => {
+      const offset = starts[call.at] ?? baseHtml.length;
       text = text.slice(0, offset) + call.html + text.slice(offset);
     });
     restored.formatted_body = text;
