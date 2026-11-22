@@ -1042,4 +1042,30 @@ describe('ActivityList', () => {
     expect(document.activeElement).toBe(focusedBtn);
     expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(41);
   });
+
+  it('does not play a leave fade when a live prepend pushes an ordinary row past the window edge', () => {
+    const motion = standInForListMotion();
+    const prevHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 3000 });
+    try {
+      const rows = Array.from({ length: 45 }, (_, index) =>
+        threadRow(`w${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+      );
+      const store = renderList({ rows, hiddenAutomations: 0 });
+      const incoming = threadRow(
+        'w-new',
+        'reply',
+        { newCount: 1 },
+        { actorIds: ['@mindroom_code:x'], title: 'Thread w-new' }
+      );
+      act(() => store.set(activityRowsAtom, { rows: [incoming, ...rows], hiddenAutomations: 0 }));
+
+      // Row w39 fell past the 40-row window edge; it was not read/removed so it must not fade out.
+      expect(motion.left()).toEqual([]);
+      expect(motion.glided()).toContain('w0');
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: prevHeight });
+      motion.restore();
+    }
+  });
 });
