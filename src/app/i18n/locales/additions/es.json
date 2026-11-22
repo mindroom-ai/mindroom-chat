@@ -101,7 +101,8 @@
       "giveRoleRights": "Dar permisos de {{role}}",
       "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
       "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
-      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}."
+      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",

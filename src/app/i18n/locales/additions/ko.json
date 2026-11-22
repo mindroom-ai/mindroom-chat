@@ -95,7 +95,8 @@
       "giveRoleRights": "{{role}} 권한 부여",
       "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
       "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
-      "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다."
+      "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "닫기",

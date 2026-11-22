@@ -101,7 +101,8 @@
       "giveRoleRights": "Conceder permissões de {{role}}",
       "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
       "roleFailed": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}",
-      "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}."
+      "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Fechar",

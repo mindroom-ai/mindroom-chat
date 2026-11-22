@@ -88,7 +88,9 @@ export const hasModeratorMindroomAgent = (
 export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string => {
   const name = tags[level]?.name;
   if (!name) return t('sharedUi.powerLevels.team', { power: level });
-  return level > MODERATOR_LEVEL ? `${name} (${level})` : name;
+  return level > MODERATOR_LEVEL
+    ? t('sharedUi.inviteUserPrompt.roleWithLevel', { role: name, level })
+    : name;
 };
 
 export type GrantFailure =

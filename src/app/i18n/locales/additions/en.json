@@ -98,7 +98,8 @@
       "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
-      "roleRequirementChanged": "This room now requires {{role}} rights."
+      "roleRequirementChanged": "This room now requires {{role}} rights.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Close",

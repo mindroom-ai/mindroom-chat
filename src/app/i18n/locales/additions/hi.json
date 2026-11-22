@@ -98,7 +98,8 @@
       "giveRoleRights": "{{role}} अधिकार दें",
       "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
       "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
-      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।"
+      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",

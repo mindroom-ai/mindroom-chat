@@ -98,7 +98,8 @@
       "giveRoleRights": "{{role}} yetkisi ver",
       "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
       "roleFailed": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}",
-      "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor."
+      "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Kapat",

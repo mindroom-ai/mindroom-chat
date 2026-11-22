@@ -110,7 +110,8 @@
       "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
       "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
-      "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩."
+      "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",

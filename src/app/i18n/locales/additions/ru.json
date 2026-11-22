@@ -104,7 +104,8 @@
       "giveRoleRights": "Выдать права роли «{{role}}»",
       "giveRoleRightsHelp": "В этой комнате для сворачивания расшифровок голосовых сообщений и управления расписаниями и настройками требуются права роли «{{role}}».",
       "roleFailed": "Приглашение отправлено: {{user}}, но не удалось выдать права роли «{{role}}»: {{error}}",
-      "roleRequirementChanged": "В этой комнате теперь требуются права роли «{{role}}»."
+      "roleRequirementChanged": "В этой комнате теперь требуются права роли «{{role}}».",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Закрыть",

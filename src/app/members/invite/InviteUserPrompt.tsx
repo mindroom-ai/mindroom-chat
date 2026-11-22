@@ -190,7 +190,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       if (failure) {
         const message = formatGrantFailure(failure, trimmedTarget, grantCeiling, tags, t);
         if (alive()) {
-          setInvited(undefined);
           setError(message);
         } else if (client.clientRunning !== false) {
           store.set(detachedGrantErrorAtom, { message });
@@ -284,7 +283,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   </Text>
                 )}
                 <Text size="T300" role="status">
-                  {invited && t('sharedUi.inviteUserPrompt.invited', { user: invited })}
+                  {invited && !error && t('sharedUi.inviteUserPrompt.invited', { user: invited })}
                 </Text>
                 <Button
                   type="submit"
