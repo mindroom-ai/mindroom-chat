@@ -525,7 +525,7 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       await click(copyBtn);
       expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
       expect(copyBtn.textContent?.trim()).toBe('Copy ID');
-      const liveRegion = host.querySelector('[role="status"][aria-live="polite"]');
+      const liveRegion = host.querySelector('span[role="status"][aria-live="polite"]');
       expect(liveRegion?.className).toBe('copied-status');
       expect(liveRegion?.textContent).toBe('Copied');
 
@@ -540,7 +540,10 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       expect(host.querySelector('dl')).toBeNull();
       await click(copyBtn);
       expect(host.querySelector('dl')).not.toBeNull();
-      expect(host.textContent).toContain('Could not copy. Select the Task ID in Details.');
+      const actionStatus = host.querySelector(
+        '[data-schedule-action-status][role="status"][aria-live="polite"]'
+      );
+      expect(actionStatus?.textContent).toBe('Could not copy. Select the Task ID in Details.');
     } finally {
       unmount();
     }
@@ -966,6 +969,47 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       act(() => root.unmount());
       host.remove();
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the action status live region mounted before Edit busy or Copy failure and updates it in place', async () => {
+    const task = makeTask({ taskId: 'live-status-1', description: 'Live status task' });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onEditTask: () => 'draft-busy',
+    });
+    try {
+      const initialStatusNode = host.querySelector(
+        '[data-schedule-action-status][role="status"][aria-live="polite"]'
+      );
+      expect(initialStatusNode).not.toBeNull();
+      expect(initialStatusNode?.textContent).toBe('');
+      expect(initialStatusNode?.className).toBe('sr-only');
+      const initialStatusCount = host.querySelectorAll('[role="status"]').length;
+
+      await click(findButtonByAriaLabel(host, 'Edit')!);
+      expect(host.querySelectorAll('[role="status"]').length).toBe(initialStatusCount);
+      expect(
+        host.querySelector('[data-schedule-action-status][role="status"][aria-live="polite"]')
+      ).toBe(initialStatusNode);
+      expect(initialStatusNode?.className).toBe('notice-bar');
+      expect(initialStatusNode?.textContent).toBe(
+        'Clear your current draft before editing this schedule.'
+      );
+
+      mocks.copyToClipboard.mockResolvedValueOnce(false);
+      await click(findButtonByText(host, 'Copy ID')!);
+      expect(host.querySelectorAll('[role="status"]').length).toBe(initialStatusCount);
+      expect(
+        host.querySelector('[data-schedule-action-status][role="status"][aria-live="polite"]')
+      ).toBe(initialStatusNode);
+      expect(initialStatusNode?.className).toBe('notice-bar');
+      expect(initialStatusNode?.textContent).toBe('Could not copy. Select the Task ID in Details.');
+    } finally {
+      unmount();
     }
   });
 

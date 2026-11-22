@@ -25,7 +25,7 @@ import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { useScheduleCancelState } from '../schedules/useScheduleCancelState';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
-import { sendCancelScheduledTask } from './roomScheduleActions';
+import { sendCancelScheduledTask, useHasJoinedMindroomAgent } from './roomScheduleActions';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
 import {
@@ -157,7 +157,10 @@ export function RoomView({
   const threadReturnPlaceRef = useRef<RoomRowsPlace>();
 
   const myUserId = client.getSafeUserId();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const roomCreators = useRoomCreators(room);
+  const powerLevels = usePowerLevelsContext();
+  const permissions = useRoomPermissions(roomCreators, powerLevels);
+  const hasJoinedAgent = useHasJoinedMindroomAgent(client, room, powerLevels, roomCreators);
   const canMessage = permissions.event('m.room.message', myUserId);
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
@@ -196,7 +199,7 @@ export function RoomView({
   );
   const scheduleCancelState = useScheduleCancelState(
     roomId,
-    hasMindroomAgents && composerShown ? cancelScheduledTask : undefined
+    hasMindroomAgents && hasJoinedAgent && composerShown ? cancelScheduledTask : undefined
   );
   // Under a plugin's cover, behind a side panel or under the thread column filling the page, the
   // composer takes no keys.

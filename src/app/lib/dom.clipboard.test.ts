@@ -123,4 +123,79 @@ describe('copyToClipboard', () => {
       });
     }
   });
+
+  it('mounts the fallback input inside an active dialog and restores button focus', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const button = document.createElement('button');
+    button.textContent = 'Copy ID';
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    button.focus();
+
+    let inputParent: Node | null = null;
+    const execCommand = vi.fn(() => {
+      const fallback = document.querySelector('input[data-clipboard-fallback]');
+      inputParent = fallback?.parentNode ?? null;
+      return true;
+    });
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      await expect(copyToClipboard('task-123')).resolves.toBe(true);
+      expect(inputParent).toBe(dialog);
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+    } finally {
+      dialog.remove();
+    }
+  });
+
+  it('returns false without calling execCommand when a focus trap steals focus from the fallback input', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const button = document.createElement('button');
+    button.textContent = 'Copy ID';
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    button.focus();
+
+    const stealFocus = (event: FocusEvent) => {
+      if (
+        event.target instanceof HTMLInputElement &&
+        event.target.hasAttribute('data-clipboard-fallback')
+      ) {
+        button.focus();
+      }
+    };
+    dialog.addEventListener('focusin', stealFocus);
+
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      await expect(copyToClipboard('task-456')).resolves.toBe(false);
+      expect(execCommand).not.toHaveBeenCalled();
+      expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+      expect(document.activeElement).toBe(button);
+    } finally {
+      dialog.removeEventListener('focusin', stealFocus);
+      dialog.remove();
+    }
+  });
 });

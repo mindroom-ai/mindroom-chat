@@ -14,6 +14,9 @@ import type { RoomViewHeaderProps } from './RoomViewHeader';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
+vi.spyOn(room, 'getJoinedMembers').mockImplementation(
+  () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
+);
 
 const { capturedHeaderProps, threadRouteState, sendMessage } = vi.hoisted(() => ({
   capturedHeaderProps: [] as RoomViewHeaderProps[],

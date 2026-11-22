@@ -257,6 +257,7 @@ function ScheduleAccordionItem({
         if (mountedRef.current) setCopied(false);
       }, COPY_FEEDBACK_MS);
     } else {
+      setEditBusy(false);
       setCopied(false);
       setCopyFailed(true);
       setDetailsOpen(true);
@@ -266,8 +267,17 @@ function ScheduleAccordionItem({
   const handleEditClick = () => {
     if (!onEditTask || !commandSafe) return;
     const result = onEditTask(task);
+    if (result === 'draft-busy') setCopyFailed(false);
     setEditBusy(result === 'draft-busy');
   };
+
+  const actionStatus = cancelSent
+    ? { text: t('roomSchedules.cancellationSent'), className: css.CancelSentBar }
+    : editBusy
+    ? { text: t('roomSchedules.editDraftBusy'), className: css.NoticeBar }
+    : copyFailed
+    ? { text: t('roomSchedules.copyFailed'), className: css.NoticeBar }
+    : undefined;
 
   const handleKeepCancel = () => {
     if (isCancelling) return;
@@ -545,23 +555,14 @@ function ScheduleAccordionItem({
             </div>
           )}
 
-          {cancelSent && (
-            <div role="status" className={css.CancelSentBar}>
-              <Text size="T200">{t('roomSchedules.cancellationSent')}</Text>
-            </div>
-          )}
-
-          {editBusy && (
-            <div role="status" className={css.NoticeBar}>
-              <Text size="T200">{t('roomSchedules.editDraftBusy')}</Text>
-            </div>
-          )}
-
-          {copyFailed && (
-            <div role="status" className={css.NoticeBar}>
-              <Text size="T200">{t('roomSchedules.copyFailed')}</Text>
-            </div>
-          )}
+          <div
+            role="status"
+            aria-live="polite"
+            data-schedule-action-status=""
+            className={actionStatus ? actionStatus.className : css.SrOnly}
+          >
+            {actionStatus ? <Text size="T200">{actionStatus.text}</Text> : ''}
+          </div>
 
           {detailsOpen && (
             <dl id={detailsId} className={css.Metadata}>

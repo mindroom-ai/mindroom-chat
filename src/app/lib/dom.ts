@@ -32,6 +32,9 @@ const copyWithBrowserClipboard = async (text: string): Promise<boolean> => {
 // The pre-Clipboard API way: select the text in a hidden field and run the copy command.
 const copyWithSelection = (text: string): boolean => {
   if (typeof document === 'undefined' || !document.body) return false;
+  const previouslyFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const mountTarget = previouslyFocused?.closest('[role="dialog"]') ?? document.body;
   const input = document.createElement('input');
   input.setAttribute('data-clipboard-fallback', '');
   input.setAttribute('aria-hidden', 'true');
@@ -39,14 +42,19 @@ const copyWithSelection = (text: string): boolean => {
   input.value = text;
   // eslint-disable-next-line no-restricted-syntax -- off screen; either edge hides it
   Object.assign(input.style, { position: 'fixed', top: '0', left: '-9999px', opacity: '0' });
-  document.body.appendChild(input);
+  mountTarget.appendChild(input);
   try {
+    input.focus({ preventScroll: true });
     input.select();
+    if (document.activeElement !== input) return false;
     return document.execCommand('copy');
   } catch {
     return false;
   } finally {
     input.remove();
+    if (previouslyFocused?.isConnected && document.activeElement !== previouslyFocused) {
+      previouslyFocused.focus({ preventScroll: true });
+    }
   }
 };
 

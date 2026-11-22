@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
-import { MsgType, RelationType, type Room } from 'matrix-js-sdk';
+import { MsgType, RelationType, RoomMemberEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Node as SlateNode } from 'slate';
@@ -14,6 +14,10 @@ import {
 import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { createParagraphElement } from '../editor/utils';
+import {
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+} from '../matrix/protocol/routerBinding';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { StateEvent } from '../matrix/types/room';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
@@ -27,9 +31,16 @@ type CapturedOverlayProps = {
   cancelState?: ScheduleCancelState;
 };
 
+const DEFAULT_AGENT_MEMBERS = [
+  { userId: '@me:example.org' },
+  { userId: '@mindroom_helper:example.org' },
+];
+
 const {
   perms,
-  tombstoneState,
+  roomState,
+  powerLevelsState,
+  listeners,
   sendMessage,
   makeTxnId,
   getEventForTxnId,
@@ -37,21 +48,38 @@ const {
   navigateRoomThread,
   setViewMode,
   overlayCapture,
-} = vi.hoisted(() => ({
-  perms: { canSend: true },
-  tombstoneState: { event: undefined as { getType: () => StateEvent } | undefined },
-  sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-  makeTxnId: vi.fn(() => 'txn-1'),
-  getEventForTxnId: vi.fn((_txnId: string) => undefined as unknown),
-  discardFailedLocalEcho: vi.fn(),
-  navigateRoomThread: vi.fn(),
-  setViewMode: vi.fn(),
-  overlayCapture: {
-    openTrigger: undefined as (() => void) | undefined,
-    props: undefined as CapturedOverlayProps | undefined,
-    open: false,
-  },
-}));
+} = vi.hoisted(() => {
+  const powerLevelsValue: Record<string, unknown> = {};
+  return {
+    perms: { canSend: true },
+    roomState: {
+      tombstone: undefined as { getType: () => StateEvent } | undefined,
+      routerBinding: undefined as MatrixEvent | undefined,
+      accountsRoster: undefined as MatrixEvent | undefined,
+      powerLevelsEvent: undefined as MatrixEvent | undefined,
+      joinedMembers: [{ userId: '@me:example.org' }, { userId: '@mindroom_helper:example.org' }],
+    },
+    powerLevelsState: {
+      value: powerLevelsValue,
+    },
+    listeners: new Map<string, Set<(...args: unknown[]) => void>>(),
+    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+    makeTxnId: vi.fn(() => 'txn-1'),
+    getEventForTxnId: vi.fn((_txnId: string) => undefined as unknown),
+    discardFailedLocalEcho: vi.fn(),
+    navigateRoomThread: vi.fn(),
+    setViewMode: vi.fn(),
+    overlayCapture: {
+      openTrigger: undefined as (() => void) | undefined,
+      props: undefined as CapturedOverlayProps | undefined,
+      open: false,
+    },
+  };
+});
+
+const emitClientEvent = (eventName: string, ...args: unknown[]) => {
+  listeners.get(eventName)?.forEach((fn) => fn(...args));
+};
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('folds', async (importOriginal) => ({
@@ -87,6 +115,13 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
     getRoom: () => null,
     makeTxnId,
     sendMessage,
+    on: (event: string, fn: (...args: unknown[]) => void) => {
+      if (!listeners.has(event)) listeners.set(event, new Set());
+      listeners.get(event)!.add(fn);
+    },
+    removeListener: (event: string, fn: (...args: unknown[]) => void) => {
+      listeners.get(event)?.delete(fn);
+    },
   }),
 }));
 vi.mock('../matrix/protocol/pendingLocalEcho', () => ({
@@ -103,6 +138,7 @@ vi.mock('../matrix/hooks/useRoom', () => ({
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
     getEventForTxnId,
+    getJoinedMembers: () => roomState.joinedMembers,
   }),
   useIsDirectRoom: () => false,
 }));
@@ -114,12 +150,18 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => undefined,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({
-  useStateEvent: (_room: unknown, type: StateEvent) =>
-    type === StateEvent.RoomTombstone ? tombstoneState.event : undefined,
+  useStateEvent: (_room: unknown, type: string) => {
+    if (type === `${StateEvent.RoomTombstone}`) return roomState.tombstone;
+    if (type === MINDROOM_ROUTER_STATE_EVENT) return roomState.routerBinding;
+    if (type === MINDROOM_ACCOUNTS_STATE_EVENT) return roomState.accountsRoster;
+    if (type === `${StateEvent.RoomPowerLevels}`) return roomState.powerLevelsEvent;
+    return undefined;
+  },
 }));
-vi.mock('../matrix/hooks/usePowerLevels', () => ({
-  usePowerLevels: () => ({}),
-  usePowerLevelsContext: () => ({}),
+vi.mock('../matrix/hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/hooks/usePowerLevels')>()),
+  usePowerLevels: () => powerLevelsState.value,
+  usePowerLevelsContext: () => powerLevelsState.value,
 }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
@@ -170,12 +212,31 @@ const task = (overrides: Partial<ParsedScheduledTask> = {}): ParsedScheduledTask
   ...overrides,
 });
 
+const makeStateEvent = (
+  content: Record<string, unknown>,
+  sender: string,
+  stateKey = '',
+  redacted = false
+): MatrixEvent =>
+  ({
+    getContent: () => content,
+    getSender: () => sender,
+    getStateKey: () => stateKey,
+    isRedacted: () => redacted,
+  } as unknown as MatrixEvent);
+
 let renderer: ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   perms.canSend = true;
-  tombstoneState.event = undefined;
+  roomState.tombstone = undefined;
+  roomState.routerBinding = undefined;
+  roomState.accountsRoster = undefined;
+  roomState.powerLevelsEvent = undefined;
+  roomState.joinedMembers = [...DEFAULT_AGENT_MEMBERS];
+  powerLevelsState.value = {};
+  listeners.clear();
   sendMessage.mockReset();
   sendMessage.mockResolvedValue({ event_id: '$sent' });
   makeTxnId.mockClear();
@@ -205,13 +266,55 @@ const renderAndOpenSchedules = (props: RoomViewHeaderProps = {}) => {
 };
 
 describe('RoomViewHeader schedule actions', () => {
-  it('enables cancel/edit for any agent room without requiring a router, and hides them when unpermitted, tombstoned, or without agents', () => {
-    // Any room with hasMindroomAgents=true offers Cancel and Edit without requiring @mindroom_router.
+  it('enables cancel/edit for a joined same-server agent without a router, and hides them for invited-only, federated, unpermitted, tombstoned, or non-agent rooms', () => {
+    // Joined same-server @mindroom_helper:example.org (without @mindroom_router) enables Cancel/Edit.
     renderAndOpenSchedules();
     expect(overlayCapture.props?.onCancelTask).toBeDefined();
     expect(overlayCapture.props?.onEditTask).toBeDefined();
 
-    // Without MindRoom agents, the schedules trigger and overlay are absent.
+    // Invited-only agent (not in getJoinedMembers) hides Cancel/Edit.
+    roomState.joinedMembers = [{ userId: '@me:example.org' }];
+    const store = renderAndOpenSchedules();
+    expect(overlayCapture.props?.onCancelTask).toBeUndefined();
+    expect(overlayCapture.props?.onEditTask).toBeUndefined();
+
+    // Unrelated federated mindroom_* account hides Cancel/Edit.
+    roomState.joinedMembers = [
+      { userId: '@me:example.org' },
+      { userId: '@mindroom_bot:foreign.org' },
+    ];
+    act(() => {
+      emitClientEvent(RoomMemberEvent.Membership, undefined, { roomId: '!room:example.org' });
+    });
+    expect(overlayCapture.props?.onCancelTask).toBeUndefined();
+    expect(overlayCapture.props?.onEditTask).toBeUndefined();
+
+    // A joined account trusted via io.mindroom.router + io.mindroom.accounts enables Cancel/Edit.
+    const steward = '@steward:foreign.org';
+    const customAgent = '@helper_agent:foreign.org';
+    const rawLevels = { state_default: 50, users_default: 0, users: { [steward]: 50 } };
+    powerLevelsState.value = rawLevels;
+    roomState.powerLevelsEvent = makeStateEvent(rawLevels, '@admin:example.org');
+    roomState.routerBinding = makeStateEvent({ user_id: steward }, steward);
+    roomState.accountsRoster = makeStateEvent({ accounts: [customAgent] }, steward, steward);
+    roomState.joinedMembers = [{ userId: '@me:example.org' }, { userId: customAgent }];
+    act(() => {
+      renderer?.update(
+        <Provider store={store}>
+          <RoomViewHeader hasMindroomAgents />
+        </Provider>
+      );
+    });
+    expect(overlayCapture.props?.onCancelTask).toBeDefined();
+    expect(overlayCapture.props?.onEditTask).toBeDefined();
+
+    // Reset to default same-server joined agent for permission/tombstone/canEditSchedule checks.
+    roomState.routerBinding = undefined;
+    roomState.accountsRoster = undefined;
+    roomState.powerLevelsEvent = undefined;
+    powerLevelsState.value = {};
+    roomState.joinedMembers = [...DEFAULT_AGENT_MEMBERS];
+
     const resetCapture = () => {
       overlayCapture.openTrigger = undefined;
       overlayCapture.props = undefined;
@@ -228,12 +331,12 @@ describe('RoomViewHeader schedule actions', () => {
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
 
     perms.canSend = true;
-    tombstoneState.event = { getType: () => StateEvent.RoomTombstone };
+    roomState.tombstone = { getType: () => StateEvent.RoomTombstone };
     renderAndOpenSchedules();
     expect(overlayCapture.props?.onCancelTask).toBeUndefined();
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
 
-    tombstoneState.event = undefined;
+    roomState.tombstone = undefined;
     renderAndOpenSchedules({ canEditSchedule: false });
     expect(overlayCapture.props?.onCancelTask).toBeDefined();
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
@@ -339,12 +442,7 @@ describe('RoomViewHeader schedule actions', () => {
     expect(overlayCapture.props?.cancelState?.cancelErrors.get('in-flight-1')).toBe(true);
   });
 
-  it('targets the visible composer without toggling Compact, resumes edits, and blocks busy or voice drafts', () => {
-    const rafCallbacks: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      rafCallbacks.push(cb);
-      return rafCallbacks.length;
-    });
+  it('targets the visible composer synchronously without toggling Compact, resumes edits, and blocks busy or voice drafts', () => {
     const onFocusComposer = vi.fn();
     const store = renderAndOpenSchedules({ onFocusComposer });
 
@@ -386,7 +484,7 @@ describe('RoomViewHeader schedule actions', () => {
     expect(store.get(roomDraftAtom)).toEqual([]);
     store.set(pendingVoiceSendDraftAtom, undefined);
 
-    // Editing a thread-bound task from room view targets room composer, never navigates or toggles Compact.
+    // Editing a thread-bound task from room view targets room composer synchronously (no RAF needed).
     act(() => {
       result = overlayCapture.props!.onEditTask!(
         task({ taskId: 'edit-1', threadId: '$other-thread' })
@@ -398,10 +496,9 @@ describe('RoomViewHeader schedule actions', () => {
     ]);
     expect(navigateRoomThread).not.toHaveBeenCalled();
     expect(setViewMode).not.toHaveBeenCalled();
-    rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
 
-    // Resuming an in-progress edit of the SAME task preserves typed text and focuses composer.
+    // Resuming an in-progress edit of the SAME task preserves typed text and focuses composer synchronously.
     store.set(roomDraftAtom, [createParagraphElement('!edit_schedule edit-1 tomorrow at 9am')]);
     act(() => {
       overlayCapture.openTrigger?.();
@@ -413,7 +510,6 @@ describe('RoomViewHeader schedule actions', () => {
     expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
       '!edit_schedule edit-1 tomorrow at 9am',
     ]);
-    rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
 
     // Staged attachment and reply target still reject even with matching prefix.
@@ -444,7 +540,7 @@ describe('RoomViewHeader schedule actions', () => {
     expect(result).toBe('draft-busy');
     store.set(composerReplyDraftAtom('!room:example.org', undefined), undefined);
 
-    // Inside an open thread, edit targets that open thread composer.
+    // Inside an open thread, edit targets that open thread composer synchronously.
     const threadDraftAtom = roomIdToMsgDraftAtomFamily(
       getRoomInputDraftKey('@me:example.org', '!room:example.org', '$open-thread')
     );
@@ -469,7 +565,6 @@ describe('RoomViewHeader schedule actions', () => {
     expect(store.get(threadDraftAtom).map((node) => SlateNode.string(node))).toEqual([
       '!edit_schedule edit-thread ',
     ]);
-    rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith('$open-thread');
   });
 });

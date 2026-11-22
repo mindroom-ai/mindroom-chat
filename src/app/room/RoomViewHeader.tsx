@@ -8,6 +8,7 @@ import {
   type FocusEvent,
   type ReactElement,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -83,7 +84,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
-import { sendCancelScheduledTask } from './roomScheduleActions';
+import { sendCancelScheduledTask, useHasJoinedMindroomAgent } from './roomScheduleActions';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
   HeaderActionButton,
@@ -270,11 +271,16 @@ export function RoomViewHeader({
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const store = useStore();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const roomCreators = useRoomCreators(room);
+  const powerLevels = usePowerLevelsContext();
+  const permissions = useRoomPermissions(roomCreators, powerLevels);
+  const hasJoinedAgent = useHasJoinedMindroomAgent(mx, room, powerLevels, roomCreators);
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const canManageSchedules = Boolean(hasMindroomAgents && canSendMessages && !tombstone);
+  const canManageSchedules = Boolean(
+    hasMindroomAgents && hasJoinedAgent && canSendMessages && !tombstone
+  );
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -462,11 +468,9 @@ export function RoomViewHeader({
       store.set(draftAtom, offer);
     }
     const opener = schedules?.opener;
-    setSchedules(undefined);
-    window.requestAnimationFrame(() => {
-      if (onFocusComposer) onFocusComposer(targetThreadId);
-      else restoreFocusAfterDismiss(opener);
-    });
+    flushSync(() => setSchedules(undefined));
+    if (onFocusComposer) onFocusComposer(targetThreadId);
+    else restoreFocusAfterDismiss(opener);
     return 'prefilled';
   };
 
