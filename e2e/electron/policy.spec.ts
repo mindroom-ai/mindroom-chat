@@ -765,6 +765,7 @@ test.describe('Electron script policy and canvas frame', () => {
         // After a remount the inline canvas resizes via postMessage and timeline layout can shift
         // the outer iframe while #inc looks stationary inside its own inner frame. Wait until the
         // outer iframe rect is unchanged across two animation frames and #inc is under the click point.
+        await inner.locator('#inc').scrollIntoViewIfNeeded();
         await expect
           .poll(
             async () => {
