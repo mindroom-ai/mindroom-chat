@@ -98,8 +98,7 @@
       "giveRoleRights": "{{role}}-rechten geven",
       "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
       "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
-      "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
-      "rolePermissionsUnreadable": "Kan de machtigingsniveaus van deze ruimte niet controleren."
+      "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten."
     },
     "joinAddressPrompt": {
       "close": "Sluiten",

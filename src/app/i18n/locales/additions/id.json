@@ -95,8 +95,7 @@
       "giveRoleRights": "Berikan hak {{role}}",
       "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
       "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
-      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
-      "rolePermissionsUnreadable": "Tidak dapat memverifikasi tingkat izin ruangan ini."
+      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}."
     },
     "joinAddressPrompt": {
       "close": "Tutup",

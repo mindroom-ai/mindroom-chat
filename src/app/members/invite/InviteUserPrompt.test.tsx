@@ -508,6 +508,18 @@ describe('InviteUserPrompt', () => {
         },
       },
     },
+    {
+      label: 'viewer can send power_levels but sits below grant level',
+      target: '@mindroom_helper:example.org',
+      options: {
+        powerLevels: {
+          users: { '@me:example.org': 50 },
+          users_default: 0,
+          state_default: 50,
+          events: { 'm.room.power_levels': 50, 'io.mindroom.router': 75 },
+        },
+      },
+    },
   ])('hides the moderator checkbox for $label', ({ target, options }) => {
     const { renderer } = renderPrompt(options);
     typeUserId(renderer, target);
@@ -685,49 +697,6 @@ describe('InviteUserPrompt', () => {
     expect(mx.setPowerLevel).not.toHaveBeenCalled();
   });
 
-  it.each([
-    {
-      label: 'string target power level',
-      powerLevels: {
-        users: { '@me:example.org': 100, '@mindroom_helper:example.org': '75' },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100 },
-      },
-    },
-    {
-      label: 'string io.mindroom.router event level',
-      powerLevels: {
-        users: { '@me:example.org': 100 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': '75' },
-      },
-    },
-    {
-      label: 'string users_default',
-      powerLevels: {
-        users: { '@me:example.org': 100 },
-        users_default: '0',
-        state_default: 50,
-        events: { 'm.room.power_levels': 100 },
-      },
-    },
-    {
-      label: 'viewer can send power_levels but sits below grant level',
-      powerLevels: {
-        users: { '@me:example.org': 50 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 50, 'io.mindroom.router': 75 },
-      },
-    },
-  ])('hides the checkbox for $label', ({ powerLevels }) => {
-    const { renderer } = renderPrompt({ powerLevels });
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
-  });
-
   it('allows a room v12 creator with no explicit user power entry to grant moderator rights', async () => {
     const { renderer, mx, room } = renderPrompt({
       createContent: { room_version: '12' },
@@ -810,49 +779,6 @@ describe('InviteUserPrompt', () => {
     );
   });
 
-  it('allows granting in a v9 room whose unused string defaults are overridden by numeric levels', async () => {
-    const { renderer, mx, room } = renderPrompt({
-      powerLevels: {
-        state_default: '50',
-        users_default: '0',
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
-        users: { '@me:example.org': 100, '@mindroom_helper:example.org': 0 },
-      },
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-
-    await submitInvite(renderer);
-
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
-  });
-
-  it.each([
-    {
-      label: 'effective string state_default when io.mindroom.router has no override',
-      powerLevels: {
-        state_default: '50',
-        users_default: 0,
-        events: { 'm.room.power_levels': 100 },
-        users: { '@me:example.org': 100 },
-      },
-    },
-    {
-      label: 'present string m.room.power_levels override despite numeric state_default',
-      powerLevels: {
-        state_default: 50,
-        users_default: 0,
-        events: { 'm.room.power_levels': '100', 'io.mindroom.router': 75 },
-        users: { '@me:example.org': 100 },
-      },
-    },
-  ])('still hides the checkbox for $label', ({ powerLevels }) => {
-    const { renderer } = renderPrompt({ powerLevels });
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
-  });
-
   it('writes nothing and reports a changed requirement if the router level rises while invite is in flight', async () => {
     const { renderer, mx, room } = renderPrompt();
     vi.mocked(mx.invite).mockImplementationOnce(async () => {
@@ -902,53 +828,6 @@ describe('InviteUserPrompt', () => {
     expect(mx.setPowerLevel).not.toHaveBeenCalled();
     expect(store.get(detachedGrantErrorAtom)?.message).toContain('@mindroom_helper:example.org');
     expect(store.get(detachedGrantErrorAtom)?.message).toContain('Admin');
-  });
-
-  it('reports unreadable live power levels inline and after close instead of skipping silently', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(async () => {
-      room.state.powerLevels = {
-        ...room.state.powerLevels,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': '75' },
-      };
-      return {} as never;
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
-
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(textContent(renderer, 'alert')).toContain('@mindroom_helper:example.org');
-
-    let finishInvite: () => void = () => undefined;
-    const detached = renderPrompt();
-    vi.mocked(detached.mx.invite).mockImplementationOnce(
-      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
-    );
-    typeUserId(detached.renderer, '@mindroom_helper:example.org');
-    act(() => {
-      getForm(detached.renderer).props.onSubmit({
-        preventDefault: vi.fn(),
-        target: { reasonInput: { value: '' } },
-      });
-    });
-    act(() => {
-      detached.renderer.unmount();
-    });
-    detached.room.state.powerLevels = {
-      ...detached.room.state.powerLevels,
-      events: { 'm.room.power_levels': 100, 'io.mindroom.router': '75' },
-    };
-    await act(async () => {
-      finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(detached.mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(detached.store.get(detachedGrantErrorAtom)?.message).toContain(
-      '@mindroom_helper:example.org'
-    );
   });
 
   it('uses the localized forbidden error if viewer loses permission while invite is in flight', async () => {

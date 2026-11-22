@@ -98,8 +98,7 @@
       "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
-      "roleRequirementChanged": "This room now requires {{role}} rights.",
-      "rolePermissionsUnreadable": "Could not verify this room's power levels."
+      "roleRequirementChanged": "This room now requires {{role}} rights."
     },
     "joinAddressPrompt": {
       "close": "Close",

@@ -95,8 +95,7 @@
       "giveRoleRights": "{{role}} 権限を付与",
       "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
       "roleFailed": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}",
-      "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。",
-      "rolePermissionsUnreadable": "このルームの権限レベルを確認できませんでした。"
+      "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。"
     },
     "joinAddressPrompt": {
       "close": "閉じる",

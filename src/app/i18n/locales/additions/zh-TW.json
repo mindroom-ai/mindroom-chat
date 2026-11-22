@@ -95,8 +95,7 @@
       "giveRoleRights": "授予{{role}}權限",
       "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
       "roleFailed": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}",
-      "roleRequirementChanged": "此聊天室現在需要{{role}}權限。",
-      "rolePermissionsUnreadable": "無法驗證此聊天室的權限等級。"
+      "roleRequirementChanged": "此聊天室現在需要{{role}}權限。"
     },
     "joinAddressPrompt": {
       "close": "關閉",

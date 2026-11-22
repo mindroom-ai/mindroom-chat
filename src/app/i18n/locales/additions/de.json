@@ -98,8 +98,7 @@
       "giveRoleRights": "{{role}}-Rechte erteilen",
       "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
       "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
-      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
-      "rolePermissionsUnreadable": "Die Berechtigungsstufen dieses Raums konnten nicht überprüft werden."
+      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte."
     },
     "joinAddressPrompt": {
       "close": "Schließen",

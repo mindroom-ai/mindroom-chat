@@ -29,13 +29,11 @@ import {
   grantRoleName,
   grantRoomModeratorRights,
   hasModeratorMindroomAgent,
-  readPowerSnapshot,
 } from './moderatorInvite';
 import { usePowerLevelTags } from '../usePowerLevelTags';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { useStateEvent } from '../../matrix/hooks/useStateEvent';
-import { StateEvent } from '../../matrix/types/room';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { isUserId } from '../../matrix/matrix';
@@ -97,8 +95,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const store = useStore();
   const client = useMatrixClient();
   const alive = useAlive();
-  const powerEvent = useStateEvent(room, StateEvent.RoomPowerLevels);
-  const powerSnapshot = useMemo(() => readPowerSnapshot(powerEvent), [powerEvent]);
+  const levels = usePowerLevels(room);
   const creators = useRoomCreators(room);
   const tags = usePowerLevelTags(room);
   const me = client.getSafeUserId();
@@ -112,7 +109,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [rosterVersion, bumpRoster] = useForceUpdate();
 
   const trimmedTarget = userId.trim();
-  const offer = evaluateModeratorGrant(room, trimmedTarget, me, powerSnapshot, creators);
+  const offer = evaluateModeratorGrant(room, trimmedTarget, me, levels, creators);
   const offerLevel = offer.kind === 'grant' ? offer.level : undefined;
   const canOffer = offerLevel !== undefined;
   const membersLoaded = room.membersLoaded();
@@ -148,9 +145,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     return (
       offerLevel !== undefined &&
       membersLoaded &&
-      hasModeratorMindroomAgent(room.getMembers(), me, powerSnapshot, creators, offerLevel)
+      hasModeratorMindroomAgent(room.getMembers(), me, levels, creators, offerLevel)
     );
-  }, [offerLevel, membersLoaded, rosterVersion, room, me, powerSnapshot, creators]);
+  }, [offerLevel, membersLoaded, rosterVersion, room, me, levels, creators]);
 
   const defaultModerator = membersLoaded && !hasAgentModerator;
   const grantModerator =

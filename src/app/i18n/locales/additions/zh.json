@@ -95,8 +95,7 @@
       "giveRoleRights": "授予{{role}}权限",
       "giveRoleRightsHelp": "此房间需要{{role}}权限才能折叠语音转写，并管理定时任务和房间设置。",
       "roleFailed": "已邀请 {{user}}，但无法授予{{role}}权限：{{error}}",
-      "roleRequirementChanged": "此房间现在需要{{role}}权限。",
-      "rolePermissionsUnreadable": "无法验证此房间的权限等级。"
+      "roleRequirementChanged": "此房间现在需要{{role}}权限。"
     },
     "joinAddressPrompt": {
       "close": "关闭",

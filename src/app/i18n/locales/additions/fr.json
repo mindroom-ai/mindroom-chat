@@ -101,8 +101,7 @@
       "giveRoleRights": "Donner les droits {{role}}",
       "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
       "roleFailed": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}",
-      "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}.",
-      "rolePermissionsUnreadable": "Impossible de vérifier les niveaux de permissions de ce salon."
+      "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}."
     },
     "joinAddressPrompt": {
       "close": "Fermer",
