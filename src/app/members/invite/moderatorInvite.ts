@@ -7,18 +7,17 @@ import {
   type Room,
   type RoomMember,
 } from 'matrix-js-sdk';
+import { isUserId } from '../../matrix/matrix';
 import {
   isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
-  isUserId,
-} from '../../matrix/matrix';
+} from '../../matrix/protocol/agentIdentity';
+import { MINDROOM_ROUTER_STATE_EVENT } from '../../matrix/protocol/routerBinding';
 import { MODERATOR_LEVEL } from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getStateEvent } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import type { PowerLevelTags } from '../usePowerLevelTags';
-
-const MINDROOM_ROUTER_STATE_EVENT = 'io.mindroom.router';
 
 export type DetachedGrantFailure = { readonly message: string };
 
