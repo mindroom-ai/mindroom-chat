@@ -591,6 +591,18 @@ describe('Compact order when the view switches under the pointer', () => {
     expect(rows()).toEqual(['$d', '$c']);
   });
 
+  it('gives the scroll anchor the rows as they render, with the pinned cards first', () => {
+    const anchor = vi.spyOn(scrollAnchor, 'useCompactScrollAnchor');
+    const ids = ['$a', '$b', '$c'];
+    const { rerender } = render(view(ids, false));
+    hold();
+    // Pinned while the pointer holds the order: the card moves to the Pinned list all the same.
+    state.pinned = ['$b'];
+    rerender(view(ids, false));
+    expect(rows()).toEqual(['$b', '$a', '$c']);
+    expect(anchor.mock.lastCall?.[0]).toEqual(rows());
+  });
+
   it('switches from Sections to flat using only the rows left after folding', () => {
     state.sections = [
       { id: 'working', rootIds: ['$a', '$b'] },

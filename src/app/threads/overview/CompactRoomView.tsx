@@ -418,7 +418,14 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows]);
-  const scrollAnchor = useCompactScrollAnchor(shownRows, viewRef, sectionOfRow, contentRef);
+  // The scroll anchor compares the rows in the order they render: the sorted list leads with its
+  // pinned cards, so a card pinned while the order is held moves there all the same.
+  const anchorRows = useMemo(() => {
+    const pinned = (key: string) => pinning.pinnedEventIds.includes(key);
+    if (threadSections || !shownRows.some(pinned)) return shownRows;
+    return [...shownRows.filter(pinned), ...shownRows.filter((key) => !pinned(key))];
+  }, [pinning.pinnedEventIds, shownRows, threadSections]);
+  const scrollAnchor = useCompactScrollAnchor(anchorRows, viewRef, sectionOfRow, contentRef);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
