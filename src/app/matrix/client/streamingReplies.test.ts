@@ -592,6 +592,16 @@ describe('streaming replies on thread cards', () => {
       (s, now) => ({ live: [[s.completed(now)], [s.streaming(now)]] }),
     ],
     [
+      'a stale edit synced after one that finished the reply at the same time, in record form',
+      (s, now) => {
+        const done = s.completed(now);
+        delete done.content['io.mindroom.stream_status'];
+        const status = { 'io.mindroom.stream_status': { status: 'completed' } };
+        done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
+        return { live: [[done], [s.streaming(now)]] };
+      },
+    ],
+    [
       'a newer finishing edit from the saved sync that no thread took',
       (s, now) => ({ live: [[s.streaming(now - 1_000)]] }),
       (now) => ({ saved: [edit(finished, now, 'completed')] }),
@@ -940,6 +950,41 @@ describe('streaming replies on thread cards', () => {
       expect(hinted(s)).toBe(false);
       await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
       expect(updates).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /** A redaction of the edit that hints: it takes the reply's ID off the edit. */
+  const redactHinting = (s: MidStream, now: number) => {
+    const hinting = s.streaming(now - 1_000).event_id;
+    const redaction = message('$redaction', now, { redacts: hinting });
+    return s.f.deliver([{ ...redaction, type: 'm.room.redaction', redacts: hinting }]);
+  };
+
+  it('ends Working by a page’s finishing edit after the redaction of the edit that hints', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    await redactHinting(s, now);
+    expect(s.workflow()).toBe('working');
+    s.f.setServerThread({ root: s.listed, replies: [s.ending(now + 1), s.text, s.file] });
+    await s.thread.initialize();
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('keeps Working by the edit that follows the redaction of the one before', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      await vi.advanceTimersByTimeAsync(3 * MINUTE);
+      await redactHinting(s, now + 3 * MINUTE);
+      const later = s.streaming(now + 3 * MINUTE, '$b-later');
+      await arrive(s, { newest: later, live: [[later]] });
+
+      // Past the redacted edit's five minutes, within the later one's.
+      await vi.advanceTimersByTimeAsync(3 * MINUTE);
+      expect(s.workflow()).toBe('working');
     } finally {
       vi.useRealTimers();
     }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { onClientClose } from '../../matrix/client/closeClient';
 import { putSession } from '../../matrix/session/sessions';
 import { removeCurrentClientSessionAndReload, removeStoredSession } from './sessionLifecycle';
 
@@ -87,4 +88,16 @@ describe('the plugins forget an account with its local data', () => {
 
     expect(steps).toEqual([`forget ${ALICE}`, 'reload']);
   });
+});
+
+// A listener outside the client may end on a timer, which would fire for the stopped client.
+it('a sign-out stops what listens to the client from outside it, then the client', async () => {
+  const alice = signIn(ALICE);
+  const mx = clientOf(ALICE, alice.deviceId);
+  mx.stopClient = () => steps.push('client');
+  onClientClose(mx, () => steps.push('listeners'));
+
+  await removeCurrentClientSessionAndReload(mx, alice);
+
+  expect(steps.slice(0, 2)).toEqual(['listeners', 'client']);
 });

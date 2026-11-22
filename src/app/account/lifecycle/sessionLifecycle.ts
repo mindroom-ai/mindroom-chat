@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk/lib/client';
 
+import { stopClientListeners } from '../../matrix/client/closeClient';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { clearNavToActivePathStore } from '../../routes/navToActivePath';
 import { reloadAppAt } from '../../routes/pathUtils';
@@ -79,6 +80,8 @@ const stopClientRuntime = (mx: MatrixClient): void => {
   } catch {
     // Matrix cleanup must continue even if a trailing cache flush fails.
   }
+  // As what ends on a timer, which would fire for the stopped client.
+  stopClientListeners(mx);
   mx.stopClient();
 };
 

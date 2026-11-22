@@ -3,11 +3,17 @@ import type { MatrixClient } from 'matrix-js-sdk';
 const closers = new WeakMap<MatrixClient, Array<() => void>>();
 
 /**
- * Has `stop` called when the page is done with the client (`closeClient`): for a listener outside
+ * Has `stop` called when the page is done with the client (`closeClient`, a sign-out): for a listener outside
  * the client that reaches it, which would keep the client in memory and act on it after that.
  */
 export const onClientClose = (client: MatrixClient, stop: () => void): void => {
   closers.set(client, [...(closers.get(client) ?? []), stop]);
+};
+
+/** Stops what listens to the client from outside it, for a teardown that stops the client itself. */
+export const stopClientListeners = (client: MatrixClient): void => {
+  closers.get(client)?.forEach((stop) => stop());
+  closers.delete(client);
 };
 
 /**
@@ -20,8 +26,7 @@ export const onClientClose = (client: MatrixClient, stop: () => void): void => {
  * store answers by leaving the database as it is.
  */
 export const closeClient = (client: MatrixClient): void => {
-  closers.get(client)?.forEach((stop) => stop());
-  closers.delete(client);
+  stopClientListeners(client);
   client.stopClient();
   // Optional call: the fake clients of some tests have a store without `destroy`.
   Promise.resolve(client.store.destroy?.()).catch((error: unknown) => {

@@ -22,7 +22,7 @@ import { isTrustedAgentSender } from '../protocol/untrustedContent';
 import { isEventOrderedAfter } from '../room';
 import { watchRoomThreads } from '../watchRoomThreads';
 import { STREAM_IDLE_LIMIT_MS } from './streamingReplies';
-import { getFinishingEdit } from './syncedEdits';
+import { getSyncedEdit } from './syncedEdits';
 
 // A thread holds its replies only once it loads its first page, which the app does when it shows
 // or opens the thread. After a reload, a thread whose newest event is its title notice (MindRoom
@@ -105,17 +105,18 @@ const endsStream = (edit: MatrixEvent): boolean => {
 };
 
 /**
- * The edits the client knows of the reply `edit` replaces, by the same sender: those of `others`,
- * and those that the thread (waiting, unopened) or its room (as from a page) holds.
+ * The edits the client knows of the reply `replyId` by the sender of its edit `edit`: those of
+ * `others`, and those that the thread (waiting, unopened) or its room (as from a page) holds.
+ * A redaction takes the reply's ID off `edit`, so the ID comes with it.
  */
 const revisionsOf = (
   thread: Thread,
+  replyId: string,
   edit: MatrixEvent,
   others: Array<MatrixEvent | undefined> = []
 ): MatrixEvent[] => {
-  const replyId = edit.getAssociatedId();
   const held = thread.room.relations.getChildEventsForEvent(
-    replyId ?? '',
+    replyId,
     RelationType.Replace,
     edit.getType()
   );
@@ -142,7 +143,7 @@ export const hasStreamHint = (room: Room, thread: Thread | null): boolean =>
       // As the card reads the thread: its timeline, or else the reply its summary names.
       !thread.findEventById(replyId) &&
       thread.replyToEvent?.getId() !== replyId &&
-      !finishedSince(revisionsOf(thread, hint.edit), hint.edit)
+      !finishedSince(revisionsOf(thread, replyId, hint.edit), hint.edit)
   );
 
 /**
@@ -236,8 +237,8 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
 
   /**
    * An edit the sync brought. The revisions of its reply that the client knows decide: the edit,
-   * the one the server bundled with the reply the SDK fetched to place the edit, the synced edit
-   * that finished the reply, and those the thread or the room holds. If one since the hint's edit
+   * the one the server bundled with the reply the SDK fetched to place the edit, the newest one
+   * the sync brought, and those the thread or the room holds. If one since the hint's edit
    * ended the stream, the reply's hint goes. If the edit is the newest, live, by the fetched
    * reply's sender (an agent the reader trusts), says that the reply streams and is not idle, the
    * hint starts anew.
@@ -257,8 +258,9 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const thread = hint?.thread ?? edit.getThread();
     if (!thread || (!hint && edit.getSender() !== reply?.getSender())) return;
     const bundled = reply && getSameSenderBundledEdit(reply.event);
-    const finishing = reply && getFinishingEdit(reply);
-    const known = revisionsOf(thread, from, [edit, bundled && new MatrixEvent(bundled), finishing]);
+    // Of two edits sent at once the thread keeps the later arrival; the sync's store, the earlier.
+    const others = [edit, bundled && new MatrixEvent(bundled), getSyncedEdit(replyId)];
+    const known = revisionsOf(thread, replyId, from, others);
     if (finishedSince(known, from)) {
       dropHints((_hint, id) => id === replyId);
       // An edit newer than that finish may say that the reply streams again.
