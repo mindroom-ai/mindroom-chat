@@ -1426,14 +1426,15 @@ final class ThreadSnapshotTests: XCTestCase {
             XCTAssertEqual(v3After?.text, "\(prose)\n\n\(shown)", definition)
             XCTAssertEqual(v3After?.answerText, v3After?.text, definition)
 
-            // Before it: there is no work to fold.
+            // Before it: there is no work to fold. The whole text starts without the line's indentation.
+            let first = shown.trimmingCharacters(in: .whitespaces)
             let v2Before = finishedReply("\(definition)\n\n🔧 `shell` [1]\n\n\(prose)")
             XCTAssertNil(v2Before?.workText, definition)
-            XCTAssertEqual(v2Before?.answerText, "\(shown)\n\n\(prose)", definition)
+            XCTAssertEqual(v2Before?.answerText, "\(first)\n\n\(prose)", definition)
             let lines = definition.components(separatedBy: "\n").count
             let v3Before = finishedReply("\(definition)\n\n\(prose)", bodyLine: lines + 1)
             XCTAssertNil(v3Before?.workText, definition)
-            XCTAssertEqual(v3Before?.answerText, "\(shown)\n\n\(prose)", definition)
+            XCTAssertEqual(v3Before?.answerText, "\(first)\n\n\(prose)", definition)
         }
 
         // With an answer beside it the reply folds, and the definition stays in its half.
@@ -1454,6 +1455,66 @@ final class ThreadSnapshotTests: XCTestCase {
             XCTAssertEqual(v3?.workText, "Checking.", answer)
             XCTAssertEqual(v3?.answerText, shown, answer)
         }
+    }
+
+    func testALinkReferenceDefinitionOfSeveralLinesOrAnEmptyQuoteIsNoAnswer() {
+        let report = "The report is ready: [download it][report]."
+        for definition in ["[report]:\n  https://example.org/report", "[report]:\n  https://example.org/report\n  \"Title\""] {
+            let v2 = finishedReply("\(report)\n\n🔧 `shell` [1]\n\n\(definition)")
+            XCTAssertEqual(v2?.toolNames, ["shell"], definition)
+            XCTAssertNil(v2?.workText, definition)
+            XCTAssertEqual(v2?.text, "\(report)\n\n\(definition)", definition)
+            XCTAssertEqual(v2?.answerText, v2?.text, definition)
+            let v3 = finishedReply("\(report)\n\n\(definition)", bodyLine: 2)
+            XCTAssertEqual(v3?.toolNames, ["shell"], definition)
+            XCTAssertNil(v3?.workText, definition)
+            XCTAssertEqual(v3?.text, "\(report)\n\n\(definition)", definition)
+            XCTAssertEqual(v3?.answerText, v3?.text, definition)
+        }
+
+        // A block quote with nothing in it shows nothing, and every quote mark of a line goes from the text.
+        let done = "Done: changed two files."
+        for quote in ["> >", ">", "> > >  ", ">\n> >\n>"] {
+            let v2 = finishedReply("\(done)\n\n🔧 `shell` [1]\n\n\(quote)")
+            XCTAssertEqual(v2?.toolNames, ["shell"], quote)
+            XCTAssertNil(v2?.workText, quote)
+            XCTAssertEqual(v2?.text, done, quote)
+            XCTAssertEqual(v2?.answerText, v2?.text, quote)
+            let v3 = finishedReply("\(done)\n\n\(quote)", bodyLine: 2)
+            XCTAssertEqual(v3?.toolNames, ["shell"], quote)
+            XCTAssertNil(v3?.workText, quote)
+            XCTAssertEqual(v3?.text, done, quote)
+            XCTAssertEqual(v3?.answerText, v3?.text, quote)
+        }
+        let quoted = finishedReply("\(done)\n\n🔧 `shell` [1]\n\n> > Both pass.")
+        XCTAssertEqual(quoted?.workText, done)
+        XCTAssertEqual(quoted?.answerText, "Both pass.")
+    }
+
+    func testIndentedBackticksInACodeBlockDoNotCloseIt() {
+        // Four spaces before the backticks make them a line of the code, so the marker after them is code too.
+        let code = "    ```\n🔧 `shell` [1]\nexit 0"
+        let v2 = finishedReply("The answer is 42.\n\n```\n\(code)\n```")
+        XCTAssertEqual(v2?.tools, 0)
+        XCTAssertEqual(v2?.toolNames, [String]())
+        XCTAssertNil(v2?.workText)
+        XCTAssertEqual(v2?.text, "The answer is 42.\n\n\(code)")
+        XCTAssertEqual(v2?.answerText, v2?.text)
+        // A version-3 call after that line is inside the code, where a reply does not split.
+        let v3 = finishedReply("The answer is 42.\n\n```\n\(code)\n```", bodyLine: 5)
+        XCTAssertEqual(v3?.toolNames, ["shell"])
+        XCTAssertNil(v3?.workText)
+        XCTAssertEqual(v3?.text, "The answer is 42.\n\n\(code)")
+        XCTAssertEqual(v3?.answerText, v3?.text)
+
+        // Three spaces close it, and the reply folds at the call after the code.
+        let closed = finishedReply("Running it.\n\n```\nexit 0\n   ```\n\n🔧 `shell` [1]\n\nThe answer is 42.")
+        XCTAssertEqual(closed?.toolNames, ["shell"])
+        XCTAssertEqual(closed?.workText, "Running it.\n\nexit 0")
+        XCTAssertEqual(closed?.answerText, "The answer is 42.")
+        let closedV3 = finishedReply("Running it.\n\n```\nexit 0\n   ```\n\nThe answer is 42.", bodyLine: 6)
+        XCTAssertEqual(closedV3?.workText, "Running it.\n\nexit 0")
+        XCTAssertEqual(closedV3?.answerText, "The answer is 42.")
     }
 
     func testAnAnswerOfCodeKeepsItsFirstLinesIndentation() {

@@ -142,7 +142,11 @@ struct ThreadView: View {
                             .fill(Color.white.opacity(0.16))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.75))
                     )
-                    .contentShape(Circle())
+                    // A tap target of 44 by 36 around the circle, in the room the bar's edge and spacing
+                    // leave: the bar is laid out as before.
+                    .padding(.horizontal, 4)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, -4)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Done"))

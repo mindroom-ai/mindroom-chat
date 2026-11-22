@@ -299,9 +299,76 @@ final class PlainTextTests: XCTestCase {
 }
 
 final class PlainTextEdgesTests: XCTestCase {
-    func testTheFirstLineKeepsItsIndentation() {
-        XCTAssertEqual(PlainText.of(markdown: "```\n    x = 1\n    y = 2\n```"), "    x = 1\n    y = 2")
-        XCTAssertEqual(PlainText.of(markdown: "\n  \n```\n\tx = 1\n```\n \n"), "\tx = 1")
+    func testAWholeTextIsTrimmedAndTheHalvesOfASplitKeepTheirFirstLinesIndentation() {
+        // Titles, previews and notifications show a whole text.
+        XCTAssertEqual(PlainText.of(markdown: "  Hello"), "Hello")
+        XCTAssertEqual(PlainText.of(markdown: "\n  \n```\n    x = 1\n    y = 2\n```\n \n"), "x = 1\n    y = 2")
+
+        let code = "    x = 1\n    y = 2"
+        let v2 = PlainText.withToolDetails("Writing it.\n\n🔧 `shell` [1]\n\n```\n\(code)\n```")
+        XCTAssertEqual(v2.text, "Writing it.\n\n\(code)")
+        XCTAssertEqual(v2.workText, "Writing it.")
+        XCTAssertEqual(v2.answerText, code)
+        let v3 = PlainText.splitFinishedWork(markdown: "Writing it.\n\n```\n\(code)\n```", atLFLine: 2)
+        XCTAssertEqual(v3?.workText, "Writing it.")
+        XCTAssertEqual(v3?.answerText, code)
+    }
+
+    func testOnlyMarkdownThatDrawsTextIsASideOfASplit() {
+        let nothing = [
+            "---", "***", "___", "- - -", "> - - -", "> > * * *", "> >", "# ", "- ", "⏳", "[1]: https://example.org",
+            "> [1]: https://example.org", "[report]:\n  https://example.org/report",
+            "[report]:\n  https://example.org/report\n  \"Title\"",
+        ]
+        for tail in nothing {
+            XCTAssertNil(PlainText.withToolDetails("Checking.\n\n🔧 `calendar` [1]\n\n\(tail)").workText, tail)
+            XCTAssertNil(PlainText.withToolDetails("\(tail)\n\n🔧 `calendar` [1]\n\nBooked.").workText, tail)
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "Checking.\n\n\(tail)", atLFLine: 2), tail)
+            let lines = tail.components(separatedBy: "\n").count
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "\(tail)\n\nBooked.", atLFLine: lines + 1), tail)
+        }
+        for tail in ["⸻", "```\n---\n```", "---\nFound 2 flights.", "Found **2** options.", "[Note]: see below"] {
+            XCTAssertEqual(PlainText.withToolDetails("Checking.\n\n🔧 `calendar` [1]\n\n\(tail)").workText, "Checking.", tail)
+            XCTAssertEqual(PlainText.splitFinishedWork(markdown: "Checking.\n\n\(tail)", atLFLine: 2)?.workText, "Checking.", tail)
+        }
+    }
+
+    func testACodeFenceOpensAndClosesAsCommonMarkHasIt() {
+        let tools = { (markdown: String) in PlainText.withToolCount(markdown).tools }
+        // A fence closes with at least as many of its own character, indented by up to three spaces, alone.
+        XCTAssertEqual(tools("```\n    ```\n🔧 `x` [1]\n```"), 0)
+        XCTAssertEqual(tools("```\n\t```\n🔧 `x` [1]\n```"), 0)
+        XCTAssertEqual(tools("````\n```\n🔧 `x` [1]\n````"), 0)
+        XCTAssertEqual(tools("```\n``` not the end\n🔧 `x` [1]\n```"), 0)
+        XCTAssertEqual(tools("~~~\n```\n🔧 `x` [1]\n~~~"), 0)
+        XCTAssertEqual(tools("```\ncode\n   `````  \n🔧 `x` [1]"), 1)
+        XCTAssertEqual(tools("~~~ a`b\ncode\n~~~~\n🔧 `x` [1]"), 1)
+        // Four spaces before backticks are code at the top, and backticks with a backtick after them open nothing.
+        XCTAssertEqual(tools("    ```\n🔧 `x` [1]\nDone."), 1)
+        XCTAssertEqual(tools("``` a`b\n🔧 `x` [1]\nDone."), 1)
+        XCTAssertEqual(PlainText.of(markdown: "Before\n   ```swift\nlet x = 1\n```\nAfter"), "Before\nlet x = 1\nAfter")
+
+        // In a list item's text a fence is indented with it, and ends with the item.
+        XCTAssertEqual(PlainText.of(markdown: "- Run it:\n\n    ```\n    🔧 `x` [1]\n    ```\n\nDone."), "• Run it:\n\n    🔧 `x` [1]\n\nDone.")
+        XCTAssertEqual(PlainText.of(markdown: "1. Run it:\n    ```sh\n    ls *.txt *.log\n    ```\n2. Read it."), "1. Run it:\n    ls *.txt *.log\n2. Read it.")
+        XCTAssertEqual(tools("- item\n  ```\n  code\n🔧 `x` [1]"), 1)
+        XCTAssertEqual(tools("- ```\n  code\n  ```\n🔧 `x` [1]"), 1)
+    }
+
+    func testAMarkerACommonMarkParserHasInCodeFoldsNothing() {
+        // Raw HTML holds its lines as they are; the reader knows fences only.
+        let pre = PlainText.withToolDetails("An example of a marker:\n\n<pre>\n🔧 `shell` [1]\n</pre>\n\nThat is all.")
+        XCTAssertNil(pre.workText)
+        XCTAssertEqual(pre.answerText, pre.text)
+        XCTAssertNil(PlainText.splitFinishedWork(markdown: "An example:\n\n<pre>\nline one\nline two\n</pre>\n\nThat is all.", atLFLine: 4))
+        // "Notes" over "-" is a heading, not a list item, so the fence after it is not in an item and holds the marker.
+        let heading = PlainText.withToolDetails("Notes\n-\n  ```\n🔧 `shell` [1]\n  ```\nDone.")
+        XCTAssertNil(heading.workText)
+        XCTAssertEqual(heading.answerText, heading.text)
+        XCTAssertNil(PlainText.splitFinishedWork(markdown: "Notes\n-\n  ```\ncode\nmore\n  ```\nDone.", atLFLine: 4))
+        // The same lines as text fold.
+        XCTAssertEqual(PlainText.withToolDetails("An example of a marker:\n\n🔧 `shell` [1]\n\nThat is all.").workText, "An example of a marker:")
+        XCTAssertEqual(PlainText.splitFinishedWork(markdown: "Notes\n-\n\ncode\nmore\n\nDone.", atLFLine: 4)?.answerText, "more\n\nDone.")
     }
 
     func testBlankLinesAroundTheTextAndTheSpacesThatEndItGo() {
