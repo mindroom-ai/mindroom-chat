@@ -246,6 +246,7 @@ export type ClientConfig = {
     /** Messages shown while an agent is thinking, in place of the built-in ones. */
     thinkingPlaceholderMessages?: string[];
     canvas?: {
+      /** On unless `false` (`config/canvases.ts`). */
       enabled?: boolean;
       /** Lets canvas pages load libraries from the library CDN. */
       libraries?: boolean;

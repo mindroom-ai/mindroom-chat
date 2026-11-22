@@ -485,7 +485,7 @@
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
         "connection": "通話の接続が切れました。",
-        "device": "マイクまたはカメラを使用できませんでした。",
+        "device": "マイク、カメラ、またはスピーカーを使用できませんでした。",
         "untrustedService": "この通話はホームサーバーが提供していない通話サービスで行われているため、ここからは参加できません。"
       },
       "devices": {
@@ -1143,6 +1143,8 @@
         "defaultChoice": "既定",
         "threadOnly": "ここで選んだモデルはこのスレッドにのみ適用されます。",
         "roomOverrideThreadOnly": "このルームには !room_model で設定されています。ここで選んだモデルはこのスレッドにのみ適用されます。",
+        "chooseNextThread": "次のスレッドのモデルを選択",
+        "nextThreadOnly": "この選択は次のスレッドにのみ適用されます。",
         "levels": {
           "off": "オフ",
           "minimal": "最小",
@@ -1188,6 +1190,10 @@
   "composer": {
     "voicePausedInThisRoom": "音声録音が一時停止されました — このルームの別の場所にある未送信の録音を終了するか破棄してください",
     "voiceThreadRootUnsent": "この音声メッセージのスレッドには送信済みの最初のメッセージがありません。そのメッセージが送信されてから再試行するか、録音を破棄してください。",
+    "voiceIndicator": {
+      "recording": "録音中 {{time}}",
+      "paused": "一時停止中 {{time}}"
+    },
     "emoji": "絵文字",
     "cancelReply": "返信をキャンセル",
     "moreActions": "その他の操作",
@@ -1670,5 +1676,9 @@
   },
   "threadActions": {
     "openBeside": "2列目で開く"
+  },
+  "roomSchedules": {
+    "thisThread": "このスレッド",
+    "elsewhereInRoom": "このルーム内の別の場所"
   }
 }

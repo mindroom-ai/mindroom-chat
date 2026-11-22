@@ -495,7 +495,7 @@
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
         "connection": "Aramanın bağlantısı koptu.",
-        "device": "Mikrofonunuz veya kameranız kullanılamadı.",
+        "device": "Mikrofon, kamera veya hoparlör kullanılamadı.",
         "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız."
       },
       "devices": {
@@ -1174,6 +1174,8 @@
         "defaultChoice": "Varsayılan",
         "threadOnly": "Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
         "roomOverrideThreadOnly": "Bu oda için !room_model ile ayarlandı. Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
+        "chooseNextThread": "Sonraki ileti dizisi için model seç",
+        "nextThreadOnly": "Bu seçim yalnızca sonraki ileti dizisi için geçerlidir.",
         "levels": {
           "off": "Kapalı",
           "minimal": "Minimum",
@@ -1219,6 +1221,10 @@
   "composer": {
     "voicePausedInThisRoom": "Ses kaydı duraklatıldı — bu odanın başka bir yerindeki gönderilmemiş kaydınızı tamamlayın veya silin",
     "voiceThreadRootUnsent": "Bu sesli mesajın konusunda gönderilmiş bir ilk mesaj yok. O mesaj gönderildiğinde yeniden deneyin veya kaydı silin.",
+    "voiceIndicator": {
+      "recording": "Kaydediliyor {{time}}",
+      "paused": "Duraklatıldı {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",
@@ -1714,5 +1720,9 @@
   },
   "threadActions": {
     "openBeside": "İkinci sütunda aç"
+  },
+  "roomSchedules": {
+    "thisThread": "Bu konu",
+    "elsewhereInRoom": "Bu odanın başka yerlerinde"
   }
 }

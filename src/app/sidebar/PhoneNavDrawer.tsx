@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import {
+  PHONE_NAV_MENU_BUTTON_ID,
   PHONE_SLIDE_OUT_MS,
   nextPhoneNavDrawerOpen,
   phoneNavDrawerOpenAtom,
@@ -17,7 +18,9 @@ import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
-import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
+import { NoticeSlot } from '../ui/noticeSlots';
+import { focusHandOffAtom } from '../calls/window/callWindowState';
+import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */
@@ -148,9 +151,13 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         panel.querySelector<HTMLElement>('button, a[href]');
       entry?.focus({ preventScroll: true });
     } else if (!open && focused && panel.contains(focused)) {
-      document.getElementById(PHONE_NAV_MENU_BUTTON_ID)?.focus({ preventScroll: true });
+      // The rail's call button hands focus to its destination instead of the menu.
+      const handOff = store.get(focusHandOffAtom);
+      if (handOff?.to !== 'panel' || handOff.from !== focused) {
+        document.getElementById(PHONE_NAV_MENU_BUTTON_ID)?.focus({ preventScroll: true });
+      }
     }
-  }, [open]);
+  }, [open, store]);
 
   // While out, Escape puts it away, before the page's own Escape handling (focusing the composer,
   // marking the room read) sees it, unless a menu or dialog is open over it: that one closes.
@@ -209,7 +216,12 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         data-animate={animate || undefined}
       >
         {filled && nav}
-        <div ref={slotRef} className={css.Slot} data-nav-slot />
+        <div className={css.ListColumn}>
+          {/* The drawer covers the page's notice place: what must stay in reach shows here, until
+              the drawer has slid away, so a notice does not jump to the page mid-slide. */}
+          {filled && <NoticeSlot place="drawer" />}
+          <div ref={slotRef} className={css.Slot} data-nav-slot />
+        </div>
       </div>
     </>
   );

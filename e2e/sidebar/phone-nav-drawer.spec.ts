@@ -360,6 +360,7 @@ for (const engine of ENGINES) {
         await pickRoom(page, 'Garden Club', garden);
         await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();
         await expectAt(page, { room: garden, thread: gardenRoot }, 'the thread opens');
+        await expect.poll(() => page.locator('html[data-page-slide]').count()).toBe(0);
         await edgeSwipe(page, engine);
         await expectAt(page, inRoom(garden), 'the edge swipe leaves the thread for its room');
         await expectDrawer(page, false, 'and leaves the drawer away');
@@ -657,3 +658,129 @@ test('chromium: Skip to content puts the drawer away and lands in the page', asy
     await context.close();
   }
 });
+
+for (const engine of ENGINES) {
+  test(`${engine}: the open drawer leaves the return-to-call pill tappable`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(
+      Boolean(process.env.E2E_SERVER_COMMAND?.includes('vite preview')),
+      'The stand-in uses Vite source modules.'
+    );
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    const seeded = await seed(engine, 'call');
+    const { garden, harbor } = seeded;
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const { context, page } = await signIn(own, seeded);
+      try {
+        // Exercise the real call store and panel without relying on a media connection.
+        await context.route(
+          '**/_matrix/client/unstable/org.matrix.msc4143/rtc/transports',
+          (route) =>
+            route.fulfill({
+              json: {
+                rtc_transports: [
+                  { type: 'livekit', livekit_service_url: 'http://127.0.0.1:9/livekit' },
+                ],
+              },
+            })
+        );
+        await context.route(/\/src\/app\/calls\/RoomCall\.ts(?:\?|$)/, (route) =>
+          route.fulfill({
+            contentType: 'application/javascript',
+            body: `export class RoomCall {
+        constructor({ room }) { this.room = room; }
+        state = { phase: 'connected', microphone: true, camera: false, screenShare: false,
+          sound: true, audioBlocked: false, devices: {}, participants: [] };
+        getState = () => this.state;
+        subscribe = () => () => {};
+        join = async () => {};
+        leave = async () => {};
+      }`,
+          })
+        );
+
+        await pickRoom(page, 'Garden Club', garden);
+        await roomBanner(page).getByRole('button', { name: 'Start a call', exact: true }).tap();
+        const panel = page.getByTestId('call-panel');
+        await panel.getByRole('button', { name: 'Join', exact: true }).tap();
+        await expect(panel.getByRole('button', { name: 'End', exact: true })).toBeVisible();
+        await openDrawer(page);
+        await pickRoom(page, 'Harbor Plans', harbor);
+        await roomBanner(page).getByRole('button', { name: 'Start a call', exact: true }).tap();
+        await expect(panel.getByRole('heading', { name: 'Harbor Plans' })).toBeVisible();
+
+        const chrome = page.locator('[data-phone-top-bar]');
+        const pill = chrome.getByRole('button', { name: 'Return to the call in Garden Club' });
+        await openDrawer(page);
+        await expect
+          .poll(async () => {
+            const [nav, shortcut] = await Promise.all([
+              drawer(page).boundingBox(),
+              pill.boundingBox(),
+            ]);
+            return nav && shortcut ? nav.y - shortcut.y - shortcut.height : -1;
+          })
+          .toBeGreaterThanOrEqual(0);
+        await pill.tap();
+        await expectDrawer(page, false, 'returning to the call closes the drawer');
+        await expect(panel.getByRole('heading', { name: 'Garden Club' })).toBeFocused();
+
+        await openDrawer(page);
+        await pickRoom(page, 'Harbor Plans', harbor);
+        await page.setViewportSize({ width: 700, height: 390 });
+        if (engine === 'chromium') {
+          const cdp = await context.newCDPSession(page);
+          await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+            insets: { left: 44, right: 32 },
+          });
+          await expect
+            .poll(() =>
+              chrome.locator(':scope > div').evaluateAll((rows) =>
+                rows.map((row) => {
+                  const { paddingLeft, paddingRight } = getComputedStyle(row);
+                  return [paddingLeft, paddingRight];
+                })
+              )
+            )
+            .toEqual([
+              ['44px', '32px'],
+              ['44px', '32px'],
+            ]);
+          await cdp.detach();
+          if (SHOTS) await shoot(page, testInfo, 'call-return-landscape-safe-area');
+        }
+
+        await openDrawer(page);
+        await rail(page).getByRole('button', { name: 'Return to the call in Garden Club' }).tap();
+        await expectDrawer(page, false, 'the call button in the rail closes the drawer');
+        const heading = panel.getByRole('heading', { name: 'Garden Club' });
+        await expect(heading).toBeFocused();
+
+        await page.setViewportSize({ width: 1440, height: 900 });
+        const dock = panel.getByRole('button', { name: 'Dock to the side' });
+        await dock.click();
+        await page.getByRole('button', { name: 'Fold Call to the edge' }).click();
+        await expect(heading).toBeHidden();
+        const current = await page.evaluate(() => history.length);
+        await page.getByRole('button', { name: 'Return to the call in Garden Club' }).click();
+        await expect(heading).toBeVisible();
+        await expect(heading).toBeFocused();
+        expect(await page.evaluate(() => history.length)).toBe(current);
+
+        await page.getByRole('button', { name: 'Fold Call to the edge' }).click();
+        await page.getByRole('link', { name: 'Harbor Plans', exact: true }).click();
+        await expectAt(page, inRoom(harbor), 'the user leaves the folded call in Garden Club');
+        await page.getByRole('button', { name: 'Return to the call in Garden Club' }).click();
+        await expect(heading).toBeVisible();
+        await expect(heading).toBeFocused();
+      } finally {
+        await context.unrouteAll({ behavior: 'ignoreErrors' });
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+}

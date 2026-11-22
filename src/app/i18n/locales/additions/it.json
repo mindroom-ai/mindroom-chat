@@ -505,7 +505,7 @@
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
         "connection": "La connessione della chiamata si è interrotta.",
-        "device": "Impossibile usare il microfono o la fotocamera.",
+        "device": "Non è stato possibile usare un microfono, una fotocamera o un altoparlante.",
         "untrustedService": "Questa chiamata usa un servizio di chiamata che il tuo homeserver non offre, quindi non puoi partecipare da qui."
       },
       "devices": {
@@ -1205,6 +1205,8 @@
         "defaultChoice": "Predefinito",
         "threadOnly": "Il modello scelto qui vale solo per questo thread.",
         "roomOverrideThreadOnly": "Impostato per questa stanza con !room_model. Il modello scelto qui vale solo per questo thread.",
+        "chooseNextThread": "Scegli il modello per il prossimo thread",
+        "nextThreadOnly": "Questa scelta vale solo per il prossimo thread.",
         "levels": {
           "off": "Disattivato",
           "minimal": "Minimo",
@@ -1250,6 +1252,10 @@
   "composer": {
     "voicePausedInThisRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata altrove in questa stanza",
     "voiceThreadRootUnsent": "Il thread di questo messaggio vocale non ha un primo messaggio inviato. Riprova quando quel messaggio sarà inviato, oppure elimina la registrazione.",
+    "voiceIndicator": {
+      "recording": "Registrazione {{time}}",
+      "paused": "In pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
@@ -1758,5 +1764,9 @@
   },
   "threadActions": {
     "openBeside": "Apri nella seconda colonna"
+  },
+  "roomSchedules": {
+    "thisThread": "Questo thread",
+    "elsewhereInRoom": "Altrove in questa stanza"
   }
 }

@@ -21,6 +21,15 @@ extension Dictionary where Key == String, Value == Any {
     var eventId: String? { self["event_id"] as? String }
 
     var timestamp: Int { (self["origin_server_ts"] as? NSNumber)?.intValue ?? 0 }
+
+    /// The newest edit the server bundled with the event (`unsigned.m.relations.m.replace`), when it names this
+    /// event as the one it replaces. `ThreadSnapshot.build` checks its sender and content, as of every edit.
+    var bundledEdit: JSON? {
+        guard let id = eventId,
+              let edit = ((self["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.replace"] as? JSON,
+              edit.replacedEventId == id else { return nil }
+        return edit
+    }
 }
 
 /// The content to read: the latest edit's `m.new_content` when there is one, else the event's.

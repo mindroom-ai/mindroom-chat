@@ -485,7 +485,7 @@
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
         "connection": "통화 연결이 끊어졌습니다.",
-        "device": "마이크 또는 카메라를 사용할 수 없습니다.",
+        "device": "마이크, 카메라 또는 스피커를 사용할 수 없습니다.",
         "untrustedService": "이 통화는 홈서버가 제공하지 않는 통화 서비스에서 진행되므로 여기에서 참여할 수 없습니다."
       },
       "devices": {
@@ -1143,6 +1143,8 @@
         "defaultChoice": "기본값",
         "threadOnly": "여기서 고른 모델은 이 스레드에만 적용됩니다.",
         "roomOverrideThreadOnly": "이 방에는 !room_model로 설정되어 있습니다. 여기서 고른 모델은 이 스레드에만 적용됩니다.",
+        "chooseNextThread": "다음 스레드의 모델 선택",
+        "nextThreadOnly": "이 선택은 다음 스레드에만 적용됩니다.",
         "levels": {
           "off": "끄기",
           "minimal": "최소",
@@ -1188,6 +1190,10 @@
   "composer": {
     "voicePausedInThisRoom": "음성 녹음 일시 중지됨 — 이 방의 다른 곳에서 보내지 않은 녹음을 완료하거나 삭제하세요",
     "voiceThreadRootUnsent": "이 음성 메시지의 스레드에 전송된 첫 메시지가 없습니다. 그 메시지가 전송된 후 다시 시도하거나 녹음을 삭제하세요.",
+    "voiceIndicator": {
+      "recording": "녹음 중 {{time}}",
+      "paused": "일시 중지됨 {{time}}"
+    },
     "emoji": "이모지",
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",
@@ -1670,5 +1676,9 @@
   },
   "threadActions": {
     "openBeside": "두 번째 열에서 열기"
+  },
+  "roomSchedules": {
+    "thisThread": "이 스레드",
+    "elsewhereInRoom": "이 방의 다른 위치"
   }
 }

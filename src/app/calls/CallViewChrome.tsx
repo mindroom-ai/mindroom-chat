@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
@@ -8,9 +8,11 @@ import { useLocation } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useShortcut } from '../shortcuts/useShortcut';
 import type { CallParticipant } from './RoomCall';
 import { callPanelRoomAtom, type CallOrigin } from './callStore';
@@ -83,7 +85,7 @@ function DockButton({ home }: { home: CallOrigin }) {
   const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const dock = () => {
-    setFocusHandOff({ to: 'panel', from: document.activeElement });
+    setFocusHandOff({ to: 'panel', roomId: home.roomId, from: document.activeElement });
     setMode('docked');
     // The docked panel shows in the room whose call view is open.
     setPanelRoom(home.roomId);
@@ -156,6 +158,7 @@ export type BarContent = {
  * others' faces, the title and status, `bar.controls`, Expand and Close.
  */
 type CallViewChromeProps = {
+  roomId: string;
   title: string;
   subtitle?: string;
   footer?: ReactNode;
@@ -169,7 +172,7 @@ type CallViewChromeProps = {
 };
 
 export function CallViewChrome(props: CallViewChromeProps) {
-  const { title, subtitle, footer, children, onClose, home, actions, bar } = props;
+  const { roomId, title, subtitle, footer, children, onClose, home, actions, bar } = props;
   const { t } = useTranslation();
   const frame = useCallWindowFrame();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -216,7 +219,16 @@ export function CallViewChrome(props: CallViewChromeProps) {
   // the shortcut to the call view takes it there too: the window's handle, or the docked panel's
   // title. A panel folded to its tab shows nothing to focus, so the key stays the browser's.
   const focusTarget = frame ? handleRef : titleRef;
-  useFocusHandOff(frame ? 'window' : 'panel', () => focusTarget.current?.focus());
+  const layerOpen = useAtomValue(phoneLayerOpenAtom);
+  const panelRoomId = useAtomValue(callPanelRoomAtom);
+  const folded = usePanelFrame()?.layout === 'folded';
+  // Ignore a panel still moving out or folded. The page clears inert when the phone layer closes.
+  const panelReady = roomId === panelRoomId && !folded && !(phone && layerOpen);
+  useFocusHandOff(
+    frame ? 'window' : panelReady ? 'panel' : undefined,
+    () => focusTarget.current?.focus(),
+    roomId
+  );
   useShortcut('callView', () => {
     const target = focusTarget.current;
     if (!target) return false;

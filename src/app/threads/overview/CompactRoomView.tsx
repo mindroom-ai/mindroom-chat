@@ -33,7 +33,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { MOST_ROWS_IN_MOTION, useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -45,7 +45,8 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { holdCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
+import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
+import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { ThreadCardDetails } from './ThreadCardDetails';
@@ -386,19 +387,19 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While held, headers stay and shown cards keep their sections and order.
-  // The hook below holds no order in sections. Only hold this room's sections: the view
-  // stays mounted when the next room opens under the pointer.
-  const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
+  const { roomId } = room;
+  const shownRef = useRef<{
+    roomId: string;
+    sections: CompactThreadSection[] | undefined;
+    rows: string[];
+  }>();
   const heldSections = useMemo(() => {
-    const shown = shownSectionsRef.current;
-    return orderHeld && threadSections && shown?.roomId === room.roomId && shown.sections
-      ? holdCompactThreadSections(threadSections, shown.sections)
+    const shown = shownRef.current;
+    // Sections start live when entering from flat or from another room.
+    return orderHeld && threadSections && shown?.roomId === roomId && shown.sections
+      ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
       : threadSections;
-  }, [orderHeld, room.roomId, threadSections]);
-  useLayoutEffect(() => {
-    shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
-  }, [heldSections, room.roomId]);
+  }, [orderHeld, roomId, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
   // other sections to come back. If another section appears, such as Working below Needs you,
   // the original stays open until the hold lets go or the reader folds it.
@@ -437,12 +438,19 @@ export function CompactRoomView({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRows = useHeldThreadOrder(
-    listedRows,
-    orderHeld && !heldSections,
-    viewRef,
-    sectionOfRow
-  );
+  const holdFlat = orderHeld && !heldSections;
+  const shownRows = useMemo(() => {
+    const shown = shownRef.current;
+    if (!holdFlat || shown?.roomId !== roomId) return listedRows;
+    // Flat is one headerless group. On leaving Sections, only cards visible after folding survive.
+    const id = 'flat';
+    const [flat] = step([{ id, rootIds: shown.rows }], [{ id, rootIds: listedRows }], true, [id]);
+    return flat!.rootIds;
+  }, [holdFlat, listedRows, roomId]);
+  useLayoutEffect(() => {
+    shownRef.current = { roomId, sections: heldSections, rows: shownRows };
+  }, [heldSections, roomId, shownRows]);
+  useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
   const memory = compactRoomScrollStateRef.current;
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
@@ -464,7 +472,7 @@ export function CompactRoomView({
     };
   }, [folded, heldSections, pinnedRootIds, shownRows]);
   const ids = useMemo(() => Object.values(groups).flat(), [groups]);
-  const keyScope = `${room.roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
+  const keyScope = `${roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
   type Intent = { id: string; scope: string; from: Element | null; preventScroll?: boolean };
   const [intent, setIntent] = useState<Intent>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
@@ -473,9 +481,9 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     memory,
-    roomId: room.roomId,
+    roomId,
     target: pushed ? focusRequest.eventId : pending?.id,
-    protectedId: menu?.roomId === room.roomId ? menu.rootId : undefined,
+    protectedId: menu?.roomId === roomId ? menu.rootId : undefined,
     records: threadRecordMap,
     indexPending,
   });
@@ -614,7 +622,8 @@ export function CompactRoomView({
   const focusShown =
     blocks.placeReady &&
     (!pushed || blocks.targetReady) &&
-    cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
+    !!focusRequest &&
+    modelByRootId.has(focusRequest.eventId);
   useLayoutEffect(() => {
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     if (!focusRequest || !focusShown) return;

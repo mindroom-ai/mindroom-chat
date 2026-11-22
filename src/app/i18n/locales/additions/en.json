@@ -495,7 +495,7 @@
       "problems": {
         "service": "The call service could not be reached. Try again later.",
         "connection": "The call's connection was lost.",
-        "device": "Your microphone or camera could not be used.",
+        "device": "A microphone, camera or speaker could not be used.",
         "untrustedService": "This call runs on a call service your homeserver does not offer, so you cannot join it here."
       },
       "devices": {
@@ -1174,6 +1174,8 @@
         "defaultChoice": "Default",
         "threadOnly": "Choosing a model here applies to this thread only.",
         "roomOverrideThreadOnly": "Set for this room with !room_model. Choosing a model here applies to this thread only.",
+        "chooseNextThread": "Choose model for the next thread",
+        "nextThreadOnly": "This pick applies to the next thread only.",
         "levels": {
           "off": "Off",
           "minimal": "Minimal",
@@ -1219,6 +1221,10 @@
   "composer": {
     "voicePausedInThisRoom": "Voice recording paused — finish or discard your unsent recording elsewhere in this room",
     "voiceThreadRootUnsent": "This voice message's thread has no sent first message. Retry once that message is sent, or discard the recording.",
+    "voiceIndicator": {
+      "recording": "Recording {{time}}",
+      "paused": "Paused {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
@@ -1714,5 +1720,9 @@
   },
   "threadActions": {
     "openBeside": "Open in second column"
+  },
+  "roomSchedules": {
+    "thisThread": "This thread",
+    "elsewhereInRoom": "Elsewhere in this room"
   }
 }

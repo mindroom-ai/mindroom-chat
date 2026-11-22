@@ -6,14 +6,7 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 const BLOCK_CARDS = 12;
 const BUFFER_BLOCKS = 1;
 const SHELL = '[data-scroll-anchor]';
-const GESTURE_EVENTS = [
-  'pointerdown',
-  'pointerup',
-  'pointercancel',
-  'dragstart',
-  'dragend',
-  'blur',
-];
+const GESTURE_EVENTS = 'pointerdown pointerup pointercancel dragstart dragend blur'.split(' ');
 const cardId = (element?: Element | null) =>
   element?.closest<HTMLElement>(SHELL)?.dataset.scrollAnchor;
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
@@ -64,7 +57,7 @@ export function useCompactBlocks(options: Options) {
       placed: false,
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as (() => boolean) | undefined,
-      watch: undefined as ((nodes: NodeListOf<Element>, wake: boolean) => void) | undefined,
+      watch: undefined as ((wake: boolean) => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
   }, [memory, roomId]);
@@ -174,14 +167,14 @@ export function useCompactBlocks(options: Options) {
       typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
     for (const node of [view, content]) observer?.observe(node);
     let observed = new Set<Element>();
-    state.watch = (nodes, wake) => {
-      const next = new Set(nodes);
+    state.watch = (wake) => {
+      const next = new Set(content.querySelectorAll(SHELL));
       for (const node of observed) if (!next.has(node)) observer?.unobserve?.(node);
       for (const node of next) if (!observed.has(node)) observer?.observe(node);
       observed = next;
       if (wake) schedule();
     };
-    state.watch(content.querySelectorAll(SHELL), true);
+    state.watch(true);
     const fontsChanged = () => {
       geometry.metrics = undefined;
       schedule();
@@ -271,10 +264,10 @@ export function useCompactBlocks(options: Options) {
     const measured = layout();
     const pending = measured || (!small && probe >= 0);
     state.onWrite = () => {
-      if (layout()) state.watch?.(content.querySelectorAll(SHELL), true);
+      if (layout()) state.watch?.(true);
     };
     state.measure = () => layout() || pending;
-    state.watch?.(content.querySelectorAll(SHELL), pending || (back && placeReady));
+    state.watch?.(pending || (back && placeReady));
     if (back && !placeReady && state.readyOrder === order) render();
   });
   return { rows, liveIds, extentComplete, placeReady, targetReady, progress: state };

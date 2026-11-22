@@ -34,6 +34,7 @@ describe('app-owned localStorage', () => {
       'roomThreadFilter:@alice:example.org:!room': 'filter',
       mindroom_multi_account_store: 'session',
       'mx_pending_events_!room:example.org': 'pending',
+      'mindroom_client_model_catalogs::@alice:example.org': 'model catalogs',
       'crypto.account': 'crypto',
       third_party_key: 'keep',
     });

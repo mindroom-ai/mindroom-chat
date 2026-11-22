@@ -24,11 +24,12 @@ import {
   registerDisposableUser,
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // Compact cards sorted by last reply, newest first, have their live end at the top: a card that
 // arrives while the room is open (a new thread, or an agent's answer in the main timeline) shows
-// first, and a thread that gets a reply moves up there. That holds while the reader's pointer
-// rests on the list too, where the order of the cards already shown is held (THR-04): a new card
+// first, and a thread that gets a reply moves up there. That holds while the reader aims the
+// pointer too, when the order of the cards already shown is held (THR-04): a new card
 // still joins at the top. Scrolled down the list, the card under the pointer stays where it is.
 // A room with 26 threads between a person and an agent, among 25 rooms, with classic scrollbars,
 // on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
@@ -232,7 +233,7 @@ const expectFirst = async (page: Page, rootId: string, body: string, where: stri
     .toBe(0);
 };
 
-const holdMiddleCard = async (page: Page, view: Locator, label: string) => {
+const findMiddleCard = async (view: Locator, label: string): Promise<string> => {
   let middle: string | undefined;
   await expect
     .poll(
@@ -256,13 +257,7 @@ const holdMiddleCard = async (page: Page, view: Locator, label: string) => {
     )
     .toBeTruthy();
   if (!middle) throw new Error('No card at the center of the Compact view');
-  const midCard = cardOf(page, middle);
-  const midBox = await midCard.boundingBox();
-  if (!midBox) throw new Error('The middle card is not laid out');
-  const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
-  await page.mouse.move(pointer.x, pointer.y);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
-  return { middle, pointer };
+  return middle;
 };
 
 const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: boolean) => {
@@ -314,16 +309,15 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
     return;
   }
 
-  // 3. The pointer rests on the second card at the top of the list, so the order is held: a new
-  // card still joins at the top, the live end.
+  // 3. The pointer aims at the second card, holding the order: a new card still joins at
+  // the top, the live end.
   const order = await cardOrder(page);
-  const rested = cardOf(page, order[1] ?? '');
-  const box = (await rested.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  const second = cardOf(page, order[1] ?? '');
   const heldBody = `Update for ${label}: the nightly backup finished in 14 minutes, all volumes verified.`;
-  const held = await agentPosts(seeded, heldBody);
-  await expectFirst(page, held, heldBody, `under a resting pointer at the top (${label})`);
+  await withMovingMouseOverCard(page, second, async () => {
+    const held = await agentPosts(seeded, heldBody);
+    await expectFirst(page, held, heldBody, `while the order is held at the top (${label})`);
+  });
   await shot(page, `${label}-3-held-top`);
 
   // 4. Scrolled down the list, the pointer on a card: the new card joins at the top and the card
@@ -345,10 +339,12 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
       )
     )
     .toBe(false);
-  const { middle, pointer } = await holdMiddleCard(page, view, label);
+  const middle = await findMiddleCard(view, label);
   const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
-  const scrolled = await expectHeldArrival(view, middle, THREAD_COUNT + 3, pointer, label, () =>
-    agentPosts(seeded, scrolledBody)
+  const scrolled = await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+    expectHeldArrival(view, middle, THREAD_COUNT + 3, pointer, label, () =>
+      agentPosts(seeded, scrolledBody)
+    )
   );
   await shot(page, `${label}-4-held-scrolled`);
   await page.mouse.move(5, 795);
@@ -451,20 +447,15 @@ test('a sync batch larger than the Compact window does not displace a held card 
         // eslint-disable-next-line no-await-in-loop
         roots.push(await agentPosts(seeded, `Batch update ${index}: Export check complete.`));
       }
-      const { middle, pointer } = await holdMiddleCard(page, view, 'webkit-batch');
+      const middle = await findMiddleCard(view, 'webkit-batch');
       expect(await page.locator(CARDS).count(), 'cards mounted before the batch').toBeLessThan(
         batchSize
       );
-      const newest = await expectHeldArrival(
-        view,
-        middle,
-        THREAD_COUNT + batchSize,
-        pointer,
-        'webkit-batch',
-        () => {
+      const newest = await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+        expectHeldArrival(view, middle, THREAD_COUNT + batchSize, pointer, 'webkit-batch', () => {
           release();
           return roots.at(-1)!;
-        }
+        })
       );
       expect(deliveredIds).toEqual(expect.arrayContaining(roots));
       await page.mouse.move(5, 795);
@@ -520,9 +511,11 @@ test('Chromium keeps a held Done card under the pointer when Needs you arrives a
   });
   await expect(view).not.toHaveAttribute('data-cards-pending', 'true');
   await scrollList(page, 700);
-  const { middle, pointer } = await holdMiddleCard(page, view, 'chromium-done');
-  await expectHeldArrival(view, middle, THREAD_COUNT + 1, pointer, 'chromium-done', () =>
-    agentPosts(seeded, 'A newly opened ticket')
+  const middle = await findMiddleCard(view, 'chromium-done');
+  await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+    expectHeldArrival(view, middle, THREAD_COUNT + 1, pointer, 'chromium-done', () =>
+      agentPosts(seeded, 'A newly opened ticket')
+    )
   );
   await expect(view.locator('[data-compact-section="needsYou"]')).toContainText('· 1');
 });

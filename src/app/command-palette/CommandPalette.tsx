@@ -489,7 +489,23 @@ export function CommandPalette({
       return;
     }
 
-    if (page && event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    const plainTab = event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (plainTab && !event.shiftKey && (page || tab === COMMAND_PALETTE_TABS.at(-1))) {
+      // The glass Modal around the dialog holds its notice slot, beside the dialog itself.
+      const noticeButton = event.currentTarget
+        .closest('[role="dialog"]')
+        ?.parentElement?.querySelector<HTMLButtonElement>(
+          '[data-dialog-notice-slot] button:not(:disabled)'
+        );
+      if (noticeButton) {
+        event.preventDefault();
+        event.stopPropagation?.();
+        noticeButton.focus();
+        return;
+      }
+    }
+
+    if (page && plainTab) {
       // A page has no tabs. Tab does nothing there, so the field keeps the focus and Escape
       // always goes back; the dialog's focus containment moves focus from a document listener.
       event.preventDefault();

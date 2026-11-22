@@ -505,7 +505,7 @@
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
         "connection": "Se perdió la conexión de la llamada.",
-        "device": "No se pudo usar tu micrófono o tu cámara.",
+        "device": "No se pudo usar un micrófono, una cámara o un altavoz.",
         "untrustedService": "Esta llamada usa un servicio de llamadas que tu servidor no ofrece, así que no puedes unirte desde aquí."
       },
       "devices": {
@@ -1205,6 +1205,8 @@
         "defaultChoice": "Predeterminado",
         "threadOnly": "El modelo que elijas aquí solo se aplica a este hilo.",
         "roomOverrideThreadOnly": "Establecido para esta sala con !room_model. El modelo que elijas aquí solo se aplica a este hilo.",
+        "chooseNextThread": "Elegir un modelo para el próximo hilo",
+        "nextThreadOnly": "Esta elección solo se aplica al próximo hilo.",
         "levels": {
           "off": "Desactivado",
           "minimal": "Mínimo",
@@ -1250,6 +1252,10 @@
   "composer": {
     "voicePausedInThisRoom": "La grabación de voz está en pausa; termina o descarta la grabación sin enviar en otro lugar de esta sala",
     "voiceThreadRootUnsent": "El hilo de este mensaje de voz no tiene un primer mensaje enviado. Vuelve a intentarlo cuando ese mensaje se haya enviado o descarta la grabación.",
+    "voiceIndicator": {
+      "recording": "Grabando {{time}}",
+      "paused": "En pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
@@ -1758,5 +1764,9 @@
   },
   "threadActions": {
     "openBeside": "Abrir en la segunda columna"
+  },
+  "roomSchedules": {
+    "thisThread": "Este hilo",
+    "elsewhereInRoom": "En otras partes de esta sala"
   }
 }

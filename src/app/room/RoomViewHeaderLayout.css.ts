@@ -6,6 +6,9 @@ export const Header = style({
   '@media': { [shortViewport]: { selectors: { '&&': { height: toRem(44) } } } },
 });
 
+// An unloaded or unavailable call contributes neither a control nor a gap to the row.
+export const CallGroup = style({ ':empty': { display: 'none' } });
+
 export const Topic = style({
   '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
 });

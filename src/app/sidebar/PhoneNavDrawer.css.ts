@@ -1,6 +1,6 @@
-import { style } from '@vanilla-extract/css';
+import { fallbackVar, style } from '@vanilla-extract/css';
 import { DefaultReset, color } from 'folds';
-import { phoneTopBarHeight } from './PhoneTopBar.css';
+import { phoneChromeHeight, phoneTopBarHeight } from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 import { cardRadius } from '../ui/page/floatingCards.css';
 
@@ -19,7 +19,7 @@ const IN_PAGE_SLIDE =
 // Both layers cover the area below the top bar; the bar stays usable above them.
 const belowTopBar = {
   position: 'absolute',
-  insetBlockStart: phoneTopBarHeight,
+  insetBlockStart: fallbackVar(phoneChromeHeight, phoneTopBarHeight),
   insetBlockEnd: 0,
   insetInlineStart: 0,
 } as const;
@@ -89,16 +89,26 @@ export const Panel = style([
       '&[data-animate][data-open]': { transition: `transform ${SLIDE} ${EASE}` },
       [IN_PAGE_SLIDE]: { transition: 'none' },
       // A page without a list (Threads, Canvases): the rail alone.
-      '&:has(> [data-nav-slot]:empty)': { inlineSize: 'auto' },
+      '&:has([data-nav-slot]:empty)': { inlineSize: 'auto' },
     },
   },
 ]);
 
-/** Where the routed section puts its list; it takes the drawer's width beside the rail. */
+/**
+ * What the rail leaves of the panel: the drawer's notice place (ui/noticeSlots.tsx) over the
+ * section's list. Without a list it is as wide as a notice there, and nothing without one.
+ */
+export const ListColumn = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minInlineSize: 0,
+  flexGrow: 1,
+});
+
+/** Where the routed section puts its list; it takes the height the notice place leaves. */
 export const Slot = style({
   display: 'flex',
-  minInlineSize: 0,
-  // What the rail leaves of the panel.
+  minBlockSize: 0,
   flexGrow: 1,
   selectors: {
     '&:empty': { display: 'none' },

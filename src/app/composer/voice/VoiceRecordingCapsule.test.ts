@@ -38,6 +38,7 @@ vi.mock('folds', () => {
 
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
+  Control: 'Control',
   HiddenStatus: 'HiddenStatus',
   Timer: 'Timer',
 }));
@@ -73,7 +74,7 @@ describe('VoiceRecordingCapsule', () => {
     const liveCount = () => renderer.root.findByType(VoiceWaveform).props.liveSampleCount;
     expect(liveCount()).toBe(7);
 
-    (['paused', 'processing', 'sending'] as const).forEach((phase) => {
+    (['paused', 'sending'] as const).forEach((phase) => {
       act(() => renderer.update(React.createElement(VoiceRecordingCapsule, { ...props, phase })));
       expect(liveCount()).toBeUndefined();
     });
@@ -205,10 +206,10 @@ describe('VoiceRecordingCapsule', () => {
     renderer.unmount();
   });
 
-  it('disables discard while a send stop is processing', () => {
+  it('disables discard while the recording is being sent', () => {
     const renderer = create(
       React.createElement(VoiceRecordingCapsule, {
-        phase: 'processing',
+        phase: 'sending',
         elapsedMs: 3000,
         waveform: createFallbackWaveform(),
         canPause: true,

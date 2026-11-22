@@ -471,7 +471,6 @@ const FLOWS: Record<string, Flow> = {
   ) => {
     await openFromList(page, 'Garden Club', garden);
     const openPin = async (eventId: string, words: string) => {
-      // A phone's room menu holds Pinned Messages.
       await openRoomPins(page);
       const menu = page.getByRole('dialog', { name: 'Pinned Messages', exact: true });
       await menu.locator(`[data-pinned-event-id="${eventId}"]`).getByText(words).tap();

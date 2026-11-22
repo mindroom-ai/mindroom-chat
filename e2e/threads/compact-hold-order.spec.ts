@@ -15,6 +15,7 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // Compact cards sorted by last reply keep their order while the reader points at a card, has a
 // card's menu open, or has keyboard focus on a card (Chromium): replies to threads further down do
@@ -167,15 +168,14 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
 
   // 1. Hover: a card deep in the list stays under the pointer.
   await centerHeld();
-  const box = (await held.boundingBox())!;
-  const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  await page.mouse.move(pointer.x, pointer.y);
-  expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(heldId);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
-  const before = await topOf(held);
-  let targets = await replyBelow(page, room, heldId, 1);
-  expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
-  expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(heldId);
+  let targets = await withMovingMouseOverCard(page, held, async (pointer) => {
+    expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(heldId);
+    const before = await topOf(held);
+    const updated = await replyBelow(page, room, heldId, 1);
+    expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
+    expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(heldId);
+    return updated;
+  });
   // Leaving the list lets the new order in.
   await page.mouse.move(DESKTOP.width - 5, 5);
   await expectCaughtUp(page, targets);

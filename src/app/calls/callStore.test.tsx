@@ -33,7 +33,7 @@ const FakeRoomCall = vi.hoisted(
   () =>
     class {
       join = vi.fn(async () => {
-        if (engine.joinBreaks) throw new Error('joinRTCSession threw');
+        if (engine.joinBreaks) throw new Error('join threw');
       });
 
       fail = vi.fn();

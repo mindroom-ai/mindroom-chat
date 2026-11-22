@@ -495,7 +495,7 @@
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
         "connection": "De verbinding van de oproep is verbroken.",
-        "device": "Je microfoon of camera kon niet worden gebruikt.",
+        "device": "Een microfoon, camera of luidspreker kon niet worden gebruikt.",
         "untrustedService": "Deze oproep loopt via een oproepdienst die je homeserver niet aanbiedt, dus je kunt hier niet deelnemen."
       },
       "devices": {
@@ -1174,6 +1174,8 @@
         "defaultChoice": "Standaard",
         "threadOnly": "Een hier gekozen model geldt alleen voor deze thread.",
         "roomOverrideThreadOnly": "Voor deze ruimte ingesteld met !room_model. Een hier gekozen model geldt alleen voor deze thread.",
+        "chooseNextThread": "Model kiezen voor de volgende thread",
+        "nextThreadOnly": "Deze keuze geldt alleen voor de volgende thread.",
         "levels": {
           "off": "Uit",
           "minimal": "Minimaal",
@@ -1219,6 +1221,10 @@
   "composer": {
     "voicePausedInThisRoom": "Spraakopname gepauzeerd — maak je niet-verzonden opname elders in deze ruimte af of verwijder deze",
     "voiceThreadRootUnsent": "De thread van dit spraakbericht heeft geen verzonden eerste bericht. Probeer het opnieuw zodra dat bericht verzonden is, of verwijder de opname.",
+    "voiceIndicator": {
+      "recording": "Opname {{time}}",
+      "paused": "Gepauzeerd {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",
@@ -1714,5 +1720,9 @@
   },
   "threadActions": {
     "openBeside": "In tweede kolom openen"
+  },
+  "roomSchedules": {
+    "thisThread": "Deze thread",
+    "elsewhereInRoom": "Elders in deze ruimte"
   }
 }

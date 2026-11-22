@@ -505,7 +505,7 @@
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
         "connection": "La connexion de l’appel a été perdue.",
-        "device": "Impossible d’utiliser votre micro ou votre caméra.",
+        "device": "Impossible d’utiliser un microphone, une caméra ou un haut-parleur.",
         "untrustedService": "Cet appel passe par un service d’appel que votre serveur d’accueil ne propose pas, vous ne pouvez donc pas le rejoindre ici."
       },
       "devices": {
@@ -1205,6 +1205,8 @@
         "defaultChoice": "Par défaut",
         "threadOnly": "Le modèle choisi ici s’applique uniquement à ce fil.",
         "roomOverrideThreadOnly": "Défini pour ce salon avec !room_model. Le modèle choisi ici s’applique uniquement à ce fil.",
+        "chooseNextThread": "Choisir le modèle du prochain fil",
+        "nextThreadOnly": "Ce choix ne s’applique qu’au prochain fil.",
         "levels": {
           "off": "Désactivé",
           "minimal": "Minimal",
@@ -1250,6 +1252,10 @@
   "composer": {
     "voicePausedInThisRoom": "L'enregistrement vocal est en pause — terminez ou supprimez l'enregistrement non envoyé ailleurs dans ce salon",
     "voiceThreadRootUnsent": "Le fil de ce message vocal n'a pas de premier message envoyé. Réessayez une fois ce message envoyé, ou supprimez l'enregistrement.",
+    "voiceIndicator": {
+      "recording": "Enregistrement {{time}}",
+      "paused": "En pause {{time}}"
+    },
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",
@@ -1758,5 +1764,9 @@
   },
   "threadActions": {
     "openBeside": "Ouvrir dans la seconde colonne"
+  },
+  "roomSchedules": {
+    "thisThread": "Ce fil",
+    "elsewhereInRoom": "Ailleurs dans ce salon"
   }
 }

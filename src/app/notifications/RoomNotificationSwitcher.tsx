@@ -1,5 +1,4 @@
 import { type MouseEvent, type ReactNode, useState } from 'react';
-import { type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -9,6 +8,7 @@ import {
   setRoomNotificationPreference,
 } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { ChoiceMenu } from '../ui/ChoiceMenu';
+import { useLiveAnchor } from '../ui/useAnchoredCard';
 
 /** The modes in the order the menu lists them, each with its label key. */
 const MODE_CHOICES = [
@@ -49,15 +49,13 @@ export function RoomNotificationModeSwitcher({
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
-  const [anchor, setAnchor] = useState<RectCords>();
+  const [opener, setOpener] = useState<HTMLElement>();
+  const anchor = useLiveAnchor(opener);
   // The mode being stored; the menu shows it as current until the push rules catch up.
   const [pending, setPending] = useState<RoomNotificationMode>();
 
-  const openMenu: OpenModeMenu = (click) => {
-    const rect = click?.currentTarget.getBoundingClientRect();
-    setAnchor(rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : undefined);
-  };
-  const close = () => setAnchor(undefined);
+  const openMenu: OpenModeMenu = (click) => setOpener(click?.currentTarget);
+  const close = () => setOpener(undefined);
 
   const choose = (index: number) => {
     const next = MODE_CHOICES[index]?.[0];

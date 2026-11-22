@@ -485,7 +485,7 @@
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
         "connection": "通话连接已断开。",
-        "device": "无法使用您的麦克风或摄像头。",
+        "device": "无法使用麦克风、摄像头或扬声器。",
         "untrustedService": "此通话使用的通话服务并非由您的主服务器提供，因此无法从这里加入。"
       },
       "devices": {
@@ -1143,6 +1143,8 @@
         "defaultChoice": "默认",
         "threadOnly": "在此选择的模型仅适用于此话题。",
         "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
+        "chooseNextThread": "为下一个话题选择模型",
+        "nextThreadOnly": "此选择仅适用于下一个话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",
@@ -1188,6 +1190,10 @@
   "composer": {
     "voicePausedInThisRoom": "录音已暂停 — 完成或放弃在此房间其他位置未发送的录音",
     "voiceThreadRootUnsent": "此语音消息所在的话题没有已发送的第一条消息。请在该消息发送后重试，或放弃此录音。",
+    "voiceIndicator": {
+      "recording": "正在录音 {{time}}",
+      "paused": "已暂停 {{time}}"
+    },
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
@@ -1670,5 +1676,9 @@
   },
   "threadActions": {
     "openBeside": "在第二栏打开"
+  },
+  "roomSchedules": {
+    "thisThread": "此讨论串",
+    "elsewhereInRoom": "此房间中的其他位置"
   }
 }

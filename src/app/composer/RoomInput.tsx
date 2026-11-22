@@ -28,7 +28,7 @@ import {
 } from '../editor/autocomplete/autocompleteQuery';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { EmoticonAutocomplete } from '../editor/autocomplete/EmoticonAutocomplete';
-import { createEmoticonElement, moveCursor, restoreEditorContent } from '../editor/utils';
+import { createEmoticonElement, moveCursor } from '../editor/utils';
 import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
@@ -66,6 +66,8 @@ import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
+import { getModelController } from '../models/modelController';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { hasExplicitThreadContext, hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
@@ -250,13 +252,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
     // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
     const roomThreadMode = useRoomThreadMode(roomId, true);
+    const newThread =
+      threadingEnabled && !threadId && !forkFrom && !replyDraft && roomThreadMode === 'thread';
     const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
     const direct = useAtomValue(mDirectAtom).has(roomId);
     let placeholder = t('composer.placeholder');
     if (forkFrom) placeholder = t('threadFork.continueInNewThread');
     else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
       placeholder = t('composer.replyInThread');
-    else if (threadingEnabled && !replyDraft && roomThreadMode === 'thread')
+    else if (newThread)
       placeholder = direct
         ? t('composer.newThreadWith', { name: roomName })
         : t('composer.newThreadIn', { room: roomName });
@@ -290,7 +294,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
     const modelPicker = (
-      <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
+      <ThreadModelPicker
+        room={room}
+        threadId={threadId}
+        newThread={newThread}
+        conversationHidden={conversationHidden}
+      />
     );
     // While an agent replies in the thread, holding Send offers how the message meets the reply.
     // A fork draft starts a thread of its own, and the main timeline has no such check yet.
@@ -373,6 +382,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store, userId]
     );
 
+    const rootModelContext = useLatestRef({ roomId, newThread });
+    const takeRootModelDraft = useCallback(
+      (target: Room) => {
+        const { roomId: liveRoomId, newThread: liveNewThread } = rootModelContext.current;
+        return mountedRef.current && liveNewThread && liveRoomId === target.roomId
+          ? getModelController(mx).takeRootModelDraft(target)
+          : undefined;
+      },
+      [mx, rootModelContext]
+    );
     const sessions = useRoomInputSendSessionController({
       mx,
       room,
@@ -390,8 +409,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       restoreComposerFallbackForRoom,
       onRoomMessageSent,
       forkFrom,
+      takeRootModelDraft,
     });
 
+    const { restoreText: restoreSentText } = sessions;
     const composer = useMemo(
       () => ({
         getContext: () => ({
@@ -407,20 +428,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           resetEditor(editor);
           resetEditorHistory(editor);
         },
-        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) => {
-          if (restoreRoomId === roomId && restoreThreadId === threadId && mountedRef.current) {
-            restoreEditorContent(editor, fragment);
-            return;
-          }
-          restoreComposerFallbackForRoom(restoreRoomId, fragment, restoreThreadId);
-        },
+        // Into the editor only while it still shows that room and thread, as a failed text send
+        // is: asked from a send that began before the composer moved on, it goes to that draft.
+        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) =>
+          restoreSentText({ roomId: restoreRoomId, threadId: restoreThreadId }, fragment),
         clearConsumedReply: clearReplyDraft,
       }),
       [
         clearReplyDraft,
         editor,
         replyDraft,
-        restoreComposerFallbackForRoom,
+        restoreSentText,
         room,
         roomId,
         threadId,
@@ -435,6 +453,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       attachments: attachments.access,
       transport,
       sessions,
+      takeRootModelDraft,
       onRoomMessageSent,
     });
 
@@ -465,20 +484,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         try {
           await acting.run(acting.args);
         } catch (error) {
-          // A composer that went away meanwhile keeps the text as its room's draft.
-          composer.restoreText(roomId, typed, threadId);
+          // A composer that went away meanwhile keeps the text in its own draft.
+          composer.restoreText(roomId, typed, draftThreadId);
           if (mountedRef.current) setCommandProblem(describeCommandFailure(t, acting, error));
         } finally {
           if (mountedRef.current) setSubmitPending(false);
         }
       },
-      [composer, roomId, sendTypingStatus, t, threadId]
+      [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
-    // A recording begun in the thread stays the thread's: a fork draft neither shows nor sends it.
+    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     const voiceActive = !forkFrom;
     const submit = useCallback(
-      async (mode: MidTurnMode) => {
+      async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
         // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
         // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
@@ -497,17 +516,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
+        // Sending the text answers the notices of files and pastes a reload lost.
+        const takeText = () => {
+          const content = buildTextContent(mode);
+          if (content) {
+            dismissLostFiles();
+            dismissLostPastes();
+          }
+          return content;
+        };
+        // A Send takes the recording at the press (useRoomInputVoice's `sendAtPress`), before
+        // anything here waits: what follows is only for a Send without a voice message. One that
+        // `waited` for its root and goes out now is no press, and takes no recording made since.
+        const voiceSend =
+          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+        if (voiceSend) {
+          setSubmitPending(true);
+          await voiceSend.finally(() => {
+            if (mountedRef.current) setSubmitPending(false);
+          });
+          return;
+        }
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message' })) return;
-        const textContent = buildTextContent(mode);
-        // Sending the text answers the notices of files and pastes a reload lost.
-        if (textContent) {
-          dismissLostFiles();
-          dismissLostPastes();
-        }
+        const textContent = takeText();
         setSubmitPending(true);
         try {
-          if (voiceActive && (await voice.submitIfActive(textContent))) return;
           const sending = sessions.startSendSession({ textContent });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
@@ -535,10 +569,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
-    // message takes the one the Chats settings name.
+    // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const handleSend = useCallback(
-      (mode?: MidTurnMode) => {
-        const sending = submit(mode ?? midTurnSend);
+      (mode?: MidTurnMode, waited = false) => {
+        const sending = submit(mode ?? midTurnSend, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
@@ -653,7 +687,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend();
+        else void handleSend(undefined, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);

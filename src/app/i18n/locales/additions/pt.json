@@ -505,7 +505,7 @@
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
         "connection": "A ligação da chamada perdeu-se.",
-        "device": "Não foi possível usar o seu microfone ou a sua câmara.",
+        "device": "Não foi possível usar um microfone, uma câmara ou um altifalante.",
         "untrustedService": "Esta chamada usa um serviço de chamadas que o seu servidor não oferece, por isso não pode participar a partir daqui."
       },
       "devices": {
@@ -1205,6 +1205,8 @@
         "defaultChoice": "Padrão",
         "threadOnly": "O modelo escolhido aqui vale apenas para esta conversa.",
         "roomOverrideThreadOnly": "Definido para esta sala com !room_model. O modelo escolhido aqui vale apenas para esta conversa.",
+        "chooseNextThread": "Escolher o modelo para a próxima conversa",
+        "nextThreadOnly": "Esta escolha só se aplica à próxima conversa.",
         "levels": {
           "off": "Desativado",
           "minimal": "Mínimo",
@@ -1250,6 +1252,10 @@
   "composer": {
     "voicePausedInThisRoom": "A gravação de voz está em pausa — termine ou descarte a gravação não enviada em outro lugar desta sala",
     "voiceThreadRootUnsent": "O tópico desta mensagem de voz não tem uma primeira mensagem enviada. Tente novamente quando essa mensagem for enviada ou descarte a gravação.",
+    "voiceIndicator": {
+      "recording": "Gravando {{time}}",
+      "paused": "Em pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta",
     "moreActions": "Mais ações",
@@ -1758,5 +1764,9 @@
   },
   "threadActions": {
     "openBeside": "Abrir na segunda coluna"
+  },
+  "roomSchedules": {
+    "thisThread": "Este tópico",
+    "elsewhereInRoom": "Em outras partes desta sala"
   }
 }

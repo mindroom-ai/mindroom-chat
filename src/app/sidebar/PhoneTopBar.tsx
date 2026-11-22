@@ -1,10 +1,19 @@
-import { useId, useState } from 'react';
+import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Icon, IconButton, Icons, type IconSrc } from 'folds';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
+import { useSelectedRoom } from '../navigation/useSelectedRoom';
+import {
+  callPanelRoomAtom,
+  isActiveCallShownIn,
+  useActiveCall,
+  useInCall,
+  type ActiveCall,
+} from '../calls/callStore';
+import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
 import { CommandPaletteSearchField } from '../command-palette/CommandPaletteSearchField';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
@@ -17,8 +26,6 @@ import * as css from './PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
 export const PHONE_NAV_DRAWER_ID = 'phone-nav-drawer';
-/** The menu button, which takes the focus back when the drawer closes around it. */
-export const PHONE_NAV_MENU_BUTTON_ID = 'phone-nav-menu-button';
 
 /** Three bars, the usual sign for a menu that slides in. */
 const MenuIcon: IconSrc = () => (
@@ -97,18 +104,69 @@ function ActivityBell() {
   );
 }
 
+function ReturnToCallButton({ active }: { active: ActiveCall }) {
+  const { t } = useTranslation();
+  const { label, icon, microphone, speaking, openHome } = useActiveCallShortcut(active);
+  const mutedId = useId();
+
+  return (
+    <div className={css.ReturnToCallRow}>
+      <Button
+        type="button"
+        variant="Success"
+        fill="Soft"
+        radii="Pill"
+        size="400"
+        className={css.ReturnToCallButton}
+        data-speaking={speaking || undefined}
+        aria-describedby={microphone ? undefined : mutedId}
+        onClick={(event: MouseEvent<HTMLButtonElement>) => openHome(event.currentTarget)}
+      >
+        <Icon src={icon} size="100" filled aria-hidden />
+        <Text as="span" size="T300" truncate>
+          {label}
+        </Text>
+      </Button>
+      {!microphone && (
+        <span id={mutedId} hidden>
+          {t('featureUi.calls.panel.microphoneOff')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PhoneReturnToCall() {
+  const active = useActiveCall();
+  const inCall = useInCall();
+  const currentRoomId = useSelectedRoom();
+  const panelRoomId = useAtomValue(callPanelRoomAtom);
+  if (!active || !inCall) return null;
+  if (
+    currentRoomId &&
+    currentRoomId === panelRoomId &&
+    isActiveCallShownIn(active, currentRoomId)
+  ) {
+    return null;
+  }
+  return <ReturnToCallButton active={active} />;
+}
+
 /**
  * A phone's top bar, above every page: the menu button that slides the navigation drawer in, a
  * search field that opens the command palette (and names its keyboard shortcut), the Activity
- * bell, and the account.
+ * bell, the account and the way back to a call running out of view.
  */
 export function PhoneTopBar() {
   return (
-    <div className={css.PhoneTopBar} data-phone-top-bar>
-      <MenuButton />
-      <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
-      <ActivityBell />
-      <SettingsTab inTopBar className={css.BarControl} />
+    <div className={css.PhoneChrome} data-phone-top-bar>
+      <div className={css.PhoneTopBar}>
+        <MenuButton />
+        <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
+        <ActivityBell />
+        <SettingsTab inTopBar className={css.BarControl} />
+      </div>
+      <PhoneReturnToCall />
     </div>
   );
 }
