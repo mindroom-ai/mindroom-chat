@@ -1897,6 +1897,30 @@
   },
   "roomSchedules": {
     "thisThread": "سلسلة المحادثة هذه",
-    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة"
+    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة",
+    "filterAll": "الكل",
+    "filterLabel": "تصفية المهام المجدولة",
+    "awaitingShort": "قيد الانتظار",
+    "inSeconds": "بعد ⁨{{count}}⁩ث",
+    "inMinutes": "بعد ⁨{{count}}⁩د",
+    "inHours": "بعد ⁨{{count}}⁩س",
+    "inHoursMinutes": "بعد ⁨{{hours}}⁩س ⁨{{minutes}}⁩د",
+    "inDays": "بعد ⁨{{count}}⁩ي",
+    "thread": "سلسلة",
+    "destination": "الوجهة",
+    "showFullPrompt": "عرض الموجه بالكامل",
+    "showLessPrompt": "عرض أقل",
+    "details": "التفاصيل",
+    "hideDetails": "إخفاء التفاصيل",
+    "copyId": "نسخ المعرف",
+    "copied": "تم النسخ",
+    "edit": "تعديل",
+    "cancel": "إلغاء",
+    "cancelConfirm": "إلغاء هذه المهمة المجدولة؟",
+    "keep": "إبقاء",
+    "cancelTask": "إلغاء المهمة",
+    "cancelling": "جارٍ الإلغاء...",
+    "cancelError": "تعذر إلغاء المهمة. حاول مرة أخرى.",
+    "cancellationSent": "تم إرسال الإلغاء"
   }
 }

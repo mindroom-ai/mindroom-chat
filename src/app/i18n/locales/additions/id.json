@@ -1677,6 +1677,30 @@
   },
   "roomSchedules": {
     "thisThread": "Utas ini",
-    "elsewhereInRoom": "Di bagian lain ruang ini"
+    "elsewhereInRoom": "Di bagian lain ruang ini",
+    "filterAll": "Semua",
+    "filterLabel": "Filter tugas terjadwal",
+    "awaitingShort": "Menunggu",
+    "inSeconds": "dalam {{count}}d",
+    "inMinutes": "dalam {{count}}m",
+    "inHours": "dalam {{count}}j",
+    "inHoursMinutes": "dalam {{hours}}j {{minutes}}m",
+    "inDays": "dalam {{count}}h",
+    "thread": "Utas",
+    "destination": "Tujuan",
+    "showFullPrompt": "Tampilkan prompt lengkap",
+    "showLessPrompt": "Tampilkan lebih sedikit",
+    "details": "Detail",
+    "hideDetails": "Sembunyikan detail",
+    "copyId": "Salin ID",
+    "copied": "Disalin",
+    "edit": "Edit",
+    "cancel": "Batalkan",
+    "cancelConfirm": "Batalkan tugas terjadwal ini?",
+    "keep": "Simpan",
+    "cancelTask": "Batalkan tugas",
+    "cancelling": "Membatalkan...",
+    "cancelError": "Tidak dapat membatalkan tugas. Coba lagi.",
+    "cancellationSent": "Pembatalan dikirim"
   }
 }

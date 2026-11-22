@@ -1677,6 +1677,30 @@
   },
   "roomSchedules": {
     "thisThread": "このスレッド",
-    "elsewhereInRoom": "このルーム内の別の場所"
+    "elsewhereInRoom": "このルーム内の別の場所",
+    "filterAll": "すべて",
+    "filterLabel": "予定されたタスクを絞り込む",
+    "awaitingShort": "待機中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分後",
+    "inHours": "{{count}}時間後",
+    "inHoursMinutes": "{{hours}}時間{{minutes}}分後",
+    "inDays": "{{count}}日後",
+    "thread": "スレッド",
+    "destination": "送信先",
+    "showFullPrompt": "プロンプトをすべて表示",
+    "showLessPrompt": "折りたたむ",
+    "details": "詳細",
+    "hideDetails": "詳細を隠す",
+    "copyId": "IDをコピー",
+    "copied": "コピーしました",
+    "edit": "編集",
+    "cancel": "キャンセル",
+    "cancelConfirm": "この予定されたタスクをキャンセルしますか？",
+    "keep": "維持",
+    "cancelTask": "タスクをキャンセル",
+    "cancelling": "キャンセル中...",
+    "cancelError": "タスクをキャンセルできませんでした。もう一度お試しください。",
+    "cancellationSent": "キャンセルを送信しました"
   }
 }

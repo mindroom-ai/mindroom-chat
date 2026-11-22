@@ -1809,6 +1809,30 @@
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",
-    "elsewhereInRoom": "В других местах этой комнаты"
+    "elsewhereInRoom": "В других местах этой комнаты",
+    "filterAll": "Все",
+    "filterLabel": "Фильтр запланированных задач",
+    "awaitingShort": "Ожидание",
+    "inSeconds": "через {{count}}с",
+    "inMinutes": "через {{count}}м",
+    "inHours": "через {{count}}ч",
+    "inHoursMinutes": "через {{hours}}ч {{minutes}}м",
+    "inDays": "через {{count}}д",
+    "thread": "Ветка",
+    "destination": "Назначение",
+    "showFullPrompt": "Показать весь промпт",
+    "showLessPrompt": "Свернуть",
+    "details": "Подробности",
+    "hideDetails": "Скрыть подробности",
+    "copyId": "Копировать ID",
+    "copied": "Скопировано",
+    "edit": "Изменить",
+    "cancel": "Отменить",
+    "cancelConfirm": "Отменить эту запланированную задачу?",
+    "keep": "Оставить",
+    "cancelTask": "Отменить задачу",
+    "cancelling": "Отмена...",
+    "cancelError": "Не удалось отменить задачу. Попробуйте снова.",
+    "cancellationSent": "Запрос на отмену отправлен"
   }
 }

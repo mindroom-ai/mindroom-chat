@@ -1765,6 +1765,30 @@
   },
   "roomSchedules": {
     "thisThread": "Ce fil",
-    "elsewhereInRoom": "Ailleurs dans ce salon"
+    "elsewhereInRoom": "Ailleurs dans ce salon",
+    "filterAll": "Toutes",
+    "filterLabel": "Filtrer les tâches planifiées",
+    "awaitingShort": "En attente",
+    "inSeconds": "dans {{count}}s",
+    "inMinutes": "dans {{count}}min",
+    "inHours": "dans {{count}}h",
+    "inHoursMinutes": "dans {{hours}}h {{minutes}}min",
+    "inDays": "dans {{count}}j",
+    "thread": "Fil",
+    "destination": "Destination",
+    "showFullPrompt": "Afficher tout le prompt",
+    "showLessPrompt": "Afficher moins",
+    "details": "Détails",
+    "hideDetails": "Masquer les détails",
+    "copyId": "Copier l'ID",
+    "copied": "Copié",
+    "edit": "Modifier",
+    "cancel": "Annuler",
+    "cancelConfirm": "Annuler cette tâche planifiée ?",
+    "keep": "Conserver",
+    "cancelTask": "Annuler la tâche",
+    "cancelling": "Annulation...",
+    "cancelError": "Impossible d'annuler la tâche. Réessayez.",
+    "cancellationSent": "Annulation envoyée"
   }
 }

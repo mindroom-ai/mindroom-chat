@@ -1765,6 +1765,30 @@
   },
   "roomSchedules": {
     "thisThread": "Este hilo",
-    "elsewhereInRoom": "En otras partes de esta sala"
+    "elsewhereInRoom": "En otras partes de esta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tareas programadas",
+    "awaitingShort": "Pendiente",
+    "inSeconds": "en {{count}}s",
+    "inMinutes": "en {{count}}m",
+    "inHours": "en {{count}}h",
+    "inHoursMinutes": "en {{hours}}h {{minutes}}m",
+    "inDays": "en {{count}}d",
+    "thread": "Hilo",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalles",
+    "hideDetails": "Ocultar detalles",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "¿Cancelar esta tarea programada?",
+    "keep": "Conservar",
+    "cancelTask": "Cancelar tarea",
+    "cancelling": "Cancelando...",
+    "cancelError": "No se pudo cancelar la tarea. Inténtalo de nuevo.",
+    "cancellationSent": "Cancelación enviada"
   }
 }

@@ -1721,6 +1721,30 @@
   },
   "roomSchedules": {
     "thisThread": "এই থ্রেড",
-    "elsewhereInRoom": "এই রুমের অন্য কোথাও"
+    "elsewhereInRoom": "এই রুমের অন্য কোথাও",
+    "filterAll": "সব",
+    "filterLabel": "নির্ধারিত কাজ ফিল্টার করুন",
+    "awaitingShort": "অপেক্ষমান",
+    "inSeconds": "{{count}}সে-এ",
+    "inMinutes": "{{count}}মি-এ",
+    "inHours": "{{count}}ঘ-এ",
+    "inHoursMinutes": "{{hours}}ঘ {{minutes}}মি-এ",
+    "inDays": "{{count}}দি-এ",
+    "thread": "থ্রেড",
+    "destination": "গন্তব্য",
+    "showFullPrompt": "সম্পূর্ণ প্রম্পট দেখান",
+    "showLessPrompt": "কম দেখান",
+    "details": "বিস্তারিত",
+    "hideDetails": "বিস্তারিত লুকান",
+    "copyId": "আইডি কপি করুন",
+    "copied": "কপি হয়েছে",
+    "edit": "সম্পাদনা",
+    "cancel": "বাতিল",
+    "cancelConfirm": "এই নির্ধারিত কাজটি বাতিল করবেন?",
+    "keep": "রাখুন",
+    "cancelTask": "কাজ বাতিল করুন",
+    "cancelling": "বাতিল করা হচ্ছে...",
+    "cancelError": "কাজটি বাতিল করা যায়নি। আবার চেষ্টা করুন।",
+    "cancellationSent": "বাতিলের অনুরোধ পাঠানো হয়েছে"
   }
 }

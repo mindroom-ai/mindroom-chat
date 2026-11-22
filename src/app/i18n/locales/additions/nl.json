@@ -1721,6 +1721,30 @@
   },
   "roomSchedules": {
     "thisThread": "Deze thread",
-    "elsewhereInRoom": "Elders in deze ruimte"
+    "elsewhereInRoom": "Elders in deze ruimte",
+    "filterAll": "Alle",
+    "filterLabel": "Geplande taken filteren",
+    "awaitingShort": "In afwachting",
+    "inSeconds": "over {{count}}s",
+    "inMinutes": "over {{count}}m",
+    "inHours": "over {{count}}u",
+    "inHoursMinutes": "over {{hours}}u {{minutes}}m",
+    "inDays": "over {{count}}d",
+    "thread": "Thread",
+    "destination": "Bestemming",
+    "showFullPrompt": "Volledige prompt tonen",
+    "showLessPrompt": "Minder tonen",
+    "details": "Details",
+    "hideDetails": "Details verbergen",
+    "copyId": "ID kopiëren",
+    "copied": "Gekopieerd",
+    "edit": "Bewerken",
+    "cancel": "Annuleren",
+    "cancelConfirm": "Deze geplande taak annuleren?",
+    "keep": "Behouden",
+    "cancelTask": "Taak annuleren",
+    "cancelling": "Annuleren...",
+    "cancelError": "Kon taak niet annuleren. Probeer opnieuw.",
+    "cancellationSent": "Annulering verzonden"
   }
 }
