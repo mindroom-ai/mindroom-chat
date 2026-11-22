@@ -12,8 +12,8 @@ import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 
 const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
-    mode: 'compact' as RoomViewMode,
-    setViewMode: (() => undefined) as (mode: string) => void,
+    mode: 'compact',
+    setViewMode: () => undefined,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),
@@ -41,9 +41,14 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../ui/page/Page', () => ({
-  PageHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('../ui/page/Page', async () => {
+  const { forwardRef } = await import('react');
+  return {
+    PageHeader: forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) => (
+      <header ref={ref}>{children}</header>
+    )),
+  };
+});
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
@@ -87,6 +92,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,
   RoomSchedulesOverlay: () => null,
+  usePendingRoomSchedules: () => [],
 }));
 vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/hooks/useScreenSize')>()),
@@ -291,11 +297,18 @@ const buttons = (match: (node: ReactTestInstance) => boolean): ReactTestInstance
 const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
+const popupOpener = (button: ReactTestInstance) => ({
+  isConnected: true,
+  getClientRects: () => [new DOMRect()],
+  getBoundingClientRect: () => new DOMRect(),
+  hasAttribute: (name: string) => Object.hasOwn(button.props, name),
+});
+
 const openMenu = () => {
   const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
   if (!more) throw new Error('no More Options button');
   act(() => {
-    more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    more.props.onClick({ currentTarget: popupOpener(more) });
   });
 };
 
@@ -419,7 +432,7 @@ describe("the room header's side panel controls", () => {
     renderHeader({ shownPanel: 'members', onPanelToggle });
     const [hide] = buttons((node) => node.props['aria-label'] === 'Hide Members');
     act(() => {
-      hide?.props.onClick();
+      hide?.props.onClick({ currentTarget: document.createElement('button') });
     });
     expect(onPanelToggle).toHaveBeenCalledWith('members');
 
@@ -581,7 +594,7 @@ describe("the room header's actions", () => {
     const [pinsButton] = buttons((node) => node.props['aria-label'] === 'Pinned Messages');
     expect(pinsButton?.props['aria-expanded']).toBe(false);
     act(() => {
-      pinsButton?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+      pinsButton?.props.onClick({ currentTarget: popupOpener(pinsButton) });
     });
     expect(byData('data-pin-list')).toHaveLength(1);
     expect(

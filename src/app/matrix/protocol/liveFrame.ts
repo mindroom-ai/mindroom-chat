@@ -60,7 +60,7 @@ const isStatus = (value: unknown): value is string =>
   typeof value === 'string' && LIVE_STATUSES.has(value);
 
 const parseTools = (value: unknown): ToolTraceEvent[] | null =>
-  Array.isArray(value) && value.every(isRecord) ? (value as ToolTraceEvent[]) : null;
+  Array.isArray(value) && value.every(isRecord) ? value : null;
 
 const parseSegments = (value: unknown): LiveReasoningSegment[] | null =>
   Array.isArray(value) &&
@@ -88,7 +88,7 @@ const parseToolsDelta = (value: unknown): LiveToolsDelta | null => {
     if (!Array.isArray(item) || item.length !== 2) return null;
     const [index, entry] = item;
     if (!isCount(index) || index >= len || !isRecord(entry)) return null;
-    set.push([index, entry as ToolTraceEvent]);
+    set.push([index, entry]);
   }
   return { len, set };
 };

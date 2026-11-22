@@ -84,6 +84,10 @@ const activeCall = (state: Partial<CallState>, meta: Partial<ActiveCall> = {}): 
   ...meta,
   call: {
     room: { roomId: '!call:calls.test' },
+    getResumeInputs: () => ({
+      microphone: state.microphone ?? true,
+      camera: state.camera ?? false,
+    }),
     getState: () => ({
       phase: 'connected',
       microphone: true,

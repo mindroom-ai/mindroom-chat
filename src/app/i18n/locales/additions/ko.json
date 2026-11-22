@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "닫기",
-      "invited": "{{user}} 님을 초대했습니다."
+      "invited": "{{user}} 님을 초대했습니다.",
+      "giveRoleRights": "{{role}} 권한 부여",
+      "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
+      "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
+      "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "닫기",
@@ -271,6 +276,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "이 창에서는 일부 이미지를 불러올 수 없습니다: 브라우저가 여기서 MindRoom의 서비스 워커를 실행하지 않습니다."
+    },
+    "agentCard": {
+      "agent": "에이전트",
+      "close": "닫기",
+      "configuredTools": "설정된 도구",
+      "toolCount_other": "도구 {{count}}개",
+      "groupCount_other": "그룹 {{count}}개",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "그 밖에 {{groups}}",
+      "viewAll_other": "도구 {{count}}개 모두 보기",
+      "toolsTitle": "{{name}}의 도구",
+      "filter": "도구 필터",
+      "noMatch": "일치하는 도구가 없습니다.",
+      "back": "뒤로",
+      "more": "더 보기",
+      "worksIn": "활동하는 방",
+      "loading": "설정된 도구를 불러오는 중",
+      "availability": "요청과 권한에 따라 사용 가능 여부가 달라질 수 있습니다.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "코드 및 파일",
+        "research": "웹",
+        "productivity": "일정 및 메모리",
+        "email": "이메일",
+        "mcp": "연결된 앱",
+        "integrations": "통합",
+        "communication": "채팅 및 메시지",
+        "entertainment": "미디어",
+        "information": "정보",
+        "smart_home": "스마트 홈",
+        "social": "소셜",
+        "other": "기타"
+      }
+    },
+    "space": {
+      "overview": "스페이스 개요"
     }
   },
   "featureUi": {
@@ -389,9 +430,11 @@
         "profile": "프로필 사진, 사진, 이름, 닉네임",
         "deactivate": "계정 삭제, 계정 해지",
         "localMindroom": "페어링, 페어링 코드, 로컬, 데스크톱",
+        "voiceKey": "음성 메시지, 마이크, 녹음, 눌러서 말하기, Control, Ctrl, Shift, 스페이스, 키보드 단축키",
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
-        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단"
+        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
+        "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -426,6 +469,7 @@
         "close": "통화 보기 닫기",
         "participants": "통화 참여자",
         "connecting": "연결 중…",
+        "connectingAnotherCall": "다른 통화에 연결 중…",
         "reconnecting": "다시 연결하는 중…",
         "ended": "통화가 종료되었습니다.",
         "waitingFor": "{{name}} 님을 기다리는 중…",
@@ -444,7 +488,7 @@
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
         "connection": "통화 연결이 끊어졌습니다.",
-        "device": "마이크 또는 카메라를 사용할 수 없습니다.",
+        "device": "마이크, 카메라 또는 스피커를 사용할 수 없습니다.",
         "untrustedService": "이 통화는 홈서버가 제공하지 않는 통화 서비스에서 진행되므로 여기에서 참여할 수 없습니다."
       },
       "devices": {
@@ -531,7 +575,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
+        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요.",
+        "thisApp": "이 앱",
+        "mindroomAgents": "MindRoom 에이전트"
       },
       "jumpToTime": {
         "unsupported": "이 서버는 시간으로 메시지를 찾을 수 없습니다.",
@@ -549,7 +595,8 @@
     },
     "accountMenu": {
       "open": "{{name}} 계정 메뉴 열기",
-      "manageAccounts": "계정 관리"
+      "otherAccounts": "다른 계정",
+      "manage": "관리"
     },
     "roomOrder": {
       "sortByName": "방을 가나다순으로 정렬"
@@ -670,6 +717,9 @@
         "save": "저장",
         "saved": "저장됨",
         "clear": "지우기",
+        "saveSetting": "{{setting}} 저장",
+        "savedSetting": "{{setting}} 저장됨",
+        "clearSetting": "{{setting}} 지우기",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "이 방의 설정을 바꿀 수 있는 사람만 편집할 수 있습니다.",
         "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요.",
@@ -679,6 +729,41 @@
           "default": "기본값",
           "auto": "모든 메시지",
           "mentions": "멘션될 때만"
+        },
+        "sections": {
+          "agents": "에이전트",
+          "threadTitles": "스레드 제목"
+        },
+        "model": {
+          "label": "모델",
+          "description": "이 방의 모든 에이전트, 팀, 라우터에 적용되는 기본 모델입니다. 스레드별 재정의가 여전히 우선합니다.",
+          "default": "구성된 기본값 사용",
+          "defaultDescription": "이 방에 구성된 MindRoom 기본값을 따릅니다.",
+          "unknown": "알 수 없는 모델: \"{{value}}\"은(는) 이 방의 모델 목록에 없습니다.",
+          "catalogUnavailable": "지금은 모델 목록을 불러올 수 없습니다. 구성된 기본값으로 재설정할 수는 있습니다.",
+          "storedRaw": "방 설정: {{value}}"
+        },
+        "threadMode": {
+          "label": "스레드 모드",
+          "description": "이 방에서 에이전트가 스레드에 답할지 메인 타임라인에 답할지 설정합니다.",
+          "default": "구성된 기본값 사용",
+          "thread": "스레드",
+          "room": "메인 타임라인",
+          "effective": "현재 적용 모드: {{mode}}",
+          "effectiveModes": {
+            "thread": "스레드",
+            "room": "메인 타임라인",
+            "mixed": "혼합(에이전트마다 다름)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "제목 모델",
+          "description": "이 방의 자동 스레드 제목을 작성하는 모델입니다."
+        },
+        "agentInstructions": {
+          "label": "에이전트 지침",
+          "description": "이 방에서 응답하는 모든 에이전트에게 전달되는 추가 지침입니다. 관리자가 편집할 수 있으며, 에이전트에게 추가 권한을 부여하지는 않습니다. 방의 모든 사람이 읽을 수 있고 방 상태는 종단간 암호화되지 않으므로 여기에 비밀 정보를 입력하지 마세요.",
+          "placeholder": "예: 답변은 짧게 하고 네덜란드어로 답장하세요"
         }
       }
     },
@@ -847,7 +932,10 @@
         "nameChose": "{{name}} 님이 선택함"
       },
       "mindroomReplyDetails": {
-        "subagents": "하위 에이전트"
+        "subagents": "하위 에이전트",
+        "writtenToCache": "캐시에 기록",
+        "notCached": "캐시 안 됨",
+        "conversation": "대화"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",
@@ -930,7 +1018,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "검색하지 못했습니다. 다시 시도하세요.",
-        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개"
+        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개",
+        "retry": "다시 시도"
       }
     },
     "notifications": {
@@ -945,7 +1034,10 @@
         "threadFiltersActive": "스레드 필터 (사용 중)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "고급 필터"
+        "advancedFilters": "고급 필터",
+        "includeResolvedThreads": "해결된 스레드 포함",
+        "hideResolvedThreads": "해결된 스레드 숨기기",
+        "forMeSummary": "{{summary}}. 나를 위한 스레드 필터가 켜져 있습니다."
       },
       "threadPeopleFilter": {
         "label": "참여자",
@@ -970,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "긴 메시지 모두 펼치기",
-        "collapseAllLong": "긴 메시지 모두 접기"
+        "collapseAllLong": "긴 메시지 모두 접기",
+        "showFullMessage": "전체 메시지 보기"
       }
     },
     "computer": {
@@ -992,6 +1085,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "이 대화에서 에이전트가 다음 답장을 보내기 전에 컨텍스트를 압축합니다.",
         "reply_mode": "여기서 에이전트가 대화를 시작하려면 멘션이 필요한지 표시하거나 변경합니다 (설정/초기화는 방 관리자 전용)."
       }
     },
@@ -1003,7 +1097,6 @@
       "groupTools": "도구 · {{number}}",
       "tools_other": "도구 {{count}}개",
       "needApproval_other": "승인 대기 {{count}}개",
-      "toolCalls_other": "도구 호출 {{count}}회",
       "tokens_other": "토큰 {{tokens}}개",
       "started": "{{time}} 시작",
       "open": "열기",
@@ -1015,7 +1108,30 @@
         "time": "시간"
       },
       "stopTask": "작업 중지",
-      "stopTaskFor": "작업 중지: {{tool}}"
+      "stopTaskFor": "작업 중지: {{tool}}",
+      "stopStepFailed": "‘{{step}}’을(를) 중지하지 못했습니다. 다시 시도하세요.",
+      "toolNames": {
+        "readFile": "파일 읽기",
+        "writeFile": "파일 쓰기",
+        "editFile": "파일 편집",
+        "searchFiles": "파일 검색",
+        "browseFiles": "파일 살펴보기",
+        "runCommand": "명령 실행",
+        "openPage": "웹 페이지 열기",
+        "searchWeb": "웹 검색",
+        "useBrowser": "브라우저 사용",
+        "checkMemory": "메모리 확인",
+        "updateMemory": "메모리 업데이트",
+        "deleteMemory": "기억 삭제",
+        "useMessages": "Matrix 메시지 사용",
+        "schedule": "작업 예약",
+        "checkSchedule": "일정 확인",
+        "updateSchedule": "일정 업데이트",
+        "cancelSchedule": "예약된 작업 취소",
+        "use": "{{tool}} 사용"
+      },
+      "jobTotal_other": "백그라운드 작업 {{count}}개",
+      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
     },
     "subagents": {
       "title": "하위 에이전트",
@@ -1038,7 +1154,20 @@
       "hide": "하위 에이전트 숨기기",
       "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
-      "resize": "하위 에이전트 패널 크기 조정"
+      "resize": "하위 에이전트 패널 크기 조정",
+      "calls_other": "호출 {{count}}회",
+      "now": "지금",
+      "needsApproval": "승인 필요",
+      "result": "결과",
+      "turnNumber": "{{number}}턴",
+      "status": "상태",
+      "toolCallsNote": "도구 호출",
+      "tokensSplit": "입력 {{input}} · 출력 {{output}}",
+      "costNested": "+{{cost}} 중첩",
+      "costOwn": "이 실행",
+      "showUsageDetails": "사용량 세부 정보 표시",
+      "showUsageDetailsDescription": "하위 에이전트와 백그라운드 작업에 도구 호출, 토큰, 비용과 각각 지금 하는 일을 표시합니다.",
+      "usage": "사용량"
     },
     "models": {
       "modelPicker": {
@@ -1056,6 +1185,8 @@
         "defaultChoice": "기본값",
         "threadOnly": "여기서 고른 모델은 이 스레드에만 적용됩니다.",
         "roomOverrideThreadOnly": "이 방에는 !room_model로 설정되어 있습니다. 여기서 고른 모델은 이 스레드에만 적용됩니다.",
+        "chooseNextThread": "다음 스레드의 모델 선택",
+        "nextThreadOnly": "이 선택은 다음 스레드에만 적용됩니다.",
         "levels": {
           "off": "끄기",
           "minimal": "최소",
@@ -1071,11 +1202,40 @@
       "pageUpdated": "{{agent}}이(가) 이 페이지를 업데이트했습니다.",
       "shownInPanel": "패널에 표시됨",
       "inlineDisclosure": "{{agent}}이(가) 만들었습니다. 계정에는 접근할 수 없지만, 여기에 입력한 내용은 이 페이지 밖으로 전송될 수 있습니다."
+    },
+    "invites": {
+      "invalid": "이 초대 링크가 불완전합니다. 메일의 링크를 다시 여세요.",
+      "reopen": "로그인되었습니다. 메일의 초대 링크를 다시 여세요.",
+      "framed": "초대를 사용하려면 이 페이지를 별도 탭에서 여세요.",
+      "ready": "{{router}}을(를) 통해 {{user}}(으)로 방에 참여",
+      "claiming": "초대를 받는 중…",
+      "offline": "이 MindRoom이 응답하지 않습니다. 요청은 저장되었으며, 다시 연결되면 초대가 방 목록에 표시됩니다.",
+      "rejected": "이 초대는 더 이상 유효하지 않습니다. 새 초대를 요청하세요.",
+      "retry": "실패했습니다. 잠시 후 다시 시도하세요.",
+      "joining": "방에 참여하는 중…",
+      "join": "참여",
+      "tryAgain": "다시 시도"
+    },
+    "uiActions": {
+      "canvasOff": "패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
+      "askForText": "텍스트 버전 요청",
+      "copyRequest": "요청 복사",
+      "textVersionRequest": "“{{title}}”을(를) 대신 텍스트로 여기에 보내 주세요. 제 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "askForTextStatus": {
+        "hint": "입력창에 요청을 넣습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "added": "입력창에 요청을 넣었습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "kept": "작성 중인 초안은 그대로 두었습니다. 요청을 복사해 직접 추가하세요.",
+        "copied": "요청을 복사했습니다. 초안에 붙여 넣으세요."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "음성 녹음 일시 중지됨 — 이 방의 다른 곳에서 보내지 않은 녹음을 완료하거나 삭제하세요",
     "voiceThreadRootUnsent": "이 음성 메시지의 스레드에 전송된 첫 메시지가 없습니다. 그 메시지가 전송된 후 다시 시도하거나 녹음을 삭제하세요.",
+    "voiceIndicator": {
+      "recording": "녹음 중 {{time}}",
+      "paused": "일시 중지됨 {{time}}"
+    },
     "emoji": "이모지",
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",
@@ -1095,7 +1255,10 @@
       "autoHint": "에이전트가 결정하도록 하기",
       "settingTitle": "에이전트가 답변 중일 때 보내기",
       "settingDescription": "보내기를 길게 눌러 메시지마다 선택하세요."
-    }
+    },
+    "replyInThread": "스레드에 답장…",
+    "newThreadIn": "{{room}}에 새 스레드…",
+    "newThreadWith": "{{name}}에게 새 스레드…"
   },
   "commandPalette": {
     "state": {
@@ -1144,6 +1307,10 @@
     "hints": {
       "chip": "모든 단축키: {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}}로 음성 메시지 녹음",
+      "description": "탭하여 시작하거나 보내고, 길게 눌러 말한 뒤 놓으면 보냅니다."
+    },
     "actions": {
       "palette": "검색 및 명령",
       "settings": "설정 열기",
@@ -1169,7 +1336,8 @@
       "newLine": "줄 바꿈",
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
       "inlineCode": "인라인 코드",
-      "callView": "통화로 이동"
+      "callView": "통화로 이동",
+      "voiceRecord": "길게 눌러 음성 메시지 녹음, 탭하여 시작하거나 보내기"
     }
   },
   "thread": {
@@ -1203,7 +1371,10 @@
     "close": "스레드 닫기",
     "resizeSecond": "두 번째 스레드 크기 조정",
     "second": "두 번째 스레드",
-    "dropSecond": "놓아서 두 번째 열에서 열기"
+    "dropSecond": "놓아서 두 번째 열에서 열기",
+    "newUnknown": "새 항목",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "나를 멘션함"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",
@@ -1516,9 +1687,10 @@
     }
   },
   "threadNav": {
-    "layout": "스레드 배치",
-    "layoutRecent": "최근",
-    "layoutSections": "섹션",
+    "forMe": "나를 위한 스레드",
+    "forMeHint": "내가 참여했거나, 에이전트가 나를 대신해 글을 올렸거나, 내가 고정한 스레드만 표시",
+    "roomForMeHint": "내가 참여했거나 에이전트가 나를 대신해 글을 올린 스레드만 표시",
+    "emptyForMe": "아직 나를 위한 스레드가 없습니다",
     "group": "그룹",
     "groupHint": "상태별로 그룹화",
     "sections": {
@@ -1546,6 +1718,36 @@
   },
   "threadActions": {
     "openBeside": "두 번째 열에서 열기"
+  },
+  "roomSchedules": {
+    "thisThread": "이 스레드",
+    "elsewhereInRoom": "이 방의 다른 위치",
+    "filterAll": "전체",
+    "filterLabel": "예약된 작업 필터링",
+    "awaitingShort": "대기 중",
+    "inSeconds": "{{count}}초 후",
+    "inMinutes": "{{count}}분 후",
+    "inHours": "{{count}}시간 후",
+    "inHoursMinutes": "{{hours}}시간 {{minutes}}분 후",
+    "inDays": "{{count}}일 후",
+    "thread": "스레드",
+    "destination": "대상",
+    "showFullPrompt": "전체 프롬프트 보기",
+    "showLessPrompt": "간략히 보기",
+    "details": "세부 정보",
+    "hideDetails": "세부 정보 숨기기",
+    "copyId": "ID 복사",
+    "copied": "복사됨",
+    "edit": "편집",
+    "cancel": "취소",
+    "cancelConfirm": "이 예약된 작업을 취소하시겠습니까?",
+    "keep": "유지",
+    "cancelTask": "작업 취소",
+    "cancelling": "취소 중...",
+    "cancelError": "작업을 취소할 수 없습니다. 다시 시도하세요.",
+    "cancellationSent": "취소 요청 전송됨",
+    "editDraftBusy": "이 일정을 편집하기 전에 현재 초안을 지워 주세요.",
+    "copyFailed": "복사할 수 없습니다. 세부 정보에서 작업 ID를 선택하세요."
   },
   "home": {
     "greeting": {

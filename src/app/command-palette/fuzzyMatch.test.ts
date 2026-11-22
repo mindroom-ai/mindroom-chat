@@ -296,7 +296,7 @@ const counting = (text: string) => {
     new Proxy(target, {
       get: (inner, key): unknown => {
         reads += 1;
-        return Reflect.get(inner, key) as unknown;
+        return Reflect.get(inner, key);
       },
     });
   return {

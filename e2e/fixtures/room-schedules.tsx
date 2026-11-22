@@ -8,17 +8,21 @@ import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { darkTheme, lightTheme } from '../../src/app/theme/colors.css';
-import { RoomSchedulesButton } from '../../src/app/schedules/RoomSchedulesButton';
+import {
+  RoomSchedulesButton,
+  RoomSchedulesOverlay,
+  usePendingRoomSchedules,
+} from '../../src/app/schedules/RoomSchedulesButton';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../src/app/matrix/protocol/scheduledTaskContract';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { useRoomEscapeReadReceipts } from '../../src/app/room/useRoomEscapeReadReceipts';
+import { installOverlayFocus } from '../../src/app/lib/overlayFocus';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
 document.documentElement.className = `${configClass} ${varsClass} ${dark ? darkTheme : lightTheme}`;
 const client = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
 const room = new Room('!schedules:example.org', client, '@alice:example.org');
-const emptyRoom = new Room('!empty:example.org', client, '@alice:example.org');
 client.store.storeRoom(room);
 client.sendReceipt = async () => {
   window.dispatchEvent(new Event('fixture-receipt'));
@@ -73,7 +77,7 @@ room.currentState.setStateEvents([
     'morning',
     {
       schedule_type: 'cron',
-      message: 'Check the inbox.\nSummarize urgent messages.',
+      message: 'Check `inbox` with @helper.\nSummarize urgent messages.',
       description: 'Morning inbox',
       model: params.has('stress') ? 'custom-model-'.repeat(40) : 'cheap',
       cron_schedule: {
@@ -111,31 +115,45 @@ room.currentState.setStateEvents([
 ]);
 
 function Fixture() {
-  const [activeRoom, setActiveRoom] = useState(room);
-  const [openedThread, setOpenedThread] = useState('');
+  const [open, setOpen] = useState(false);
+  const pendingSchedules = usePendingRoomSchedules(room);
+  const [statusMessage, setStatusMessage] = useState('');
   const [receiptCount, setReceiptCount] = useState(0);
-  useRoomEscapeReadReceipts({ roomId: activeRoom.roomId, hideActivity: false });
+  useRoomEscapeReadReceipts({ roomId: room.roomId, hideActivity: false });
+  useEffect(() => installOverlayFocus(document), []);
   useEffect(() => {
     const receipt = () => setReceiptCount((count) => count + 1);
     const cancel = () => room.currentState.setStateEvents([schedule('overdue', {}, 'cancelled')]);
-    const switchRoom = () => setActiveRoom(emptyRoom);
     window.addEventListener('cancel-schedule', cancel);
-    window.addEventListener('switch-room', switchRoom);
     window.addEventListener('fixture-receipt', receipt);
     return () => {
       window.removeEventListener('cancel-schedule', cancel);
-      window.removeEventListener('switch-room', switchRoom);
       window.removeEventListener('fixture-receipt', receipt);
     };
   }, []);
   return (
     <main style={{ padding: 16, color: color.Surface.OnContainer }}>
       <RoomSchedulesButton
-        key={activeRoom.roomId}
-        room={activeRoom}
-        onOpenThread={(id) => setOpenedThread(`Opened ${id}`)}
+        total={pendingSchedules.length}
+        open={open}
+        onOpen={() => setOpen(true)}
       />
-      <p role="status">{openedThread}</p>
+      {open && (
+        <RoomSchedulesOverlay
+          roomId={room.roomId}
+          tasks={pendingSchedules}
+          onClose={() => setOpen(false)}
+          onOpenThread={(id) => setStatusMessage(`Opened ${id}`)}
+          onEditTask={(task) => {
+            setOpen(false);
+            setStatusMessage(`Editing ${task.taskId}`);
+          }}
+          onCancelTask={async (task) => {
+            setStatusMessage(`Cancelled ${task.taskId}`);
+          }}
+        />
+      )}
+      <p role="status">{statusMessage}</p>
       <output aria-label="Read receipts sent">{receiptCount}</output>
     </main>
   );

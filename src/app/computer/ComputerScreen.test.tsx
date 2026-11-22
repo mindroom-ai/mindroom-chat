@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createRef } from 'react';
+import { createRef, type Ref } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,10 +14,7 @@ import { SOFT_KEYBOARD_BUFFER } from './computerSoftKeyboard';
 // noVNC's mouse capture, which its canvas takes on every mousedown, and its keyboard. The
 // package exports only RFB.
 /* eslint-disable import/no-relative-packages */
-import {
-  releaseCapture,
-  setCapture,
-} from '../../../node_modules/@novnc/novnc/core/util/events.js';
+import { releaseCapture, setCapture } from '../../../node_modules/@novnc/novnc/core/util/events.js';
 import NoVncKeyboard from '../../../node_modules/@novnc/novnc/core/input/keyboard.js';
 /* eslint-enable import/no-relative-packages */
 
@@ -31,6 +28,9 @@ vi.mock('./ComputerPanel.css.ts', () => ({
 
 const CONTROL_L_KEYSYM = 0xffe3;
 
+const defaultBackground = 'rgb(40, 40, 40)';
+let background = defaultBackground;
+const backgroundAssignments = vi.fn();
 const listeners = new Map<string, EventListener>();
 const rfb: RfbClient = {
   addEventListener: vi.fn((name: string, listener: EventListener) => listeners.set(name, listener)),
@@ -40,6 +40,13 @@ const rfb: RfbClient = {
   clipboardPasteFrom: vi.fn(),
   sendKey: vi.fn(),
   scaleViewport: false,
+  get background() {
+    return background;
+  },
+  set background(value) {
+    background = value;
+    backgroundAssignments(value);
+  },
   viewOnly: true,
   focusOnClick: true,
 };
@@ -148,6 +155,7 @@ describe('ComputerScreen', () => {
 
   beforeEach(() => {
     listeners.clear();
+    rfb.background = defaultBackground;
     vi.clearAllMocks();
     container = document.createElement('div');
     document.body.append(container);
@@ -159,10 +167,11 @@ describe('ComputerScreen', () => {
     container.remove();
   });
 
-  const renderScreen = (props: Partial<ComputerScreenProps>) =>
+  const renderScreen = (props: Partial<ComputerScreenProps>, ref?: Ref<ComputerScreenHandle>) =>
     act(() => {
       root.render(
         <ComputerScreen
+          ref={ref}
           mode="view"
           onConnected={() => undefined}
           onDisconnected={() => undefined}
@@ -181,7 +190,7 @@ describe('ComputerScreen', () => {
   };
 
   it('owns one scaled noVNC connection and disposes it with its callbacks', () => {
-    const createRfb = vi.fn(() => rfb);
+    const createRfb = createRfbWithCanvas();
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
@@ -204,10 +213,16 @@ describe('ComputerScreen', () => {
       { wsProtocols: ['binary', 'mindroom-ticket.ticket-1'] }
     );
     expect(rfb.scaleViewport).toBe(true);
+    expect(rfb.background).toBe(defaultBackground);
     expect(rfb.viewOnly).toBe(true);
 
+    const { canvas } = screenElements();
+    canvas.width = 640;
+    canvas.height = 480;
     act(() => listeners.get('connect')?.(new Event('connect')));
-    expect(onConnected).toHaveBeenCalledOnce();
+    expect(rfb.background).toBe(defaultBackground);
+    expect(backgroundAssignments).not.toHaveBeenCalled();
+    expect(onConnected).toHaveBeenCalledExactlyOnceWith(640, 480);
 
     act(() => {
       root.render(
@@ -227,6 +242,53 @@ describe('ComputerScreen', () => {
     act(() => root.unmount());
     expect(rfb.disconnect).toHaveBeenCalledOnce();
     expect(listeners.size).toBe(0);
+  });
+
+  it('copies the live canvas at framebuffer size when present and non-empty', () => {
+    const ref = createRef<ComputerScreenHandle>();
+    renderScreen({ createRfb: createRfbWithCanvas() }, ref);
+    const { canvas } = screenElements();
+    canvas.width = 0;
+    expect(ref.current!.captureFrame()).toBeUndefined();
+
+    canvas.width = 640;
+    canvas.height = 400;
+    const drawImage = vi.fn();
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+    try {
+      const frame = ref.current!.captureFrame();
+      expect(frame).not.toBe(canvas);
+      expect(frame).toMatchObject({ width: 640, height: 400 });
+      expect(drawImage).toHaveBeenCalledExactlyOnceWith(canvas, 0, 0);
+
+      drawImage.mockImplementationOnce(() => {
+        throw new Error('Canvas copy failed');
+      });
+      expect(ref.current!.captureFrame()).toBeUndefined();
+
+      canvas.remove();
+      expect(ref.current!.captureFrame()).toBeUndefined();
+    } finally {
+      getContext.mockRestore();
+    }
+  });
+
+  it.each([false, true])('restores background after holding (connected: %s)', (connected) => {
+    const createRfb = vi.fn(() => rfb);
+    renderScreen({ createRfb, holdingFrame: true });
+    expect(rfb.background).toBe('transparent');
+    if (connected) {
+      act(() => listeners.get('connect')?.(new Event('connect')));
+      expect(rfb.background).toBe('transparent');
+    }
+
+    renderScreen({ createRfb, holdingFrame: false });
+    expect(rfb.background).toBe(defaultBackground);
+    renderScreen({ createRfb, holdingFrame: true });
+    expect(rfb.background).toBe('transparent');
+    expect(createRfb).toHaveBeenCalledOnce();
   });
 
   it('keeps keyboard and paste events inside the computer surface', () => {

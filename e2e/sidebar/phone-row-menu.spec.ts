@@ -178,6 +178,7 @@ const checkLongPress = async (
   expect(page.url(), `${tag}: the long press opens no room`).toBe(url);
   if (before.length > 0) expect(await rowOrder(nav), `${tag}: nothing moved`).toEqual(before);
   // The menu sits right below or above the row, from the row's start.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   const row = (await target.evaluate((element) => {
     const box = element.closest('[data-room-id]') ?? element.parentElement ?? element;
     const { left, top, bottom } = box.getBoundingClientRect();
@@ -238,7 +239,9 @@ const checkScroll = async (page: Page, nav: Locator, roomId: string, tag: string
   const before = await rowOrder(nav);
   const url = page.url();
   const scrolling: Step[] = Array.from({ length: 8 }, (_, index) => [
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     { type: 'move', dx: 0, dy: -6 * (index + 1) } as Step,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     { type: 'scroll', by: 6 } as Step,
   ]).flat();
   for (const rest of [0, 250]) {

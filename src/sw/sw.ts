@@ -146,7 +146,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      await precacheController.activate(event as never);
+      await precacheController.activate(event);
       // Files the previous build kept at runtime stay when this build still has them.
       await keepOnlyBuildFiles(buildInventory?.files, self.location.href);
       await self.clients.claim();
@@ -202,7 +202,7 @@ if (!precachesAppShell) {
       !(request.mode === 'navigate' ? navigationFallbackDenylist : backendPaths).some((pattern) =>
         pattern.test(url.pathname)
       ),
-    ({ event }) => fetchWithDevelopmentCache(event as unknown as FetchEventLike, self.location.href)
+    ({ event }) => fetchWithDevelopmentCache(event, self.location.href)
   );
 }
 registerRoute(new PrecacheRoute(precacheController));
@@ -210,11 +210,11 @@ registerRoute(new PrecacheRoute(precacheController));
 if (precachesAppShell) {
   registerRoute(
     ({ request }) => isBuildAssetRequest(request, self.location.href),
-    ({ event }) => fetchBuildAsset(event as unknown as FetchEventLike)
+    ({ event }) => fetchBuildAsset(event)
   );
   registerRoute(
     ({ request }) => isLanguageCatalogRequest(request, self.location.href),
-    ({ event }) => fetchLanguageCatalog(event as unknown as FetchEventLike)
+    ({ event }) => fetchLanguageCatalog(event)
   );
 }
 

@@ -4,6 +4,7 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprovalTimeline';
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
 import type { VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
+import type { ReplyCardPlan } from '../replyCards';
 import type { ModelChangePlan } from '../../messages/modelChanges';
 
 export type TimelineMessageRow = Readonly<{
@@ -24,9 +25,11 @@ export type TimelineMessageData = {
   threadSummaryTimeline: ThreadSummaryTimelinePlan;
   /** Secret request cards whose line a reply of the thread has mounted, so their own rows hide. */
   secretRequestTimeline: { hiddenEventIds: ReadonlySet<string> };
-  /** The router's voice echoes the voice messages they transcribe draw, whose own rows hide. */
+  /** Folded voice echoes and local transcribing indicators for the drawn rows. */
   voiceTranscripts: VoiceTranscriptPlan;
-  /** The thread's applied model changes: one line at the router's reply, the command's row hidden. */
+  /** The open thread's canvases and reminders drawn as cards under their replies; rows hide. */
+  replyCards?: ReplyCardPlan;
+  /** Applied model changes: one line at the acknowledgement, the command's row hidden. */
   modelChanges: ModelChangePlan;
   handleOpenReply: MouseEventHandler;
   /** In a fork, the IDs of its parent's messages shown before its own: rows read-only here. */

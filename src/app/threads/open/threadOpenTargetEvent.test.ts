@@ -14,7 +14,7 @@ describe('runThreadOpenTargetEvent', () => {
       rootEvent: root,
       getUnfilteredTimelineSet: () => threadTimelineSet,
     };
-    const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    const room = makeRoom({ liveEvents: [root], threads: [thread] });
     const pending = vi.fn();
     const notifyEventsChanged = vi.fn();
     const mx = {
@@ -87,7 +87,7 @@ describe('runThreadOpenTargetEvent', () => {
         getLiveTimeline: () => makeTimeline([]),
       }),
     };
-    const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    const room = makeRoom({ liveEvents: [root], threads: [thread] });
     const pending = vi.fn();
     const mx = {
       getEventTimeline: vi.fn(async () => makeTimeline([])),

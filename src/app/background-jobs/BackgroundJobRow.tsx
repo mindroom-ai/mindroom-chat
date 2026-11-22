@@ -1,4 +1,11 @@
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+import {
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
@@ -7,15 +14,13 @@ import { IconAlertCircle, IconArrowUpRight, IconMessage } from '@tabler/icons-re
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelativeTime';
 import { formatWorkDuration } from '../lib/time';
-import type { SubagentUsage } from '../matrix/protocol/subagentFrame';
-import {
-  formatCostUsd,
-  getAiRunCompactModelLabel,
-  getAiRunModelLabel,
-} from '../messages/agent-run/aiRunDisplay';
-import { ProviderModelIcon } from '../models/ProviderModelIcon';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { AgentAvatar, useAgentProfile } from '../subagents/SubagentRunCard';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
+import { RunLogo } from '../subagents/RunLogo';
+import { useUsageCells } from '../subagents/runUsage';
+import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
 import * as css from './BackgroundJobsBar.css';
 import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';
@@ -38,25 +43,16 @@ export function JobLogo({
   className?: string;
 }) {
   const agent = useAgentProfile(room, item.agent ?? '');
-  const model = item.run?.meta.model;
-  let logo: ReactNode = <Icon src={Icons.Terminal} size={small ? '50' : '100'} aria-hidden />;
-  if (model) {
-    logo = (
-      <ProviderModelIcon provider={model.modelProvider} id={model.modelId} size={small ? 12 : 16} />
-    );
-  } else if (item.subagent) {
-    logo = <AgentAvatar agent={agent} size="200" />;
-  }
   return (
-    <span
-      className={classNames(css.Logo, className)}
-      data-job-logo={model ? 'model' : item.subagent ? 'agent' : 'tool'}
-      data-model-provider={model?.modelProvider}
-      aria-hidden
-    >
-      {logo}
-      {dot && <span className={css.Dot[item.state]} data-job-state={item.state} />}
-    </span>
+    <RunLogo
+      model={item.run?.meta.model}
+      agent={agent}
+      kind={item.subagent ? 'agent' : 'tool'}
+      state={item.state}
+      small={small}
+      dot={dot}
+      className={className}
+    />
   );
 }
 
@@ -134,69 +130,49 @@ export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?
   );
 }
 
-/** A thread's title, which shows that thread: for a job of another conversation than the view's. */
-function ThreadChip({ room, threadId }: { room: Room; threadId: string }) {
+/**
+ * An icon button, beside Open and Stop, that shows the thread of a job of another conversation
+ * than the view's, named for that thread.
+ */
+function ThreadButton({ room, threadId }: { room: Room; threadId: string }) {
+  const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(room, threadId, undefined, undefined);
+  const label = t('thread.aria.openThread', { title });
   return (
     <button
       type="button"
-      className={css.ThreadChip}
-      title={title}
-      aria-label={title}
+      className={css.IconButton}
+      title={label}
+      aria-label={label}
       onClick={() => navigateRoomThread(room.roomId, threadId)}
       data-job-thread={threadId}
     >
-      <IconMessage size={14} stroke={1.8} aria-hidden />
-      <span className={css.ThreadTitle}>{title}</span>
+      <IconMessage size={16} stroke={1.8} aria-hidden />
     </button>
   );
 }
 
-const tokenFormat = (language: string) =>
-  new Intl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1 });
-
-type UsageCell = { text: string; title: string } | undefined;
-
-/**
- * The run's calls, tokens and cost as bare numbers, each with its words as its title. A count of
- * none shows nothing, and no cost shows before any token.
- */
-const useUsageCells = (usage: SubagentUsage | undefined): [UsageCell, UsageCell, UsageCell] => {
-  const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  if (!usage) return [undefined, undefined, undefined];
-  const tokens = usage.inputTokens + usage.outputTokens;
-  const compact = tokenFormat(language).format(tokens);
-  const cost = usage.costUsd !== undefined ? formatCostUsd(usage.costUsd, language) : undefined;
-  return [
-    usage.toolCalls > 0
-      ? {
-          text: String(usage.toolCalls),
-          title: t('mindroomUi.backgroundJobs.toolCalls', { count: usage.toolCalls }),
-        }
-      : undefined,
-    tokens > 0
-      ? {
-          text: compact,
-          title: t('mindroomUi.backgroundJobs.tokens', { count: tokens, tokens: compact }),
-        }
-      : undefined,
-    tokens > 0 && cost ? { text: cost, title: cost } : undefined,
-  ];
+/** The folded bar's one job: its title lists it, as several jobs' title does. */
+export type FoldedToggle = {
+  ref: Ref<HTMLButtonElement>;
+  props: ButtonHTMLAttributes<HTMLButtonElement>;
 };
 
 type RowProps = {
   room: Room;
   item: BackgroundJobsBarItem;
-  // The view's conversation; a job of another one links to its thread.
+  // The view's conversation; a job of another one has a button to its thread.
   viewThreadId: string | null;
   // When an ended job ended, which its time stops at.
   endedAt?: number;
-  // Shows the job's run in the Sub-agents panel; only for a job whose run the panel has.
+  // Shows the job's run in the Sub-agents panel, from a press anywhere on the row; only for a job
+  // whose run the panel has.
   onOpen?: () => void;
   // The job's Stop, or its Stopping.
   stop: ReactNode;
+  // The folded bar's one job, on the title line: its title lists it, and Open shows its run.
+  folded?: FoldedToggle;
 };
 
 /** Open: an icon button that shows the job's run in the Sub-agents panel. */
@@ -219,12 +195,27 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 
 /**
  * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
- * pill; under it who, on what model, a tool job's arguments, and the thread it runs in when that
- * is not the view's. Then its calls, tokens and cost, its time, Open and Stop, each in its column.
+ * pill; under it who, on what model, and what it does now (the tool it calls, then its arguments;
+ * a tool job's headline is its tool already). Then its calls, tokens and cost, its time, and its
+ * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
+ * opens its run, from anywhere on the row.
+ * Without the usage details (`showUsageDetails`) it shows neither the line under the headline nor
+ * the numbers, and a tool job's headline is its tool in plain words.
+ * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
+ * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
  */
-export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
+export function BackgroundJobRow({
+  room,
+  item,
+  viewThreadId,
+  endedAt,
+  onOpen,
+  stop,
+  folded,
+}: RowProps) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
   const modelLabel = meta?.model && getAiRunCompactModelLabel(meta.model);
@@ -233,25 +224,62 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = described || name;
+  const headline = item.subagent ? described || name : item.plainName ?? name;
   const nested = item.depth > 0;
-  // A tool job's headline is its tool already: its line 2 is the call's arguments.
+  // A sub-agent names the tool it calls; a tool job's headline is its tool already.
+  const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const detail = (described && meta) || doing || elsewhere;
+  const detail = details && ((described && meta) || tool || doing);
+  const headlineTitle = meta?.task || item.name;
+  let title: ReactNode = (
+    <span className={css.Task} title={headlineTitle} dir="auto">
+      {headline}
+    </span>
+  );
+  if (folded) {
+    title = (
+      // The title line's way to the list: its title, whose reach is the row's text.
+      <button
+        ref={folded.ref}
+        type="button"
+        className={classNames(css.Task, css.FoldedToggle)}
+        title={headlineTitle}
+        dir="auto"
+        {...folded.props}
+      >
+        {headline}
+      </button>
+    );
+  } else if (onOpen) {
+    title = (
+      // The row's way to its run: its title, whose reach is the whole row.
+      <button
+        type="button"
+        className={classNames(css.Task, css.RowOpen)}
+        title={headlineTitle}
+        aria-label={t('mindroomUi.backgroundJobs.openFor', { name: headline })}
+        onClick={onOpen}
+        data-job-open
+        dir="auto"
+      >
+        {headline}
+      </button>
+    );
+  }
+  const Element = folded ? 'div' : 'li';
   return (
-    <li
-      className={classNames(css.Job, nested && css.Nested)}
+    <Element
+      className={classNames(folded ? css.Folded : css.Job, nested && css.Nested)}
       style={nested ? ({ '--job-depth': item.depth } as CSSProperties) : undefined}
       data-job-kind={item.subagent ? 'subagent' : 'tool'}
       data-job-depth={item.depth}
+      data-job-folded={folded ? '' : undefined}
     >
-      <JobLogo room={room} item={item} small={nested} />
-      <span className={css.JobText}>
+      <JobLogo room={room} item={item} small={nested || !!folded} />
+      <span className={folded ? css.FoldedText : css.JobText}>
         <span className={css.Headline}>
-          <span className={css.Task} title={meta?.task || item.name} dir="auto">
-            {headline}
-          </span>
+          {title}
           {waiting && (
             <span className={css.Pill.waiting} title={t('mindroomUi.backgroundJobs.waiting')}>
               <span className={css.PillIcon}>
@@ -288,32 +316,40 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
                 {modelLabel}
               </span>
             )}
-            {doing && (
+            {(tool || doing) && (
               <span className={css.Activity} data-job-activity>
-                <span className={css.Preview}>{doing}</span>
+                {tool && <span className={css.ToolName}>{tool}</span>}
+                {tool && doing && ' '}
+                {doing && <span className={css.Preview}>{doing}</span>}
               </span>
             )}
-            {elsewhere && <ThreadChip room={room} threadId={item.threadId!} />}
+          </span>
+        )}
+        {folded && (
+          <span className={css.Chevron} aria-hidden>
+            <Icon src={Icons.ChevronTop} size="100" />
           </span>
         )}
       </span>
-      {[calls, tokens, cost].map((cell, index) => (
-        <span
-          // The columns are fixed: calls, tokens, cost.
-          // eslint-disable-next-line react/no-array-index-key
-          key={index}
-          className={css.Stat}
-          title={cell?.title}
-          data-job-stat={['calls', 'tokens', 'cost'][index]}
-        >
-          {cell?.text}
-        </span>
-      ))}
+      {details &&
+        [calls, tokens, cost].map((cell, index) => (
+          <span
+            // The columns are fixed: calls, tokens, cost.
+            // eslint-disable-next-line react/no-array-index-key
+            key={index}
+            className={css.Stat}
+            title={cell?.title}
+            data-job-stat={['calls', 'tokens', 'cost'][index]}
+          >
+            {cell?.text}
+          </span>
+        ))}
       <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
-      <span className={css.Actions}>
-        {onOpen && <OpenButton name={name} onOpen={onOpen} />}
+      <span className={folded ? css.FoldedActions : css.Actions}>
+        {folded && onOpen && <OpenButton name={headline} onOpen={onOpen} />}
+        {elsewhere && <ThreadButton room={room} threadId={item.threadId!} />}
         {stop}
       </span>
-    </li>
+    </Element>
   );
 }

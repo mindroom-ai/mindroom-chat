@@ -1,5 +1,6 @@
 import { MsgType, RelationType } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import {
   getSearchResultBodySnippet,
@@ -167,6 +168,54 @@ describe('getSearchResultPreviewText', () => {
   });
 });
 
+describe('a search hit of a reply with tool calls', () => {
+  const AGENT = '@mindroom_helper:example.org';
+  const calls = [{ type: 'tool_call_completed', tool_name: 'shell' }];
+  const built = {
+    msgtype: 'm.text',
+    body: 'The walrus plan.\n\n🔧 `shell` [1]\n\nDone.',
+    format: 'org.matrix.custom.html',
+    formatted_body: '<p>The walrus plan.</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>Done.</p>\n',
+    'io.mindroom.tool_trace': { version: 2, events: calls },
+  };
+  // As Matrix holds the reply: its marker out of its text, the call's place on its entry.
+  const held = {
+    ...built,
+    body: 'The walrus plan.\n\nDone.',
+    formatted_body: '<p>The walrus plan.</p>\n<p>Done.</p>\n',
+    'io.mindroom.tool_trace': { version: 3, events: [{ ...calls[0], body_line: 2, at: 1 }] },
+  };
+  const hit = (sender: string, content: Record<string, unknown>) =>
+    ({ type: MessageEvent.RoomMessage, sender, content } as never);
+
+  beforeAll(() => trustAgentsOfViewer('@reader:example.org'));
+
+  it("previews an agent's reply as it was built, its calls where they stood", () => {
+    expect(getSearchResultPreviewText(hit(AGENT, held))).toBe(
+      getSearchResultPreviewText(hit(AGENT, built))
+    );
+    expect(getSearchResultPreviewText(hit(AGENT, held))).toContain('plan. 🔧 `shell` [1] Done.');
+    const { body, formatted_body: html } = getSearchResultEffectiveContent(hit(AGENT, held));
+    expect([body, html]).toEqual([built.body, built.formatted_body]);
+  });
+
+  it('previews the content it is given, without reading the hit again', () => {
+    const content = getSearchResultEffectiveContent(hit(AGENT, held));
+    expect(
+      getSearchResultPreviewText(hit(AGENT, held), [], undefined, {
+        ...content,
+        body: 'Read once.',
+      })
+    ).toBe('Read once.');
+  });
+
+  it("puts no calls in anyone else's message", () => {
+    expect(getSearchResultPreviewText(hit('@someone:example.org', held))).toBe(
+      'The walrus plan. Done.'
+    );
+  });
+});
+
 describe('getSearchResultBodySnippet', () => {
   it('anchors long snippets around the first highlight', () => {
     const body = `${'a'.repeat(2000)} ISSUE-024 ${'b'.repeat(2000)}`;
@@ -189,6 +238,15 @@ describe('getSearchResultBodySnippet', () => {
     expect(snippet.indexOf('ISSUE-023')).toBeGreaterThanOrEqual(0);
     expect(snippet.endsWith('…')).toBe(true);
   });
+  it('anchors on a whole-word match, not on the highlight inside a longer word', () => {
+    const body = `alpha_beta ${'gamma '.repeat(300)}be ${'delta '.repeat(300)}`;
+
+    const snippet = getSearchResultBodySnippet(body, ['be'], 200);
+
+    expect(snippet).toMatch(/ be /);
+    expect(snippet).not.toContain('alpha_beta');
+    expect(snippet.startsWith('…')).toBe(true);
+  });
 });
 
 describe('shouldUseLightweightSearchResultBody', () => {
@@ -200,7 +258,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
         'io.mindroom.long_text': {
           version: 2,
         },
-      } as never)
+      })
     ).toBe(true);
   });
 
@@ -209,7 +267,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
       shouldUseLightweightSearchResultBody({
         body: 'x'.repeat(1000),
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe(true);
   });
 
@@ -218,7 +276,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
       shouldUseLightweightSearchResultBody({
         body: 'normal search body',
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe(false);
   });
 });
@@ -230,7 +288,7 @@ describe('getSearchResultLightweightFormattedBody', () => {
         body: 'x'.repeat(1000),
         formatted_body: '<p>Hello <strong>world</strong></p>',
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe('<p>Hello <strong>world</strong></p>');
   });
 
@@ -240,7 +298,7 @@ describe('getSearchResultLightweightFormattedBody', () => {
         body: 'x'.repeat(1000),
         formatted_body: `<p>${'x'.repeat(6000)}</p>`,
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBeUndefined();
   });
 });
@@ -253,7 +311,7 @@ describe('getSearchResultLightweightCustomBody', () => {
           body: 'ignored',
           formatted_body: '<p>Hello <strong>world</strong></p>',
           msgtype: MsgType.Text,
-        } as never,
+        },
         'Hello world'
       )
     ).toBe('<p>Hello <strong>world</strong></p>');
@@ -265,7 +323,7 @@ describe('getSearchResultLightweightCustomBody', () => {
         {
           body: '## Heading\n\n**bold** `code`',
           msgtype: MsgType.Text,
-        } as never,
+        },
         '## Heading\n\n**bold** `code`'
       )
     ).toContain('<h2');
@@ -277,7 +335,7 @@ describe('getSearchResultLightweightCustomBody', () => {
         {
           body: 'plain body',
           msgtype: MsgType.Text,
-        } as never,
+        },
         'plain body'
       )
     ).toBeUndefined();

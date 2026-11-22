@@ -56,7 +56,7 @@ vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
 }));
 vi.mock('../threads/useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));
 // What this room's event cache holds of a thread: its root and its rows.
-const cachedPage = vi.hoisted(() => ({ rootEvent: undefined as unknown, events: [] as unknown[] }));
+const cachedPage = vi.hoisted(() => ({ rootEvent: undefined, events: [] as unknown[] }));
 vi.mock('../event-store/cache/eventRepository', () => ({
   loadLatestCachedThreadEvents: vi.fn(async () => ({ ...cachedPage })),
 }));
@@ -352,6 +352,16 @@ describe('useRoomViewThreadState', () => {
   it('shows resolved threads by default outside Compact', () => {
     viewMode.current = 'threaded';
     expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
+  });
+
+  it('keeps For me when switching filter modes in rooms without agents, until reset', () => {
+    const { store, current } = mountThreadState({ hasMindroomAgents: false });
+    act(() => current().handleToggleForMe());
+    expect(current().threadFilterState.forMe).toBe(true);
+    act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false }));
+    expect(current().threadFilterState.forMe).toBe(true);
+    act(() => current().handleReset());
+    expect(current().threadFilterState.forMe).toBe(false);
   });
 
   it('keeps agent filters stored but inactive in a room without agents', () => {

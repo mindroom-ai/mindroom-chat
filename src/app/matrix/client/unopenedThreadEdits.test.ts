@@ -19,6 +19,8 @@ import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relation
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import { ORIGINAL_SENDER_KEY } from '../protocol/originalSender';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
 import { getReleasableEdits } from '../room';
 import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
@@ -35,16 +37,15 @@ const message = (
   ts: number,
   content: Record<string, unknown>,
   sender = agentId
-): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', ...content },
-  } as IEvent);
+): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', ...content },
+});
 const root = (): IEvent => message(rootId, 1, { body: 'What changed in the build?' });
 const reply = (): IEvent =>
   message('$reply', 100, {
@@ -72,34 +73,38 @@ const title = (ts: number): IEvent =>
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
   });
 /** An edit as an encrypted room delivers it: only its relation is in the clear. */
-const encryptedEdit = (ts: number): IEvent =>
-  ({
-    event_id: `$edit-${ts}`,
-    room_id: roomId,
-    sender: agentId,
-    type: 'm.room.encrypted',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: {
-      algorithm: 'm.megolm.v1.aes-sha2',
-      ciphertext: 'ciphertext',
-      sender_key: 'sender-key',
-      session_id: 'session',
-      device_id: 'DEVICE',
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-    },
-  } as IEvent);
+const encryptedEdit = (ts: number): IEvent => ({
+  event_id: `$edit-${ts}`,
+  room_id: roomId,
+  sender: agentId,
+  type: 'm.room.encrypted',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    ciphertext: 'ciphertext',
+    sender_key: 'sender-key',
+    session_id: 'session',
+    device_id: 'DEVICE',
+    'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+  },
+});
 const redaction = (eventId: string, ts: number): IEvent => ({
   ...message(`$redaction-${ts}`, ts, {}),
   type: 'm.room.redaction',
   redacts: eventId,
   content: { redacts: eventId },
 });
-const withSummary = (latest: IEvent): IEvent => ({
+const withSummary = (latest: IEvent, latestReply?: IEvent): IEvent => ({
   ...root(),
   unsigned: {
     'm.relations': {
-      'm.thread': { count: 1, current_user_participated: false, latest_event: latest },
+      'm.thread': {
+        count: 1,
+        current_user_participated: false,
+        latest_event: latest,
+        ...(latestReply && { 'io.mindroom.latest_reply': latestReply }),
+      },
     },
   },
 });
@@ -210,6 +215,9 @@ const fixture = (serverThread: () => IEvent[]) => {
   return { mx, deliver, start, room, thread, card, loadedThread };
 };
 
+const indexForViewer = (f: ReturnType<typeof fixture>) =>
+  buildCrossRoomThreadIndexEntry({ room: f.room(), threadRootId: rootId, currentUserId: otherId });
+
 const threadNamespaces = [
   FILTER_RELATED_BY_REL_TYPES,
   FILTER_RELATED_BY_SENDERS,
@@ -313,6 +321,46 @@ describe('edits of unopened threads', () => {
     const finished = { preview: 'The build passed.', streaming: false };
     expect(f.card()).toEqual(finished);
     expect(f.card({ text: 'Thinking about it', ts: 100 })).toEqual(finished);
+  });
+
+  it('keeps agent attribution when a live title follows a standard bundled reply', async () => {
+    const raw = reply();
+    const latest = {
+      ...raw,
+      sender: '@mindroom_helper:example.org',
+      content: { ...raw.content, [ORIGINAL_SENDER_KEY]: otherId },
+    };
+    const f = fixture(() => [latest]);
+    await f.start();
+    await f.deliver([withSummary(latest)]);
+    expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
+    expect(f.thread().initialEventsFetched).toBe(false);
+    expect(indexForViewer(f)).toMatchObject({ isInvolved: false, isForUser: true });
+
+    await f.deliver([title(160)]);
+    expect(f.thread().replyToEvent?.getId()).toBe('$title-160');
+    expect(f.loadedThread()).toBe(false);
+    expect(indexForViewer(f)).toMatchObject({ isInvolved: false, isForUser: true });
+  });
+
+  it('never counts a detached mention, even if a stale bundle outlives its removal', async () => {
+    const raw = reply();
+    const latest = { ...raw, content: { ...raw.content, 'm.mentions': { user_ids: [otherId] } } };
+    const f = fixture(() => [latest]);
+    await f.start();
+    await f.deliver([withSummary(latest, latest)]);
+    const beforeEdit = indexForViewer(f)?.isInvolved;
+
+    await f.deliver([edit('Reply without the mention', 150)]);
+    expect(getThreadSummaryReply(f.thread())?.getContent().body).toBe('Reply without the mention');
+    expect(getThreadSummaryReply(f.thread())?.getContent()['m.mentions']).toBeUndefined();
+    // A live reply takes over the SDK summary. The root still bundles the original mention.
+    await f.deliver([{ ...reply(), event_id: '$newer', origin_server_ts: 160 }]);
+    expect(f.thread().replyToEvent?.getId()).toBe('$newer');
+    expect(f.thread().events.map((event) => event.getId())).not.toContain('$reply');
+    expect(f.loadedThread()).toBe(false);
+    expect(indexForViewer(f)?.isInvolved).toBe(false);
+    expect(beforeEdit).toBe(false);
   });
 
   it('keeps a newer cached copy over the reply the device holds', async () => {

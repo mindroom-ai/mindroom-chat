@@ -39,14 +39,13 @@ const ROOM_ID = '!harbor:example.org';
 const SPACE_ID = '!guild:example.org';
 const VIA = ['one.example.org'];
 
-const hierarchyItem = (roomId: string, space = false): HierarchyItem =>
-  ({
-    roomId,
-    parentId: '!field:example.org',
-    content: { via: VIA },
-    ts: 1,
-    space,
-  } as HierarchyItem);
+const hierarchyItem = (roomId: string, space = false): HierarchyItem => ({
+  roomId,
+  parentId: '!field:example.org',
+  content: { via: VIA },
+  ts: 1,
+  space,
+});
 
 const summaryOf = (roomId: string, name: string, joinRule: string): IHierarchyRoom =>
   ({

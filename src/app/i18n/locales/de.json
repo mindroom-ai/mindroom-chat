@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollbare Tabelle",
-    "scrollHint": "Horizontal scrollen"
+    "scrollHint": "Horizontal scrollen",
+    "readByRow": "Zeilenweise lesen",
+    "showTable": "Tabelle anzeigen"
   },
   "messageCodeBlock": {
     "actions": "Codeblock-Aktionen",
@@ -1155,7 +1157,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Dieser Space wurde ersetzt und ist nicht mehr aktiv.",
       "openNewSpace": "Neuen Space öffnen",
       "joinNewSpace": "Neuem Space beitreten",
-      "lobby": "Lobby",
       "messageSearch": "Nachrichtensuche",
       "failedToJoinReplacementSpace": "Beitritt zum Ersatz-Space fehlgeschlagen!",
       "rooms": "Räume",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "Sprachaufnahme fortsetzen",
       "statusActive": "Sprachaufnahme aktiv",
       "statusPaused": "Sprachaufnahme pausiert",
-      "statusProcessing": "Sprachaufnahme wird verarbeitet",
       "statusReadyToRetry": "Sprachaufnahme kann erneut gesendet werden",
+      "recoveredRecording": "Wiederhergestellte Aufnahme · {{time}}",
       "statusSending": "Sprachaufnahme wird gesendet",
       "statusStarting": "Sprachaufnahme wird gestartet",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "argumentsMayDifferBetweenCalls": "Die Argumente können sich zwischen Aufrufen unterscheiden.",
         "requestedBy": "Angefordert von {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router-Agent transkribiert"
-      },
       "streamingIndicator": {
         "aiIsResponding": "KI antwortet"
       },
@@ -2930,7 +2928,9 @@
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
-      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
+      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen.",
+      "canvasCard": "Interaktives Panel",
+      "reminderCard": "Erinnerung · {{when}}"
     },
     "canvas": {
       "panelLabel": "Interaktives Panel",

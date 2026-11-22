@@ -276,7 +276,7 @@ In the earlier single pass WebKit's typing was p95 19 ms against 10 ms, and its 
 
 Reading: the open thread is fine in WebKit at 7 streams. The Compact view is worse than in Chromium: one frame in six is late or dropped, and the longest frames are 200 ms. Nothing here says the cause differs from hotspots 1 to 3 (WebKit gives no profile), so the Compact fixes should be checked in WebKit again; this check is frame timing only.
 
-How it ran: the spec's tests carry no `@webkit` tag, which the `webkit` Playwright project needs, so a throwaway commit added the tag to the test title; then on the M5, with `PLAYWRIGHT_WEBKIT_EXECUTABLE` set to Playwright's WebKit, `PERF_STREAMS=7 PERF_CPU_THROTTLE=1 PERF_SCENARIOS=compact-idle,thread-idle npx playwright test e2e/perf/real-work.live.spec.ts --project=webkit` inside `scripts/e2e-slot.sh <n> --snapshot --preview`.
+How it ran: the scenarios test then had no `@webkit` tag, which the `webkit` Playwright project needs, so a throwaway commit added it (the spec carries it now: `--project=webkit` runs the scenarios at 1x only, with no CPU throttle, no CPU profile and no trace, `PERF_PROFILE` and `PERF_TRACE` doing nothing there); then on the M5, with `PLAYWRIGHT_WEBKIT_EXECUTABLE` set to Playwright's WebKit, `PERF_STREAMS=7 PERF_CPU_THROTTLE=1 PERF_SCENARIOS=compact-idle,thread-idle npx playwright test e2e/perf/real-work.live.spec.ts --project=webkit` inside `scripts/e2e-slot.sh <n> --snapshot --preview`.
 
 ## Nodes check: garbage, not a leak
 

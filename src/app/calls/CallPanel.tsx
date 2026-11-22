@@ -15,8 +15,10 @@ import type { CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
   callHomeRoomId,
   callPanelRoomAtom,
+  callStartingAtom,
   callStartProblemAtom,
   isActiveCallShownIn,
+  isCallStartingIn,
   noteCallStart,
   useActiveCall,
   useCallActions,
@@ -27,6 +29,7 @@ import {
   type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
+import { chooseCallNotify } from './callRings';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
@@ -155,7 +158,15 @@ const usePhaseLabel = (state: CallState): string | undefined => {
 };
 
 /** The call this device is in: notices, the stage, and the controls. */
-function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => void }) {
+function JoinedCall({
+  active,
+  roomId,
+  onClose,
+}: {
+  active: ActiveCall;
+  roomId: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const { call } = active;
@@ -356,6 +367,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
 
   return (
     <CallViewChrome
+      roomId={roomId}
       title={title}
       subtitle={phaseLabel}
       onClose={onClose}
@@ -432,11 +444,15 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       const from = last.prescreen ?? FIRST_CHOICES;
       return { ...last, prescreen: { ...from, ...change(from) } };
     });
+  const starting = useAtomValue(callStartingAtom);
+  const startingHere = isCallStartingIn(starting, room.roomId);
   const [joining, setJoining] = useState(false);
+  const isJoining = joining || startingHere;
   // Why the last Join (or Answer on a ring) did not start the call: this session's other tab is
   // in a call (it shares this device), or the call could not start at all.
   const [lastStart, setLastStart] = useAtom(callStartProblemAtom);
-  const startProblem = lastStart?.roomId === room.roomId ? lastStart.result : undefined;
+  const startProblem =
+    !isJoining && lastStart?.roomId === room.roomId ? lastStart.result : undefined;
   // It belongs to this opening of the call view: closed and opened again, the view starts
   // afresh. A prescreen that only moves (Dock, Float) unmounts with the view still open.
   useEffect(
@@ -455,19 +471,26 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   else if (support === 'unsupported') {
     blocker = t('featureUi.call.callView.yourHomeserverDoesNotSupportCalling');
   } else if (active) blocker = t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent');
+  else if (starting && !startingHere) blocker = t('featureUi.calls.panel.connectingAnotherCall');
   else if (!access.canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
 
   const join = () => {
     setJoining(true);
     setLastStart(undefined);
+    const notifyInputs = {
+      peopleInCall: people.length,
+      direct,
+      joinedMembers: room.getJoinedMemberCount(),
+    };
     void startCall({
       room,
       kind: 'room',
       microphone,
       video: camera,
       devices,
-      // Starting a call rings the other person of a direct chat and notifies a group.
-      notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
+      // Starting a call rings a direct chat or small room and notifies larger groups.
+      notify: chooseCallNotify(notifyInputs),
+      notifyInputs,
     })
       .then((result) => {
         noteCallStart(store, mx, room.roomId, result);
@@ -475,12 +498,16 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       .finally(() => setJoining(false));
   };
 
+  let subtitle: string | undefined;
+  if (isJoining) subtitle = t('featureUi.calls.panel.connecting');
+  else if (people.length > 0)
+    subtitle = t('featureUi.calls.panel.inCall', { count: people.length });
+
   return (
     <CallViewChrome
+      roomId={room.roomId}
       title={title}
-      subtitle={
-        people.length > 0 ? t('featureUi.calls.panel.inCall', { count: people.length }) : undefined
-      }
+      subtitle={subtitle}
       onClose={onClose}
       home={{ roomId: room.roomId }}
     >
@@ -551,9 +578,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
               radii="Pill"
               variant="Success"
               fill="Solid"
-              disabled={joining || support === 'checking'}
+              disabled={isJoining || support === 'checking'}
               before={
-                joining ? (
+                isJoining ? (
                   <Spinner size="100" variant="Success" fill="Solid" />
                 ) : (
                   <Icon size="100" src={Icons.Phone} />
@@ -561,7 +588,11 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
               }
               onClick={join}
             >
-              <Text size="B400">{t('featureUi.call.prescreenControls.join')}</Text>
+              <Text size="B400">
+                {isJoining
+                  ? t('featureUi.calls.panel.connecting')
+                  : t('featureUi.call.prescreenControls.join')}
+              </Text>
             </Button>
           </>
         )}
@@ -577,7 +608,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 export function CallPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const active = useActiveCall();
   if (active && isActiveCallShownIn(active, room.roomId)) {
-    return <JoinedCall active={active} onClose={onClose} />;
+    return <JoinedCall active={active} roomId={room.roomId} onClose={onClose} />;
   }
   return <CallPrescreen room={room} onClose={onClose} />;
 }

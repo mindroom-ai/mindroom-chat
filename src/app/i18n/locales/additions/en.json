@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Close",
-      "invited": "Invited {{user}}."
+      "invited": "Invited {{user}}.",
+      "giveRoleRights": "Give {{role}} rights",
+      "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
+      "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
+      "roleRequirementChanged": "This room now requires {{role}} rights.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -275,6 +280,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Close",
+      "configuredTools": "Configured tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} group",
+      "groupCount_other": "{{count}} groups",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Also {{groups}}",
+      "viewAll_one": "View all {{count}} tool",
+      "viewAll_other": "View all {{count}} tools",
+      "toolsTitle": "{{name}}’s tools",
+      "filter": "Filter tools",
+      "noMatch": "No tools match.",
+      "back": "Back",
+      "more": "More",
+      "worksIn": "Works in",
+      "loading": "Loading configured tools",
+      "availability": "Availability can vary by request and permissions.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & files",
+        "research": "Web",
+        "productivity": "Scheduling & memory",
+        "email": "Email",
+        "mcp": "Connected apps",
+        "integrations": "Integrations",
+        "communication": "Chat & messages",
+        "entertainment": "Media",
+        "information": "Information",
+        "smart_home": "Smart home",
+        "social": "Social",
+        "other": "Other"
+      }
+    },
+    "space": {
+      "overview": "Space overview"
     }
   },
   "featureUi": {
@@ -394,9 +439,11 @@
         "profile": "profile picture, photo, name, nickname",
         "deactivate": "delete account, close account",
         "localMindroom": "pair, pairing code, local, desktop",
+        "voiceKey": "voice message, microphone, record, push to talk, Control, Ctrl, Shift, Space, keyboard shortcut",
         "emoji": "emoji, stickers, packs, custom emoji",
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
-        "midTurn": "steer, queue, auto, agent, reply, interrupt"
+        "midTurn": "steer, queue, auto, agent, reply, interrupt",
+        "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -431,6 +478,7 @@
         "close": "Close call view",
         "participants": "People in the call",
         "connecting": "Connecting…",
+        "connectingAnotherCall": "Connecting to another call…",
         "reconnecting": "Reconnecting…",
         "ended": "The call ended.",
         "waitingFor": "Waiting for {{name}}…",
@@ -450,7 +498,7 @@
       "problems": {
         "service": "The call service could not be reached. Try again later.",
         "connection": "The call's connection was lost.",
-        "device": "Your microphone or camera could not be used.",
+        "device": "A microphone, camera or speaker could not be used.",
         "untrustedService": "This call runs on a call service your homeserver does not offer, so you cannot join it here."
       },
       "devices": {
@@ -540,7 +588,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
+        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain.",
+        "thisApp": "This app",
+        "mindroomAgents": "MindRoom agents"
       },
       "jumpToTime": {
         "unsupported": "This server cannot look up messages by time.",
@@ -558,7 +608,8 @@
     },
     "accountMenu": {
       "open": "Open account menu for {{name}}",
-      "manageAccounts": "Manage Accounts"
+      "otherAccounts": "Other accounts",
+      "manage": "Manage"
     },
     "roomOrder": {
       "sortByName": "Sort Rooms A to Z"
@@ -679,6 +730,9 @@
         "save": "Save",
         "saved": "Saved",
         "clear": "Clear",
+        "saveSetting": "Save {{setting}}",
+        "savedSetting": "Saved {{setting}}",
+        "clearSetting": "Clear {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",
         "saveFailed": "Couldn't save the setting. Try again.",
@@ -688,6 +742,41 @@
           "default": "Default",
           "auto": "Any message",
           "mentions": "Only when mentioned"
+        },
+        "sections": {
+          "agents": "Agents",
+          "threadTitles": "Thread titles"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Default model for every agent, team, and router in this room. Thread overrides still take precedence.",
+          "default": "Use configured default",
+          "defaultDescription": "Follow MindRoom's configured default for this room.",
+          "unknown": "Unknown model: \"{{value}}\" is not in this room's model list.",
+          "catalogUnavailable": "No model list is available right now. You can still reset to the configured default.",
+          "storedRaw": "Room setting: {{value}}"
+        },
+        "threadMode": {
+          "label": "Thread mode",
+          "description": "Whether agents reply in threads or in the main timeline for this room.",
+          "default": "Use configured default",
+          "thread": "Threads",
+          "room": "Main timeline",
+          "effective": "Current effective mode: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Main timeline",
+            "mixed": "Mixed (varies by agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Title model",
+          "description": "Model that writes this room's automatic thread titles."
+        },
+        "agentInstructions": {
+          "label": "Agent instructions",
+          "description": "Extra instructions given to every agent answering in this room. Moderators can edit them; they grant agents no extra permissions. Everyone in the room can read them, and room state is not end-to-end encrypted, so do not put secrets here.",
+          "placeholder": "For example: Keep answers short and reply in Dutch"
         }
       }
     },
@@ -860,7 +949,10 @@
         "nameChose": "{{name}} chose"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sub-agents"
+        "subagents": "Sub-agents",
+        "writtenToCache": "Written to cache",
+        "notCached": "Not cached",
+        "conversation": "Conversation"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}",
@@ -946,7 +1038,8 @@
       "messageSearch": {
         "searchFailed": "Search failed. Try again.",
         "resultCountFor_one": "{{count}} result for “{{term}}”",
-        "resultCountFor_other": "{{count}} results for “{{term}}”"
+        "resultCountFor_other": "{{count}} results for “{{term}}”",
+        "retry": "Retry"
       }
     },
     "notifications": {
@@ -962,7 +1055,10 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters"
+        "advancedFilters": "Advanced filters",
+        "includeResolvedThreads": "Include resolved threads",
+        "hideResolvedThreads": "Hide resolved threads",
+        "forMeSummary": "{{summary}}. For me filter on."
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -987,7 +1083,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expand all long messages",
-        "collapseAllLong": "Collapse all long messages"
+        "collapseAllLong": "Collapse all long messages",
+        "showFullMessage": "Show full message"
       }
     },
     "computer": {
@@ -1009,6 +1106,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Compact the agents' context before their next reply in this conversation.",
         "reply_mode": "Show or switch whether agents need a mention to start a conversation here (set/reset require a room admin)."
       }
     },
@@ -1022,8 +1120,6 @@
       "tools_other": "{{count}} tools",
       "needApproval_one": "{{count}} needs approval",
       "needApproval_other": "{{count}} need approval",
-      "toolCalls_one": "{{count}} tool call",
-      "toolCalls_other": "{{count}} tool calls",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} tokens",
       "started": "Started {{time}}",
@@ -1036,7 +1132,32 @@
         "time": "Time"
       },
       "stopTask": "Stop task",
-      "stopTaskFor": "Stop task: {{tool}}"
+      "stopTaskFor": "Stop task: {{tool}}",
+      "stopStepFailed": "Couldn't stop “{{step}}”. Try again.",
+      "toolNames": {
+        "readFile": "Read a file",
+        "writeFile": "Write a file",
+        "editFile": "Edit a file",
+        "searchFiles": "Search files",
+        "browseFiles": "Look through files",
+        "runCommand": "Run a command",
+        "openPage": "Open a web page",
+        "searchWeb": "Search the web",
+        "useBrowser": "Use the browser",
+        "checkMemory": "Check memory",
+        "updateMemory": "Update memory",
+        "deleteMemory": "Delete a memory",
+        "useMessages": "Use Matrix messages",
+        "schedule": "Schedule a task",
+        "checkSchedule": "Check the schedule",
+        "updateSchedule": "Update the schedule",
+        "cancelSchedule": "Cancel a scheduled task",
+        "use": "Use {{tool}}"
+      },
+      "jobTotal_one": "{{count}} background job",
+      "jobTotal_other": "{{count}} background jobs",
+      "jobTotalFinished_one": "{{count}} background job finished",
+      "jobTotalFinished_other": "{{count}} background jobs finished"
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1063,7 +1184,21 @@
       "showFor": "Show sub-agents: {{name}}",
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
-      "resize": "Resize the sub-agents panel"
+      "resize": "Resize the sub-agents panel",
+      "calls_one": "{{count}} call",
+      "calls_other": "{{count}} calls",
+      "now": "Now",
+      "needsApproval": "Needs approval",
+      "result": "Result",
+      "turnNumber": "turn {{number}}",
+      "status": "Status",
+      "toolCallsNote": "tool calls",
+      "tokensSplit": "{{input}} in · {{output}} out",
+      "costNested": "+{{cost}} nested",
+      "costOwn": "this run",
+      "showUsageDetails": "Show usage details",
+      "showUsageDetailsDescription": "Show tool calls, tokens, cost and what each is doing now on sub-agents and background jobs.",
+      "usage": "Usage"
     },
     "models": {
       "modelPicker": {
@@ -1081,6 +1216,8 @@
         "defaultChoice": "Default",
         "threadOnly": "Choosing a model here applies to this thread only.",
         "roomOverrideThreadOnly": "Set for this room with !room_model. Choosing a model here applies to this thread only.",
+        "chooseNextThread": "Choose model for the next thread",
+        "nextThreadOnly": "This pick applies to the next thread only.",
         "levels": {
           "off": "Off",
           "minimal": "Minimal",
@@ -1096,11 +1233,40 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "invites": {
+      "invalid": "This invite link is incomplete. Open the link from the mail again.",
+      "reopen": "You're signed in. Open the invite link from your mail again.",
+      "framed": "Open this page in its own tab to use the invitation.",
+      "ready": "Join a room through {{router}} as {{user}}",
+      "claiming": "Claiming the invitation…",
+      "offline": "This MindRoom is not answering. Your request is saved; the invitation will appear in your room list when it is back.",
+      "rejected": "This invitation is no longer valid. Ask for a new one.",
+      "retry": "That did not work. Try again in a moment.",
+      "joining": "Joining the room…",
+      "join": "Join",
+      "tryAgain": "Try again"
+    },
+    "uiActions": {
+      "canvasOff": "Canvas shared · panels are off in this app",
+      "askForText": "Ask for a text version",
+      "copyRequest": "Copy request",
+      "textVersionRequest": "Please send “{{title}}” here as text instead. Interactive panels are off in my app.",
+      "askForTextStatus": {
+        "hint": "Puts a request in the composer. Nothing is sent until you press Send.",
+        "added": "Request added to the composer. Nothing is sent until you press Send.",
+        "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
+        "copied": "Request copied. Paste it into your draft."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "Voice recording paused — finish or discard your unsent recording elsewhere in this room",
     "voiceThreadRootUnsent": "This voice message's thread has no sent first message. Retry once that message is sent, or discard the recording.",
+    "voiceIndicator": {
+      "recording": "Recording {{time}}",
+      "paused": "Paused {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
@@ -1120,7 +1286,10 @@
       "autoHint": "Let the agent decide",
       "settingTitle": "When an agent is replying, Send",
       "settingDescription": "Hold Send to choose for one message."
-    }
+    },
+    "replyInThread": "Reply in thread…",
+    "newThreadIn": "New thread in {{room}}…",
+    "newThreadWith": "New thread with {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1169,6 +1338,10 @@
     "hints": {
       "chip": "{{keys}} for all shortcuts"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} records voice messages",
+      "description": "Tap to start or send, hold to talk and release to send."
+    },
     "actions": {
       "palette": "Search and commands",
       "settings": "Open settings",
@@ -1194,7 +1367,8 @@
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
-      "callView": "Go to the call"
+      "callView": "Go to the call",
+      "voiceRecord": "Hold to record a voice message, tap to start or send"
     }
   },
   "thread": {
@@ -1228,7 +1402,10 @@
     "close": "Close thread",
     "resizeSecond": "Resize second thread",
     "second": "Second thread",
-    "dropSecond": "Drop to open in second column"
+    "dropSecond": "Drop to open in second column",
+    "newUnknown": "New",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Mentions you"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1550,9 +1727,10 @@
     }
   },
   "threadNav": {
-    "layout": "Thread layout",
-    "layoutRecent": "Recent",
-    "layoutSections": "Sections",
+    "forMe": "For me",
+    "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
+    "roomForMeHint": "Only threads you take part in or that an agent posted for you",
+    "emptyForMe": "No threads for you yet",
     "group": "Group",
     "groupHint": "Group by status",
     "sections": {
@@ -1584,6 +1762,36 @@
   },
   "threadActions": {
     "openBeside": "Open in second column"
+  },
+  "roomSchedules": {
+    "thisThread": "This thread",
+    "elsewhereInRoom": "Elsewhere in this room",
+    "filterAll": "All",
+    "filterLabel": "Filter scheduled tasks",
+    "awaitingShort": "Awaiting",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}d",
+    "thread": "Thread",
+    "destination": "Destination",
+    "showFullPrompt": "Show full prompt",
+    "showLessPrompt": "Show less",
+    "details": "Details",
+    "hideDetails": "Hide details",
+    "copyId": "Copy ID",
+    "copied": "Copied",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "cancelConfirm": "Cancel this scheduled task?",
+    "keep": "Keep",
+    "cancelTask": "Cancel task",
+    "cancelling": "Cancelling...",
+    "cancelError": "Could not cancel task. Try again.",
+    "cancellationSent": "Cancellation sent",
+    "editDraftBusy": "Clear your current draft before editing this schedule.",
+    "copyFailed": "Could not copy. Select the Task ID in Details."
   },
   "home": {
     "greeting": {

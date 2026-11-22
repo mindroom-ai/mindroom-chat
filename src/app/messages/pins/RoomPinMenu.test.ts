@@ -1,5 +1,6 @@
 import React from 'react';
-import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { act, create as createRenderer, ReactTestRenderer } from 'react-test-renderer';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
@@ -7,6 +8,8 @@ const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
 const {
   getEditedEventMock,
   navigateRoomMock,
+  navigateRoomFocusEventMock,
+  pinned,
   pinnedEventMock,
   renderMessageContentMock,
   roomMock,
@@ -14,6 +17,9 @@ const {
 } = vi.hoisted(() => ({
   getEditedEventMock: vi.fn(() => undefined),
   navigateRoomMock: vi.fn(),
+  navigateRoomFocusEventMock: vi.fn(),
+  // The pinned messages, and the room address the menu opens at.
+  pinned: { eventIds: ['$approval'], path: '/home/!room%3Aexample.org/' },
   pinnedEventMock: {
     replyEventId: undefined,
     threadRootId: undefined,
@@ -47,6 +53,7 @@ const {
     getTimelineForEvent: vi.fn(() => undefined),
     getUnfilteredTimelineSet: vi.fn(() => undefined),
   },
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   settingValues: {} as Record<string, boolean>,
 }));
 
@@ -196,6 +203,7 @@ vi.mock('./RoomPinMenu.css', () => ({
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: navigateRoomMock,
+    navigateRoomFocusEvent: navigateRoomFocusEventMock,
   }),
 }));
 
@@ -205,7 +213,7 @@ vi.mock('../../ui/styles/ContainerColor.css', () => ({
 
 vi.mock('../../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => ({
-    pinnedEventIds: ['$approval'],
+    pinnedEventIds: pinned.eventIds,
     canPin: false,
     setPinned: vi.fn(),
     updating: false,
@@ -221,6 +229,22 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
 }));
 
 import { RoomPinMenu } from './RoomPinMenu';
+import { HOME_ROOM_PATH } from '../../routes/paths';
+import { getHomeRoomPath } from '../../routes/pathUtils';
+
+/** Renders `element` on the room route at `pinned.path`, as the room page does. */
+const create = (element: React.ReactElement) =>
+  createRenderer(
+    React.createElement(
+      MemoryRouter,
+      { initialEntries: [pinned.path] },
+      React.createElement(
+        Routes,
+        null,
+        React.createElement(Route, { path: HOME_ROOM_PATH, element })
+      )
+    )
+  );
 
 describe('RoomPinMenu', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -234,6 +258,10 @@ describe('RoomPinMenu', () => {
 
     renderer = undefined;
     navigateRoomMock.mockReset();
+    navigateRoomFocusEventMock.mockReset();
+    vi.unstubAllGlobals();
+    pinned.eventIds = ['$approval'];
+    pinned.path = '/home/!room%3Aexample.org/';
     // Back to each mock's own implementation, without the return values a test set.
     getEditedEventMock.mockRestore();
     pinnedEventMock.getContent.mockRestore();
@@ -413,4 +441,28 @@ describe('RoomPinMenu', () => {
       expect.objectContaining({ mEvent: decryptedMessageEvent })
     );
   });
+
+  // The message the address names opens again, so its `%41` or literal `%2F` must read as written.
+  it.each(['$pin:example.org', '$pin%41', '$pin%2Fx', '$pin/x+y'])(
+    'drops the permalink first when the address already names the message %s',
+    (eventId) => {
+      pinned.eventIds = [eventId];
+      pinned.path = getHomeRoomPath(roomMock.roomId, eventId);
+      pinnedEventMock.getId.mockReturnValue(eventId);
+      // The message opens on the next frame, once the permalink is gone.
+      const nextFrame = vi.fn();
+      vi.stubGlobal('requestAnimationFrame', nextFrame);
+      act(() => {
+        renderer = create(
+          React.createElement(RoomPinMenu, { room: roomMock as never, requestClose: vi.fn() })
+        );
+      });
+      act(() => {
+        renderer!.root.findAll((node) => node.props['data-pin-jump'] === true)[0]!.props.onClick();
+      });
+      expect(navigateRoomMock).toHaveBeenCalledWith(roomMock.roomId, undefined, { replace: true });
+      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+      expect(nextFrame).toHaveBeenCalledOnce();
+    }
+  );
 });

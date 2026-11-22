@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { NavigateOptions, useNavigate, useParams } from 'react-router-dom';
+import { NavigateOptions, useNavigate } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -13,7 +13,6 @@ import type { RoomToParents } from '../matrix/types/room';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { getCanonicalAliasOrRoomId, getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import {
-  decodeRouteParam,
   getActivityRoomPath,
   getDirectRoomPath,
   getHomeRoomPath,
@@ -23,6 +22,7 @@ import {
   withSearchParam,
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
+import { useRoomRouteParams } from './useRoomRouteParams';
 import { currentHistoryLocation } from '../routes/historyStack';
 
 /**
@@ -50,9 +50,10 @@ type RoutePlace = {
 
 /** Whether the route's room segment names the room, by ID or by an alias the client knows. */
 const routeShowsRoom = (mx: MatrixClient, roomSegment: string | undefined, roomId: string) => {
-  const shown = roomSegment ? decodeRouteParam(roomSegment) : undefined;
-  if (shown === roomId) return true;
-  return !!shown && isRoomAlias(shown) && getCanonicalAliasRoomId(mx, shown) === roomId;
+  if (roomSegment === roomId) return true;
+  return (
+    !!roomSegment && isRoomAlias(roomSegment) && getCanonicalAliasRoomId(mx, roomSegment) === roomId
+  );
 };
 
 const getRoomPath = (
@@ -102,9 +103,9 @@ export const useRoomNavigate = () => {
   // Paths name rooms and spaces by their canonical alias when they have one.
   const client = useMatrixClient();
   const navigate = useNavigate();
-  // The route's room segment as written: an alias resolves only when navigating, not in every
+  // The route's room segment, an alias unresolved: it resolves only when navigating, not in every
   // row's render.
-  const { roomIdOrAlias: roomSegment } = useParams();
+  const { roomIdOrAlias: roomSegment } = useRoomRouteParams();
   const selectedSpaceId = useSelectedSpace();
   const inDirect = useDirectSelected();
   const inActivity = useActivitySelected();
@@ -130,7 +131,7 @@ export const useRoomNavigate = () => {
   /** Opens an app path as it is, such as a path recorded earlier. */
   const navigatePath = useCallback(
     (path: string, opts?: NavigateOptions) => {
-      navigate(path, opts);
+      void navigate(path, opts);
     },
     [navigate]
   );
@@ -138,7 +139,7 @@ export const useRoomNavigate = () => {
   /** Opens a room, at `eventId` when given, in the section `roomPath` picks for it. */
   const navigateRoom = useCallback(
     (roomId: string, eventId?: string, opts?: NavigateOptions): void => {
-      navigate(roomPath(roomId, eventId), opts);
+      void navigate(roomPath(roomId, eventId), opts);
     },
     [navigate, roomPath]
   );
@@ -146,7 +147,7 @@ export const useRoomNavigate = () => {
   /** Opens a space's own page, addressed by its canonical alias when it has one. */
   const navigateSpace = useCallback(
     (spaceId: string, opts?: NavigateOptions) => {
-      navigate(getSpacePath(getCanonicalAliasOrRoomId(client, spaceId)), opts);
+      void navigate(getSpacePath(getCanonicalAliasOrRoomId(client, spaceId)), opts);
     },
     [client, navigate]
   );
@@ -154,7 +155,7 @@ export const useRoomNavigate = () => {
   /** Opens the room focused on `eventId`, without opening its thread. */
   const navigateRoomFocusEvent = useCallback(
     (roomId: string, eventId: string, opts?: NavigateOptions) => {
-      navigate(withSearchParam(roomPath(roomId, eventId), { focusEvent: '1' }), opts);
+      void navigate(withSearchParam(roomPath(roomId, eventId), { focusEvent: '1' }), opts);
     },
     [navigate, roomPath]
   );
@@ -162,7 +163,7 @@ export const useRoomNavigate = () => {
   /** Opens a thread without recording where to return to. */
   const navigateRoomThreadDirect = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
-      navigate(withSearchParam(roomPath(roomId, eventId), { threadId }), opts);
+      void navigate(withSearchParam(roomPath(roomId, eventId), { threadId }), opts);
     },
     [navigate, roomPath]
   );

@@ -136,7 +136,12 @@ function Reply({ shown = content, withExtras = false }) {
         <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
         {parse(shown.formatted_body, markerParserOptions({}, shown))}
         {withExtras && (
-          <MessageExtras extras={extras} htmlReactParserOptions={{}} markerContent={shown} />
+          <MessageExtras
+            extras={extras}
+            htmlReactParserOptions={{}}
+            markerContent={shown}
+            toolRows
+          />
         )}
       </ToolCallsFold>
     </ToolCallMessageContext.Provider>

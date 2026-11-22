@@ -62,6 +62,15 @@ describe('matchesKeys', () => {
     ).toBe(false);
   });
 
+  it('reads ctrl as Control on every platform', () => {
+    const space = { key: ' ', ctrlKey: true, shiftKey: true };
+    expect(matchesKeys(press(space), 'ctrl+shift+space', true)).toBe(true);
+    expect(matchesKeys(press(space), 'ctrl+shift+space', false)).toBe(true);
+    const command = { key: ' ', metaKey: true, shiftKey: true };
+    expect(matchesKeys(press(command), 'ctrl+shift+space', true)).toBe(false);
+    expect(matchesKeys(press({ ...space, metaKey: true }), 'ctrl+shift+space', true)).toBe(false);
+  });
+
   it('needs exactly the modifiers of the chord', () => {
     expect(matchesKeys(press({ key: 'ArrowDown', altKey: true }), 'alt+down', false)).toBe(true);
     expect(
@@ -169,6 +178,7 @@ describe('formatShortcut and ariaShortcut', () => {
     ['zoomIn', '⌘+', 'Ctrl++'],
     ['zoomOut', '⌘-', 'Ctrl+-'],
     ['resetZoom', '⌘0', 'Ctrl+0'],
+    ['voiceRecord', '⌃⇧Space', 'Ctrl+Shift+Space'],
   ])('%s is %s on Apple platforms and %s elsewhere', (id, apple, other) => {
     expect(formatShortcut(id, true)).toBe(apple);
     expect(formatShortcut(id, false)).toBe(other);
@@ -180,6 +190,8 @@ describe('formatShortcut and ariaShortcut', () => {
     expect(ariaShortcut('previousRoom', false)).toBe('Alt+ArrowUp');
     expect(ariaShortcut('leaveThread', false)).toBe('Alt+ArrowLeft');
     expect(ariaShortcut('previousThread', true)).toBe('Meta+Alt+ArrowUp');
+    expect(ariaShortcut('voiceRecord', true)).toBe('Control+Shift+Space');
+    expect(shortcutOfAria('Control+Shift+Space', false)).toBe('voiceRecord');
     // The palette's own button sets this value itself.
     expect(shortcutOfAria('Control+K', false)).toBe('palette');
     expect(shortcutOfAria('Meta+Shift+M', true)).toBe('members');

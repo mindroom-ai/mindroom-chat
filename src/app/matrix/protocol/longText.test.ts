@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { THREAD_MODEL_KEY, threadModelContent } from './threadModel';
 import {
   buildLongTextPreview,
   clearLongTextHydrationCache,
+  getCachedLongTextContent,
   getLongTextSource,
   hasLongTextMetadata,
   hydrateLongTextSource,
   parseLongTextJsonSidecar,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
+import { sanitizeContent } from './untrustedContent';
 
 beforeEach(() => {
   clearLongTextHydrationCache();
@@ -296,6 +299,38 @@ describe('parseLongTextJsonSidecar', () => {
 });
 
 describe('hydrateLongTextSource', () => {
+  it('hydrates a version-3 sidecar as it was sent; only reading it as its sender puts markers back', async () => {
+    const source = expectDefined(
+      getLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview',
+        url: 'mxc://server/preview-v3',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      })
+    );
+    const call = { type: 'tool_call_completed', tool_name: 'shell', body_line: 2, at: 1 };
+    const sent = {
+      msgtype: 'm.text',
+      body: 'Checking.\n\nDone.',
+      formatted_body: '<p>Checking.</p>\n<p>Done.</p>\n',
+      'io.mindroom.tool_trace': { version: 3, events: [call] },
+    };
+    const owner = {};
+    const resolved = await hydrateLongTextSource(source, async () => JSON.stringify(sent), owner);
+
+    // The cache holds the sidecar for every event that names it, whoever sent the event.
+    expect(resolved).toEqual(sent);
+    expect(getCachedLongTextContent(source, owner)).toEqual(sent);
+    const byOther = sanitizeContent(resolved, false);
+    expect(byOther.body).toBe('Checking.\n\nDone.');
+    expect(byOther['io.mindroom.tool_trace']).toBeUndefined();
+    expect(sanitizeContent(resolved, true).body).toBe('Checking.\n\n🔧 `shell` [1]\n\nDone.');
+    expect(sanitizeContent(getCachedLongTextContent(source, owner), false).body).toBe(
+      'Checking.\n\nDone.'
+    );
+    expect(resolved).toEqual(sent);
+  });
+
   it('hydrates v2 sidecar json and keeps tool-trace metadata', async () => {
     const source = expectDefined(
       getLongTextSource({
@@ -706,5 +741,17 @@ describe('hydrateLongTextSource', () => {
     const recovered = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(recovered.body).toBe('Recovered');
     expect(loader).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('buildLongTextPreview thread_model routing', () => {
+  it('preserves io.mindroom.thread_model on the preview event', () => {
+    const pick = threadModelContent('@router:test', 'DEV1', 'sonnet@high');
+    const preview = buildLongTextPreview({
+      msgtype: 'm.text',
+      body: 'Long message',
+      ...pick,
+    });
+    expect(preview[THREAD_MODEL_KEY]).toEqual(pick[THREAD_MODEL_KEY]);
   });
 });

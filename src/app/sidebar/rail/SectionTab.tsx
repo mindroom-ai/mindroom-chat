@@ -60,7 +60,7 @@ export function SectionTab({
     if (onSelect?.(selected)) return;
     // On phones the first tap shows the section's list; a second one returns to the last room.
     const lastPath = phone && !selected ? undefined : lastPaths.get(section);
-    navigate(lastPath ? joinPathComponent(lastPath) : path);
+    void navigate(lastPath ? joinPathComponent(lastPath) : path);
   };
 
   return (

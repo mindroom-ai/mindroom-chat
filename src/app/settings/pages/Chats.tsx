@@ -14,6 +14,7 @@ import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import { MID_TURN_CHOICES } from '../../composer/ComposerSendButton';
+import { formatShortcut } from '../../shortcuts/shortcuts';
 
 /** The mode a tap on Send or Enter sends with while an agent replies; a hold picks another. */
 function MidTurnSendTile() {
@@ -62,6 +63,12 @@ export function Chats({ requestClose }: SettingsPageProps) {
           description={t('settings.general.editor.enterForNewlineDescription', { sendKey })}
         />
         <SettingSwitchTile
+          focusId="voiceHoldShortcut"
+          setting="voiceHoldShortcut"
+          title={t('shortcuts.voiceKey.label', { voiceKey: formatShortcut('voiceRecord') })}
+          description={t('shortcuts.voiceKey.description')}
+        />
+        <SettingSwitchTile
           focusId="markdown"
           setting="isMarkdown"
           title={t('settings.general.editor.markdownFormatting')}
@@ -84,6 +91,12 @@ export function Chats({ requestClose }: SettingsPageProps) {
           setting="showToolCalls"
           title={t('mindroomUi.messages.showToolCalls')}
           description={t('mindroomUi.messages.showToolCallsDescription')}
+        />
+        <SettingSwitchTile
+          focusId="showUsageDetails"
+          setting="showUsageDetails"
+          title={t('mindroomUi.subagents.showUsageDetails')}
+          description={t('mindroomUi.subagents.showUsageDetailsDescription')}
         />
         <SettingSwitchTile
           focusId="mediaAutoLoad"

@@ -13,6 +13,7 @@ import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { isThreadResolved } from '../event-store/threads/threadTags';
 import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import {
   getMessageCopyTexts,
@@ -40,6 +41,7 @@ const copyTexts = new WeakMap<MatrixEvent, { editId: string | undefined; text: s
  * lines (a reply of only tool calls keeps them).
  */
 const copyTextOf = (
+  mx: MatrixClient,
   event: MatrixEvent,
   edit: MatrixEvent | undefined,
   content: Record<string, unknown>
@@ -52,7 +54,13 @@ const copyTextOf = (
   const { body, formattedBody, plainBodyFallback } = source;
   const { text } = getMessageCopyTexts(
     source,
-    scanToolMarkerLines(body, formattedBody, plainBodyFallback)
+    scanToolMarkerLines(
+      body,
+      formattedBody,
+      plainBodyFallback,
+      // As the message is drawn: only the markers of an agent of the reader's homeserver are rows.
+      isMindroomAgentUserIdForViewer(event.getSender(), mx.getUserId() ?? undefined)
+    )
   );
   copyTexts.set(event, { editId, text });
   return text;
@@ -64,6 +72,7 @@ const copyTextOf = (
  * and as the app's Copy text copies it.
  */
 const replyBody = (
+  mx: MatrixClient,
   room: Room,
   rootId: string,
   eventId: string,
@@ -79,7 +88,7 @@ const replyBody = (
   if (content.msgtype !== MsgType.Text || typeof content.body !== 'string') return undefined;
   const { text, localization } = getThreadMessageBodyPreview(content.body);
   const cleaned = localizeThreadPreview(text, localization, t);
-  const own = copyTextOf(event, edit, content);
+  const own = copyTextOf(mx, event, edit, content);
   return cleaned === undefined || own === undefined ? undefined : { text: cleaned, own };
 };
 
@@ -88,7 +97,11 @@ const replyBody = (
  * copies it, where it is the reply the index's preview shows: a reply not loaded yet, as after a
  * restart.
  */
-const bundledReplyBody = (room: Room, entry: CrossRoomThreadIndexEntry): string | undefined => {
+const bundledReplyBody = (
+  mx: MatrixClient,
+  room: Room,
+  entry: CrossRoomThreadIndexEntry
+): string | undefined => {
   const root =
     room.findEventById(entry.threadRootId) ?? room.getThread(entry.threadRootId)?.rootEvent;
   const reply = getBundledThreadPreviews(room, root).reply;
@@ -97,7 +110,7 @@ const bundledReplyBody = (room: Room, entry: CrossRoomThreadIndexEntry): string 
   const edit = reply.replacingEvent() ?? undefined;
   const content = getLatestMessageContent(reply, edit);
   return content.msgtype === MsgType.Text && typeof content.body === 'string'
-    ? copyTextOf(reply, edit, content)
+    ? copyTextOf(mx, reply, edit, content)
     : undefined;
 };
 
@@ -113,7 +126,7 @@ const readReply = (
     senderId ? { replySender: threadActorName(mx, room, senderId) } : {};
   const reply = signals.lastReply;
   if (reply) {
-    const body = replyBody(room, entry.threadRootId, reply.eventId, t);
+    const body = replyBody(mx, room, entry.threadRootId, reply.eventId, t);
     return {
       replyText: body?.text ?? threadPreviewText(t, reply.preview),
       ...(body ? { copyText: body.own } : {}),
@@ -122,7 +135,7 @@ const readReply = (
   }
   const indexed = threadIndexReplyPreview(entry);
   if (!indexed) return {};
-  const own = bundledReplyBody(room, entry);
+  const own = bundledReplyBody(mx, room, entry);
   return {
     replyText: indexed.text,
     ...(own === undefined ? {} : { copyText: own }),

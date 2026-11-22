@@ -9,7 +9,7 @@ const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: {},
   setOptions: () => {},
-  shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
+  shouldAdjustScrollPositionOnItemSizeChange: undefined,
   getVirtualItems: () => [],
 }));
 

@@ -113,7 +113,7 @@ const useCachedActiveAvatar = (
 /**
  * The account button at the foot of the icon rail, or with `inTopBar` at the end of a phone's top
  * bar: the active account's avatar, which opens the account menu (Settings, the other accounts,
- * Add Account, Manage Accounts).
+ * Add Account, Logout).
  */
 export function SettingsTab({
   inTopBar = false,
@@ -132,8 +132,8 @@ export function SettingsTab({
   const [menuButton, setMenuButton] = useState<HTMLElement>();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
-  /** The inactive account whose logout waits for confirmation. */
-  const [leaving, setLeaving] = useState<StoredSession>();
+  /** The account whose logout waits for confirmation: the active one or an inactive session. */
+  const [leaving, setLeaving] = useState<'active' | StoredSession>();
 
   const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
   // The stored copy carries the freshest cached profile fields.
@@ -192,14 +192,14 @@ export function SettingsTab({
     setError(undefined);
     setSwitcherOpen(false);
     // The stored path of the account chosen; the store's copy may already point elsewhere.
-    navigate(resolveSessionRestorePath(session.lastKnownPath));
+    void navigate(resolveSessionRestorePath(session.lastKnownPath));
   };
 
   const closeLeaving = useCallback(() => setLeaving(undefined), []);
 
   const handleAddAccount = () => {
     setSwitcherOpen(false);
-    navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl)));
+    void navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl)));
   };
 
   const openSettings = () => {
@@ -235,6 +235,7 @@ export function SettingsTab({
       onOpenSettings={openSettings}
       onSwitchAccount={handleSwitch}
       onAddAccount={handleAddAccount}
+      onSignOut={() => setLeaving('active')}
       onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
       onClose={closeMenu}
       below={inTopBar}
@@ -316,7 +317,10 @@ export function SettingsTab({
                 onDeactivate: closeLeaving,
               }}
             >
-              <LogoutDialog session={leaving} handleClose={closeLeaving} />
+              <LogoutDialog
+                session={leaving === 'active' ? undefined : leaving}
+                handleClose={closeLeaving}
+              />
             </FocusTrap>
           </OverlayCenter>
         </Overlay>

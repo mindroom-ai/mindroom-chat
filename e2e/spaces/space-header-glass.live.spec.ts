@@ -205,7 +205,7 @@ for (const [themeId, width] of [
       await expect
         .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight))
         .toBeLessThanOrEqual(1);
-      await expect(panel.getByRole('link', { name: 'Lobby', exact: true })).toBeVisible();
+      await expect(panel.getByRole('link', { name: 'Space overview', exact: true })).toBeVisible();
       expect(errors).toEqual([]);
     } finally {
       const cleanup = await Promise.allSettled([

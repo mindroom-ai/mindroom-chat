@@ -53,7 +53,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         },
       }),
     };
-    const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    const room = makeRoom({ liveEvents: [root], threads: [thread] });
     const mx = {
       paginateEventTimeline: vi.fn(),
       fetchRelations: vi.fn().mockResolvedValue({ chunk: [reply.event], next_batch: 'older' }),
@@ -102,7 +102,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       };
       const room = makeRoom({
         liveEvents: [],
-        threads: phase === 'empty-thread-relations' ? [thread as never] : [],
+        threads: phase === 'empty-thread-relations' ? [thread] : [],
       });
       const mx = {
         getEventTimeline: vi.fn(() => (phase === 'context' ? pending : Promise.resolve())),
@@ -169,7 +169,7 @@ describe('runThreadOpenSdkBootstrap', () => {
           addEventsToTimeline: vi.fn(),
         }),
       };
-      const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+      const room = makeRoom({ liveEvents: [root], threads: [thread] });
       const mx = {
         fetchRelations: vi.fn().mockResolvedValue({ chunk: [] }),
         getEventMapper: vi.fn(),
@@ -276,7 +276,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         getTimelines: () => [threadTimeline],
       }),
     };
-    const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    const room = makeRoom({ liveEvents: [root], threads: [thread] });
     vi.spyOn(room, 'findEventById');
     const mx = {
       fetchRelations: vi.fn(),
@@ -390,7 +390,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       thread?.addEvent(reply, false);
       expect(thread?.events).toContain(reply);
 
-      resolveRootFetch?.(root.event as unknown as Record<string, unknown>);
+      resolveRootFetch?.(root.event);
       await flushAsyncWork();
 
       expect(thread?.events).toContain(reply);

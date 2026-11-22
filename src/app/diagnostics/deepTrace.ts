@@ -1,4 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { hasOpenOverlay } from '../lib/openOverlay';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
@@ -41,7 +43,7 @@ const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
 
-export type DeepTraceData = Record<string, number | boolean | null>;
+export type DeepTraceData = Record<string, number | boolean | string | null>;
 
 export type DeepTraceEvent = {
   schemaVersion: typeof DEEP_TRACE_SCHEMA_VERSION;
@@ -254,6 +256,10 @@ const STATIC_EVENT_NAMES = new Set([
   'storage.cache.transaction_settled',
   'storage.cache.transaction_stalled',
   'storage.indexeddb_loss_reload',
+  'storage.sync_store.degraded',
+  'storage.sync_store.failed',
+  'storage.sync_store.stopped',
+  'sync.saved_replay.failed',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -261,7 +267,36 @@ const STATIC_EVENT_NAMES = new Set([
   'voice.capture.stop_timeout',
 ]);
 
+// Exact values only: DOM attributes, including test IDs, can come from message or plugin HTML.
+const SURFACE_HIT_TAG =
+  /^(a|article|aside|body|button|canvas|div|em|footer|g|header|html|i|iframe|img|input|label|li|main|nav|ol|p|path|pre|section|small|span|strong|svg|table|tbody|td|tr|ul|video)$/;
+const SURFACE_HIT_TEST_IDS = new Set([
+  ...['plugin', 'call', 'computer', 'transcript', 'subagents', 'canvas', 'members'].map(
+    (panel) => `resizable-${panel}-panel`
+  ),
+  'resizable-page-nav',
+  'second-thread-panel',
+  'thread-column',
+  'room-virtual-inner',
+  'phone-members-sheet',
+  'timeline-minimap',
+  'call-panel',
+  'call-window',
+  'subagents-panel',
+]);
+const SURFACE_HIT_TEST_SELECTOR = Array.from(
+  SURFACE_HIT_TEST_IDS,
+  (id) => `[data-testid="${id}"]`
+).join(',');
+const liveElement = (selector: string): Element | null =>
+  document.querySelector(`${selector}:not([data-page-slide-copy], [data-page-slide-copy] *)`);
+
 const SAFE_EVENT_PATTERNS = [
+  /^calls\.ring\.join\.(none|ring|notification)$/,
+  /^calls\.ring\.local_echo\.(encrypting|queued|sending|sent|not_sent|cancelled|unknown)$/,
+  /^calls\.ring\.sent\.(ring|notification)$/,
+  /^calls\.ring\.(membership_echo|missing_echo)$/,
+  /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
@@ -278,12 +313,19 @@ const safeEventName = (value: string): string | undefined => {
   return undefined;
 };
 
-const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined => {
+const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData | undefined => {
   if (!value) return undefined;
 
   const entries = Object.entries(value)
     .filter(([key, item]) => {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) return false;
+      if (typeof item === 'string') {
+        return (
+          name.startsWith('interaction.pointer.surface.') &&
+          ((key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
+            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item)))
+        );
+      }
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
     })
@@ -319,6 +361,10 @@ const appendStoredEvents = async (
 
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  // A failed request rejects where it is awaited below, and `done` rejects with it, which
+  // nothing awaits then (here and in the other transactions of this file). WebKit fails the
+  // write in flight each time it suspends the app.
+  tx.done.catch(() => undefined);
   const eventStore = tx.objectStore(EVENT_STORE);
   const metaStore = tx.objectStore(META_STORE);
   const stats = { ...((await metaStore.get(STATS_KEY)) ?? EMPTY_STATS) };
@@ -359,6 +405,7 @@ const readStoredEvents = async (): Promise<{
 }> => {
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readonly');
+  tx.done.catch(() => undefined);
   const stored = await tx.objectStore(EVENT_STORE).getAll();
   const storedStats = await tx.objectStore(META_STORE).get(STATS_KEY);
   await tx.done;
@@ -473,7 +520,7 @@ export const recordDeepTraceEvent = (
   }
 
   target.sequence += 1;
-  const normalizedData = safeData(data);
+  const normalizedData = safeData(normalizedName, data);
   const event: DeepTraceEvent = {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
     sessionId: target.sessionId,
@@ -561,7 +608,10 @@ const getRequestMethod = (input: RequestInfo | URL, init?: RequestInit): string 
 };
 
 const getErrorCode = (value: unknown): number => {
-  const name = value instanceof Error ? value.name : typeof value;
+  // A DOMException is an Error in browsers, though not in every runtime.
+  const isError =
+    value instanceof Error || (typeof DOMException === 'function' && value instanceof DOMException);
+  const name = isError ? (value as Error).name : typeof value;
   return (
     {
       AbortError: 1,
@@ -574,9 +624,37 @@ const getErrorCode = (value: unknown): number => {
       URIError: 8,
       object: 9,
       string: 10,
+      InvalidStateError: 11,
+      QuotaExceededError: 12,
+      UnknownError: 13,
     }[name] ?? 0
   );
 };
+
+/**
+ * What a failure did to the Matrix sync store's saved data. 'failed': a save failed, the data is
+ * kept and the save is tried again (of the saves that fail in a row, only the first is recorded).
+ * 'stopped': a sync batch could not be taken, the data is kept and nothing more is saved.
+ * 'degraded': the data is deleted, because the saved sync could not be read, a clear of a
+ * room's stored members failed, or the disk was full (code 12). `error_code` is `getErrorCode`'s.
+ */
+export const recordSyncStoreFailure = (
+  outcome: 'failed' | 'stopped' | 'degraded',
+  error: unknown
+): void =>
+  recordDeepTraceEvent(
+    `storage.sync_store.${outcome}`,
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
+
+/** The replay of the saved sync threw at start; the client went on with what it had replayed. */
+export const recordSavedReplayFailure = (error: unknown): void =>
+  recordDeepTraceEvent(
+    'sync.saved_replay.failed',
+    { error_code: getErrorCode(error) },
+    { flush: true }
+  );
 
 const getSourceCode = (filename: string): number => {
   if (!filename) return 0;
@@ -678,7 +756,43 @@ const startGlobalCapture = (target: Runtime): void => {
   const pointerDown = (event: PointerEvent) => {
     const action = classifyFlightRecorderAction(event.target);
     setFlightRecorderLastAction(action);
+    // The slide's input shield is a pseudo-element: its pointer target is the stage itself.
+    const slide = document.documentElement.dataset.pageSlide;
+    const slideDetails =
+      action.kind === 'surface' &&
+      action.surface === 'app' &&
+      (slide === 'forward' || slide === 'back')
+        ? {
+            phone_slide_back: slide === 'back',
+            phone_slide_stage_hit:
+              event.target instanceof Element && event.target.hasAttribute('data-phone-stage'),
+          }
+        : undefined;
+    const surface =
+      action.kind === 'surface' && event.target instanceof Element ? event.target : undefined;
+    const conversation = surface && liveElement('[data-conversation-behind-panel]');
+    // Own-frame plugin panels have no shared DOM wrapper to sample.
+    const panel = surface && liveElement('[data-testid="resizable-plugin-panel"]');
+    const appRoot = surface && document.getElementById('root');
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
+      ...slideDetails,
+      ...(surface
+        ? {
+            hit_tag: surface.localName,
+            hit_test_id:
+              surface.closest(SURFACE_HIT_TEST_SELECTOR)?.getAttribute('data-testid') ?? null,
+            ...(slide === '' ? { phone_slide_waiting: true } : undefined),
+            blocking_portal: hasBlockingPortalOverlay(),
+            open_overlay: hasOpenOverlay(),
+            hit_outside_app_root: appRoot ? !appRoot.contains(surface) : null,
+            plugin_panel_open: !!liveElement('[data-plugin-panel-open]'),
+            plugin_panel_inert: panel ? !!panel.closest('[inert]') : null,
+            conversation_inert: conversation ? !!conversation.closest('[inert]') : null,
+            conversation_behind_panel: conversation
+              ? conversation.getAttribute('data-conversation-behind-panel') === 'true'
+              : null,
+          }
+        : undefined),
       primary: event.isPrimary,
       pointer_count: event.pointerType === 'touch' ? 1 : 0,
     });
@@ -878,7 +992,9 @@ const markUnavailable = (target: Runtime): void => {
 
 const verifyDatabaseWritable = async (): Promise<void> => {
   const db = await getDatabase();
-  const current = (await db.get(META_STORE, STATS_KEY)) ?? EMPTY_STATS;
+  // Not `db.get`: it leaves `tx.done` unobserved, which an aborted read rejects.
+  const tx = db.transaction(META_STORE, 'readonly');
+  const [current = EMPTY_STATS] = await Promise.all([tx.store.get(STATS_KEY), tx.done]);
   await db.put(
     META_STORE,
     { ...current, droppedEventCount: current.droppedEventCount ?? 0 },
@@ -1027,6 +1143,7 @@ export const clearDeepTrace = async (): Promise<void> => {
   }
   const db = await getDatabase();
   const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  tx.done.catch(() => undefined);
   await tx.objectStore(EVENT_STORE).clear();
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;

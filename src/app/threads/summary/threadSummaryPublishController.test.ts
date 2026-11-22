@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   getActiveThreadSummaryInfo,
   useThreadSummaryPublishController,
@@ -24,7 +24,7 @@ const SummaryPublishHarness = ({
   onStoreThreadSummary,
   threadId,
 }: {
-  onStoreThreadSummary: ReturnType<typeof vi.fn>;
+  onStoreThreadSummary: Mock;
   threadId: string;
 }) => {
   useThreadSummaryPublishController({
@@ -73,7 +73,7 @@ describe('getActiveThreadSummaryInfo', () => {
         thread: {
           events: [older],
           timeline: [],
-        } as never,
+        },
         threadEvents: [newer],
         threadId: '$thread',
       })

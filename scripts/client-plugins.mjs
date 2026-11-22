@@ -19,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
-export const CLIENT_PLUGIN_API_VERSION = 65;
+export const CLIENT_PLUGIN_API_VERSION = 66;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -68,7 +68,6 @@ export const SHARED_PACKAGES = [
   '@tanstack/query-core',
   'react-router',
   'react-router-dom',
-  '@remix-run/router',
   'i18next',
   'react-i18next',
   'folds',
@@ -360,7 +359,16 @@ export const clientPlugins = (env = process.env) => {
       if (!name) return null;
       const owner = ownerOf(importer);
       if (!owner) return null;
-      const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });
+      // As an import even for a CommonJS `require` (Vite 6 and later resolve that with the
+      // `require` condition), so that the plugin gets the build the app imports, not a second one.
+      const resolved = await this.resolve(source, ENTRIES_MODULE, {
+        ...options,
+        custom: {
+          ...options.custom,
+          'node-resolve': { ...options.custom?.['node-resolve'], isRequire: false },
+        },
+        skipSelf: true,
+      });
       if (!resolved) {
         const file = path.relative(owner.root, importer);
         this.error(

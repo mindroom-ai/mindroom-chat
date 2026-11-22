@@ -32,7 +32,7 @@ describe('roomThreadFilterState', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage;
+    };
 
     vi.stubGlobal('localStorage', localStorageMock);
     vi.stubGlobal('window', {
@@ -87,8 +87,34 @@ describe('roomThreadFilterState', () => {
     unmount();
   });
 
+  it('loads older room filters as off and round-trips a For me choice', async () => {
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
+      './roomThreadFilterState'
+    );
+    const key = getRoomThreadFilterStorageKey('@alice:example.org', '!room-a:example.org');
+    const atom = roomThreadFilterAtomFamily('@alice:example.org', '!room-a:example.org');
+    const store = createStore();
+    const unmount = store.sub(atom, () => undefined);
+    const load = (raw: string) => {
+      localStorageMock.setItem(key, raw);
+      emitStorageEvent(key);
+      return store.get(atom);
+    };
+    const legacy = load('{"v":2,"resolved":"include"}');
+    const enabled = { ...legacy!, forMe: true };
+    store.set(atom, enabled);
+    expect(load(storageState.get(key)!)).toEqual(enabled);
+    expect(legacy?.forMe ?? false).toBe(false);
+    const disabled = { ...enabled, forMe: false };
+    store.set(atom, disabled);
+    expect(load(storageState.get(key)!)).toEqual(disabled);
+    unmount();
+  });
+
   it('keeps a chosen filter that equals the default, and removes the key when cleared', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -136,7 +162,9 @@ describe('roomThreadFilterState', () => {
   });
 
   it('evicts cached atom-family entries so a removed account re-added in the same tab loads defaults', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const {
       clearRoomThreadFiltersStore,
       getRoomThreadFilterStorageKey,
@@ -176,7 +204,9 @@ describe('roomThreadFilterState', () => {
   });
 
   it('isolates the same roomId across different users', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const { roomThreadFilterAtomFamily } = await import('./roomThreadFilterState');
 
     const roomId = '!shared-room:example.org';
@@ -204,7 +234,9 @@ describe('roomThreadFilterState', () => {
   });
 
   it('updates mounted consumers when a storage event changes the same key', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -265,7 +297,9 @@ describe('roomThreadFilterState', () => {
   });
 
   it('migrates older stored payloads by defaulting missing query and status mode', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -297,6 +331,7 @@ describe('roomThreadFilterState', () => {
     // A payload stored before snoozing existed hides snoozed threads.
     expect(store.get(atom)).toEqual({
       ...createDefaultThreadFilterState(),
+      forMe: undefined,
       resolved: 'include',
       snoozed: 'exclude',
       streaming: 'exclude',
@@ -310,7 +345,9 @@ describe('roomThreadFilterState', () => {
   });
 
   it('migrates the authoritative v1 DSL into canonical structured fields and free text', async () => {
-    const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
+    const { createDefaultThreadFilterState } = await import(
+      '../../event-store/threads/roomThreadOverviewModel'
+    );
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
     );
@@ -340,6 +377,7 @@ describe('roomThreadFilterState', () => {
 
     expect(store.get(atom)).toEqual({
       ...createDefaultThreadFilterState(),
+      forMe: undefined,
       resolved: 'exclude',
       snoozed: 'exclude',
       tags: new Map([['priority', 'include']]),

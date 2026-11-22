@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "可滚动表格",
-    "scrollHint": "水平滚动"
+    "scrollHint": "水平滚动",
+    "readByRow": "按行阅读",
+    "showTable": "显示表格"
   },
   "messageCodeBlock": {
     "actions": "代码块操作",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "该空间已被替换并且不再活跃。",
       "openNewSpace": "打开新空间",
       "joinNewSpace": "加入新空间",
-      "lobby": "大堂",
       "messageSearch": "消息搜索",
       "failedToJoinReplacementSpace": "加入替换空间失败！",
       "rooms": "房间",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "继续录音",
       "statusActive": "正在录音",
       "statusPaused": "录音已暂停",
-      "statusProcessing": "处理录音",
       "statusReadyToRetry": "录音准备重试",
+      "recoveredRecording": "已恢复的录音 · {{time}}",
       "statusSending": "发送录音",
       "statusStarting": "开始录音",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "argumentsMayDifferBetweenCalls": "每次调用的参数可能不同。",
         "requestedBy": "由{{requester}}请求"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由智能体正在转写"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI正在响应"
       },
@@ -2917,7 +2915,9 @@
       "computerUnavailable": "此代理的电脑不可用。",
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",
-      "settingsUnavailable": "关闭简单模式以打开此设置部分。"
+      "settingsUnavailable": "关闭简单模式以打开此设置部分。",
+      "canvasCard": "交互式面板",
+      "reminderCard": "提醒 · {{when}}"
     },
     "canvas": {
       "panelLabel": "交互式面板",

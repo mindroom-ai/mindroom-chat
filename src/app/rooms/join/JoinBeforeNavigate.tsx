@@ -514,7 +514,7 @@ function PageBack({ addresses }: { addresses: string[] }) {
   const leave = () => {
     const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
     if (origin) {
-      navigate(-origin.steps);
+      void navigate(-origin.steps);
       return;
     }
     let list = getHomePath();
@@ -522,7 +522,7 @@ function PageBack({ addresses }: { addresses: string[] }) {
     if (space && !addresses.includes(space)) {
       list = getSpacePath(getCanonicalAliasOrRoomId(mx, space));
     } else if (direct) list = getDirectPath();
-    navigate(list, { replace: true });
+    void navigate(list, { replace: true });
   };
   return <PhoneBackButton onBack={leave} />;
 }

@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useId, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, Icons, Text } from 'folds';
+import { Button, Icon, Icons, type IconSrc, Text } from 'folds';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -11,19 +11,17 @@ import { archivedRoomsAtom, isRoomVisible } from '../../matrix/state/archivedRoo
 import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
+  matchesSidebarThreadInvolvement,
   MAX_SIDEBAR_THREADS,
   type SidebarThreadSectionId,
 } from './threadNavCategoryUtils';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { useMinuteClock } from '../../lib/hooks/useMinuteClock';
-import {
-  makeThreadSidebarPreferencesAtom,
-  type ThreadSidebarLayout,
-} from '../../threads/cross-room/threadSidebarPreferences';
+import { makeThreadSidebarPreferencesAtom } from '../../threads/cross-room/threadSidebarPreferences';
+import { GroupThreadsIcon } from '../../threads/overview/GroupThreadsIcon';
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { ThreadNavItem } from './ThreadNavItem';
 import * as css from './threadNav.css';
-import * as threadsNavCss from '../../threads/page/ThreadsNav.css';
 import { NavCategory } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
@@ -41,11 +39,41 @@ export const THREAD_NAV_CATEGORY_ID = makeNavCategoryId('mindroom', 'threads');
 export const threadNavSectionCategoryId = (id: SidebarThreadSectionId): string =>
   makeNavCategoryId('mindroom', 'threads', id);
 
-const LAYOUTS: ThreadSidebarLayout[] = ['recent', 'sections'];
-const LAYOUT_LABEL_KEYS = {
-  recent: 'threadNav.layoutRecent',
-  sections: 'threadNav.layoutSections',
-} as const;
+function HeaderToggle({
+  label,
+  hint,
+  icon,
+  pressed,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  icon: IconSrc;
+  pressed: boolean;
+  onClick: () => void;
+}) {
+  const hintId = useId();
+  return (
+    <>
+      <span id={hintId} hidden>
+        {hint}
+      </span>
+      <button
+        type="button"
+        className={css.HeaderToggle}
+        aria-label={label}
+        aria-describedby={hintId}
+        aria-pressed={pressed}
+        onClick={onClick}
+      >
+        <Icon size="50" src={icon} aria-hidden />
+        <span className={css.HeaderToggleLabel} aria-hidden>
+          {label}
+        </span>
+      </button>
+    </>
+  );
+}
 
 type ThreadNavCategoryProps = {
   /** Shows only the threads of rooms in this space, nested ones included. */
@@ -54,10 +82,10 @@ type ThreadNavCategoryProps = {
 
 /**
  * The sidebar's THREADS category: threads across rooms that are neither resolved nor snoozed, by
- * latest activity, the user's pinned ones first; or, in the Sections layout the header switches
- * to, every thread in Working, Later, Idle and Resolved (`buildSidebarThreadSections`), each
- * section folding on its own. Direct messages and archived rooms are left out. It collapses like
- * the ROOMS category, but starts collapsed until the person opens it (`ClientInitStorageAtom`).
+ * latest activity, the user's pinned ones first; or, with Group on, threads in Idle (Needs you),
+ * Working, Later and Resolved (Done) (`buildSidebarThreadSections`), each section folding on its own.
+ * Direct messages and archived rooms are left out. It collapses like the ROOMS category, but
+ * starts collapsed until the person opens it (`ClientInitStorageAtom`).
  */
 export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const { t } = useTranslation();
@@ -88,48 +116,40 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
     )
   );
   const now = Math.max(minuteNow, snoozeNow);
-  const { layout } = preferences;
+  const { layout, involvedOnly, pinnedThreadKeys } = preferences;
+  const pinned = useMemo(() => new Set(pinnedThreadKeys), [pinnedThreadKeys]);
   const visible = useMemo(
     () =>
       Array.from(index.entries.values()).filter(
         (entry) =>
           isRoomVisible(entry.roomId, archivedRooms) &&
-          (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId))
+          (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId)) &&
+          matchesSidebarThreadInvolvement(entry, involvedOnly, pinned)
       ),
-    [archivedRooms, index.entries, roomToParents, spaceId]
+    [archivedRooms, index.entries, involvedOnly, pinned, roomToParents, spaceId]
   );
   const entries = useMemo(
     () =>
       layout === 'recent'
         ? buildSidebarThreadEntries(
             visible,
-            preferences.pinnedThreadKeys,
+            pinnedThreadKeys,
             directRoomIds,
             MAX_SIDEBAR_THREADS,
             now
           )
         : [],
-    [directRoomIds, layout, now, preferences.pinnedThreadKeys, visible]
+    [directRoomIds, layout, now, pinnedThreadKeys, visible]
   );
   const sections = useMemo(() => {
     if (layout !== 'sections') return [];
     // The client's shared signals cache, which Activity keeps filled for every thread.
     const reader = getThreadSignalsReader(mx);
-    return buildSidebarThreadSections(
-      visible,
-      preferences.pinnedThreadKeys,
-      directRoomIds,
-      now,
-      (entry) => {
-        const room = mx.getRoom(entry.roomId);
-        return room ? reader.read(room, entry, userId, now) : undefined;
-      }
-    );
-  }, [directRoomIds, layout, mx, now, preferences.pinnedThreadKeys, userId, visible]);
-  const pinned = useMemo(
-    () => new Set(preferences.pinnedThreadKeys),
-    [preferences.pinnedThreadKeys]
-  );
+    return buildSidebarThreadSections(visible, pinnedThreadKeys, directRoomIds, now, (entry) => {
+      const room = mx.getRoom(entry.roomId);
+      return room ? reader.read(room, entry, userId, now) : undefined;
+    });
+  }, [directRoomIds, layout, mx, now, pinnedThreadKeys, userId, visible]);
   const togglePin = useCallback(
     (threadKey: string) => updatePreferences({ type: 'TOGGLE_PIN', threadKey }),
     [updatePreferences]
@@ -144,35 +164,39 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
       data-category-id={THREAD_NAV_CATEGORY_ID}
       closed={closed}
       onClick={handleCategoryClick}
+      className={css.CategoryToggle}
     >
       {t('threadNav.title')}
     </RoomNavCategoryButton>
   );
 
   const rowsProps = { pinnedKeys: pinned, isOpen, onTogglePin: togglePin };
+  const grouped = layout === 'sections';
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader>
+      <NavCategoryHeader className={css.CategoryHeader}>
         {toggle}
         {!closed && (
-          <div
-            className={threadsNavCss.Scopes}
-            role="radiogroup"
-            aria-label={t('threadNav.layout')}
-          >
-            {LAYOUTS.map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={layout === id}
-                className={threadsNavCss.Scope}
-                onClick={() => updatePreferences({ type: 'SET_LAYOUT', layout: id })}
-              >
-                {t(LAYOUT_LABEL_KEYS[id])}
-              </button>
-            ))}
+          <div className={css.HeaderControls}>
+            <HeaderToggle
+              label={t('threadNav.group')}
+              hint={t('threadNav.groupHint')}
+              icon={GroupThreadsIcon}
+              pressed={grouped}
+              onClick={() =>
+                updatePreferences({ type: 'SET_LAYOUT', layout: grouped ? 'recent' : 'sections' })
+              }
+            />
+            <HeaderToggle
+              label={t('threadNav.forMe')}
+              hint={t('threadNav.forMeHint')}
+              icon={Icons.User}
+              pressed={involvedOnly}
+              onClick={() =>
+                updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
+              }
+            />
           </div>
         )}
       </NavCategoryHeader>
@@ -180,7 +204,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
         <div data-testid="thread-nav-list">
           {entries.length === 0 && sections.length === 0 && (
             <Text className={css.CategoryState} as="p" priority="300" size="T200">
-              {t('threadNav.empty')}
+              {t(involvedOnly ? 'threadNav.emptyForMe' : 'threadNav.empty')}
             </Text>
           )}
           <ThreadNavRows entries={entries} {...rowsProps} />

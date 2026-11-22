@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
-      "invited": "Se invitó a {{user}}."
+      "invited": "Se invitó a {{user}}.",
+      "giveRoleRights": "Dar permisos de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
+      "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -279,6 +284,50 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Algunas imágenes no se pueden cargar en esta ventana: el navegador no ejecuta aquí ningún service worker para MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Cerrar",
+      "configuredTools": "Herramientas configuradas",
+      "toolCount_one": "{{count}} herramienta",
+      "toolCount_many": "{{count}} de herramientas",
+      "toolCount_other": "{{count}} herramientas",
+      "groupCount_one": "{{count}} grupo",
+      "groupCount_many": "{{count}} de grupos",
+      "groupCount_other": "{{count}} grupos",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "También {{groups}}",
+      "viewAll_one": "Ver las {{count}} herramientas",
+      "viewAll_many": "Ver los {{count}} de herramientas",
+      "viewAll_other": "Ver las {{count}} herramientas",
+      "toolsTitle": "Herramientas de {{name}}",
+      "filter": "Filtrar herramientas",
+      "noMatch": "Ninguna herramienta coincide.",
+      "back": "Atrás",
+      "more": "Más",
+      "worksIn": "Trabaja en",
+      "loading": "Cargando herramientas configuradas",
+      "availability": "La disponibilidad puede variar según la solicitud y los permisos.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Código y archivos",
+        "research": "Web",
+        "productivity": "Planificación y memoria",
+        "email": "Correo",
+        "mcp": "Apps conectadas",
+        "integrations": "Integraciones",
+        "communication": "Chat y mensajes",
+        "entertainment": "Multimedia",
+        "information": "Información",
+        "smart_home": "Casa inteligente",
+        "social": "Social",
+        "other": "Otras"
+      }
+    },
+    "space": {
+      "overview": "Resumen del espacio"
     }
   },
   "featureUi": {
@@ -399,9 +448,11 @@
         "profile": "foto de perfil, foto, nombre, apodo",
         "deactivate": "eliminar cuenta, cerrar cuenta",
         "localMindroom": "vincular, código de vinculación, local, escritorio",
+        "voiceKey": "mensaje de voz, micrófono, grabar, pulsar para hablar, Control, Ctrl, Mayús, Shift, Espacio, atajo de teclado",
         "emoji": "emoji, stickers, paquetes, emoji personalizados",
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
-        "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir"
+        "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
+        "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -436,6 +487,7 @@
         "close": "Cerrar la vista de la llamada",
         "participants": "Personas en la llamada",
         "connecting": "Conectando…",
+        "connectingAnotherCall": "Conectando a otra llamada…",
         "reconnecting": "Reconectando…",
         "ended": "La llamada terminó.",
         "waitingFor": "Esperando a {{name}}…",
@@ -456,7 +508,7 @@
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
         "connection": "Se perdió la conexión de la llamada.",
-        "device": "No se pudo usar tu micrófono o tu cámara.",
+        "device": "No se pudo usar un micrófono, una cámara o un altavoz.",
         "untrustedService": "Esta llamada usa un servicio de llamadas que tu servidor no ofrece, así que no puedes unirte desde aquí."
       },
       "devices": {
@@ -549,7 +601,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} falló: {{reason}}",
         "usage": "No se pudo ejecutar {{command}}. {{usage}}",
-        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain."
+        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain.",
+        "thisApp": "Esta app",
+        "mindroomAgents": "Agentes de MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Este servidor no puede buscar mensajes por hora.",
@@ -567,7 +621,8 @@
     },
     "accountMenu": {
       "open": "Abrir el menú de la cuenta de {{name}}",
-      "manageAccounts": "Gestionar cuentas"
+      "otherAccounts": "Otras cuentas",
+      "manage": "Gestionar"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de la A a la Z"
@@ -688,6 +743,9 @@
         "save": "Guardar",
         "saved": "Guardado",
         "clear": "Borrar",
+        "saveSetting": "Guardar {{setting}}",
+        "savedSetting": "Guardado: {{setting}}",
+        "clearSetting": "Borrar {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",
         "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
@@ -697,6 +755,41 @@
           "default": "Predeterminado",
           "auto": "A cualquier mensaje",
           "mentions": "Solo si los mencionan"
+        },
+        "sections": {
+          "agents": "Agentes",
+          "threadTitles": "Títulos de hilos"
+        },
+        "model": {
+          "label": "Modelo",
+          "description": "Modelo predeterminado para cada agente, equipo y enrutador en esta sala. Las selecciones por hilo siguen teniendo prioridad.",
+          "default": "Usar el valor predeterminado configurado",
+          "defaultDescription": "Seguir el valor predeterminado configurado en MindRoom para esta sala.",
+          "unknown": "Modelo desconocido: «{{value}}» no está en la lista de modelos de esta sala.",
+          "catalogUnavailable": "No hay ninguna lista de modelos disponible en este momento. Aun así puedes restablecer al valor predeterminado configurado.",
+          "storedRaw": "Ajuste de la sala: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modo de hilos",
+          "description": "Si los agentes responden en hilos o en la línea temporal principal de esta sala.",
+          "default": "Usar el valor predeterminado configurado",
+          "thread": "Hilos",
+          "room": "Línea temporal principal",
+          "effective": "Modo efectivo actual: {{mode}}",
+          "effectiveModes": {
+            "thread": "Hilos",
+            "room": "Línea temporal principal",
+            "mixed": "Mixto (varía según el agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modelo de títulos",
+          "description": "Modelo que genera los títulos automáticos de los hilos de esta sala."
+        },
+        "agentInstructions": {
+          "label": "Instrucciones para los agentes",
+          "description": "Instrucciones adicionales que se dan a cada agente al responder en esta sala. Los moderadores pueden editarlas; no conceden permisos adicionales a los agentes. Todas las personas de la sala pueden leerlas y el estado de la sala no está cifrado de extremo a extremo, así que no pongas secretos aquí.",
+          "placeholder": "Por ejemplo: mantén las respuestas breves y responde en neerlandés"
         }
       }
     },
@@ -873,7 +966,10 @@
         "nameChose": "{{name}} eligió"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagentes"
+        "subagents": "Subagentes",
+        "writtenToCache": "Escritos en caché",
+        "notCached": "Sin caché",
+        "conversation": "Conversación"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En ejecución desde hace {{duration}}",
@@ -962,7 +1058,8 @@
         "searchFailed": "La búsqueda falló. Inténtalo de nuevo.",
         "resultCountFor_one": "{{count}} resultado para «{{term}}»",
         "resultCountFor_many": "{{count}} de resultados para «{{term}}»",
-        "resultCountFor_other": "{{count}} resultados para «{{term}}»"
+        "resultCountFor_other": "{{count}} resultados para «{{term}}»",
+        "retry": "Reintentar"
       }
     },
     "notifications": {
@@ -979,7 +1076,10 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados"
+        "advancedFilters": "Filtros avanzados",
+        "includeResolvedThreads": "Incluir hilos resueltos",
+        "hideResolvedThreads": "Ocultar hilos resueltos",
+        "forMeSummary": "{{summary}}. Filtro «Para mí» activado."
       },
       "threadPeopleFilter": {
         "label": "Personas",
@@ -1004,7 +1104,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expandir todos los mensajes largos",
-        "collapseAllLong": "Contraer todos los mensajes largos"
+        "collapseAllLong": "Contraer todos los mensajes largos",
+        "showFullMessage": "Mostrar mensaje completo"
       }
     },
     "computer": {
@@ -1026,6 +1127,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Compactar el contexto de los agentes antes de su próxima respuesta en esta conversación.",
         "reply_mode": "Mostrar o cambiar si los agentes necesitan una mención para iniciar una conversación aquí (establecer/restablecer requiere un administrador de la sala)."
       }
     },
@@ -1041,9 +1143,6 @@
       "needApproval_one": "{{count}} necesita aprobación",
       "needApproval_many": "{{count}} necesitan aprobación",
       "needApproval_other": "{{count}} necesitan aprobación",
-      "toolCalls_one": "{{count}} llamada a herramienta",
-      "toolCalls_many": "{{count}} llamadas a herramientas",
-      "toolCalls_other": "{{count}} llamadas a herramientas",
       "tokens_one": "{{tokens}} token",
       "tokens_many": "{{tokens}} tokens",
       "tokens_other": "{{tokens}} tokens",
@@ -1057,7 +1156,34 @@
         "time": "Tiempo"
       },
       "stopTask": "Detener tarea",
-      "stopTaskFor": "Detener tarea: {{tool}}"
+      "stopTaskFor": "Detener tarea: {{tool}}",
+      "stopStepFailed": "No se pudo detener «{{step}}». Inténtalo de nuevo.",
+      "toolNames": {
+        "readFile": "Leer un archivo",
+        "writeFile": "Escribir un archivo",
+        "editFile": "Editar un archivo",
+        "searchFiles": "Buscar en archivos",
+        "browseFiles": "Revisar archivos",
+        "runCommand": "Ejecutar un comando",
+        "openPage": "Abrir una página web",
+        "searchWeb": "Buscar en la web",
+        "useBrowser": "Usar el navegador",
+        "checkMemory": "Consultar la memoria",
+        "updateMemory": "Actualizar la memoria",
+        "deleteMemory": "Eliminar un recuerdo",
+        "useMessages": "Usar mensajes de Matrix",
+        "schedule": "Programar una tarea",
+        "checkSchedule": "Consultar la agenda",
+        "updateSchedule": "Actualizar la agenda",
+        "cancelSchedule": "Cancelar una tarea programada",
+        "use": "Usar {{tool}}"
+      },
+      "jobTotal_one": "{{count}} tarea en segundo plano",
+      "jobTotal_many": "{{count}} tareas en segundo plano",
+      "jobTotal_other": "{{count}} tareas en segundo plano",
+      "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
+      "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
     },
     "subagents": {
       "title": "Subagentes",
@@ -1088,7 +1214,22 @@
       "withCount_one": "{{label}}, {{count}} activo",
       "withCount_many": "{{label}}, {{count}} activos",
       "withCount_other": "{{label}}, {{count}} activos",
-      "resize": "Cambiar el tamaño del panel de subagentes"
+      "resize": "Cambiar el tamaño del panel de subagentes",
+      "calls_one": "{{count}} llamada",
+      "calls_many": "{{count}} llamadas",
+      "calls_other": "{{count}} llamadas",
+      "now": "Ahora",
+      "needsApproval": "Necesita aprobación",
+      "result": "Resultado",
+      "turnNumber": "turno {{number}}",
+      "status": "Estado",
+      "toolCallsNote": "llamadas a herramientas",
+      "tokensSplit": "{{input}} entrada · {{output}} salida",
+      "costNested": "+{{cost}} anidados",
+      "costOwn": "esta ejecución",
+      "showUsageDetails": "Mostrar detalles de uso",
+      "showUsageDetailsDescription": "Muestra las llamadas a herramientas, los tokens y el coste en los subagentes y las tareas en segundo plano, y lo que hace cada uno ahora.",
+      "usage": "Uso"
     },
     "models": {
       "modelPicker": {
@@ -1106,6 +1247,8 @@
         "defaultChoice": "Predeterminado",
         "threadOnly": "El modelo que elijas aquí solo se aplica a este hilo.",
         "roomOverrideThreadOnly": "Establecido para esta sala con !room_model. El modelo que elijas aquí solo se aplica a este hilo.",
+        "chooseNextThread": "Elegir un modelo para el próximo hilo",
+        "nextThreadOnly": "Esta elección solo se aplica al próximo hilo.",
         "levels": {
           "off": "Desactivado",
           "minimal": "Mínimo",
@@ -1121,11 +1264,40 @@
       "pageUpdated": "{{agent}} ha actualizado esta página.",
       "shownInPanel": "Se muestra en el panel",
       "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
+    },
+    "invites": {
+      "invalid": "Este enlace de invitación está incompleto. Vuelve a abrir el enlace del correo.",
+      "reopen": "Has iniciado sesión. Vuelve a abrir el enlace de invitación de tu correo.",
+      "framed": "Abre esta página en su propia pestaña para usar la invitación.",
+      "ready": "Unirse a una sala a través de {{router}} como {{user}}",
+      "claiming": "Reclamando la invitación…",
+      "offline": "Este MindRoom no responde. Tu solicitud está guardada; la invitación aparecerá en tu lista de salas cuando vuelva.",
+      "rejected": "Esta invitación ya no es válida. Pide una nueva.",
+      "retry": "No ha funcionado. Inténtalo de nuevo en un momento.",
+      "joining": "Uniéndose a la sala…",
+      "join": "Unirse",
+      "tryAgain": "Reintentar"
+    },
+    "uiActions": {
+      "canvasOff": "Panel compartido · los paneles están desactivados en esta app",
+      "askForText": "Pedir una versión en texto",
+      "copyRequest": "Copiar solicitud",
+      "textVersionRequest": "Envía «{{title}}» aquí como texto, por favor. Los paneles interactivos están desactivados en mi app.",
+      "askForTextStatus": {
+        "hint": "Pone una solicitud en el redactor. No se envía nada hasta que pulses Enviar.",
+        "added": "Solicitud añadida al redactor. No se envía nada hasta que pulses Enviar.",
+        "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
+        "copied": "Solicitud copiada. Pégala en tu borrador."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "La grabación de voz está en pausa; termina o descarta la grabación sin enviar en otro lugar de esta sala",
     "voiceThreadRootUnsent": "El hilo de este mensaje de voz no tiene un primer mensaje enviado. Vuelve a intentarlo cuando ese mensaje se haya enviado o descarta la grabación.",
+    "voiceIndicator": {
+      "recording": "Grabando {{time}}",
+      "paused": "En pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
@@ -1145,7 +1317,10 @@
       "autoHint": "Dejar que el agente decida",
       "settingTitle": "Enviar mientras un agente responde",
       "settingDescription": "Mantén pulsado Enviar para elegir en un solo mensaje."
-    }
+    },
+    "replyInThread": "Responder en el hilo…",
+    "newThreadIn": "Nuevo hilo en {{room}}…",
+    "newThreadWith": "Nuevo hilo con {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1194,6 +1369,10 @@
     "hints": {
       "chip": "{{keys}} para ver todos los atajos"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} graba mensajes de voz",
+      "description": "Toca para empezar o enviar; mantén pulsado para hablar y suelta para enviar."
+    },
     "actions": {
       "palette": "Búsqueda y comandos",
       "settings": "Abrir ajustes",
@@ -1219,7 +1398,8 @@
       "newLine": "Nueva línea",
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",
-      "callView": "Ir a la llamada"
+      "callView": "Ir a la llamada",
+      "voiceRecord": "Mantén pulsado para grabar un mensaje de voz; toca para empezar o enviar"
     }
   },
   "thread": {
@@ -1253,7 +1433,10 @@
     "close": "Cerrar el hilo",
     "resizeSecond": "Cambiar el tamaño del segundo hilo",
     "second": "Segundo hilo",
-    "dropSecond": "Suelta para abrir en la segunda columna"
+    "dropSecond": "Suelta para abrir en la segunda columna",
+    "newUnknown": "Nuevo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Te menciona"
   },
   "threadSnooze": {
     "title": "Posponer hasta",
@@ -1584,9 +1767,10 @@
     }
   },
   "threadNav": {
-    "layout": "Disposición de los hilos",
-    "layoutRecent": "Recientes",
-    "layoutSections": "Secciones",
+    "forMe": "Para mí",
+    "forMeHint": "Solo los hilos en los que participas, en los que un agente publicó por ti o que has fijado",
+    "roomForMeHint": "Solo los hilos en los que participas o en los que un agente publicó por ti",
+    "emptyForMe": "Aún no hay hilos para ti",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
     "sections": {
@@ -1622,6 +1806,36 @@
   },
   "threadActions": {
     "openBeside": "Abrir en la segunda columna"
+  },
+  "roomSchedules": {
+    "thisThread": "Este hilo",
+    "elsewhereInRoom": "En otras partes de esta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tareas programadas",
+    "awaitingShort": "Pendiente",
+    "inSeconds": "en {{count}}s",
+    "inMinutes": "en {{count}}m",
+    "inHours": "en {{count}}h",
+    "inHoursMinutes": "en {{hours}}h {{minutes}}m",
+    "inDays": "en {{count}}d",
+    "thread": "Hilo",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalles",
+    "hideDetails": "Ocultar detalles",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "¿Cancelar esta tarea programada?",
+    "keep": "Conservar",
+    "cancelTask": "Cancelar tarea",
+    "cancelling": "Cancelando...",
+    "cancelError": "No se pudo cancelar la tarea. Inténtalo de nuevo.",
+    "cancellationSent": "Cancelación enviada",
+    "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
+    "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
   },
   "home": {
     "greeting": {

@@ -59,6 +59,8 @@ export type CapturedVoiceRecording = {
   file: File;
   duration: number;
   waveform: number[] | undefined;
+  /** Its disk copy in the journal, when it has one. */
+  recordingId?: string;
 };
 export type VoiceCaptureResult =
   | { status: 'captured'; recording: CapturedVoiceRecording }
@@ -76,22 +78,38 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: () => Promise<boolean>;
+  start: (userId?: string) => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
   finish: () => Promise<VoiceCaptureResult>;
-  discard: () => Promise<boolean>;
+  /** Stops the recorder as when it stops on its own: the audio it has parks (`onPark`). */
+  park: () => void;
+  /**
+   * Ends capture now: the microphone is released at once and the audio leaves memory. Its disk
+   * copy stays, unlocked, for the account to recover on a later page load.
+   */
   reset: () => void;
-  clearError: () => void;
-  releaseOwner: () => void;
+  /** `reset`, and the disk copy goes too: a confirmed Discard. Resolves once it is gone. */
+  discard: () => Promise<void>;
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
   Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
+/** The recording's disk copy (`voiceRecordingJournal.ts`), which this tab holds the lock of. */
+type CaptureJournal = {
+  id: string;
+  append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;
+  remove: () => Promise<void>;
+  release: () => void;
+};
+
 type Generation = {
+  journal?: CaptureJournal;
+  /** Settles once the disk copy of a discarded recording is gone. */
+  removed?: Promise<void>;
   acceptsEvents: boolean;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -107,7 +125,8 @@ type Generation = {
   samples: number[];
   elapsedMs: number;
   startedAt?: number;
-  action?: 'send' | 'discard';
+  /** A Send asked for the audio: the recorder's stop is expected. */
+  sending?: true;
   resolve?: (result: VoiceCaptureResult) => void;
   detach?: () => void;
 };
@@ -124,21 +143,26 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
     errorMessage: undefined,
   });
 
-export const createVoiceCaptureSession = (): VoiceCaptureSession => {
+/**
+ * `beginJournal` opens the disk copy each chunk is written to; `onPark` takes the audio of a
+ * recorder that stopped on its own and says whether it kept it. Both are injected
+ * (`startLiveVoiceRecording.ts`): capture knows no storage and no draft.
+ */
+export const createVoiceCaptureSession = (
+  beginJournal?: (startedAt: number, mimeType: string) => CaptureJournal | undefined,
+  onPark?: (recording: CapturedVoiceRecording) => boolean
+): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
   const listeners = new Set<() => void>();
   let snapshot = idleSnapshot();
   let current: Generation | undefined;
-  let released = false;
 
-  const owns = (generation: Generation) =>
-    !released && current === generation && generation.acceptsEvents;
+  const owns = (generation: Generation) => current === generation && generation.acceptsEvents;
   // A subscriber can accept a stop without replacing the generation.
   const isRecording = (generation: Generation) =>
-    owns(generation) && !generation.action && generation.recorder?.state === 'recording';
+    owns(generation) && !generation.sending && generation.recorder?.state === 'recording';
 
   const publish = (changes: Partial<VoiceCaptureSnapshot>) => {
-    if (released) return;
     snapshot = freezeSnapshot({ ...snapshot, ...changes });
     if (changes.phase)
       publishVoiceCaptureState(source, changes.phase === 'idle' ? 'inactive' : changes.phase);
@@ -185,35 +209,59 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     });
     generation.startedAt = undefined;
   };
-  // An accepted stop keeps its deadline through releaseOwner; only the end of the generation clears it.
+  // An accepted stop keeps its deadline until the generation ends.
   const clearStopTimer = (generation: Generation) => {
     if (generation.stopTimer !== undefined) clearTimeout(generation.stopTimer);
     generation.stopTimer = undefined;
   };
-  const retire = (generation: Generation) => {
+  const retire = (generation: Generation, forget = false) => {
     generation.acceptsEvents = false;
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
-    if (generation.recorder && generation.recorder.state !== 'inactive') {
+    const { recorder, journal } = generation;
+    if (journal && recorder && !forget) {
+      // The audio leaves memory unsent and its disk copy stays: what the stopping recorder still
+      // holds reaches it before its lock goes. A copy with no audio at all goes instead.
+      const elapsedMs = elapsed(generation);
+      let count = generation.chunks.length;
+      const keep = () => {
+        if (count) journal.release();
+        else void journal.remove();
+      };
+      const giveUp = setTimeout(keep, VOICE_RECORDER_STOP_TIMEOUT_MS);
+      recorder.addEventListener('dataavailable', (event) => {
+        const { data } = event as BlobEvent;
+        if (data.size === 0) return;
+        void journal.append(count, data, elapsedMs).catch(() => undefined);
+        count += 1;
+      });
+      recorder.addEventListener('stop', () => {
+        clearTimeout(giveUp);
+        keep();
+      });
+    } else generation.removed = journal?.remove();
+    if (recorder && recorder.state !== 'inactive') {
       try {
-        generation.recorder.stop();
+        recorder.stop();
       } catch {
         /* Tracks still release below. */
       }
     }
     releaseResources(generation);
     generation.recorder = undefined;
+    generation.journal = undefined;
     generation.chunks = [];
     generation.samples = [];
     generation.resolve?.({ status: 'ignored' });
     generation.resolve = undefined;
   };
-  const reset = () => {
+  const end = (forget: boolean) => {
     const generation = current;
     current = undefined;
-    if (generation) retire(generation);
+    if (generation) retire(generation, forget);
     publish(idleSnapshot());
+    return generation?.removed;
   };
   const sample = (generation: Generation) => {
     if (current !== generation || !generation.acceptsEvents || !generation.readLevel) return;
@@ -266,22 +314,27 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
+    generation.elapsedMs = elapsed(generation);
     releaseResources(generation);
     generation.recorder = undefined;
+    const journal = generation.journal;
+    generation.journal = undefined;
     const resolve = generation.resolve;
     generation.resolve = undefined;
     const isCurrent = current === generation;
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    if (generation.action !== 'send') {
+    // No Send asked for this stop: the recorder stopped on its own or was parked, and its audio
+    // parks. The Mac app's recorder has audio only when parked: it has none when it stops itself.
+    const park = !generation.sending && !!onPark;
+    if (!generation.sending && (!park || !generation.chunks.length)) {
+      void journal?.remove();
       update({
         phase: 'idle',
         elapsedMs: 0,
         waveform: createFallbackWaveform(),
-        ...(generation.action === 'discard'
-          ? {}
-          : { errorMessage: 'Voice recording stopped unexpectedly. Please record again.' }),
+        errorMessage: 'Voice recording stopped unexpectedly. Please record again.',
       });
       generation.chunks = [];
       generation.samples = [];
@@ -289,6 +342,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       return;
     }
     if (generation.chunks.length === 0) {
+      void journal?.remove();
       update({ phase: 'idle', errorMessage: 'No audio data was captured.' });
       generation.samples = [];
       resolve?.({ status: 'failed' });
@@ -310,12 +364,18 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.chunks = [];
     generation.samples = [];
     // The facade retains processing until delivery begins; capture diagnostics end here.
-    if (isCurrent && !released) releaseVoiceCaptureState(source);
-    resolve?.({ status: 'captured', recording: { file, duration, waveform } });
+    if (isCurrent) releaseVoiceCaptureState(source);
+    const recording = { file, duration, waveform, ...(journal && { recordingId: journal.id }) };
+    if (!park) {
+      resolve?.({ status: 'captured', recording });
+      return;
+    }
+    // Not kept (the draft slot is taken): the disk copy waits, unlocked, for a later page load.
+    if (!onPark?.(recording)) journal?.release();
+    update(idleSnapshot());
   };
-  const start = async () => {
-    if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
-    released = false;
+  const start = async (userId = '') => {
+    if (snapshot.phase !== 'idle' || current?.acceptsEvents) return false;
     if (current) retire(current);
     const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
     current = generation;
@@ -344,7 +404,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       let webRecorder: MediaRecorder | undefined;
       let mimeType: string | undefined;
       if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder();
+        const nativeRecorder = await startNativeVoiceRecorder(userId);
         if (!owns(generation)) {
           nativeRecorder.stop();
           return false;
@@ -385,7 +445,11 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       }
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
-        if (generation.acceptsEvents && data.size > 0) generation.chunks.push(data);
+        if (!generation.acceptsEvents || data.size === 0) return;
+        const seq = generation.chunks.length;
+        generation.chunks.push(data);
+        // A failed write never stops the recording.
+        void generation.journal?.append(seq, data, elapsed(generation)).catch(() => undefined);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
       generation.finishStop = onStop;
@@ -395,8 +459,18 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
+      if (webRecorder) {
+        try {
+          generation.journal = beginJournal?.(
+            generation.startedAt,
+            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+          );
+        } catch {
+          // Storage is best effort; capture still works from memory.
+        }
+        webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
+      }
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
@@ -412,21 +486,18 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   };
   const canStop = () =>
     !!current &&
-    !current.action &&
+    !current.sending &&
     (current.recorder?.state === 'recording' || current.recorder?.state === 'paused');
-  const stop = (action: 'send' | 'discard'): Promise<VoiceCaptureResult> => {
-    if (current?.action) return Promise.resolve({ status: 'ignored' });
-    if (!canStop()) {
-      if (action === 'discard') reset();
-      return Promise.resolve({ status: 'ignored' });
-    }
+  /** Stops the recorder for a Send, which gets the audio, or to park it. */
+  const stop = (sending: boolean): Promise<VoiceCaptureResult> => {
+    if (!canStop()) return Promise.resolve({ status: 'ignored' });
     const generation = current!;
     generation.elapsedMs = Math.max(0, Math.round(elapsed(generation)));
     generation.startedAt = undefined;
-    generation.action = action;
+    if (sending) generation.sending = true;
     clearTimers(generation);
     return new Promise((resolve) => {
-      // A processing subscriber can release ownership synchronously.
+      // A processing subscriber can reset the session synchronously.
       generation.resolve = resolve;
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
@@ -490,24 +561,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       publish({ phase: 'recording' });
       return isRecording(generation);
     },
-    finish: () => stop('send'),
-    discard: async () => {
-      await stop('discard');
-      return false;
+    finish: () => stop(true),
+    // A session with no recorder yet has no audio to park: it ends. One whose recorder is
+    // already stopping is left to finish, or its audio would be lost.
+    park: () => {
+      if (canStop()) void stop(false);
+      else if (!current?.recorder) void end(false);
     },
-    reset,
-    clearError: () => {
-      if (snapshot.errorMessage !== undefined) publish({ errorMessage: undefined });
-    },
-    releaseOwner: () => {
-      if (released) return;
-      released = true;
-      const generation = current;
-      current = undefined;
-      if (generation?.action === 'send' && generation.resolve) releaseResources(generation);
-      else if (generation) retire(generation);
-      snapshot = idleSnapshot();
-      releaseVoiceCaptureState(source);
-    },
+    reset: () => void end(false),
+    discard: async () => end(true),
   };
 };

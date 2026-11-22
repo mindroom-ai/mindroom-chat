@@ -39,7 +39,13 @@ import {
   conversationCoveredAtom,
   conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
-import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import {
+  dialogNoticeSlotsAtom,
+  drawerNoticeSlotAtom,
+  listNoticeSlotAtom,
+  pageNoticeSlotAtom,
+  sheetNoticeSlotAtom,
+} from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import {
@@ -48,13 +54,13 @@ import {
   activityUnreadOnlyAtom,
 } from '../activity/activityState';
 import { allRoomsAtom } from '../matrix/state/roomList';
-import { forgetComposerStateOfSession } from '../composer/roomInputDrafts';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { roomSettingsAtom } from '../navigation/roomSettingsState';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
+import { detachedGrantErrorAtom } from '../members/invite/moderatorInvite';
 import { userDirectoryCacheAtom } from '../members/userDirectoryCache';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
 
@@ -99,10 +105,8 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(activityShowAutomationsAtom),
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
-  // What the person was doing: composer replies and staged files, the call and its panel (and the
-  // focus Dock or Float hands its view), its transcription, Pause and live transcript panel, the
-  // Sub-agents panel, why an agent call did not start, and the dialogs and overlays open.
-  forgetComposerStateOfSession,
+  // What the pages were showing: the call and its panel (and its focus hand-off), transcription,
+  // the Sub-agents panel, agent-call failures, and open dialogs and overlays.
   forgetCallState,
   toInitial(focusHandOffAtom),
   toInitial(callTranscriptionAtom),
@@ -111,6 +115,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
   toInitial(agentCallFailureAtom),
+  toInitial(detachedGrantErrorAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),
@@ -131,6 +136,9 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(conversationUnderThreadAtom),
   toInitial(listNoticeSlotAtom),
   toInitial(pageNoticeSlotAtom),
+  toInitial(drawerNoticeSlotAtom),
+  toInitial(sheetNoticeSlotAtom),
+  toInitial(dialogNoticeSlotsAtom),
 ];
 
 /** Forgets everything {@link ACCOUNT_STATE} lists. */

@@ -2,6 +2,7 @@ import React, {
   FormEvent,
   MouseEvent,
   RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -169,7 +170,20 @@ export function MessageSearch({
     virtualItemCount: virtualItems.length,
   });
 
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = search;
+  const { hasNextPage, isFetchingNextPage, isError, fetchNextPage } = search;
+  // Nothing loads by itself while an error shows, or a list too short to scroll would ask again at
+  // once. A failed next page of this search offers Retry; other errors show at the top.
+  const searchKey = JSON.stringify([term, rooms, order]);
+  const [failedPageOf, setFailedPageOf] = useState<string>();
+  const pageFailed = failedPageOf === searchKey && isError;
+  // Any success ends that failure; a later error is classified afresh.
+  useEffect(() => {
+    if (!isError) setFailedPageOf(undefined);
+  }, [isError]);
+  const loadNext = useCallback(async () => {
+    const result = await fetchNextPage({ cancelRefetch: false });
+    setFailedPageOf(result.isError ? searchKey : undefined);
+  }, [fetchNextPage, searchKey]);
   // The results there are: those shown once every page is in, else the server's total less
   // the hits the loaded pages left out.
   const serverCount = pages?.at(-1)?.count;
@@ -182,7 +196,7 @@ export function MessageSearch({
     const check = () => {
       if (
         shouldFetchNextMessageSearchPage({
-          hasNextPage,
+          hasNextPage: hasNextPage && !isError,
           isFetchingNextPage,
           scrollTop: scroll.scrollTop,
           clientHeight: scroll.clientHeight,
@@ -190,13 +204,19 @@ export function MessageSearch({
         })
       ) {
         // A failed page shows as the query's error state; the promise itself never rejects.
-        void fetchNextPage();
+        void loadNext();
       }
     };
     check();
     scroll.addEventListener('scroll', check, { passive: true });
     return () => scroll.removeEventListener('scroll', check);
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, rows.length, scrollRef]);
+  }, [loadNext, hasNextPage, isError, isFetchingNextPage, rows.length, scrollRef]);
+
+  const searchFailed = (
+    <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
+      {t('mindroomUi.message-search.messageSearch.searchFailed')}
+    </Text>
+  );
 
   /** Rewrites the address with `change` applied; the search follows it. */
   const updateParams = (change: (next: URLSearchParams) => void) => {
@@ -457,11 +477,7 @@ export function MessageSearch({
           {t('mindroomUi.message-search.messageSearch.searchDescription')}
         </Text>
       )}
-      {search.status === 'error' && (
-        <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-          {t('mindroomUi.message-search.messageSearch.searchFailed')}
-        </Text>
-      )}
+      {search.status === 'error' && !pageFailed && searchFailed}
       {term && search.status === 'success' && groups.length === 0 && (
         <Text size="T300" priority="300">
           {t('mindroomUi.message-search.messageSearch.noResultsFor', { term })}
@@ -503,6 +519,19 @@ export function MessageSearch({
             .map((row, index) => <React.Fragment key={row.key}>{renderRow(index)}</React.Fragment>)}
       </div>
 
+      {pageFailed && (
+        <Box gap="300" alignItems="Center">
+          {searchFailed}
+          <Chip
+            variant="Secondary"
+            radii="400"
+            disabled={search.isFetching}
+            onClick={() => void loadNext()}
+          >
+            <Text size="B300">{t('mindroomUi.message-search.messageSearch.retry')}</Text>
+          </Chip>
+        </Box>
+      )}
       {isFetchingNextPage && (
         <Box justifyContent="Center">
           <Spinner size="200" variant="Secondary" />

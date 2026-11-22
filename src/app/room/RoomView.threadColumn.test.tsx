@@ -14,11 +14,9 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
-import {
-  getRoomInputDraftKey,
-  openVoiceRecorderAtom,
-  roomIdToMsgDraftAtomFamily,
-} from '../composer/roomInputDrafts';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -35,10 +33,12 @@ const state = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   main: undefined as RoomTimelineProps | undefined,
   focused: [] as (string | undefined)[],
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   approvalThread: 'unset' as string | undefined,
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
-  rootDeleted: () => undefined as void,
+  rootDeleted: () => undefined,
   threadNotFound: false,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   threadLoadError: (() => undefined) as (threadId: string) => void,
   resized: [] as (() => void)[],
   canMessage: true,
@@ -76,9 +76,11 @@ vi.mock('../event-store/engine/engineContext', () => ({
     clearRoomFocus: () => undefined,
   }),
 }));
+const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
     viewMode: 'compact',
+    handleToggleForMe: toggleForMe,
     effectiveThreadId: state.thread,
     handleExitThread: () => undefined,
     handleThreadRootDeleted: state.rootDeleted,
@@ -338,6 +340,12 @@ const tree = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Deskto
 const renderView = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) =>
   render(tree(props, screenSize));
 const rerenderView = (rerender: (ui: ReactNode) => void) => rerender(tree());
+it('passes the For me action from the room to its timeline', () => {
+  state.thread = undefined;
+  renderView();
+  expect(state.main?.onToggleForMe).toBe(toggleForMe);
+});
+
 const column = () => screen.queryByTestId('thread-view');
 const draftAtom = (threadId?: string) =>
   roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@alice:example.org', room.roomId, threadId));
@@ -489,6 +497,8 @@ it("fills the page with the column when its edge is dragged past the messages' l
   expect(screen.getByTestId('thread-column').dataset.expandPreview).toBe('true');
   expect(handle.getAttribute('aria-valuenow')).toBe(handle.getAttribute('aria-valuemax'));
   expect(handle.getAttribute('aria-valuetext')).toBe('Show the thread in full');
+  // It stays at its widest, beside the messages, until the release fills the page.
+  expect(screen.getByTestId('thread-column').style.width).toBe('640px');
   fireEvent.pointerUp(handle, { clientX: 100 });
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(column()?.dataset.thread).toBe('$thread');
@@ -706,30 +716,18 @@ it('shows the messages beside the thread while a second thread shows, without st
   expect(storedLayout()).toBeNull();
   expect(state.viewMounts).toBe(1);
 });
-it('keeps the messages beside the thread while a recording runs as the second thread closes', () => {
+it('holds no layout for a voice message being recorded as the second thread closes', () => {
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
   const store = getDefaultStore();
   const { rerender } = renderView({ besideWhileSecond: true });
-  // A voice message being recorded, which the messages' composer would lose with them.
-  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
+  // The account's recording belongs to no composer: the thread's own shows it once the
+  // messages, and their composer, go.
+  act(() => store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession));
   rerenderView(rerender);
-  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
-  expect(screen.getByTestId('messages')).toBeDefined();
-  // Sent or discarded, the stored layout holds again.
-  act(() => store.set(openVoiceRecorderAtom, undefined));
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByTestId('messages')).toBeNull();
   expect(storedLayout()).toBeNull();
-});
-it('holds the thread beside the messages for a recording in the room it was taken in, not the next', () => {
-  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
-  const store = getDefaultStore();
-  const { rerender } = renderView({ besideWhileSecond: true });
-  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
-  // The second thread closed, and straight on to another room with its thread open.
-  rerender(tree({ room: new Room('!other:example.org', mx, '@alice:example.org') }));
-  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
-  expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
-  act(() => store.set(openVoiceRecorderAtom, undefined));
+  act(() => store.set(liveVoiceRecordingAtom, undefined));
 });
 it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);

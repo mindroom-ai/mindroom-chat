@@ -13,6 +13,7 @@ import {
 } from '../../lib/sessionStoreConfig';
 import { getSafeLocalStorage, getStorageItemSafe } from '../../lib/safeLocalStorage';
 import { isRecord } from '../../lib/isRecord';
+import { withoutFragment } from '../../routes/afterLoginRedirectPath';
 
 export const SESSION_STORE_KEY = MINDROOM_SESSION_STORE_KEY;
 const SESSION_STORE_VERSION = 1;
@@ -500,9 +501,10 @@ export const updateSessionCredentials = (
 
 export const updateSessionLastPath = (
   sessionId: string,
-  lastKnownPath: string,
+  path: string,
   storage?: SessionStorage
 ): StoredSession | undefined => {
+  const lastKnownPath = withoutFragment(path);
   const existing = getSessionStore(storage).sessions.find(
     (session) => session.sessionId === sessionId
   );

@@ -14,7 +14,7 @@ import { getMemberAvatarMxc, getMemberRawDisplayName, withoutNameDisguises } fro
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
 import { useMessagePreview } from '../plugins/messageRenderers';
-import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
   threadIndexReplyPreview,
@@ -135,6 +135,7 @@ function RowActions({
         size="300"
         variant="Primary"
         radii="300"
+        className={css.ActionButton}
         disabled={busy || !room}
         onClick={run(
           () => (room ? acceptInvite(mx, room) : Promise.reject()),
@@ -149,6 +150,7 @@ function RowActions({
         variant="Secondary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(() => declineInvite(mx, row.roomId), t('activity.actions.declined'))}
       >
@@ -167,6 +169,7 @@ function RowActions({
               variant="Success"
               fill="Soft"
               radii="300"
+              className={css.ActionButton}
               disabled={busy}
               onClick={run(
                 () => answerApproval(mx, roomId, record, 'approved'),
@@ -183,6 +186,7 @@ function RowActions({
         variant="Secondary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(
           () => answerApproval(mx, roomId, record, 'denied'),
@@ -197,6 +201,7 @@ function RowActions({
         variant="Secondary"
         fill="None"
         radii="300"
+        className={css.ActionButton}
         onClick={(event: MouseEvent) => {
           event.stopPropagation();
           onDetails();
@@ -215,13 +220,14 @@ function RowActions({
         variant="Primary"
         fill="Soft"
         radii="300"
+        className={css.ActionButton}
         disabled={busy}
         onClick={run(
           () => answerQuestion(mx, room, threadId, question, option.key),
           t('activity.actions.answered', { label: option.label })
         )}
       >
-        <Text size="B300" {...ownDirectionLine}>
+        <Text size="B300" {...ownDirectionBlock}>
           {option.label}
         </Text>
       </Button>
@@ -270,7 +276,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const { t } = useTranslation();
   const useAuthentication = useMediaAuthentication();
   const time = useRelativeTime(row.ts, 'compact');
-  // The router posts approval cards; the row names the agent that asks, as the thread's card does.
+  // Use the approval card's named agent, not necessarily its sender, as the thread's card does.
   const asking =
     row.kind === 'approval' && row.signals.pendingApproval && room
       ? agentMember(room, row.signals.pendingApproval.approval.agentName)?.userId

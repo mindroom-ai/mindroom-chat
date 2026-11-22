@@ -21,16 +21,15 @@ import { keepUnopenedThreadEditsShown } from '../matrix/client/unopenedThreadEdi
 const roomId = '!room:example.org';
 const userId = '@alice:example.org';
 
-const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender: userId,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', body: eventId, ...content },
-  } as IEvent);
+const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender: userId,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', body: eventId, ...content },
+});
 const reply = (rootId: string, index: number, ts = index + 1): IEvent =>
   message(`${rootId}-reply-${index}`, ts, {
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
@@ -218,6 +217,25 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.initialEventsFetched).toBe(true);
     expect(thread.events.map((event) => event.getId())).toContain(`${rootIdAt(1)}-reply-4`);
     expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('older');
+  });
+
+  it('opens a thread while the first pages of three shown threads hang', async () => {
+    const roots = [1, 2, 3, 4].map((index) => summarizedRoot(rootIdAt(index), 3));
+    const f = server({ roots });
+    const room = roomFor(f.client);
+    room.processThreadRoots(roots.map(f.client.getEventMapper()), true);
+    const [opened, ...shown] = roots.map((root) => room.getThread(root.event_id)!).reverse();
+    // Three cards load their first page over a connection that answers nothing, as after a resume.
+    f.network.relationsHeld = new Promise(() => {});
+    shown.forEach((thread) => void thread.initialize());
+    await vi.waitFor(() => expect(f.relationPages()).toBe(3));
+
+    // The SDK lets three first pages load at a time (matrix-js-sdk #5519) and would queue this one.
+    f.network.relationsHeld = undefined;
+    await opened?.initialize();
+
+    expect(f.relationPages()).toBe(4);
+    expect(opened?.initialEventsFetched).toBe(true);
   });
 
   it('keeps a failed opening from resetting the thread on later events', async () => {

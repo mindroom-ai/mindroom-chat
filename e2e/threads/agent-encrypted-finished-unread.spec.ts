@@ -7,7 +7,6 @@ import {
   expect,
   mentionHelper,
   openNewSession,
-  readRouterWelcome,
   sendFromComposer,
   serverUnreadCounts,
   test,
@@ -190,7 +189,6 @@ const listsThreadCountsOnEverySync = async (stack: AgentStack, roomId: string) =
 const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], request: string) => {
   // Home lists the room; the room is in no space.
   const roomId = await createEncryptedAgentRoom(stack, 'Secure desk');
-  await readRouterWelcome(stack, roomId);
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   await mentionHelper(page, stack, request);
@@ -289,7 +287,6 @@ test('a reply that comes while the reader is away counts once, also after a relo
   let roomId: string | undefined;
   try {
     roomId = await createEncryptedAgentRoom(stack, 'Agenda desk');
-    await readRouterWelcome(stack, roomId);
     await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     await expect(composer(page)).toBeVisible({ timeout: 90_000 });
     // 30 words, one every quarter second.
@@ -392,7 +389,6 @@ const watchThenGoHome = async (
   ending: Ending
 ): Promise<string> => {
   const roomId = await createAgentRoom(stack, `Watched ${ending}`, encrypted);
-  await readRouterWelcome(stack, roomId);
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   if (ending === 'stop') {

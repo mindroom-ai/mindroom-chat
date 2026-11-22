@@ -35,25 +35,32 @@ const mocks = vi.hoisted(() => ({
     getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
   },
   historyState: { idx: 1, key: 'room-entry' },
+  replaceState: vi.fn(),
   location: { pathname: '/home/!room:example.org', search: '', hash: '' },
 }));
 
 vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
+    replaceState: mocks.replaceState,
   },
-} as unknown as Window & typeof globalThis);
+});
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
-    useParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
   };
 });
 
-vi.mock('../routes/historyStack', () => ({
+// The route's room segment, decoded as the hook gives it.
+vi.mock('./useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
+}));
+
+vi.mock('../routes/historyStack', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../routes/historyStack')>()),
   currentHistoryLocation: () => mocks.location,
 }));
 
@@ -163,6 +170,7 @@ describe('useRoomNavigate', () => {
     mocks.isNativeIOS.mockReset();
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.navigate.mockReset();
+    mocks.replaceState.mockReset();
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.spaces.clear();
@@ -206,6 +214,8 @@ describe('useRoomNavigate', () => {
         },
       }
     );
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(mocks.replaceState).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
@@ -428,7 +438,7 @@ describe('useRoomNavigate', () => {
     it('knows the room by an alias in the route', () => {
       inSpace();
       mocks.aliases.set('#room:example.org', roomId);
-      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      mocks.routeRoom = '#room:example.org';
       const { getSnapshot, renderer } = renderHookHarness();
 
       act(() => {
@@ -464,7 +474,7 @@ describe('useRoomNavigate', () => {
     it('keeps a room shown in Threads by its alias there', () => {
       inSpace();
       mocks.aliases.set('#room:example.org', roomId);
-      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      mocks.routeRoom = '#room:example.org';
       mocks.threadsSelected = true;
       const { getSnapshot, renderer } = renderHookHarness();
 

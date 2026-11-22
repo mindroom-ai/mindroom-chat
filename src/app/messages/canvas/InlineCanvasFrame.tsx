@@ -11,6 +11,7 @@ import {
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { canvasesEnabled } from '../../config/canvases';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../../matrix/matrix';
@@ -217,6 +218,7 @@ function PassiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanv
             {
               inline: true,
               raw: action.canvas.raw === true,
+              width: action.canvas.width,
               remote,
               pinned: action.canvas.libraries,
             }
@@ -227,6 +229,7 @@ function PassiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanv
       theme,
       action.canvas.title,
       action.canvas.raw,
+      action.canvas.width,
       action.canvas.libraries,
       libraries,
       remote,
@@ -299,7 +302,13 @@ function InteractiveInlineCanvas({ mx, room, action, libraries, remote }: Inline
         shown.title,
         libraries,
         saved.read(),
-        { inline: true, raw: shown.raw === true, remote, pinned: shown.libraries }
+        {
+          inline: true,
+          raw: shown.raw === true,
+          width: shown.width,
+          remote,
+          pinned: shown.libraries,
+        }
       ),
     buildKey: `${libraries}:${remote}:${restarts}`,
     onSaveState: (change, byUser) => {
@@ -368,7 +377,7 @@ export function InlineCanvasFrame({
       event.off(MatrixEventEvent.BeforeRedaction, redacted);
     };
   }, [event]);
-  if (config.mindroom?.canvas?.enabled !== true) return null;
+  if (!canvasesEnabled(config)) return null;
   const room = mx.getRoom(event.getRoomId());
   if (!room) return null;
   const action = readChatUiAction(event, mx.getSafeUserId(), room);
@@ -378,8 +387,8 @@ export function InlineCanvasFrame({
     mx,
     room,
     action,
-    libraries: config.mindroom.canvas.libraries === true,
-    remote: config.mindroom.canvas.remoteAssets === true,
+    libraries: config.mindroom?.canvas?.libraries === true,
+    remote: config.mindroom?.canvas?.remoteAssets === true,
   };
   if (readOnly) return <PassiveInlineCanvas key={action.eventId} {...props} />;
   if (openCanvasId === action.eventId)

@@ -97,7 +97,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       routedEvent: undefined as
         | undefined
         | { getId: () => string; threadRootId?: string; isSending: () => boolean },
-      clientConfig: { mindroom: {} } as ClientConfig,
+      clientConfig: { mindroom: {} },
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as
         | undefined
@@ -136,6 +136,10 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+// The composer's helpers draw with folds, which is mocked thin here.
+vi.mock('../../composer/RoomInputExtensions', () => ({
+  confirmedVoiceThreadId: (_room: unknown, threadId?: string) => threadId,
+}));
 vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
 vi.mock('../SecondThreadDropZone', () => ({ SecondThreadDropZone: () => null }));
 vi.mock('../MessageLinkCards', () => ({
@@ -154,8 +158,26 @@ vi.mock('../../members/PhoneMembersSheet.css', () => ({
   Layer: 'layer',
   Scrim: 'scrim',
   Panel: 'panel',
+  Members: 'sheet-members',
 }));
+// The sheet's notice place brings its styles; it is tested in ui/noticeSlots.test.tsx.
+vi.mock('../../ui/noticeSlots', async () => {
+  const { createElement, forwardRef } = await import('react');
+  return {
+    NoticeSlot: () => null,
+    DialogFrame: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>((props, ref) =>
+      createElement('div', { ref, role: 'dialog', ...props })
+    ),
+  };
+});
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
+// Its module reads `document` when it loads, which these tests stub.
+vi.mock('../../lib/portalOverlay', () => ({
+  holdModalSheet: () => () => undefined,
+  modalSheetOpen: () => false,
+  portalContainer: undefined,
+  hasBlockingPortalOverlay: () => false,
+}));
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
 vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
@@ -180,11 +202,14 @@ vi.mock('jotai', async () => {
   };
 });
 
+vi.mock('../../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({ eventId: roomState.eventId }),
+}));
+
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },
   useNavigationType: () => 'PUSH',
   useLocation: () => ({ key: 'entry' }),
-  useParams: () => ({ eventId: roomState.eventId }),
   useSearchParams: () => [new URLSearchParams(roomState.search)],
 }));
 
@@ -1031,7 +1056,8 @@ describe('Room', { timeout: 30_000 }, () => {
       });
     });
 
-    it('lists no canvases when the deployment has not enabled them', async () => {
+    it('lists no canvases when the deployment turns them off', async () => {
+      roomState.clientConfig = { mindroom: { canvas: { enabled: false } } };
       roomState.conversationCanvases = [entry('$listed')];
       const { Room } = await import('../Room');
       let renderer: ReturnType<typeof create>;
@@ -1106,10 +1132,13 @@ describe('Room', { timeout: 30_000 }, () => {
     await room.unmount();
   });
 
-  it('keeps canvas requests passive when the deployment has not enabled canvases', async () => {
+  it('keeps canvas requests passive when the deployment turns canvases off', async () => {
     vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
     roomState.clientConfig = {
-      mindroom: { uiActions: { autoOpenFromHomeservers: ['example.org'] } },
+      mindroom: {
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+        canvas: { enabled: false },
+      },
     };
     roomState.members = [
       { membership: 'join', userId: '@mindroom_helper:example.org' },

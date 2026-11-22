@@ -12,10 +12,12 @@ import { openOverlay } from '../../shortcuts/shortcutDom';
 import { shortcutHelpOpenAtom } from '../../navigation/shortcutHelpState';
 import { SHORTCUTS, findShortcut, usesCommandKey } from '../../shortcuts/shortcuts';
 import { hasShortcutHandler, runShortcut, useShortcut } from '../../shortcuts/useShortcut';
+import { useVoiceHoldShortcut } from '../../composer/voiceHoldShortcut';
 
 /**
  * The one window listener for the app's keyboard shortcuts, after every focused widget has had
- * the key; the help dialog (⌘/ or Ctrl+/); and the hints that holding ⌘ or Ctrl shows.
+ * the key; the help dialog (⌘/ or Ctrl+/); the hints that holding ⌘ or Ctrl shows; and the voice
+ * key, ⌃⇧Space (Ctrl+Shift+Space).
  */
 export function ShortcutRoot() {
   const composing = useComposingCheck();
@@ -23,6 +25,7 @@ export function ShortcutRoot() {
   const openPalette = useSetAtom(commandPaletteOpenAtom);
   const hintsEnabled = useSettingValue(settingsAtom, 'shortcutHints');
   const hintsShown = useShortcutHintHold(hintsEnabled);
+  useVoiceHoldShortcut(useSettingValue(settingsAtom, 'voiceHoldShortcut'));
   const closeHelp = useCallback(() => setHelpOpen(false), [setHelpOpen]);
 
   useShortcut('help', () => {

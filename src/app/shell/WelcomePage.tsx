@@ -223,7 +223,7 @@ function Greeting() {
 export function WelcomePage() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
-  const content = getWelcomePageContent(welcome as never, t);
+  const content = getWelcomePageContent(welcome, t);
   const showSetup = useWelcomeSetupPrompt();
   const setTour = useSetAtom(tourAtom);
   const agents = useHomeAgents();

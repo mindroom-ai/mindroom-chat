@@ -2,7 +2,9 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import {
   EventStatus,
+  EventType,
   MatrixEvent,
+  RelationType,
   MsgType,
   PendingEventOrdering,
   Room,
@@ -42,7 +44,7 @@ describe('createMatrixFetchFn', () => {
         origin: 'https://example.com',
       } as Location;
 
-      const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+      const fetchFn = createMatrixFetchFn(baseFetch);
       await fetchFn('/_matrix/client', { method: 'GET' });
     } finally {
       (globalThis as { location?: Location }).location = originalLocation;
@@ -63,7 +65,7 @@ describe('createMatrixFetchFn', () => {
         origin: 'https://example.com',
       } as Location;
 
-      const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+      const fetchFn = createMatrixFetchFn(baseFetch);
       await fetchFn('https://other.example.com/_matrix/client', { method: 'GET' });
     } finally {
       (globalThis as { location?: Location }).location = originalLocation;
@@ -79,7 +81,7 @@ describe('createMatrixFetchFn', () => {
       new URL(url).origin === 'https://hs.example' ? 'access-token' : undefined
     );
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://hs.example/_matrix/client/v3/sync', {
       headers: { Authorization: 'Bearer matrix-token' },
@@ -96,7 +98,7 @@ describe('createMatrixFetchFn', () => {
     // Fetch keeps custom headers across a cross-origin redirect.
     mocks.getCloudflareAccessToken.mockReturnValue('access-token');
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://hs.example/_matrix/client/v3/sync');
 
@@ -106,7 +108,7 @@ describe('createMatrixFetchFn', () => {
 
   it('keeps a captured Matrix delegate routed through dynamic tracing', async () => {
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://matrix.example/_matrix/client/v3/sync');
     await fetchFn('https://matrix.example/_matrix/client/v3/sync');
@@ -362,6 +364,229 @@ describe('createMatrixClient message sends', () => {
     expect(event.status).toBe(EventStatus.NOT_SENT);
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
+
+  it('bounds ring retries to the ring lifetime (30 s) instead of 60 s', async () => {
+    const { mx, room, fetchFn } = setup(['slow', 'slow', 'slow', 'slow']);
+    const txnId = 'txn-ring';
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      txnId
+    );
+    const outcome = sending.catch((error: Error) => error);
+    const event = room.getEventForTxnId(txnId)!;
+
+    // Attempts start at 0, 12 and 26 s; a fourth would start at 44 s, past the 30 s ring lifetime.
+    await vi.advanceTimersByTimeAsync(36_000 - 1);
+    expect(event.status).toBe(EventStatus.SENDING);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+  });
+
+  it('keeps the 60 s retry window for non-ring RTC notifications', async () => {
+    const { mx, room, fetchFn } = setup(['slow', 'slow', 'slow', 'slow', 'slow']);
+    const txnId = 'txn-group-note';
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'notification',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      txnId
+    );
+    const outcome = sending.catch((error: Error) => error);
+    const event = room.getEventForTxnId(txnId)!;
+
+    // Attempts start at 0, 12, 26 and 44 s (same 60 s window as ordinary messages).
+    await vi.advanceTimersByTimeAsync(54_000);
+
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+  });
+
+  it('keeps rings in their own queue so an expired ring does not reject a queued text message', async () => {
+    vi.useFakeTimers();
+    let finishFirstText!: () => void;
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/_matrix/client/versions')) throw new TypeError('Load failed');
+      if (url.includes('org.matrix.msc4075.rtc.notification')) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10_000);
+        });
+        throw new TypeError('Load failed');
+      }
+      if (url.endsWith('/txn-text-1')) {
+        await new Promise<void>((resolve) => {
+          finishFirstText = resolve;
+        });
+        return new Response(JSON.stringify({ event_id: '$text-1' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ event_id: '$text-2' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      userId: '@alice:example.org',
+      accessToken: 'token',
+      fetchFn,
+    });
+    const room = new Room('!room:example.org', mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    mx.store.storeRoom(room);
+
+    const ringSending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      'txn-ring'
+    );
+    const ringOutcome = ringSending.catch((error: Error) => error);
+    const firstText = mx.sendMessage(
+      room.roomId,
+      { msgtype: MsgType.Text, body: 'in flight' },
+      'txn-text-1'
+    );
+    const queuedText = mx.sendMessage(
+      room.roomId,
+      { msgtype: MsgType.Text, body: 'queued behind' },
+      'txn-text-2'
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.QUEUED);
+
+    // Let the ring exhaust its 30 s window and clear its own queue while text-2 is still queued.
+    await vi.advanceTimersByTimeAsync(36_000);
+    expect(await ringOutcome).toMatchObject({ name: 'ConnectionError' });
+    expect(room.getEventForTxnId('txn-ring')?.status).toBe(EventStatus.NOT_SENT);
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.QUEUED);
+
+    finishFirstText();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await firstText).toEqual({ event_id: '$text-1' });
+    expect(await queuedText).toEqual({ event_id: '$text-2' });
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.SENT);
+  });
+
+  it('rejects a ring retry at exact expiry', async () => {
+    const { mx, room, fetchFn } = setup(['offline', '$late']);
+    const start = Date.now();
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 2_000,
+        sender_ts: start,
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      'txn-ring-exact'
+    );
+    const outcome = sending.catch((error: Error) => error);
+
+    // First attempt fails immediately at t=0; retry backoff is 2_000 ms, landing right at expiry.
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+    expect(room.getEventForTxnId('txn-ring-exact')?.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives each ring its own queue so an expired ring does not reject a later redial ring', async () => {
+    vi.useFakeTimers();
+    let ringBAttempts = 0;
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/_matrix/client/versions')) throw new TypeError('Load failed');
+      if (url.endsWith('/txn-ring-a')) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10_000);
+        });
+        throw new TypeError('Load failed');
+      }
+      if (url.endsWith('/txn-ring-b')) {
+        ringBAttempts += 1;
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10_000);
+        });
+        if (ringBAttempts === 1) throw new TypeError('Load failed');
+        return new Response(JSON.stringify({ event_id: '$ring-b' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      throw new TypeError(`Unexpected request: ${url}`);
+    });
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      userId: '@alice:example.org',
+      accessToken: 'token',
+      fetchFn,
+    });
+    const room = new Room('!room:example.org', mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    mx.store.storeRoom(room);
+
+    const ringA = mx
+      .sendEvent(
+        room.roomId,
+        EventType.RTCNotification as never,
+        {
+          notification_type: 'ring',
+          lifetime: 30_000,
+          sender_ts: Date.now(),
+          'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership-a' },
+        } as never,
+        'txn-ring-a'
+      )
+      .catch((error: Error) => error);
+
+    // Redial starts 20 s later while ring A is still retrying; ring A expires at 36 s,
+    // while ring B's retry succeeds at 42 s (22 s into ring B's own 30 s lifetime).
+    await vi.advanceTimersByTimeAsync(20_000);
+    const ringB = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership-b' },
+      } as never,
+      'txn-ring-b'
+    );
+
+    await vi.advanceTimersByTimeAsync(25_000);
+
+    expect(await ringA).toMatchObject({ name: 'ConnectionError' });
+    expect(room.getEventForTxnId('txn-ring-a')?.status).toBe(EventStatus.NOT_SENT);
+    expect(await ringB).toEqual({ event_id: '$ring-b' });
+    expect(room.getEventForTxnId('txn-ring-b')?.status).toBe(EventStatus.SENT);
+  });
 });
 
 describe('createMatrixClient', () => {
@@ -380,7 +605,7 @@ describe('createMatrixClient', () => {
       baseUrl: 'https://matrix.example',
       accessToken: 'token',
       userId: '@alice:matrix.example',
-      fetchFn: baseFetch as unknown as typeof fetch,
+      fetchFn: baseFetch,
     });
 
     const seen = { unreachable: false };

@@ -9,7 +9,7 @@ const area = (parent: HTMLElement, top: number, overflowY = 'auto'): HTMLElement
   element.scrollTop = top;
   element.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
     if (typeof options === 'object') element.scrollTop = options.top ?? element.scrollTop;
-  }) as typeof element.scrollTo;
+  });
   parent.appendChild(element);
   return element;
 };

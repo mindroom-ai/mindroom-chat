@@ -4,7 +4,7 @@ import { createEditor } from 'slate';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { create, makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.shared';
-import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { MessageEvent } from '../../matrix/types/room';
@@ -68,7 +68,7 @@ const renderRow = async (
       scrollRef,
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     return feature.wrapExpansion(<>{feature.renderEvent(row, data as never)}</>);
@@ -238,7 +238,7 @@ describe('timeline rows of an encrypted room', () => {
   });
 });
 
-describe('a voice message the router transcribed', () => {
+describe('a voice message with a folded transcript', () => {
   const voice = makeEvent('$voice', {
     content: { msgtype: 'm.audio', body: 'voice.ogg', url: 'mxc://example.org/voice' },
   }) as unknown as MatrixEvent;
@@ -254,6 +254,7 @@ describe('a voice message the router transcribed', () => {
   const paired = () => ({
     ...emptyData(),
     voiceTranscripts: {
+      ...NO_VOICE_TRANSCRIPTS,
       hiddenEventIds: new Set(['$echo']),
       byVoiceId: new Map([['$voice', echo]]),
     },

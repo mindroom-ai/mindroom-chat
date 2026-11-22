@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tableau défilant",
-    "scrollHint": "Faites défiler horizontalement"
+    "scrollHint": "Faites défiler horizontalement",
+    "readByRow": "Lire par ligne",
+    "showTable": "Afficher le tableau"
   },
   "messageCodeBlock": {
     "actions": "Actions du bloc de code",
@@ -1161,7 +1163,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Cet espace a été remplacé et n'est plus actif.",
       "openNewSpace": "Ouvrir le nouvel espace",
       "joinNewSpace": "Rejoindre le nouvel espace",
-      "lobby": "Hall",
       "messageSearch": "Rechercher des messages",
       "failedToJoinReplacementSpace": "Impossible de rejoindre l'espace de remplacement !",
       "rooms": "Salles",
@@ -2257,8 +2258,8 @@
       "resumeRecording": "Reprendre l'enregistrement vocal",
       "statusActive": "Enregistrement vocal actif",
       "statusPaused": "Enregistrement vocal en pause",
-      "statusProcessing": "Traitement de l'enregistrement vocal",
       "statusReadyToRetry": "Enregistrement vocal prêt à être réessayé",
+      "recoveredRecording": "Enregistrement récupéré · {{time}}",
       "statusSending": "Envoi de l'enregistrement vocal",
       "statusStarting": "Démarrage de l'enregistrement vocal",
       "voiceRecorderDialog": {
@@ -2661,9 +2662,6 @@
         "argumentsMayDifferBetweenCalls": "Les arguments peuvent varier d’un appel à l’autre.",
         "requestedBy": "Demandé par {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "L’agent routeur effectue la transcription"
-      },
       "streamingIndicator": {
         "aiIsResponding": "L’IA répond"
       },
@@ -2995,7 +2993,9 @@
       "computerUnavailable": "L’ordinateur de cet agent est indisponible.",
       "releaseControl": "Relâchez le contrôle de l’ordinateur avant d’ouvrir une autre vue.",
       "openConversation": "Ouvrez cette demande depuis la conversation du salon.",
-      "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres."
+      "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres.",
+      "canvasCard": "Panneau interactif",
+      "reminderCard": "Rappel · {{when}}"
     },
     "canvas": {
       "panelLabel": "Panneau interactif",

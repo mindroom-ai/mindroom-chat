@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useIntersectionObserver } from '../lib/hooks/useIntersectionObserver';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
 
 /** A window of item indices: `start` inclusive, `end` exclusive. */
 export type ItemRange = {
@@ -99,7 +100,7 @@ export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bo
     const pixels = Number.parseFloat(value ?? '');
     return Number.isFinite(pixels) ? pixels : 0;
   };
-  return { top: toPixels(style.scrollPaddingTop), bottom: toPixels(style.scrollPaddingBottom) };
+  return { top: readTopInset(scrollElement), bottom: toPixels(style.scrollPaddingBottom) };
 };
 
 /**

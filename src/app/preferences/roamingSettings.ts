@@ -53,6 +53,7 @@ export const ROAMING_SETTINGS = {
   hideMembershipEvents: 'hideMembershipEvents',
   hideNickAvatarEvents: 'hideNickAvatarEvents',
   showToolCalls: 'showToolCalls',
+  showUsageDetails: 'showUsageDetails',
   urlPreview: 'urlPreview',
   hideActivity: 'hideActivity',
   hour24Clock: 'hour24Clock',
@@ -81,7 +82,7 @@ const pick = (
 ): Partial<RoamingSettings> =>
   Object.fromEntries(
     ROAMING_KEYS.filter((key) => key in values && keep(key)).map((key) => [key, values[key]])
-  ) as Partial<RoamingSettings>;
+  );
 
 /** The roaming values in `record`, each of the exact type it takes; anything else is left out. */
 const pickRoamingSettings = (record: Readonly<Record<string, unknown>>): Partial<RoamingSettings> =>

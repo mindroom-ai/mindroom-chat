@@ -4,10 +4,41 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
   isTurnAnswer,
+  isTurnCard,
+  startsTurn,
   turnAnswerRank,
   turnRowWaits,
   useThreadTurnFolds,
 } from './useThreadTurnFolds';
+
+// A plugin that draws a card for each message with its key, as an artifact's card.
+const CARD_KEY = 'io.example.card';
+// One that draws only in its own room, from the row's IDs.
+const PLAN_KEY = 'io.example.plan';
+vi.mock('../plugins/registry', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  registeredPlugins: [
+    {
+      id: 'cards',
+      tag: 'cards@1.0.0',
+      messageRenderers: [
+        { match: ({ content }: { content: object }) => CARD_KEY in content, Component: () => null },
+        {
+          match: ({
+            roomId,
+            eventId,
+            content,
+          }: {
+            roomId?: string;
+            eventId?: string;
+            content: object;
+          }) => roomId === '!room:example.org' && !!eventId && PLAN_KEY in content,
+          Component: () => null,
+        },
+      ],
+    },
+  ],
+}));
 
 // Whether a thread row keeps its turn unfolded, read from the row as the timeline holds it.
 
@@ -151,7 +182,177 @@ describe('turnAnswerRank', () => {
   });
 });
 
+describe('startsTurn', () => {
+  const ROUTER = '@mindroom_router:example.org';
+  const woke = (content: Record<string, unknown>, sender = ROUTER, type = 'm.room.message') =>
+    new MatrixEvent({ event_id: '$w', room_id: ROOM, sender, type, origin_server_ts: 1, content });
+  const kind = (sourceKind: string, extra: Record<string, unknown> = {}) =>
+    woke({ msgtype: 'm.text', body: 'Wake', 'com.mindroom.source_kind': sourceKind, ...extra });
+  const edit = new MatrixEvent({
+    event_id: '$edit',
+    room_id: ROOM,
+    sender: PERSON,
+    type: 'm.room.message',
+    origin_server_ts: 2,
+    content: {
+      body: '* Fixed',
+      'm.new_content': { body: 'Fixed' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$p' },
+    },
+  });
+  it.each<[string, MatrixEvent, boolean]>([
+    ["a person's message", message('$p', {}, PERSON), true],
+    ["a person's edit", edit, false],
+    ["an agent's reply", message('$a', { 'com.mindroom.original_sender': PERSON }), false],
+    ["a schedule's message", kind('scheduled', { 'com.mindroom.original_sender': PERSON }), true],
+    [
+      'a silent schedule, which has no row',
+      woke(
+        { 'com.mindroom.source_kind': 'silent_scheduled' },
+        ROUTER,
+        'io.mindroom.scheduled.trigger'
+      ),
+      true,
+    ],
+    ["an external trigger's message", kind('external_trigger'), true],
+    ["a hook's dispatch", kind('hook_dispatch'), true],
+    [
+      "a plugin's relay for a person, such as a comment on a document",
+      kind('hook', { 'com.mindroom.original_sender': PERSON }),
+      true,
+    ],
+    ["a hook's progress notice", kind('hook'), false],
+    ["an agent's message to another agent", kind('trusted_internal_relay'), false],
+    [
+      'a kind that is not a string',
+      woke({ msgtype: 'm.text', body: 'Wake', 'com.mindroom.source_kind': ['scheduled'] }),
+      false,
+    ],
+    [
+      'a kind that cannot become a string',
+      woke({ msgtype: 'm.text', body: 'Wake', 'com.mindroom.source_kind': { toString: null } }),
+      false,
+    ],
+  ])('reads %s', (_name, event, expected) => {
+    expect(startsTurn(event)).toBe(expected);
+  });
+
+  it('reads the kind a row was sent with, not an edit of it', () => {
+    const sent = kind('external_trigger');
+    sent.makeReplaced(
+      new MatrixEvent({
+        event_id: '$e',
+        room_id: ROOM,
+        sender: '@mindroom_router:example.org',
+        type: 'm.room.message',
+        origin_server_ts: 2,
+        content: {
+          body: '* Wake',
+          'm.new_content': { body: 'Wake', 'com.mindroom.source_kind': 'hook' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$w' },
+        },
+      })
+    );
+    expect(startsTurn(sent)).toBe(true);
+  });
+
+  it('starts no turn from an edit that carries a wake-up kind', () => {
+    const edit = new MatrixEvent({
+      event_id: '$e2',
+      room_id: ROOM,
+      sender: ROUTER,
+      type: 'm.room.message',
+      origin_server_ts: 2,
+      content: {
+        body: '* Wake',
+        'com.mindroom.source_kind': 'scheduled',
+        'm.new_content': { body: 'Wake', 'com.mindroom.source_kind': 'scheduled' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$w' },
+      },
+    });
+    expect(startsTurn(edit)).toBe(false);
+  });
+});
+
+describe('isTurnCard', () => {
+  const card = (content: Record<string, unknown>) =>
+    isTurnCard(message('$c', content), { msgtype: 'm.text', ...content }, undefined, PERSON);
+  it('keeps a card a plugin draws, such as an artifact with its Open button', () => {
+    expect(card({ [CARD_KEY]: { title: 'Quarterly plan' } })).toBe(true);
+  });
+  it("keeps an agent's notice with a button, such as a canvas", () => {
+    const canvas = { action: 'show_canvas', version: 1, canvas: { title: 'Budget sheet' } };
+    expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': canvas })).toBe(true);
+  });
+  it("keeps a card a plugin draws from the row's room and event IDs", () => {
+    expect(card({ [PLAN_KEY]: true })).toBe(true);
+  });
+  it("folds an agent's message, also one with an action that is not a notice", () => {
+    expect(card({})).toBe(false);
+    expect(card({ 'io.mindroom.ui_action': { action: 'show_canvas' } })).toBe(false);
+    expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': '' })).toBe(false);
+  });
+});
+
 describe('useThreadTurnFolds', () => {
+  const RUN = { 'io.mindroom.ai_run': { version: 1, status: 'completed' } };
+  const folded = (events: MatrixEvent[], skipped: ReadonlySet<string> = new Set()) => {
+    const relations = { getChildEventsForEvent: () => undefined };
+    const room = {
+      roomId: ROOM,
+      getUnfilteredTimelineSet: () => ({ relations }),
+    } as unknown as Room;
+    let result: ReturnType<typeof useThreadTurnFolds> | undefined;
+    function Probe() {
+      result = useThreadTurnFolds({
+        room,
+        threadId: '$q',
+        events,
+        viewerId: PERSON,
+        getContent: (row: MatrixEvent) => row.getContent(),
+        timelineSet: { relations } as unknown as EventTimelineSet,
+        isSkipped: (row) => skipped.has(row.getId() ?? ''),
+        isQuietMarker: () => false,
+        pinnedIds: new Set<string>(),
+        backgroundState: undefined,
+      });
+      return null;
+    }
+    act(() => {
+      create(React.createElement(Probe));
+    });
+    return [[...result!.view.hiddenIds], [...result!.view.breaks.keys()]];
+  };
+
+  it('keeps a reply and its cards when an outside wake-up starts the next turn', () => {
+    const events = [
+      message('$q', {}, PERSON),
+      message('$reply', RUN),
+      message('$card1', { [CARD_KEY]: { title: 'Quarterly plan' } }),
+      message('$card2', { [CARD_KEY]: { title: 'Budget sheet' } }),
+      message('$card3', { [CARD_KEY]: { title: 'Team roster' } }),
+      // A plugin's relay of a comment on a document, which the plugin hides in the thread.
+      message(
+        '$relay',
+        { 'com.mindroom.source_kind': 'hook', 'com.mindroom.original_sender': PERSON },
+        '@mindroom_router:example.org'
+      ),
+      message('$woken', RUN),
+    ];
+    expect(folded(events, new Set(['$relay']))).toEqual([[], []]);
+  });
+
+  it("folds a job's follow-up reply with its turn", () => {
+    const events = [
+      message('$q', {}, PERSON),
+      message('$reply', RUN),
+      message('$tool', {}),
+      message('$note', {}),
+      message('$follow-up', RUN),
+    ];
+    expect(folded(events)).toEqual([['$tool', '$note'], ['$reply']]);
+  });
+
   it('opens a turn on a toggle and folds it on the next', () => {
     const events = [
       message('$q', {}, PERSON),

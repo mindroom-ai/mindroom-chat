@@ -1,6 +1,13 @@
 import { ReactNode, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MatrixClient, Room, RoomSummary } from 'matrix-js-sdk';
+import {
+  HTTPError,
+  MatrixError,
+  Method,
+  type MatrixClient,
+  type Room,
+  type RoomSummary,
+} from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
@@ -25,6 +32,58 @@ type RoomSummaryLoaderProps = {
 const aliasQueryKey = (alias: string | undefined) => ['room-alias', alias] as const;
 
 const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForAlias(alias);
+
+const MSC3266_PREFIX = '/_matrix/client/unstable/im.nheko.summary';
+
+/**
+ * Whether the homeserver does not have the route: `M_UNRECOGNIZED`, or a 404 without a Matrix error
+ * code, which is what a proxy answers. A 404 with another code, such as `M_NOT_FOUND` for the room,
+ * is the route's answer.
+ */
+const isUnknownRoute = (error: unknown): boolean => {
+  if (error instanceof MatrixError && error.errcode) return error.errcode === 'M_UNRECOGNIZED';
+  return error instanceof HTTPError && error.httpStatus === 404;
+};
+
+/**
+ * Whether the SDK asks the stable summary route of this homeserver: for Matrix 1.15, or MSC3266
+ * among the unstable features (its `room-summary-api.ts`). Otherwise it asks the MSC's own route.
+ */
+const sdkAsksStableRoute = async (mx: MatrixClient): Promise<boolean> => {
+  const { versions, unstable_features: unstableFeatures } = await mx.getVersions();
+  return versions.includes('v1.15') || !!unstableFeatures?.['org.matrix.msc3266'];
+};
+
+/**
+ * The summary from the one route the SDK asks or, when the homeserver does not know that route,
+ * from the older ones matrix-js-sdk asked itself until 45.0: the MSC's `summary/{roomId}` (unless
+ * that is the one the SDK asked), then the `rooms/{roomId}/summary` of the first MSC3266 servers.
+ * Any failure but an unknown route ({@link isUnknownRoute}) is the result.
+ */
+const fetchRoomSummary = async (
+  mx: MatrixClient,
+  roomId: string,
+  via: string[] | undefined
+): Promise<RoomSummary> => {
+  try {
+    return await mx.getRoomSummary(roomId, via);
+  } catch (error) {
+    if (!isUnknownRoute(error)) throw error;
+  }
+  const request = (path: string) =>
+    mx.http.authedRequest<RoomSummary>(Method.Get, path, { via }, undefined, {
+      prefix: MSC3266_PREFIX,
+    });
+  const room = encodeURIComponent(roomId);
+  if (await sdkAsksStableRoute(mx)) {
+    try {
+      return await request(`/summary/${room}`);
+    } catch (error) {
+      if (!isUnknownRoute(error)) throw error;
+    }
+  }
+  return request(`/rooms/${room}/summary`);
+};
 
 /**
  * Loads a room's summary (MSC3266) for a room the user may not have joined. An alias resolves to
@@ -60,7 +119,7 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
         roomId = resolved.room_id;
         if (!servers || servers.length === 0) servers = resolved.servers;
       }
-      return mx.getRoomSummary(roomId, servers);
+      return fetchRoomSummary(mx, roomId, servers);
     },
   });
 

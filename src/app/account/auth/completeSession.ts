@@ -55,7 +55,7 @@ const discardLogin = (baseUrl: string, userId: string, deviceId: string, accessT
 export const openAfterSignIn = (navigate: NavigateFunction): void => {
   const redirectPath = getAfterLoginRedirectPath();
   deleteAfterLoginRedirectPath();
-  navigate(isInAppPath(redirectPath) ? redirectPath : getHomePath(), { replace: true });
+  void navigate(isInAppPath(redirectPath) ? redirectPath : getHomePath(), { replace: true });
 };
 
 /**

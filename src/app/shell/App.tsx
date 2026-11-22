@@ -7,6 +7,7 @@ import { ClientConfigLoader } from '../config/ClientConfigLoader';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { ScreenSizeProvider, useScreenSize } from '../lib/hooks/useScreenSize';
 import { useActiveSession } from '../matrix/session/useSessionStore';
+import { watchComposerAccount } from '../composer/roomInputDrafts';
 import {
   ThemeContextProvider,
   deploymentDefaultTheme,
@@ -80,7 +81,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   }, [setDeploymentTheme, deploymentTheme]);
   return (
     <ScreenSizeProvider value={screenSize}>
-      <RouterProvider router={slidingRouter} />
+      {/* Each new location renders at once, as before React Router 7, which would otherwise make
+          every router update a transition; a page slide still commits it synchronously. */}
+      <RouterProvider router={slidingRouter} useTransitions={false} />
     </ScreenSizeProvider>
   );
 }
@@ -89,6 +92,7 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
 function App() {
   // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
   useMobileKeyboardViewportFix();
+  useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.

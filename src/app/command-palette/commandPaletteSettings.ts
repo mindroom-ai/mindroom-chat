@@ -16,10 +16,12 @@ type SettingSwitch = { key: BooleanSettingKey; inverted?: boolean };
  */
 export const COMMAND_PALETTE_SETTING_SWITCHES: Readonly<Record<string, SettingSwitch>> = {
   enterForNewline: { key: 'enterForNewline' },
+  voiceHoldShortcut: { key: 'voiceHoldShortcut' },
   markdown: { key: 'isMarkdown' },
   hideMembershipEvents: { key: 'hideMembershipEvents' },
   hideNickAvatarEvents: { key: 'hideNickAvatarEvents' },
   showToolCalls: { key: 'showToolCalls' },
+  showUsageDetails: { key: 'showUsageDetails' },
   // The Chats page shows it as "Disable Media Auto Load".
   mediaAutoLoad: { key: 'mediaAutoLoad', inverted: true },
   urlPreview: { key: 'urlPreview' },

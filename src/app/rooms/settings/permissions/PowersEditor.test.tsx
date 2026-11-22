@@ -8,7 +8,7 @@ import { PowersEditor } from './PowersEditor';
 
 const mocks = vi.hoisted(() => ({
   sendStateEvent: vi.fn().mockResolvedValue(undefined),
-  tagsContent: {} as Record<number, { name: string; color?: string }>,
+  tagsContent: {},
 }));
 
 vi.mock('folds', () => ({

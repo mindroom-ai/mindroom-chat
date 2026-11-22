@@ -10,13 +10,16 @@ import type { Room } from 'matrix-js-sdk';
 import { editableActiveElement } from '../lib/dom';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { usePanelPresence } from '../ui/panels/panelPresence';
-import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
+import {
+  CONVERSATION_MIN_WIDTH,
+  ResizablePanel,
+  SIDE_PANEL_MAX_WIDTH,
+} from '../ui/panels/ResizablePanel';
 import { ThreadView } from './ThreadView';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import { noteThreadViewKey } from './useRoomEscapeReadReceipts';
 import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 
-const MAX_WIDTH = 4096;
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -88,7 +91,7 @@ export function SecondThreadPanel({
       storageKey={widthKey}
       defaultWidth={SECOND_THREAD_DEFAULT_WIDTH}
       minContentWidth={CONVERSATION_MIN_WIDTH}
-      maxPanelWidth={MAX_WIDTH}
+      maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
       resizeLabel={t('thread.resizeSecond')}
       collapseLabel={t('thread.close')}
       onCollapse={onClose}

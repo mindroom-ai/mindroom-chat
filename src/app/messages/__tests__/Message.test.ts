@@ -251,12 +251,17 @@ vi.mock('../../matrix/room', () => ({
   getMemberDisplayName: () => 'Alice',
 }));
 
-vi.mock('../../matrix/matrix', () => ({
-  getCanonicalAliasOrRoomId: () => '!room:example.org',
-  getMxIdLocalPart: () => 'alice',
-  isRoomAlias: () => false,
-  mxcUrlToHttp: () => undefined,
-}));
+vi.mock('../../matrix/matrix', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../matrix/matrix')>();
+  return {
+    getCanonicalAliasOrRoomId: () => '!room:example.org',
+    // The real ones: whether a sender is an agent is read from its user ID.
+    getMxIdLocalPart: actual.getMxIdLocalPart,
+    getMxIdServer: actual.getMxIdServer,
+    isRoomAlias: () => false,
+    mxcUrlToHttp: () => undefined,
+  };
+});
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
@@ -371,11 +376,13 @@ vi.mock('../../preferences/settings', () => ({
   },
 }));
 
-const getMessageComponent = async () =>
-  (await import('../Message')).Message;
+const getMessageComponent = async () => (await import('../Message')).Message;
+
+let messageSender = '@alice:example.org';
 
 beforeEach(() => {
   lastMessageBaseNode = undefined;
+  messageSender = '@alice:example.org';
   vi.clearAllMocks();
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
@@ -386,7 +393,7 @@ const createMessageEvent = (content: Record<string, unknown>, eventId = '$event'
     threadRootId: undefined,
     getContent: () => content,
     getId: () => eventId,
-    getSender: () => '@alice:example.org',
+    getSender: () => messageSender,
     getTs: () => 1,
     isRedacted: () => false,
   } as unknown as MatrixEvent);
@@ -892,6 +899,25 @@ describe('Message copy text tool markers', () => {
       ],
     },
   };
+
+  // An agent's markers draw tool rows, so its copy leaves their lines out.
+  beforeEach(() => {
+    messageSender = '@mindroom_code:example.org';
+  });
+
+  it('copies a marker line whole from a person, whose message shows it as text', async () => {
+    messageSender = '@alice:example.org';
+    const { renderer } = await renderMessage(toolMarkerContent);
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+    await act(async () => {
+      getButtonByText(renderer, 'Copy Text')?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith(toolMarkerContent.body);
+  });
 
   it('keeps markers the rendered HTML shows as text', async () => {
     const body = 'Markers look like this:\n\n```\n🔧 `search_web` [1]\n```';

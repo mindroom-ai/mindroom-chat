@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Kapat",
-      "invited": "{{user}} davet edildi."
+      "invited": "{{user}} davet edildi.",
+      "giveRoleRights": "{{role}} yetkisi ver",
+      "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
+      "roleFailed": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}",
+      "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Kapat",
@@ -275,6 +280,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "agentCard": {
+      "agent": "Ajan",
+      "close": "Kapat",
+      "configuredTools": "Yapılandırılmış araçlar",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç",
+      "groupCount_one": "{{count}} grup",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ayrıca {{groups}}",
+      "viewAll_one": "{{count}} aracın tümünü gör",
+      "viewAll_other": "{{count}} aracın tümünü gör",
+      "toolsTitle": "{{name}} araçları",
+      "filter": "Araçları filtrele",
+      "noMatch": "Eşleşen araç yok.",
+      "back": "Geri",
+      "more": "Daha fazla",
+      "worksIn": "Çalıştığı yerler",
+      "loading": "Yapılandırılmış araçlar yükleniyor",
+      "availability": "Kullanılabilirlik isteğe ve izinlere göre değişebilir.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kod ve dosyalar",
+        "research": "Web",
+        "productivity": "Zamanlama ve bellek",
+        "email": "E-posta",
+        "mcp": "Bağlı uygulamalar",
+        "integrations": "Entegrasyonlar",
+        "communication": "Sohbet ve mesajlar",
+        "entertainment": "Medya",
+        "information": "Bilgi",
+        "smart_home": "Akıllı ev",
+        "social": "Sosyal",
+        "other": "Diğer"
+      }
+    },
+    "space": {
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -394,9 +439,11 @@
         "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
+        "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Control, Ctrl, Shift, boşluk, klavye kısayolu",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
-        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
+        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
+        "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -431,6 +478,7 @@
         "close": "Arama görünümünü kapat",
         "participants": "Aramadaki kişiler",
         "connecting": "Bağlanıyor…",
+        "connectingAnotherCall": "Başka bir aramaya bağlanıyor…",
         "reconnecting": "Yeniden bağlanıyor…",
         "ended": "Arama sona erdi.",
         "waitingFor": "{{name}} bekleniyor…",
@@ -450,7 +498,7 @@
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
         "connection": "Aramanın bağlantısı koptu.",
-        "device": "Mikrofonunuz veya kameranız kullanılamadı.",
+        "device": "Mikrofon, kamera veya hoparlör kullanılamadı.",
         "untrustedService": "Bu arama, ana sunucunuzun sunmadığı bir arama hizmeti üzerinden yapılıyor, bu yüzden buradan katılamazsınız."
       },
       "devices": {
@@ -540,7 +588,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
+        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın.",
+        "thisApp": "Bu uygulama",
+        "mindroomAgents": "MindRoom ajanları"
       },
       "jumpToTime": {
         "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",
@@ -558,7 +608,8 @@
     },
     "accountMenu": {
       "open": "{{name}} için hesap menüsünü aç",
-      "manageAccounts": "Hesapları yönet"
+      "otherAccounts": "Diğer hesaplar",
+      "manage": "Yönet"
     },
     "roomOrder": {
       "sortByName": "Odaları A'dan Z'ye sırala"
@@ -679,6 +730,9 @@
         "save": "Kaydet",
         "saved": "Kaydedildi",
         "clear": "Temizle",
+        "saveSetting": "{{setting}} kaydet",
+        "savedSetting": "{{setting}} kaydedildi",
+        "clearSetting": "{{setting}} temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
         "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
@@ -688,6 +742,41 @@
           "default": "Varsayılan",
           "auto": "Her mesaja",
           "mentions": "Yalnızca bahsedilince"
+        },
+        "sections": {
+          "agents": "Ajanlar",
+          "threadTitles": "Konu başlıkları"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Bu odadaki her ajan, ekip ve yönlendirici için varsayılan model. Konu düzeyindeki geçersiz kılmalar önceliğini korur.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "defaultDescription": "Bu oda için MindRoom yapılandırmasındaki varsayılanı izle.",
+          "unknown": "Bilinmeyen model: \"{{value}}\" bu odanın model listesinde yok.",
+          "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz.",
+          "storedRaw": "Oda ayarı: {{value}}"
+        },
+        "threadMode": {
+          "label": "Konu modu",
+          "description": "Ajanların bu odada konularda mı yoksa ana akışta mı yanıt vereceği.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "thread": "Konular",
+          "room": "Ana akış",
+          "effective": "Geçerli etkin mod: {{mode}}",
+          "effectiveModes": {
+            "thread": "Konular",
+            "room": "Ana akış",
+            "mixed": "Karışık (ajana göre değişir)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Başlık modeli",
+          "description": "Bu odanın otomatik konu başlıklarını yazan model."
+        },
+        "agentInstructions": {
+          "label": "Ajan yönergeleri",
+          "description": "Bu odada yanıt veren her ajana verilen ek yönergeler. Moderatörler bunları düzenleyebilir; ajanlara fazladan izin vermez. Odadaki herkes bunları okuyabilir ve oda durumu uçtan uca şifrelenmediği için buraya gizli bilgi yazmayın.",
+          "placeholder": "Örneğin: Yanıtları kısa tutun ve Felemenkçe yanıtlayın"
         }
       }
     },
@@ -860,7 +949,10 @@
         "nameChose": "{{name}} seçti"
       },
       "mindroomReplyDetails": {
-        "subagents": "Alt ajanlar"
+        "subagents": "Alt ajanlar",
+        "writtenToCache": "Önbelleğe yazılan",
+        "notCached": "Önbellekte değil",
+        "conversation": "Konuşma"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
@@ -946,7 +1038,8 @@
       "messageSearch": {
         "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
         "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
-        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç",
+        "retry": "Tekrar dene"
       }
     },
     "notifications": {
@@ -962,7 +1055,10 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler"
+        "advancedFilters": "Gelişmiş filtreler",
+        "includeResolvedThreads": "Çözümlenen konuları dahil et",
+        "hideResolvedThreads": "Çözümlenen konuları gizle",
+        "forMeSummary": "{{summary}}. Benim için filtresi açık."
       },
       "threadPeopleFilter": {
         "label": "Kişiler",
@@ -987,7 +1083,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Tüm uzun mesajları genişlet",
-        "collapseAllLong": "Tüm uzun mesajları daralt"
+        "collapseAllLong": "Tüm uzun mesajları daralt",
+        "showFullMessage": "Mesajın tamamını göster"
       }
     },
     "computer": {
@@ -1009,6 +1106,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Bu konuşmada ajanların bağlamını bir sonraki yanıtlarından önce sıkıştırın.",
         "reply_mode": "Ajanların burada bir konuşma başlatmak için bahsedilmeye ihtiyaç duyup duymadığını gösterin veya değiştirin (ayarlama/sıfırlama yalnızca oda yöneticileri)."
       }
     },
@@ -1022,8 +1120,6 @@
       "tools_other": "{{count}} araç",
       "needApproval_one": "{{count}} onay bekliyor",
       "needApproval_other": "{{count}} onay bekliyor",
-      "toolCalls_one": "{{count}} araç çağrısı",
-      "toolCalls_other": "{{count}} araç çağrısı",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} token",
       "started": "Başladı: {{time}}",
@@ -1036,7 +1132,32 @@
         "time": "Süre"
       },
       "stopTask": "Görevi durdur",
-      "stopTaskFor": "Görevi durdur: {{tool}}"
+      "stopTaskFor": "Görevi durdur: {{tool}}",
+      "stopStepFailed": "“{{step}}” durdurulamadı. Tekrar deneyin.",
+      "toolNames": {
+        "readFile": "Dosya oku",
+        "writeFile": "Dosya yaz",
+        "editFile": "Dosya düzenle",
+        "searchFiles": "Dosyalarda ara",
+        "browseFiles": "Dosyalara göz at",
+        "runCommand": "Komut çalıştır",
+        "openPage": "Web sayfası aç",
+        "searchWeb": "Web’de ara",
+        "useBrowser": "Tarayıcıyı kullan",
+        "checkMemory": "Belleği kontrol et",
+        "updateMemory": "Belleği güncelle",
+        "deleteMemory": "Bir anıyı sil",
+        "useMessages": "Matrix mesajlarını kullan",
+        "schedule": "Görev planla",
+        "checkSchedule": "Planı kontrol et",
+        "updateSchedule": "Planı güncelle",
+        "cancelSchedule": "Planlanmış görevi iptal et",
+        "use": "{{tool}} kullan"
+      },
+      "jobTotal_one": "{{count}} arka plan işi",
+      "jobTotal_other": "{{count}} arka plan işi",
+      "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
+      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
     },
     "subagents": {
       "title": "Alt ajanlar",
@@ -1063,7 +1184,21 @@
       "showFor": "Alt ajanları göster: {{name}}",
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
-      "resize": "Alt ajan panelini yeniden boyutlandır"
+      "resize": "Alt ajan panelini yeniden boyutlandır",
+      "calls_one": "{{count}} çağrı",
+      "calls_other": "{{count}} çağrı",
+      "now": "Şimdi",
+      "needsApproval": "Onay gerekiyor",
+      "result": "Sonuç",
+      "turnNumber": "tur {{number}}",
+      "status": "Durum",
+      "toolCallsNote": "araç çağrısı",
+      "tokensSplit": "{{input}} giriş · {{output}} çıkış",
+      "costNested": "+{{cost}} iç içe",
+      "costOwn": "bu çalıştırma",
+      "showUsageDetails": "Kullanım ayrıntılarını göster",
+      "showUsageDetailsDescription": "Alt ajanlarda ve arka plan işlerinde araç çağrılarını, tokenleri ve maliyeti, ayrıca her birinin şu an ne yaptığını gösterir.",
+      "usage": "Kullanım"
     },
     "models": {
       "modelPicker": {
@@ -1081,6 +1216,8 @@
         "defaultChoice": "Varsayılan",
         "threadOnly": "Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
         "roomOverrideThreadOnly": "Bu oda için !room_model ile ayarlandı. Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
+        "chooseNextThread": "Sonraki ileti dizisi için model seç",
+        "nextThreadOnly": "Bu seçim yalnızca sonraki ileti dizisi için geçerlidir.",
         "levels": {
           "off": "Kapalı",
           "minimal": "Minimum",
@@ -1096,11 +1233,40 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "invites": {
+      "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",
+      "reopen": "Oturum açtınız. Davet bağlantısını e-postanızdan yeniden açın.",
+      "framed": "Daveti kullanmak için bu sayfayı kendi sekmesinde açın.",
+      "ready": "{{router}} üzerinden {{user}} olarak bir odaya katıl",
+      "claiming": "Davet alınıyor…",
+      "offline": "Bu MindRoom yanıt vermiyor. İsteğiniz kaydedildi; davet, MindRoom geri geldiğinde oda listenizde görünecek.",
+      "rejected": "Bu davet artık geçerli değil. Yeni bir tane isteyin.",
+      "retry": "Bu işe yaramadı. Birazdan tekrar deneyin.",
+      "joining": "Odaya katılınıyor…",
+      "join": "Katıl",
+      "tryAgain": "Tekrar dene"
+    },
+    "uiActions": {
+      "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "askForText": "Metin sürümü iste",
+      "copyRequest": "İsteği kopyala",
+      "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",
+      "askForTextStatus": {
+        "hint": "Yazma alanına bir istek koyar. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "added": "İstek yazma alanına eklendi. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
+        "copied": "İstek kopyalandı. Taslağına yapıştır."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "Ses kaydı duraklatıldı — bu odanın başka bir yerindeki gönderilmemiş kaydınızı tamamlayın veya silin",
     "voiceThreadRootUnsent": "Bu sesli mesajın konusunda gönderilmiş bir ilk mesaj yok. O mesaj gönderildiğinde yeniden deneyin veya kaydı silin.",
+    "voiceIndicator": {
+      "recording": "Kaydediliyor {{time}}",
+      "paused": "Duraklatıldı {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",
@@ -1120,7 +1286,10 @@
       "autoHint": "Kararı ajana bırak",
       "settingTitle": "Bir ajan yanıt verirken gönder",
       "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
-    }
+    },
+    "replyInThread": "Konuda yanıtla…",
+    "newThreadIn": "{{room}} içinde yeni konu…",
+    "newThreadWith": "{{name}} ile yeni konu…"
   },
   "commandPalette": {
     "state": {
@@ -1169,6 +1338,10 @@
     "hints": {
       "chip": "Tüm kısayollar için {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} sesli mesaj kaydeder",
+      "description": "Başlatmak veya göndermek için dokunun; konuşmak için basılı tutun, göndermek için bırakın."
+    },
     "actions": {
       "palette": "Arama ve komutlar",
       "settings": "Ayarları aç",
@@ -1194,7 +1367,8 @@
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
-      "callView": "Aramaya git"
+      "callView": "Aramaya git",
+      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun"
     }
   },
   "thread": {
@@ -1228,7 +1402,10 @@
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
     "second": "İkinci konu",
-    "dropSecond": "İkinci sütunda açmak için bırakın"
+    "dropSecond": "İkinci sütunda açmak için bırakın",
+    "newUnknown": "Yeni",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Sizden bahsediyor"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1550,9 +1727,10 @@
     }
   },
   "threadNav": {
-    "layout": "Konu düzeni",
-    "layoutRecent": "Son",
-    "layoutSections": "Bölümler",
+    "forMe": "Benim için",
+    "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
+    "roomForMeHint": "Yalnızca katıldığınız veya bir ajanın sizin adınıza mesaj gönderdiği konular",
+    "emptyForMe": "Henüz sizin için konu yok",
     "group": "Grupla",
     "groupHint": "Duruma göre grupla",
     "sections": {
@@ -1584,6 +1762,36 @@
   },
   "threadActions": {
     "openBeside": "İkinci sütunda aç"
+  },
+  "roomSchedules": {
+    "thisThread": "Bu konu",
+    "elsewhereInRoom": "Bu odanın başka yerlerinde",
+    "filterAll": "Tümü",
+    "filterLabel": "Zamanlanmış görevleri filtrele",
+    "awaitingShort": "Bekliyor",
+    "inSeconds": "{{count}}sn içinde",
+    "inMinutes": "{{count}}dk içinde",
+    "inHours": "{{count}}sa içinde",
+    "inHoursMinutes": "{{hours}}sa {{minutes}}dk içinde",
+    "inDays": "{{count}}g içinde",
+    "thread": "Konu",
+    "destination": "Hedef",
+    "showFullPrompt": "Tam istemi göster",
+    "showLessPrompt": "Daha az göster",
+    "details": "Ayrıntılar",
+    "hideDetails": "Ayrıntıları gizle",
+    "copyId": "Kimliği kopyala",
+    "copied": "Kopyalandı",
+    "edit": "Düzenle",
+    "cancel": "İptal et",
+    "cancelConfirm": "Bu zamanlanmış görev iptal edilsin mi?",
+    "keep": "Kalsın",
+    "cancelTask": "Görevi iptal et",
+    "cancelling": "İptal ediliyor...",
+    "cancelError": "Görev iptal edilemedi. Tekrar deneyin.",
+    "cancellationSent": "İptal gönderildi",
+    "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
+    "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   },
   "home": {
     "greeting": {

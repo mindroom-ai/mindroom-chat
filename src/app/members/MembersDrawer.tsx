@@ -22,6 +22,7 @@ import {
   toRem,
 } from 'folds';
 import { PopOut, ownDirectionLine } from '../ui/directional';
+import { markOverlayDismissed } from '../lib/overlayFocus';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -280,7 +281,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   let wantedIndex = selection === 'auto' ? 0 : selection;
   if (selection === 'auto' && requestCount > 0) wantedIndex = requestsIndex;
   const selectedIndex = wantedIndex >= 0 && wantedIndex < filters.length ? wantedIndex : 0;
-  const selectedFilter = filters[selectedIndex] as MembershipFilterItem | undefined;
+  const selectedFilter = filters[selectedIndex];
   const showingRequests = selectedIndex === requestsIndex;
 
   const sorts = useMemberSortMenu();
@@ -417,7 +418,10 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                   variant={variant}
                   fill="None"
                   aria-label={t('featureUi.room.membersDrawer.close')}
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                    markOverlayDismissed(event.currentTarget);
+                    setDrawerOpen(false);
+                  }}
                 >
                   <Icon src={Icons.Cross} />
                 </IconButton>

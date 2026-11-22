@@ -20,6 +20,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // "Show item in panel", opens the plugin's panel and closes the card. A click with Ctrl opens the
 // link in a new page as usual, with no card. MESSAGE_LINK_SHOTS=1 saves a screenshot of the open
 // card to test-results/message-link/card.png.
+// A mouse resting on an item link shows its hover card, "Example item preview <id>", in place of
+// the link's title, and moving away hides it.
 // Its second message link, https://example.org/panel-items/<id>, opens the plugin's panel on the
 // item instead: a click shows "Example panel item <id>" in the panel and no card, a second click on
 // the link the panel shows opens it in a new page, and Enter on another such link shows that item.
@@ -110,6 +112,51 @@ test("a click on an example item link shows the plugin's card, which a modified 
     await expect(card).toHaveCount(0);
   } finally {
     await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+    await server.close();
+  }
+});
+
+test("a mouse resting on an example item link shows the plugin's hover card", async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(10 * 60_000);
+  const person = await registerDisposableUser(`plugin_link_hover_${RUN}`, 'plugin-link-pass');
+  const room = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Meadow',
+    topic: 'Where the example plugin shows a link hover card',
+  });
+  await sendRoomMessage(HOMESERVER, person.accessToken, room, {
+    msgtype: 'm.text',
+    body: `See ${ITEM}`,
+  });
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
+    await page.goto(`/home/${encodeURIComponent(room)}/`);
+    const link = page.getByRole('link', { name: ITEM });
+    await expect(link).toBeVisible({ timeout: 60_000 });
+    const preview = page.getByRole('tooltip').filter({ hasText: 'Example item preview 7' });
+
+    await link.hover();
+    await expect(preview).toBeVisible();
+    await expect(link).toHaveAttribute('aria-describedby', (await preview.getAttribute('id'))!);
+    // The hover card stands in for the title while it shows.
+    await expect(link).not.toHaveAttribute('title');
+    if (process.env.MESSAGE_LINK_SHOTS === '1') {
+      mkdirSync('test-results/message-link', { recursive: true });
+      await page.screenshot({ path: 'test-results/message-link/hover-card.png' });
+    }
+
+    const box = (await link.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y - 60);
+    await expect(preview).toHaveCount(0);
+    await expect(link).not.toHaveAttribute('aria-describedby');
+    await expect(link).toHaveAttribute('title', ITEM);
+  } finally {
     await context.close();
     await server.close();
   }

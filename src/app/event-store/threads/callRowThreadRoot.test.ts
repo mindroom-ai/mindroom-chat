@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   buildCompactZeroReplyRootData,
@@ -23,7 +23,7 @@ const event = (eventId: string, sender: string, content: Record<string, unknown>
     sender,
     origin_server_ts: NOW - 1000,
     content,
-  } as Partial<IEvent>);
+  });
 
 const ROW = {
   msgtype: 'm.notice',

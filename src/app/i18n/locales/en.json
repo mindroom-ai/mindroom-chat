@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollable table",
-    "scrollHint": "Scroll horizontally"
+    "scrollHint": "Scroll horizontally",
+    "readByRow": "Read by row",
+    "showTable": "Show table"
   },
   "messageCodeBlock": {
     "actions": "Code block actions",
@@ -1155,7 +1157,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "This space has been replaced and is no longer active.",
       "openNewSpace": "Open New Space",
       "joinNewSpace": "Join New Space",
-      "lobby": "Lobby",
       "messageSearch": "Message Search",
       "failedToJoinReplacementSpace": "Failed to join replacement space!",
       "rooms": "Rooms",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "Resume voice recording",
       "statusActive": "Voice recording active",
       "statusPaused": "Voice recording paused",
-      "statusProcessing": "Processing voice recording",
       "statusReadyToRetry": "Voice recording ready to retry",
+      "recoveredRecording": "Recovered recording · {{time}}",
       "statusSending": "Sending voice recording",
       "statusStarting": "Starting voice recording",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "argumentsMayDifferBetweenCalls": "Arguments may differ between calls.",
         "requestedBy": "Requested by {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router agent is transcribing"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI is responding"
       },
@@ -2930,7 +2928,9 @@
       "computerUnavailable": "This agent’s computer is unavailable.",
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",
-      "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
+      "settingsUnavailable": "Turn off Simple Mode to open this Settings section.",
+      "canvasCard": "Canvas",
+      "reminderCard": "Reminder · {{when}}"
     },
     "canvas": {
       "panelLabel": "Canvas panel",

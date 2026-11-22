@@ -63,10 +63,10 @@ const everyKind = recordsOf(
 const everyKindIds = [...everyKind.keys()];
 
 describe('buildCompactThreadSections', () => {
-  it('puts the cards in Working, Needs you, Later and Done, as the workflow tabs count them', () => {
+  it('puts the cards in Needs you, Working, Later and Done, as the workflow tabs count them', () => {
     expect(build({ threadRootIds: everyKindIds, records: everyKind })).toEqual([
-      ['working', ['$streaming', '$job']],
       ['needsYou', ['$approval', '$sending', '$read']],
+      ['working', ['$streaming', '$job']],
       ['later', ['$scheduled', '$snoozed']],
       ['done', ['$resolved']],
     ]);

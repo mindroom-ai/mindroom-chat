@@ -37,11 +37,18 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
-  it('hides the tool calls of agent replies until the reader shows them', async () => {
+  it('turns the voice key on until the person switches it off', async () => {
     const { getSettings } = await import('./settings');
     storageValue = null;
 
-    expect(getSettings().showToolCalls).toBe(false);
+    expect(getSettings().voiceHoldShortcut).toBe(true);
+  });
+
+  it.each(['showToolCalls', 'showUsageDetails'] as const)('defaults %s to false', async (key) => {
+    const { getSettings } = await import('./settings');
+    storageValue = null;
+
+    expect(getSettings()[key]).toBe(false);
   });
 
   it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {

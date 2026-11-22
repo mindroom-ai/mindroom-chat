@@ -46,6 +46,10 @@ import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNa
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
 import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
+import { leavePage } from './boot/inviteFragment';
+import { markPageStartup } from './app/lib/startupTimeline';
+
+markPageStartup('js.entry');
 
 /** Marks the one reload that recovers a page the service worker does not control. */
 const SW_CONTROL_RELOAD_KEY = 'mindroom_sw_control_reloaded';
@@ -191,7 +195,7 @@ const recoverServiceWorkerControl = async (): Promise<void> => {
   } catch {
     return;
   }
-  window.location.reload();
+  leavePage();
 };
 
 const clearRecoveryMarker = (): void => {

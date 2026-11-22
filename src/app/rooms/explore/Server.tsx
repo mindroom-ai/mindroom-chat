@@ -1,7 +1,7 @@
 import { FormEventHandler } from 'react';
 import { Box, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
 import { useAtomValue } from 'jotai';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { JoinRule, type IPublicRoomsChunkRoom } from 'matrix-js-sdk';
@@ -14,9 +14,9 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { EXPLORE_PATH } from '../../routes/paths';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
+import { useRouteParam } from '../../navigation/useRoomRouteParams';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
-import { decodeRouteParam } from '../../routes/pathUtils';
 import { renderTopicText } from './exploreRoomCard';
 import * as css from './style.css';
 
@@ -31,8 +31,7 @@ export function PublicRooms() {
   const { t } = useTranslation();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const { navigateSpace, navigateRoom } = useRoomNavigate();
-  const { server: encodedServer } = useParams();
-  const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
+  const server = useRouteParam('server');
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term') ?? undefined;
   // Phones lead with the way back to the Explore list, so the title starts beside it.
@@ -134,7 +133,7 @@ export function PublicRooms() {
                         topic={room.topic}
                         memberCount={room.num_joined_members}
                         roomType={room.room_type}
-                        joinRule={(room.join_rule as JoinRule | undefined) ?? JoinRule.Public}
+                        joinRule={room.join_rule ?? JoinRule.Public}
                         viaServers={server ? [server] : undefined}
                         onView={space ? navigateSpace : navigateRoom}
                         renderTopicViewer={renderTopicText}

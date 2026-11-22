@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "關閉",
-      "invited": "已邀請 {{user}}。"
+      "invited": "已邀請 {{user}}。",
+      "giveRoleRights": "授予{{role}}權限",
+      "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
+      "roleFailed": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}",
+      "roleRequirementChanged": "此聊天室現在需要{{role}}權限。",
+      "roleWithLevel": "{{role}}（{{level}}）"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -271,6 +276,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此視窗無法載入部分圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
+    },
+    "agentCard": {
+      "agent": "智慧代理",
+      "close": "關閉",
+      "configuredTools": "已設定的工具",
+      "toolCount_other": "{{count}} 個工具",
+      "groupCount_other": "{{count}} 個群組",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "另有{{groups}}",
+      "viewAll_other": "檢視全部 {{count}} 個工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "篩選工具",
+      "noMatch": "沒有符合的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在聊天室",
+      "loading": "正在載入已設定的工具",
+      "availability": "可用性可能因請求和權限而異。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "程式碼與檔案",
+        "research": "網頁",
+        "productivity": "排程與記憶",
+        "email": "電子郵件",
+        "mcp": "已連線的應用程式",
+        "integrations": "整合",
+        "communication": "聊天與訊息",
+        "entertainment": "媒體",
+        "information": "資訊",
+        "smart_home": "智慧家庭",
+        "social": "社群",
+        "other": "其他"
+      }
+    },
+    "space": {
+      "overview": "空間概覽"
     }
   },
   "featureUi": {
@@ -389,9 +430,11 @@
         "profile": "大頭貼, 照片, 名稱, 暱稱",
         "deactivate": "刪除帳號, 關閉帳號",
         "localMindroom": "配對, 配對碼, 本機, 桌面",
+        "voiceKey": "語音訊息, 麥克風, 錄音, 按住說話, Control, Ctrl, Shift, 空白鍵, 鍵盤快捷鍵",
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
-        "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷"
+        "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
+        "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -426,6 +469,7 @@
         "close": "關閉通話檢視",
         "participants": "通話中的人",
         "connecting": "正在連線…",
+        "connectingAnotherCall": "正在連線到另一個通話…",
         "reconnecting": "正在重新連線…",
         "ended": "通話已結束。",
         "waitingFor": "正在等待 {{name}}…",
@@ -444,7 +488,7 @@
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
         "connection": "通話連線已中斷。",
-        "device": "無法使用您的麥克風或攝影機。",
+        "device": "無法使用麥克風、攝影機或喇叭。",
         "untrustedService": "此通話使用的通話服務並非由您的主伺服器提供，因此無法從這裡加入。"
       },
       "devices": {
@@ -531,7 +575,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
+        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。",
+        "thisApp": "此應用程式",
+        "mindroomAgents": "MindRoom AI 代理"
       },
       "jumpToTime": {
         "unsupported": "此伺服器無法依時間尋找訊息。",
@@ -549,7 +595,8 @@
     },
     "accountMenu": {
       "open": "開啟 {{name}} 的帳戶選單",
-      "manageAccounts": "管理帳戶"
+      "otherAccounts": "其他帳戶",
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "依 A 到 Z 排序房間"
@@ -670,6 +717,9 @@
         "save": "儲存",
         "saved": "已儲存",
         "clear": "清除",
+        "saveSetting": "儲存{{setting}}",
+        "savedSetting": "已儲存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
         "saveFailed": "無法儲存設定，請再試一次。",
@@ -679,6 +729,41 @@
           "default": "預設",
           "auto": "任何訊息",
           "mentions": "僅在被提及時"
+        },
+        "sections": {
+          "agents": "代理人",
+          "threadTitles": "討論串標題"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房間中所有代理人、團隊與路由器的預設模型。討論串中的個別覆寫仍具有較高優先順序。",
+          "default": "使用設定的預設值",
+          "defaultDescription": "遵循 MindRoom 為此房間設定的預設值。",
+          "unknown": "未知模型：「{{value}}」不在此房間的模型清單中。",
+          "catalogUnavailable": "目前沒有可用的模型清單。你仍可重設為設定的預設值。",
+          "storedRaw": "聊天室設定：{{value}}"
+        },
+        "threadMode": {
+          "label": "討論串模式",
+          "description": "此房間中的代理人要在討論串中或主時間軸中回覆。",
+          "default": "使用設定的預設值",
+          "thread": "討論串",
+          "room": "主時間軸",
+          "effective": "目前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "討論串",
+            "room": "主時間軸",
+            "mixed": "混合（依代理人而異）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "標題模型",
+          "description": "為此房間產生自動討論串標題的模型。"
+        },
+        "agentInstructions": {
+          "label": "代理指示",
+          "description": "提供給在此聊天室回覆的每個代理的額外指示。版主可以編輯它們；它們不會授予代理任何額外權限。聊天室裡的每個人都能讀取它們，且聊天室狀態不經過端對端加密，因此請勿在此放置機密資訊。",
+          "placeholder": "例如：保持回答簡短並用荷蘭語回覆"
         }
       }
     },
@@ -847,7 +932,10 @@
         "nameChose": "{{name}} 已選擇"
       },
       "mindroomReplyDetails": {
-        "subagents": "子代理"
+        "subagents": "子代理",
+        "writtenToCache": "寫入快取",
+        "notCached": "未快取",
+        "conversation": "對話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",
@@ -930,7 +1018,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜尋失敗，請再試一次。",
-        "resultCountFor_other": "「{{term}}」的 {{count}} 筆結果"
+        "resultCountFor_other": "「{{term}}」的 {{count}} 筆結果",
+        "retry": "重試"
       }
     },
     "notifications": {
@@ -945,7 +1034,10 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "includeResolvedThreads": "包含已解決的討論串",
+        "hideResolvedThreads": "隱藏已解決的討論串",
+        "forMeSummary": "{{summary}}。與我相關篩選已開啟。"
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -970,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展開所有長訊息",
-        "collapseAllLong": "收合所有長訊息"
+        "collapseAllLong": "收合所有長訊息",
+        "showFullMessage": "顯示完整訊息"
       }
     },
     "computer": {
@@ -992,6 +1085,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "在此對話中，於代理程式下一次回覆前壓縮其上下文。",
         "reply_mode": "顯示或切換代理程式在此開始對話是否需要被提及（設定/重設僅限房間管理員）。"
       }
     },
@@ -1003,7 +1097,6 @@
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
       "needApproval_other": "{{count}} 個待核准",
-      "toolCalls_other": "{{count}} 次工具呼叫",
       "tokens_other": "{{tokens}} 個權杖",
       "started": "開始於{{time}}",
       "open": "開啟",
@@ -1015,7 +1108,30 @@
         "time": "時間"
       },
       "stopTask": "停止任務",
-      "stopTaskFor": "停止任務：{{tool}}"
+      "stopTaskFor": "停止任務：{{tool}}",
+      "stopStepFailed": "無法停止「{{step}}」，請再試一次。",
+      "toolNames": {
+        "readFile": "讀取檔案",
+        "writeFile": "寫入檔案",
+        "editFile": "編輯檔案",
+        "searchFiles": "搜尋檔案",
+        "browseFiles": "瀏覽檔案",
+        "runCommand": "執行指令",
+        "openPage": "開啟網頁",
+        "searchWeb": "搜尋網路",
+        "useBrowser": "使用瀏覽器",
+        "checkMemory": "查看記憶",
+        "updateMemory": "更新記憶",
+        "deleteMemory": "刪除記憶",
+        "useMessages": "使用 Matrix 訊息",
+        "schedule": "安排工作",
+        "checkSchedule": "查看排程",
+        "updateSchedule": "更新排程",
+        "cancelSchedule": "取消排定的工作",
+        "use": "使用 {{tool}}"
+      },
+      "jobTotal_other": "{{count}} 個背景工作",
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
     },
     "subagents": {
       "title": "子代理",
@@ -1038,7 +1154,20 @@
       "hide": "隱藏子代理",
       "showFor": "顯示子代理：{{name}}",
       "withCount_other": "{{label}}，{{count}} 個活躍",
-      "resize": "調整子代理面板大小"
+      "resize": "調整子代理面板大小",
+      "calls_other": "{{count}} 次呼叫",
+      "now": "進行中",
+      "needsApproval": "需要批准",
+      "result": "結果",
+      "turnNumber": "第 {{number}} 輪",
+      "status": "狀態",
+      "toolCallsNote": "工具呼叫",
+      "tokensSplit": "輸入 {{input}} · 輸出 {{output}}",
+      "costNested": "+{{cost}} 巢狀",
+      "costOwn": "本次執行",
+      "showUsageDetails": "顯示用量詳情",
+      "showUsageDetailsDescription": "在子代理和背景工作上顯示工具呼叫、權杖和費用，以及每個工作目前在做什麼。",
+      "usage": "用量"
     },
     "models": {
       "modelPicker": {
@@ -1056,6 +1185,8 @@
         "defaultChoice": "預設",
         "threadOnly": "在此選擇的模型只套用於此討論串。",
         "roomOverrideThreadOnly": "已透過 !room_model 為此聊天室設定。在此選擇的模型只套用於此討論串。",
+        "chooseNextThread": "為下一個討論串選擇模型",
+        "nextThreadOnly": "此選擇只會套用至下一個討論串。",
         "levels": {
           "off": "關閉",
           "minimal": "最低",
@@ -1071,11 +1202,40 @@
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+    },
+    "invites": {
+      "invalid": "此邀請連結不完整。請重新開啟郵件中的連結。",
+      "reopen": "你已登入。請重新開啟郵件中的邀請連結。",
+      "framed": "請在獨立的分頁中開啟此頁面以使用邀請。",
+      "ready": "透過 {{router}} 以 {{user}} 身分加入聊天室",
+      "claiming": "正在領取邀請…",
+      "offline": "此 MindRoom 沒有回應。你的請求已儲存；恢復後，邀請會出現在你的聊天室清單中。",
+      "rejected": "此邀請已失效。請索取新的邀請。",
+      "retry": "沒有成功。請稍後再試。",
+      "joining": "正在加入聊天室…",
+      "join": "加入",
+      "tryAgain": "重試"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此應用程式已關閉面板",
+      "askForText": "請求文字版本",
+      "copyRequest": "複製請求",
+      "textVersionRequest": "請改為在這裡以文字形式傳送「{{title}}」。我的應用程式已關閉互動式面板。",
+      "askForTextStatus": {
+        "hint": "在輸入框中放入一則請求。按下傳送之前不會傳送任何內容。",
+        "added": "請求已放入輸入框。按下傳送之前不會傳送任何內容。",
+        "kept": "您的草稿保持原樣。複製請求後自行加入。",
+        "copied": "請求已複製。請貼到您的草稿中。"
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "錄音已暫停 — 完成或放棄在此聊天室其他位置未傳送的錄音",
     "voiceThreadRootUnsent": "此語音訊息所在的討論串沒有已傳送的第一則訊息。請在該訊息傳送後重試，或放棄此錄音。",
+    "voiceIndicator": {
+      "recording": "正在錄音 {{time}}",
+      "paused": "已暫停 {{time}}"
+    },
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",
@@ -1095,7 +1255,10 @@
       "autoHint": "讓代理程式決定",
       "settingTitle": "代理程式正在回覆時傳送",
       "settingDescription": "長按傳送可為單則訊息另選方式。"
-    }
+    },
+    "replyInThread": "在討論串中回覆…",
+    "newThreadIn": "在 {{room}} 中建立新討論串…",
+    "newThreadWith": "與 {{name}} 建立新討論串…"
   },
   "commandPalette": {
     "state": {
@@ -1144,6 +1307,10 @@
     "hints": {
       "chip": "{{keys}} 查看所有快速鍵"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} 錄製語音訊息",
+      "description": "輕點開始或傳送，按住說話，放開傳送。"
+    },
     "actions": {
       "palette": "搜尋和指令",
       "settings": "開啟設定",
@@ -1169,7 +1336,8 @@
       "newLine": "換行",
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
-      "callView": "前往通話"
+      "callView": "前往通話",
+      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送"
     }
   },
   "thread": {
@@ -1203,7 +1371,10 @@
     "close": "關閉討論串",
     "resizeSecond": "調整第二個討論串大小",
     "second": "第二個討論串",
-    "dropSecond": "放開以在第二欄開啟"
+    "dropSecond": "放開以在第二欄開啟",
+    "newUnknown": "新訊息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延後至",
@@ -1516,9 +1687,10 @@
     }
   },
   "threadNav": {
-    "layout": "討論串版面",
-    "layoutRecent": "最近",
-    "layoutSections": "分區",
+    "forMe": "與我相關",
+    "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
+    "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",
+    "emptyForMe": "目前沒有與你相關的討論串",
     "group": "分組",
     "groupHint": "依狀態分組",
     "sections": {
@@ -1546,6 +1718,36 @@
   },
   "threadActions": {
     "openBeside": "在第二欄開啟"
+  },
+  "roomSchedules": {
+    "thisThread": "此討論串",
+    "elsewhereInRoom": "此房間中的其他位置",
+    "filterAll": "全部",
+    "filterLabel": "篩選排程任務",
+    "awaitingShort": "等待中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分鐘後",
+    "inHours": "{{count}}小時後",
+    "inHoursMinutes": "{{hours}}小時{{minutes}}分鐘後",
+    "inDays": "{{count}}天後",
+    "thread": "討論串",
+    "destination": "目標位置",
+    "showFullPrompt": "顯示完整提示詞",
+    "showLessPrompt": "收合",
+    "details": "詳細資訊",
+    "hideDetails": "隱藏詳細資訊",
+    "copyId": "複製 ID",
+    "copied": "已複製",
+    "edit": "編輯",
+    "cancel": "取消",
+    "cancelConfirm": "確定要取消此排程任務嗎？",
+    "keep": "保留",
+    "cancelTask": "取消任務",
+    "cancelling": "正在取消...",
+    "cancelError": "無法取消任務，請再試一次。",
+    "cancellationSent": "已傳送取消請求",
+    "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
+    "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
   },
   "home": {
     "greeting": {

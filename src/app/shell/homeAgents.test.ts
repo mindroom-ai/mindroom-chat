@@ -108,18 +108,19 @@ describe('readHomeAgents', () => {
   });
 
   it('offers no room the agent left, the account may not post in, or that was replaced', () => {
+    const readonlyRoom = room('!readonly', {
+      agents: [HELPER],
+      state: { 'm.room.power_levels': { events_default: 50, users: { [HELPER]: 50 } } },
+    });
     const rooms = [
       room('!lobby', { agents: [HELPER], messages: [[HELPER, 300]] }),
       room('!left', { agents: [HELPER], members: { [HELPER]: 'leave' } }),
-      room('!readonly', {
-        agents: [HELPER],
-        state: { 'm.room.power_levels': { events_default: 50, users: { [HELPER]: 50 } } },
-      }),
+      readonlyRoom,
       room('!old', { agents: [HELPER], state: { 'm.room.tombstone': { body: 'moved' } } }),
     ];
     const [helper] = readHomeAgents(client(rooms), ids(rooms), []);
-    expect(helper.roomIds).toEqual(['!lobby']);
-    expect(canAskIn(rooms[2], HELPER)).toBe(false);
+    expect(helper?.roomIds).toEqual(['!lobby']);
+    expect(canAskIn(readonlyRoom, HELPER)).toBe(false);
   });
 });
 

@@ -1,10 +1,9 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { reactionOrEditEvent } from '../matrix/room';
 import { inSameDay, minuteDifference } from '../lib/time';
 import { shouldRenderUnreadDividerAt } from '../event-store/timeline/timelineScrollUtils';
 import {
-  NOTICE_STATE_EVENT_TYPES,
   getTimelineMessageKind,
+  isRowlessTimelineEvent,
 } from '../event-store/timeline/timelineRowTypes';
 
 /** How one mounted row relates to the rows before it. */
@@ -44,17 +43,6 @@ const groupKind = (event: MatrixEvent): string => {
 };
 
 /**
- * Edits, reactions and redactions change other rows and have no row of their own, and an event
- * of a type the timeline draws no row for (`timelineRowTypes`) renders nothing.
- */
-export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
-  reactionOrEditEvent(event) ||
-  !!event.isRedaction?.() ||
-  (event.getStateKey() !== undefined
-    ? !NOTICE_STATE_EVENT_TYPES.has(event.getType())
-    : !getTimelineMessageKind(event.getType()));
-
-/**
  * The event `event` replies to, if it is a genuine reply. A thread message with an MSC3440
  * fallback (`is_falling_back: true`) names the thread's latest event only for clients without
  * threads, so it replies to nothing.
@@ -62,9 +50,7 @@ export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
 export const genuineReplyEventId = (event: MatrixEvent): string | undefined => {
   const replyEventId = event.replyEventId;
   if (!replyEventId) return undefined;
-  const relation = event.getWireContent?.()?.['m.relates_to'] as
-    | { rel_type?: string; is_falling_back?: boolean }
-    | undefined;
+  const relation = event.getWireContent?.()?.['m.relates_to'];
   if (relation?.rel_type === RelationType.Thread && relation.is_falling_back) return undefined;
   return replyEventId;
 };

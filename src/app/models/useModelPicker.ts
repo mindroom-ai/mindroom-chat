@@ -23,7 +23,8 @@ export const useModelControllerLifetime = (): void => {
  * The models the thread's picker lists for one runtime (`ModelController.runtimeModels`), as its
  * discovery last answered. Read only: it watches the scope without asking for it
  * (`ModelController.watch`), so it is empty until a composer's picker has discovered the thread's
- * catalog, while the picker shows another runtime's, and for a viewer the router answers nothing.
+ * catalog, while the picker shows another runtime's, or when the room's poster does not answer
+ * the viewer's discovery request.
  */
 export const useThreadModelCatalog = (
   room: Room,
@@ -66,6 +67,31 @@ export const useModelPicker = (room: Room, threadId: string | undefined): ModelP
       resetToRoomDefault: () => controller.resetToRoomDefault(room, threadId),
     }),
     [controller, room, threadId]
+  );
+  return useMemo(() => ({ ...snapshot, ...actions }), [snapshot, actions]);
+};
+
+/** Room-scope model catalog for room settings, independent of the room composer's draft. */
+export const useRoomModelCatalog = (room: Room): ModelPickerState => {
+  const mx = useMatrixClient();
+  const controller = useMemo(() => getModelController(mx), [mx]);
+  const subscribe = useCallback(
+    (listener: () => void) => controller.subscribeRoomCatalog(room, listener),
+    [controller, room]
+  );
+  const getSnapshot = useCallback(
+    () => controller.getRoomCatalogSnapshot(room),
+    [controller, room]
+  );
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const actions = useMemo(
+    () => ({
+      refresh: () => controller.refreshRoomCatalog(room),
+      chooseRuntime: (runtimeId: string) => controller.chooseRoomCatalogRuntime(room, runtimeId),
+      selectModel: () => undefined,
+      resetToRoomDefault: () => undefined,
+    }),
+    [controller, room]
   );
   return useMemo(() => ({ ...snapshot, ...actions }), [snapshot, actions]);
 };

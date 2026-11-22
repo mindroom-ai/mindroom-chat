@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabela com rolagem",
-    "scrollHint": "Role horizontalmente"
+    "scrollHint": "Role horizontalmente",
+    "readByRow": "Ler por linha",
+    "showTable": "Mostrar tabela"
   },
   "messageCodeBlock": {
     "actions": "Ações do bloco de código",
@@ -1161,7 +1163,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Este espaço foi substituído e já não está ativo.",
       "openNewSpace": "Abrir novo espaço",
       "joinNewSpace": "Entrar no novo espaço",
-      "lobby": "Átrio",
       "messageSearch": "Pesquisar mensagens",
       "failedToJoinReplacementSpace": "Falha ao entrar no espaço de substituição!",
       "rooms": "Salas",
@@ -2257,8 +2258,8 @@
       "resumeRecording": "Retomar gravação de voz",
       "statusActive": "Gravação de voz ativa",
       "statusPaused": "Gravação de voz em pausa",
-      "statusProcessing": "A processar gravação de voz",
       "statusReadyToRetry": "Gravação de voz pronta para nova tentativa",
+      "recoveredRecording": "Gravação recuperada · {{time}}",
       "statusSending": "A enviar gravação de voz",
       "statusStarting": "A iniciar gravação de voz",
       "voiceRecorderDialog": {
@@ -2661,9 +2662,6 @@
         "argumentsMayDifferBetweenCalls": "Os argumentos podem variar entre chamadas.",
         "requestedBy": "Pedido por {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "O agente router está a transcrever"
-      },
       "streamingIndicator": {
         "aiIsResponding": "A IA está a responder"
       },
@@ -2995,7 +2993,9 @@
       "computerUnavailable": "O computador deste agente não está disponível.",
       "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
       "openConversation": "Abra esta solicitação pela conversa da sala.",
-      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações."
+      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações.",
+      "canvasCard": "Painel interativo",
+      "reminderCard": "Lembrete · {{when}}"
     },
     "canvas": {
       "panelLabel": "Painel interativo",

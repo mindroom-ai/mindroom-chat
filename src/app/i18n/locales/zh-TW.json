@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "可捲動表格",
-    "scrollHint": "水平捲動"
+    "scrollHint": "水平捲動",
+    "readByRow": "逐列閱讀",
+    "showTable": "顯示表格"
   },
   "messageCodeBlock": {
     "actions": "程式碼區塊操作",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "該空間已被替換並且不再活躍。",
       "openNewSpace": "開啟新空間",
       "joinNewSpace": "加入新空間",
-      "lobby": "大堂",
       "messageSearch": "訊息搜尋",
       "failedToJoinReplacementSpace": "加入替換空間失敗！",
       "rooms": "房間",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "繼續錄音",
       "statusActive": "正在錄音",
       "statusPaused": "錄音已暫停",
-      "statusProcessing": "處理錄音",
       "statusReadyToRetry": "錄音準備重試",
+      "recoveredRecording": "已復原的錄音 · {{time}}",
       "statusSending": "傳送錄音",
       "statusStarting": "開始錄音",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "argumentsMayDifferBetweenCalls": "每次呼叫的引數可能不同。",
         "requestedBy": "由{{requester}}請求"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "路由 AI 代理正在轉錄"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI正在響應"
       },
@@ -2917,7 +2915,9 @@
       "computerUnavailable": "此代理的電腦無法使用。",
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
       "openConversation": "請從聊天室對話中開啟此請求。",
-      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。",
+      "canvasCard": "互動式面板",
+      "reminderCard": "提醒 · {{when}}"
     },
     "canvas": {
       "panelLabel": "互動式面板",

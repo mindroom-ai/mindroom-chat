@@ -30,7 +30,8 @@ export const useOpenSearchResult = () => {
   return useCallback(
     async (roomId: string, target: SearchResultOpenTarget) => {
       if (target.threadRootId) {
-        navigateRoomThread(roomId, target.threadRootId, target.mainEventId);
+        const eventId = target.threadTitle ? undefined : target.mainEventId;
+        navigateRoomThread(roomId, target.threadRootId, eventId);
         return;
       }
       const threadRootId = await findThreadRoot(client, roomId, target.mainEventId).catch(

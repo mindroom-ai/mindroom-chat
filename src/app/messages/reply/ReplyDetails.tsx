@@ -8,15 +8,18 @@ import type { ThreadConversationCost } from '../../event-store/threads/threadCon
 import { useThreadConversationCost } from '../../event-store/threads/useThreadConversationCost';
 import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import {
+  formatAiRunCompactNumber,
   formatAiRunNumber,
   formatAiRunPercentage,
   formatAiRunTimeToFirstToken,
   formatCostUsd,
-  getAiRunCompactModelLabel,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
+  getAiRunTokenCountParts,
   getAiRunTokenParts,
 } from '../agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
+import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ReplyDetails.css';
 
 // Enough bars to read a long thread's shape without each one shrinking to a hairline.
@@ -25,10 +28,13 @@ const MAX_HISTORY_BARS = 40;
 function Section({
   title,
   value,
+  action,
   children,
 }: {
   title: string;
   value?: string;
+  /** A control in place of the value. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -42,6 +48,7 @@ function Section({
             {value}
           </Text>
         )}
+        {action}
       </div>
       {children}
     </section>
@@ -262,16 +269,73 @@ function CostCard({
   );
 }
 
-function Tokens({ info }: { info: AiRunInfo }) {
+const TOKEN_VIEWS = ['thisReply', 'conversation'] as const;
+
+/** What this reply's tokens, or in a thread the conversation's through it, were spent on. */
+function Tokens({ info, eventId }: { info: AiRunInfo; eventId: string | undefined }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const tokens = getAiRunTokenParts(info, t);
-  if (!tokens) return null;
+  const [view, setView] = useState<(typeof TOKEN_VIEWS)[number]>('thisReply');
+  const threadCost = useThreadConversationCost();
+  const throughReply = eventId ? threadCost?.tokensByEventId.get(eventId) : undefined;
+  const reply = getAiRunTokenParts(info, t);
+  const conversation = throughReply && getAiRunTokenCountParts(throughReply.counts, t);
+  if (!reply) return null;
+  const tokens = view === 'conversation' && conversation ? conversation : reply;
+  const complete = tokens === reply || !!threadCost?.complete;
+  // The conversation's sums read short, but a lower bound stays exact: a rounded-up short count
+  // would claim more than was counted.
+  const amount = (count: number) =>
+    tokens === reply || !complete
+      ? formatAiRunNumber(count, language)
+      : formatAiRunCompactNumber(count, language);
+  let label = t('mindroomUi.messages.mindroomReplyDetails.thisReply');
+  if (tokens !== reply && throughReply) {
+    const replies = t(
+      complete
+        ? 'mindroomUi.messages.mindroomReplyDetails.replyCount'
+        : 'mindroomUi.messages.mindroomReplyDetails.loadedReplyCount',
+      { count: throughReply.replyCount }
+    );
+    label = `${t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar')} · ${replies}`;
+  }
+  const total = amount(tokens.total);
   return (
     <Section
       title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
-      value={formatAiRunNumber(tokens.total, language)}
+      action={
+        conversation && (
+          // Two toggle buttons rather than a radio group, which would owe roving focus and arrow keys.
+          <div
+            className={segmented.Segments}
+            role="group"
+            aria-label={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
+          >
+            {TOKEN_VIEWS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={view === id}
+                className={segmented.Segment}
+                onClick={() => setView(id)}
+              >
+                {t(`mindroomUi.messages.mindroomReplyDetails.${id}`)}
+              </button>
+            ))}
+          </div>
+        )
+      }
     >
+      <Text as="div" size="T200" className={css.TokenTotal}>
+        <Text as="span" size="T200" priority="300">
+          {label}
+        </Text>
+        <span className={css.HeaderValue}>
+          {complete
+            ? total
+            : t('mindroomUi.messages.mindroomReplyDetails.atLeastCost', { cost: total })}
+        </span>
+      </Text>
       <Meter parts={tokens.parts} legend />
       <ul className={css.Legend}>
         {tokens.parts.map((part) => (
@@ -280,7 +344,7 @@ function Tokens({ info }: { info: AiRunInfo }) {
             <Text as="span" size="T200" priority="300">
               {part.label}
             </Text>{' '}
-            {formatAiRunNumber(part.tokens, language)}
+            {amount(part.tokens)}
           </Text>
         ))}
       </ul>
@@ -332,13 +396,7 @@ const isFlaggedStatus = (status: string | undefined): status is keyof typeof STA
   status === 'error' || status === 'cancelled';
 
 /** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
-export function ReplyDetails({
-  info,
-  eventId,
-}: {
-  info: AiRunInfo;
-  eventId?: string;
-}) {
+export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: string }) {
   const { t } = useTranslation();
   const modelLabel = getAiRunCompactModelLabel(info);
   const modelSource = [info.modelProvider, info.modelId].filter(Boolean).join(' · ');
@@ -377,7 +435,7 @@ export function ReplyDetails({
           eventId={eventId}
         />
       )}
-      <Tokens info={info} />
+      <Tokens info={info} eventId={eventId} />
       <ContextWindow info={info} />
       <Activity info={info} />
       {(info.modelConfig || info.runId || info.sessionId) && (

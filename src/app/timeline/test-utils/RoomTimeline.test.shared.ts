@@ -120,6 +120,7 @@ const {
   >(),
   stateEventsByTypeMock: new Map<string, unknown[]>(),
   // The room's power levels the timeline reads from its context.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   powerLevelsContextMock: { levels: {} as Record<string, unknown> },
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
   ignoredUsersMock: [] as string[],
@@ -185,6 +186,7 @@ const {
     totalSize: undefined as number | undefined,
     // The row at the reader's top. Like virtual-core's offset lookup, it
     // follows that row's index across renders; without it there is none.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     firstVisibleKey: undefined as unknown,
     // The mock instance of the current test tree (mutant audit 2026-07-07:
     // the drop-path pins call the component-installed
@@ -564,7 +566,12 @@ vi.mock('../../matrix/hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
-  useStateEvent: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType)?.[0],
+  useStateEvent: (_room: unknown, eventType: string, key?: string | null) => {
+    const events = stateEventsByTypeMock.get(eventType);
+    if (key === null) return undefined;
+    if (key === undefined) return events?.[0];
+    return events?.find((event) => (event as MatrixEvent).getStateKey() === key);
+  },
 }));
 vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
@@ -703,6 +710,7 @@ vi.mock('../RoomIntro', () => ({
 // test sets one; the real module would load the plugins' translations, and the app's i18n setup.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => pluginRowHiddenMock.test,
+  pickRenderer: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
@@ -1236,6 +1244,8 @@ const makeEvent = (
   } = {}
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
+  const localTimestamp =
+    typeof unsigned.age === 'number' ? Date.now() - unsigned.age : opts.ts ?? 0;
   return {
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
@@ -1253,6 +1263,8 @@ const makeEvent = (
     getServerAggregatedRelation: () => undefined,
     getStateKey: () => opts.stateKey,
     getTs: () => opts.ts ?? 0,
+    localTimestamp,
+    getLocalAge: () => Date.now() - localTimestamp,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
     isEncrypted: () => opts.encrypted ?? opts.type === 'm.room.encrypted',
@@ -1304,6 +1316,7 @@ const makeTimeline = (
 };
 
 const makeRoom = ({
+  joinedMembers = [],
   liveEvents = [],
   liveTimeline,
   timelinesByEventId = new Map<string, ReturnType<typeof makeTimeline>>(),
@@ -1314,6 +1327,7 @@ const makeRoom = ({
   liveTimeline?: ReturnType<typeof makeTimeline>;
   timelinesByEventId?: Map<string, ReturnType<typeof makeTimeline>>;
   findEventById?: (eventId: string) => ReturnType<typeof makeEvent> | undefined;
+  joinedMembers?: string[];
   threads?: Array<{ id?: string; rootEvent?: ReturnType<typeof makeEvent> | undefined }>;
 } = {}) => {
   const roomLiveTimeline = liveTimeline ?? makeTimeline(liveEvents);
@@ -1418,7 +1432,9 @@ const makeRoom = ({
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
     getEventReadUpTo: (): string | null | undefined => undefined,
     getLiveTimeline: () => roomLiveTimeline,
+    getJoinedMembers: () => joinedMembers.map((userId) => ({ userId })),
     getMember: (userId: string) => ({ name: userId }),
+    membersLoaded: () => true,
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,
     getUnfilteredTimelineSet: () => timelineSet,
@@ -1575,6 +1591,7 @@ const getClickableByText = (renderer: ReturnType<typeof create>, text: string) =
   const clickable = renderer.root.find((node) => {
     if (typeof node.props.onClick !== 'function') return false;
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     return hasTextDescendant(node as unknown as { children: unknown[] });
   });
 

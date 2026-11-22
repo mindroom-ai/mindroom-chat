@@ -1,6 +1,6 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -61,5 +61,38 @@ describe('RoomTimeline layout', () => {
     });
 
     expect(findTimelineContentBox(renderer!)!.props.justifyContent).toBe('End');
+  });
+
+  it('shows the minimap only inside a thread', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const root = makeEvent('$root', { isThreadRoot: true });
+    const reply = makeEvent('$reply', { threadRootId: '$root' });
+    const room = makeRoom({ liveEvents: [root, makeEvent('$message')] });
+    threadRenderStateMock.threadEvents = [root, reply];
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+      ...mediaQuery,
+      matches: query === '(pointer: fine)',
+    }));
+    let renderer: ReturnType<typeof create> | undefined;
+    const hasMinimap = () =>
+      renderer!.root.findAllByProps({ 'data-testid': 'timeline-minimap' }).length > 0;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room }));
+        await flushAsyncWork(1);
+      });
+      expect(hasMinimap()).toBe(false);
+
+      await act(async () => {
+        renderer!.update(React.createElement(Harness, { room, threadId: '$root' }));
+        await flushAsyncWork(1);
+      });
+      expect(hasMinimap()).toBe(true);
+    } finally {
+      act(() => renderer?.unmount());
+      matchMedia.mockRestore();
+    }
   });
 });

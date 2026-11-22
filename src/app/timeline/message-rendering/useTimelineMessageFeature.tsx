@@ -40,7 +40,8 @@ import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
-import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { VoiceTranscript, VoiceTranscriptPending } from '../../messages/content/VoiceTranscript';
+import { ReplyCards } from '../../messages/content/ReplyCards';
 import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
@@ -347,7 +348,7 @@ const quietRunItemStyle = (node: ReactNode) =>
  * Inside a thread, the thread's title, its applied model changes and the backend's snooze-ended,
  * skill review and compaction notices render as one quiet line, not as an agent's reply: no
  * avatar, name or toolbar. A title shows only where the thread's summary plan marks it and a
- * model change only where its plan pairs the router's reply with its command (`planModelChanges`);
+ * model change only where its plan pairs the acknowledgement with its command (`planModelChanges`);
  * the others only from a MindRoom agent. A compaction notice started when its event was sent.
  */
 const readQuietMarker = (
@@ -671,7 +672,7 @@ export const useTimelineMessageFeature = ({
       if (kind === 'approval' && historyRecords && historyRecords.length > 0) {
         return (
           <MessageAside key={eventId} data-message-id={eventId} data-message-item={row.index}>
-            <ApprovalHistory records={historyRecords as never} />
+            <ApprovalHistory records={historyRecords} />
           </MessageAside>
         );
       }
@@ -726,7 +727,7 @@ export const useTimelineMessageFeature = ({
         htmlReactParserOptions,
         linkifyOpts,
       };
-      // The router's echo of a voice message shows under it, as its latest version says.
+      // A voice message's echo shows under it, as its latest version says.
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
       const voiceEchoId = voiceEcho?.getId() ?? '';
       if (voiceEcho) {
@@ -735,14 +736,12 @@ export const useTimelineMessageFeature = ({
           ...getPendingEdits(voiceEchoId, voiceEcho, timelineSet)
         );
       }
-      const voiceTranscript = voiceEcho && (
+      const voiceTranscript = voiceEcho ? (
         <VoiceTranscript
-          content={
-            getLatestMessageContent(
-              voiceEcho,
-              getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
-            ) as Record<string, unknown>
-          }
+          content={getLatestMessageContent(
+            voiceEcho,
+            getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
+          )}
           senderName={
             room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
@@ -755,6 +754,12 @@ export const useTimelineMessageFeature = ({
             />
           )}
         />
+      ) : data.voiceTranscripts.pendingVoiceIds.has(eventId) ? (
+        <VoiceTranscriptPending />
+      ) : null;
+      const cards = data.replyCards?.byReply.get(eventId);
+      cards?.forEach(
+        (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)
       );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
@@ -888,6 +893,7 @@ export const useTimelineMessageFeature = ({
                 }
               </CollapsibleMessage>
               {voiceTranscript}
+              {cards && <ReplyCards cards={cards} />}
               {editNotDecrypted && (
                 <div>
                   <MessageEditNotDecryptedContent />
@@ -897,7 +903,7 @@ export const useTimelineMessageFeature = ({
           </Message>
           {historyRecords && historyRecords.length > 0 && (
             <MessageAside>
-              <ApprovalHistory records={historyRecords as never} />
+              <ApprovalHistory records={historyRecords} />
             </MessageAside>
           )}
           {showFailedActions && (
@@ -1013,6 +1019,7 @@ export const useTimelineMessageFeature = ({
 
   return {
     renderEvent,
+    rowRepaintRevision: decryptions,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
     forksByPoint,

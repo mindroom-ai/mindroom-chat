@@ -36,7 +36,7 @@ export const planRedactionCacheCleanup = ({
   redactionEvent: MatrixEvent;
   /**
    * ISSUE-207 P3 gate re-fix (layer 2): the third arg of the
-   * `RoomEvent.Redaction` emission (matrix-js-sdk 41.7.0). matrix-js-sdk
+   * `RoomEvent.Redaction` emission (matrix-js-sdk 45.1.0). matrix-js-sdk
    * captures the target's `threadRootId` BEFORE calling `makeRedacted`
    * (see `applyEventAsRedaction` in room.js). That means this hint is
    * available even for reactions whose relation has since been stripped —

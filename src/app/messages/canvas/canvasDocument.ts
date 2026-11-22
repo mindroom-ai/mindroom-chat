@@ -413,13 +413,15 @@ const BASE_STYLE =
   'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
 /**
- * How a page is shown: in the thread, fitted to its height (`inline`); exactly as written, with no
- * theme variables, base style, or color scheme from Chat (`raw`); with remote assets (`remote`); and
- * with the libraries Chat serves that its revision names (`pinned`, from `canvas.libraries`).
+ * How a page is shown: in the thread (`inline`), fitted to its height unless it is a website preview
+ * (`raw`, or laid out at its own viewport `width`); exactly as written, with no theme variables, base
+ * style, or color scheme from Chat (`raw`); with remote assets (`remote`); and with the libraries
+ * Chat serves that its revision names (`pinned`, from `canvas.libraries`).
  */
 export type CanvasDisplay = {
   inline?: boolean;
   raw?: boolean;
+  width?: number;
   remote?: boolean;
   pinned?: readonly string[];
 };
@@ -499,6 +501,11 @@ export const buildCanvasDocument = (
     '</head><body><script>(() => {',
     "const frame = document.createElement('iframe');",
     `frame.setAttribute('sandbox', '${CANVAS_SANDBOX}');`,
+    // The Mac app's WebKit gives the whole wheel to a frame that can scroll even a pixel, so a fitted
+    // page whose size report comes up a few pixels short would stop the thread from scrolling.
+    display.inline && !display.raw && display.width === undefined
+      ? "frame.setAttribute('scrolling', 'no');"
+      : '',
     `frame.setAttribute('allow', ${scriptLiteral(CANVAS_PERMISSIONS)});`,
     "frame.setAttribute('referrerpolicy', 'no-referrer');",
     `frame.title = ${scriptLiteral(title)};`,

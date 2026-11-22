@@ -45,6 +45,7 @@ const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const approvals = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../matrix/session/useSessionStore', async (original) => ({
   ...(await original<typeof import('../../matrix/session/useSessionStore')>()),
@@ -2022,7 +2023,7 @@ describe('copy stripping matches the app renderer', () => {
       expect(detected.size).toBe(rendered.size);
     }
 
-    const scan = scanToolMarkerLines(body, formattedBody, plainBodyFallback);
+    const scan = scanToolMarkerLines(body, formattedBody, plainBodyFallback, true);
     if (!scan) return;
     // Stripped lines are exactly the tool blocks, and nothing of them is shown
     // as text: no 🔧, and no ⏳ beyond what the copy keeps.
@@ -2067,7 +2068,7 @@ describe('copy stripping matches the app renderer', () => {
       '<pre><code data-label="🔧 `x` [1]">code</code></pre><p>🔧 <code>x</code> [1]</p>',
     ],
   ])('crafted formatted_body: %s', async (name, body, formattedBody) => {
-    expect(scanToolMarkerLines(body, formattedBody, false)).toBeUndefined();
+    expect(scanToolMarkerLines(body, formattedBody, false, true)).toBeUndefined();
     await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
   });
 });

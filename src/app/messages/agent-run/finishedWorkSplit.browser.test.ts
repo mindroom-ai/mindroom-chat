@@ -19,6 +19,8 @@ vi.mock('html-react-parser', async (importOriginal) => {
   };
 });
 
+// Text before the call, without which a reply does not fold.
+const note = '<p>Checking.</p>';
 const marker = '<p>🔧 <code>shell</code> [1]</p>';
 
 /** The text of the tail's code block as the browser renders the tail. */
@@ -35,15 +37,17 @@ describe('splitFinishedWork in the browser', () => {
   });
 
   it('keeps the leading newline of a code block in the answer', () => {
-    const tail = splitFinishedWork(`${marker}<pre>\n\nhello</pre>`, {}, {})?.tail;
+    const tail = splitFinishedWork(`${note}${marker}<pre>\n\nhello</pre>`, {}, {})?.tail;
 
     expect(tail).toBeDefined();
     expect(renderedPreText(tail ?? '')).toBe('\nhello');
   });
 
   it('starts the answer at the prose after the last call in its paragraph', () => {
-    expect(splitFinishedWork('<p>🔧 <code>shell</code> [1]<br>\nThe answer.</p>', {}, {})).toEqual({
-      head: '<p>🔧 <code>shell</code> [1]</p>',
+    expect(
+      splitFinishedWork(`${note}<p>🔧 <code>shell</code> [1]<br>\nThe answer.</p>`, {}, {})
+    ).toEqual({
+      head: `${note}<p>🔧 <code>shell</code> [1]</p>`,
       tail: '<p>The answer.</p>',
     });
   });

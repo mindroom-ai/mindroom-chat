@@ -1,11 +1,14 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
+import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { matchesEnum } from '../lib/matchesEnum';
+import { findFirstHighlight } from './highlightRegex';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 export const SEARCH_RESULT_BODY_CHAR_LIMIT = 1600;
@@ -20,21 +23,6 @@ const withBody = (label: string, body?: string): string => {
   return normalizedBody ? `${label}: ${normalizedBody}` : label;
 };
 
-const findFirstHighlightIndex = (body: string, highlights: string[]): number => {
-  const loweredBody = body.toLocaleLowerCase();
-  let firstMatchIndex = -1;
-
-  for (const highlight of highlights) {
-    if (!highlight) continue;
-    const index = loweredBody.indexOf(highlight.toLocaleLowerCase());
-    if (index >= 0 && (firstMatchIndex === -1 || index < firstMatchIndex)) {
-      firstMatchIndex = index;
-    }
-  }
-
-  return firstMatchIndex;
-};
-
 export const getSearchResultBodySnippet = (
   body: string,
   highlights: string[] = [],
@@ -42,7 +30,7 @@ export const getSearchResultBodySnippet = (
 ): string => {
   if (body.length <= maxChars) return body;
 
-  const targetIndex = findFirstHighlightIndex(body, highlights);
+  const targetIndex = findFirstHighlight(body, highlights);
   const windowSize = Math.max(maxChars - 2, 0);
   const start =
     targetIndex >= 0
@@ -63,19 +51,17 @@ const getSerializedReplacementContent = (
 
   const replacementNewContent = replacement.content['m.new_content'];
   if (isRecord(replacementNewContent)) {
-    return replacementNewContent as IEventWithRoomId['content'];
+    return replacementNewContent;
   }
 
   return replacement.content;
 };
 
-export const getSearchResultEffectiveContent = (
-  event: IEventWithRoomId
-): IEventWithRoomId['content'] => {
+const getLatestContent = (event: IEventWithRoomId): IEventWithRoomId['content'] => {
   const relation = event.content?.['m.relates_to'];
   const inlineNewContent = event.content?.['m.new_content'];
   if (relation?.rel_type === RelationType.Replace && isRecord(inlineNewContent)) {
-    return inlineNewContent as IEventWithRoomId['content'];
+    return inlineNewContent;
   }
 
   const serializedReplacementContent = getSerializedReplacementContent(event);
@@ -84,11 +70,24 @@ export const getSearchResultEffectiveContent = (
   }
 
   if (isRecord(inlineNewContent)) {
-    return inlineNewContent as IEventWithRoomId['content'];
+    return inlineNewContent;
   }
 
   return event.content;
 };
+
+/**
+ * A hit's latest content as the timeline reads its event: the same shape and agent-key checks,
+ * and an agent's tool markers back in its text. Every preview of a hit starts from this.
+ */
+export const getSearchResultEffectiveContent = (
+  event: IEventWithRoomId
+): IEventWithRoomId['content'] =>
+  sanitizeContent(
+    getLatestContent(event),
+    isTrustedAgentSender(event.sender),
+    isMindroomAgentUserId(event.sender)
+  );
 
 export const isSearchResultEdited = (event: IEventWithRoomId): boolean =>
   event.content?.['m.relates_to']?.rel_type === RelationType.Replace ||
@@ -103,7 +102,7 @@ export const shouldUseLightweightSearchResultBody = (
     typeof content?.formatted_body === 'string' ? content.formatted_body : undefined;
 
   return (
-    shouldUseLongTextSearchResultBody(content as Record<string, unknown>) ||
+    shouldUseLongTextSearchResultBody(content) ||
     (typeof body === 'string' && body.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT) ||
     (typeof formattedBody === 'string' &&
       formattedBody.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT * 2)
@@ -144,13 +143,14 @@ export const getSearchResultLightweightCustomBody = (
 export const getSearchResultPreviewText = (
   event: IEventWithRoomId,
   highlights: string[] = [],
-  t?: TFunction
+  t?: TFunction,
+  // The hit's effective content, from a caller that has read it already.
+  content = getSearchResultEffectiveContent(event)
 ): string => {
   if (event.unsigned?.redacted_because) {
     return t?.('mindroomUi.message-search.searchResultPreview.redacted') ?? 'Message was redacted.';
   }
 
-  const content = getSearchResultEffectiveContent(event);
   const body = typeof content?.body === 'string' ? content.body : undefined;
   const previewBody =
     typeof body === 'string'

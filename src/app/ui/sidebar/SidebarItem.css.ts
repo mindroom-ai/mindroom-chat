@@ -221,7 +221,9 @@ export const SidebarAvatar = recipe({
     },
     // The raised button of a rail section. SidebarAvatar adds the glass control material for
     // its rim and shadow; the fill is a deeper grey than the material's, as in home.png, and a
-    // hairline in the rail's line colour runs around the outside of the rim.
+    // hairline in the rail's line colour runs around the outside of the rim. The rail behind it
+    // is solid, so drop the backdrop filter: leaving it on creates a WebKit backdrop layer that
+    // paints over sibling unread badges while the clipped phone navigation drawer slides in.
     outlined: {
       true: {
         position: 'relative',
@@ -231,6 +233,8 @@ export const SidebarAvatar = recipe({
           '&&&': {
             backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82),
             border: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
           },
           [raisedEngaged('')]: {
             backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
@@ -250,20 +254,20 @@ export const SidebarAvatar = recipe({
 });
 
 /**
- * Offsets that put the badge's top-start corner (top-left, or top-right in a right-to-left
- * language) `distance` px outside the entry's.
+ * Offsets that put the badge's top-end corner (top-right, or top-left in a right-to-left
+ * language) `distance` px outside the entry's: away from the selected entry's start-side bar.
  */
 const cornerOffset = (distance: number) => ({
   top: toRem(distance),
-  insetInlineStart: toRem(distance),
+  insetInlineEnd: toRem(distance),
 });
 
-/** The unread badge, pinned over the top-start corner of the rail entry. */
+/** The unread badge, pinned over the top-end corner of the rail entry. */
 export const SidebarItemBadge = recipe({
   // A flex box, so the badge sits at its top instead of on a text line's baseline below it.
   base: { position: 'absolute', zIndex: 1, pointerEvents: 'none', display: 'flex' },
   variants: {
-    // home.png: the unread count sits 6 px outside the avatar's top-left corner.
+    // The unread count sits 6 px outside the avatar's top-end corner.
     hasCount: {
       true: cornerOffset(-6),
       false: cornerOffset(-2),

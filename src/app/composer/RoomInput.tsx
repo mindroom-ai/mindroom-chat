@@ -11,6 +11,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ReactEditor } from 'slate-react';
 import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, type Room } from 'matrix-js-sdk';
@@ -28,7 +29,7 @@ import {
 } from '../editor/autocomplete/autocompleteQuery';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { EmoticonAutocomplete } from '../editor/autocomplete/EmoticonAutocomplete';
-import { createEmoticonElement, moveCursor, restoreEditorContent } from '../editor/utils';
+import { createEmoticonElement, moveCursor } from '../editor/utils';
 import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
@@ -45,6 +46,9 @@ import { useCommands } from './commands/useCommands';
 import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../emoji/useImagePackRooms';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
@@ -64,7 +68,9 @@ import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
-import { hasMatchingReplyDraft } from './roomInputSendSession';
+import { getModelController } from '../models/modelController';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { hasExplicitThreadContext, hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
@@ -99,11 +105,12 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
-import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 
@@ -213,7 +220,7 @@ const buildUploadMessageContent = async (
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
     content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
-  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment) as IContent;
+  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment);
 };
 
 /**
@@ -256,7 +263,29 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
-    const replyDraft = forkFrom ? undefined : viewReplyDraft;
+    const replyDraft = forkFrom || ask ? undefined : viewReplyDraft;
+    // The placeholder says where sent text goes: into the thread it joins, or, from the timeline, a
+    // new thread only where every agent of the room answers in threads (mode `thread`); mixed or
+    // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
+    // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
+    const roomThreadMode = useRoomThreadMode(roomId, true);
+    const newThread =
+      !ask &&
+      threadingEnabled &&
+      !threadId &&
+      !forkFrom &&
+      !replyDraft &&
+      roomThreadMode === 'thread';
+    const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
+    const direct = useAtomValue(mDirectAtom).has(roomId);
+    let placeholder = t('composer.placeholder');
+    if (forkFrom) placeholder = t('threadFork.continueInNewThread');
+    else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
+      placeholder = t('composer.replyInThread');
+    else if (newThread)
+      placeholder = direct
+        ? t('composer.newThreadWith', { name: roomName })
+        : t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -287,7 +316,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
     const modelPicker = (
-      <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
+      <ThreadModelPicker
+        room={room}
+        threadId={threadId}
+        newThread={newThread}
+        conversationHidden={conversationHidden}
+      />
     );
     // While an agent replies in the thread, holding Send offers how the message meets the reply.
     // A fork draft starts a thread of its own, and the main timeline has no such check yet.
@@ -370,6 +404,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [ask, store, textKey, userId]
     );
 
+    const rootModelContext = useLatestRef({ roomId, newThread });
+    const takeRootModelDraft = useCallback(
+      (target: Room) => {
+        const { roomId: liveRoomId, newThread: liveNewThread } = rootModelContext.current;
+        return mountedRef.current && liveNewThread && liveRoomId === target.roomId
+          ? getModelController(mx).takeRootModelDraft(target)
+          : undefined;
+      },
+      [mx, rootModelContext]
+    );
     const sessions = useRoomInputSendSessionController({
       mx,
       room,
@@ -387,8 +431,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       restoreComposerFallbackForRoom,
       onRoomMessageSent,
       forkFrom,
+      takeRootModelDraft,
     });
 
+    const { restoreText: restoreSentText } = sessions;
     const composer = useMemo(
       () => ({
         getContext: () => ({
@@ -404,20 +450,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           resetEditor(editor);
           resetEditorHistory(editor);
         },
-        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) => {
-          if (restoreRoomId === roomId && restoreThreadId === threadId && mountedRef.current) {
-            restoreEditorContent(editor, fragment);
-            return;
-          }
-          restoreComposerFallbackForRoom(restoreRoomId, fragment, restoreThreadId);
-        },
+        // Into the editor only while it still shows that room and thread, as a failed text send
+        // is: asked from a send that began before the composer moved on, it goes to that draft.
+        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) =>
+          restoreSentText({ roomId: restoreRoomId, threadId: restoreThreadId }, fragment),
         clearConsumedReply: clearReplyDraft,
       }),
       [
         clearReplyDraft,
         editor,
         replyDraft,
-        restoreComposerFallbackForRoom,
+        restoreSentText,
         room,
         roomId,
         threadId,
@@ -426,14 +469,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
-    // A voice message whose send failed survives a reload, as the dialog promises.
-    useSavedVoiceDraft(mx);
     const voice = useRoomInputVoice({
       mx,
       composer,
       attachments: attachments.access,
       transport,
       sessions,
+      takeRootModelDraft,
       onRoomMessageSent,
     });
 
@@ -468,21 +510,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         try {
           await acting.run(acting.args);
         } catch (error) {
-          // A composer that went away meanwhile keeps the text as its room's draft.
-          composer.restoreText(roomId, typed, threadId);
+          // A composer that went away meanwhile keeps the text in its own draft.
+          composer.restoreText(roomId, typed, draftThreadId);
           if (mountedRef.current) setCommandProblem(describeCommandFailure(t, acting, error));
         } finally {
           if (mountedRef.current) setSubmitPending(false);
         }
       },
-      [composer, roomId, sendTypingStatus, t, threadId]
+      [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
-    // A recording begun in the thread stays the thread's: a fork draft neither shows nor sends it,
-    // nor does Home's ask field, which takes text only.
+    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
+    // Home's ask field takes text only, so it neither shows nor sends a recording either.
     const voiceActive = !forkFrom && !ask;
     const submit = useCallback(
-      async (mode: MidTurnMode) => {
+      async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
         // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
         // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
@@ -501,17 +543,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
+        // Sending the text answers the notices of files and pastes a reload lost.
+        const takeText = () => {
+          const content = buildTextContent(mode);
+          if (content && !ask) {
+            dismissLostFiles();
+            dismissLostPastes();
+          }
+          return content;
+        };
+        // A Send takes the recording at the press (useRoomInputVoice's `sendAtPress`), before
+        // anything here waits: what follows is only for a Send without a voice message. One that
+        // `waited` for its root and goes out now is no press, and takes no recording made since.
+        const voiceSend =
+          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+        if (voiceSend) {
+          setSubmitPending(true);
+          await voiceSend.finally(() => {
+            if (mountedRef.current) setSubmitPending(false);
+          });
+          return;
+        }
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message' })) return;
-        const textContent = buildTextContent(mode);
-        // Sending the text answers the notices of files and pastes a reload lost.
-        if (textContent) {
-          dismissLostFiles();
-          dismissLostPastes();
-        }
+        const textContent = takeText();
         setSubmitPending(true);
         try {
-          if (voiceActive && (await voice.submitIfActive(textContent))) return;
           const sending = sessions.startSendSession({ textContent });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
@@ -521,6 +578,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
       },
       [
+        ask,
         buildTextContent,
         commands,
         dismissLostFiles,
@@ -539,12 +597,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
-    // message takes the one the Chats settings name.
+    // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
-      (mode?: MidTurnMode) => {
+      (mode?: MidTurnMode, waited = false) => {
         if (ask && !ask.canSend()) return Promise.resolve();
-        const sending = submit(mode ?? midTurnSend);
+        const sending = submit(mode ?? midTurnSend, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
@@ -657,7 +715,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend();
+        else void handleSend(undefined, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
@@ -669,13 +727,33 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);
     const { setRoot } = focus;
+    const rootRef = useRef<HTMLDivElement | null>(null);
     const setComposerRef = useCallback(
       (node: HTMLDivElement | null) => {
+        rootRef.current = node;
         setRoot(node);
         if (typeof ref === 'function') ref(node);
         else if (ref) ref.current = node;
       },
       [ref, setRoot]
+    );
+    // The voice key records here (useVoiceHoldShortcut): a send takes the same path as Enter,
+    // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
+    // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
+    useVoiceComposer(
+      voiceActive
+        ? {
+            ...voice.voiceKey,
+            root: () => rootRef.current,
+            thread: threadId !== undefined,
+            hasContent: () =>
+              !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
+            send: () => {
+              if (!isLocalEchoEventId(threadId)) void handleSend();
+            },
+            focus: () => ReactEditor.focus(editor),
+          }
+        : undefined
     );
     const expanded = isComposerExpanded({
       phone,
@@ -775,7 +853,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             {commandProblem}
           </Text>
         )}
-        {lostFileNames.length > 0 && (
+        {!ask && lostFileNames.length > 0 && (
           <LostNotice
             text={t('composer.lostFiles', {
               files: lostFileNames.map(revealDirectionControls).join(', '),
@@ -784,7 +862,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={dismissLostFiles}
           />
         )}
-        {attachments.lostPastes && (
+        {!ask && attachments.lostPastes && (
           <LostNotice
             text={t('composer.lostPastes')}
             dismissLabel={t('composer.dismissLostFiles')}
@@ -803,10 +881,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           className={glassDenseOverBackdrop}
           // A phone keeps the formatting toolbar in a row of its own however wide its composer.
           inlineBottom={!phone}
-          placeholder={
-            ask?.placeholder ??
-            (forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder'))
-          }
+          placeholder={ask?.placeholder ?? placeholder}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}

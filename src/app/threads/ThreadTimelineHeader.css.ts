@@ -1,4 +1,11 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { color, config } from 'folds';
+import { headerInset } from '../ui/styles/RoomOverlay.css';
+import {
+  HEADER_OUT_OF_PADDING,
+  THREAD_HEADER_ATTRIBUTE,
+  THREAD_HEADER_SCROLLER_ATTRIBUTE,
+} from '../ui/styles/threadHeaderInset';
 
 const headerHeight = 'var(--room-thread-header-height, 0px)';
 
@@ -12,7 +19,35 @@ const headerHeight = 'var(--room-thread-header-height, 0px)';
  */
 export const Header = style({});
 
+/**
+ * Beside the room's messages no room header sits above the banner, so it keeps the gap it has at
+ * its start. The column's own surface (the page's, `ContainerColor` Surface) fills the gap, where
+ * the messages scrolling past would otherwise show cut in half. Measured with the banner, it counts
+ * in the scroll padding too.
+ */
+export const GapAbove = style({
+  paddingTop: config.space.S300,
+  background: `linear-gradient(${color.Surface.Container}, ${color.Surface.Container}) top / 100% ${config.space.S300} no-repeat`,
+});
+
 globalStyle(`${Header} *`, {
   scrollMarginTop: `calc(-1 * ${headerHeight})`,
   scrollMarginBottom: headerHeight,
 });
+
+/**
+ * Typing in a field of the header (the banner's title) reveals the caret after each key, and a
+ * caret, unlike a focused element, ignores the scroll margin above. It sat in the scroll padding,
+ * so every key scrolled the thread up by the distance to the padding's edge (about 70 px), and the
+ * stuck header kept the caret there for the next key. While such a field has the focus, the
+ * padding leaves the header out; it overrides the padding the header writes inline. It also sets
+ * a flag, by which `readTopInset`, what reads the padding as the top of the reader's view, adds the
+ * header back. A browser without `:has()` applies neither.
+ */
+globalStyle(
+  `[${THREAD_HEADER_SCROLLER_ATTRIBUTE}]:has([${THREAD_HEADER_ATTRIBUTE}] :is(input, textarea, [contenteditable]:not([contenteditable="false"])):focus)`,
+  {
+    scrollPaddingTop: `${headerInset} !important`,
+    vars: { [HEADER_OUT_OF_PADDING]: '1' },
+  }
+);

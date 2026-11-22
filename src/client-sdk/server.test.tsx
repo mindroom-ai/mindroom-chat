@@ -25,6 +25,7 @@ const AGENT = { userId: '@mindroom_router:example.org', membership: 'join' };
 
 const state = vi.hoisted(() => ({
   // Undefined asks the homeserver, which gives `binding`'s answer, as the app does.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   bindsTokens: true as boolean | undefined,
   binding: Promise.resolve(true as boolean | undefined),
   published: undefined as string | undefined,

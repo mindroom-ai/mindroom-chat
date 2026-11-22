@@ -3,7 +3,6 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { type ComponentType, useEffect } from 'react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
 import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
@@ -36,7 +35,7 @@ const { mx, room, state, PENDING } = vi.hoisted(() => {
           uiActions: { autoOpenFromHomeservers: ['example.org'] },
           canvas: { enabled: true },
         },
-      } as ClientConfig,
+      },
       /** The room the URL names, and the thread it names. */
       roomId: '!room:example.org',
       thread: undefined as string | undefined,
@@ -78,6 +77,11 @@ const { mx, room, state, PENDING } = vi.hoisted(() => {
     PENDING,
   };
 });
+
+// The route names no event.
+vi.mock('../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({}),
+}));
 
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },

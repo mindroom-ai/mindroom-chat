@@ -126,7 +126,7 @@ export function SubspacesMenu({ subspaceIds }: { subspaceIds: string[] }) {
               unread={unreadOf(room.roomId)}
               onSelect={() => {
                 close();
-                navigate(getSpacePath(getCanonicalAliasOrRoomId(client, room.roomId)));
+                void navigate(getSpacePath(getCanonicalAliasOrRoomId(client, room.roomId)));
               }}
             />
           ))}

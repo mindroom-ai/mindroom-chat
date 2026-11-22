@@ -112,14 +112,7 @@ const sendRuns = async (room: PanelRoom) => {
 const row = (bar: Locator, kind: 'subagent' | 'tool', depth = 0) =>
   bar.locator(`li[data-job-kind="${kind}"][data-job-depth="${depth}"]`);
 
-test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
-  context,
-  page,
-}, testInfo) => {
-  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
-  test.setTimeout(3 * 60_000);
-  const room = await openPanelRoom(context, page);
-  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+async function allowBackgroundJobs(room: Awaited<ReturnType<typeof openPanelRoom>>) {
   const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
   const powerLevels = await matrixFetch<Record<string, unknown>>(
     DISPOSABLE_HOMESERVER,
@@ -140,6 +133,18 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
       },
     }
   );
+}
+
+test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The rows' model and usage show only with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
+  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+  await allowBackgroundJobs(room);
   // The agent's reply that started the shell job, whose trace names the call.
   await sendRoomMessage(DISPOSABLE_HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.text',
@@ -214,13 +219,14 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(lead.locator('[data-job-model]')).toHaveText('Fable 5.2');
   await expect(lead).toContainText('Rework the export queue retry policy');
   await expect(lead).not.toContainText('with capped backoff');
-  // A sub-agent's row shows none of its calls.
-  await expect(lead.locator('[data-job-activity]')).toHaveCount(0);
-  await expect(lead).not.toContainText(LEAD_TOOL.args_preview);
+  // A sub-agent's row names the call its run makes now, then its arguments.
+  await expect(lead.locator('[data-job-activity]')).toHaveText(
+    `${LEAD_TOOL.tool_name} ${LEAD_TOOL.args_preview}`
+  );
   // The group heading names the number columns, so the cells hold bare numbers.
   await expect(bar.getByText('Calls', { exact: true })).toBeVisible();
   await expect(lead.locator('[data-job-stat]')).toHaveText(['31', '1.9M', '$1.30']);
-  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 tool calls');
+  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 calls');
   const child = row(bar, 'subagent', 1);
   await expect(child.locator('[data-job-logo]')).toHaveAttribute('data-model-provider', 'openai');
   await expect(child.locator('[data-job-model]')).toHaveText('Sol · GPT-6.2');
@@ -255,13 +261,33 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
 
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
-  await child.locator('[data-job-open]').click();
+  // The row's title is its way there, from anywhere on the row but its buttons: here a press on
+  // its pill.
+  await expect(child.locator('[data-job-open]')).toHaveText('List every caller of schedule_retry');
+  await child.getByText('Waiting for approval', { exact: true }).click({ force: true });
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
-  // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  // Beside the panel the bar is narrower: the columns stay.
   await bar.getByRole('button', { name: /^3 background jobs/ }).click();
   await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
+
+  // In the room's own timeline each row also has its thread's button; a press between it and the
+  // row's Stop goes through to the row, and shows that row's run.
+  await page.keyboard.press('Escape');
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const roomBar = page.getByRole('region', { name: '3 background jobs' });
+  await expect(roomBar).toBeVisible();
+  await sendRuns(room);
+  await roomBar.getByRole('button', { name: /^3 background jobs/ }).click();
+  const roomLead = row(roomBar, 'subagent');
+  const thread = await roomLead.locator('[data-job-thread]').boundingBox();
+  const stopBox = await roomLead.locator('[data-cancel-job]').boundingBox();
+  if (!thread || !stopBox) throw new Error('The row has no thread button or Stop.');
+  await page.mouse.click((thread.x + thread.width + stopBox.x) / 2, thread.y + thread.height / 2);
+  await expect(
+    panelLocator(page, 'subagents').locator('[data-subagent-view="sub-lead"]')
+  ).toBeVisible();
 
   // On a phone the rows drop the model and the usage; the logos stay.
   await page.keyboard.press('Escape');
@@ -275,7 +301,6 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await sendRuns(room);
   await phoneBar.getByRole('button', { name: /^3 background jobs/ }).click();
   const phoneLead = row(phoneBar, 'subagent');
-  await expect(phoneLead.locator('[data-job-activity]')).toHaveCount(0);
   await expect(phoneLead.locator('[data-job-logo]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-model]')).toBeHidden();
   await expect(phoneLead.locator('[data-job-stat]')).toHaveCount(3);
@@ -284,4 +309,86 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(phoneLead.locator('[data-job-elapsed]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-open]')).toBeVisible();
   await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-c-phone.png') });
+});
+
+test('a folded quiet bar cuts its title short before the time, with Open, Thread and Stop', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The app's default: no usage details, so the folded row has its title and no line of what it does.
+  const room = await openPanelRoom(context, page);
+  await allowBackgroundJobs(room);
+  await sendStateEvent(
+    DISPOSABLE_HOMESERVER,
+    room.agent.accessToken,
+    room.roomId,
+    'io.mindroom.background_jobs',
+    room.agent.userId,
+    {
+      jobs: [
+        {
+          job_id: 'job_notes',
+          thread_id: room.rootId,
+          status: 'running',
+          requester_id: room.viewer.userId,
+          kind: 'subagent',
+          tool: 'panels',
+          subagent: 'sub-notes',
+          run: 'run-notes',
+          started_at: new Date(Date.now() - 754_000).toISOString(),
+        },
+      ],
+    }
+  );
+  // In the room's own timeline the job, of a thread, has the thread's button besides Open and Stop.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const folded = page.locator('[data-job-folded]');
+  await expect(folded).toBeVisible({ timeout: 30_000 });
+  const title = "Summarize this week's meeting notes and draft the follow-up email";
+  await sendRun(
+    room,
+    'run-notes',
+    {
+      subagent: 'sub-notes',
+      task: title,
+    },
+    [
+      {
+        type: 'tool_call_started',
+        tool_name: 'read_file',
+        args_preview: 'path=notes/2026-11-16-weekly-planning-meeting.md',
+      },
+    ]
+  );
+  await expect(folded.locator('button[aria-expanded]')).toHaveText(title);
+  await expect(folded.locator('[data-job-activity]')).toHaveCount(0);
+  await expect(folded.locator('[data-job-open]')).toBeVisible();
+  await expect(folded.locator('[data-job-thread]')).toBeVisible();
+  await expect(folded.locator('[data-cancel-job]')).toBeVisible();
+  await expect(folded.locator('[data-job-elapsed]')).toBeVisible();
+  // Each part of the text column (the headline and the chevron) ends before the time begins, on a
+  // phone, beside the Sub-agents panel's width and on a desktop; on the phone the title is cut short.
+  for (const width of [390, 800, 1100]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await folded.evaluate((row) => {
+      const task = row.querySelector('button[aria-expanded]')!;
+      const text = task.parentElement!.parentElement!;
+      const time = row.querySelector('[data-job-elapsed]')!.getBoundingClientRect();
+      return {
+        timeStart: time.left,
+        ends: [...text.children].map((part) => part.getBoundingClientRect().right),
+        textEnd: text.getBoundingClientRect().right,
+        titleCut: task.scrollWidth > task.clientWidth,
+      };
+    });
+    testInfo.annotations.push({ type: `layout ${width}`, description: JSON.stringify(layout) });
+    for (const end of [...layout.ends, layout.textEnd])
+      expect(end, `${width} px`).toBeLessThanOrEqual(layout.timeStart + 0.5);
+    if (width === 390) expect(layout.titleCut).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await folded.screenshot({ path: testInfo.outputPath('jobs-bar-quiet-phone-folded.png') });
 });

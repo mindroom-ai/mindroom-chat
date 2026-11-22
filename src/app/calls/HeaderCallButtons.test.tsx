@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
   shownHere: false,
   callRoom: false,
   /** What the deployment's call service discovery answered. */
-  support: 'supported' as 'checking' | 'supported' | 'unsupported',
+  support: 'supported',
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({

@@ -58,7 +58,9 @@ describe('remembered navigation content', () => {
           </MemoryRouter>
         );
       });
-      act(() => navigate(root));
+      act(() => {
+        void navigate(root);
+      });
       const paths = JSON.parse(saved.get('navToActivePath@alice:example.org') ?? '{}');
       expect(paths[navId]).toEqual(
         preserveMobileContent

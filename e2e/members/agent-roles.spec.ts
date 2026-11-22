@@ -100,16 +100,17 @@ const memberRow = (page: Page, userId: string) =>
   page.locator(`button[data-user-id="${userId}"]`).first();
 
 const openMembers = async (page: Page) => {
-  const showMembers = page.getByRole('button', { name: 'Members', exact: true });
+  const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
   await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible({
     timeout: 30_000,
   });
   if (await showMembers.isVisible()) await showMembers.click();
 };
 
-const openCard = async (page: Page, userId: string) => {
+/** `userId`'s card, which is named by the agent's name for an agent and by the ID for a person. */
+const openCard = async (page: Page, userId: string, name = userId) => {
   await memberRow(page, userId).click();
-  const card = page.getByRole('dialog', { name: userId, exact: true });
+  const card = page.getByRole('dialog', { name, exact: true });
   await expect(card).toBeVisible();
   return card;
 };
@@ -130,7 +131,7 @@ test('an agent shows its role in the member list and on its card; a person does 
 
   await shootSchemes(page, 'members');
 
-  const helperCard = await openCard(page, agent.userId);
+  const helperCard = await openCard(page, agent.userId, HELPER);
   await expect(helperCard.getByText(ROLE, { exact: true })).toBeVisible();
   expect(await lines(helperCard.getByText(ROLE, { exact: true }))).toBe(2);
   await shootSchemes(page, 'card');

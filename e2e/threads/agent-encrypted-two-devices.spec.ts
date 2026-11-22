@@ -6,7 +6,6 @@ import {
   expect,
   mentionHelper,
   openNewSession,
-  readRouterWelcome,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -131,7 +130,6 @@ test('two devices of one account count an encrypted room the same, and clear it 
       accessToken: colleague.accessToken,
       body: '{}',
     });
-    await readRouterWelcome(stack, roomId);
 
     // The desk asks the helper and goes Home before the reply comes (30 words, then a title).
     await desk.goto(`/home/${room}`, { timeout: 180_000 });

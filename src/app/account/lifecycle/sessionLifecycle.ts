@@ -45,6 +45,7 @@ import {
   getStoredSessionCleanupContexts,
   mergeSessionCleanupContexts,
 } from './browserStorageCleanup';
+import { leavePage } from '../../../boot/inviteFragment';
 
 const getMatrixClientSessionIdentity = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getSafeUserId'>
@@ -81,17 +82,17 @@ const stopClientRuntime = (mx: MatrixClient): void => {
   mx.stopClient();
 };
 
-const clearSessionScopedUiState = (
+const clearSessionScopedUiState = async (
   session: Pick<SessionCleanupContext, 'sessionId' | 'baseUrl' | 'userId'>,
   clearUserScopedState = true
-): void => {
+): Promise<void> => {
   const { sessionId, baseUrl, userId } = session;
   removeCachedSpecVersions(baseUrl, userId);
   forgetCloudflareAccessToken(baseUrl);
   if (clearUserScopedState) {
     try {
       clearNavToActivePathStore(userId);
-      clearUserUiState(userId);
+      await clearUserUiState(userId);
     } catch {
       // Local UI cleanup is best effort and must not retain account credentials.
     }
@@ -136,7 +137,7 @@ const deleteSessionLocalData = async (
   mx?: MatrixClient,
   clearUserScopedState = true
 ): Promise<void> => {
-  clearSessionScopedUiState(session, clearUserScopedState);
+  const clearUi = clearSessionScopedUiState(session, clearUserScopedState);
 
   const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
   const rustCryptoStoreNames = mx ? [] : await getAllSessionRustCryptoDbNames(session);
@@ -145,6 +146,7 @@ const deleteSessionLocalData = async (
   // must not prevent crypto, sync, native, and credential cleanup from
   // running; reloading will also release this tab's remaining DB handles.
   await Promise.allSettled([
+    clearUi,
     mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
@@ -209,7 +211,7 @@ export const removeCurrentClientSessionAndReload = async (
   // them alone; reloading boots the newer device.
   const stored = listSessions().find((item) => item.sessionId === session?.sessionId);
   if (session && stored && stored.deviceId !== session.deviceId) {
-    window.location.reload();
+    leavePage();
     return;
   }
 
@@ -240,7 +242,7 @@ export const removeCurrentClientSessionAndReload = async (
     clearSessionScopedNativeState(identity.sessionId);
     await clearFetchedAvatars(identity.userId);
   }
-  clearSessionScopedUiState(identity, clearUserScopedState);
+  await clearSessionScopedUiState(identity, clearUserScopedState);
   reloadAppAt(nextHref);
 };
 

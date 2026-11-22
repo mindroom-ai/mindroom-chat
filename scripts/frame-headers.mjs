@@ -2,12 +2,13 @@
 // Who may show the app in a frame. Other sites may not (clickjacking): the app keeps its account
 // tokens in this origin, and one click in a disguised frame can act for the signed-in user. The app
 // frames only its own PDF page (public/pdf-frame.html), so its pages allow their own origin, and
-// the pairing page (/connect) allows no frame at all. `frame-ancestors` works only as a header,
-// never in index.html's meta policy; `X-Frame-Options` says the same to older browsers.
+// the pairing page (/connect) and the invite page (/invite) allow no frame at all.
+// `frame-ancestors` works only as a header, never in index.html's meta policy; `X-Frame-Options`
+// says the same to older browsers.
 //
 // The values live in frame-headers.json, which serve.py reads too (scripts/frame_headers.py).
-// `vite preview` sends them through `frameHeaders()`, the service worker gives the pairing page
-// its own when it answers with the cached app shell (src/sw/serviceWorkerFraming.ts), and the
+// `vite preview` sends them through `frameHeaders()`, the service worker gives those two pages
+// their own when it answers with the cached app shell (src/sw/serviceWorkerFraming.ts), and the
 // nginx start script (docker/entrypoint.d/40-frame-headers.sh) repeats them;
 // src/build/frameHeaders.test.ts checks that every copy agrees.
 // Vite, Vitest and the service worker build bundle the JSON; plain Node never loads this file.
@@ -18,15 +19,16 @@ const decodeEscapes = (/** @type {string} */ path) =>
   path.replace(/%([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
 
 /**
- * Whether a request path shows the pairing page, in any spelling the router takes for it: the
- * router ignores letter case, decodes escapes and repeated slashes, and the deployment may serve
- * the app under a base path. Any path whose last segment reads `connect` counts, which also
- * covers a room or space of that name; nothing frames those either.
+ * Whether a request path shows a page no frame may show (the pairing or the invite page), in any
+ * spelling the router takes for it: the router ignores letter case, decodes escapes and repeated
+ * slashes, and the deployment may serve the app under a base path. Any path whose last segment
+ * reads `connect` or `invite` counts, which also covers a room or space of that name; nothing
+ * frames those either.
  * @param {string} pathname
  */
-export const isPairingPagePath = (pathname) => {
+export const isUnframeablePagePath = (pathname) => {
   const segments = decodeEscapes(pathname).toLowerCase().split('/').filter(Boolean);
-  return segments.at(-1) === policy.pairingPage;
+  return policy.unframeablePages.includes(segments.at(-1) ?? '');
 };
 
 /**
@@ -35,7 +37,7 @@ export const isPairingPagePath = (pathname) => {
  * @returns {Record<string, string>}
  */
 export const framingHeaders = (pathname) => ({
-  ...(isPairingPagePath(pathname) ? policy.pairingPageHeaders : policy.otherPageHeaders),
+  ...(isUnframeablePagePath(pathname) ? policy.unframeablePageHeaders : policy.otherPageHeaders),
 });
 
 /**

@@ -64,16 +64,7 @@ const renderInviteNotifications = (store: Store, mx: MatrixClient): ReactTestRen
       React.createElement(
         MatrixClientProvider,
         { value: mx },
-        React.createElement(
-          MemoryRouter,
-          {
-            future: {
-              v7_relativeSplatPath: true,
-              v7_startTransition: true,
-            },
-          },
-          React.createElement(InviteNotifications)
-        )
+        React.createElement(MemoryRouter, {}, React.createElement(InviteNotifications))
       )
     )
   );
@@ -204,16 +195,7 @@ describe('InviteNotifications', () => {
           React.createElement(
             MatrixClientProvider,
             { value: bobMx },
-            React.createElement(
-              MemoryRouter,
-              {
-                future: {
-                  v7_relativeSplatPath: true,
-                  v7_startTransition: true,
-                },
-              },
-              React.createElement(InviteNotifications)
-            )
+            React.createElement(MemoryRouter, {}, React.createElement(InviteNotifications))
           )
         )
       );
@@ -244,16 +226,7 @@ describe('InviteNotifications', () => {
           React.createElement(
             MatrixClientProvider,
             { value: bobMx },
-            React.createElement(
-              MemoryRouter,
-              {
-                future: {
-                  v7_relativeSplatPath: true,
-                  v7_startTransition: true,
-                },
-              },
-              React.createElement(InviteNotifications)
-            )
+            React.createElement(MemoryRouter, {}, React.createElement(InviteNotifications))
           )
         )
       );
@@ -287,16 +260,7 @@ describe('InviteNotifications', () => {
           React.createElement(
             MatrixClientProvider,
             { value: bobMx },
-            React.createElement(
-              MemoryRouter,
-              {
-                future: {
-                  v7_relativeSplatPath: true,
-                  v7_startTransition: true,
-                },
-              },
-              React.createElement(InviteNotifications)
-            )
+            React.createElement(MemoryRouter, {}, React.createElement(InviteNotifications))
           )
         )
       );
@@ -440,9 +404,11 @@ describe('CanvasIndexFeature', () => {
   });
 
   it('records where an agent showed its computer when only a computer service is configured', async () => {
-    expect(await recordNoticeWith({ computers: { apiUrl: 'https://computers.example.org' } })).toBe(
-      true
-    );
+    const mindroom = {
+      canvas: { enabled: false },
+      computers: { apiUrl: 'https://computers.example.org' },
+    };
+    expect(await recordNoticeWith(mindroom)).toBe(true);
     expect(await listCanvases(SESSION)).toEqual([]);
   });
 

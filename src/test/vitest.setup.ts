@@ -12,11 +12,14 @@ vi.mock('../app/ui/styles/Glass.css', () => ({
   glassInheritTint: 'glass-inherit-tint',
   glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
+  glassFadeDown: 'glass-fade-down',
   glassOutline: 'glass-outline',
   glassDenseOverBackdrop: 'glass-dense-over-backdrop',
+  glassOverFadingBackdrop: 'glass-over-fading-backdrop',
   glassExpanded: 'glass-expanded',
   glassSurface: () => 'glass-surface',
 }));
+vi.mock('../app/ui/styles/Segmented.css', () => ({ Segments: 'segments', Segment: 'segment' }));
 vi.mock('../app/ui/ThreadActivity.css', () => ({
   Activity: 'activity',
   Line: 'activity-line',
@@ -52,6 +55,8 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {
     cacheRead: 'part-cache-read',
+    cacheWrite: 'part-cache-write',
+    notCached: 'part-not-cached',
     newInput: 'part-new-input',
     input: 'part-input',
     output: 'part-output',
@@ -84,6 +89,7 @@ vi.mock('../app/messages/reply/ReplyDetails.css', () => {
     Legend: 'reply-details-legend',
     LegendItem: 'reply-details-legend-item',
     Swatch: parts,
+    TokenTotal: 'reply-details-token-total',
     Meta: 'reply-details-meta',
     MetaValue: 'reply-details-meta-value',
     TechnicalSummary: 'reply-details-technical-summary',

@@ -9,13 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  NavigationType,
-  useLocation,
-  useNavigationType,
-  useParams,
-  useSearchParams,
-} from 'react-router-dom';
+import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -26,6 +20,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { usePowerLevels, PowerLevelsContextProvider } from '../matrix/hooks/usePowerLevels';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
+import { canvasesEnabled } from '../config/canvases';
 import { useClientConfig } from '../config/useClientConfig';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
@@ -34,12 +29,17 @@ import { settingsModalAtom } from '../navigation/settingsModal';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow, useMembersOverlay } from '../members/PanelRow';
-import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
+import {
+  CONVERSATION_MIN_WIDTH,
+  ResizablePanel,
+  SIDE_PANEL_MAX_WIDTH,
+} from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
@@ -76,7 +76,12 @@ import { isReturnToRoom } from '../routes/historyStack';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { useCallPanel, useInCall } from '../calls/callStore';
+import {
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  useCallPanel,
+  useInCall,
+} from '../calls/callStore';
 import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import {
@@ -106,6 +111,14 @@ import { SecondThreadPanel } from './SecondThreadPanel';
 import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
 import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
+import { createParagraphElement } from '../editor/utils';
+import { confirmedVoiceThreadId as confirmed } from '../composer/RoomInputExtensions';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
@@ -113,7 +126,6 @@ const MAIN_COMPOSERS = [THREAD_COLUMN_COMPOSER, ROOM_COMPOSER];
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
-const COMPUTER_MAX_WIDTH = 1600;
 // The live transcript loads on first use too, and says so as the call panel does when its chunk
 // does not load.
 const LiveTranscriptPanel = lazyPart(
@@ -130,9 +142,6 @@ const HeaderCallButtons = lazyPart(() =>
 
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
-const CALL_MAX_WIDTH = 1200;
-/** The live transcript is read like a conversation, no wider than a readable line or two. */
-const TRANSCRIPT_MAX_WIDTH = 800;
 
 const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
 // Behind a side panel in its place, the conversation takes no room in the row but stays as it was
@@ -168,11 +177,11 @@ type PanelEntry = RoomPanel & {
  * whether the router pushed that entry, and whether the app's Back put it in a thread's place.
  */
 const useRoomRoute = () => {
-  const params = useParams();
+  const { eventId } = useRoomRouteParams();
   const [search] = useSearchParams();
   const location = useLocation();
   return {
-    eventId: params.eventId,
+    eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
     entryKey: location.key,
@@ -274,7 +283,7 @@ function RoomContent() {
   const computerOpen = computer.open && !!computerTarget.apiUrl;
   const computerShown = useComputerShown(client, roomId, threadId);
 
-  const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
+  const canvasEnabled = canvasesEnabled(clientConfig);
   const conversationCanvases = useConversationCanvases(client, roomId, threadId);
   const [shownCanvas, setShownCanvas] = useState<ShownCanvas>();
   // A canvas belongs to the conversation it opened in; another route shows none.
@@ -327,7 +336,7 @@ function RoomContent() {
         storageKey={callWidthStorageKey(ownUserId)}
         defaultWidth={CALL_DEFAULT_WIDTH}
         minContentWidth={CONVERSATION_MIN_WIDTH}
-        maxPanelWidth={CALL_MAX_WIDTH}
+        maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
         passthrough={mobile}
         resizeLabel={t('featureUi.calls.panel.resize')}
         collapseLabel={t('featureUi.calls.panel.close')}
@@ -359,7 +368,7 @@ function RoomContent() {
             storageKey={computerWidthStorageKey(ownUserId)}
             defaultWidth={COMPUTER_DEFAULT_WIDTH}
             minContentWidth={CONVERSATION_MIN_WIDTH}
-            maxPanelWidth={COMPUTER_MAX_WIDTH}
+            maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
             passthrough={mobile}
             resizeLabel={t('mindroomUi.computer.resize')}
             collapseLabel={t('mindroomUi.computer.close')}
@@ -419,7 +428,7 @@ function RoomContent() {
           storageKey={callTranscriptWidthStorageKey(ownUserId)}
           defaultWidth={CALL_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
           passthrough={mobile}
           resizeLabel={t('featureUi.calls.transcription.resize')}
           collapseLabel={t('featureUi.calls.transcription.close')}
@@ -448,7 +457,7 @@ function RoomContent() {
           storageKey={subagentsWidthStorageKey(ownUserId)}
           defaultWidth={CALL_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
           passthrough={mobile}
           resizeLabel={t('mindroomUi.subagents.resize')}
           collapseLabel={t('mindroomUi.subagents.hide')}
@@ -460,6 +469,8 @@ function RoomContent() {
               room={room}
               threadId={subagentConversation(threadId, viewMode === 'classic')}
               onClose={subagents.close}
+              // A fork draft's thread is read-only, so its jobs bar stops nothing, nor does the panel.
+              readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
             />
           </Suspense>
         </ResizablePanel>
@@ -491,7 +502,7 @@ function RoomContent() {
               storageKey={pluginPanelWidthStorageKey(ownUserId, panel.id)}
               defaultWidth={CALL_DEFAULT_WIDTH}
               minContentWidth={CONVERSATION_MIN_WIDTH}
-              maxPanelWidth={CALL_MAX_WIDTH}
+              maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
               passthrough={mobile}
               resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
               collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
@@ -559,10 +570,19 @@ function RoomContent() {
   // B as it shows, which a late SDK model of it loads for, as the open thread's does.
   const secondShown = shown?.id === 'thread' ? secondId : undefined;
   useInitializeOpenThread(room, secondShown);
-  // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
-  // ask for theirs, also while it shows: folded, it unfolds. So does a sub-agent job in the jobs
-  // bar for the Sub-agents panel, whose store the header's toggle sets too.
+  // The return shortcut, transcript and sub-agent jobs ask for their panels as the room's own
+  // buttons do, even if the panel is already open but folded.
   const store = useStore();
+  useEffect(() => {
+    const takeRequest = () => {
+      if (store.get(callPanelRequestAtom)?.roomId !== roomId) return;
+      store.set(callPanelRequestAtom, undefined);
+      if (store.get(callPanelRoomAtom) === roomId) request('call', () => undefined);
+    };
+    // Returning from another room sets the request before this room is shown.
+    takeRequest();
+    return store.sub(callPanelRequestAtom, takeRequest);
+  }, [request, roomId, store]);
   useEffect(
     () =>
       store.sub(transcriptPanelAtom, () => {
@@ -796,6 +816,23 @@ function RoomContent() {
     [navigateRoom, navigateRoomThread, roomId, setViewMode, viewMode]
   );
 
+  // With canvases off, a canvas asks for a text version in its thread's draft, never over work.
+  const textRequest = useMemo(() => {
+    const offer = (threadId: string | undefined, text: string) =>
+      composerOfferAtom([ownUserId, roomId, threadId], [createParagraphElement(text)], confirmed);
+    const fill = (action: ChatUiAction, text: string) => {
+      if (store.get(offer(action.threadId, text)) !== 'empty') return;
+      const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);
+      store.set(roomIdToMsgDraftAtomFamily(draftKey), [createParagraphElement(text)]);
+      // Opened unless it shows: the thread in a view on screen, the room alone or beside a thread.
+      const shown = store
+        .get(shownConversationViewsAtom)
+        .some((v) => v.roomId === roomId && v.threadId === action.threadId);
+      if (!shown && (action.threadId || threadId)) showConversation(action.threadId);
+    };
+    return { offer, fill };
+  }, [ownUserId, roomId, showConversation, store, threadId]);
+
   const uiActions = useChatUiActions({
     mx: client,
     room,
@@ -806,6 +843,7 @@ function RoomContent() {
     navigate: showConversation,
     unavailable,
     openCanvasId,
+    textRequest: canvasEnabled ? undefined : textRequest,
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows
@@ -923,6 +961,8 @@ function RoomContent() {
           <SecondThreadContext.Provider value={secondThread}>
             <Box
               ref={conversationRef}
+              data-conversation-behind-panel={String(behindPanel)}
+              data-plugin-panel-open={shown && shown.id === pluginPanel?.id ? '' : undefined}
               grow="Yes"
               direction="Column"
               style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   attachComputerClipboard,
   isApplePlatform,
@@ -71,12 +71,12 @@ describe('attachComputerClipboard', () => {
   let canvas: HTMLCanvasElement;
   let rfb: ReturnType<typeof createRfb>;
   let clipboard: {
-    readText: ReturnType<typeof vi.fn>;
-    write: ReturnType<typeof vi.fn>;
-    writeText: ReturnType<typeof vi.fn>;
+    readText: Mock;
+    write: Mock;
+    writeText: Mock;
   };
-  let onPaste: ReturnType<typeof vi.fn>;
-  let canvasKeys: ReturnType<typeof vi.fn>;
+  let onPaste: Mock;
+  let canvasKeys: Mock;
   let controlling: boolean;
   let detach: (() => void) | undefined;
 

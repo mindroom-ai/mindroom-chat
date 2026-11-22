@@ -1,15 +1,19 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider, createStore } from 'jotai';
+import { Provider, createStore, useAtomValue } from 'jotai';
+import { useRef, type ReactNode } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { useInert } from '../lib/hooks/useInert';
+import { phoneLayerOpenAtom, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import type { IconTooltipProps } from '../ui/IconTooltip';
 import {
   activeCallAtom,
   callPanelRoomAtom,
+  callStartingAtom,
   callStartProblemAtom,
   callViewStateAtom,
   type ActiveCall,
@@ -28,6 +32,7 @@ import { transcriptPanelAtom } from './transcription/transcriptPanel';
 import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowSettings,
 } from './window/callWindowState';
@@ -36,8 +41,8 @@ import {
 // mode, and the one-line bar the window shows while minimized; and the call's controls.
 
 const USER = '@me:panel.test';
-const room = { roomId: '!standup:panel.test' } as Room;
-const callRoom = { roomId: '!agent-call:panel.test' } as Room;
+const room = { roomId: '!standup:panel.test', getJoinedMemberCount: () => 5 } as Room;
+const callRoom = { roomId: '!agent-call:panel.test', getJoinedMemberCount: () => 2 } as Room;
 
 const calls = vi.hoisted(() => ({
   active: undefined as ActiveCall | undefined,
@@ -50,7 +55,7 @@ const dismiss = vi.hoisted(() => vi.fn());
 const start = vi.hoisted(() => vi.fn(async (_options: unknown) => 'started' as const));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test' }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test', getRoom: () => null }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Standup' }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
@@ -148,12 +153,19 @@ const joined = (participants: CallParticipant[]): CallState => ({
 
 const setMicrophone = vi.fn(async () => undefined);
 const roomCall = (participants: CallParticipant[]) => {
-  calls.active = { call: { room, setMicrophone } as unknown as ActiveCall['call'], kind: 'room' };
+  calls.active = {
+    call: { room, setMicrophone, getState: () => calls.state } as unknown as ActiveCall['call'],
+    kind: 'room',
+  };
   calls.state = joined(participants);
 };
 const agentCall = (origin: { roomId: string; threadId?: string }) => {
   calls.active = {
-    call: { room: callRoom, setMicrophone } as unknown as ActiveCall['call'],
+    call: {
+      room: callRoom,
+      setMicrophone,
+      getState: () => calls.state,
+    } as unknown as ActiveCall['call'],
     kind: 'agent',
     agentUserId: '@mindroom_helper:panel.test',
     origin,
@@ -226,7 +238,9 @@ const renderRail = () =>
   render(
     <Provider store={store}>
       <ScreenSizeProvider value="Desktop">
-        <ActiveCallTab active={calls.active!} />
+        <MemoryRouter>
+          <ActiveCallTab active={calls.active!} />
+        </MemoryRouter>
       </ScreenSizeProvider>
     </Provider>
   );
@@ -684,6 +698,39 @@ describe('the prescreen as the call view moves', () => {
     renderPanel();
     expect(busy()).toBeNull();
   });
+
+  it('shows connecting instead of an enabled Join while this room has a pending start', () => {
+    calls.members = [{ userId: '@ana:panel.test' }];
+    store.set(callStartingAtom, { roomId: room.roomId });
+    store.set(callStartProblemAtom, { roomId: room.roomId, result: 'busy' });
+    renderPanel();
+
+    const connecting = button('Connecting…');
+    expect(connecting).not.toBeNull();
+    expect((connecting as HTMLButtonElement).disabled).toBe(true);
+    expect(button('Join')).toBeNull();
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+  });
+
+  it('also shows connecting while an agent call started from this room is pending', () => {
+    store.set(callStartingAtom, { roomId: callRoom.roomId, originRoomId: room.roomId });
+    renderPanel();
+
+    const connecting = button('Connecting…');
+    expect(connecting).not.toBeNull();
+    expect((connecting as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+  });
+
+  it('shows connecting to another call when another room has a pending start', () => {
+    store.set(callStartingAtom, { roomId: callRoom.roomId });
+    renderPanel();
+
+    expect(screen.queryByText('Connecting to another call…')).not.toBeNull();
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+    expect(button('Join')).toBeNull();
+    expect(button('Connecting…')).toBeNull();
+  });
 });
 
 describe('the focus after Dock and Float', () => {
@@ -744,6 +791,33 @@ describe('the focus after Dock and Float', () => {
     expect(document.activeElement).toBe(elsewhere);
     elsewhere.remove();
   });
+});
+
+it('only hands focus to the destination panel, once its phone page is interactive', () => {
+  function CoveredPage({ children }: { children: ReactNode }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useInert(ref, useAtomValue(phoneLayerOpenAtom));
+    return <div ref={ref}>{children}</div>;
+  }
+
+  roomCall([me]);
+  store.set(phoneNavDrawerOpenAtom, true);
+  store.set(callPanelRoomAtom, room.roomId);
+  const other = renderPanel({ panelRoom: callRoom, size: 'Mobile' });
+  render(
+    <Provider store={store}>
+      <button type="button">Return</button>
+      <CoveredPage>{panel({ size: 'Mobile' })}</CoveredPage>
+    </Provider>
+  );
+  const source = screen.getByRole('button', { name: 'Return' });
+  source.focus();
+  act(() => store.set(focusHandOffAtom, { to: 'panel', roomId: room.roomId, from: source }));
+  expect(document.activeElement).toBe(source);
+
+  act(() => store.set(phoneNavDrawerOpenAtom, false));
+  expect(document.activeElement).toBe(screen.getAllByRole('heading', { name: 'Standup' })[1]);
+  expect(other.container.contains(document.activeElement)).toBe(false);
 });
 
 describe("the focus after the rail's call button", () => {
@@ -1039,13 +1113,15 @@ describe('the minimized bar', () => {
     renderPanel({ frame: frame(true) });
 
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
-    expect(within(bar).getByText('Your microphone or camera could not be used.')).toBeTruthy();
+    expect(
+      within(bar).getByText('A microphone, camera or speaker could not be used.')
+    ).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Turn On Microphone' })).toBeTruthy();
     cleanup();
 
     // Expanded, the notice over the stage says the same.
     renderPanel({ frame: frame() });
-    const said = screen.getByText('Your microphone or camera could not be used.');
+    const said = screen.getByText('A microphone, camera or speaker could not be used.');
     expect(said.closest('[role="status"]')).not.toBeNull();
   });
 

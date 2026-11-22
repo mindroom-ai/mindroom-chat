@@ -62,7 +62,7 @@ const open = async (client: ReturnType<typeof pageLoad>, synced = true) => {
   await act(async () => {
     renderer = create(
       <MatrixClientProvider value={client as never}>
-        <AutoDiscoveryInfoProvider value={DISCOVERY as never}>
+        <AutoDiscoveryInfoProvider value={DISCOVERY}>
           <ClientStartupProvider hasCompletedInitialSync={synced}>
             <Provider store={createStore()}>
               <ServerEmojiJoinFeature />

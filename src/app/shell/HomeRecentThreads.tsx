@@ -107,7 +107,7 @@ export function HomeRecentThreads() {
         <button
           type="button"
           className={noticeCss.NoticeAction}
-          onClick={() => navigate(getThreadsPath())}
+          onClick={() => void navigate(getThreadsPath())}
         >
           <Text as="span" size="T200">
             {t('home.recent.allThreads')}

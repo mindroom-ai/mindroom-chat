@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "关闭",
-      "invited": "已邀请 {{user}}。"
+      "invited": "已邀请 {{user}}。",
+      "giveRoleRights": "授予{{role}}权限",
+      "giveRoleRightsHelp": "此房间需要{{role}}权限才能折叠语音转写，并管理定时任务和房间设置。",
+      "roleFailed": "已邀请 {{user}}，但无法授予{{role}}权限：{{error}}",
+      "roleRequirementChanged": "此房间现在需要{{role}}权限。",
+      "roleWithLevel": "{{role}}（{{level}}）"
     },
     "joinAddressPrompt": {
       "close": "关闭",
@@ -271,6 +276,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此窗口无法加载部分图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
+    },
+    "agentCard": {
+      "agent": "智能体",
+      "close": "关闭",
+      "configuredTools": "已配置的工具",
+      "toolCount_other": "{{count}} 个工具",
+      "groupCount_other": "{{count}} 个分组",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "另有{{groups}}",
+      "viewAll_other": "查看全部 {{count}} 个工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "筛选工具",
+      "noMatch": "没有匹配的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在房间",
+      "loading": "正在加载已配置的工具",
+      "availability": "可用性可能因请求和权限而异。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "代码与文件",
+        "research": "网页",
+        "productivity": "日程与记忆",
+        "email": "电子邮件",
+        "mcp": "已连接的应用",
+        "integrations": "集成",
+        "communication": "聊天与消息",
+        "entertainment": "媒体",
+        "information": "信息",
+        "smart_home": "智能家居",
+        "social": "社交",
+        "other": "其他"
+      }
+    },
+    "space": {
+      "overview": "空间概览"
     }
   },
   "featureUi": {
@@ -389,9 +430,11 @@
         "profile": "头像, 照片, 名称, 昵称",
         "deactivate": "删除账号, 注销账号",
         "localMindroom": "配对, 配对码, 本地, 桌面",
+        "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Control, Ctrl, Shift, 空格键, 键盘快捷键",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
-        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
+        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
+        "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -426,6 +469,7 @@
         "close": "关闭通话视图",
         "participants": "通话中的人",
         "connecting": "正在连接…",
+        "connectingAnotherCall": "正在连接到另一个通话…",
         "reconnecting": "正在重新连接…",
         "ended": "通话已结束。",
         "waitingFor": "正在等待 {{name}}…",
@@ -444,7 +488,7 @@
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
         "connection": "通话连接已断开。",
-        "device": "无法使用您的麦克风或摄像头。",
+        "device": "无法使用麦克风、摄像头或扬声器。",
         "untrustedService": "此通话使用的通话服务并非由您的主服务器提供，因此无法从这里加入。"
       },
       "devices": {
@@ -531,7 +575,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失败：{{reason}}",
         "usage": "无法运行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。"
+        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。",
+        "thisApp": "此应用",
+        "mindroomAgents": "MindRoom 智能体"
       },
       "jumpToTime": {
         "unsupported": "此服务器无法按时间查找消息。",
@@ -549,7 +595,8 @@
     },
     "accountMenu": {
       "open": "打开 {{name}} 的账户菜单",
-      "manageAccounts": "管理账户"
+      "otherAccounts": "其他账户",
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "按 A 到 Z 排序房间"
@@ -670,6 +717,9 @@
         "save": "保存",
         "saved": "已保存",
         "clear": "清除",
+        "saveSetting": "保存{{setting}}",
+        "savedSetting": "已保存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
         "saveFailed": "无法保存该设置，请重试。",
@@ -679,6 +729,41 @@
           "default": "默认",
           "auto": "任何消息",
           "mentions": "仅在被提及时"
+        },
+        "sections": {
+          "agents": "智能体",
+          "threadTitles": "话题标题"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房间中所有智能体、团队和路由器的默认模型。话题内的单独覆盖仍具有更高优先级。",
+          "default": "使用配置的默认值",
+          "defaultDescription": "遵循 MindRoom 为此房间配置的默认值。",
+          "unknown": "未知模型：“{{value}}”不在此房间的模型列表中。",
+          "catalogUnavailable": "当前没有可用的模型列表。你仍可重置为配置的默认值。",
+          "storedRaw": "房间设置：{{value}}"
+        },
+        "threadMode": {
+          "label": "话题模式",
+          "description": "此房间中的智能体是在话题中还是在主时间线中回复。",
+          "default": "使用配置的默认值",
+          "thread": "话题",
+          "room": "主时间线",
+          "effective": "当前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "话题",
+            "room": "主时间线",
+            "mixed": "混合（因智能体而异）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "标题模型",
+          "description": "为此房间生成自动话题标题的模型。"
+        },
+        "agentInstructions": {
+          "label": "智能体说明",
+          "description": "提供给在此房间回复的每个智能体的额外说明。版主可以编辑它们；它们不会授予智能体任何额外权限。房间里的每个人都能读取它们，且房间状态不经过端到端加密，因此请勿在此放置机密信息。",
+          "placeholder": "例如：保持回答简短并用荷兰语回复"
         }
       }
     },
@@ -847,7 +932,10 @@
         "nameChose": "{{name}} 已选择"
       },
       "mindroomReplyDetails": {
-        "subagents": "子智能体"
+        "subagents": "子智能体",
+        "writtenToCache": "写入缓存",
+        "notCached": "未缓存",
+        "conversation": "对话"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已运行 {{duration}}",
@@ -930,7 +1018,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜索失败，请重试。",
-        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果"
+        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果",
+        "retry": "重试"
       }
     },
     "notifications": {
@@ -945,7 +1034,10 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器"
+        "advancedFilters": "高级过滤器",
+        "includeResolvedThreads": "包含已解决的讨论串",
+        "hideResolvedThreads": "隐藏已解决的讨论串",
+        "forMeSummary": "{{summary}}。与我相关筛选已开启。"
       },
       "threadPeopleFilter": {
         "label": "参与者",
@@ -970,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展开所有长消息",
-        "collapseAllLong": "折叠所有长消息"
+        "collapseAllLong": "折叠所有长消息",
+        "showFullMessage": "显示完整消息"
       }
     },
     "computer": {
@@ -992,6 +1085,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "在此对话中，于智能体下一次回复前压缩其上下文。",
         "reply_mode": "显示或切换智能体在此开始对话是否需要被提及（设置/重置仅限房间管理员）。"
       }
     },
@@ -1003,7 +1097,6 @@
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 个工具",
       "needApproval_other": "{{count}} 个待批准",
-      "toolCalls_other": "{{count}} 次工具调用",
       "tokens_other": "{{tokens}} 个令牌",
       "started": "开始于{{time}}",
       "open": "打开",
@@ -1015,7 +1108,30 @@
         "time": "时间"
       },
       "stopTask": "停止任务",
-      "stopTaskFor": "停止任务：{{tool}}"
+      "stopTaskFor": "停止任务：{{tool}}",
+      "stopStepFailed": "无法停止“{{step}}”，请重试。",
+      "toolNames": {
+        "readFile": "读取文件",
+        "writeFile": "写入文件",
+        "editFile": "编辑文件",
+        "searchFiles": "搜索文件",
+        "browseFiles": "浏览文件",
+        "runCommand": "运行命令",
+        "openPage": "打开网页",
+        "searchWeb": "搜索网页",
+        "useBrowser": "使用浏览器",
+        "checkMemory": "查看记忆",
+        "updateMemory": "更新记忆",
+        "deleteMemory": "删除记忆",
+        "useMessages": "使用 Matrix 消息",
+        "schedule": "安排任务",
+        "checkSchedule": "查看日程",
+        "updateSchedule": "更新日程",
+        "cancelSchedule": "取消计划任务",
+        "use": "使用 {{tool}}"
+      },
+      "jobTotal_other": "{{count}} 个后台任务",
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
     },
     "subagents": {
       "title": "子智能体",
@@ -1038,7 +1154,20 @@
       "hide": "隐藏子智能体",
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
-      "resize": "调整子智能体面板大小"
+      "resize": "调整子智能体面板大小",
+      "calls_other": "{{count}} 次调用",
+      "now": "进行中",
+      "needsApproval": "需要批准",
+      "result": "结果",
+      "turnNumber": "第 {{number}} 轮",
+      "status": "状态",
+      "toolCallsNote": "工具调用",
+      "tokensSplit": "输入 {{input}} · 输出 {{output}}",
+      "costNested": "+{{cost}} 嵌套",
+      "costOwn": "本次运行",
+      "showUsageDetails": "显示用量详情",
+      "showUsageDetailsDescription": "在子智能体和后台任务上显示工具调用、令牌和费用，以及每个任务当前在做什么。",
+      "usage": "用量"
     },
     "models": {
       "modelPicker": {
@@ -1056,6 +1185,8 @@
         "defaultChoice": "默认",
         "threadOnly": "在此选择的模型仅适用于此话题。",
         "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
+        "chooseNextThread": "为下一个话题选择模型",
+        "nextThreadOnly": "此选择仅适用于下一个话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",
@@ -1071,11 +1202,40 @@
       "pageUpdated": "{{agent}} 更新了此页面。",
       "shownInPanel": "已在面板中显示",
       "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。"
+    },
+    "invites": {
+      "invalid": "此邀请链接不完整。请重新打开邮件中的链接。",
+      "reopen": "你已登录。请重新打开邮件中的邀请链接。",
+      "framed": "请在单独的标签页中打开此页面以使用邀请。",
+      "ready": "通过 {{router}} 以 {{user}} 身份加入房间",
+      "claiming": "正在领取邀请…",
+      "offline": "此 MindRoom 没有响应。你的请求已保存；恢复后，邀请会出现在你的房间列表中。",
+      "rejected": "此邀请已失效。请索取新的邀请。",
+      "retry": "没有成功。请稍后再试。",
+      "joining": "正在加入房间…",
+      "join": "加入",
+      "tryAgain": "重试"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此应用已关闭面板",
+      "askForText": "请求文本版本",
+      "copyRequest": "复制请求",
+      "textVersionRequest": "请改为在这里以文本形式发送“{{title}}”。我的应用已关闭交互式面板。",
+      "askForTextStatus": {
+        "hint": "在输入框中放入一条请求。按下发送之前不会发送任何内容。",
+        "added": "请求已放入输入框。按下发送之前不会发送任何内容。",
+        "kept": "您的草稿保持原样。复制请求后自行添加。",
+        "copied": "请求已复制。请粘贴到您的草稿中。"
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "录音已暂停 — 完成或放弃在此房间其他位置未发送的录音",
     "voiceThreadRootUnsent": "此语音消息所在的话题没有已发送的第一条消息。请在该消息发送后重试，或放弃此录音。",
+    "voiceIndicator": {
+      "recording": "正在录音 {{time}}",
+      "paused": "已暂停 {{time}}"
+    },
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
@@ -1095,7 +1255,10 @@
       "autoHint": "让智能体决定",
       "settingTitle": "智能体正在回复时发送",
       "settingDescription": "长按发送可为单条消息另选方式。"
-    }
+    },
+    "replyInThread": "在讨论串中回复…",
+    "newThreadIn": "在 {{room}} 中新建讨论串…",
+    "newThreadWith": "与 {{name}} 新建讨论串…"
   },
   "commandPalette": {
     "state": {
@@ -1144,6 +1307,10 @@
     "hints": {
       "chip": "{{keys}} 查看所有快捷键"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} 录制语音消息",
+      "description": "轻点开始或发送，按住说话，松开发送。"
+    },
     "actions": {
       "palette": "搜索和命令",
       "settings": "打开设置",
@@ -1169,7 +1336,8 @@
       "newLine": "换行",
       "editLast": "编辑你的最后一条消息（输入框为空时）",
       "inlineCode": "行内代码",
-      "callView": "转到通话"
+      "callView": "转到通话",
+      "voiceRecord": "按住录制语音消息，轻点开始或发送"
     }
   },
   "thread": {
@@ -1203,7 +1371,10 @@
     "close": "关闭讨论串",
     "resizeSecond": "调整第二个讨论串大小",
     "second": "第二个讨论串",
-    "dropSecond": "松开以在第二栏打开"
+    "dropSecond": "松开以在第二栏打开",
+    "newUnknown": "新消息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延后至",
@@ -1516,9 +1687,10 @@
     }
   },
   "threadNav": {
-    "layout": "讨论串布局",
-    "layoutRecent": "最近",
-    "layoutSections": "分区",
+    "forMe": "与我相关",
+    "forMeHint": "只显示你参与过、代理代你发过消息或你已置顶的讨论串",
+    "roomForMeHint": "只显示你参与过或代理代你发过消息的讨论串",
+    "emptyForMe": "暂无与你相关的讨论串",
     "group": "分组",
     "groupHint": "按状态分组",
     "sections": {
@@ -1546,6 +1718,36 @@
   },
   "threadActions": {
     "openBeside": "在第二栏打开"
+  },
+  "roomSchedules": {
+    "thisThread": "此讨论串",
+    "elsewhereInRoom": "此房间中的其他位置",
+    "filterAll": "全部",
+    "filterLabel": "筛选定时任务",
+    "awaitingShort": "等待中",
+    "inSeconds": "{{count}}秒后",
+    "inMinutes": "{{count}}分钟后",
+    "inHours": "{{count}}小时后",
+    "inHoursMinutes": "{{hours}}小时{{minutes}}分钟后",
+    "inDays": "{{count}}天后",
+    "thread": "讨论串",
+    "destination": "目标位置",
+    "showFullPrompt": "显示完整提示词",
+    "showLessPrompt": "收起",
+    "details": "详情",
+    "hideDetails": "隐藏详情",
+    "copyId": "复制 ID",
+    "copied": "已复制",
+    "edit": "编辑",
+    "cancel": "取消",
+    "cancelConfirm": "确定取消此定时任务吗？",
+    "keep": "保留",
+    "cancelTask": "取消任务",
+    "cancelling": "正在取消...",
+    "cancelError": "无法取消任务，请重试。",
+    "cancellationSent": "已发送取消请求",
+    "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
+    "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
   },
   "home": {
     "greeting": {

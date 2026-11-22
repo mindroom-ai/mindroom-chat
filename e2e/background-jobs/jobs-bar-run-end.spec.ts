@@ -8,7 +8,7 @@ import {
   registerDisposableUser,
   type DisposableUser,
 } from '../helpers/disposableAccounts';
-import { jobsBarChanges, watchJobsBar } from '../helpers/jobsBar';
+import { jobsBarChanges, SHELL_JOB, watchJobsBar } from '../helpers/jobsBar';
 import { joinRoom, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -84,27 +84,28 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
   await expect(page.getByText('Running the release checks now.').first()).toBeVisible({
     timeout: 30_000,
   });
-  const bar = page.getByRole('region').filter({ hasText: 'run_shell_command' });
+  const bar = page.getByRole('region').filter({ hasText: SHELL_JOB });
   const height = async () => (await bar.boundingBox())?.height;
   await watchJobsBar(page);
 
   // Between two calls the bar stays, however long the agent thinks, and shows the call as finished.
   await publish(agent, [job('job_1')]);
-  await expect(bar).toHaveAccessibleName('Running: run_shell_command', { timeout: 15_000 });
+  await expect(bar).toHaveAccessibleName(`Running: ${SHELL_JOB}`, { timeout: 15_000 });
   const runningHeight = await height();
   await publish(agent, []);
-  await expect(bar).toHaveAccessibleName('Finished: run_shell_command');
-  await expect(bar.getByRole('button')).toHaveCount(0);
+  await expect(bar).toHaveAccessibleName(`Finished: ${SHELL_JOB}`);
+  // A finished job has no Stop; its title still lists it.
+  await expect(bar.locator('[data-cancel-job]')).toHaveCount(0);
   expect(await height(), 'the bar’s height once its call finished').toBe(runningHeight);
   await page.waitForTimeout(3_000);
   await expect(bar, 'the bar after a pause longer than 2 s').toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/jobs-run-end-${label}-between.png` });
   await publish(agent, [job('job_2')]);
-  await expect(bar).toHaveAccessibleName('Running: run_shell_command');
+  await expect(bar).toHaveAccessibleName(`Running: ${SHELL_JOB}`);
 
   // The last call ends, then the reply finishes: the bar goes 2 s after the reply.
   await publish(agent, []);
-  await expect(bar).toHaveAccessibleName('Finished: run_shell_command');
+  await expect(bar).toHaveAccessibleName(`Finished: ${SHELL_JOB}`);
   const finishSent = Date.now();
   await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
@@ -125,10 +126,10 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
     'the bar never left before the reply finished'
   ).toEqual([
     null,
-    'Running: run_shell_command',
-    'Finished: run_shell_command',
-    'Running: run_shell_command',
-    'Finished: run_shell_command',
+    `Running: ${SHELL_JOB}`,
+    `Finished: ${SHELL_JOB}`,
+    `Running: ${SHELL_JOB}`,
+    `Finished: ${SHELL_JOB}`,
     null,
   ]);
   expect(

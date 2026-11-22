@@ -1,6 +1,13 @@
-import { IEventWithRoomId, IResultContext, ISearchResult } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
-import { deduplicateResults, dropEditedAwayResults } from './useMessageSearch';
+import { IResultContext, ISearchResult } from 'matrix-js-sdk';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
+import {
+  collapseThreadTitleHits,
+  deduplicateResults,
+  dropEditedAwayResults,
+  type MessageSearchPage,
+  type ResultItem,
+} from './useMessageSearch';
 
 type SearchResultOptions = {
   eventId: string;
@@ -18,34 +25,33 @@ const makeSearchResult = ({
   editTargetId,
   content,
   sender = '@alice:example.org',
-}: SearchResultOptions): ISearchResult =>
-  ({
-    rank: ts,
-    result: {
-      content: content ?? {
-        ...(editTargetId
-          ? {
-              'm.new_content': {
-                body: `${eventId} body`,
-                msgtype: 'm.text',
-              },
-              'm.relates_to': {
-                event_id: editTargetId,
-                rel_type: 'm.replace',
-              },
-            }
-          : {}),
-        body: `${eventId} body`,
-        msgtype: 'm.text',
-      },
-      event_id: eventId,
-      origin_server_ts: ts,
-      room_id: roomId,
-      sender,
-      type: 'm.room.message',
-    } as IEventWithRoomId,
-    context: {} as IResultContext,
-  } as ISearchResult);
+}: SearchResultOptions): ISearchResult => ({
+  rank: ts,
+  result: {
+    content: content ?? {
+      ...(editTargetId
+        ? {
+            'm.new_content': {
+              body: `${eventId} body`,
+              msgtype: 'm.text',
+            },
+            'm.relates_to': {
+              event_id: editTargetId,
+              rel_type: 'm.replace',
+            },
+          }
+        : {}),
+      body: `${eventId} body`,
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: roomId,
+    sender,
+    type: 'm.room.message',
+  },
+  context: {} as IResultContext,
+});
 
 const getEventIds = (results: ISearchResult[]): string[] =>
   results.map((result) => result.result.event_id);
@@ -150,27 +156,26 @@ const withLatestEdit = (
   editId: string,
   body: string,
   sender = result.result.sender
-): ISearchResult =>
-  ({
-    ...result,
-    result: {
-      ...result.result,
-      unsigned: {
-        'm.relations': {
-          'm.replace': {
-            event_id: editId,
-            sender,
-            content: {
-              body: `* ${body}`,
-              msgtype: 'm.text',
-              'm.new_content': { body, msgtype: 'm.text' },
-              'm.relates_to': { rel_type: 'm.replace', event_id: result.result.event_id },
-            },
+): ISearchResult => ({
+  ...result,
+  result: {
+    ...result.result,
+    unsigned: {
+      'm.relations': {
+        'm.replace': {
+          event_id: editId,
+          sender,
+          content: {
+            body: `* ${body}`,
+            msgtype: 'm.text',
+            'm.new_content': { body, msgtype: 'm.text' },
+            'm.relates_to': { rel_type: 'm.replace', event_id: result.result.event_id },
           },
         },
       },
     },
-  } as ISearchResult);
+  },
+});
 
 describe('deduplicateResults with a bundled latest edit', () => {
   it('keeps the original that carries the latest edit over an older edit that matched', () => {
@@ -198,6 +203,8 @@ describe('deduplicateResults with a bundled latest edit', () => {
 });
 
 describe('dropEditedAwayResults', () => {
+  beforeAll(() => trustAgentsOfViewer('@reader:example.org'));
+
   const placeholder = (eventId: string, latest: string) =>
     withLatestEdit(
       makeSearchResult({ eventId, ts: 100, content: { body: 'Thinking...', msgtype: 'm.text' } }),
@@ -228,6 +235,36 @@ describe('dropEditedAwayResults', () => {
     expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$hit']);
   });
 
+  it("keeps an agent's hit whose tool call is on its latest edit, out of its text", () => {
+    // A reply's first text has its call's marker; its finished edit has the call's place instead.
+    const working = (eventId: string, sender: string): ISearchResult => {
+      const hit = withLatestEdit(
+        makeSearchResult({
+          eventId,
+          ts: 100,
+          sender,
+          content: { body: '🔧 `walrus_count` [1] ⏳', msgtype: 'm.text' },
+        }),
+        `${eventId}-edit`,
+        'Seven.'
+      );
+      const edit = hit.result.unsigned?.['m.relations']?.['m.replace'] as {
+        content: { 'm.new_content': Record<string, unknown> };
+      };
+      edit.content['m.new_content']['io.mindroom.tool_trace'] = {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'walrus_count', body_line: 0, at: 0 }],
+      };
+      return hit;
+    };
+    const results = [
+      working('$agent', '@mindroom_helper:example.org'),
+      working('$person', '@alice:example.org'),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'walrus_count'))).toEqual(['$agent']);
+  });
+
   it('keeps hits it cannot compare: edits, unedited messages and stemmed matches', () => {
     const results = [
       makeSearchResult({ eventId: '$edit', ts: 200, editTargetId: '$original' }),
@@ -246,5 +283,74 @@ describe('dropEditedAwayResults', () => {
       '$stemmed',
     ]);
     expect(getEventIds(dropEditedAwayResults(results, '  '))).toHaveLength(3);
+  });
+});
+
+describe('collapseThreadTitleHits', () => {
+  const inThread = (rootId: string) => ({
+    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+  });
+  const title = (eventId: string, rootId: string, roomId = '!a:example.org'): ResultItem => {
+    const { result, rank, context } = makeSearchResult({
+      eventId,
+      roomId,
+      ts: 1,
+      sender: '@mindroom_helper:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: 'Roadmap for the beta',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Roadmap for the beta' },
+        ...inThread(rootId),
+      },
+    });
+    return { event: result, rank, context };
+  };
+  const message = (eventId: string, roomId = '!a:example.org', content?: object): ResultItem => {
+    const { result, rank, context } = makeSearchResult({
+      eventId,
+      roomId,
+      ts: 1,
+      content: { msgtype: 'm.text', body: 'Roadmap for the beta', ...content },
+    });
+    return { event: result, rank, context };
+  };
+  const page = (items: ResultItem[]): MessageSearchPage => ({
+    highlights: ['roadmap'],
+    // As the server's order groups them: a new group whenever the room changes.
+    groups: items.reduce<MessageSearchPage['groups']>((groups, item) => {
+      const last = groups.at(-1);
+      if (last?.roomId === item.event.room_id) last.items.push(item);
+      else groups.push({ roomId: item.event.room_id, items: [item] });
+      return groups;
+    }, []),
+    hidden: 0,
+  });
+  const collapse = (...pages: MessageSearchPage[]) =>
+    collapseThreadTitleHits({ pages, pageParams: pages.map(() => undefined) }).pages.map(
+      ({ groups, hidden }) => ({
+        groups: groups.map((group) => [group.roomId, group.items.map((i) => i.event.event_id)]),
+        hidden,
+      })
+    );
+
+  it('keeps one title per thread over every page, and every message people and agents wrote', () => {
+    expect(
+      collapse(
+        page([title('$t3', '$root'), message('$said', '!a:example.org', inThread('$root'))]),
+        page([message('$same'), title('$t2', '$root'), title('$t1', '$root'), message('$next')]),
+        page([title('$other', '$root', '!b:example.org'), title('$t4', '$another')])
+      )
+    ).toEqual([
+      { groups: [['!a:example.org', ['$t3', '$said']]], hidden: 0 },
+      { groups: [['!a:example.org', ['$same', '$next']]], hidden: 2 },
+      // The same root id in another room is another thread.
+      {
+        groups: [
+          ['!b:example.org', ['$other']],
+          ['!a:example.org', ['$t4']],
+        ],
+        hidden: 0,
+      },
+    ]);
   });
 });

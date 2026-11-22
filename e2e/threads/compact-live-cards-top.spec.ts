@@ -21,11 +21,12 @@ import {
   registerDisposableUser,
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
+import { withMovingMouseOverCard } from '../helpers/threadOverview';
 
 // Compact cards sorted by last reply, newest first, have their live end at the top: a card that
 // arrives while the room is open (a new thread, or an agent's answer in the main timeline) shows
-// first, and a thread that gets a reply moves up there. That holds while the reader's pointer
-// rests on the list too, where the order of the cards already shown is held (THR-04): a new card
+// first, and a thread that gets a reply moves up there. That holds while the reader aims the
+// pointer too, when the order of the cards already shown is held (THR-04): a new card
 // still joins at the top. Scrolled down the list, the card under the pointer stays where it is.
 // A room with 26 threads between a person and an agent, among 25 rooms, with classic scrollbars,
 // on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
@@ -212,16 +213,15 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
     return;
   }
 
-  // 3. The pointer rests on the second card at the top of the list, so the order is held: a new
-  // card still joins at the top, the live end.
+  // 3. The pointer aims at the second card, holding the order: a new card still joins at
+  // the top, the live end.
   const order = await cardOrder(page);
-  const rested = cardOf(page, order[1] ?? '');
-  const box = (await rested.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
+  const second = cardOf(page, order[1] ?? '');
   const heldBody = `Update for ${label}: the nightly backup finished in 14 minutes, all volumes verified.`;
-  const held = await agentPosts(seeded, heldBody);
-  await expectFirst(page, held, heldBody, `under a resting pointer at the top (${label})`);
+  await withMovingMouseOverCard(page, second, async () => {
+    const held = await agentPosts(seeded, heldBody);
+    await expectFirst(page, held, heldBody, `while the order is held at the top (${label})`);
+  });
   await shot(page, `${label}-3-held-top`);
 
   // 4. Scrolled down the list, the pointer on a card: the new card joins at the top and the card
@@ -242,28 +242,26 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   expect(middle, `${label}: a card in the middle of the list`).toBeTruthy();
   expect(midOrder.indexOf(middle!)).toBeGreaterThan(3);
   const midCard = cardOf(page, middle!);
-  const midBox = (await midCard.boundingBox())!;
-  const pointer = { x: midBox.x + midBox.width / 2, y: midBox.y + midBox.height / 2 };
-  await page.mouse.move(pointer.x, pointer.y);
-  await expect(page.locator('[data-order-held]')).toHaveCount(1);
-  const before = await topOf(midCard);
-  const scrolledBefore = await listScrollTop(page);
-  const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
-  const scrolled = await agentPosts(seeded, scrolledBody);
-  await expectFirst(page, scrolled, scrolledBody, `scrolled down, under the pointer (${label})`);
-  await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      })
-  );
-  const moved = (await topOf(midCard)) - before;
-  const scrolledAfter = await listScrollTop(page);
-  test.info().annotations.push({
-    type: 'held card',
-    description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
+  await withMovingMouseOverCard(page, midCard, async () => {
+    const before = await topOf(midCard);
+    const scrolledBefore = await listScrollTop(page);
+    const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
+    const scrolled = await agentPosts(seeded, scrolledBody);
+    await expectFirst(page, scrolled, scrolledBody, `scrolled down, under the pointer (${label})`);
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        })
+    );
+    const moved = (await topOf(midCard)) - before;
+    const scrolledAfter = await listScrollTop(page);
+    test.info().annotations.push({
+      type: 'held card',
+      description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
+    });
+    expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
   });
-  expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
   await shot(page, `${label}-4-held-scrolled`);
 };
 

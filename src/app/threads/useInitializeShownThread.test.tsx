@@ -20,20 +20,19 @@ const me = '@alice:example.org';
 const bob = '@bob:example.org';
 const rootId = '$root';
 
-const message = (eventId: string, ts: number, sender = bob, threadRoot?: string): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: {
-      msgtype: 'm.text',
-      body: eventId,
-      ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
-    },
-  } as IEvent);
+const message = (eventId: string, ts: number, sender = bob, threadRoot?: string): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: {
+    msgtype: 'm.text',
+    body: eventId,
+    ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
+  },
+});
 /** A root as listed by /threads: bob's latest reply at ts 300 is known only from this summary. */
 const listedRoot = (count: number): IEvent => ({
   ...message(rootId, 100, me),

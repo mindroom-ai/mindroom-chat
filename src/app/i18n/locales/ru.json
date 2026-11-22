@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Прокручиваемая таблица",
-    "scrollHint": "Прокрутить по горизонтали"
+    "scrollHint": "Прокрутить по горизонтали",
+    "readByRow": "Читать по строкам",
+    "showTable": "Показать таблицу"
   },
   "messageCodeBlock": {
     "actions": "Действия с блоком кода",
@@ -1167,7 +1169,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Это пространство заменено и больше не активно.",
       "openNewSpace": "Открыть новое пространство",
       "joinNewSpace": "Войти в новое пространство",
-      "lobby": "Обзор",
       "messageSearch": "Поиск сообщений",
       "failedToJoinReplacementSpace": "Не удалось войти в заменившее пространство!",
       "rooms": "Комнаты",
@@ -2285,8 +2286,8 @@
       "resumeRecording": "Продолжить запись",
       "statusActive": "Идёт запись голоса",
       "statusPaused": "Запись приостановлена",
-      "statusProcessing": "Обработка записи",
       "statusReadyToRetry": "Запись готова к повторной отправке",
+      "recoveredRecording": "Восстановленная запись · {{time}}",
       "statusSending": "Отправка записи",
       "statusStarting": "Запуск записи",
       "voiceRecorderDialog": {
@@ -2703,9 +2704,6 @@
         "argumentsMayDifferBetweenCalls": "Аргументы разных вызовов могут отличаться.",
         "requestedBy": "Запросил(а) {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Агент маршрутизации расшифровывает речь"
-      },
       "streamingIndicator": {
         "aiIsResponding": "ИИ отвечает"
       },
@@ -3060,7 +3058,9 @@
       "computerUnavailable": "Компьютер этого агента недоступен.",
       "releaseControl": "Отпустите управление компьютером, прежде чем открывать другое представление.",
       "openConversation": "Откройте этот запрос из беседы в комнате.",
-      "settingsUnavailable": "Отключите простой режим, чтобы открыть этот раздел настроек."
+      "settingsUnavailable": "Отключите простой режим, чтобы открыть этот раздел настроек.",
+      "canvasCard": "Интерактивная панель",
+      "reminderCard": "Напоминание · {{when}}"
     },
     "canvas": {
       "panelLabel": "Интерактивная панель",

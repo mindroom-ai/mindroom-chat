@@ -225,6 +225,7 @@ test('an agent never used gets its direct chat started, which waits for the agen
   );
   const [dmId] = direct[quill.userId] ?? [];
   expect(dmId).toBeTruthy();
+  if (!dmId) throw new Error('Expected a direct chat room id');
   await joinRoom(HOMESERVER, quill.accessToken, dmId);
 
   await expect(field).toBeFocused({ timeout: 30_000 });

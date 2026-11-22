@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "جدول قابل للتمرير",
-    "scrollHint": "التمرير أفقيًا"
+    "scrollHint": "التمرير أفقيًا",
+    "readByRow": "القراءة حسب الصف",
+    "showTable": "عرض الجدول"
   },
   "messageCodeBlock": {
     "actions": "إجراءات كتلة التعليمات البرمجية",
@@ -1179,7 +1181,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "تم استبدال هذه المساحة ولم تعد نشطة.",
       "openNewSpace": "فتح المساحة الجديدة",
       "joinNewSpace": "الانضمام إلى المساحة الجديدة",
-      "lobby": "الردهة",
       "messageSearch": "البحث في الرسائل",
       "failedToJoinReplacementSpace": "تعذر الانضمام إلى المساحة البديلة!",
       "rooms": "الغرف",
@@ -2341,8 +2342,8 @@
       "resumeRecording": "استئناف التسجيل الصوتي",
       "statusActive": "التسجيل الصوتي نشط",
       "statusPaused": "التسجيل الصوتي متوقف مؤقتًا",
-      "statusProcessing": "جارٍ معالجة التسجيل الصوتي",
       "statusReadyToRetry": "التسجيل الصوتي جاهز لإعادة المحاولة",
+      "recoveredRecording": "تسجيل مستعاد · ⁨{{time}}⁩",
       "statusSending": "جارٍ إرسال التسجيل الصوتي",
       "statusStarting": "جارٍ بدء التسجيل الصوتي",
       "voiceRecorderDialog": {
@@ -2787,9 +2788,6 @@
         "argumentsMayDifferBetweenCalls": "قد تختلف الوسيطات بين الاستدعاءات.",
         "requestedBy": "طلبه ⁨{{requester}}⁩"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "وكيل التوجيه ينسخ الصوت"
-      },
       "streamingIndicator": {
         "aiIsResponding": "الذكاء الاصطناعي يرد"
       },
@@ -3190,7 +3188,9 @@
       "computerUnavailable": "كمبيوتر هذا الوكيل غير متاح.",
       "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
       "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
-      "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
+      "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات.",
+      "canvasCard": "لوحة تفاعلية",
+      "reminderCard": "تذكير · ⁨{{when}}⁩"
     },
     "canvas": {
       "panelLabel": "لوحة تفاعلية",

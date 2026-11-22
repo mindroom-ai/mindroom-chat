@@ -14,8 +14,9 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../ui/particle-background/PersistentParticleBackground';
-import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import classNames from 'classnames';
 import { AutoDiscoveryAction, autoDiscovery, type AutoDiscoveryInfo } from '../../matrix/cs-api';
 import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryInfo';
@@ -25,14 +26,15 @@ import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { useDeploymentBranding } from '../../ui/branding/deploymentBranding';
 import { BrandLogo } from './BrandLogo';
 import { createMatrixFetchFn } from '../../matrix/client/matrixClientFactory';
-import { decodeRouteParam } from '../../routes/pathUtils';
 import { resolveAuthRouteRedirect } from '../../navigation/routeSessionGuards';
 import { resolveAddAccountReturnPath } from '../../navigation/addAccount';
+import { useRouteParam } from '../../navigation/useRoomRouteParams';
 import { buildAuthRoutePath, isServerChoiceLocked, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
 import { UnlistedServerCheck } from './UnlistedServerCheck';
 import { openAfterSignIn } from './completeSession';
+import { parkLiveVoiceRecording } from '../../composer/voice/liveVoiceRecording';
 import * as css from './styles.css';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
@@ -231,15 +233,19 @@ export function AuthLayout() {
   const { t } = useTranslation();
   const { pathname, search, hash } = useLocation();
   const navigate = useNavigate();
-  const { server: encodedServer } = useParams();
+  // A full URL may hold an escaped `/`; useParams would read a literal `%2F` as one.
+  const requestedServer = useRouteParam('server');
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
   const { auth, homeserverList } = useClientConfig();
   const branding = useDeploymentBranding();
-  const requestedServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const [discovery, retryDiscovery] = useServerDiscovery(server);
   const activeSession = useActiveSession();
+  // Add account opens these pages over a live voice recording, and nothing here shows one: it
+  // parks, and waits as a recovered recording for the way back.
+  const store = useStore();
+  useEffect(() => parkLiveVoiceRecording(store), [store]);
   // Adding an account can be abandoned: back to where the signed-in account was.
   const returnPath = resolveAddAccountReturnPath(search, activeSession);
 
@@ -253,7 +259,7 @@ export function AuthLayout() {
 
   const registrationAllowed = auth?.allowRegistration !== false;
   const showServer = (nextServer: string) =>
-    navigate(
+    void navigate(
       buildAuthRoutePath({ pathname, search, hash, registrationAllowed, server: nextServer }),
       { replace: true }
     );

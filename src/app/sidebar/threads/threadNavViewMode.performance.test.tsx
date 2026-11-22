@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { createStore, Provider } from 'jotai';
 import { memo, useState } from 'react';
-import { RoomMemberEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
+import { RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -100,7 +100,7 @@ beforeEach(() => {
     key: (index: number) => Array.from(storage.keys())[index] ?? null,
     removeItem: (key: string) => storage.delete(key),
     setItem: (key: string, value: string) => storage.set(key, value),
-  } as unknown as Storage);
+  });
   storageListeners = new Set();
   vi.stubGlobal('window', {
     addEventListener: (type: string, listener: (event: StorageEvent) => void) => {
@@ -162,7 +162,7 @@ describe('a sidebar of many thread entries', () => {
 
     act(() => {
       room.members[AGENT] = { roomId, userId: AGENT, membership: 'join' };
-      client.emit(RoomMemberEvent.Membership, {} as MatrixEvent, room.members[AGENT], undefined);
+      client.emit(RoomMemberEvent.Membership, {}, room.members[AGENT], undefined);
     });
 
     expect(memberScans).toBe(1);

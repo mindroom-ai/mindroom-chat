@@ -8,13 +8,13 @@ import {
   getRenderedEventIds,
   makeEvent,
   makeRoom,
-  makeTimeline,
   messageContentMock,
   roomTimelineVirtualizerState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { useSecretRequestLine } from '../../messages/inlineSecretRequests';
+import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 
 const threadId = '$root';
 const AGENT = '@mindroom_dev:example.org';
@@ -70,16 +70,9 @@ const openThread = async (
     }),
     ...after,
   ];
-  const timeline = makeTimeline(events, { backwardToken: null });
-  const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const room = makeRoom({ liveEvents: [rootEvent] });
-  room.getThread = () =>
-    ({
-      rootEvent,
-      events: events.slice(1),
-      getUnfilteredTimelineSet: () => timelineSet,
-    } as never);
-  threadRenderStateMock.threadEvents = events as never;
+  room.createThread(threadId, rootEvent, events.slice(1));
+  threadRenderStateMock.threadEvents = events;
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])
   );
@@ -130,6 +123,33 @@ describe("a done secret request card's row in an open thread", () => {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$reply', '$card', '$after']);
       await renderer.settle();
       expect(sizeOfRow(renderer, 2)).toBeGreaterThan(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('keeps only the latest title when the card between titles is drawn inline', async () => {
+    const summary = (id: string, text: string, ts: number) =>
+      makeEvent(id, {
+        threadRootId: threadId,
+        ts,
+        sender: AGENT,
+        content: {
+          msgtype: 'm.notice',
+          body: text,
+          'io.mindroom.thread_summary': { version: 1, summary: text },
+        },
+      });
+    const renderer = await openThread(
+      [summary('$s1', 'Sketch a garden', 2_500)],
+      [summary('$s2', 'Plan a greenhouse', 4_000)]
+    );
+    try {
+      act(() => line.show(true));
+
+      expect(lines(renderer)).toBe(1);
+      expect(getRenderedEventIds(renderer)).toEqual([threadId, '$reply', '$s2']);
+      expect(renderer.root.findByType(ThreadSummaryMarker).props.plan).toEqual({ first: true });
     } finally {
       act(() => renderer.unmount());
     }

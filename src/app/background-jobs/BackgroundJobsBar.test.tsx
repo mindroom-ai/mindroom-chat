@@ -10,7 +10,10 @@ import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
-import { keepCancelsOf } from './sentCancels';
+import { BackgroundJobRow } from './BackgroundJobRow';
+import type { BackgroundJobsBarItem } from './backgroundJobsPresentation';
+import { keepCancelsOf } from '../matrix/state/sentCancels';
+import { showUsageDetails } from '../../test/utils/showUsageDetails';
 
 const state = vi.hoisted(() => ({
   jobs: [] as BackgroundJob[],
@@ -30,8 +33,10 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
+// The room's signals, which a bar follows only while it shows a tool job's call.
+const signals = vi.hoisted(() => ({ subscribe: vi.fn(() => () => undefined) }));
 vi.mock('../threads/cross-room/threadSignalsReader', () => ({
-  subscribeRoomSignals: () => () => undefined,
+  subscribeRoomSignals: signals.subscribe,
 }));
 vi.mock('../threads/fork/ThreadForkDivider', () => ({
   useThreadTitle: (_room: unknown, threadId: string) => `Title of ${threadId}`,
@@ -54,15 +59,13 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   StatColumn: 'StatColumn',
   Job: 'Job',
   Nested: 'Nested',
-  Logo: 'Logo',
   Stack: 'Stack',
   StackedLogo: 'StackedLogo',
-  TitleLogo: 'TitleLogo',
-  Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
   JobText: 'JobText',
   Headline: 'Headline',
   Detail: 'Detail',
   Task: 'Task',
+  RowOpen: 'RowOpen',
   Name: 'Name',
   Model: 'Model',
   Activity: 'Activity',
@@ -70,8 +73,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
   PillText: 'PillText',
   PillIcon: 'PillIcon',
-  ThreadChip: 'ThreadChip',
-  ThreadTitle: 'ThreadTitle',
+  WithThreads: 'WithThreads',
   Num: 'Num',
   Stat: 'Stat',
   Actions: 'Actions',
@@ -85,6 +87,16 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Elapsed: 'Elapsed',
   VisuallyHidden: 'VisuallyHidden',
   Alert: 'Alert',
+  ToolName: 'ToolName',
+  Folded: 'Folded',
+  FoldedText: 'FoldedText',
+  FoldedToggle: 'FoldedToggle',
+  FoldedActions: 'FoldedActions',
+  Quiet: 'Quiet',
+}));
+vi.mock('../subagents/RunLogo.css', () => ({
+  Logo: 'Logo',
+  Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', stopped: 'Dot', finished: 'Dot' },
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -123,9 +135,12 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
   act(() => {
     root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
-const cancelA = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}';
-const cancelB = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_b"}';
-const stoppingA = 'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}';
+const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
+// Without the usage details, a tool job's Stop names it as its row does: what it does, in words.
+const taskName = (tool: string) => tr('mindroomUi.backgroundJobs.toolNames.use', { tool });
+const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: taskName('tool a') });
+const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: taskName('tool b') });
+const stoppingA = tr('mindroomUi.backgroundJobs.stoppingJob', { tool: taskName('tool a') });
 const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
   act(async () => {
@@ -170,6 +185,7 @@ afterEach(() => {
   getDefaultStore().set(subagentsPanelAtom, undefined);
   getSubagentRunStore(mx as never).clear();
   vi.unstubAllGlobals();
+  showUsageDetails(false);
 });
 
 it('renders nothing without jobs', () => {
@@ -177,16 +193,73 @@ it('renders nothing without jobs', () => {
   expect(container.innerHTML).toBe('');
 });
 
-it('names one job in the title, with Stop and no list', () => {
+it('shows one job folded as its row on the title line, which lists it as several do', () => {
   state.jobs = [job('a')];
   render();
+  // Without the usage details, the bar's title says it runs its task, named in words as its row's
+  // headline.
+  expect(title()).toBe(tr('mindroomUi.backgroundJobs.running', { tool: taskName('tool a') }));
+  // How it stands is said apart, since its row's title is the job itself.
+  expect(container.querySelector('[role="status"]')?.textContent).toBe(title());
+  // With them, by its tool.
+  act(() => showUsageDetails());
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
+  act(() => showUsageDetails(false));
   expect(container.querySelector('.Jobs')).toBeNull();
-  // Its logo takes the title line's small tile, so the logo and its dot stay inside the bar.
-  expect(container.querySelector('.Status .Logo')?.classList).toContain('TitleLogo');
-  // One job's Stop says it stops the task, which runs apart from the reply, and names it.
+  const folded = container.querySelector('[data-job-folded]');
+  expect(folded?.querySelector('.Logo')).not.toBeNull();
+  // Without the usage details, its headline says what the tool does, in words.
+  expect(folded?.querySelector('.Task')?.textContent).toBe(taskName('tool a'));
+  // Its Stop names the task it stops, with its icon only, as a listed row's.
   expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
-  expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stopTask');
+  expect(button(cancelA)?.textContent).toBe('');
+  // Its title lists it: the same row in the table, the count on the title line, Stop task.
+  expect(toggle()?.textContent).toBe(taskName('tool a'));
+  expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+  toggle()?.focus();
+  expand();
+  expect(container.querySelectorAll('.Jobs li')).toHaveLength(1);
+  expect(container.querySelector('[data-job-folded]')).toBeNull();
+  expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+  expect(container.querySelector('.Title')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.jobTotal', { count: 1 })
+  );
+  expect(container.querySelector('.Summary')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.tools', { count: 1 })
+  );
+  // Focus follows the title to its new place.
+  expect(document.activeElement).toBe(toggle());
+  // One job has one Stop, the labelled one under the list, not its row's icon too.
+  const stops = [...container.querySelectorAll('button[data-cancel-job]')];
+  expect(stops.map((stop) => stop.textContent)).toEqual(['mindroomUi.backgroundJobs.stopTask']);
+  expect(container.querySelector('.Jobs [data-cancel-job]')).toBeNull();
+  // Escape folds it back, with focus on its title.
+  act(() => {
+    toggle()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  expect(container.querySelector('[data-job-folded]')).not.toBeNull();
+  expect(document.activeElement).toBe(toggle());
+});
+
+it('shows the next job folded after the list it was pinned open in emptied', async () => {
+  vi.useFakeTimers();
+  try {
+    state.jobs = [job('a')];
+    render();
+    expand();
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    state.jobs = [];
+    render();
+    await act(() => vi.advanceTimersByTime(2_000));
+    expect(container.innerHTML).toBe('');
+    state.jobs = [job('b')];
+    render();
+    expect(container.querySelector('[data-job-folded]')).not.toBeNull();
+    expect(container.querySelector('.Jobs')).toBeNull();
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("names each listed job's Stop the task it stops, with its icon only", () => {
@@ -205,7 +278,7 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
     render();
     state.jobs = [];
     render();
-    expect(title()).toBe('mindroomUi.backgroundJobs.finished{"tool":"tool_a"}');
+    expect(title()).toBe(tr('mindroomUi.backgroundJobs.finished', { tool: taskName('tool a') }));
     expect(button(cancelA)).toBeUndefined();
     state.jobs = [job('a'), job('b')];
     render();
@@ -421,7 +494,7 @@ it('lists jobs without cancel controls for a viewer who may not cancel', () => {
   state.jobs = [job('a'), job('b')];
   render('$thread', false);
   expand();
-  expect(container.textContent).toContain('tool_a');
+  expect(container.textContent).toContain(taskName('tool a'));
   // Only the title, which lists the jobs, is a button.
   expect([...container.querySelectorAll('button')]).toEqual([toggle()]);
 });
@@ -464,7 +537,9 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   state.jobs = [job('b')];
   render();
   await act(async () => fails[0]!(new Error('offline')));
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('"tool":"tool_b"');
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: taskName('tool b') })
+  );
 });
 
 it('leaves a failed cancel behind when the view moves to another thread', async () => {
@@ -526,15 +601,16 @@ it('keeps keyboard focus in the bar when two jobs become one, and one becomes tw
   button(cancelA)?.focus();
   await click(cancelA);
   expect(document.activeElement).toBe(button(cancelB));
+  // The one job left folds to its row; focus stays in the bar.
   state.jobs = [job('b')];
   render();
-  const region = container.querySelector('[role="region"]');
-  expect(document.activeElement).toBe(region);
+  expect(container.querySelector('[data-job-folded]')).not.toBeNull();
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
   // One job's focused Stop does not turn into Stop all under the pointer or keyboard.
   button(cancelB)?.focus();
   state.jobs = [job('b'), job('c')];
   render();
-  expect(document.activeElement).toBe(region);
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
 });
 
 it('keeps focus in the bar when its one job is replaced by another', async () => {
@@ -578,7 +654,6 @@ it('leaves focus where the person moved it when the jobs change later', async ()
 
 // The mocked t, for a sub-agent job's strings.
 const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
-const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 
 // A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it.
 const ingestRun = (
@@ -615,7 +690,7 @@ const ingestRun = (
 const subagentJob = (jobId: string, overrides: Partial<BackgroundJob> = {}) =>
   job(jobId, { kind: 'subagent', tool: 'run_subagent', ...overrides });
 
-it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and from no other", async () => {
+it("opens the Sub-agents panel on a sub-agent job's run from its row's title, and from no other", async () => {
   ingestRun('s1');
   // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
   state.jobs = [
@@ -633,8 +708,16 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
   expect(opens[0]?.getAttribute('aria-label')).toBe(
     tr('mindroomUi.backgroundJobs.openFor', { name: 'mindroom_dev' })
   );
-  // The name is no button.
-  expect(button('mindroom_dev')).toBeUndefined();
+  // The title is the button, its words its text; the row has no other Open.
+  expect(opens[0]?.classList.contains('Task')).toBe(true);
+  expect(opens[0]?.textContent).toBe('mindroom_dev');
+  // Its other buttons: its thread's, then its Stop.
+  const rowButtons = [...(opens[0]?.closest('li')?.querySelectorAll('button') ?? [])];
+  expect(rowButtons.slice(1).map((item) => item.matches('[data-job-thread]'))).toEqual([
+    true,
+    false,
+  ]);
+  expect(rowButtons[2]?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => (opens[0] as HTMLButtonElement).click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
@@ -651,7 +734,7 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   render('$thread');
   const open = container.querySelector<HTMLButtonElement>('[data-job-open]');
   expect(open?.getAttribute('aria-label')).toBe(
-    tr('mindroomUi.backgroundJobs.openFor', { name: subagentName })
+    tr('mindroomUi.backgroundJobs.openFor', { name: 'mindroom_dev' })
   );
   // The title's live text is not inside the button, so its changes are still announced.
   expect(open?.querySelector('[role="status"]')).toBeNull();
@@ -679,6 +762,45 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('tool');
 });
 
+it('folds one sub-agent job into its row: title, agent, model, its call and numbers, Open', () => {
+  showUsageDetails();
+  ingestRun(
+    's1',
+    {
+      title: 'Rework the export queue retry policy',
+      model: { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' },
+      usage: { inputTokens: 1_300_000, outputTokens: 100_000, toolCalls: 34, costUsd: 1.3 },
+    },
+    [{ type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'uv run pytest' }]
+  );
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
+  render('$thread');
+  const row = container.querySelector('[data-job-folded]')!;
+  expect(row.querySelector('.Task')?.textContent).toBe('Rework the export queue retry policy');
+  // Its title lists it; Open beside it shows its run.
+  expect(row.querySelector('.Task')?.getAttribute('aria-expanded')).toBe('false');
+  expect(row.querySelector('[data-job-model]')?.textContent).toBe('Fable');
+  expect(row.querySelector('[data-job-activity]')?.textContent).toBe(
+    'run_shell_command uv run pytest'
+  );
+  const cells = [...row.querySelectorAll('[data-job-stat]')].map((cell) => cell.textContent);
+  expect(cells).toEqual(['34', '1.4M', '$1.30']);
+  expect(row.querySelector('[data-job-open]')?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.openFor', { name: 'Rework the export queue retry policy' })
+  );
+  // Its run's thread is the view's, so it names none.
+  expect(row.querySelector('[data-job-thread]')).toBeNull();
+  // Listed, its row is the same, its title opening its run.
+  expand();
+  const listed = container.querySelector('li[data-job-kind="subagent"]')!;
+  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(
+    'run_shell_command uv run pytest'
+  );
+  expect(listed.querySelector('.RowOpen')?.textContent).toBe(
+    'Rework the export queue retry policy'
+  );
+});
+
 it("shows a sub-agent's title, with its task as the title's tooltip", () => {
   ingestRun('s1', { title: 'Refactor login form', task: 'Refactor the login form\nwith tests' }, [
     { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
@@ -691,7 +813,8 @@ it("shows a sub-agent's title, with its task as the title's tooltip", () => {
   expect(task?.getAttribute('title')).toBe('Refactor the login form\nwith tests');
 });
 
-it("shows an untitled sub-agent's agent, model, task and what it used, never its current call", () => {
+it("shows an untitled sub-agent's agent, model, task, the call it makes now and what it used", () => {
+  showUsageDetails();
   ingestRun(
     's1',
     {
@@ -713,13 +836,15 @@ it("shows an untitled sub-agent's agent, model, task and what it used, never its
   );
   expect(row.querySelector('[data-job-model]')?.textContent).toBe('Opus');
   expect(row.querySelector('.Task')?.textContent).toBe('Port the fix');
-  expect(row.querySelector('[data-job-activity]')).toBeNull();
-  expect(row.textContent).not.toContain('run_shell_command');
+  // The call it makes now, never one it completed.
+  expect(row.querySelector('[data-job-activity] .ToolName')?.textContent).toBe('run_shell_command');
+  expect(row.querySelector('[data-job-activity] .Preview')?.textContent).toBe('just test');
+  expect(row.textContent).not.toContain('read_file');
   // Each number in its column, bare, with its words as its title.
   const cells = [...row.querySelectorAll('[data-job-stat]')];
   expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);
   expect(cells.map((cell) => cell.getAttribute('title'))).toEqual([
-    tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
+    tr('mindroomUi.subagents.calls', { count: 31 }),
     tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
     '$1.30',
   ]);
@@ -728,8 +853,9 @@ it("shows an untitled sub-agent's agent, model, task and what it used, never its
 });
 
 it('shows no cost before any token, and counts one token as one', () => {
+  showUsageDetails();
   const stats = (usage: SubagentMeta['usage']) => {
-    getSubagentRunStore(mx as never).clear();
+    act(() => getSubagentRunStore(mx as never).clear());
     ingestRun('s1', { usage });
     state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
     render();
@@ -739,7 +865,7 @@ it('shows no cost before any token, and counts one token as one', () => {
       .map((cell) => cell.getAttribute('title') ?? '');
   };
   expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toEqual([
-    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 }),
+    tr('mindroomUi.subagents.calls', { count: 2 }),
     '',
     '',
   ]);
@@ -750,12 +876,117 @@ it('shows no cost before any token, and counts one token as one', () => {
   ]);
 });
 
+it('shows a sub-agent job without what it does now, its numbers, agent or model, until the usage details are shown', () => {
+  const task = 'Summarize the notes of this week\nKeep it short.';
+  ingestRun(
+    's1',
+    {
+      title: "Summarize this week's meeting notes",
+      task,
+      model: { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' },
+      usage: { inputTokens: 1_300_000, outputTokens: 100_000, toolCalls: 34, costUsd: 1.3 },
+    },
+    [
+      {
+        type: 'tool_call_started',
+        tool_name: 'read_file',
+        args_preview: 'path=notes/2026-11-16.md',
+      },
+    ]
+  );
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
+  render('$thread');
+  const folded = container.querySelector('[data-job-folded]')!;
+  expect(folded.querySelector('.Task')?.textContent).toBe("Summarize this week's meeting notes");
+  expect(folded.querySelector('.Task')?.getAttribute('title')).toBe(task);
+  // No line under the title: not who, nor on what model, nor what it does now.
+  expect(folded.querySelector('.Detail')).toBeNull();
+  expect(folded.querySelector('[data-job-activity]')).toBeNull();
+  expect(folded.querySelector('[data-job-model]')).toBeNull();
+  expect(folded.querySelector('[data-job-stat]')).toBeNull();
+  // The time and the buttons stay; the grid has no number columns.
+  expect(folded.querySelector('[data-job-elapsed]')).not.toBeNull();
+  expect(folded.querySelector('[data-job-open]')).not.toBeNull();
+  expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(true);
+  // Listed, its row and its group's heading have none either.
+  expand();
+  const listed = container.querySelector('li[data-job-kind="subagent"]')!;
+  expect(listed.querySelector('.Detail')).toBeNull();
+  expect(listed.querySelector('.RowOpen')?.getAttribute('title')).toBe(task);
+  expect(listed.querySelector('[data-job-stat]')).toBeNull();
+  expect(container.querySelector('.StatColumn')).toBeNull();
+  expect(container.querySelector('.ColumnName')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.column.time'
+  );
+
+  // Shown, the row is the one with every number.
+  act(() => showUsageDetails());
+  expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(false);
+  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(
+    'read_file path=notes/2026-11-16.md'
+  );
+  expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
+});
+
+it('heads a tool job with its tool in plain words, without its call, until the usage details are shown', () => {
+  const item = (extra: Partial<BackgroundJobsBarItem> = {}): BackgroundJobsBarItem => ({
+    jobId: 'a',
+    name: 'read_file',
+    waiting: false,
+    stopping: false,
+    finished: false,
+    subagent: false,
+    threadId: '$thread',
+    state: 'running',
+    startedAt: Date.parse('2026-10-11T00:00:00+00:00'),
+    depth: 0,
+    ...extra,
+  });
+  const row = (shown: BackgroundJobsBarItem) =>
+    act(() => {
+      root.render(
+        <ul>
+          <BackgroundJobRow room={room} item={shown} viewThreadId="$thread" stop={null} />
+        </ul>
+      );
+    });
+  const headline = () => container.querySelector('.Task')?.textContent;
+  const tooltip = () => container.querySelector('.Task')?.getAttribute('title');
+  const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
+  const read = { tool: 'read_file', preview: 'path=notes/2026-11-16.md' };
+  // Its name in words, with the raw tool name in the tooltip.
+  row(item({ activity: read, plainName: 'mindroomUi.backgroundJobs.toolNames.readFile' }));
+  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readFile');
+  expect(tooltip()).toBe('read_file');
+  expect(activity()).toBeNull();
+  // With the usage details, its headline is its tool, its call on the line under it.
+  act(() => showUsageDetails());
+  row(item({ activity: read }));
+  expect(headline()).toBe('read_file');
+  expect(activity()).toBe('path=notes/2026-11-16.md');
+});
+
+it("follows a tool job's call in the room only while the usage details show it", () => {
+  signals.subscribe.mockClear();
+  state.jobs = [job('a', { toolCallId: 'call-1' })];
+  // Folded, its one row is on show, but says no call without the usage details.
+  render();
+  expect(signals.subscribe).not.toHaveBeenCalled();
+  act(() => showUsageDetails());
+  expect(signals.subscribe).toHaveBeenCalled();
+});
+
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {
   state.jobs = [job('a', { threadId: '$other' }), job('b')];
   render(null);
   expand();
   const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-job-thread]')];
-  expect(chips.map((chip) => chip.textContent)).toEqual(['Title of $other', 'Title of $thread']);
+  expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+    tr('thread.aria.openThread', { title: 'Title of $other' }),
+    tr('thread.aria.openThread', { title: 'Title of $thread' }),
+  ]);
+  // Each one sits with its row's buttons, before its Stop.
+  expect(chips[0]?.nextElementSibling?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => chips[0]?.click());
   expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$other');
 
@@ -802,7 +1033,7 @@ it('ticks the time each job has run out of the screen reader, which hears when i
       vi.advanceTimersByTime(2_000);
     });
     expect(container.querySelector('[data-job-elapsed]')?.textContent).not.toBe(before);
-    expect(container.querySelector('.VisuallyHidden')?.textContent).toContain(
+    expect(container.querySelector('.Elapsed .VisuallyHidden')?.textContent).toContain(
       'mindroomUi.backgroundJobs.started'
     );
   } finally {
@@ -861,11 +1092,21 @@ it('restores the button and shows an error when the send fails', async () => {
   state.send = vi.fn().mockRejectedValue(new Error('offline'));
   render();
   await act(async () => {
-    button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')?.click();
+    button(cancelA)?.click();
   });
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
-  expect(button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')).toBeDefined();
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('stopFailed');
+  expect(button(cancelA)).toBeDefined();
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: taskName('tool a') })
+  );
+  // With the usage details, it names its tool.
+  act(() => showUsageDetails());
+  await act(async () => {
+    button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')?.click();
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.stopFailed{"tool":"tool_a"}'
+  );
 });
 
 it('says the jobs could not be stopped when Stop all fails', async () => {

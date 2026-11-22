@@ -35,17 +35,16 @@ const STATUS = 'io.mindroom.stream_status';
 const event = (
   eventId: string,
   content: IEvent['content'],
-  { sender = AGENT_ID, ts = 1, type = EventType.RoomMessage as string } = {}
-): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: ROOM_ID,
-    sender,
-    origin_server_ts: ts,
-    type,
-    content,
-    unsigned: {},
-  } as IEvent);
+  { sender = AGENT_ID, ts = 1, type = EventType.RoomMessage } = {}
+): IEvent => ({
+  event_id: eventId,
+  room_id: ROOM_ID,
+  sender,
+  origin_server_ts: ts,
+  type,
+  content,
+  unsigned: {},
+});
 
 const inThread = { rel_type: RelationType.Thread, event_id: '$root', is_falling_back: true };
 const root = event('$root', { msgtype: 'm.text', body: 'Question' }, { sender: USER_ID });

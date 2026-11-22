@@ -106,7 +106,12 @@
     },
     "inviteUserPrompt": {
       "close": "إغلاق",
-      "invited": "تمت دعوة ⁨{{user}}⁩."
+      "invited": "تمت دعوة ⁨{{user}}⁩.",
+      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
+      "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
+      "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
+      "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
+      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -291,6 +296,62 @@
     },
     "syncStatus": {
       "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
+    },
+    "agentCard": {
+      "agent": "وكيل",
+      "close": "إغلاق",
+      "configuredTools": "الأدوات المُعدّة",
+      "toolCount_zero": "⁨{{count}}⁩ أداة",
+      "toolCount_one": "أداة واحدة (⁨{{count}}⁩)",
+      "toolCount_two": "أداتان (⁨{{count}}⁩)",
+      "toolCount_few": "⁨{{count}}⁩ أدوات",
+      "toolCount_many": "⁨{{count}}⁩ أداةً",
+      "toolCount_other": "⁨{{count}}⁩ أداة",
+      "groupCount_zero": "⁨{{count}}⁩ مجموعة",
+      "groupCount_one": "مجموعة واحدة (⁨{{count}}⁩)",
+      "groupCount_two": "مجموعتان (⁨{{count}}⁩)",
+      "groupCount_few": "⁨{{count}}⁩ مجموعات",
+      "groupCount_many": "⁨{{count}}⁩ مجموعةً",
+      "groupCount_other": "⁨{{count}}⁩ مجموعة",
+      "counts": "⁨{{tools}}⁩ · ⁨{{groups}}⁩",
+      "also": "وأيضًا ⁨{{groups}}⁩",
+      "viewAll_zero": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_one": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_two": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_few": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_many": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_other": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "toolsTitle": "أدوات ⁨{{name}}⁩",
+      "filter": "تصفية الأدوات",
+      "noMatch": "لا توجد أداة مطابقة.",
+      "back": "رجوع",
+      "more": "المزيد",
+      "worksIn": "يعمل في",
+      "loading": "جارٍ تحميل الأدوات المُعدّة",
+      "availability": "قد يختلف التوفر حسب الطلب والأذونات.",
+      "moreRooms_zero": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_one": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_two": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_few": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_many": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_other": "⁨+⁨{{count}}⁩⁩",
+      "groups": {
+        "development": "الشيفرة والملفات",
+        "research": "الويب",
+        "productivity": "الجدولة والذاكرة",
+        "email": "البريد الإلكتروني",
+        "mcp": "التطبيقات المتصلة",
+        "integrations": "التكاملات",
+        "communication": "الدردشة والرسائل",
+        "entertainment": "الوسائط",
+        "information": "المعلومات",
+        "smart_home": "المنزل الذكي",
+        "social": "التواصل الاجتماعي",
+        "other": "أخرى"
+      }
+    },
+    "space": {
+      "overview": "نظرة عامة على المساحة"
     }
   },
   "featureUi": {
@@ -414,9 +475,11 @@
         "profile": "صورة الملف الشخصي، الصورة، الاسم، اللقب",
         "deactivate": "حذف الحساب، إغلاق الحساب",
         "localMindroom": "إقران، رمز الإقران، محلي، سطح المكتب",
+        "voiceKey": "رسالة صوتية، ميكروفون، تسجيل، اضغط للتحدث، Control، Ctrl، Shift، مسافة، اختصار لوحة المفاتيح",
         "emoji": "الرموز التعبيرية، الملصقات، الحزم، رموز تعبيرية مخصصة",
         "errorReports": "أخطاء، تعطل، خلل، تشخيص، قياس عن بعد، خصوصية",
-        "midTurn": "توجيه، انتظار، تلقائي، وكيل، رد، مقاطعة"
+        "midTurn": "توجيه، انتظار، تلقائي، وكيل، رد، مقاطعة",
+        "usage": "الرموز، التكلفة، السعر، النموذج، استدعاءات الأدوات، الوكلاء الفرعيون، المهام في الخلفية"
       },
       "errorReports": {
         "title": "إرسال تقارير الأخطاء",
@@ -451,6 +514,7 @@
         "close": "إغلاق عرض المكالمة",
         "participants": "الأشخاص في المكالمة",
         "connecting": "جارٍ الاتصال…",
+        "connectingAnotherCall": "جارٍ الاتصال بمكالمة أخرى…",
         "reconnecting": "جارٍ إعادة الاتصال…",
         "ended": "انتهت المكالمة.",
         "waitingFor": "في انتظار ⁨{{name}}⁩…",
@@ -474,7 +538,7 @@
       "problems": {
         "service": "تعذر الوصول إلى خدمة المكالمات. حاول لاحقًا.",
         "connection": "انقطع اتصال المكالمة.",
-        "device": "تعذر استخدام الميكروفون أو الكاميرا.",
+        "device": "تعذر استخدام الميكروفون أو الكاميرا أو مكبر الصوت.",
         "untrustedService": "تجري هذه المكالمة عبر خدمة مكالمات لا يوفّرها خادمك، لذلك لا يمكنك الانضمام إليها من هنا."
       },
       "devices": {
@@ -555,7 +619,7 @@
         "listening": "يستمع",
         "muted": "أنت مكتوم الصوت",
         "waiting": "في انتظار انضمام الآخرين",
-        "more": "+⁨{{count}}⁩",
+        "more": "⁨+⁨{{count}}⁩⁩",
         "moreLabel": "⁨{{count}}⁩ آخرون"
       },
       "window": {
@@ -576,7 +640,9 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
+        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain.",
+        "thisApp": "هذا التطبيق",
+        "mindroomAgents": "وكلاء MindRoom"
       },
       "jumpToTime": {
         "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
@@ -594,7 +660,8 @@
     },
     "accountMenu": {
       "open": "فتح قائمة حساب ⁨{{name}}⁩",
-      "manageAccounts": "إدارة الحسابات"
+      "otherAccounts": "حسابات أخرى",
+      "manage": "إدارة"
     },
     "roomOrder": {
       "sortByName": "ترتيب الغرف من أ إلى ي"
@@ -715,6 +782,9 @@
         "save": "حفظ",
         "saved": "تم الحفظ",
         "clear": "مسح",
+        "saveSetting": "حفظ ⁨{{setting}}⁩",
+        "savedSetting": "تم الحفظ: ⁨{{setting}}⁩",
+        "clearSetting": "مسح ⁨{{setting}}⁩",
         "characterCount": "⁨{{length, number}}⁩ / ⁨{{max, number}}⁩",
         "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
         "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى.",
@@ -724,6 +794,41 @@
           "default": "الافتراضي",
           "auto": "أي رسالة",
           "mentions": "فقط عند الإشارة إليهم"
+        },
+        "sections": {
+          "agents": "الوكلاء",
+          "threadTitles": "عناوين سلاسل المحادثات"
+        },
+        "model": {
+          "label": "النموذج",
+          "description": "النموذج الافتراضي لكل وكيل وفريق وموجّه في هذه الغرفة. تبقى استثناءات سلاسل المحادثات ذات أولوية.",
+          "default": "استخدام الإعداد الافتراضي",
+          "defaultDescription": "اتباع الإعداد الافتراضي المهيّأ في MindRoom لهذه الغرفة.",
+          "unknown": "نموذج غير معروف: «⁨{{value}}⁩» غير موجود في قائمة نماذج هذه الغرفة.",
+          "catalogUnavailable": "لا تتوفر قائمة نماذج حاليًا. لا يزال بإمكانك إعادة التعيين إلى الإعداد الافتراضي.",
+          "storedRaw": "إعداد الغرفة: ⁨{{value}}⁩"
+        },
+        "threadMode": {
+          "label": "وضع السلاسل",
+          "description": "ما إذا كان الوكلاء يردون داخل سلاسل المحادثات أو في الخط الزمني الرئيسي لهذه الغرفة.",
+          "default": "استخدام الإعداد الافتراضي",
+          "thread": "سلاسل المحادثات",
+          "room": "الخط الزمني الرئيسي",
+          "effective": "الوضع الفعلي الحالي: ⁨{{mode}}⁩",
+          "effectiveModes": {
+            "thread": "سلاسل المحادثات",
+            "room": "الخط الزمني الرئيسي",
+            "mixed": "مختلط (يختلف حسب الوكيل)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "نموذج العناوين",
+          "description": "النموذج الذي يكتب العناوين التلقائية لسلاسل المحادثات في هذه الغرفة."
+        },
+        "agentInstructions": {
+          "label": "تعليمات الوكلاء",
+          "description": "تعليمات إضافية تُعطى لكل وكيل يرد في هذه الغرفة. يمكن للمشرفين تعديلها؛ ولا تمنح الوكلاء أي أذونات إضافية. يمكن للجميع في الغرفة قراءتها، وحالة الغرفة ليست مشفّرة من طرف إلى طرف، لذا لا تضع أسرارًا هنا.",
+          "placeholder": "مثال: اجعل الردود مختصرة وأجب باللغة الهولندية"
         }
       }
     },
@@ -912,7 +1017,10 @@
         "nameChose": "اختار ⁨{{name}}⁩"
       },
       "mindroomReplyDetails": {
-        "subagents": "الوكلاء الفرعيون"
+        "subagents": "الوكلاء الفرعيون",
+        "writtenToCache": "مكتوبة في الذاكرة المؤقتة",
+        "notCached": "غير مخزنة مؤقتًا",
+        "conversation": "المحادثة"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
@@ -1010,7 +1118,8 @@
         "resultCountFor_two": "نتيجتان (⁨{{count}}⁩) «⁨{{term}}⁩»",
         "resultCountFor_few": "⁨{{count}}⁩ نتائج «⁨{{term}}⁩»",
         "resultCountFor_many": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
-        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»"
+        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "retry": "إعادة المحاولة"
       }
     },
     "notifications": {
@@ -1030,7 +1139,10 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة"
+        "advancedFilters": "عوامل تصفية متقدمة",
+        "includeResolvedThreads": "تضمين سلاسل المحادثات التي تم حلها",
+        "hideResolvedThreads": "إخفاء سلاسل المحادثات التي تم حلها",
+        "forMeSummary": "⁨{{summary}}⁩. فلتر «لي» مفعّل."
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",
@@ -1055,7 +1167,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "توسيع كل الرسائل الطويلة",
-        "collapseAllLong": "طي كل الرسائل الطويلة"
+        "collapseAllLong": "طي كل الرسائل الطويلة",
+        "showFullMessage": "عرض الرسالة كاملة"
       }
     },
     "computer": {
@@ -1077,6 +1190,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "ضغط سياق الوكلاء قبل ردّهم التالي في هذه المحادثة.",
         "reply_mode": "عرض ما إذا كان الوكلاء يحتاجون إلى إشارة لبدء محادثة هنا أو تغيير ذلك (التعيين وإعادة الضبط لمشرف الغرفة)."
       }
     },
@@ -1098,12 +1212,6 @@
       "needApproval_few": "بانتظار الموافقة: ⁨{{count}}⁩",
       "needApproval_many": "بانتظار الموافقة: ⁨{{count}}⁩",
       "needApproval_other": "بانتظار الموافقة: ⁨{{count}}⁩",
-      "toolCalls_zero": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_one": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_two": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_few": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_many": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_other": "استدعاءات الأدوات: ⁨{{count}}⁩",
       "tokens_zero": "الرموز: ⁨{{tokens}}⁩",
       "tokens_one": "الرموز: ⁨{{tokens}}⁩",
       "tokens_two": "الرموز: ⁨{{tokens}}⁩",
@@ -1120,7 +1228,40 @@
         "time": "الوقت"
       },
       "stopTask": "إيقاف المهمة",
-      "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩"
+      "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩",
+      "stopStepFailed": "تعذّر إيقاف «⁨{{step}}⁩». حاول مرة أخرى.",
+      "toolNames": {
+        "readFile": "قراءة ملف",
+        "writeFile": "كتابة ملف",
+        "editFile": "تحرير ملف",
+        "searchFiles": "البحث في الملفات",
+        "browseFiles": "تصفّح الملفات",
+        "runCommand": "تشغيل أمر",
+        "openPage": "فتح صفحة ويب",
+        "searchWeb": "البحث في الويب",
+        "useBrowser": "استخدام المتصفح",
+        "checkMemory": "مراجعة الذاكرة",
+        "updateMemory": "تحديث الذاكرة",
+        "deleteMemory": "حذف ذكرى",
+        "useMessages": "استخدام رسائل Matrix",
+        "schedule": "جدولة مهمة",
+        "checkSchedule": "مراجعة الجدول",
+        "updateSchedule": "تحديث الجدول",
+        "cancelSchedule": "إلغاء مهمة مجدولة",
+        "use": "استخدام ⁨{{tool}}⁩"
+      },
+      "jobTotal_zero": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_one": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_two": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_few": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_many": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_other": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_zero": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_one": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_two": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",
@@ -1163,7 +1304,25 @@
       "withCount_few": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
-      "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
+      "resize": "تغيير حجم لوحة الوكلاء الفرعيين",
+      "calls_zero": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_one": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_two": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_few": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_many": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_other": "الاستدعاءات: ⁨{{count}}⁩",
+      "now": "الآن",
+      "needsApproval": "بحاجة إلى موافقة",
+      "result": "النتيجة",
+      "turnNumber": "الدور ⁨{{number}}⁩",
+      "status": "الحالة",
+      "toolCallsNote": "استدعاءات الأدوات",
+      "tokensSplit": "⁨{{input}}⁩ داخل · ⁨{{output}}⁩ خارج",
+      "costNested": "+⁨{{cost}}⁩ للمتداخلة",
+      "costOwn": "هذا التشغيل",
+      "showUsageDetails": "إظهار تفاصيل الاستخدام",
+      "showUsageDetailsDescription": "يُظهر استدعاءات الأدوات والرموز والتكلفة في الوكلاء الفرعيين والمهام في الخلفية، وما يفعله كل منها الآن.",
+      "usage": "الاستخدام"
     },
     "models": {
       "modelPicker": {
@@ -1181,6 +1340,8 @@
         "defaultChoice": "افتراضي",
         "threadOnly": "ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
         "roomOverrideThreadOnly": "مُعيَّن لهذه الغرفة باستخدام !room_model. ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
+        "chooseNextThread": "اختيار نموذج للسلسلة التالية",
+        "nextThreadOnly": "ينطبق هذا الاختيار على السلسلة التالية فقط.",
         "levels": {
           "off": "إيقاف",
           "minimal": "أدنى",
@@ -1196,11 +1357,40 @@
       "pageUpdated": "حدّث ⁨{{agent}}⁩ هذه الصفحة.",
       "shownInPanel": "معروضة في اللوحة",
       "inlineDisclosure": "أنشأها ⁨{{agent}}⁩. لا يمكنها الوصول إلى حسابك، وقد يخرج ما تُدخله هنا من هذه الصفحة."
+    },
+    "invites": {
+      "invalid": "رابط الدعوة هذا غير مكتمل. افتح الرابط من البريد مرة أخرى.",
+      "reopen": "لقد سجّلت الدخول. افتح رابط الدعوة من بريدك مرة أخرى.",
+      "framed": "افتح هذه الصفحة في علامة تبويب مستقلة لاستخدام الدعوة.",
+      "ready": "الانضمام إلى غرفة عبر ⁨{{router}}⁩ بصفتك ⁨{{user}}⁩",
+      "claiming": "جارٍ المطالبة بالدعوة…",
+      "offline": "لا يستجيب MindRoom هذا. تم حفظ طلبك؛ ستظهر الدعوة في قائمة غرفك عند عودته.",
+      "rejected": "لم تعد هذه الدعوة صالحة. اطلب دعوة جديدة.",
+      "retry": "لم ينجح ذلك. حاول مرة أخرى بعد قليل.",
+      "joining": "جارٍ الانضمام إلى الغرفة…",
+      "join": "انضمام",
+      "tryAgain": "إعادة المحاولة"
+    },
+    "uiActions": {
+      "canvasOff": "تمت مشاركة لوحة · اللوحات معطّلة في هذا التطبيق",
+      "askForText": "اطلب نسخة نصية",
+      "copyRequest": "انسخ الطلب",
+      "textVersionRequest": "من فضلك أرسل «⁨{{title}}⁩» هنا كنص بدلًا من ذلك. اللوحات التفاعلية معطّلة في تطبيقي.",
+      "askForTextStatus": {
+        "hint": "يضع طلبًا في مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "added": "أُضيف الطلب إلى مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "kept": "بقيت مسودتك كما هي. انسخ الطلب لتضيفه بنفسك.",
+        "copied": "نُسخ الطلب. الصقه في مسودتك."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "التسجيل الصوتي متوقف مؤقتًا — أنهِ التسجيل غير المرسل أو تجاهله في مكان آخر في هذه الغرفة",
     "voiceThreadRootUnsent": "لا تحتوي سلسلة المحادثة لهذه الرسالة الصوتية على رسالة أولى مُرسَلة. أعد المحاولة بعد إرسال تلك الرسالة، أو تجاهل التسجيل.",
+    "voiceIndicator": {
+      "recording": "جارٍ التسجيل ⁨{{time}}⁩",
+      "paused": "متوقف مؤقتًا ⁨{{time}}⁩"
+    },
     "emoji": "رمز تعبيري",
     "cancelReply": "إلغاء الرد",
     "moreActions": "مزيد من الإجراءات",
@@ -1220,7 +1410,10 @@
       "autoHint": "ترك القرار للوكيل",
       "settingTitle": "الإرسال أثناء رد وكيل",
       "settingDescription": "اضغط مطولًا على إرسال للاختيار لرسالة واحدة."
-    }
+    },
+    "replyInThread": "الرد في سلسلة المحادثة…",
+    "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
   },
   "commandPalette": {
     "state": {
@@ -1269,6 +1462,10 @@
     "hints": {
       "chip": "⁨{{keys}}⁩ لكل الاختصارات"
     },
+    "voiceKey": {
+      "label": "⁨{{voiceKey}}⁩ يسجّل الرسائل الصوتية",
+      "description": "انقر للبدء أو الإرسال، أو اضغط مطولًا للتحدث وأفلت للإرسال."
+    },
     "actions": {
       "palette": "البحث والأوامر",
       "settings": "فتح الإعدادات",
@@ -1294,7 +1491,8 @@
       "newLine": "سطر جديد",
       "editLast": "تعديل آخر رسالة لك (في مربع كتابة فارغ)",
       "inlineCode": "شيفرة ضمن السطر",
-      "callView": "الانتقال إلى المكالمة"
+      "callView": "الانتقال إلى المكالمة",
+      "voiceRecord": "اضغط مطولًا لتسجيل رسالة صوتية، أو انقر للبدء أو الإرسال"
     }
   },
   "thread": {
@@ -1328,7 +1526,10 @@
     "close": "إغلاق السلسلة",
     "resizeSecond": "تغيير حجم السلسلة الثانية",
     "second": "السلسلة الثانية",
-    "dropSecond": "أفلِت للفتح في العمود الثاني"
+    "dropSecond": "أفلِت للفتح في العمود الثاني",
+    "newUnknown": "جديدة",
+    "newAndReplies": "⁨{{news}}⁩ · ⁨{{replies}}⁩",
+    "mentionsYou": "يشير إليك"
   },
   "threadSnooze": {
     "title": "تأجيل حتى",
@@ -1686,9 +1887,10 @@
     }
   },
   "threadNav": {
-    "layout": "تخطيط سلاسل المحادثات",
-    "layoutRecent": "الأحدث",
-    "layoutSections": "أقسام",
+    "forMe": "لي",
+    "forMeHint": "سلاسل المحادثات التي تشارك فيها، أو التي نشر فيها وكيل بالنيابة عنك، أو التي ثبّتها أنت فقط",
+    "roomForMeHint": "سلاسل المحادثات التي تشارك فيها أو التي نشر فيها وكيل بالنيابة عنك فقط",
+    "emptyForMe": "لا توجد سلاسل محادثات لك بعد",
     "group": "تجميع",
     "groupHint": "تجميع حسب الحالة",
     "sections": {
@@ -1736,6 +1938,36 @@
   },
   "threadActions": {
     "openBeside": "فتح في العمود الثاني"
+  },
+  "roomSchedules": {
+    "thisThread": "سلسلة المحادثة هذه",
+    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة",
+    "filterAll": "الكل",
+    "filterLabel": "تصفية المهام المجدولة",
+    "awaitingShort": "قيد الانتظار",
+    "inSeconds": "بعد ⁨{{count}}⁩ث",
+    "inMinutes": "بعد ⁨{{count}}⁩د",
+    "inHours": "بعد ⁨{{count}}⁩س",
+    "inHoursMinutes": "بعد ⁨{{hours}}⁩س ⁨{{minutes}}⁩د",
+    "inDays": "بعد ⁨{{count}}⁩ي",
+    "thread": "سلسلة",
+    "destination": "الوجهة",
+    "showFullPrompt": "عرض الموجه بالكامل",
+    "showLessPrompt": "عرض أقل",
+    "details": "التفاصيل",
+    "hideDetails": "إخفاء التفاصيل",
+    "copyId": "نسخ المعرف",
+    "copied": "تم النسخ",
+    "edit": "تعديل",
+    "cancel": "إلغاء",
+    "cancelConfirm": "إلغاء هذه المهمة المجدولة؟",
+    "keep": "إبقاء",
+    "cancelTask": "إلغاء المهمة",
+    "cancelling": "جارٍ الإلغاء...",
+    "cancelError": "تعذر إلغاء المهمة. حاول مرة أخرى.",
+    "cancellationSent": "تم إرسال الإلغاء",
+    "editDraftBusy": "امسح المسودة الحالية قبل تعديل هذه المهمة المجدولة.",
+    "copyFailed": "تعذر النسخ. حدد معرف المهمة في التفاصيل."
   },
   "home": {
     "greeting": {

@@ -31,7 +31,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// patches/matrix-js-sdk+41.7.0.patch: every event a thread adds counts its pending replies again,
+// patches/matrix-js-sdk+45.1.0.patch: every event a thread adds counts its pending replies again,
 // over the whole thread. Only local echoes have a status, so that is asked first.
 it('counts pending replies without reading the thread of every event it holds', async () => {
   Thread.hasServerSideSupport = FeatureSupport.Stable;

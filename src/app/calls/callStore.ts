@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { KnownMembership, RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
+import type { CallNotifyInputs } from './callRings';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
 import { takeDeviceCallLock } from './callResume';
@@ -31,10 +32,19 @@ export const activeCallAtom = atom<ActiveCall | undefined>(undefined);
 /** The room whose call panel is open (the call's room, or an agent call's origin room). */
 export const callPanelRoomAtom = atom<string | undefined>(undefined);
 
+/** A return shortcut asks for the room panel even if it is already open, but folded. */
+export const callPanelRequestAtom = atom<{ roomId: string } | undefined>(undefined);
+
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
 /** The start running in this tab, if any; a second start would race it for the one call. */
-const callStartingAtom = atom<object | undefined>(undefined);
+export type CallStart = { roomId: string; originRoomId?: string };
+
+export const callStartingAtom = atom<CallStart | undefined>(undefined);
+
+/** Whether a call for this room (its own, or an agent call started there) is starting in this tab. */
+export const isCallStartingIn = (starting: CallStart | undefined, roomId: string): boolean =>
+  !!starting && (starting.roomId === roomId || starting.originRoomId === roomId);
 
 /**
  * Why the newest start of a room's call in this tab did not start it: `busy` while another tab
@@ -146,6 +156,7 @@ export const dropActiveCall = (store: Store): void => {
 export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
+  store.set(callPanelRequestAtom, undefined);
   store.set(callViewStateAtom, new Map());
   store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);
@@ -187,15 +198,22 @@ export const useCallState = (call: RoomCall | undefined): CallState =>
 
 const LIVE_PHASES: ReadonlySet<CallPhase> = new Set(['connecting', 'connected', 'reconnecting']);
 
+export const isLiveCallPhase = (phase: CallPhase): boolean => LIVE_PHASES.has(phase);
+
 /**
  * Whether this device is in a call now: starting, connected or reconnecting (not one that failed
- * and waits to be closed). Re-renders only when that answer changes, not on every call update.
+ * and waits to be closed). Optionally scoped to the call's home room, so other rooms do not
+ * subscribe to call updates. Re-renders only when the answer changes, not on every call update.
  */
-export const useInCall = (): boolean => {
-  const call = useActiveCall()?.call;
+export const useInCall = (homeRoomId?: string): boolean => {
+  const active = useActiveCall();
+  const call =
+    active && (homeRoomId === undefined || homeRoomId === callHomeRoomId(active))
+      ? active.call
+      : undefined;
   return useSyncExternalStore(
     call?.subscribe ?? noSubscription,
-    () => !!call && LIVE_PHASES.has(call.getState().phase)
+    () => !!call && isLiveCallPhase(call.getState().phase)
   );
 };
 
@@ -241,6 +259,7 @@ export type StartCallOptions = {
   microphone?: boolean;
   devices?: CallDevices;
   notify?: 'ring' | 'notification';
+  notifyInputs?: CallNotifyInputs;
   /**
    * Runs once nothing else stands in the call's way (no other call here or in another tab), right
    * before the call is made, such as writing an agent call room's origin. A start that gives up
@@ -254,6 +273,38 @@ export type StartCallOptions = {
  * switched while it was starting.
  */
 export type StartCallResult = 'started' | 'busy' | 'failed';
+
+/** How long a start waits for room members before giving up as failed. */
+export const MEMBERS_LOAD_TIMEOUT_MS = 10_000;
+
+/** How long a start waits for the call engine chunk before giving up as failed. */
+export const ENGINE_LOAD_TIMEOUT_MS = 15_000;
+
+const TIMED_OUT = Symbol('timedOut');
+
+const settleWithin = <T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(TIMED_OUT), ms);
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+
+/** Loads room members within `MEMBERS_LOAD_TIMEOUT_MS`, throwing on timeout or failure. */
+export const loadMembersWithin = async (room: Room): Promise<void> => {
+  // While the SDK's members request hangs, a retry waits on the same in-flight request
+  // (`room.membersPromise`) and fails again after the bound until it settles.
+  if ((await settleWithin(room.loadMembersIfNeeded(), MEMBERS_LOAD_TIMEOUT_MS)) === TIMED_OUT) {
+    throw new Error('Room member load timed out');
+  }
+};
 
 /** The newest event's server time in a room's loaded live timeline. */
 const newestEventTs = (room: Room): number | undefined =>
@@ -295,6 +346,7 @@ export const useCallActions = (mx: MatrixClient) => {
       microphone,
       devices,
       notify,
+      notifyInputs,
       prepare,
       ...meta
     }: StartCallOptions): Promise<RoomCall | Exclude<StartCallResult, 'started'>> => {
@@ -325,9 +377,14 @@ export const useCallActions = (mx: MatrixClient) => {
           return giveUp('failed');
         }
       }
-      await room.loadMembersIfNeeded().catch(() => undefined);
-      const engine = await loading;
-      if (!engine || !mx.clientRunning) return giveUp('failed');
+      try {
+        await loadMembersWithin(room);
+      } catch {
+        return giveUp('failed');
+      }
+      // A retry reuses the in-flight import() until it settles.
+      const engine = await settleWithin(loading, ENGINE_LOAD_TIMEOUT_MS);
+      if (!engine || engine === TIMED_OUT || !mx.clientRunning) return giveUp('failed');
       // A room the person left meanwhile (the call's, or the conversation an agent call is about)
       // gets no call: its leave already passed, and only a leave from here on ends the call with
       // its room (`CallWindowHost`).
@@ -342,6 +399,7 @@ export const useCallActions = (mx: MatrixClient) => {
         microphone,
         devices,
         notify,
+        notifyInputs,
         releaseDeviceLock,
         grant,
       });
@@ -362,7 +420,10 @@ export const useCallActions = (mx: MatrixClient) => {
   const startCall = useCallback(
     async (options: StartCallOptions): Promise<StartCallResult> => {
       if (store.get(activeCallAtom) || store.get(callStartingAtom)) return 'busy';
-      const start = {};
+      const start: CallStart = {
+        roomId: options.room.roomId,
+        originRoomId: options.origin?.roomId,
+      };
       store.set(callStartingAtom, start);
       let made: Awaited<ReturnType<typeof makeCall>>;
       try {

@@ -3,6 +3,7 @@ import {
   getStorageItemSafe,
   setStorageItemSafe,
 } from '../../lib/safeLocalStorage';
+import { leavePage } from '../../../boot/inviteFragment';
 
 export const INDEXED_DB_LOSS_SENTINEL_DB_NAME = 'mindroom-indexeddb-sentinel-v1';
 /**
@@ -56,7 +57,7 @@ type Options = {
  */
 export const installIndexedDbLossRecovery = ({
   factory = globalThis.indexedDB,
-  reload = () => window.location.reload(),
+  reload = leavePage,
   now = Date.now,
   storage = getSafeLocalStorage(),
 }: Options = {}): (() => void) => {

@@ -6,8 +6,8 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { generatePath, matchPath } from 'react-router-dom';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
-import { decodeRouteParam } from '../routes/pathUtils';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../routes/paths';
+import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
 /**
  * The routes whose segments name rooms and spaces, in the order they are tried. The space room
@@ -27,15 +27,20 @@ type RoomRoute = { pattern: string; segments: Segment[] };
 
 /**
  * The first room route that matches the whole pathname (case-sensitive, trailing slash
- * optional), with each segment decoded once. Malformed percent-encoding is kept as text.
+ * optional), with each segment as written decoded once, as the room page reads it (matchPath
+ * reads a literal `%2F` as `/`). Malformed percent-encoding is kept as text.
  */
 const matchRoomRoute = (pathname: string): RoomRoute | undefined => {
   for (const pattern of ROOM_ROUTE_PATTERNS) {
     const match = matchPath({ path: pattern, caseSensitive: true, end: true }, pathname);
     if (match) {
-      const segments = Object.entries(match.params).flatMap(([name, encoded]) =>
-        encoded === undefined ? [] : [{ name, text: decodeRouteParam(encoded) }]
-      );
+      const segments = Object.entries(match.params).flatMap(([name, encoded]) => {
+        const text = routeSegment(
+          pathname,
+          ROUTE_PARAM_SEGMENT[name as keyof typeof ROUTE_PARAM_SEGMENT]
+        );
+        return encoded === undefined || text === undefined ? [] : [{ name, text }];
+      });
       return { pattern, segments };
     }
   }
@@ -44,12 +49,9 @@ const matchRoomRoute = (pathname: string): RoomRoute | undefined => {
 
 const namesRoom = (segment: Segment): boolean => segment.name !== EVENT_SEGMENT;
 
-/** The route's path, each segment encoded on its own; `generatePath` drops the trailing slash. */
+/** The route's path; `generatePath` encodes each segment on its own and drops the trailing slash. */
 const buildPathname = (pattern: string, segments: Segment[]): string =>
-  generatePath(
-    pattern,
-    Object.fromEntries(segments.map(({ name, text }) => [name, encodeURIComponent(text)]))
-  );
+  generatePath(pattern, Object.fromEntries(segments.map(({ name, text }) => [name, text])));
 
 /**
  * A room or space segment as a room ID from what the client already holds: an alias maps to the

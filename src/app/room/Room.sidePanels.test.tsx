@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useContext, useEffect, useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
-import { callPanelRoomAtom } from '../calls/callStore';
+import {
+  activeCallAtom,
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  type ActiveCall,
+} from '../calls/callStore';
+import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
 import {
   closeTranscriptPanel,
   openTranscriptPanel,
@@ -12,6 +18,7 @@ import {
 } from '../calls/transcription/transcriptPanel';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowMode,
 } from '../calls/window/callWindowState';
@@ -55,6 +62,7 @@ const { mx, room, state } = vi.hoisted(() => {
     state: {
       listeners,
       members,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       config: {} as ClientConfig,
       // The servers the room's agents publish, which count when the homeserver binds tokens.
       servers: [] as AgentServer[],
@@ -72,6 +80,7 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     mx: {
       getSafeUserId: () => state.userId,
+      getRoom: () => null,
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
       on: (name: string, handler: (...args: unknown[]) => void) => listeners.set(name, handler),
@@ -79,6 +88,7 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     room: {
       roomId: '!room:example.org',
+      name: 'Planning Room',
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: (eventId: string) =>
@@ -88,6 +98,11 @@ const { mx, room, state } = vi.hoisted(() => {
     },
   };
 });
+
+// The route names no event.
+vi.mock('../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({}),
+}));
 
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },
@@ -414,7 +429,10 @@ describe('the side panels of a room', () => {
 
   afterEach(() => {
     cleanup();
+    store.set(activeCallAtom, undefined);
     store.set(callPanelRoomAtom, undefined);
+    store.set(callPanelRequestAtom, undefined);
+    store.set(focusHandOffAtom, undefined);
     store.set(transcriptPanelAtom, undefined);
     store.set(subagentsPanelAtom, undefined);
     store.set(membersOpenAtom, false);
@@ -483,6 +501,60 @@ describe('the side panels of a room', () => {
 
     await renderRoom(ScreenSize.Mobile);
     expect(shown()).toEqual(['call']);
+  });
+
+  it('unfolds a call request once even if the composer takes focus before the room shows', async () => {
+    const showRoom = await renderRoom();
+    await open('call');
+    const fold = () =>
+      act(() => screen.getByRole('button', { name: 'Fold Call to the edge' }).click());
+    const unfold = () => screen.queryByRole('button', { name: 'Unfold Call' });
+    fold();
+    expect(unfold()).not.toBeNull();
+
+    await showRoom('!other:example.org');
+    const callState = { phase: 'connected', microphone: true, participants: [] };
+    const call = {
+      kind: 'agent',
+      origin: { roomId: room.roomId, threadId: '$thread' },
+      call: {
+        room,
+        subscribe: () => () => undefined,
+        getState: () => callState,
+      },
+    } as unknown as ActiveCall;
+    function ReturnShortcut() {
+      const { openHome } = useActiveCallShortcut(call);
+      return (
+        <button type="button" onClick={(event) => openHome(event.currentTarget)}>
+          Return
+        </button>
+      );
+    }
+    act(() => store.set(activeCallAtom, call));
+    render(<ReturnShortcut />);
+    fireEvent.click(screen.getByRole('button', { name: 'Return' }));
+    // The destination composer can take focus before the room consumes the unfold request.
+    screen.getByRole('textbox', { name: 'Message' }).focus();
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
+    await showRoom(room.roomId);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+    expect(shown()).toEqual(['call']);
+    expect(unfold()).toBeNull();
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
+
+    fold();
+    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
+    expect(unfold()).toBeNull();
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
+  });
+
+  it('discards a call request if the call panel has since been closed', async () => {
+    await renderRoom();
+    await open('transcript');
+    act(() => store.set(callPanelRequestAtom, { roomId: room.roomId }));
+    expect(shown()).toEqual(['transcript']);
+    expect(store.get(callPanelRequestAtom)).toBeUndefined();
   });
 
   it('renders again when the call docks or floats, not when the floating window moves', async () => {

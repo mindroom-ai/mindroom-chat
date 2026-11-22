@@ -132,16 +132,20 @@ export const readHomeAgents = (
       .filter((room) => canAskIn(room, userId))
       .map((room) => room.roomId)
       .sort((a, b) => answered.get(b)! - answered.get(a)!);
-    const lastUsedTs = answered.get(usable[0]) ?? 0;
+    const [firstUsable] = usable;
+    const lastUsedTs = firstUsable ? answered.get(firstUsable) ?? 0 : 0;
     const direct = readDirect(mx, userId);
     const localpart = getMxIdLocalPart(userId) ?? userId;
+    const [firstRoom] = rooms;
     return {
       userId,
-      name: getMemberRawDisplayName(rooms[0], userId) || localpart.replace(/^mindroom_/, ''),
-      avatarMxc: getMemberAvatarMxc(rooms[0], userId),
+      name:
+        (firstRoom ? getMemberRawDisplayName(firstRoom, userId) : undefined) ||
+        localpart.replace(/^mindroom_/, ''),
+      avatarMxc: firstRoom ? getMemberAvatarMxc(firstRoom, userId) : undefined,
       roomIds: usable,
       direct,
-      defaultRoomId: lastUsedTs > 0 ? usable[0] : direct?.roomId,
+      defaultRoomId: lastUsedTs > 0 ? firstUsable : direct?.roomId,
       lastUsedTs,
     };
   });

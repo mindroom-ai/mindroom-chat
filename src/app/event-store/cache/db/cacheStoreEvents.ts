@@ -742,7 +742,7 @@ export const loadCachedRoomEvent = async (
         resolve(undefined);
         return;
       }
-      resolve(normalized as CachedRoomEvent);
+      resolve(normalized);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -1306,7 +1306,7 @@ export const loadLatestCachedThreadEvents = async (
     limit,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
+  return buildThreadEventPage(meta, events.reverse(), hasMoreBefore, roomId);
 };
 
 /** Read several thread tails in one IndexedDB transaction. */
@@ -1343,7 +1343,7 @@ export const loadLatestCachedThreadEventsBatch = async (
         const cursor = cursorRequest.result;
         if (!cursor) return;
         const record = cursor.value as CachedEventRecord;
-        const normalized = toRawEventInternal(record.rawEvent) as CachedThreadEvent | undefined;
+        const normalized = toRawEventInternal(record.rawEvent);
         if (!normalized || record.eventId === threadId || isOtherRoomEvent(normalized, roomId)) {
           cursor.continue();
           return;
@@ -1402,7 +1402,7 @@ export const loadCachedThreadEventsBefore = async (
     withBeforeMillisecond,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
+  return buildThreadEventPage(meta, events.reverse(), hasMoreBefore, roomId);
 };
 
 export const loadCachedThreadEvent = async (
@@ -1429,11 +1429,7 @@ export const loadCachedThreadEvent = async (
       const own =
         record && !isOtherRoomEvent(record.rawEvent, roomId) ? record.rawEvent : undefined;
       const raw = own ?? (eventId === threadId ? meta?.rootEvent : undefined);
-      resolve(
-        isOtherRoomEvent(meta?.rootEvent, roomId)
-          ? undefined
-          : (toRawEventInternal(raw) as CachedThreadEvent | undefined)
-      );
+      resolve(isOtherRoomEvent(meta?.rootEvent, roomId) ? undefined : toRawEventInternal(raw));
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);

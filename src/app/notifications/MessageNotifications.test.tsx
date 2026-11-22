@@ -168,10 +168,7 @@ const render = (path: string, synced = true, store = createStore()) =>
     renderer = create(
       <Provider store={store}>
         <MatrixClientProvider value={client}>
-          <MemoryRouter
-            initialEntries={[path]}
-            future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-          >
+          <MemoryRouter initialEntries={[path]}>
             <MessageNotificationsFeature />
           </MemoryRouter>
         </MatrixClientProvider>

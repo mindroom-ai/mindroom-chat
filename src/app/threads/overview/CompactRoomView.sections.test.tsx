@@ -9,6 +9,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
+import * as scrollFallback from './useCompactScrollFallback';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -76,9 +77,9 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
-const view = (threadRootIds: string[], sections = true) => (
+const view = (threadRootIds: string[], sections = true, activeRoom = room) => (
   <CompactRoomView
-    room={room}
+    room={activeRoom}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
@@ -106,8 +107,8 @@ beforeEach(() => {
   state.pinned = [];
   state.enabled = [];
   state.sections = [
-    { id: 'working', rootIds: ['$job', '$streaming'] },
     { id: 'needsYou', rootIds: ['$read'] },
+    { id: 'working', rootIds: ['$job', '$streaming'] },
     { id: 'later', rootIds: ['$snoozed'] },
     { id: 'done', rootIds: ['$done'] },
   ];
@@ -125,11 +126,11 @@ describe('the Compact room in sections', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
     expect(rows()).toEqual([
+      '#needsYou 1',
+      '$read',
       '#working 2',
       '$job',
       '$streaming',
-      '#needsYou 1',
-      '$read',
       '#later 1',
       '$snoozed',
       '#done 1',
@@ -151,9 +152,9 @@ describe('the Compact room in sections', () => {
     });
 
     expect(rows()).toEqual([
-      '#working 2',
       '#needsYou 1',
       '$read',
+      '#working 2',
       '#later 1',
       '$snoozed',
       '#done 1',
@@ -195,13 +196,19 @@ describe('the Compact room in sections', () => {
 
     // The job ends: its thread needs you now.
     state.sections = [
-      { id: 'working', rootIds: ['$streaming'] },
       { id: 'needsYou', rootIds: ['$job', '$read'] },
+      { id: 'working', rootIds: ['$streaming'] },
       { id: 'later', rootIds: ['$snoozed'] },
       { id: 'done', rootIds: ['$done'] },
     ];
     rerender(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
-    expect(rows().slice(0, 3)).toEqual(['#working 1', '$job', '$streaming']);
+    expect(rows().slice(0, 5)).toEqual([
+      '#needsYou 2',
+      '$read',
+      '#working 1',
+      '$job',
+      '$streaming',
+    ]);
 
     // jsdom's pointer events carry no pointer type: the pointer lets go at the next click.
     act(() => {
@@ -209,11 +216,11 @@ describe('the Compact room in sections', () => {
       fireEvent.click(document.body);
     });
     expect(rows()).toEqual([
-      '#working 1',
-      '$streaming',
       '#needsYou 2',
       '$job',
       '$read',
+      '#working 1',
+      '$streaming',
       '#later 1',
       '$snoozed',
       '#done 1',
@@ -225,14 +232,16 @@ describe('the Compact room in sections', () => {
     const holdThenRegroup = (
       initial: CompactThreadSection[],
       next: CompactThreadSection[],
-      added: string[] = []
+      added: string[] = [],
+      hovered?: string
     ) => {
       state.sections = initial;
       const rootIds = initial.flatMap(({ rootIds: ids }) => ids);
       const { rerender } = render(view(rootIds));
       const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      const target = hovered ? list.querySelector(`[data-scroll-anchor="${hovered}"]`)! : list;
       act(() => {
-        fireEvent.pointerEnter(list);
+        fireEvent.pointerEnter(target);
       });
       state.sections = next;
       rerender(view([...added, ...rootIds]));
@@ -246,13 +255,13 @@ describe('the Compact room in sections', () => {
     it('keeps the header of a section its last card left, with no count, until let go', () => {
       const release = holdThenRegroup(
         [
-          { id: 'working', rootIds: ['$job'] },
           { id: 'needsYou', rootIds: ['$read'] },
+          { id: 'working', rootIds: ['$job'] },
         ],
         [{ id: 'needsYou', rootIds: ['$job', '$read'] }]
       );
 
-      expect(rows()).toEqual(['#working 0', '$job', '#needsYou 2', '$read']);
+      expect(rows()).toEqual(['#needsYou 2', '$read', '#working 0', '$job']);
 
       release();
       expect(rows()).toEqual(['#needsYou 2', '$job', '$read']);
@@ -291,50 +300,44 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#needsYou 1', '$b', '#later 1', '$a']);
     });
 
-    it('moves a card an agent starts working on to Working at once, its header with it', () => {
-      holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+    it('keeps B in place under the pointer while A starts working, until let go', () => {
+      const release = holdThenRegroup(
         [
-          { id: 'working', rootIds: ['$a'] },
-          { id: 'needsYou', rootIds: ['$b'] },
-        ]
-      );
-
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
-    });
-
-    it('moves a card an agent starts working on into a shown Working where the live order puts it', () => {
-      holdThenRegroup(
-        [
-          { id: 'working', rootIds: ['$w'] },
           { id: 'needsYou', rootIds: ['$a', '$b'] },
+          { id: 'working', rootIds: ['$w'] },
         ],
         [
-          { id: 'working', rootIds: ['$b', '$w'] },
-          { id: 'needsYou', rootIds: ['$a'] },
-        ]
+          { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'working', rootIds: ['$a', '$w'] },
+        ],
+        [],
+        '$b'
       );
 
-      expect(rows()).toEqual(['#working 2', '$b', '$w', '#needsYou 1', '$a']);
+      expect(rows()).toEqual(['#needsYou 1', '$a', '$b', '#working 2', '$w']);
+
+      release();
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 2', '$a', '$w']);
     });
 
-    it('keeps a lone section open when a card moving to Working brings a second, until let go', () => {
+    it('keeps a lone section open when a new Working card brings a second, until let go', () => {
       localStorage.setItem(
         `compactRoomSections:${ME}`,
         JSON.stringify({ on: true, folded: ['needsYou'] })
       );
       const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
-        ]
+          { id: 'working', rootIds: ['$a'] },
+        ],
+        ['$a']
       );
 
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '$a']);
 
       release();
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
     });
 
     it('keeps only the lone section open: other stored folds still apply while held', () => {
@@ -343,35 +346,36 @@ describe('the Compact room in sections', () => {
         JSON.stringify({ on: true, folded: ['working', 'done'] })
       );
       holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'working', rootIds: ['$a'] },
           { id: 'done', rootIds: ['$d'] },
         ],
-        ['$d']
+        ['$a', '$d']
       );
 
-      expect(rows()).toEqual(['#working 1', '#needsYou 1', '$b', '#done 1']);
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '#done 1']);
     });
 
     it('folds a held-open section stored open with one click on its header', () => {
       const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
-        ]
+          { id: 'working', rootIds: ['$a'] },
+        ],
+        ['$a']
       );
 
       act(() => {
         fireEvent.click(header('needsYou'));
       });
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
       expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
 
       release();
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
     });
 
     it('folds the held-open section from its header at once, and keeps it folded after', () => {
@@ -380,29 +384,30 @@ describe('the Compact room in sections', () => {
         JSON.stringify({ on: true, folded: ['needsYou'] })
       );
       const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
-        ]
+          { id: 'working', rootIds: ['$a'] },
+        ],
+        ['$a']
       );
       expect(header('needsYou').getAttribute('aria-expanded')).toBe('true');
 
       act(() => {
         fireEvent.click(header('needsYou'));
       });
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
       expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
 
       release();
-      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
       expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
         on: true,
         folded: ['needsYou'],
       });
     });
 
-    it('keeps a held section in its shown order while a new section comes in after it', () => {
+    it('keeps a held section in its shown order while a new section comes in before it', () => {
       const release = holdThenRegroup(
         [
           { id: 'working', rootIds: ['$a', '$b'] },
@@ -410,17 +415,17 @@ describe('the Compact room in sections', () => {
         ],
         // $a finished and a new thread $n came in: both need you now, and Needs you sorts $n first.
         [
-          { id: 'working', rootIds: ['$b'] },
           { id: 'needsYou', rootIds: ['$n', '$a'] },
+          { id: 'working', rootIds: ['$b'] },
           { id: 'done', rootIds: ['$done'] },
         ],
         ['$n']
       );
 
-      expect(rows()).toEqual(['#working 1', '$a', '$b', '#needsYou 2', '$n', '#done 1']);
+      expect(rows()).toEqual(['#needsYou 2', '$n', '#working 1', '$a', '$b', '#done 1']);
 
       release();
-      expect(rows()).toEqual(['#working 1', '$b', '#needsYou 2', '$n', '$a', '#done 1']);
+      expect(rows()).toEqual(['#needsYou 2', '$n', '$a', '#working 1', '$b', '#done 1']);
     });
 
     it('holds no section of the room before when the next room opens under the pointer', () => {
@@ -456,29 +461,31 @@ describe('the Compact room in sections', () => {
       });
 
       state.sections = [
-        { id: 'working', rootIds: ['$new'] },
         { id: 'needsYou', rootIds: ['$a'] },
+        { id: 'working', rootIds: ['$new'] },
       ];
       rerender(view(['$new', '$a']));
 
-      expect(rows()).toEqual(['#working 1', '$new', '#needsYou 1', '$a']);
+      expect(rows()).toEqual(['#needsYou 1', '$a', '#working 1', '$new']);
     });
   });
 
   it('shows the header of the section a mounted card moves to while cards still mount', () => {
-    const working = Array.from({ length: 100 }, (_unused, index) => `$w${index}`);
-    state.sections = [{ id: 'working', rootIds: ['$a', ...working] }];
-    const { rerender } = render(view(['$a', ...working]));
+    const waiting = Array.from({ length: 100 }, (_unused, index) => `$waiting${index}`);
+    const ids = ['$a', ...waiting];
+    state.sections = [{ id: 'needsYou', rootIds: ids }];
+    const { rerender } = render(view(ids));
     expect(rows()).toContain('$a');
 
-    // $a finishes before the rest of the cards have mounted: it opens a Needs you section.
+    // $a starts working below the Needs you cards before the rest of those cards mount.
     state.sections = [
-      { id: 'working', rootIds: working },
-      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'needsYou', rootIds: waiting },
+      { id: 'working', rootIds: ['$a'] },
     ];
-    rerender(view(['$a', ...working]));
+    rerender(view(ids));
 
-    expect(rows().slice(-2)).toEqual(['#needsYou 1', '$a']);
+    expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
+    expect(rows().slice(-2)).toEqual(['#working 1', '$a']);
   });
 
   it('mounts the first screenful on the way back from a card in folded Done', () => {
@@ -548,6 +555,89 @@ describe('the Compact room in sections', () => {
 
     expect(rows()).toEqual(['$streaming', '$job']);
     expect(state.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+});
+
+describe('Compact order when the view switches under the pointer', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const hold = () => {
+    const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+    act(() => {
+      fireEvent.pointerEnter(list);
+    });
+    return () =>
+      act(() => {
+        fireEvent.pointerLeave(list);
+        fireEvent.click(document.body);
+      });
+  };
+
+  it('starts a flat room in its live order and holds that order on the next update', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const { rerender } = render(view(['$a', '$b'], false));
+    hold();
+    rerender(view(['$b', '$a'], false));
+    expect(rows()).toEqual(['$a', '$b']);
+
+    const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+    const nextIds = ['$d', '$c'];
+    rerender(view(nextIds, false, nextRoom));
+    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
+    expect(rows()).toEqual(['$d', '$c']);
+    rerender(view(['$c', '$d'], false, nextRoom));
+    expect(rows()).toEqual(['$d', '$c']);
+  });
+
+  it('switches from Sections to flat using only the rows left after folding', () => {
+    state.sections = [
+      { id: 'working', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$done', '$b', '$a'];
+    const { rerender } = render(view(ids));
+    hold();
+    expect(rows()).toEqual(['#working 2', '$a', '$b', '#done 1']);
+
+    rerender(view(ids, false));
+    // The folded card is a newcomer, so it leads, while $a and $b keep their shown order.
+    expect(rows()).toEqual(['$done', '$a', '$b']);
+  });
+
+  it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$a', '$done'];
+    const { rerender } = render(view(ids, false));
+    const release = hold();
+    rerender(view(ids));
+    const sectionRows = fallback.mock.lastCall?.[0];
+    expect(sectionRows).toEqual(['section:needsYou', '$a', 'section:done']);
+
+    fallback.mockClear();
+    release();
+    expect(fallback.mock.lastCall?.[0]).toBe(sectionRows);
+  });
+
+  it('switches from flat to live Sections, then holds those sections on the next update', () => {
+    const ids = ['$a', '$b', '$c'];
+    const { rerender } = render(view(ids, false));
+    hold();
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$b', '$a'] },
+      { id: 'working', rootIds: ['$c'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 2', '$b', '$a', '#working 1', '$c']);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$c', '$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$b', '$a', '#working 0', '$c']);
   });
 });
 

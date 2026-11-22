@@ -150,7 +150,7 @@ describe('getThreadEventReadUpTo', () => {
           origin_server_ts: 2500,
         },
       },
-    } as never);
+    });
     room.addReceipt(receipt(USER_ID, '$finish', 3000, '$root'));
 
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');

@@ -955,7 +955,9 @@
   },
   "messageTable": {
     "label": "স্ক্রোলযোগ্য টেবিল",
-    "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন"
+    "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন",
+    "readByRow": "সারি ধরে পড়ুন",
+    "showTable": "সারণি দেখান"
   },
   "messageCodeBlock": {
     "actions": "কোড ব্লকের অ্যাকশন",
@@ -1353,9 +1355,6 @@
         "submitted": "জমা দেওয়া হয়েছে",
         "toolApprovalRequest": "টুল অনুমোদন অনুরোধ"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "রাউটার এজেন্ট কথা থেকে লেখা তৈরি করছে"
-      },
       "pendingSendIndicator": {
         "messageFailedToSend": "বার্তা পাঠাতে ব্যর্থ হয়েছে",
         "messageSending": "বার্তা পাঠানো হচ্ছে",
@@ -1668,8 +1667,8 @@
       "resumeRecording": "ভয়েস রেকর্ডিং পুনরায় শুরু করুন",
       "statusActive": "ভয়েস রেকর্ডিং সক্রিয়",
       "statusPaused": "ভয়েস রেকর্ডিং বিরাম দেওয়া হয়েছে৷",
-      "statusProcessing": "ভয়েস রেকর্ডিং প্রক্রিয়া করা হচ্ছে",
       "statusReadyToRetry": "আবার চেষ্টা করার জন্য ভয়েস রেকর্ডিং প্রস্তুত৷",
+      "recoveredRecording": "পুনরুদ্ধার করা রেকর্ডিং · {{time}}",
       "statusSending": "ভয়েস রেকর্ডিং পাঠানো হচ্ছে",
       "statusStarting": "ভয়েস রেকর্ডিং শুরু হচ্ছে",
       "voiceRecorderDialog": {
@@ -1693,7 +1692,9 @@
       "computerUnavailable": "এই এজেন্টের কম্পিউটার উপলব্ধ নেই।",
       "releaseControl": "অন্য দৃশ্য খোলার আগে কম্পিউটারের নিয়ন্ত্রণ ছেড়ে দিন।",
       "openConversation": "রুমের কথোপকথন থেকে এই অনুরোধটি খুলুন।",
-      "settingsUnavailable": "সেটিংসের এই বিভাগ খুলতে সরল মোড বন্ধ করুন।"
+      "settingsUnavailable": "সেটিংসের এই বিভাগ খুলতে সরল মোড বন্ধ করুন।",
+      "canvasCard": "ইন্টারঅ্যাকটিভ প্যানেল",
+      "reminderCard": "রিমাইন্ডার · {{when}}"
     },
     "canvas": {
       "panelLabel": "ইন্টারঅ্যাকটিভ প্যানেল",
@@ -2680,7 +2681,6 @@
       "invite": "আমন্ত্রণ জানান",
       "joinNewSpace": "নতুন স্পেসে যোগ দিন",
       "leaveSpace": "স্পেস ছেড়ে দিন",
-      "lobby": "লবি",
       "messageSearch": "বার্তা অনুসন্ধান",
       "openNewSpace": "নতুন স্পেস খুলুন",
       "pickedUpRoomValue1UseArrowKeysToReorderPressSpaceTo": "রুম {{value1}} তোলা হয়েছে। পুনরায় সাজাতে তীর কী ব্যবহার করুন। ড্রপ করার জন্য স্পেস টিপুন।",

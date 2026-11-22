@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { MatrixEvent, type EventTimelineSet } from 'matrix-js-sdk';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
@@ -50,17 +49,14 @@ const tileRows = (
   data: TimelineMessageData = messageData
 ) => {
   const tiles = renderTimelineTiles({
-    virtualItems: indexes.map(
-      (index) =>
-        ({
-          index,
-          key: index,
-          start: index * 40,
-          size: 40,
-          end: index * 40 + 40,
-          lane: 0,
-        } as VirtualItem)
-    ),
+    virtualItems: indexes.map((index) => ({
+      index,
+      key: index,
+      start: index * 40,
+      size: 40,
+      end: index * 40 + 40,
+      lane: 0,
+    })),
     threadId: undefined,
     threadEvents: [],
     roomWindowRows: events,
@@ -178,7 +174,7 @@ describe("a fork draft's line at a run of quiet markers", () => {
   });
 });
 
-describe("a router's voice echo", () => {
+describe('a folded voice echo', () => {
   const events = [
     event('$read', 'm.room.message', START),
     event('$voice', 'm.room.message', START + DAY),
@@ -188,6 +184,7 @@ describe("a router's voice echo", () => {
   const paired = {
     ...messageData,
     voiceTranscripts: {
+      ...NO_VOICE_TRANSCRIPTS,
       hiddenEventIds: new Set(['$echo']),
       byVoiceId: new Map([['$voice', events[2]!]]),
     },

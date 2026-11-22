@@ -37,11 +37,3 @@ export const ThreadSummaryBody = style({
   fontWeight: 500,
   lineHeight: toRem(22),
 });
-
-export const ThreadSummaryBodyCompact = style({
-  minWidth: 0,
-  margin: 0,
-  fontSize: toRem(15),
-  fontWeight: 500,
-  lineHeight: toRem(22),
-});

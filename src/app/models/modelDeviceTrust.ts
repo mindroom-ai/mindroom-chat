@@ -18,10 +18,7 @@ export const hasJoinedModelAgent = (
   agents: string[]
 ): boolean => {
   const candidates = joinedModelCandidates(mx, room);
-  return (
-    candidates.includes(runtime.userId) &&
-    agents.some((id) => id !== runtime.userId && candidates.includes(id))
-  );
+  return candidates.includes(runtime.userId) && agents.some((id) => candidates.includes(id));
 };
 export const signedModelDevices = async (
   mx: MatrixClient,

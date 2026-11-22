@@ -8,13 +8,14 @@ let rect = { x: 10, y: 20, width: 100, height: 16 };
 let renders = 0;
 
 // A trigger and, while open, a focusable card that shows the anchor's top.
-function Harness({ closeDelayMs }: { closeDelayMs?: number }) {
+function Harness({ closeDelayMs, triggerKey }: { closeDelayMs?: number; triggerKey?: string }) {
   renders += 1;
   const { open, triggerRef, cardRef, toggle, pin, hover, onFocusLeave } =
     useAnchoredCard(closeDelayMs);
   return (
     <>
       <button
+        key={triggerKey}
         ref={(node) => {
           if (node) node.getBoundingClientRect = () => ({ ...rect } as DOMRect);
           (triggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
@@ -78,6 +79,24 @@ describe('useAnchoredCard', () => {
     fireEvent.click(screen.getByText('Example trigger'));
     expect(card()).toBeNull();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps the card open and follows a trigger remounted under the same ref', () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    const { rerender } = render(<Harness triggerKey="original" />);
+    const trigger = screen.getByText('Example trigger');
+    fireEvent.click(trigger);
+    const opened = card();
+    expect(opened?.dataset.top).toBe('20');
+
+    rect = { ...rect, y: 140 };
+    rerender(<Harness triggerKey="replacement" />);
+    expect(trigger.isConnected).toBe(false);
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(card()).toBe(opened);
+    expect(opened?.dataset.top).toBe('140');
   });
 
   it('lets a trigger send Tab into the card, and Tab in the card goes on from the trigger', () => {

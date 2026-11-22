@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 65), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 66), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -258,6 +258,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 63 `threadHeaderSlot`
 - version 64 `ui`'s `MarkdownContent`
 - version 65 side panels' `title`
+- version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
 
 ## Page zoom
 
@@ -284,8 +285,9 @@ One-finger touches, such as a scroll or a tap, are never affected.
 
 ## Shared packages
 
-The app shares its React, React DOM, matrix-js-sdk, jotai, TanStack Query, React Router, i18next and react-i18next, folds, focus-trap, focus-trap-react, dayjs and react-aria, with the packages some of them are built on (scheduler, @tanstack/query-core, @remix-run/router), with every plugin (`SHARED_PACKAGES` in `scripts/client-plugins.mjs`): in a build and in the dev server, a plugin's imports of them, and those of the packages it installed, resolve as the app's own imports do, to the app's copies in the app's versions, so the state each keeps is one (the Matrix SDK's classes, query caches, atom stores, the router, translations, focus traps, the date locale, the scroll lock, overlay stack and focus scopes of dialogs and menus);
+The app shares its React, React DOM, matrix-js-sdk, jotai, TanStack Query, React Router (react-router-dom and react-router), i18next and react-i18next, folds, focus-trap, focus-trap-react, dayjs and react-aria, with the packages some of them are built on (scheduler, @tanstack/query-core), with every plugin (`SHARED_PACKAGES` in `scripts/client-plugins.mjs`): in a build and in the dev server, a plugin's imports of them, and those of the packages it installed, resolve as the app's own imports do, to the app's copies in the app's versions, so the state each keeps is one (the Matrix SDK's classes, query caches, atom stores, the router, translations, focus traps, the date locale, the scroll lock, overlay stack and focus scopes of dialogs and menus);
 a CommonJS package's `require` of one gets the module the app imports too.
+React Router is version 7, which folded `@remix-run/router` into `react-router`: the app no longer shares `@remix-run/router`, so a plugin imports helpers such as `matchPath` from `react-router` (or `react-router-dom`), and gives `generatePath` raw values for named parameters, which it encodes itself (encoding them first encodes them twice); a `*` splat passes through unchanged, so it takes a concrete path with each of its segments already encoded, as `pluginRoutePath` (`src/app/plugins/pluginPages.tsx`) asks.
 A build needs none of them installed in the plugin's directory, wherever it is, and does not use a copy installed there (for the plugin's tests, or for one of its packages); an import the app's copy cannot resolve, such as a file only a newer version has, fails the build.
 A plugin directory inside another one belongs to the inner plugin, and the app's own directory inside a plugin directory to the app.
 The dev server pre-bundles the packages a plugin installed without plugin hooks; there an esbuild plugin in `scripts/client-plugins.mjs` resolves their imports and requires of the shared packages.
@@ -467,7 +469,7 @@ A header action, by contrast, is one of the open room's header actions, in its r
 
 ## Message links
 
-Message links (`src/app/plugins/messageLinks.ts`) are the ninth kind: `ClientPlugin.messageLinks`, a list of `{ match, Component, sidePanel? }`.
+Message links (`src/app/plugins/messageLinks.ts`) are the ninth kind: `ClientPlugin.messageLinks`, a list of `{ match, Component, sidePanel?, hoverCard? }`.
 They apply to the links of messages in a room's page (its timeline in every view, a thread and the pinned messages), every link with an `http:` or `https:` address; elsewhere (the Activity list, search, thread previews outside a room's page) links stay as they are.
 A plain click (the primary button, with no Ctrl, Meta, Shift or Alt), or Enter on the focused link, on a link that the first enabled plugin's `match` takes (build order, then list order) shows that plugin's `Component` in place of opening the link, in a pop-out at the link, below it and lined up with its start, or above it when the link is in the lower half of the window, mirrored in right-to-left, on the app's glass menu surface (`src/app/room/MessageLinkCards.tsx`).
 A modified click, a middle click, the context menu and dragging keep the browser's behavior, and the click goes no further than the link, so a thread card around it does not open its thread.
@@ -485,6 +487,13 @@ A link whose text reads as another address keeps the app's check first and, once
 Escape, a click outside the card and `close()` close the card, and the focus goes back to the link.
 One card shows at a time: another link's card takes its place, and a switch to another room closes it.
 A `Component` that throws closes the card, logged and reported with `[plugin <id>@<version>]`.
+A link with a `hoverCard` (since version 66), a component that gets `{ href, roomId }` (`MessageLinkHoverCardProps`), shows it once a mouse has rested on the link for 150 ms (each move on it starts the wait again), or 150 ms after the keyboard's focus came to it (`:focus-visible`), in a pop-out at the link placed as the card is, on the same glass surface, at most 20rem wide.
+Only a mouse opens it, on a screen that hovers with a fine pointer (`(hover: hover) and (pointer: fine)`, asked at each move and again as the wait ends): a pen and a tap never do, and a press anywhere, a touch too, stops the wait and hides the card, so phones and touch screens keep the click as it was.
+It hides as soon as the mouse leaves the link (also into a frame) or the focus does, on any click, Enter on a link too, on Escape (also while it waits; a press, a click or Escape leaves the link showing none until the mouse leaves it), on any scroll, when the link changes its address or its text, or leaves the page, when a room panel opens or changes, and on a switch to another room; one shows at a time on the whole page, a thread's inside the room's included, and none while a link's card shows.
+It only reads: it takes no pointer and nothing in it should take the focus; it is the link's `role="tooltip"`, which the link names with `aria-describedby` while it shows, and from when the mouse comes to the link until the card hides, the link has no `title`, the address the hover card stands in for.
+A link whose text reads as another address shows no hover card, and keeps its title and the check.
+A `hoverCard` that throws hides, logged and reported with `[plugin <id>@<version>]`; while it loads, nothing shows.
+Without an enabled plugin's `hoverCard`, the room's page has no listener, timer or observer of the hover cards, and its links have nothing of theirs.
 `plugins.<id>.enabled: false` and `?plugins=off` turn the kind off as they turn off the others.
 
 ## Thread card badges

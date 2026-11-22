@@ -33,7 +33,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -45,7 +45,8 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { holdCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
+import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
+import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { ThreadCardDetails } from './ThreadCardDetails';
@@ -74,7 +75,7 @@ export type CompactRoomViewProps = {
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
-   * Set while the cards show in sections (Working, Needs you, Later and Done, each folding on its
+   * Set while the cards show in sections (Needs you, Working, Later and Done, each folding on its
    * own): the snooze clock the list was filtered at (`useThreadIndex`'s `snoozeNow`), which the
    * sections classify at too, so they show what the selected tab does.
    */
@@ -180,6 +181,9 @@ const CompactThreadCardRow = React.memo(
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
+        // The phone slide can keep just this shell outside the list's clip. Card adornments
+        // stay by the row, and popovers that can escape it render in the portal instead.
+        data-page-slide-row=""
         draggable={draggable || undefined}
         onPointerDown={
           offered ? (event) => setMousePressed(event.pointerType === 'mouse') : undefined
@@ -351,23 +355,22 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  // While the order is held, the cards keep the sections they showed in and their places there,
-  // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
-  // this room's: the view stays mounted when the next room opens under the pointer.
-  const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
+  const { roomId } = room;
+  const shownRef = useRef<{
+    roomId: string;
+    sections: CompactThreadSection[] | undefined;
+    rows: string[];
+  }>();
   const heldSections = useMemo(() => {
-    const shown = shownSectionsRef.current;
-    return orderHeld && threadSections && shown?.roomId === room.roomId && shown.sections
-      ? holdCompactThreadSections(threadSections, shown.sections)
+    const shown = shownRef.current;
+    // Sections start live when entering from flat or from another room.
+    return orderHeld && threadSections && shown?.roomId === roomId && shown.sections
+      ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
       : threadSections;
-  }, [orderHeld, room.roomId, threadSections]);
-  useLayoutEffect(() => {
-    shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
-  }, [heldSections, room.roomId]);
+  }, [orderHeld, roomId, threadSections]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back. While the order is held, that section stays open when a card
-  // moving to Working brings a second one, so the cards under the pointer stay in view, until the
-  // hold lets go or the reader folds it from its header.
+  // other sections to come back. If another section appears, such as Working below Needs you,
+  // the original stays open until the hold lets go or the reader folds it.
   const soleSection = heldSections?.length === 1;
   const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
   const [, showFolds] = useReducer((count: number) => count + 1, 0);
@@ -403,7 +406,19 @@ export function CompactRoomView({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  const holdFlat = orderHeld && !heldSections;
+  const shownRows = useMemo(() => {
+    const shown = shownRef.current;
+    if (!holdFlat || shown?.roomId !== roomId) return listedRows;
+    // Flat is one headerless group. On leaving Sections, only cards visible after folding survive.
+    const id = 'flat';
+    const [flat] = step([{ id, rootIds: shown.rows }], [{ id, rootIds: listedRows }], true, [id]);
+    return flat!.rootIds;
+  }, [holdFlat, listedRows, roomId]);
+  useLayoutEffect(() => {
+    shownRef.current = { roomId, sections: heldSections, rows: shownRows };
+  }, [heldSections, roomId, shownRows]);
+  useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
@@ -468,8 +483,8 @@ export function CompactRoomView({
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
-  // in and one that left fades out. After the hook that holds the order: it scrolls the list
-  // where the browser does not anchor it.
+  // in and one that left fades out. Run after the fallback so it measures the cards where
+  // they settled, even in browsers that do not anchor the scroll.
   const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
     models.map((model) => model.id.threadRootId).join(',');
   const listMotion = useListMotion(
@@ -663,6 +678,7 @@ export function CompactRoomView({
       ref={viewRef}
       className={css.View}
       data-compact-room-view="true"
+      data-page-slide-clip=""
       // Cards still to mount: the cards' end is further down than the view's.
       data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
       tabIndex={-1}
@@ -682,7 +698,7 @@ export function CompactRoomView({
           setFocusInside(isKeyboardFocus(event.target))
         }
         onBlur={(event: React.FocusEvent<HTMLDivElement>) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
             setFocusInside(false);
           }
         }}

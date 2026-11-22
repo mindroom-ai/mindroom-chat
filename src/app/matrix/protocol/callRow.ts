@@ -4,24 +4,25 @@ import { getActiveSession } from '../session/sessions';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
- * The row MindRoom's router posts when a call between people starts in a room, a notice with
- * `{"call_id": "<id>"}` under this key. The router edits it when the call ends, adding `ended_at`
- * and `duration_seconds`, and again once the transcript message is posted, adding
+ * When a call between people starts, the room's poster sends a notice with `{"call_id": "<id>"}`
+ * under this key. MindRoom uses the owner if joined and running, otherwise a joined, running
+ * agent or team. The poster edits the row when the call ends, adding `ended_at` and
+ * `duration_seconds`, and again once the transcript message is posted, adding
  * `transcript_event_id`. Any member can write it into a message, so it counts only from an agent
- * (`AGENT_ONLY_CONTENT_KEYS`), and only the agent's own edits replace it.
+ * (`AGENT_ONLY_CONTENT_KEYS`), and only the sender's own edits replace it.
  */
 export const CALL_ROW_KEY = 'io.mindroom.call';
 
 /**
- * The message the router posts in the row's thread when the call has ended: the notes as its body,
- * the transcript under `io.mindroom.call_transcript`, and `{"call_id": "<id>"}` under this key.
+ * The message the room's poster sends in the row's thread when the call has ended: the notes as
+ * its body, the transcript under `io.mindroom.call_transcript`, and `{"call_id": "<id>"}` under this key.
  */
 export const CALL_NOTES_KEY = 'io.mindroom.call_notes';
 
 /** A call's row as its latest edit has it: live while unedited, then over. */
 export type CallRowContent = {
   callId: string;
-  /** Set once the router edited the row for the call's end. */
+  /** Set once the row has been edited for the call's end. */
   ended?: {
     /** How long the call lasted, in whole seconds. */
     durationSeconds?: number;

@@ -8,7 +8,14 @@ import {
   type SetStateAction,
 } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
-import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  RelationType,
+  type EventTimeline,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import to from 'await-to-js';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollToElement, ScrollToItem } from './useVirtualPaginator';
@@ -28,7 +35,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { useEventTimelineLoader } from './timelinePaginationController';
 import {
-  fetchRoomEventThreadRootId,
+  fetchRoomEventThreadTarget,
   isRoomEventThreadRedirectActive,
   resolveRoomEventThreadRedirect,
 } from '../routes/roomDeepLink';
@@ -52,7 +59,16 @@ export type OpenRoomEventHandler = (
   onScroll?: (scrolled: boolean) => void
 ) => Promise<void>;
 
-export type OpenRoomEventRoute = (eventId: string, isCurrentRoute: () => boolean) => Promise<void>;
+/**
+ * Opens the event a room's address names. `returned`: the entry is a return to the room
+ * (`RETURN_TO_ROOM_STATE`), which stays the room: its event would open the thread that was left.
+ */
+export type OpenRoomEventRoute = (
+  eventId: string,
+  isCurrentRoute: () => boolean,
+  returned: boolean
+) => Promise<void>;
+type OpenRoomEventArgs = [...Parameters<OpenRoomEventHandler>, returned?: boolean];
 
 export const useRoomEventOpenController = ({
   alive,
@@ -184,9 +200,9 @@ export const useRoomEventOpenController = ({
     mx,
     room,
     useCallback(
-      (evtId, linkedTimelines, eventAbsoluteIndex) => {
+      (evtId, linkedTimelines, eventAbsoluteIndex, returned) => {
         if (!alive()) return;
-        if (redirectRoomEventDeepLink(evtId, linkedTimelines)) {
+        if (!returned && redirectRoomEventDeepLink(evtId, linkedTimelines)) {
           return;
         }
         const filterOpts = recalibrateFilterOptsRef.current;
@@ -331,8 +347,8 @@ export const useRoomEventOpenController = ({
     recalibrateFilterOptsRef
   );
 
-  const handleOpenEvent = useCallback<OpenRoomEventHandler>(
-    async (evtId, highlight = true, onScroll = undefined) => {
+  const handleOpenEvent = useCallback(
+    async (...[evtId, highlight = true, onScroll, returned]: OpenRoomEventArgs) => {
       if (threadId && evtId !== threadId) {
         // The render index map is authoritative thread membership: events
         // loaded through the MindRoom thread cache may be absent from the SDK
@@ -456,7 +472,7 @@ export const useRoomEventOpenController = ({
           return;
         }
         setTimeline(getEmptyTimeline());
-        await loadEventTimeline(evtId);
+        await loadEventTimeline(evtId, returned);
       }
     },
     [
@@ -483,18 +499,24 @@ export const useRoomEventOpenController = ({
   // loaded asks the server for its thread before anything replaces the room timeline;
   // an answer for a route that has since changed is dropped.
   const openRoomEventRoute = useCallback<OpenRoomEventRoute>(
-    async (targetEventId, isCurrentRoute) => {
+    async (targetEventId, isCurrentRoute, returned) => {
+      if (returned) {
+        await handleOpenEvent(targetEventId, true, undefined, true);
+        return;
+      }
       if (redirectRoomEventDeepLink(targetEventId)) return;
 
+      // An edit that is loaded without the event it replaces says nothing of its thread either.
+      const loaded = room.findEventById(targetEventId);
       if (
         effectiveViewMode !== 'classic' &&
         isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive }) &&
-        !room.findEventById(targetEventId)
+        (!loaded || loaded.getRelation()?.rel_type === RelationType.Replace)
       ) {
-        const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, targetEventId);
+        const target = await fetchRoomEventThreadTarget(mx, room, targetEventId);
         if (!alive() || !isCurrentRoute()) return;
-        if (threadRootId) {
-          navigateRoomThread(room.roomId, threadRootId, targetEventId, { replace: true });
+        if (target) {
+          navigateRoomThread(room.roomId, target.threadId, target.eventId, { replace: true });
           return;
         }
       }
@@ -520,6 +542,7 @@ export const useRoomEventOpenController = ({
 
 export const useRoomEventRouteOpenController = ({
   effectiveViewMode,
+  entryReturned = false,
   eventId,
   focusEventInRoom,
   openRoomEventRoute,
@@ -528,6 +551,8 @@ export const useRoomEventRouteOpenController = ({
   threadId,
 }: {
   effectiveViewMode: RoomViewMode;
+  /** Whether the app's Back put the entry in a thread's place: `OpenRoomEventRoute`. */
+  entryReturned?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   openRoomEventRoute: OpenRoomEventRoute;
@@ -554,6 +579,8 @@ export const useRoomEventRouteOpenController = ({
       threadId ?? '',
       eventId,
       focusEventInRoom ? '1' : '0',
+      // A link followed to the address Back returned to is a new open, which leads into the thread.
+      entryReturned ? '1' : '0',
       effectiveViewMode,
       roomOverviewOrderActive ? '1' : '0',
     ].join('|');
@@ -567,7 +594,16 @@ export const useRoomEventRouteOpenController = ({
 
     void openRoomEventRouteRef.current(
       eventId,
-      () => handledRoomEventRouteRef.current === routeOpen
+      () => handledRoomEventRouteRef.current === routeOpen,
+      entryReturned
     );
-  }, [effectiveViewMode, eventId, focusEventInRoom, roomId, roomOverviewOrderActive, threadId]);
+  }, [
+    effectiveViewMode,
+    entryReturned,
+    eventId,
+    focusEventInRoom,
+    roomId,
+    roomOverviewOrderActive,
+    threadId,
+  ]);
 };

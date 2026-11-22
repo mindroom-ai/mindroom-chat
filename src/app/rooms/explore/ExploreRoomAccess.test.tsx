@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     chunk: [
       {
         room_id: '!server-room:example.org',
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
         canonical_alias: '#server-room:example.org' as string | undefined,
         name: 'Server room',
         topic: 'Server discussion',
@@ -46,6 +47,7 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ server: 'example.org' }),
+  useLocation: () => ({ pathname: '/explore/example.org/' }),
   useSearchParams: () => [new URLSearchParams()],
 }));
 
@@ -83,9 +85,9 @@ vi.mock('../../ui/page/PageScroll', () => {
 });
 
 vi.mock('../RoomCard', async () => {
-  const { RoomAccessControl } = await vi.importActual<
-    typeof import('../RoomAccessControl')
-  >('../RoomAccessControl');
+  const { RoomAccessControl } = await vi.importActual<typeof import('../RoomAccessControl')>(
+    '../RoomAccessControl'
+  );
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,

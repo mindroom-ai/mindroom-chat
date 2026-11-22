@@ -109,6 +109,8 @@ describe('the call panel when its code cannot load', () => {
     cleanup();
     clearCallWindowStore(mx.getSafeUserId());
     vi.unstubAllGlobals();
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
   });
 

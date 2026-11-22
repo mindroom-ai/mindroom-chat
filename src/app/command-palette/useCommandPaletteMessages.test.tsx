@@ -3,7 +3,15 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ISearchResponse } from 'matrix-js-sdk';
+import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  crossRoomThreadIndexAtom,
+  emptyCrossRoomThreadIndexSnapshot,
+  getCrossRoomThreadIndexKey,
+  type CrossRoomThreadIndexEntry,
+} from '../threads/cross-room/crossRoomThreadIndex';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
 import { hasEncryptedRooms, useCommandPaletteMessages } from './useCommandPaletteMessages';
 
 type PendingSearch = {
@@ -74,10 +82,14 @@ const responseWith = (eventId: string, body: string): ISearchResponse =>
     },
   } as unknown as ISearchResponse);
 
+const store = createStore();
+
 const renderMessages = (text: string, enabled = true) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </Provider>
   );
   return renderHook(
     (props: { text: string; enabled: boolean }) =>
@@ -141,11 +153,33 @@ describe('useCommandPaletteMessages', () => {
           content: { body: `* ${body}`, 'm.new_content': { msgtype: 'm.text', body } },
         },
       },
-    } as unknown as typeof hit.result.unsigned;
+    };
     await act(async () => pending[0]?.resolve(response));
     await waitFor(() => expect(result.current.status).toBe('done'));
 
     expect(result.current.items[0]?.snippet).toBe('The walrus plan: see the list and run it.');
+  });
+
+  it("shows the tool calls of an agent's reply, which Matrix holds without them", async () => {
+    trustAgentsOfViewer('@me:example.org');
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$reply', 'The walrus plan.\n\nDone.');
+    const hit = response.search_categories.room_events.results?.[0];
+    if (!hit) throw new Error('no hit');
+    hit.result.sender = '@mindroom_helper:example.org';
+    Object.assign(hit.result.content, {
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>The walrus plan.</p>\n<p>Done.</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 2, at: 1 }],
+      },
+    });
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toBe('The walrus plan. 🔧 shell [1] Done.');
   });
 
   it('starts a snippet a few words before a late match, in right-to-left text too', async () => {
@@ -159,6 +193,60 @@ describe('useCommandPaletteMessages', () => {
     const snippet = result.current.items[0]?.snippet ?? '';
     expect(snippet).toBe('…وتم إصلاح الخطأ WALRUS-88 في الإصدار الأخير.');
     expect(snippet.indexOf('WALRUS')).toBeLessThan(21);
+  });
+
+  it('leads to the first whole-word match, not to the word inside a longer one', async () => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const body = 'The walruses and subwalrus helpers stay put, then the plain walrus here.';
+    await act(async () => pending[0]?.resolve(responseWith('$words', body)));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toBe('…then the plain walrus here.');
+  });
+
+  it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
+    const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
+    const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };
+    store.set(crossRoomThreadIndexAtom, {
+      ...emptyCrossRoomThreadIndexSnapshot(),
+      entries: new Map([[key, entry as CrossRoomThreadIndexEntry]]),
+    });
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$said', 'walrus sighting');
+    const [said] = response.search_categories.room_events.results ?? [];
+    if (!said) throw new Error('no hit');
+    const relation = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
+    const title = (eventId: string, body: string) => ({
+      ...said,
+      result: {
+        ...said.result,
+        event_id: eventId,
+        content: {
+          msgtype: 'm.notice',
+          body,
+          'io.mindroom.thread_summary': { version: 1 },
+          ...relation,
+        },
+      },
+    });
+    said.result.content = { ...said.result.content, ...relation };
+    response.search_categories.room_events.results = [
+      title('$new', 'Walrus plan'),
+      said,
+      title('$old', 'Walrus sketch'),
+    ];
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items).toMatchObject([
+      { id: 'message:!ops:example.org:$new', snippet: 'Walrus launch plan', threadName: undefined },
+      { id: 'message:!ops:example.org:$said', threadName: 'Walrus launch plan' },
+    ]);
+    expect(result.current.items[0]?.titleOfThreadId).toBe(`thread:${key}`);
+    expect(result.current.items[1]?.titleOfThreadId).toBeUndefined();
+    store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot());
   });
 
   it('reports a failed search as an error', async () => {

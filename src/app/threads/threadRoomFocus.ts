@@ -11,6 +11,7 @@ import {
 } from '../event-store/threads/roomThreadOverviewModel';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { buildThreadRecordMap } from '../event-store/threads/threadRecord';
+import { createThreadForMeMatcher } from '../event-store/threads/threadInvolvement';
 import {
   matchesThreadRecordFilterState,
   resolveThreadRecordOverviewRootIds,
@@ -34,6 +35,7 @@ export const getThreadFilteredEvents = (
   threadRecordMap?: ReadonlyMap<string, ThreadRecord>
 ): MatrixEvent[] => {
   if (threadId || !hasChosenThreadFilters(threadFilterState)) return renderableEvents;
+  const isForUser = threadFilterState.forMe ? createThreadForMeMatcher(room) : undefined;
 
   return renderableEvents.filter((event) => {
     const eventId = event.getId();
@@ -44,7 +46,7 @@ export const getThreadFilteredEvents = (
 
     const record = threadRecordMap?.get(eventId);
     if (!record) return false;
-    return matchesThreadRecordFilterState(record, threadFilterState);
+    return matchesThreadRecordFilterState(record, threadFilterState, undefined, isForUser);
   });
 };
 
@@ -164,6 +166,7 @@ const getFilteredRoomOverviewEvents = (
     threadFilterState,
     searchQuery,
     recordMap,
+    isForUser: threadFilterState.forMe ? createThreadForMeMatcher(room, currentUserId) : undefined,
     threadSortFreezeState,
     threadSortControlSignature,
   }).displayOrderedIds;

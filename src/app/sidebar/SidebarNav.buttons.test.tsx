@@ -9,7 +9,7 @@ import {
 import { SidebarNav } from './SidebarNav';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
-const state = vi.hoisted(() => ({ settings: {} as Partial<AccountSettings> }));
+const state = vi.hoisted(() => ({ settings: {} }));
 
 // A rail button stand-in that names itself; a declaration, so the hoisted mocks can use it.
 function tab(name: string) {
@@ -182,7 +182,8 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(tabs).not.toContain('threads');
     expect(tabs).not.toContain('explore');
     expect(tabs).not.toContain('createSpace');
-    expect(renderedTabs({}).tabs).not.toContain('canvases');
+    const canvasesOff = renderedTabs({ mindroom: { canvas: { enabled: false } } });
+    expect(canvasesOff.tabs).not.toContain('canvases');
     expect(renderedTabs({ sidebar: { showMindRoom: false } }).tabs).not.toContain('localMindroom');
   });
 

@@ -389,7 +389,7 @@ const press = async (
     altKey: false,
     ctrlKey: false,
     metaKey: false,
-    currentTarget: { value, selectionStart: at, selectionEnd: at },
+    currentTarget: { value, selectionStart: at, selectionEnd: at, closest: () => null },
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
   };
@@ -648,6 +648,29 @@ describe('CommandPalette', () => {
     expect(selectedId(renderer)).toBe('message:!general:example.org:$hit1');
     await press(renderer, 'Enter');
     expect(messageState.current.items[0]?.onSelect).toHaveBeenCalledOnce();
+  });
+
+  it('lists a thread once on a tab: All drops its title hit beside its row, Messages keeps it', async () => {
+    const title = {
+      ...messageHit(1),
+      snippet: 'Investigate login incident',
+      titleOfThreadId: '$thread-incident',
+    };
+    // Someone saying the same words is a message, never folded into the thread.
+    const said = { ...messageHit(2), snippet: 'Investigate login incident' };
+    setMessages({ status: 'done', items: [title, said] });
+    const all = renderPalette();
+    await type(all, 'login incident');
+    expect(
+      optionIds(all).filter((id) => id.includes('incident') || id.startsWith('message'))
+    ).toEqual(['$thread-incident', 'message:!general:example.org:$hit2']);
+    const messages = renderPalette({ initialTab: 'messages' });
+    await type(messages, 'login incident');
+    expect(optionIds(messages)).toEqual([
+      'message:!general:example.org:$hit1',
+      'message:!general:example.org:$hit2',
+      'search-page',
+    ]);
   });
 
   it('ends the messages with See all results, which opens the search page', async () => {

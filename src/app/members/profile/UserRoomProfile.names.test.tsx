@@ -4,8 +4,10 @@ import type { Room } from 'matrix-js-sdk';
 import { UserRoomProfile } from './UserRoomProfile';
 
 const shown = vi.hoisted(() => ({
-  profile: {} as { displayName?: string },
+  profile: {},
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   alt: undefined as unknown,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   callName: undefined as unknown,
 }));
 
@@ -42,7 +44,11 @@ vi.mock('../../avatars/UserAvatar', () => ({
     return null;
   },
 }));
-vi.mock('./MutualRoomsChip', () => ({ MutualRoomsChip: () => null }));
+vi.mock('./MutualRoomsChip', () => ({
+  MutualRoomsChip: () => null,
+  useMutualRooms: () => ({ spaces: [], rooms: [], directs: [] }),
+}));
+vi.mock('./useAgentProfile', () => ({ useAgentProfile: () => ({ status: 'none' }) }));
 vi.mock('./PowerChip', () => ({ PowerChip: () => null }));
 vi.mock('./UserChips', () => ({ ServerChip: () => null, ShareChip: () => null }));
 vi.mock('./UserModeration', () => ({ UserModeration: () => null }));

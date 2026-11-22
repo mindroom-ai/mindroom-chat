@@ -509,6 +509,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'voiceHoldShortcut',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'shortcuts.voiceKey.label',
+    descriptionKey: 'shortcuts.voiceKey.description',
+    keywordsKey: `${KEYWORDS}.voiceKey`,
+    scope: 'device',
+  },
+  {
     id: 'markdown',
     page: 'chats',
     group: 'settings.general.editor.sectionTitle',
@@ -548,6 +557,15 @@ export const SETTINGS = [
     labelKey: 'mindroomUi.messages.showToolCalls',
     descriptionKey: 'mindroomUi.messages.showToolCallsDescription',
     keywordsKey: `${KEYWORDS}.timeline`,
+    scope: 'account',
+  },
+  {
+    id: 'showUsageDetails',
+    page: 'chats',
+    group: 'settings.general.messages.sectionTitle',
+    labelKey: 'mindroomUi.subagents.showUsageDetails',
+    descriptionKey: 'mindroomUi.subagents.showUsageDetailsDescription',
+    keywordsKey: `${KEYWORDS}.usage`,
     scope: 'account',
   },
   {

@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   settings: {
     showCanvasesInSidebar: true,
   },
-  clientConfig: {} as { mindroom?: { canvas?: { enabled?: boolean } } },
+  clientConfig: {},
   setAccountSettings: vi.fn(() => Promise.resolve()),
 }));
 
@@ -78,7 +78,8 @@ afterEach(() => {
 });
 
 describe('AgentInterfaceSettings', () => {
-  it('offers the sidebar Canvases button only where the deployment has canvases', async () => {
+  it('offers the sidebar Canvases button unless the deployment turns canvases off', async () => {
+    state.clientConfig = { mindroom: { canvas: { enabled: false } } };
     const { AgentInterfaceSettings } = await import('./AgentInterfaceSettings');
     const title = { 'data-title': 'Show Canvases in the sidebar' };
     let renderer!: ReactTestRenderer;
@@ -87,7 +88,7 @@ describe('AgentInterfaceSettings', () => {
     });
     expect(renderer.root.findAllByProps(title)).toHaveLength(0);
 
-    state.clientConfig = { mindroom: { canvas: { enabled: true } } };
+    state.clientConfig = {};
     act(() => {
       renderer.update(React.createElement(AgentInterfaceSettings));
     });

@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Kaydırılabilir tablo",
-    "scrollHint": "Yatay kaydır"
+    "scrollHint": "Yatay kaydır",
+    "readByRow": "Satır satır oku",
+    "showTable": "Tabloyu göster"
   },
   "messageCodeBlock": {
     "actions": "Kod bloğu işlemleri",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Bu alan değiştirildi ve artık etkin değil.",
       "openNewSpace": "Yeni alanı aç",
       "joinNewSpace": "Yeni alana katıl",
-      "lobby": "Lobi",
       "messageSearch": "Mesaj arama",
       "failedToJoinReplacementSpace": "Yeni alana katılınamadı!",
       "rooms": "Odalar",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "Ses kaydını sürdür",
       "statusActive": "Ses kaydı etkin",
       "statusPaused": "Ses kaydı duraklatıldı",
-      "statusProcessing": "Ses kaydı işleniyor",
       "statusReadyToRetry": "Ses kaydı yeniden denemeye hazır",
+      "recoveredRecording": "Kurtarılan kayıt · {{time}}",
       "statusSending": "Ses kaydı gönderiliyor",
       "statusStarting": "Ses kaydı başlatılıyor",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "argumentsMayDifferBetweenCalls": "Bağımsız değişkenler çağrılar arasında farklılık gösterebilir.",
         "requestedBy": "İsteyen: {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Yönlendirici ajan sesi metne dönüştürüyor"
-      },
       "streamingIndicator": {
         "aiIsResponding": "Yapay zekâ yanıtlıyor"
       },
@@ -2930,7 +2928,9 @@
       "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
       "openConversation": "Bu isteği oda sohbetinden açın.",
-      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın.",
+      "canvasCard": "Etkileşimli panel",
+      "reminderCard": "Hatırlatıcı · {{when}}"
     },
     "canvas": {
       "panelLabel": "Etkileşimli panel",

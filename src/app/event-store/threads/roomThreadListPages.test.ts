@@ -50,7 +50,7 @@ const listedRoot = (index: number): IEvent => {
         'm.thread': { count: 1, current_user_participated: readerReplied, latest_event: reply },
       },
     },
-  } as unknown as IEvent;
+  };
 };
 
 /** A /threads request: which list, from which token, at what time, and how many were open. */

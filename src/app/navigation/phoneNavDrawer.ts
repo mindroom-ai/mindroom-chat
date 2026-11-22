@@ -2,6 +2,9 @@ import { useLayoutEffect } from 'react';
 import { atom, useSetAtom } from 'jotai';
 import { useLocation, type NavigationType } from 'react-router-dom';
 
+/** The menu button, which takes the focus back when the drawer closes around it. */
+export const PHONE_NAV_MENU_BUTTON_ID = 'phone-nav-menu-button';
+
 /** Whether a phone's navigation drawer (the rail and the section's list over the page) is out. */
 export const phoneNavDrawerOpenAtom = atom(false);
 

@@ -5,14 +5,20 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
-import { ROOM_SETTING_DEFINITIONS, type RoomTextSettingDefinition } from './roomSettingDefinitions';
+import { ROOM_SETTING_SECTIONS, type RoomTextSettingDefinition } from './roomSettingDefinitions';
 import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const DEFINITION = ROOM_SETTING_DEFINITIONS.find(
-  (definition): definition is RoomTextSettingDefinition => definition.kind === 'text'
-);
+const ALL_SETTINGS = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);
 const KEY = 'thread_summary_instructions';
+const DEFINITION = ALL_SETTINGS.find(
+  (definition): definition is RoomTextSettingDefinition =>
+    definition.kind === 'text' && definition.key === KEY
+);
+const AGENT_INSTRUCTIONS_DEFINITION = ALL_SETTINGS.find(
+  (definition): definition is RoomTextSettingDefinition =>
+    definition.kind === 'text' && definition.key === 'agent_instructions'
+);
 const LABEL = 'Thread title rules';
 const FAILED = "Couldn't save the setting. Try again.";
 
@@ -68,6 +74,7 @@ vi.mock('folds', () => {
     'maxLength',
     'rows',
     'aria-describedby',
+    'aria-label',
     'onClick',
     'onChange',
     'onSubmit',
@@ -140,11 +147,12 @@ const mount = () => {
 const refresh = () => rerender(tile());
 
 const field = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: LABEL });
-// Save, or Saved for a moment after a write.
-const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: /^Saved?$/ });
-const clearButton = () => screen.queryByRole('button', { name: 'Clear' });
+// Save, or Saved for a moment after a write, scoped to the setting's label.
+const saveButton = (label = LABEL) =>
+  screen.getByRole<HTMLButtonElement>('button', { name: new RegExp(`^Saved? ${label}$`) });
+const clearButton = (label = LABEL) => screen.queryByRole('button', { name: `Clear ${label}` });
 const type = (value: string) => fireEvent.change(field(), { target: { value } });
-const clickSave = () => fireEvent.click(saveButton());
+const clickSave = (label = LABEL) => fireEvent.click(saveButton(label));
 const sentContent = (call: number) => client.sendStateEvent.mock.calls[call]?.[2];
 
 beforeEach(() => {
@@ -378,6 +386,7 @@ describe('RoomTextSettingTile', () => {
       type('Use at most 4 words');
       await act(async () => clickSave());
       expect(saveButton().textContent).toBe('Saved');
+      expect(saveButton().getAttribute('aria-label')).toBe(`Saved ${LABEL}`);
       expect(saveButton().disabled).toBe(true);
       expect(screen.getByRole('status').textContent).toBe('Saved');
 
@@ -389,6 +398,7 @@ describe('RoomTextSettingTile', () => {
         vi.advanceTimersByTime(1);
       });
       expect(saveButton().textContent).toBe('Save');
+      expect(saveButton().getAttribute('aria-label')).toBe(`Save ${LABEL}`);
       expect(screen.getByRole('status').textContent).toBe('');
 
       // Clear confirms the same way, and typing ends it early.
@@ -470,5 +480,66 @@ describe('RoomTextSettingTile', () => {
     await sent.resolve();
 
     expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe('RoomTextSettingTile (agent_instructions)', () => {
+  const renderAgentInstructions = () =>
+    render(<RoomTextSettingTile room={ROOM} definition={AGENT_INSTRUCTIONS_DEFINITION!} />);
+  const instructionsField = () =>
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Agent instructions' });
+
+  it('renders Agent instructions, saves { value } trimmed, and clears to {}', async () => {
+    setLive({});
+    renderAgentInstructions();
+
+    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'agent_instructions']);
+    expect(instructionsField().value).toBe('');
+    expect(instructionsField().maxLength).toBe(2000);
+    expect(instructionsField().placeholder).toBe(
+      'For example: Keep answers short and reply in Dutch'
+    );
+    const ids = instructionsField().getAttribute('aria-describedby')!.split(' ');
+    expect(ids.length).toBeGreaterThan(0);
+    ids.forEach((id) => expect(document.getElementById(id), id).not.toBeNull());
+    const described = ids.map((id) => document.getElementById(id)!.textContent).join(' ');
+    expect(described).toContain('Extra instructions given to every agent answering in this room.');
+    expect(described).toContain('not end-to-end encrypted, so do not put secrets here.');
+    expect(described).toContain('0 / 2000');
+    const instructionsLabel = 'Agent instructions';
+    expect(clearButton(instructionsLabel)).toBeNull();
+    expect(saveButton(instructionsLabel).disabled).toBe(true);
+    expect(saveButton(instructionsLabel).getAttribute('aria-label')).toBe(
+      'Save Agent instructions'
+    );
+
+    fireEvent.change(instructionsField(), {
+      target: { value: '  Keep answers short\nReply in Dutch  ' },
+    });
+    await act(async () => clickSave(instructionsLabel));
+
+    expect(client.sendStateEvent).toHaveBeenCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      { value: 'Keep answers short\nReply in Dutch' },
+      'agent_instructions'
+    );
+    expect(instructionsField().value).toBe('Keep answers short\nReply in Dutch');
+    expect(saveButton(instructionsLabel).getAttribute('aria-label')).toBe(
+      'Saved Agent instructions'
+    );
+    expect(clearButton(instructionsLabel)?.getAttribute('aria-label')).toBe(
+      'Clear Agent instructions'
+    );
+
+    await act(async () => fireEvent.click(clearButton(instructionsLabel)!));
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      {},
+      'agent_instructions'
+    );
+    expect(instructionsField().value).toBe('');
+    expect(clearButton(instructionsLabel)).toBeNull();
   });
 });

@@ -28,6 +28,7 @@ import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
 import { usePluginPage } from '../plugins/PluginPageRoute';
 import { MembersOverlayFollowsNavigation } from '../members/useMembersDrawer';
+import { LiveVoiceRecordingIndicator } from '../composer/voice/LiveVoiceRecordingIndicator';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
 // without the code of every signed-in screen; the signed-in client starts its account while
@@ -53,6 +54,7 @@ export { ActivityNav } from '../activity/ActivityNav';
 export { ActivityEmpty } from '../activity/ActivityEmpty';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
 export { PluginPageRoute } from '../plugins/PluginPageRoute';
+export { InvitePage } from '../invites/InvitePage';
 
 /**
  * The rail beside the page, but none beside a plugin page that fills the window. It reads the
@@ -88,6 +90,8 @@ export function SignedInChrome() {
                 <Outlet />
               </Suspense>
             </ClientLayout>
+            {/* A voice message being recorded belongs to the account, not to a page. */}
+            <LiveVoiceRecordingIndicator />
           </FloatingCardsContext.Provider>
         </NavigationProvider>
       </ClientShell>
@@ -160,7 +164,7 @@ export function CreateRoomPage() {
             {t('nav.createRoom')}
           </Text>
         )}
-        <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
+        <CreateRoomForm onCreate={(roomId) => void navigate(getHomeRoomPath(roomId))} />
       </div>
     </Page>
   );
@@ -184,7 +188,7 @@ export function JoinAddressPage() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const title = t('sharedUi.joinAddressPrompt.joinARoom');
   const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
-    navigate(
+    void navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
         viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
       })

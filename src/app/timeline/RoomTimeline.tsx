@@ -13,12 +13,19 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  RoomMemberEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+} from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
@@ -130,12 +137,20 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { useReplyCardPlan } from './replyCards';
 import { useModelChangePlan } from '../messages/modelChanges';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
-import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
+import {
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+  boundRoomRoster,
+  trustedRoomAccountIds,
+  trustedRouterUserId,
+} from '../matrix/protocol/routerBinding';
 import {
   InlineSecretRequestsContext,
   useDrawnSecretRequestIds,
@@ -146,6 +161,7 @@ import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
@@ -228,6 +244,7 @@ export type RoomTimelineProps = {
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
+  onToggleForMe?: () => void;
   onTogglePerson?: (userId: string) => void;
   onClearPeople?: () => void;
   onReset?: () => void;
@@ -236,7 +253,7 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
-  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
+  /** Compact shows its cards in sections (Needs you, Working, Later, Done). */
   threadSections?: boolean;
   /** The Compact filter bar's switch for `threadSections`. */
   onToggleThreadSections?: () => void;
@@ -249,6 +266,8 @@ export type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   /** Shown above an open thread's rows, inside its scroll area. */
   threadHeader?: ReactNode;
+  /** No room header above the thread: its header keeps a gap above it (`ThreadTimelineHeader`). */
+  threadHeaderGapAbove?: boolean;
   /**
    * A fork draft's fork point: when it is one of the open thread's own messages, the thread shows
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
@@ -318,6 +337,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     editor,
     onThreadLoadError,
     threadHeader,
+    threadHeaderGapAbove = false,
     forkAt,
   } = props;
   const mx = useMatrixClient();
@@ -545,10 +565,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     overviewChanges,
     sessionId,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary as (
-      threadRootId: string,
-      info: ThreadSummaryInfo | undefined
-    ) => void,
+    onStoreThreadSummary: onStoreThreadSummary,
   });
 
   // Compact shows the room's threads as cards (a link to a message outside them shows the room's
@@ -767,7 +784,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hideActivity,
   });
 
-  // Rows the thread's plans hide: repeated summaries and settled approvals.
   const getRowContent = useCallback(
     (event: MatrixEvent) =>
       getLatestMessageContent(
@@ -776,17 +792,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ) as Record<string, unknown>,
     [threadStateRef]
   );
-  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
-    getContent: getRowContent,
-    ignoredUserIds: ignoredUsersSet,
-    routeId: threadId ? eventId : undefined,
-    focusId: threadId ? focusItem?.eventId : undefined,
-  });
   // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
   // rows show them; one the route or a jump opened stays visible after the route moves on. The
   // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
@@ -886,27 +891,73 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
-  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
-  // Only from the router the room's state names, read again when that state or the levels change.
-  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  // Fold only messages from the bound account or joined accounts it vouches for.
+  // The SDK may redact and re-emit the same state event object.
+  const bindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBinding = bindingEvent?.isRedacted() ? undefined : bindingEvent;
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const routerUserId = trustedRouterUserId(
-    voiceRouterBinding,
-    powerLevels,
-    roomCreators,
-    rawPowerLevels
+  const boundUserId = useMemo(
+    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
+    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
   );
+  const rosterEvent = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId ?? null);
+  const roster = rosterEvent?.isRedacted() ? undefined : rosterEvent;
+  const rosterAccountIds = useMemo(
+    () => boundRoomRoster(boundUserId, roster),
+    [boundUserId, roster]
+  );
+  const [membershipRevision, refreshMembership] = useForceUpdate();
+  const joinedAccountIds = useMemo(() => {
+    void membershipRevision;
+    // A new roster can list someone whose membership changes we were not following before.
+    void rosterAccountIds;
+    return new Set(room.getJoinedMembers().map((member) => member.userId));
+  }, [room, membershipRevision, rosterAccountIds]);
+  const trustedAccountIds = useMemo(
+    () => trustedRoomAccountIds(boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet),
+    [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]
+  );
+  const viewerId = mx.getUserId() ?? undefined;
+  useLayoutEffect(() => {
+    const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
+      if (
+        member.roomId === room.roomId &&
+        (member.membership === 'join') !== (previous === 'join') &&
+        (member.userId === boundUserId || rosterAccountIds.has(member.userId))
+      ) {
+        refreshMembership();
+      }
+    };
+    mx.on(RoomMemberEvent.Membership, onMembership);
+    return () => {
+      mx.removeListener(RoomMemberEvent.Membership, onMembership);
+    };
+  }, [mx, room.roomId, boundUserId, rosterAccountIds, refreshMembership]);
   // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
-    routerUserId,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
+    viewerId,
+    expectsAnswer: () =>
+      room
+        .getJoinedMembers()
+        .some(({ userId }) => isMindroomResponderForViewer(userId, viewerId, trustedAccountIds)),
+    hasThreadReplies: (event) => {
+      const id = event.getId();
+      return (
+        (getKnownThreadReplyCount(event) ?? 0) > 0 ||
+        (!!id &&
+          ((threadIndex.threadReplyCountMap.get(id) ?? 0) > 0 ||
+            (room.getThread(id)?.length ?? 0) > 0))
+      );
+    },
   });
-  // The open thread's model changes the same router applied: one line each at its reply, the
+  // The open thread's model changes these accounts applied: one line each at its reply, the
   // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,
   // as does a change with a row the route or a jump opened, a reply a plugin hides (its command
   // shows without it; asked of the row as it reads now, as one that decrypts in place brings no
@@ -915,10 +966,59 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
-    routerUserId,
+    trustedAccountIds,
     ignored: ignoredUsersSet,
     keeps: (id) =>
       pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),
+  });
+  // What the open thread's agent replies left behind (a canvas, a reminder), cards under them; not
+  // under a model change's line, which draws none.
+  const replyCards = useReplyCardPlan(room, {
+    threadId,
+    events: ownThreadEvents,
+    viewerId: mx.getUserId() ?? undefined,
+    isHidden: (event) => isHiddenByPlugin(event) || modelChanges.byAckId.has(event.getId() ?? ''),
+    revealed: pluginRevealedRef.current,
+  });
+  const isHiddenBeforeFolding = useCallback(
+    (event: MatrixEvent) =>
+      isTimelineRowHidden(event, {
+        messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
+        ignoredUsersSet,
+        showHiddenEvents,
+        isHiddenByPlugin,
+      }),
+    [
+      approvalTimeline,
+      voiceTranscripts,
+      replyCards,
+      modelChanges,
+      ignoredUsersSet,
+      showHiddenEvents,
+      isHiddenByPlugin,
+    ]
+  );
+  // Cards eligible to move into a reply do not split titles. Read the plan, not the mounted
+  // lines: which replies mount depends on the folds.
+  const isTitleRowHidden = useMemo(() => {
+    const inlineCardIds = new Set<string>();
+    secretRequestPlan.byReply.forEach((calls) =>
+      calls.forEach(({ eventId }) => inlineCardIds.add(eventId))
+    );
+    return (event: MatrixEvent) =>
+      isHiddenBeforeFolding(event) || inlineCardIds.has(event.getId() ?? '');
+  }, [isHiddenBeforeFolding, secretRequestPlan.byReply]);
+  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
+    history: {
+      sdkLoaded: session.snapshot.open.sdkReady,
+      canPaginateBack: threadState.canPaginateThreadBack,
+      hasMoreCachedBack: threadHasMoreCachedBack,
+    },
+    getContent: getRowContent,
+    isHidden: isTitleRowHidden,
+    rowRepaintRevision: feature.rowRepaintRevision,
+    routeId: threadId ? eventId : undefined,
+    focusId: threadId ? focusItem?.eventId : undefined,
   });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
@@ -933,31 +1033,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ),
     [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
   );
-  // A secret request card counts as a row of its turn whether or not a reply draws it now: the
-  // folds would hide that reply, and so change what it draws.
+  // Secret request cards still count as rows of their turns: folding a reply can unmount its
+  // inline line and give the card its own row again.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
-      isTimelineRowHidden(event, {
-        messageData: {
-          approvalTimeline,
-          threadSummaryTimeline,
-          secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
-          voiceTranscripts,
-          modelChanges,
-        },
-        ignoredUsersSet,
-        showHiddenEvents,
-        isHiddenByPlugin,
-      }),
-    [
-      approvalTimeline,
-      ignoredUsersSet,
-      isHiddenByPlugin,
-      modelChanges,
-      showHiddenEvents,
-      threadSummaryTimeline,
-      voiceTranscripts,
-    ]
+      threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),
+    [isHiddenBeforeFolding, threadSummaryTimeline]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
   const turnPinnedIds = useMemo(() => {
@@ -1152,12 +1233,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
+  // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
-  const listHeight =
-    beforePaint && renderedList?.height
-      ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
-      : virtualizer.getTotalSize();
+  const heldList =
+    beforePaint && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
+  const listHeight = heldList
+    ? heldListHeight(heldList, ledger.ledgerPxAtRender)
+    : virtualizer.getTotalSize();
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
   // (the row that draws a folded turn's break measures the break, also when it is a secret
   // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
@@ -1167,6 +1250,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
       voiceTranscripts.hiddenEventIds.size === 0 &&
+      replyCards.hiddenEventIds.size === 0 &&
       modelChanges.hiddenEventIds.size === 0 &&
       turnFolds.view.hiddenIds.size === 0
     ) {
@@ -1176,6 +1260,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ...approvalTimeline.hiddenEventIds,
       ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
       ...voiceTranscripts.hiddenEventIds,
+      ...replyCards.hiddenEventIds,
       ...modelChanges.hiddenEventIds,
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
@@ -1185,6 +1270,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
     voiceTranscripts.hiddenEventIds,
+    replyCards.hiddenEventIds,
     modelChanges.hiddenEventIds,
     pluginHiddenThreadIds,
     turnFolds.view,
@@ -1268,6 +1354,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
   useRoomEventRouteOpenController({
     effectiveViewMode: viewMode,
+    entryReturned,
     eventId,
     focusEventInRoom,
     openRoomEventRoute,
@@ -1587,10 +1674,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     filteredThreadRootIds: threadIndex.filteredThreadRootIds,
     limit: windowLimit,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary as (
-      threadRootId: string,
-      info: ThreadSummaryInfo | undefined
-    ) => void,
+    onStoreThreadSummary: onStoreThreadSummary,
     onApplyThreadRelations: applyThreadRelations,
     beginThreadCacheWrite,
     refreshCompactThreadList: threadIndex.refreshRoomThreadList,
@@ -1698,6 +1782,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     surface: threadId ? threadRowsPinned : roomRowsPinned,
     itemCount,
     virtualizer,
+    listHeightHeld: !!heldList,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
     // unless its newest row is first; the way back from a thread at the place the reader left.
     opensAtLatest:
@@ -1716,8 +1801,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
 
   const minimap = useRoomTimelineMinimap({
-    minimapEvents: threadId ? threadEvents : roomRows,
-    showCompactRoomView: compactViewRequested,
+    threadEvents,
     scrollRef,
     handleOpenEvent,
   });
@@ -1775,6 +1859,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
+        onToggleForMe={props.onToggleForMe}
         onReset={props.onReset ?? ignoreFilterChange}
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
@@ -1888,6 +1973,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadSummaryTimeline,
     secretRequestTimeline,
     voiceTranscripts,
+    replyCards,
     modelChanges,
     handleOpenReply,
     forkPrefixEventIds,
@@ -1988,6 +2074,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
             <>
               {threadHeader && (
                 <ThreadTimelineHeader
+                  gapAbove={threadHeaderGapAbove}
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >

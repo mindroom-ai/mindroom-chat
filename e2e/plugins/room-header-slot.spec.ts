@@ -15,6 +15,7 @@ import { dropFile } from '../helpers/fileDrop';
 import { sendRoomMessage } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // whose room header slot shows "Example banner in <room name>", and a plugin whose slot component
@@ -221,7 +222,7 @@ test('a slot component that throws shows nothing, is reported, and leaves the ro
       .poll(() => errors.some((text) => text.includes('[plugin broken@1.0.0]')))
       .toBe(true);
     const sent = `Sent past the broken plugin ${RUN}`;
-    const composer = page.getByRole('textbox', { name: 'Send a message...' });
+    const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
     await composer.click();
     await page.keyboard.type(sent);
     await page.keyboard.press('Enter');

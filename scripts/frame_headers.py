@@ -1,8 +1,8 @@
 """Framing headers for serve.py, from scripts/frame-headers.json.
 
 The same rule as `vite preview` (scripts/frame-headers.mjs): only this origin may frame the app,
-and nothing may frame the pairing page, in any spelling the router renders it under: any letter
-case, escaped letters, repeated slashes, a base path.
+and nothing may frame the pairing page or the invite page, in any spelling the router renders them
+under: any letter case, escaped letters, repeated slashes, a base path.
 
     python3 scripts/frame_headers.py /connect /CONNECT/ /home/
 prints each path's headers as JSON, one line each, which src/build/frameHeaders.test.ts compares with
@@ -17,17 +17,17 @@ from urllib.parse import unquote
 POLICY = json.loads(Path(__file__).with_name("frame-headers.json").read_text(encoding="utf-8"))
 
 
-def is_pairing_page_path(path: str) -> bool:
-    """Whether the last segment of the decoded path reads the pairing page's name."""
+def is_unframeable_page_path(path: str) -> bool:
+    """Whether the last segment of the decoded path names a page no frame may show."""
     segments = [segment for segment in unquote(path).lower().split("/") if segment]
-    return bool(segments) and segments[-1] == POLICY["pairingPage"]
+    return bool(segments) and segments[-1] in POLICY["unframeablePages"]
 
 
 def framing_headers(path: str) -> dict[str, str]:
     """The framing headers for a request path (a query is ignored)."""
     # Split by hand: urlsplit reads //connect as a host named connect.
     pathname = path.split("?", 1)[0]
-    key = "pairingPageHeaders" if is_pairing_page_path(pathname) else "otherPageHeaders"
+    key = "unframeablePageHeaders" if is_unframeable_page_path(pathname) else "otherPageHeaders"
     return dict(POLICY[key])
 
 

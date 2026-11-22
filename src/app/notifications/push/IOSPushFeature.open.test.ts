@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigate: vi.fn(),
   activeSessionId: 'session-b',
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   accounts: {
     'tag-a': { sessionId: 'session-a', lastKnownPath: '/home/!last-a:example' },
     'tag-b': { sessionId: 'session-b' },
@@ -154,6 +155,20 @@ describe('NativeIOSPushOpenFeature', () => {
 
     expect(state.setActiveSession).toHaveBeenCalledWith('session-a');
     expect(state.navigate).not.toHaveBeenCalled();
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
+    renderer.unmount();
+  });
+
+  it('opens the room without an event ID when tapping a call ring push', async () => {
+    const renderer = await mount();
+    await tap({
+      aps: {},
+      room_id: '!joined:example',
+      event_id: '$ring-event',
+      mindroom_ring: { expires_at: Date.now() + 30_000 },
+    });
+
+    expect(state.navigateRoom).toHaveBeenCalledTimes(1);
     expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
     renderer.unmount();
   });

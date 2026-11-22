@@ -114,8 +114,9 @@ describe('plugin translations', () => {
 
     const { container } = render(<Label />);
     catalogs.release();
+    // The catalog can take more than one tick to load while the whole suite runs.
+    await vi.waitFor(() => expect(i18n.t('nav.home')).toBe('Startseite'));
     await settle();
-    expect(i18n.t('nav.home')).toBe('Startseite');
     expect(container.textContent).toBe('Example plugin / Hello, Ada');
 
     release();

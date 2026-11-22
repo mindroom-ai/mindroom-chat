@@ -15,7 +15,7 @@ export const useApprovalRoom = (roomId?: string): ApprovalMemberRoom | null | un
   const mx = useMatrixClient();
   const context = useThreadApprovals();
   const id = roomId ?? context?.roomId;
-  return id ? (mx.getRoom?.(id) as ApprovalMemberRoom | null | undefined) : undefined;
+  return id ? mx.getRoom?.(id) : undefined;
 };
 
 // MindRoom names agent accounts mindroom_<agent>, or mindroom_<agent>_<namespace> where the

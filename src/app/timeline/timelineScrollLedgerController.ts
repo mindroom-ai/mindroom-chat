@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+  measureElement as measureRowElement,
   observeElementRect,
   useVirtualizer,
   type Range,
@@ -20,7 +21,12 @@ import { threadScrollRange } from './threadScrollRange';
 import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
-import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
+import {
+  createBatchedMeasurementRef,
+  createScrollMountMeasurement,
+  measureMountedRows,
+} from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -100,6 +106,11 @@ export type TimelineScrollLedgerController = {
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
+  /**
+   * Whether rows that are not rendered at their new sizes yet changed size as the scroll area's
+   * width changed: the render that shows them may give the list its new height before the paint.
+   */
+  unrenderedRewrap: () => boolean;
   /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
   /**
@@ -224,8 +235,10 @@ export const useTimelineScrollLedgerController = ({
   // holds all its rows too. So do the rows a room window's page mounts above the reader: rows it
   // drops below the reader leave a list its render already ends higher, and counting the fold as
   // shrink threw a reader at the newest row to the top when a page landed a screen above them.
-  // The corrections the ledger takes for a thread's rows that changed size above the reader's view
-  // count too: the list's next render takes their new size. They wait in `droppedRowFoldPxRef`
+  // The corrections the ledger takes for rows that changed size above the reader's view count
+  // too, a thread's and the room's: the list's next render takes their new size. Left out, a
+  // room's read as shrink, and the end clamp pulled a reader at the newest row up by them while
+  // a splitter's drag wrapped the rows above anew. They wait in `droppedRowFoldPxRef`
   // until the render that paints their margin, so the margin and this part change together.
   // The content above a thread's rows is left out: it is outside the list.
   const rowFoldPxRef = useRef(0);
@@ -339,16 +352,84 @@ export const useTimelineScrollLedgerController = ({
   useInsertionEffect(() => {
     observeThreadHeightRef.current = !!threadId;
   }, [threadId]);
+  // A new width of the scroll area (a splitter's drag, a window's resize) wraps every row anew in
+  // the same layout. In the pass of the browser's ResizeObserver loop that reports the scroll
+  // area, the scroll content inside it may still change size: its own observers (the scrollbar,
+  // the minimap, the follow-growth observer) are reported in the next pass. The render before
+  // the paint then gives the list its new height, and the pins of that commit reach the newest
+  // row before the browser paints it away from the composer. In any other pass, also a later
+  // one of the same frame, that render leaves the content's size alone, or the loop would end
+  // with those observers unreported ("ResizeObserver loop completed with undelivered
+  // notifications"). The pass is known in two ways, since the browser may call the scroll
+  // area's observer before or after the rows':
+  // - The scroll area's observer measures the mounted rows itself, inside its own report.
+  // - The rows' observer finds a width the scroll area's observer has not been told of yet. The
+  //   browser gathers what a pass reports before it calls any observer, so that width is
+  //   reported in this pass too. Not covered: another observer's callback that changes the
+  //   scroll area's width itself, after the browser gathered and before the rows are reported.
+  // Widths are compared unrounded: a row wraps anew at a change of a fraction of a pixel.
+  // `reportedWidthRef` is the scroll area and the width its observer was last told of.
+  const reportedWidthRef = useRef<{ scrollElement: Element; width: number }>();
+  // Whether the scroll area has a width its observer has not been told of, as the report of
+  // the rows' observer that runs now found it; undefined between its reports.
+  const widthUnreportedRef = useRef<boolean>();
+  // Whether the row measured last wrapped anew, until the correction hook reads it or the
+  // observer's callback returns: a row that kept its size asks for no correction, and a size set
+  // later without a measurement (a fold, a hidden row) did not wrap anew.
+  const rowRewrappedRef = useRef(false);
+  // Whether the render queued before the paint shows rows that wrapped anew. The microtask that
+  // runs that render takes it back, whether or not the render commits.
+  const unrenderedRewrapRef = useRef(false);
+  const measureRow = useCallback(
+    (
+      element: Element,
+      entry: ResizeObserverEntry | undefined,
+      instance: Parameters<typeof measureRowElement>[2]
+    ): number => {
+      const scrollElement = getScrollElement();
+      if (entry && scrollElement && widthUnreportedRef.current === undefined) {
+        const reported = reportedWidthRef.current;
+        widthUnreportedRef.current =
+          reported?.scrollElement === scrollElement &&
+          reported.width !== scrollElement.getBoundingClientRect().width;
+        // The browser runs microtasks when the observer's callback returns.
+        queueMicrotask(() => {
+          widthUnreportedRef.current = undefined;
+          rowRewrappedRef.current = false;
+        });
+      }
+      rowRewrappedRef.current = !!entry && !!widthUnreportedRef.current;
+      return measureRowElement(element, entry, instance);
+    },
+    [getScrollElement]
+  );
   const observeTimelineRect = useCallback<typeof observeElementRect>((instance, onRect) => {
     let previousHeight: number | undefined;
-    return observeElementRect(instance, (rect) => {
+    // virtual-core reads the rect once itself, before its observer reports.
+    let observing = false;
+    const stop = observeElementRect(instance, (rect) => {
       const heightChanged = previousHeight !== rect.height;
       previousHeight = rect.height;
+      const { scrollElement } = instance;
+      if (scrollElement) {
+        const width = scrollElement.getBoundingClientRect().width;
+        const reported = reportedWidthRef.current;
+        reportedWidthRef.current = { scrollElement, width };
+        if (observing && reported?.scrollElement === scrollElement && reported.width !== width) {
+          // Not `measureRow`: without an entry it takes the row as not wrapped anew.
+          measureMountedRows(instance, () => {
+            rowRewrappedRef.current = true;
+          });
+          rowRewrappedRef.current = false;
+        }
+      }
       onRect(rect);
       if (heightChanged && observeThreadHeightRef.current) {
         setViewportResizeTick((tick) => tick + 1);
       }
     });
+    observing = true;
+    return stop;
   }, []);
 
   // Extraction runs after useVirtualizer returns, against this render's
@@ -361,6 +442,7 @@ export const useTimelineScrollLedgerController = ({
     overscan: 10,
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
+    measureElement: measureRow,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
@@ -460,7 +542,7 @@ export const useTimelineScrollLedgerController = ({
         (scrollElement.getBoundingClientRect().top -
           inner.getBoundingClientRect().top -
           ledgerPxAtRender),
-      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+      inset: readTopInset(scrollElement),
     };
     anchorRoomLedgerAt(scrollElement.scrollTop);
   });
@@ -480,8 +562,7 @@ export const useTimelineScrollLedgerController = ({
       !!scrollElement &&
       !!leading &&
       leading.getBoundingClientRect().bottom <=
-        scrollElement.getBoundingClientRect().top +
-          (Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0);
+        scrollElement.getBoundingClientRect().top + readTopInset(scrollElement);
   }, [getScrollElement]);
   useLayoutEffect(() => {
     const leadingPx = leadingRef.current?.offsetHeight ?? 0;
@@ -513,7 +594,7 @@ export const useTimelineScrollLedgerController = ({
         (scrollElement.getBoundingClientRect().top -
           inner.getBoundingClientRect().top -
           ledgerPxAtRender),
-      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+      inset: readTopInset(scrollElement),
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
   });
@@ -549,7 +630,15 @@ export const useTimelineScrollLedgerController = ({
   // most of these on scrollend-capable WebKit; this watchdog restores the
   // fold to the ledger when a write is reverted anyway.
   const settleDiscardWatchRef = useRef<
-    { px: number; preSettleScrollTop: number; settledScrollTop: number; at: number } | undefined
+    | {
+        px: number;
+        /** The part of `px` that rows brought with their own height (`rowFoldPxRef`). */
+        rowFoldPx: number;
+        preSettleScrollTop: number;
+        settledScrollTop: number;
+        at: number;
+      }
+    | undefined
   >(undefined);
 
   // The banner above the rows changes height mostly without a timeline
@@ -637,6 +726,7 @@ export const useTimelineScrollLedgerController = ({
       if (Math.abs(px) >= SETTLE_DISCARD_MIN_LEDGER_PX) {
         settleDiscardWatchRef.current = {
           px,
+          rowFoldPx,
           preSettleScrollTop,
           settledScrollTop,
           at: Date.now(),
@@ -679,24 +769,27 @@ export const useTimelineScrollLedgerController = ({
   const unrenderedEndCorrectionPxRef = useRef(0);
   const measurementCorrectionPxRef = useRef(0);
   const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement);
-  const handleAppliedCorrection = useCallback((deltaPx: number, atEnd: boolean) => {
-    noteAppliedCorrection(deltaPx);
-    // virtual-core writes this correction itself, so the view moves without the compositor: a
-    // move back toward the pre-settle offset is no discarded settle any more (a row above that
-    // grew and shrank again landed 8 px from it and had the settle folded in a second time).
-    settleDiscardWatchRef.current = undefined;
-    // Only upward movement can look like relinquished opening ownership. A downward growth
-    // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
-    measurementCorrectionPxRef.current += Math.min(0, deltaPx);
-    if (unrenderedCorrectionPxRef.current === 0) {
-      queueMicrotask(() => {
-        if (unrenderedCorrectionPxRef.current === 0) return;
-        flushSync(() => setLedgerCommitTick((tick) => tick + 1));
-      });
-    }
-    unrenderedCorrectionPxRef.current += deltaPx;
-    if (atEnd) unrenderedEndCorrectionPxRef.current += deltaPx;
-  }, [noteAppliedCorrection]);
+  const handleAppliedCorrection = useCallback(
+    (deltaPx: number, atEnd: boolean) => {
+      noteAppliedCorrection(deltaPx);
+      // virtual-core writes this correction itself, so the view moves without the compositor: a
+      // move back toward the pre-settle offset is no discarded settle any more (a row above that
+      // grew and shrank again landed 8 px from it and had the settle folded in a second time).
+      settleDiscardWatchRef.current = undefined;
+      // Only upward movement can look like relinquished opening ownership. A downward growth
+      // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
+      measurementCorrectionPxRef.current += Math.min(0, deltaPx);
+      if (unrenderedCorrectionPxRef.current === 0) {
+        queueMicrotask(() => {
+          if (unrenderedCorrectionPxRef.current === 0) return;
+          flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+        });
+      }
+      unrenderedCorrectionPxRef.current += deltaPx;
+      if (atEnd) unrenderedEndCorrectionPxRef.current += deltaPx;
+    },
+    [noteAppliedCorrection]
+  );
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
   const unrenderedEndCorrectionPx = useCallback(() => unrenderedEndCorrectionPxRef.current, []);
   const readMeasurementCorrectionPx = useCallback(() => measurementCorrectionPxRef.current, []);
@@ -708,15 +801,18 @@ export const useTimelineScrollLedgerController = ({
     if (unrenderedRowMoveRef.current) return;
     unrenderedRowMoveRef.current = true;
     queueMicrotask(() => {
-      if (!unrenderedRowMoveRef.current) return;
-      flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      if (unrenderedRowMoveRef.current) flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      unrenderedRewrapRef.current = false;
     });
   }, []);
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
+  const unrenderedRewrap = useCallback(() => unrenderedRewrapRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
     unrenderedEndCorrectionPxRef.current = 0;
     unrenderedRowMoveRef.current = false;
+    // The render that showed the rows wrapped anew has committed: a later one asks again.
+    unrenderedRewrapRef.current = false;
   });
 
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
@@ -789,6 +885,9 @@ export const useTimelineScrollLedgerController = ({
           // event — its geometry is mid-restoration.
           settleDiscardWatchRef.current = undefined;
           countCacheProbe('ledgerSettleWriteDiscarded');
+          // The rows' part comes back with the margin, in the render that paints it: without
+          // it the end clamp read that part of the restored margin as rows that shrank.
+          droppedRowFoldPxRef.current += watch.rowFoldPx;
           handleDroppedCorrection(watch.px);
           return;
         } else if (
@@ -885,7 +984,7 @@ export const useTimelineScrollLedgerController = ({
       isIOSWebKitDevice,
       onDroppedCorrection: (deltaPx) => {
         dropped = true;
-        if (threadId) droppedRowFoldPxRef.current += deltaPx;
+        droppedRowFoldPxRef.current += deltaPx;
         handleDroppedCorrection(deltaPx);
       },
       shouldDeferAutomaticFillCorrection: (item) =>
@@ -907,9 +1006,16 @@ export const useTimelineScrollLedgerController = ({
       dropped = false;
       const apply = decide(...args);
       // An applied correction renders before the paint already, and the offset ledger moves
-      // the rows of a dropped one in its own commit; the newest row moves no row after it.
+      // the rows of a dropped one in its own commit; the newest row moves no row after it, but
+      // one that wrapped anew moves the list's end, which the pins of that render follow.
       const [item] = args;
-      if (!apply && !dropped && (item.index ?? itemCount) < itemCount - 1) {
+      const rewrapped = rowRewrappedRef.current;
+      rowRewrappedRef.current = false;
+      // Always with this render before the paint, whose microtask takes it back: the render an
+      // applied correction queues is skipped when corrections of one report add up to nothing
+      // (a row grew, another shrank), and the permission then lasted into a pass of rows alone.
+      if (rewrapped && !dropped) unrenderedRewrapRef.current = true;
+      if (!dropped && (rewrapped || (!apply && (item.index ?? itemCount) < itemCount - 1))) {
         renderRowMoveBeforePaint();
       }
       return apply;
@@ -921,7 +1027,6 @@ export const useTimelineScrollLedgerController = ({
     itemCount,
     readerTopOffset,
     renderRowMoveBeforePaint,
-    threadId,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
     virtualizer,
@@ -966,6 +1071,7 @@ export const useTimelineScrollLedgerController = ({
       threadLedgerAnchorRef.current = undefined;
       roomLedgerAnchorRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = undefined;
+      settledScrollTopRef.current = undefined;
       settleDiscardWatchRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;
@@ -989,6 +1095,7 @@ export const useTimelineScrollLedgerController = ({
     leadingRef,
     unrenderedCorrectionPx,
     unrenderedRowMove,
+    unrenderedRewrap,
     virtualInnerRef,
     virtualizer,
     readMeasurementCorrectionPx,

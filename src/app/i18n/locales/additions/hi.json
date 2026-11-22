@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "बंद करें",
-      "invited": "{{user}} को आमंत्रित किया गया।"
+      "invited": "{{user}} को आमंत्रित किया गया।",
+      "giveRoleRights": "{{role}} अधिकार दें",
+      "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
+      "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
+      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -275,6 +280,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "agentCard": {
+      "agent": "एजेंट",
+      "close": "बंद करें",
+      "configuredTools": "कॉन्फ़िगर किए गए टूल",
+      "toolCount_one": "{{count}} टूल",
+      "toolCount_other": "{{count}} टूल",
+      "groupCount_one": "{{count}} समूह",
+      "groupCount_other": "{{count}} समूह",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "इसके अलावा {{groups}}",
+      "viewAll_one": "सभी {{count}} टूल देखें",
+      "viewAll_other": "सभी {{count}} टूल देखें",
+      "toolsTitle": "{{name}} के टूल",
+      "filter": "टूल फ़िल्टर करें",
+      "noMatch": "कोई टूल मेल नहीं खाता।",
+      "back": "वापस",
+      "more": "और",
+      "worksIn": "यहाँ काम करता है",
+      "loading": "कॉन्फ़िगर किए गए टूल लोड हो रहे हैं",
+      "availability": "उपलब्धता अनुरोध और अनुमतियों के अनुसार बदल सकती है।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "कोड और फ़ाइलें",
+        "research": "वेब",
+        "productivity": "शेड्यूलिंग और मेमोरी",
+        "email": "ईमेल",
+        "mcp": "जुड़े ऐप्स",
+        "integrations": "इंटीग्रेशन",
+        "communication": "चैट और संदेश",
+        "entertainment": "मीडिया",
+        "information": "जानकारी",
+        "smart_home": "स्मार्ट होम",
+        "social": "सोशल",
+        "other": "अन्य"
+      }
+    },
+    "space": {
+      "overview": "स्पेस का अवलोकन"
     }
   },
   "featureUi": {
@@ -394,9 +439,11 @@
         "profile": "प्रोफ़ाइल फ़ोटो, फ़ोटो, नाम, उपनाम",
         "deactivate": "खाता हटाएँ, खाता बंद करें",
         "localMindroom": "पेयर, पेयरिंग कोड, लोकल, डेस्कटॉप",
+        "voiceKey": "वॉइस संदेश, माइक्रोफ़ोन, रिकॉर्ड, दबाकर बोलें, Control, Ctrl, Shift, स्पेस, कीबोर्ड शॉर्टकट",
         "emoji": "इमोजी, स्टिकर, पैक, कस्टम इमोजी",
         "errorReports": "त्रुटियाँ, क्रैश, बग, निदान, टेलीमेट्री, गोपनीयता",
-        "midTurn": "दिशा बदलें, कतार, स्वतः, एजेंट, जवाब, रोकें"
+        "midTurn": "दिशा बदलें, कतार, स्वतः, एजेंट, जवाब, रोकें",
+        "usage": "टोकन, लागत, कीमत, मॉडल, टूल कॉल, सब-एजेंट, बैकग्राउंड जॉब"
       },
       "errorReports": {
         "title": "त्रुटि रिपोर्ट भेजें",
@@ -431,6 +478,7 @@
         "close": "कॉल व्यू बंद करें",
         "participants": "कॉल में मौजूद लोग",
         "connecting": "कनेक्ट हो रहा है…",
+        "connectingAnotherCall": "किसी अन्य कॉल से कनेक्ट हो रहा है…",
         "reconnecting": "फिर से कनेक्ट हो रहा है…",
         "ended": "कॉल समाप्त हो गई।",
         "waitingFor": "{{name}} की प्रतीक्षा की जा रही है…",
@@ -450,7 +498,7 @@
       "problems": {
         "service": "कॉल सेवा तक नहीं पहुँचा जा सका। बाद में फिर से कोशिश करें।",
         "connection": "कॉल का कनेक्शन टूट गया।",
-        "device": "आपके माइक्रोफ़ोन या कैमरे का उपयोग नहीं किया जा सका।",
+        "device": "माइक्रोफ़ोन, कैमरा या स्पीकर का उपयोग नहीं किया जा सका।",
         "untrustedService": "यह कॉल ऐसी कॉल सेवा पर चल रही है जो आपका होमसर्वर नहीं देता, इसलिए आप यहाँ से इसमें शामिल नहीं हो सकते।"
       },
       "devices": {
@@ -540,7 +588,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।",
+        "thisApp": "यह ऐप",
+        "mindroomAgents": "MindRoom एजेंट"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -558,7 +608,8 @@
     },
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
-      "manageAccounts": "खातों का प्रबंधन"
+      "otherAccounts": "अन्य खाते",
+      "manage": "प्रबंधित करें"
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"
@@ -679,6 +730,9 @@
         "save": "सहेजें",
         "saved": "सहेजा गया",
         "clear": "साफ़ करें",
+        "saveSetting": "{{setting}} सहेजें",
+        "savedSetting": "{{setting}} सहेजा गया",
+        "clearSetting": "{{setting}} साफ़ करें",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "इसे सिर्फ़ वही लोग बदल सकते हैं जिन्हें इस रूम की सेटिंग बदलने की अनुमति है।",
         "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।",
@@ -688,6 +742,41 @@
           "default": "डिफ़ॉल्ट",
           "auto": "हर संदेश पर",
           "mentions": "सिर्फ़ उल्लेख होने पर"
+        },
+        "sections": {
+          "agents": "एजेंट",
+          "threadTitles": "थ्रेड शीर्षक"
+        },
+        "model": {
+          "label": "मॉडल",
+          "description": "इस रूम के हर एजेंट, टीम और राउटर के लिए डिफ़ॉल्ट मॉडल। थ्रेड के अपने चयन को अभी भी प्राथमिकता मिलती है।",
+          "default": "कॉन्फ़िगर किया गया डिफ़ॉल्ट उपयोग करें",
+          "defaultDescription": "इस रूम के लिए MindRoom के कॉन्फ़िगर किए गए डिफ़ॉल्ट का पालन करें।",
+          "unknown": "अज्ञात मॉडल: \"{{value}}\" इस रूम की मॉडल सूची में नहीं है।",
+          "catalogUnavailable": "इस समय कोई मॉडल सूची उपलब्ध नहीं है। आप फिर भी कॉन्फ़िगर किए गए डिफ़ॉल्ट पर रीसेट कर सकते हैं।",
+          "storedRaw": "रूम की सेटिंग: {{value}}"
+        },
+        "threadMode": {
+          "label": "थ्रेड मोड",
+          "description": "इस रूम में एजेंट थ्रेड में जवाब दें या मुख्य टाइमलाइन में।",
+          "default": "कॉन्फ़िगर किया गया डिफ़ॉल्ट उपयोग करें",
+          "thread": "थ्रेड",
+          "room": "मुख्य टाइमलाइन",
+          "effective": "वर्तमान प्रभावी मोड: {{mode}}",
+          "effectiveModes": {
+            "thread": "थ्रेड",
+            "room": "मुख्य टाइमलाइन",
+            "mixed": "मिश्रित (एजेंट के अनुसार भिन्न)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "शीर्षक मॉडल",
+          "description": "वह मॉडल जो इस रूम के स्वचालित थ्रेड शीर्षक लिखता है।"
+        },
+        "agentInstructions": {
+          "label": "एजेंट के लिए निर्देश",
+          "description": "इस रूम में जवाब देने वाले हर एजेंट को दिए जाने वाले अतिरिक्त निर्देश। मॉडरेटर इन्हें संपादित कर सकते हैं; इनसे एजेंटों को कोई अतिरिक्त अनुमति नहीं मिलती। रूम में हर कोई इन्हें पढ़ सकता है, और रूम स्टेट एंड-टू-एंड एन्क्रिप्टेड नहीं होता, इसलिए यहाँ कोई गोपनीय जानकारी न डालें।",
+          "placeholder": "उदाहरण: जवाब छोटे रखें और डच में उत्तर दें"
         }
       }
     },
@@ -860,7 +949,10 @@
         "nameChose": "{{name}} ने चुना"
       },
       "mindroomReplyDetails": {
-        "subagents": "सब-एजेंट"
+        "subagents": "सब-एजेंट",
+        "writtenToCache": "कैश में लिखे गए",
+        "notCached": "कैश में नहीं",
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
@@ -946,7 +1038,8 @@
       "messageSearch": {
         "searchFailed": "खोज विफल रही। फिर से कोशिश करें।",
         "resultCountFor_one": "\"{{term}}\" के लिए {{count}} परिणाम",
-        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम"
+        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम",
+        "retry": "पुन: प्रयास करें"
       }
     },
     "notifications": {
@@ -962,7 +1055,10 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर"
+        "advancedFilters": "उन्नत फ़िल्टर",
+        "includeResolvedThreads": "सुलझाए गए थ्रेड शामिल करें",
+        "hideResolvedThreads": "सुलझाए गए थ्रेड छिपाएँ",
+        "forMeSummary": "{{summary}}। मेरे लिए फ़िल्टर चालू है।"
       },
       "threadPeopleFilter": {
         "label": "लोग",
@@ -987,7 +1083,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "सभी लंबे संदेश खोलें",
-        "collapseAllLong": "सभी लंबे संदेश समेटें"
+        "collapseAllLong": "सभी लंबे संदेश समेटें",
+        "showFullMessage": "पूरा संदेश दिखाएँ"
       }
     },
     "computer": {
@@ -1009,6 +1106,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "इस बातचीत में एजेंटों के अगले जवाब से पहले उनका संदर्भ संक्षिप्त करें।",
         "reply_mode": "दिखाएं या बदलें कि यहां बातचीत शुरू करने के लिए एजेंटों को उल्लेख चाहिए या नहीं (सेट/रीसेट के लिए रूम व्यवस्थापक चाहिए)।"
       }
     },
@@ -1022,8 +1120,6 @@
       "tools_other": "{{count}} टूल",
       "needApproval_one": "{{count}} को मंज़ूरी चाहिए",
       "needApproval_other": "{{count}} को मंज़ूरी चाहिए",
-      "toolCalls_one": "{{count}} टूल कॉल",
-      "toolCalls_other": "{{count}} टूल कॉल",
       "tokens_one": "{{tokens}} टोकन",
       "tokens_other": "{{tokens}} टोकन",
       "started": "{{time}} शुरू हुआ",
@@ -1036,7 +1132,32 @@
         "time": "समय"
       },
       "stopTask": "कार्य रोकें",
-      "stopTaskFor": "कार्य रोकें: {{tool}}"
+      "stopTaskFor": "कार्य रोकें: {{tool}}",
+      "stopStepFailed": "“{{step}}” रोका नहीं जा सका। फिर से कोशिश करें।",
+      "toolNames": {
+        "readFile": "फ़ाइल पढ़ें",
+        "writeFile": "फ़ाइल लिखें",
+        "editFile": "फ़ाइल संपादित करें",
+        "searchFiles": "फ़ाइलों में खोजें",
+        "browseFiles": "फ़ाइलें देखें",
+        "runCommand": "कमांड चलाएँ",
+        "openPage": "वेब पेज खोलें",
+        "searchWeb": "वेब पर खोजें",
+        "useBrowser": "ब्राउज़र इस्तेमाल करें",
+        "checkMemory": "मेमोरी देखें",
+        "updateMemory": "मेमोरी अपडेट करें",
+        "deleteMemory": "एक याद मिटाएँ",
+        "useMessages": "Matrix संदेश इस्तेमाल करें",
+        "schedule": "काम शेड्यूल करें",
+        "checkSchedule": "शेड्यूल देखें",
+        "updateSchedule": "शेड्यूल अपडेट करें",
+        "cancelSchedule": "शेड्यूल किया काम रद्द करें",
+        "use": "{{tool}} इस्तेमाल करें"
+      },
+      "jobTotal_one": "{{count}} बैकग्राउंड कार्य",
+      "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
+      "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
     },
     "subagents": {
       "title": "सब-एजेंट",
@@ -1063,7 +1184,21 @@
       "showFor": "सब-एजेंट दिखाएँ: {{name}}",
       "withCount_one": "{{label}}, {{count}} सक्रिय",
       "withCount_other": "{{label}}, {{count}} सक्रिय",
-      "resize": "सब-एजेंट पैनल का आकार बदलें"
+      "resize": "सब-एजेंट पैनल का आकार बदलें",
+      "calls_one": "{{count}} कॉल",
+      "calls_other": "{{count}} कॉल",
+      "now": "अभी",
+      "needsApproval": "अनुमोदन चाहिए",
+      "result": "परिणाम",
+      "turnNumber": "बारी {{number}}",
+      "status": "स्थिति",
+      "toolCallsNote": "टूल कॉल",
+      "tokensSplit": "{{input}} इन · {{output}} आउट",
+      "costNested": "+{{cost}} नेस्टेड",
+      "costOwn": "यह रन",
+      "showUsageDetails": "उपयोग का विवरण दिखाएँ",
+      "showUsageDetailsDescription": "सब-एजेंट और बैकग्राउंड जॉब पर टूल कॉल, टोकन और लागत दिखाता है, और हर एक अभी क्या कर रहा है।",
+      "usage": "उपयोग"
     },
     "models": {
       "modelPicker": {
@@ -1081,6 +1216,8 @@
         "defaultChoice": "डिफ़ॉल्ट",
         "threadOnly": "यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
         "roomOverrideThreadOnly": "इस रूम के लिए !room_model से सेट किया गया। यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
+        "chooseNextThread": "अगले थ्रेड के लिए मॉडल चुनें",
+        "nextThreadOnly": "यह चयन केवल अगले थ्रेड पर लागू होगा।",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",
@@ -1096,11 +1233,40 @@
       "pageUpdated": "{{agent}} ने यह पेज अपडेट किया।",
       "shownInPanel": "पैनल में दिखाया गया",
       "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।"
+    },
+    "invites": {
+      "invalid": "यह आमंत्रण लिंक अधूरा है। ईमेल से लिंक फिर से खोलें।",
+      "reopen": "आप साइन इन हैं। अपने ईमेल से आमंत्रण लिंक फिर से खोलें।",
+      "framed": "आमंत्रण का उपयोग करने के लिए इस पेज को उसके अपने टैब में खोलें।",
+      "ready": "{{router}} के माध्यम से {{user}} के रूप में रूम में शामिल हों",
+      "claiming": "आमंत्रण प्राप्त किया जा रहा है…",
+      "offline": "यह MindRoom जवाब नहीं दे रहा है। आपका अनुरोध सहेजा गया है; इसके वापस आने पर आमंत्रण आपकी रूम सूची में दिखाई देगा।",
+      "rejected": "यह आमंत्रण अब मान्य नहीं है। नया आमंत्रण माँगें।",
+      "retry": "यह काम नहीं किया। थोड़ी देर में फिर से कोशिश करें।",
+      "joining": "रूम में शामिल हो रहे हैं…",
+      "join": "शामिल हों",
+      "tryAgain": "फिर से कोशिश करें"
+    },
+    "uiActions": {
+      "canvasOff": "पैनल साझा किया गया · इस ऐप में पैनल बंद हैं",
+      "askForText": "टेक्स्ट संस्करण माँगें",
+      "copyRequest": "अनुरोध कॉपी करें",
+      "textVersionRequest": "कृपया “{{title}}” यहाँ टेक्स्ट के रूप में भेजें। मेरे ऐप में इंटरैक्टिव पैनल बंद हैं।",
+      "askForTextStatus": {
+        "hint": "कंपोज़र में एक अनुरोध रखता है। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "added": "अनुरोध कंपोज़र में जोड़ दिया गया। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "kept": "आपका ड्राफ़्ट जैसा था वैसा ही है। खुद जोड़ने के लिए अनुरोध कॉपी करें।",
+        "copied": "अनुरोध कॉपी हो गया। इसे अपने ड्राफ़्ट में पेस्ट करें।"
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "वॉयस रिकॉर्डिंग रोक दी गई - इस रूम में कहीं और अपनी न भेजी गई रिकॉर्डिंग को समाप्त करें या हटा दें",
     "voiceThreadRootUnsent": "इस वॉयस संदेश के थ्रेड में कोई भेजा गया पहला संदेश नहीं है। वह संदेश भेजे जाने के बाद फिर से प्रयास करें, या रिकॉर्डिंग हटा दें।",
+    "voiceIndicator": {
+      "recording": "रिकॉर्डिंग {{time}}",
+      "paused": "रुका हुआ {{time}}"
+    },
     "emoji": "इमोजी",
     "cancelReply": "जवाब रद्द करें",
     "moreActions": "और कार्रवाइयाँ",
@@ -1120,7 +1286,10 @@
       "autoHint": "एजेंट को तय करने दें",
       "settingTitle": "एजेंट के जवाब देते समय भेजें",
       "settingDescription": "किसी एक संदेश के लिए चुनने को भेजें दबाकर रखें।"
-    }
+    },
+    "replyInThread": "थ्रेड में जवाब दें…",
+    "newThreadIn": "{{room}} में नया थ्रेड…",
+    "newThreadWith": "{{name}} के साथ नया थ्रेड…"
   },
   "commandPalette": {
     "state": {
@@ -1169,6 +1338,10 @@
     "hints": {
       "chip": "सभी शॉर्टकट के लिए {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} वॉइस संदेश रिकॉर्ड करता है",
+      "description": "शुरू करने या भेजने के लिए टैप करें, बोलने के लिए दबाए रखें और भेजने के लिए छोड़ें।"
+    },
     "actions": {
       "palette": "खोज और कमांड",
       "settings": "सेटिंग्स खोलें",
@@ -1194,7 +1367,8 @@
       "newLine": "नई पंक्ति",
       "editLast": "अपना पिछला संदेश संपादित करें (खाली बॉक्स में)",
       "inlineCode": "इनलाइन कोड",
-      "callView": "कॉल पर जाएँ"
+      "callView": "कॉल पर जाएँ",
+      "voiceRecord": "वॉइस संदेश रिकॉर्ड करने के लिए दबाए रखें, शुरू करने या भेजने के लिए टैप करें"
     }
   },
   "thread": {
@@ -1228,7 +1402,10 @@
     "close": "थ्रेड बंद करें",
     "resizeSecond": "दूसरे थ्रेड का आकार बदलें",
     "second": "दूसरा थ्रेड",
-    "dropSecond": "दूसरे कॉलम में खोलने के लिए छोड़ें"
+    "dropSecond": "दूसरे कॉलम में खोलने के लिए छोड़ें",
+    "newUnknown": "नया",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "आपका उल्लेख"
   },
   "threadSnooze": {
     "title": "कब तक स्थगित करें",
@@ -1550,9 +1727,10 @@
     }
   },
   "threadNav": {
-    "layout": "थ्रेड का लेआउट",
-    "layoutRecent": "हाल के",
-    "layoutSections": "अनुभाग",
+    "forMe": "मेरे लिए",
+    "forMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं, जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है या जिन्हें आपने पिन किया है",
+    "roomForMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं या जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है",
+    "emptyForMe": "अभी आपके लिए कोई थ्रेड नहीं हैं",
     "group": "समूह",
     "groupHint": "स्थिति के अनुसार समूह बनाएँ",
     "sections": {
@@ -1584,6 +1762,36 @@
   },
   "threadActions": {
     "openBeside": "दूसरे कॉलम में खोलें"
+  },
+  "roomSchedules": {
+    "thisThread": "यह थ्रेड",
+    "elsewhereInRoom": "इस रूम में कहीं और",
+    "filterAll": "सभी",
+    "filterLabel": "शेड्यूल किए गए कार्य फ़िल्टर करें",
+    "awaitingShort": "प्रतीक्षारत",
+    "inSeconds": "{{count}}से में",
+    "inMinutes": "{{count}}मि में",
+    "inHours": "{{count}}घं में",
+    "inHoursMinutes": "{{hours}}घं {{minutes}}मि में",
+    "inDays": "{{count}}दि में",
+    "thread": "थ्रेड",
+    "destination": "गंतव्य",
+    "showFullPrompt": "पूरा प्रॉम्प्ट दिखाएं",
+    "showLessPrompt": "कम दिखाएं",
+    "details": "विवरण",
+    "hideDetails": "विवरण छिपाएं",
+    "copyId": "आईडी कॉपी करें",
+    "copied": "कॉपी हो गया",
+    "edit": "संपादित करें",
+    "cancel": "रद्द करें",
+    "cancelConfirm": "क्या इस शेड्यूल किए गए कार्य को रद्द करें?",
+    "keep": "रखें",
+    "cancelTask": "कार्य रद्द करें",
+    "cancelling": "रद्द किया जा रहा है...",
+    "cancelError": "कार्य रद्द नहीं किया जा सका। फिर से प्रयास करें।",
+    "cancellationSent": "रद्दीकरण भेजा गया",
+    "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
+    "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
   },
   "home": {
     "greeting": {

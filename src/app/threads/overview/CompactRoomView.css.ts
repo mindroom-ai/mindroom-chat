@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from '../../ui/styles/RoomOverlay.css';
 import { transition } from '../../ui/styles/transition';
@@ -17,6 +17,9 @@ export const View = style([
     paddingInline: config.space.S300,
     overflowY: 'auto',
     overflowX: 'hidden',
+    // Cards hold positioned elements. Without a stacking context on this composited scroller, WebKit
+    // gives each card its own layer plus clip and scroll proxies (about 6,000 layers for 731 cards).
+    isolation: 'isolate',
     width: '100%',
   },
 ]);
@@ -37,15 +40,23 @@ export const Cards = style({
   position: 'relative',
 });
 
+// What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
+const hoverTint = createVar();
+
 export const CardShell = style({
+  vars: { [hoverTint]: color.SurfaceVariant.ContainerHover },
   position: 'relative',
   width: '100%',
   minWidth: 0,
 });
 
-// A card's moving part: positioned, so a card that travels far passes over the others.
+// A card's moving part: positioned, so a card that travels far passes over the others. It holds
+// no scroll anchor of the browser's, which anchors on the shell around it instead: once a card
+// had glided, Chromium no longer scrolled a list anchored inside it, and each card that joined
+// above the ones in view moved them down by its height.
 export const CardMotion = style({
   position: 'relative',
+  overflowAnchor: 'none',
 });
 
 // A section's header among the cards (Sections): it folds the section, as the sidebar's do.
@@ -121,20 +132,22 @@ export const CardButton = style([
 // The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
 // button after a tap or a click does not.
 globalStyle(`${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${Card}`, {
-  backgroundColor: color.SurfaceVariant.ContainerHover,
+  backgroundColor: hoverTint,
 });
 
 // A touch screen keeps :hover on the card tapped last; only a pointer that can hover tints it.
 globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
   '@media': {
-    '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '(hover: hover)': {
+      backgroundColor: fallbackVar(hoverTint, color.SurfaceVariant.ContainerHover),
+    },
   },
 });
 
 export const CardAction = style({
   display: 'flex',
   gap: config.space.S100,
-  backgroundColor: color.SurfaceVariant.ContainerHover,
+  backgroundColor: hoverTint,
   position: 'absolute',
   insetInlineEnd: config.space.S300,
   top: '50%',
@@ -169,7 +182,7 @@ export const CardAction = style({
       insetInlineStart: `calc(-1 * ${config.space.S500})`,
       width: config.space.S500,
       pointerEvents: 'none',
-      background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
+      background: `linear-gradient(to right, transparent, ${hoverTint})`,
     },
   },
 });
@@ -199,7 +212,7 @@ export const CardMenuButton = style({
 });
 
 globalStyle(`[dir='rtl'] ${CardAction}::before`, {
-  background: `linear-gradient(to left, transparent, ${color.SurfaceVariant.ContainerHover})`,
+  background: `linear-gradient(to left, transparent, ${hoverTint})`,
 });
 
 globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
@@ -227,6 +240,13 @@ export const CardSnoozed = style({
   borderColor: color.Warning.ContainerLine,
   backgroundColor: color.Warning.Container,
   color: color.Warning.OnContainer,
+});
+
+globalStyle(`${CardShell}:has(${CardResolved})`, {
+  vars: { [hoverTint]: color.Success.ContainerHover },
+});
+globalStyle(`${CardShell}:has(${CardSnoozed})`, {
+  vars: { [hoverTint]: color.Warning.ContainerHover },
 });
 
 // A filled disc at the start of a resolved or snoozed card's title. The card's tint alone can sit
@@ -286,10 +306,18 @@ export const TimeTextUnread = style({
   opacity: 1,
 });
 
-// On a tinted card MainActive can fall under 4.5:1 (4.4:1 on the orange theme's amber, 4.2:1 on
-// its green); MainLine, a step further from the tints, keeps it in every theme.
-globalStyle(`${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}`, {
-  color: color.Primary.MainLine,
+// On a tinted or a hovered card MainActive can fall under 4.5:1 (4.2:1 on the orange theme's
+// green and its hovered grey), and MainLine too once a tinted card is hovered (4.1:1); MainLine
+// with a quarter of OnContainer keeps 4.7:1 or more on all of them, in every theme.
+const unreadTimeStrong = {
+  color: `color-mix(in srgb, ${color.Primary.MainLine} 75%, ${color.Primary.OnContainer})`,
+};
+globalStyle(
+  `${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}, ${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${TimeTextUnread}`,
+  unreadTimeStrong
+);
+globalStyle(`${CardShell}:hover ${TimeTextUnread}, ${Card}:hover ${TimeTextUnread}`, {
+  '@media': { '(hover: hover)': unreadTimeStrong },
 });
 
 export const MessagePreview = style({
@@ -337,12 +365,12 @@ export const Chips = style({
   },
 });
 
-// Room for the menu button that sits at the end of this row on touch; only
-// the compact view's card shell has that button.
+// Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
+// edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
 globalStyle(`${CardShell} ${MetadataRow}`, {
   '@media': {
     [touchActions]: {
-      paddingInlineEnd: toRem(32),
+      paddingInlineEnd: toRem(36),
     },
   },
 });
@@ -422,15 +450,11 @@ export const ReplyCount = style({
 });
 
 // Secondary text on a resolved card's green or a snoozed card's amber keeps 4.5:1 at the lighter
-// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette).
+// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette). The time and
+// the reply count take that level on every card (4.9:1 or more on all palettes, hovered too).
 globalStyle(
   [CardResolved, CardSnoozed]
-    .flatMap((tint) => [
-      `${tint} ${MessageText}`,
-      `${tint} ${TimeText}:not(${TimeTextUnread})`,
-      `${tint} ${StreamingStatus}`,
-      `${tint} ${ReplyCount}`,
-    ])
+    .flatMap((tint) => [`${tint} ${MessageText}`, `${tint} ${StreamingStatus}`])
     .join(', '),
   { opacity: config.opacity.P400 }
 );

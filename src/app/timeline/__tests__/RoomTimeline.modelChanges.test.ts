@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import React from 'react';
 import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
@@ -159,7 +160,7 @@ const openThread = async (
       events: events.slice(1),
       getUnfilteredTimelineSet: () => timelineSet,
     } as never);
-  threadRenderStateMock.threadEvents = events as never;
+  threadRenderStateMock.threadEvents = events;
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])
   );
@@ -231,19 +232,14 @@ describe("a thread's model changes in the open thread", () => {
       event.eventId === '$set-ack' && event.content.msgtype === 'm.notice';
     // Unreadable at first, with only its relation in the clear; `makeEvent` reads these live.
     const sealed = { ...SET_ACK, type: 'm.room.encrypted', content: inThread, encrypted: true };
-    const listeners = new Set<(event: unknown) => void>();
-    const ack = Object.assign(makeEvent('$set-ack', sealed), {
-      on: (_name: string, listener: (event: unknown) => void) => listeners.add(listener),
-      removeListener: (_name: string, listener: (event: unknown) => void) =>
-        listeners.delete(listener),
-    });
+    const ack = Object.assign(new EventEmitter(), makeEvent('$set-ack', sealed));
     const renderer = await openThread(ROUTER, undefined, undefined, ack);
     try {
       expect(getRenderedEventIds(renderer)).toContain('$set');
       // It decrypts in place: the thread's rows are the same array, and only its own event says so.
       Object.assign(sealed, { type: 'm.room.message', content: SET_ACK.content });
       await act(async () => {
-        listeners.forEach((listener) => listener(ack));
+        ack.emit(MatrixEventEvent.Decrypted, ack);
         await flushAsyncWork();
       });
       expect(getRenderedEventIds(renderer)).toEqual([

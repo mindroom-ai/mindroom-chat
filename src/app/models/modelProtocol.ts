@@ -125,23 +125,14 @@ const levelOf = (
     : {};
 const scope = (v: Record<string, unknown>): boolean =>
   v.version === 1 && str(v.room_id) && (v.thread_id === undefined || str(v.thread_id));
-export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse | undefined => {
+/** The model and selection fields shared by live responses and the room cache. */
+export const parseModelCatalogPayload = (agents: unknown, entries: unknown, selection: unknown) => {
   if (
-    !bounded(value) ||
-    !scope(value) ||
-    !str(value.request_id, 128) ||
-    !str(value.catalog_revision) ||
-    !Array.isArray(value.capabilities) ||
-    !value.capabilities.every((v) => str(v)) ||
-    !Array.isArray(value.agent_user_ids) ||
-    !value.agent_user_ids.every((v) => str(v)) ||
-    !Array.isArray(value.models) ||
-    value.models.length > 256 ||
-    !record(value.selection)
-  )
-    return undefined;
-  const selection = value.selection;
-  if (
+    !Array.isArray(agents) ||
+    !agents.every((v) => str(v)) ||
+    !Array.isArray(entries) ||
+    entries.length > 256 ||
+    !record(selection) ||
     !(selection.override === null || str(selection.override)) ||
     !Array.isArray(selection.inherited) ||
     !selection.inherited.every((v) => record(v) && str(v.entity) && str(v.model))
@@ -149,7 +140,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
     return undefined;
   const models: ModelCatalogEntry[] = [];
   const keys = new Set<string>();
-  for (const m of value.models) {
+  for (const m of entries) {
     if (
       !record(m) ||
       !str(m.key) ||
@@ -169,18 +160,12 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
       id: m.id,
       ...(m.icon_url === undefined ? {} : { icon_url: m.icon_url }),
       ...reasoningOf(m),
-    } as ModelCatalogEntry);
+    });
   }
   const { override } = selection;
   if (override !== null && !keys.has(override)) return undefined;
   return {
-    version: 1,
-    request_id: value.request_id,
-    room_id: value.room_id as string,
-    ...(value.thread_id === undefined ? {} : { thread_id: value.thread_id as string }),
-    capabilities: value.capabilities as string[],
-    agent_user_ids: value.agent_user_ids as string[],
-    catalog_revision: value.catalog_revision,
+    agent_user_ids: agents as string[],
     models,
     selection: {
       override,
@@ -195,6 +180,28 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
         ...(str(entry.user_id) && entry.user_id.startsWith('@') ? { user_id: entry.user_id } : {}),
       })),
     },
+  };
+};
+export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse | undefined => {
+  if (
+    !bounded(value) ||
+    !scope(value) ||
+    !str(value.request_id, 128) ||
+    !str(value.catalog_revision) ||
+    !Array.isArray(value.capabilities) ||
+    !value.capabilities.every((v) => str(v))
+  )
+    return undefined;
+  const payload = parseModelCatalogPayload(value.agent_user_ids, value.models, value.selection);
+  if (!payload) return undefined;
+  return {
+    version: 1,
+    request_id: value.request_id,
+    room_id: value.room_id as string,
+    ...(value.thread_id === undefined ? {} : { thread_id: value.thread_id as string }),
+    capabilities: value.capabilities as string[],
+    catalog_revision: value.catalog_revision,
+    ...payload,
   };
 };
 export const parseModelSelectionResult = (value: unknown): ModelSelectionResult | undefined => {

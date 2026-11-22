@@ -27,7 +27,7 @@ vi.mock('./canvasDocument', async (original) => ({
   },
 }));
 // Saved state is read from IndexedDB; these tests decide when it is ready and what it holds.
-const saved = vi.hoisted(() => ({ ready: true, value: {} as CanvasSaved }));
+const saved = vi.hoisted(() => ({ ready: true, value: {} }));
 vi.mock('./useCanvasSavedState', () => ({
   useCanvasSavedState: () => ({
     ready: saved.ready,
@@ -387,7 +387,7 @@ describe('InlineCanvasFrame as a host', () => {
       () =>
         new Promise((resolve) => {
           requests.push({ resolve });
-        }) as never
+        })
     );
     sendMessage = vi.spyOn(fixture.mx, 'sendMessage');
   });

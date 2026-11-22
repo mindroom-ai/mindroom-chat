@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Schließen",
-      "invited": "{{user}} wurde eingeladen."
+      "invited": "{{user}} wurde eingeladen.",
+      "giveRoleRights": "{{role}}-Rechte erteilen",
+      "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
+      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Schließen",
@@ -275,6 +280,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Schließen",
+      "configuredTools": "Eingerichtete Werkzeuge",
+      "toolCount_one": "{{count}} Werkzeug",
+      "toolCount_other": "{{count}} Werkzeuge",
+      "groupCount_one": "{{count}} Gruppe",
+      "groupCount_other": "{{count}} Gruppen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Außerdem {{groups}}",
+      "viewAll_one": "Alle {{count}} Werkzeuge ansehen",
+      "viewAll_other": "Alle {{count}} Werkzeuge ansehen",
+      "toolsTitle": "Werkzeuge von {{name}}",
+      "filter": "Werkzeuge filtern",
+      "noMatch": "Kein Werkzeug passt.",
+      "back": "Zurück",
+      "more": "Mehr",
+      "worksIn": "Arbeitet in",
+      "loading": "Eingerichtete Werkzeuge werden geladen",
+      "availability": "Die Verfügbarkeit kann je nach Anfrage und Berechtigungen variieren.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & Dateien",
+        "research": "Web",
+        "productivity": "Planung & Gedächtnis",
+        "email": "E-Mail",
+        "mcp": "Verbundene Apps",
+        "integrations": "Integrationen",
+        "communication": "Chat & Nachrichten",
+        "entertainment": "Medien",
+        "information": "Informationen",
+        "smart_home": "Smart Home",
+        "social": "Soziales",
+        "other": "Sonstiges"
+      }
+    },
+    "space": {
+      "overview": "Space-Übersicht"
     }
   },
   "featureUi": {
@@ -394,9 +439,11 @@
         "profile": "Profilbild, Foto, Name, Spitzname",
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
+        "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Strg, Ctrl, Umschalt, Shift, Leertaste, Tastenkürzel",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
-        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
+        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
+        "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -431,6 +478,7 @@
         "close": "Anrufansicht schließen",
         "participants": "Personen im Anruf",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbindung zu einem anderen Anruf wird hergestellt…",
         "reconnecting": "Verbindung wird wiederhergestellt…",
         "ended": "Der Anruf ist beendet.",
         "waitingFor": "Warten auf {{name}}…",
@@ -450,7 +498,7 @@
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",
         "connection": "Die Verbindung zum Anruf ist abgebrochen.",
-        "device": "Dein Mikrofon oder deine Kamera konnte nicht verwendet werden.",
+        "device": "Ein Mikrofon, eine Kamera oder ein Lautsprecher konnte nicht verwendet werden.",
         "untrustedService": "Dieser Anruf läuft über einen Anrufdienst, den dein Homeserver nicht anbietet. Du kannst ihm deshalb hier nicht beitreten."
       },
       "devices": {
@@ -540,7 +588,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
+        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain.",
+        "thisApp": "Diese App",
+        "mindroomAgents": "MindRoom-Agenten"
       },
       "jumpToTime": {
         "unsupported": "Dieser Server kann Nachrichten nicht nach Zeit suchen.",
@@ -558,7 +608,8 @@
     },
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
-      "manageAccounts": "Konten verwalten"
+      "otherAccounts": "Andere Konten",
+      "manage": "Verwalten"
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"
@@ -679,6 +730,9 @@
         "save": "Speichern",
         "saved": "Gespeichert",
         "clear": "Löschen",
+        "saveSetting": "{{setting}} speichern",
+        "savedSetting": "{{setting}} gespeichert",
+        "clearSetting": "{{setting}} löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
         "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
@@ -688,6 +742,41 @@
           "default": "Standard",
           "auto": "Auf jede Nachricht",
           "mentions": "Nur bei Erwähnung"
+        },
+        "sections": {
+          "agents": "Agenten",
+          "threadTitles": "Thread-Titel"
+        },
+        "model": {
+          "label": "Modell",
+          "description": "Standardmodell für alle Agenten, Teams und den Router in diesem Raum. Thread-spezifische Vorgaben haben weiterhin Vorrang.",
+          "default": "Konfigurierten Standard verwenden",
+          "defaultDescription": "Folgt dem in MindRoom konfigurierten Standard für diesen Raum.",
+          "unknown": "Unbekanntes Modell: „{{value}}“ steht nicht in der Modellliste dieses Raums.",
+          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen.",
+          "storedRaw": "Raumeinstellung: {{value}}"
+        },
+        "threadMode": {
+          "label": "Thread-Modus",
+          "description": "Ob Agenten in diesem Raum in Threads oder im Hauptverlauf antworten.",
+          "default": "Konfigurierten Standard verwenden",
+          "thread": "Threads",
+          "room": "Hauptverlauf",
+          "effective": "Aktuell wirksamer Modus: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Hauptverlauf",
+            "mixed": "Gemischt (je nach Agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Titelmodell",
+          "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
+        },
+        "agentInstructions": {
+          "label": "Anweisungen für Agents",
+          "description": "Zusätzliche Anweisungen, die jeder Agent beim Antworten in diesem Raum erhält. Moderatoren können sie bearbeiten; sie verleihen Agents keine zusätzlichen Berechtigungen. Alle im Raum können sie lesen, und der Raumzustand ist nicht Ende-zu-Ende-verschlüsselt, also gib hier keine Geheimnisse ein.",
+          "placeholder": "Zum Beispiel: Antworten kurz halten und auf Niederländisch antworten"
         }
       }
     },
@@ -860,7 +949,10 @@
         "nameChose": "Gewählt von {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sub-Agenten"
+        "subagents": "Sub-Agenten",
+        "writtenToCache": "In den Cache geschrieben",
+        "notCached": "Nicht im Cache",
+        "conversation": "Unterhaltung"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Läuft seit {{duration}}",
@@ -946,7 +1038,8 @@
       "messageSearch": {
         "searchFailed": "Die Suche ist fehlgeschlagen. Versuche es erneut.",
         "resultCountFor_one": "{{count}} Ergebnis für „{{term}}“",
-        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“"
+        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“",
+        "retry": "Erneut versuchen"
       }
     },
     "notifications": {
@@ -962,7 +1055,10 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter"
+        "advancedFilters": "Erweiterte Filter",
+        "includeResolvedThreads": "Erledigte Threads einblenden",
+        "hideResolvedThreads": "Erledigte Threads ausblenden",
+        "forMeSummary": "{{summary}}. Filter „Für mich“ aktiv."
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -987,7 +1083,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Alle langen Nachrichten aufklappen",
-        "collapseAllLong": "Alle langen Nachrichten zuklappen"
+        "collapseAllLong": "Alle langen Nachrichten zuklappen",
+        "showFullMessage": "Ganze Nachricht anzeigen"
       }
     },
     "computer": {
@@ -1009,6 +1106,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Verdichte den Kontext der Agenten vor ihrer nächsten Antwort in diesem Gespräch.",
         "reply_mode": "Zeige oder wechsle, ob Agenten hier eine Erwähnung brauchen, um ein Gespräch zu beginnen (Setzen/Zurücksetzen nur Raumadministratoren)."
       }
     },
@@ -1022,8 +1120,6 @@
       "tools_other": "{{count}} Werkzeuge",
       "needApproval_one": "{{count}} braucht Freigabe",
       "needApproval_other": "{{count}} brauchen Freigabe",
-      "toolCalls_one": "{{count}} Werkzeugaufruf",
-      "toolCalls_other": "{{count}} Werkzeugaufrufe",
       "tokens_one": "{{tokens}} Token",
       "tokens_other": "{{tokens}} Tokens",
       "started": "Gestartet {{time}}",
@@ -1036,7 +1132,32 @@
         "time": "Zeit"
       },
       "stopTask": "Aufgabe stoppen",
-      "stopTaskFor": "Aufgabe stoppen: {{tool}}"
+      "stopTaskFor": "Aufgabe stoppen: {{tool}}",
+      "stopStepFailed": "„{{step}}“ konnte nicht gestoppt werden. Versuche es erneut.",
+      "toolNames": {
+        "readFile": "Datei lesen",
+        "writeFile": "Datei schreiben",
+        "editFile": "Datei bearbeiten",
+        "searchFiles": "Dateien durchsuchen",
+        "browseFiles": "Dateien durchsehen",
+        "runCommand": "Befehl ausführen",
+        "openPage": "Webseite öffnen",
+        "searchWeb": "Im Web suchen",
+        "useBrowser": "Browser verwenden",
+        "checkMemory": "Im Gedächtnis nachsehen",
+        "updateMemory": "Gedächtnis aktualisieren",
+        "deleteMemory": "Erinnerung löschen",
+        "useMessages": "Matrix-Nachrichten verwenden",
+        "schedule": "Aufgabe planen",
+        "checkSchedule": "Zeitplan prüfen",
+        "updateSchedule": "Zeitplan aktualisieren",
+        "cancelSchedule": "Geplante Aufgabe abbrechen",
+        "use": "{{tool}} verwenden"
+      },
+      "jobTotal_one": "{{count}} Hintergrundaufgabe",
+      "jobTotal_other": "{{count}} Hintergrundaufgaben",
+      "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
+      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
     },
     "subagents": {
       "title": "Sub-Agenten",
@@ -1063,7 +1184,21 @@
       "showFor": "Sub-Agenten anzeigen: {{name}}",
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
-      "resize": "Größe des Sub-Agenten-Bereichs ändern"
+      "resize": "Größe des Sub-Agenten-Bereichs ändern",
+      "calls_one": "{{count}} Aufruf",
+      "calls_other": "{{count}} Aufrufe",
+      "now": "Jetzt",
+      "needsApproval": "Braucht Genehmigung",
+      "result": "Ergebnis",
+      "turnNumber": "Runde {{number}}",
+      "status": "Status",
+      "toolCallsNote": "Werkzeugaufrufe",
+      "tokensSplit": "{{input}} ein · {{output}} aus",
+      "costNested": "+{{cost}} verschachtelt",
+      "costOwn": "dieser Lauf",
+      "showUsageDetails": "Nutzungsdetails anzeigen",
+      "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens und Kosten bei Sub-Agenten und Hintergrundaufgaben und was jeweils gerade passiert.",
+      "usage": "Nutzung"
     },
     "models": {
       "modelPicker": {
@@ -1081,6 +1216,8 @@
         "defaultChoice": "Standard",
         "threadOnly": "Ein hier gewähltes Modell gilt nur für diesen Thread.",
         "roomOverrideThreadOnly": "Für diesen Raum mit !room_model festgelegt. Ein hier gewähltes Modell gilt nur für diesen Thread.",
+        "chooseNextThread": "Modell für den nächsten Thread auswählen",
+        "nextThreadOnly": "Diese Auswahl gilt nur für den nächsten Thread.",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",
@@ -1096,11 +1233,40 @@
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+    },
+    "invites": {
+      "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",
+      "reopen": "Du bist angemeldet. Öffne den Einladungslink aus deiner E-Mail erneut.",
+      "framed": "Öffne diese Seite in einem eigenen Tab, um die Einladung zu nutzen.",
+      "ready": "Einem Raum über {{router}} als {{user}} beitreten",
+      "claiming": "Einladung wird eingelöst…",
+      "offline": "Dieses MindRoom antwortet nicht. Deine Anfrage ist gespeichert; die Einladung erscheint in deiner Raumliste, sobald es wieder erreichbar ist.",
+      "rejected": "Diese Einladung ist nicht mehr gültig. Bitte um eine neue.",
+      "retry": "Das hat nicht geklappt. Versuche es gleich noch einmal.",
+      "joining": "Raum wird betreten…",
+      "join": "Beitreten",
+      "tryAgain": "Erneut versuchen"
+    },
+    "uiActions": {
+      "canvasOff": "Panel geteilt · Panels sind in dieser App deaktiviert",
+      "askForText": "Textversion anfordern",
+      "copyRequest": "Anfrage kopieren",
+      "textVersionRequest": "Bitte schick „{{title}}“ hier stattdessen als Text. Interaktive Panels sind in meiner App deaktiviert.",
+      "askForTextStatus": {
+        "hint": "Setzt eine Anfrage ins Eingabefeld. Gesendet wird erst, wenn du auf Senden drückst.",
+        "added": "Anfrage ins Eingabefeld gesetzt. Gesendet wird erst, wenn du auf Senden drückst.",
+        "kept": "Dein Entwurf bleibt unverändert. Kopiere die Anfrage, um sie selbst einzufügen.",
+        "copied": "Anfrage kopiert. Füge sie in deinen Entwurf ein."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme an anderer Stelle in diesem Raum ab oder verwirf sie",
     "voiceThreadRootUnsent": "Der Thread dieser Sprachnachricht hat keine gesendete erste Nachricht. Versuche es erneut, sobald diese Nachricht gesendet ist, oder verwirf die Aufnahme.",
+    "voiceIndicator": {
+      "recording": "Aufnahme {{time}}",
+      "paused": "Pausiert {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",
@@ -1120,7 +1286,10 @@
       "autoHint": "Den Agenten entscheiden lassen",
       "settingTitle": "Senden, während ein Agent antwortet",
       "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
-    }
+    },
+    "replyInThread": "Im Thread antworten…",
+    "newThreadIn": "Neuer Thread in {{room}}…",
+    "newThreadWith": "Neuer Thread mit {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1169,6 +1338,10 @@
     "hints": {
       "chip": "{{keys}} für alle Tastenkürzel"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} nimmt Sprachnachrichten auf",
+      "description": "Tippen zum Starten oder Senden, halten zum Sprechen und loslassen zum Senden."
+    },
     "actions": {
       "palette": "Suche und Befehle",
       "settings": "Einstellungen öffnen",
@@ -1194,7 +1367,8 @@
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
-      "callView": "Zum Anruf wechseln"
+      "callView": "Zum Anruf wechseln",
+      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden"
     }
   },
   "thread": {
@@ -1228,7 +1402,10 @@
     "close": "Thread schließen",
     "resizeSecond": "Breite des zweiten Threads ändern",
     "second": "Zweiter Thread",
-    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen"
+    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen",
+    "newUnknown": "Neu",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Erwähnt dich"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",
@@ -1550,9 +1727,10 @@
     }
   },
   "threadNav": {
-    "layout": "Anordnung der Threads",
-    "layoutRecent": "Zuletzt",
-    "layoutSections": "Abschnitte",
+    "forMe": "Für mich",
+    "forMeHint": "Nur Threads, an denen du teilnimmst, in denen ein Agent für dich gepostet hat oder die du angepinnt hast",
+    "roomForMeHint": "Nur Threads, an denen du teilnimmst oder in denen ein Agent für dich gepostet hat",
+    "emptyForMe": "Noch keine Threads für dich",
     "group": "Gruppieren",
     "groupHint": "Nach Status gruppieren",
     "sections": {
@@ -1584,6 +1762,36 @@
   },
   "threadActions": {
     "openBeside": "In zweiter Spalte öffnen"
+  },
+  "roomSchedules": {
+    "thisThread": "Dieser Thread",
+    "elsewhereInRoom": "An anderer Stelle in diesem Raum",
+    "filterAll": "Alle",
+    "filterLabel": "Geplante Aufgaben filtern",
+    "awaitingShort": "Ausstehend",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}T",
+    "thread": "Thread",
+    "destination": "Ziel",
+    "showFullPrompt": "Vollständigen Prompt anzeigen",
+    "showLessPrompt": "Weniger anzeigen",
+    "details": "Details",
+    "hideDetails": "Details ausblenden",
+    "copyId": "ID kopieren",
+    "copied": "Kopiert",
+    "edit": "Bearbeiten",
+    "cancel": "Abbrechen",
+    "cancelConfirm": "Diese geplante Aufgabe abbrechen?",
+    "keep": "Behalten",
+    "cancelTask": "Aufgabe abbrechen",
+    "cancelling": "Wird abgebrochen...",
+    "cancelError": "Aufgabe konnte nicht abgebrochen werden. Bitte erneut versuchen.",
+    "cancellationSent": "Abbruch gesendet",
+    "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
+    "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   },
   "home": {
     "greeting": {

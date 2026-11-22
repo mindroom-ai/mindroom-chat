@@ -74,7 +74,7 @@ export const composeTextMessage = (
 
 /** The message with `userId` among its intentional mentions, as a question to that agent is. */
 export const withMention = (content: IContent, userId: string): IContent => {
-  const mentions = (content['m.mentions'] ?? {}) as { user_ids?: string[]; room?: boolean };
+  const mentions = content['m.mentions'] ?? {};
   const userIds = mentions.user_ids ?? [];
   if (userIds.includes(userId)) return content;
   return { ...content, 'm.mentions': { ...mentions, user_ids: [...userIds, userId] } };

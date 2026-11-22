@@ -2,17 +2,19 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { readPowerLevel, type IPowerLevels } from '../hooks/usePowerLevels';
 
 /**
- * Room state naming the room's MindRoom router, `{"user_id": "<router Matrix ID>"}` at state key
- * `""`, which the router publishes where it may (MindRoom's `matrix/event_types.py`).
+ * Room state naming a bound MindRoom account, `{"user_id": "<Matrix ID>"}` at state key `""`.
+ * The backend keeps existing bindings and lets the steward bind itself when needed.
  */
 export const MINDROOM_ROUTER_STATE_EVENT = 'io.mindroom.router';
 
+export const MINDROOM_ACCOUNTS_STATE_EVENT = 'io.mindroom.accounts';
+
 /**
- * The router the room's state names, trusted only while ordinary members cannot write that state
- * (the level it takes is above `users_default`) and the router wrote it about itself and still
+ * The account the room's state names, trusted only while ordinary members cannot write that state
+ * (the level it takes is above `users_default`) and the account wrote it about itself and still
  * holds that level, so a binding written before the room tightened the level does not count.
- * A room creator (room version 12 on, `getRoomCreators`) outranks every level, as the router is
- * in the rooms it creates. Undefined without the binding, with a malformed one, when anyone may
+ * A room creator (room version 12 on, `getRoomCreators`) outranks every level.
+ * Undefined without the binding, with a malformed one, when anyone may
  * write it, or when `rawPowerLevels` (the `m.room.power_levels` content) gives a level it reads
  * as something other than a number, which the shared parser would drop for a default.
  */
@@ -40,4 +42,30 @@ export const trustedRouterUserId = (
     (creators.has(userId) || readPowerLevel.user(powerLevels, userId) >= writeLevel)
     ? userId
     : undefined;
+};
+
+/** Only a roster the bound account writes at its own state key can vouch for senders. */
+export const boundRoomRoster = (
+  boundUserId: string | undefined,
+  roster: MatrixEvent | undefined
+): ReadonlySet<string> => {
+  if (!boundUserId || roster?.getSender() !== boundUserId || roster.getStateKey() !== boundUserId) {
+    return new Set();
+  }
+  const accounts: unknown = roster.getContent().accounts;
+  return new Set(Array.isArray(accounts) ? accounts.filter((id) => typeof id === 'string') : []);
+};
+
+export const trustedRoomAccountIds = (
+  boundUserId: string | undefined,
+  roster: ReadonlySet<string>,
+  joined: ReadonlySet<string>,
+  ignored: ReadonlySet<string>
+): ReadonlySet<string> => {
+  if (!boundUserId || ignored.has(boundUserId)) return new Set();
+  const trusted = new Set([boundUserId]);
+  for (const id of roster) {
+    if (joined.has(id) && !ignored.has(id)) trusted.add(id);
+  }
+  return trusted;
 };

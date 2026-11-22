@@ -47,9 +47,10 @@ const REPLIES = [
 ] as const;
 // A phone composer keeps voice and Send; Attach, Formatting and Emoji are in More actions' menu.
 const COMPOSER = ['More actions', 'Record voice message', 'Send message'];
-// A phone's room header keeps the name and More Options; the rest is in the room menu.
-const HEADER = ['More Options'];
-const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
+// This phone room has space for Members alongside the name and More Options.
+const HEADER = ['Show Members', 'More Options'];
+// A phone's thread banner keeps Thread options and Resolve; the pin is in Thread options' menu.
+const BANNER = ['Thread options', 'Resolve'];
 
 test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,

@@ -114,7 +114,7 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const composerShown = !!room && !waiting;
   useEffect(() => {
     if (!focusOnMount || !composerShown) return;
-    ReactEditor.focus(editor as ReactEditor);
+    ReactEditor.focus(editor);
     setFocusOnMount(false);
   }, [composerShown, editor, focusOnMount]);
 

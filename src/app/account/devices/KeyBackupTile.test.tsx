@@ -6,9 +6,11 @@ import { MatrixError } from 'matrix-js-sdk';
 import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api';
 import { KeyBackupTile } from './KeyBackupTile';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const client = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client.current }));
 const storage = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   key: undefined as unknown,
   turnOn: vi.fn(),
   keyFromInput: vi.fn(),

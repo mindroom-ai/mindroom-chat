@@ -1,6 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, useId, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
 import { Menu } from '../../ui/glass/GlassPrimitives';
@@ -20,6 +19,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
+import { useRoomRouteParams } from '../../navigation/useRoomRouteParams';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { Time } from '../Time';
 import { isPinnedToolApprovalEvent, renderPinnedToolApprovalEvent } from './pinnedToolApproval';
@@ -29,7 +29,7 @@ import * as css from './RoomPinMenu.css';
 
 export type RoomPinMenuProps = {
   room: Room;
-  requestClose: () => void;
+  requestClose: (reason: 'dismiss' | 'navigate') => void;
 };
 
 /** Controls inside an entry that do something of their own, so a click on them opens nothing. */
@@ -309,7 +309,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
     const [clock24] = useSetting(settingsAtom, 'hour24Clock');
     const { navigateRoom, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
-    const { eventId: routedEventId } = useParams();
+    const { eventId: routedEventId } = useRoomRouteParams();
     const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
     const { t } = useTranslation();
     const timeFormat = useMemo(
@@ -326,7 +326,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     // it. A message of the room is focused in the room, also in the thread views (as leaving a
     // thread focuses its root); a thread reply opens in its thread, as a search hit does.
     const openMessage = (eventId: string, threadRootId?: string) => {
-      requestClose();
+      requestClose('navigate');
       const open = () => {
         if (threadRootId && threadRootId !== eventId) {
           navigateRoomThread(room.roomId, threadRootId, eventId);
@@ -377,7 +377,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               size="300"
               radii="300"
               aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
-              onClick={requestClose}
+              onClick={() => requestClose('dismiss')}
             >
               <Icon size="100" src={Icons.Cross} />
             </IconButton>

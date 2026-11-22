@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "Tutup",
-      "invited": "{{user}} telah diundang."
+      "invited": "{{user}} telah diundang.",
+      "giveRoleRights": "Berikan hak {{role}}",
+      "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
+      "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
+      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -271,6 +276,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Beberapa gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
+    },
+    "agentCard": {
+      "agent": "Agen",
+      "close": "Tutup",
+      "configuredTools": "Alat yang dikonfigurasi",
+      "toolCount_other": "{{count}} alat",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Juga {{groups}}",
+      "viewAll_other": "Lihat semua {{count}} alat",
+      "toolsTitle": "Alat {{name}}",
+      "filter": "Saring alat",
+      "noMatch": "Tidak ada alat yang cocok.",
+      "back": "Kembali",
+      "more": "Lainnya",
+      "worksIn": "Bekerja di",
+      "loading": "Memuat alat yang dikonfigurasi",
+      "availability": "Ketersediaan dapat berbeda menurut permintaan dan izin.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kode & file",
+        "research": "Web",
+        "productivity": "Penjadwalan & memori",
+        "email": "Email",
+        "mcp": "Aplikasi terhubung",
+        "integrations": "Integrasi",
+        "communication": "Obrolan & pesan",
+        "entertainment": "Media",
+        "information": "Informasi",
+        "smart_home": "Rumah pintar",
+        "social": "Sosial",
+        "other": "Lainnya"
+      }
+    },
+    "space": {
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -389,9 +430,11 @@
         "profile": "foto profil, foto, nama, nama panggilan",
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
+        "voiceKey": "pesan suara, mikrofon, rekam, tekan untuk bicara, Control, Ctrl, Shift, spasi, pintasan keyboard",
         "emoji": "emoji, stiker, paket, emoji kustom",
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
-        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
+        "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -426,6 +469,7 @@
         "close": "Tutup tampilan panggilan",
         "participants": "Orang dalam panggilan",
         "connecting": "Menghubungkan…",
+        "connectingAnotherCall": "Menghubungkan ke panggilan lain…",
         "reconnecting": "Menghubungkan ulang…",
         "ended": "Panggilan berakhir.",
         "waitingFor": "Menunggu {{name}}…",
@@ -444,7 +488,7 @@
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
         "connection": "Koneksi panggilan terputus.",
-        "device": "Mikrofon atau kamera Anda tidak dapat digunakan.",
+        "device": "Mikrofon, kamera, atau speaker tidak dapat digunakan.",
         "untrustedService": "Panggilan ini berjalan di layanan panggilan yang tidak disediakan homeserver Anda, jadi Anda tidak dapat bergabung dari sini."
       },
       "devices": {
@@ -531,7 +575,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain.",
+        "thisApp": "Aplikasi ini",
+        "mindroomAgents": "Agen MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
@@ -549,7 +595,8 @@
     },
     "accountMenu": {
       "open": "Buka menu akun untuk {{name}}",
-      "manageAccounts": "Kelola akun"
+      "otherAccounts": "Akun lain",
+      "manage": "Kelola"
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"
@@ -670,6 +717,9 @@
         "save": "Simpan",
         "saved": "Tersimpan",
         "clear": "Hapus",
+        "saveSetting": "Simpan {{setting}}",
+        "savedSetting": "Tersimpan: {{setting}}",
+        "clearSetting": "Hapus {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
         "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
@@ -679,6 +729,41 @@
           "default": "Default",
           "auto": "Setiap pesan",
           "mentions": "Hanya saat disebut"
+        },
+        "sections": {
+          "agents": "Agen",
+          "threadTitles": "Judul utas"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Model bawaan untuk setiap agen, tim, dan perute di ruang ini. Pengaturan khusus utas tetap diutamakan.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "defaultDescription": "Ikuti pengaturan bawaan MindRoom untuk ruang ini.",
+          "unknown": "Model tidak dikenal: \"{{value}}\" tidak ada dalam daftar model ruang ini.",
+          "catalogUnavailable": "Daftar model tidak tersedia saat ini. Anda tetap dapat mengatur ulang ke bawaan yang dikonfigurasi.",
+          "storedRaw": "Pengaturan ruang: {{value}}"
+        },
+        "threadMode": {
+          "label": "Mode utas",
+          "description": "Apakah agen membalas di dalam utas atau di linimasa utama ruang ini.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "thread": "Utas",
+          "room": "Linimasa utama",
+          "effective": "Mode efektif saat ini: {{mode}}",
+          "effectiveModes": {
+            "thread": "Utas",
+            "room": "Linimasa utama",
+            "mixed": "Campuran (berbeda tiap agen)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Model judul",
+          "description": "Model yang menulis judul utas otomatis di ruang ini."
+        },
+        "agentInstructions": {
+          "label": "Instruksi agen",
+          "description": "Instruksi tambahan yang diberikan kepada setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan. Semua orang di ruang ini dapat membacanya, dan status ruang tidak terenkripsi ujung ke ujung, jadi jangan masukkan rahasia di sini.",
+          "placeholder": "Contoh: Buat jawaban singkat dan balas dalam bahasa Belanda"
         }
       }
     },
@@ -847,7 +932,10 @@
         "nameChose": "Dipilih oleh {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagen"
+        "subagents": "Subagen",
+        "writtenToCache": "Ditulis ke cache",
+        "notCached": "Tidak di-cache",
+        "conversation": "Percakapan"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
@@ -930,7 +1018,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "Pencarian gagal. Coba lagi.",
-        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”"
+        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”",
+        "retry": "Coba lagi"
       }
     },
     "notifications": {
@@ -945,7 +1034,10 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "includeResolvedThreads": "Sertakan utas yang telah diselesaikan",
+        "hideResolvedThreads": "Sembunyikan utas yang telah diselesaikan",
+        "forMeSummary": "{{summary}}. Filter Untuk saya aktif."
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -970,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Bentangkan semua pesan panjang",
-        "collapseAllLong": "Ciutkan semua pesan panjang"
+        "collapseAllLong": "Ciutkan semua pesan panjang",
+        "showFullMessage": "Tampilkan pesan lengkap"
       }
     },
     "computer": {
@@ -992,6 +1085,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Padatkan konteks agen sebelum balasan berikutnya dalam percakapan ini.",
         "reply_mode": "Tampilkan atau ganti apakah agen perlu disebut untuk memulai percakapan di sini (atur/setel ulang khusus admin ruang)."
       }
     },
@@ -1003,7 +1097,6 @@
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
       "needApproval_other": "{{count}} perlu persetujuan",
-      "toolCalls_other": "{{count}} panggilan alat",
       "tokens_other": "{{tokens}} token",
       "started": "Dimulai {{time}}",
       "open": "Buka",
@@ -1015,7 +1108,30 @@
         "time": "Waktu"
       },
       "stopTask": "Hentikan tugas",
-      "stopTaskFor": "Hentikan tugas: {{tool}}"
+      "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "stopStepFailed": "Tidak dapat menghentikan “{{step}}”. Coba lagi.",
+      "toolNames": {
+        "readFile": "Baca file",
+        "writeFile": "Tulis file",
+        "editFile": "Edit file",
+        "searchFiles": "Cari di file",
+        "browseFiles": "Telusuri file",
+        "runCommand": "Jalankan perintah",
+        "openPage": "Buka halaman web",
+        "searchWeb": "Cari di web",
+        "useBrowser": "Gunakan browser",
+        "checkMemory": "Periksa memori",
+        "updateMemory": "Perbarui memori",
+        "deleteMemory": "Hapus memori",
+        "useMessages": "Gunakan pesan Matrix",
+        "schedule": "Jadwalkan tugas",
+        "checkSchedule": "Periksa jadwal",
+        "updateSchedule": "Perbarui jadwal",
+        "cancelSchedule": "Batalkan tugas terjadwal",
+        "use": "Gunakan {{tool}}"
+      },
+      "jobTotal_other": "{{count}} tugas latar belakang",
+      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },
     "subagents": {
       "title": "Subagen",
@@ -1038,7 +1154,20 @@
       "hide": "Sembunyikan subagen",
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
-      "resize": "Ubah ukuran panel subagen"
+      "resize": "Ubah ukuran panel subagen",
+      "calls_other": "{{count}} panggilan",
+      "now": "Sekarang",
+      "needsApproval": "Perlu persetujuan",
+      "result": "Hasil",
+      "turnNumber": "giliran {{number}}",
+      "status": "Status",
+      "toolCallsNote": "panggilan alat",
+      "tokensSplit": "{{input}} masuk · {{output}} keluar",
+      "costNested": "+{{cost}} bertingkat",
+      "costOwn": "proses ini",
+      "showUsageDetails": "Tampilkan detail penggunaan",
+      "showUsageDetailsDescription": "Menampilkan panggilan alat, token, dan biaya pada subagen dan tugas latar belakang, serta apa yang sedang dikerjakan masing-masing.",
+      "usage": "Penggunaan"
     },
     "models": {
       "modelPicker": {
@@ -1056,6 +1185,8 @@
         "defaultChoice": "Bawaan",
         "threadOnly": "Model yang dipilih di sini hanya berlaku untuk utas ini.",
         "roomOverrideThreadOnly": "Diatur untuk ruangan ini dengan !room_model. Model yang dipilih di sini hanya berlaku untuk utas ini.",
+        "chooseNextThread": "Pilih model untuk utas berikutnya",
+        "nextThreadOnly": "Pilihan ini hanya berlaku untuk utas berikutnya.",
         "levels": {
           "off": "Mati",
           "minimal": "Minimal",
@@ -1071,11 +1202,40 @@
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+    },
+    "invites": {
+      "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",
+      "reopen": "Anda sudah masuk. Buka lagi tautan undangan dari email Anda.",
+      "framed": "Buka halaman ini di tab tersendiri untuk menggunakan undangan.",
+      "ready": "Bergabung ke ruang melalui {{router}} sebagai {{user}}",
+      "claiming": "Mengklaim undangan…",
+      "offline": "MindRoom ini tidak menjawab. Permintaan Anda tersimpan; undangan akan muncul di daftar ruang Anda saat MindRoom kembali.",
+      "rejected": "Undangan ini sudah tidak berlaku. Minta undangan baru.",
+      "retry": "Itu tidak berhasil. Coba lagi sebentar lagi.",
+      "joining": "Bergabung ke ruang…",
+      "join": "Gabung",
+      "tryAgain": "Coba lagi"
+    },
+    "uiActions": {
+      "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
+      "askForText": "Minta versi teks",
+      "copyRequest": "Salin permintaan",
+      "textVersionRequest": "Tolong kirim “{{title}}” di sini sebagai teks saja. Panel interaktif dinonaktifkan di aplikasi saya.",
+      "askForTextStatus": {
+        "hint": "Menaruh permintaan di kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "added": "Permintaan ditambahkan ke kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "kept": "Draf Anda tetap seperti semula. Salin permintaan untuk menambahkannya sendiri.",
+        "copied": "Permintaan disalin. Tempelkan ke draf Anda."
+      }
     }
   },
   "composer": {
     "voicePausedInThisRoom": "Rekaman suara dijeda — selesaikan atau buang rekaman yang belum terkirim di tempat lain di ruangan ini",
     "voiceThreadRootUnsent": "Utas pesan suara ini tidak memiliki pesan pertama yang terkirim. Coba lagi setelah pesan itu terkirim, atau buang rekamannya.",
+    "voiceIndicator": {
+      "recording": "Merekam {{time}}",
+      "paused": "Dijeda {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",
@@ -1095,7 +1255,10 @@
       "autoHint": "Biarkan agen memutuskan",
       "settingTitle": "Kirim saat agen sedang membalas",
       "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
-    }
+    },
+    "replyInThread": "Balas di utas…",
+    "newThreadIn": "Utas baru di {{room}}…",
+    "newThreadWith": "Utas baru dengan {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1144,6 +1307,10 @@
     "hints": {
       "chip": "{{keys}} untuk semua pintasan"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} merekam pesan suara",
+      "description": "Ketuk untuk memulai atau mengirim, tahan untuk bicara dan lepas untuk mengirim."
+    },
     "actions": {
       "palette": "Pencarian dan perintah",
       "settings": "Buka pengaturan",
@@ -1169,7 +1336,8 @@
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",
-      "callView": "Buka panggilan"
+      "callView": "Buka panggilan",
+      "voiceRecord": "Tahan untuk merekam pesan suara, ketuk untuk memulai atau mengirim"
     }
   },
   "thread": {
@@ -1203,7 +1371,10 @@
     "close": "Tutup utas",
     "resizeSecond": "Ubah ukuran utas kedua",
     "second": "Utas kedua",
-    "dropSecond": "Lepas untuk membuka di kolom kedua"
+    "dropSecond": "Lepas untuk membuka di kolom kedua",
+    "newUnknown": "Baru",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Menyebut Anda"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1516,9 +1687,10 @@
     }
   },
   "threadNav": {
-    "layout": "Tata letak utas",
-    "layoutRecent": "Terbaru",
-    "layoutSections": "Bagian",
+    "forMe": "Untuk saya",
+    "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
+    "roomForMeHint": "Hanya utas yang Anda ikuti atau yang berisi pesan dari agen atas nama Anda",
+    "emptyForMe": "Belum ada utas untuk Anda",
     "group": "Kelompokkan",
     "groupHint": "Kelompokkan menurut status",
     "sections": {
@@ -1546,6 +1718,36 @@
   },
   "threadActions": {
     "openBeside": "Buka di kolom kedua"
+  },
+  "roomSchedules": {
+    "thisThread": "Utas ini",
+    "elsewhereInRoom": "Di bagian lain ruang ini",
+    "filterAll": "Semua",
+    "filterLabel": "Filter tugas terjadwal",
+    "awaitingShort": "Menunggu",
+    "inSeconds": "dalam {{count}}d",
+    "inMinutes": "dalam {{count}}m",
+    "inHours": "dalam {{count}}j",
+    "inHoursMinutes": "dalam {{hours}}j {{minutes}}m",
+    "inDays": "dalam {{count}}h",
+    "thread": "Utas",
+    "destination": "Tujuan",
+    "showFullPrompt": "Tampilkan prompt lengkap",
+    "showLessPrompt": "Tampilkan lebih sedikit",
+    "details": "Detail",
+    "hideDetails": "Sembunyikan detail",
+    "copyId": "Salin ID",
+    "copied": "Disalin",
+    "edit": "Edit",
+    "cancel": "Batalkan",
+    "cancelConfirm": "Batalkan tugas terjadwal ini?",
+    "keep": "Simpan",
+    "cancelTask": "Batalkan tugas",
+    "cancelling": "Membatalkan...",
+    "cancelError": "Tidak dapat membatalkan tugas. Coba lagi.",
+    "cancellationSent": "Pembatalan dikirim",
+    "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
+    "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
   },
   "home": {
     "greeting": {

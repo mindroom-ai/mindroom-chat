@@ -2,16 +2,23 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { IconPlayerStopFilled } from '@tabler/icons-react';
 import { useAtomValue } from 'jotai';
+import classNames from 'classnames';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
-import { formatCallDuration } from '../lib/time';
+import { formatWorkDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import { isActiveSubagentStatus, isRestartInterrupted } from '../matrix/protocol/subagentFrame';
-import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
+import {
+  isActiveSubagentStatus,
+  isRestartInterrupted,
+  type SubagentUsage,
+} from '../matrix/protocol/subagentFrame';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
+import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
@@ -20,20 +27,27 @@ import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { Time } from '../messages/Time';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { settingsAtom } from '../preferences/settings';
 import { useHour24Clock } from '../preferences/useHour24Clock';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
+import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
+import { RunLogo, runLogoState } from './RunLogo';
+import { runToolCall } from './runActivity';
+import { formatTokens, runTotals, usageTexts, type RunTotals } from './runUsage';
 import {
-  AgentAvatar,
   RunStatus,
   SubagentRunCard,
-  elapsedSeconds,
+  ToolCallText,
   latestTurn,
-  useAgentProfile,
-  type AgentProfile,
+  nodeTitle,
+  turnTitle,
+  useRunTime,
   type SubagentNode,
   type SubagentTurn,
 } from './SubagentRunCard';
 import * as css from './subagentsPanel.css';
+import { useRunStop } from './useRunStop';
 
 /** A reader this close to the end still follows the newest text. */
 const FOLLOW_SLACK_PX = 24;
@@ -183,6 +197,111 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   );
 }
 
+/** What every run below `node` used, its own turns excluded. */
+const nestedTotals = (node: SubagentNode): RunTotals => {
+  const below: (SubagentUsage | undefined)[] = [];
+  const add = (child: SubagentNode) =>
+    child.turns.forEach(({ run, nested }) => {
+      below.push(run.meta.usage);
+      nested.forEach(add);
+    });
+  node.turns.forEach(({ nested }) => nested.forEach(add));
+  return runTotals(below);
+};
+
+/**
+ * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
+ * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
+ * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure
+ * its cells are what it used alone.
+ */
+function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotals; time: string }) {
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const { meta } = latestTurn(node);
+  const texts = usageTexts(totals, t, language);
+  const below = nestedTotals(node);
+  let costNote: string | undefined;
+  if (!below.tokens) costNote = t('mindroomUi.subagents.costOwn');
+  else if (below.costUsd !== undefined)
+    costNote = t('mindroomUi.subagents.costNested', {
+      cost: formatCostUsd(below.costUsd, language),
+    });
+  const status = {
+    key: 'status',
+    name: t('mindroomUi.subagents.status'),
+    value: <RunStatus meta={meta} />,
+    note: time,
+  };
+  const used = [
+    {
+      key: 'calls',
+      name: t('mindroomUi.backgroundJobs.column.calls'),
+      value: texts.calls?.compact ?? '0',
+      note:
+        node.turns.length > 1
+          ? t('mindroomUi.subagents.turns', { count: node.turns.length })
+          : t('mindroomUi.subagents.toolCallsNote'),
+    },
+    {
+      key: 'tokens',
+      name: t('mindroomUi.backgroundJobs.column.tokens'),
+      value: texts.tokens?.compact ?? '0',
+      note: t('mindroomUi.subagents.tokensSplit', {
+        input: formatTokens(totals.inputTokens ?? 0, language),
+        output: formatTokens(totals.outputTokens ?? 0, language),
+      }),
+    },
+    ...(texts.cost
+      ? [
+          {
+            key: 'cost',
+            name: t('mindroomUi.backgroundJobs.column.cost'),
+            value: texts.cost.compact,
+            note: costNote,
+          },
+        ]
+      : []),
+  ];
+  const cells = details ? [status, ...used] : used;
+  const strip = (
+    <dl className={css.Strip} data-subagent-strip="">
+      {cells.map((cell) => (
+        <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
+          <Text as="dt" size="T200" priority="300" className={css.StripName}>
+            {cell.name}
+          </Text>
+          <Text as="dd" size="T300" className={css.StripValue}>
+            {cell.value}
+          </Text>
+          <Text
+            as="dd"
+            size="T200"
+            priority="300"
+            className={css.StripNote}
+            title={cell.note}
+            truncate
+          >
+            {cell.note ?? ' '}
+          </Text>
+        </div>
+      ))}
+    </dl>
+  );
+  return details ? (
+    strip
+  ) : (
+    <details className={css.Usage} data-subagent-usage="">
+      <summary className={css.UsageSummary}>
+        <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
+        {t('mindroomUi.subagents.usage')}
+      </summary>
+      {strip}
+    </details>
+  );
+}
+
 type ViewProps = {
   room: Room;
   node: SubagentNode;
@@ -192,12 +311,17 @@ type ViewProps = {
   onBack: () => void;
   onOpen: (subagent: string) => void;
   onClose: () => void;
+  /** The conversation the panel lists runs of; a run in it needs no button to its thread. */
+  viewThreadId?: string | null;
+  /** A fork draft is on screen: its thread is read-only there, so no run of it can be stopped. */
+  readOnly?: boolean;
 };
 
 /**
  * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
  * sub-agents that turn started, then its reply. A reader at the end follows new text until they
- * scroll up.
+ * scroll up. Without the usage details (`showUsageDetails`) no line says what it does now, and what
+ * it used folds into a closed Usage; its model stays in the header.
  */
 export function SubagentRunView({
   room,
@@ -207,16 +331,31 @@ export function SubagentRunView({
   onBack,
   onOpen,
   onClose,
+  viewThreadId,
+  readOnly = false,
 }: ViewProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { navigateRoomThread } = useRoomNavigate();
-  const { run: newestRun, meta } = latestTurn(node);
+  const newest = latestTurn(node);
+  const { run: newestRun, meta } = newest;
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
-  const elapsed = elapsedSeconds(meta, now);
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const { threadId } = meta;
+  const first = node.turns[0].run.meta;
+  const title = nodeTitle(node, agent.name);
+  const time = useRunTime(meta, now);
+  const totals = useMemo(() => runTotals(node.turns.map(({ run }) => run.meta.usage)), [node]);
+  const used = totals.calls !== undefined;
+  // Stop cancels the newest turn's job, so it is named for that turn's task.
+  const turnName = turnTitle(meta, agent.name);
+  const stop = useRunStop(room, newest, turnName, readOnly);
+  const activity = details ? runToolCall(newest) : undefined;
+  const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
+  // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
+  const heading = useRef<HTMLHeadingElement>(null);
 
   // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
@@ -255,8 +394,15 @@ export function SubagentRunView({
     box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
   }, [opened]);
-  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
-  const getThread = useCallback(() => box.current?.firstElementChild, []);
+  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding), or a box
+  // that shrinks (the Usage above it opening).
+  const getThread = useCallback(
+    () =>
+      [box.current, box.current?.firstElementChild].filter(
+        (element): element is Element => !!element
+      ),
+    []
+  );
   useResizeObserver(keepEnd, getThread);
   // The card that opened it is gone, so focus moves to the way back. Before the panel's own
   // layout effect, which gives focus to the card of a sub-agent Back closed.
@@ -265,7 +411,7 @@ export function SubagentRunView({
 
   return (
     <>
-      <header className={SidePanelHeader}>
+      <header className={classNames(SidePanelHeader, css.RunHeader)}>
         <IconButton
           ref={backButton}
           size="300"
@@ -276,11 +422,29 @@ export function SubagentRunView({
         >
           <Icon size="200" src={Icons.ArrowLeft} />
         </IconButton>
+        <RunLogo
+          model={meta.model}
+          agent={agent}
+          kind="agent"
+          state={runLogoState(meta)}
+          className={css.HeaderLogo}
+        />
         <div className={css.Heading}>
-          <Text as="h2" size="H4" truncate>
-            {agent.name}
+          <Text
+            ref={heading}
+            as="h2"
+            size="H4"
+            tabIndex={-1}
+            className={css.RunTitle}
+            title={first.task}
+            dir="auto"
+          >
+            {title}
           </Text>
           <Text as="div" size="T200" priority="300" className={css.Standing}>
+            <span className={css.StandingModel} data-subagent-agent="">
+              {agent.name}
+            </span>
             {modelLabel && (
               <span
                 className={css.StandingModel}
@@ -290,11 +454,20 @@ export function SubagentRunView({
                 {modelLabel}
               </span>
             )}
-            <RunStatus meta={meta} />
-            {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
+            {node.turns.length > 1 && (
+              <span>{t('mindroomUi.subagents.turnNumber', { number: node.turns.length })}</span>
+            )}
+            {/* Without what the run used (older MindRoom), or with it folded away, how it stands
+                stays up here. */}
+            {(!used || !details) && (
+              <>
+                <RunStatus meta={meta} />
+                <span>{time}</span>
+              </>
+            )}
           </Text>
         </div>
-        {threadId && (
+        {threadId && threadId !== viewThreadId && (
           <IconButton
             size="300"
             radii="300"
@@ -304,6 +477,29 @@ export function SubagentRunView({
             onClick={() => navigateRoomThread(room.roomId, threadId)}
           >
             <Icon size="200" src={Icons.Thread} />
+          </IconButton>
+        )}
+        {active && stop.stopping && (
+          <span className={css.HeaderStopping} title={t('mindroomUi.backgroundJobs.stopping')}>
+            <Spinner size="100" variant="Secondary" aria-hidden />
+            <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
+          </span>
+        )}
+        {active && stop.stop && (
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Surface"
+            className={css.HeaderStop}
+            aria-label={stopLabel}
+            title={stopLabel}
+            onClick={() => {
+              heading.current?.focus();
+              stop.stop?.();
+            }}
+            data-subagent-stop=""
+          >
+            <IconPlayerStopFilled size={16} aria-hidden />
           </IconButton>
         )}
         <IconButton
@@ -316,6 +512,35 @@ export function SubagentRunView({
           <Icon size="200" src={Icons.Cross} />
         </IconButton>
       </header>
+      {used && <RunStrip node={node} totals={totals} time={time} />}
+      {activity && (
+        <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">
+          {meta.status === 'running' ? (
+            <>
+              <span className={css.Tick} aria-hidden />
+              <span className={css.VisuallyHidden}>{t('mindroomUi.subagents.now')}</span>
+            </>
+          ) : (
+            <span className={css.LineLabel.approval}>
+              <span className={css.LineMark} aria-hidden>
+                !
+              </span>
+              {t('mindroomUi.subagents.needsApproval')}
+            </span>
+          )}
+          <ToolCallText activity={activity} />
+          {meta.status === 'running' && activity.startedAt !== undefined && (
+            <span className={css.NowTime}>
+              {formatWorkDuration(Math.max(0, now - activity.startedAt * 1000), language)}
+            </span>
+          )}
+        </Text>
+      )}
+      {stop.failure && (
+        <Text as="div" size="T200" role="alert" className={css.StopFailure}>
+          {stop.failure}
+        </Text>
+      )}
       <div
         ref={box}
         className={css.Body}

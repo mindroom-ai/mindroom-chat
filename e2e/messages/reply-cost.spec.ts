@@ -27,7 +27,8 @@ const routeConfig = (context: BrowserContext) =>
     });
   });
 
-const aiRun = (usd: string) => ({
+// Replies differ in what their usage splits: by cache writes, by cache reads only, or not at all.
+const aiRun = (usd: string, split: 'writes' | 'reads' | 'none' = 'writes') => ({
   version: 1,
   status: 'completed',
   run_id: '6f1c2b0e-93d4-4c3a-8e57-2d9a1f4b7c60',
@@ -37,8 +38,8 @@ const aiRun = (usd: string) => ({
     input_tokens: 1674,
     output_tokens: 31,
     total_tokens: 1705,
-    cache_read_tokens: 1408,
-    uncached_input_tokens: 266,
+    ...(split === 'none' ? {} : { cache_read_tokens: 1408, uncached_input_tokens: 266 }),
+    ...(split === 'writes' ? { cache_write_tokens: 250 } : {}),
     time_to_first_token: '0.412',
   },
   context: {
@@ -93,7 +94,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Cut the branch first.',
-    'io.mindroom.ai_run': aiRun('0.0034'),
+    'io.mindroom.ai_run': aiRun('0.0034', 'reads'),
     'm.relates_to': inThread,
   });
   await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
@@ -127,7 +128,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Done, v2.4 is tagged.',
-    'io.mindroom.ai_run': aiRun('0.0026'),
+    'io.mindroom.ai_run': aiRun('0.0026', 'none'),
     'm.relates_to': inThread,
   });
   // Anyone can write the same keys; only MindRoom's own accounts count.
@@ -195,9 +196,11 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(page.getByText('1,408 · 82.6%', { exact: true })).toBeVisible();
   await page.mouse.move(0, 0);
   await expect(costCard).toContainText('This reply · 2 of 3');
-  await expect(section('Tokens')).toContainText('Tokens1,705');
-  await expect(section('Tokens')).toContainText('From cache 1,408');
-  await expect(section('Tokens')).toContainText('New input 266');
+  const tokens = section('Tokens');
+  await expect(tokens).toContainText('This reply1,705');
+  await expect(tokens).toContainText('From cache 1,408');
+  await expect(tokens).toContainText('Written to cache 250');
+  await expect(tokens).toContainText('Not cached 16');
   await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
   await expect(dialog).toContainText('2 tool calls');
   await expect(dialog).toContainText('First token 412 ms');
@@ -215,6 +218,27 @@ test('reply details show what a reply and the conversation so far cost', async (
   ).toBeVisible();
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-dark.png') });
+  await page.keyboard.press('Escape');
+  // The switch shows the conversation's tokens through the last reply, from the keyboard too,
+  // each reply's input in the parts its usage splits it into.
+  await detailsOf('Done, v2.4 is tagged.').click();
+  const conversation = tokens.getByRole('button', { name: 'Conversation', exact: true });
+  await conversation.focus();
+  await page.keyboard.press('Space');
+  await expect(conversation).toHaveAttribute('aria-pressed', 'true');
+  await expect(tokens.locator('li')).toHaveText([
+    'From cache 2.8K',
+    'Written to cache 250',
+    'Not cached 16',
+    'New input 266',
+    'Input 1.7K',
+    'Output 93',
+  ]);
+  await expect(tokens).toContainText('Conversation so far · 3 replies5.1K');
+  await page.screenshot({ path: testInfo.outputPath('conversation-desktop-dialog-dark.png') });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.screenshot({ path: testInfo.outputPath('conversation-desktop-dialog-light.png') });
+  await page.emulateMedia({ colorScheme: 'dark' });
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
@@ -238,6 +262,10 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(costCard).toContainText('Conversation so far$0.0034');
   await expect(costCard).toContainText('This reply · 1 of 3');
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
+  // The switch opens on this reply every time.
+  await expect(
+    section('Tokens').getByRole('button', { name: 'This reply', exact: true })
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });
 

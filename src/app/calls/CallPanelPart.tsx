@@ -66,7 +66,7 @@ export function CallPanelUnavailable({
       ? { roomId: callHomeRoomId(active), threadId: active.origin?.threadId }
       : { roomId: room.roomId };
   return (
-    <CallViewChrome title={title} onClose={onClose} home={home}>
+    <CallViewChrome roomId={room.roomId} title={title} onClose={onClose} home={home}>
       {unavailable}
     </CallViewChrome>
   );

@@ -132,7 +132,7 @@ test('a room upgrade keeps its sub-room under the new room, with its agents', as
   await invite(stack, parentId, member.userId);
   await joinRoom(stack.homeserver, member.accessToken, parentId);
   await joinRoom(stack.homeserver, member.accessToken, subId);
-  const agents = [stack.agents.helper, stack.agents.router];
+  const agents = [stack.agents.helper];
   await expect
     .poll(() => joinedMembers(stack, subId), AGENT_WAIT)
     .toEqual(expect.arrayContaining(agents));

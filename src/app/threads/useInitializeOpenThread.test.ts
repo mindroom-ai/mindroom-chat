@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
-import { ThreadEvent, type Room, type Thread } from 'matrix-js-sdk';
+import { ThreadEvent, type Room } from 'matrix-js-sdk';
 import { useInitializeOpenThread } from './useInitializeOpenThread';
 
 const makeThread = (id: string) => ({ id, initialize: vi.fn() });
@@ -40,8 +40,8 @@ describe('useInitializeOpenThread', () => {
     const other = makeThread('$other');
     const created = makeThread('$root');
     act(() => {
-      room.emit(ThreadEvent.New, other as unknown as Thread, false);
-      room.emit(ThreadEvent.New, created as unknown as Thread, false);
+      room.emit(ThreadEvent.New, other, false);
+      room.emit(ThreadEvent.New, created, false);
     });
     expect(other.initialize).not.toHaveBeenCalled();
     expect(created.initialize).toHaveBeenCalledTimes(1);

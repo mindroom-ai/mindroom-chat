@@ -7,7 +7,6 @@ import { ThreadEvent } from 'matrix-js-sdk';
 import { callPanelRoomAtom } from '../calls/callStore';
 import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientConfig } from '../config/useClientConfig';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import {
   SecondThreadContext,
@@ -27,7 +26,7 @@ const { mx, room, state } = vi.hoisted(() => {
   return {
     state: {
       members,
-      config: {} as ClientConfig,
+      config: {},
       thread: undefined as string | undefined,
       view: undefined as RoomViewProps | undefined,
       second: undefined as SecondThreadControl | undefined,
@@ -65,6 +64,11 @@ const { mx, room, state } = vi.hoisted(() => {
     },
   };
 });
+
+// The route names no event.
+vi.mock('../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({}),
+}));
 
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },

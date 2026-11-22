@@ -205,7 +205,7 @@ const replyWithBundledEdit = (status: string) => {
   // Bundled events need not name their room.
   const bundled = { ...editIn('$finish', 4, '$answer', status).event };
   delete bundled.room_id;
-  answer.setUnsigned({ 'm.relations': { [RelationType.Replace]: bundled } } as never);
+  answer.setUnsigned({ 'm.relations': { [RelationType.Replace]: bundled } });
   return answer;
 };
 

@@ -6,7 +6,7 @@ import { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } from '../../preferences/accountSett
 import { AgentInterfaceSettings } from './AgentInterfaceSettings';
 
 const state = vi.hoisted(() => ({
-  config: {} as ClientConfig,
+  config: {},
   localMindroom: true,
   write: vi.fn(() => Promise.resolve()),
 }));
@@ -98,7 +98,10 @@ describe('Settings > General > Sidebar', () => {
 
   it('leaves out the switches of buttons the deployment or the account cannot show', () => {
     state.localMindroom = false;
-    const renderer = render({ sidebar: { showThreads: false, showExploreCommunity: false } });
+    const renderer = render({
+      sidebar: { showThreads: false, showExploreCommunity: false },
+      mindroom: { canvas: { enabled: false } },
+    });
     expect(titles(renderer)).toEqual(['Show Search in the sidebar']);
   });
 

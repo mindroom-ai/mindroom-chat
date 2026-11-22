@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollbare tabel",
-    "scrollHint": "Horizontaal scrollen"
+    "scrollHint": "Horizontaal scrollen",
+    "readByRow": "Per rij lezen",
+    "showTable": "Tabel tonen"
   },
   "messageCodeBlock": {
     "actions": "Codeblokacties",
@@ -1155,7 +1157,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Deze space is vervangen en niet meer actief.",
       "openNewSpace": "Nieuwe space openen",
       "joinNewSpace": "Deelnemen aan nieuwe space",
-      "lobby": "Lobby",
       "messageSearch": "Berichten zoeken",
       "failedToJoinReplacementSpace": "Deelnemen aan vervangende space mislukt!",
       "rooms": "Kamers",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "Spraakopname hervatten",
       "statusActive": "Spraakopname actief",
       "statusPaused": "Spraakopname gepauzeerd",
-      "statusProcessing": "Spraakopname wordt verwerkt",
       "statusReadyToRetry": "Spraakopname kan opnieuw worden geprobeerd",
+      "recoveredRecording": "Herstelde opname · {{time}}",
       "statusSending": "Spraakopname wordt verstuurd",
       "statusStarting": "Spraakopname wordt gestart",
       "voiceRecorderDialog": {
@@ -2619,9 +2620,6 @@
         "argumentsMayDifferBetweenCalls": "Argumenten kunnen per aanroep verschillen.",
         "requestedBy": "Aangevraagd door {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "Router-agent transcribeert"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI antwoordt"
       },
@@ -2930,7 +2928,9 @@
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
-      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen.",
+      "canvasCard": "Interactief paneel",
+      "reminderCard": "Herinnering · {{when}}"
     },
     "canvas": {
       "panelLabel": "Interactief paneel",

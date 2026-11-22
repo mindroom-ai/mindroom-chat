@@ -100,7 +100,7 @@ describe('composeTextMessage', () => {
       {
         type: 'code-block',
         children: [{ type: 'code-line', children: [{ text: '/me waves' }] }],
-      } as Descendant,
+      },
     ]);
     expect(content?.msgtype).toBe(MsgType.Text);
   });

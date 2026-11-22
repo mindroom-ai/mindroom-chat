@@ -16,6 +16,9 @@ export const isInAppPath = (path: unknown): path is string =>
   !path.startsWith('//') &&
   !path.includes('\\');
 
+/** A path as it may be saved: without its fragment, which can hold a code (an invite link's). */
+export const withoutFragment = (path: string): string => path.split('#', 1)[0] ?? '';
+
 type StoredRedirect = {
   path: string;
   savedAt: number;
@@ -49,7 +52,7 @@ const parseStoredRedirect = (raw: string | null): StoredRedirect | undefined => 
 
 export const setAfterLoginRedirectPath = (path: string): void => {
   if (!isInAppPath(path)) return;
-  const value: StoredRedirect = { path, savedAt: Date.now() };
+  const value: StoredRedirect = { path: withoutFragment(path), savedAt: Date.now() };
   try {
     getStorage()?.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch {

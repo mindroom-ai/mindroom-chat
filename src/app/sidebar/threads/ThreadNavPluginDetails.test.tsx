@@ -44,7 +44,7 @@ const plugin = (id: string, threadDetails: ThreadDetail[]): RegisteredPlugin => 
 
 const renderDetails = (
   plugins: readonly RegisteredPlugin[],
-  { threadId = '$root', config = {} as ClientConfig } = {}
+  { threadId = '$root', config = {} } = {}
 ) =>
   render(
     <ClientConfigProvider value={config}>

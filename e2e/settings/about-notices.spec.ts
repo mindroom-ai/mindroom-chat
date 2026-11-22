@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
@@ -14,6 +16,11 @@ import {
 // server serves the same file).
 const PASSWORD = 'about-notices-spec-password';
 const NOTICES = '/public/licenses/THIRD_PARTY_NOTICES.txt';
+// The version the build ships, so that an upgrade of the dependency needs no change here.
+const { dependencies } = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as {
+  dependencies: Record<string, string>;
+};
+const MATRIX_JS_SDK = `matrix-js-sdk ${dependencies['matrix-js-sdk']}`;
 
 test.use({
   viewport: { width: 1280, height: 800 },
@@ -51,13 +58,13 @@ test('the build serves the third-party notices as text, and About opens them', a
   const served = await response.text();
   expect(served.startsWith('Third-party notices\n')).toBe(true);
   // A runtime dependency with its declared license and license file; no development tool.
-  expect(served).toContain('\nmatrix-js-sdk 41.7.0\nLicense: Apache-2.0\n');
+  expect(served).toContain(`\n${MATRIX_JS_SDK}\nLicense: Apache-2.0\n`);
   expect(served).toContain('\nFile LICENSE:\n');
   expect(served).not.toContain('\nvitest ');
 
   const dialog = await openAbout(page);
   await dialog.getByRole('button', { name: 'Third-party notices', exact: true }).click();
-  const text = page.locator('pre code').filter({ hasText: 'matrix-js-sdk 41.7.0' });
+  const text = page.locator('pre code').filter({ hasText: MATRIX_JS_SDK });
   await expect(text).toBeVisible();
   expect(await text.textContent()).toBe(served);
   await expect(page.getByRole('button', { name: 'Copy All', exact: true })).toBeVisible();

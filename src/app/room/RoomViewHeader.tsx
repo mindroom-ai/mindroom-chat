@@ -1,12 +1,23 @@
-import { Fragment, useState, type ReactElement } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type ReactElement,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Badge, Box, Icons, Text, config, toRem, type RectCords } from 'folds';
+import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
 import { PageHeader } from '../ui/page/Page';
 import { RoomTopicViewer } from './RoomTopicViewer';
 import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
@@ -19,6 +30,8 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -37,7 +50,21 @@ import {
   RoomSchedulesButton,
   RoomSchedulesMenuEntry,
   RoomSchedulesOverlay,
+  usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
+import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
+import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
+import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  pendingVoiceSendDraftAtom,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { toPlainText } from '../editor/output';
+import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
@@ -53,6 +80,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
+import { sendCancelScheduledTask } from './roomScheduleActions';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
   HeaderActionButton,
@@ -62,6 +90,7 @@ import {
   type RoomHeaderAction,
   type RoomHeaderEntry,
 } from './roomHeaderActions';
+import { selectPhoneHeaderActions, usePhoneHeaderSlots } from './phoneHeaderActions';
 import { HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
 
@@ -77,6 +106,10 @@ export type RoomViewHeaderProps = {
   openThreadId?: string;
   /** The room's thread filters: the filter button marks them while their bar is hidden. */
   threadFilterState?: ThreadFilterState;
+  /** Focuses the target conversation composer after an action closes a header dialog. */
+  onFocusComposer?: (targetThreadId?: string) => void;
+  /** False when the active view has no eligible composer to receive an edit command. */
+  canEditSchedule?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -150,6 +183,10 @@ const cornerDot = (marker: `data-${string}`) => (
   />
 );
 
+// Menu entries use More Options as their popup's opener, not the row shortcut.
+const openedFromRow = (opener?: HTMLButtonElement) =>
+  opener?.isConnected === true && !opener.hasAttribute('data-room-more-options');
+
 /** The room's list, which the room menu's Leave goes to once the room is left. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
   if (spacePathId) return getSpacePath(spacePathId);
@@ -182,10 +219,9 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 /**
  * The room header: avatar, name and topic (only the name on phones), then its actions (the Compact and
  * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
- * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
- * its row leaves out, and whether this room shows tool calls. Phones keep the name, the call
- * buttons and the room menu, so a long name keeps its room. The top bar's menu button, not the
- * header, leads back to the list there.
+ * calls, pinned messages, members, and the plugins' actions) and the room menu. Phones add row
+ * shortcuts for a few menu actions when they fit, without removing them from the menu. The top
+ * bar's menu button, not the header, leads back to the list there.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -193,6 +229,8 @@ export function RoomViewHeader({
   threadId,
   openThreadId = threadId,
   threadFilterState,
+  onFocusComposer,
+  canEditSchedule = true,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -210,6 +248,7 @@ export function RoomViewHeader({
   const room = useRoom();
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const { slots, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
@@ -224,8 +263,12 @@ export function RoomViewHeader({
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
+  const store = useStore();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
+  const canSendMessages = permissions.event('m.room.message', myUserId);
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const canManageSchedules = Boolean(hasMindroomAgents && canSendMessages && !tombstone);
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -239,11 +282,19 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const [pinAnchor, setPinAnchor] = useState<RectCords>();
-  // On phones the room menu opens these; they stay with the room they were opened in.
-  const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
-  const [schedulesRoomId, setSchedulesRoomId] = useState<string>();
+  const focusedAction = useRef<HTMLElement>();
+  const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
+  const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
+  const openSchedules = (opener?: HTMLButtonElement) =>
+    setSchedules({ roomId: room.roomId, opener });
+  const pendingSchedules = usePendingRoomSchedules(room);
+  const displayedScheduleCount = getRoomScheduleCount(
+    pendingSchedules,
+    mobile ? openThreadId : undefined
+  );
+  useEffect(() => {
+    if (!schedulesOpen && schedules) setSchedules(undefined);
+  }, [schedulesOpen, schedules]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -258,8 +309,11 @@ export function RoomViewHeader({
   const roomName = revealDirectionControls(useRoomName(room));
   const roomTopic = useRoomTopic(room);
   // Phones keep the header to the name; the topic stays in the room's settings.
-  const topic = !mobile && roomTopic ? revealDirectionControls(roomTopic) : undefined;
-  const [topicOpen, setTopicOpen] = useState(false);
+  const topic = roomTopic ? revealDirectionControls(roomTopic) : undefined;
+  const [topicOpener, setTopicOpener] = useState<HTMLButtonElement>();
+  useEffect(() => {
+    if (!topic) setTopicOpener(undefined);
+  }, [topic]);
 
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
@@ -299,17 +353,57 @@ export function RoomViewHeader({
     ? t('mindroomUi.subagents.hide')
     : t('mindroomUi.subagents.show');
 
-  // An action in the room menu closes it before it acts where the menu's button was.
-  const closeMenu = () => setMenuAnchor(undefined);
-  const fromMenu = (act: (menuButton: RectCords | undefined) => void) => () => {
-    const menuButton = menuAnchor;
-    closeMenu();
-    act(menuButton);
-  };
+  // Dismissal or an opener disappearing returns lost focus to the opener or this header’s ⋮.
+  const headerFocusTarget = useCallback(
+    (opener?: HTMLElement) =>
+      opener?.isConnected
+        ? opener
+        : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ?? false,
+    [headerRef]
+  );
+  const restoreFocusAfterDismiss = useCallback(
+    (opener?: HTMLElement) => {
+      // Run after the trap has let go, unless another control already received focus.
+      requestAnimationFrame(() => {
+        const target = headerFocusTarget(opener);
+        if (!target || target.getClientRects().length === 0) return;
+        const { activeElement, body } = target.ownerDocument;
+        if (!activeElement || activeElement === body) target.focus({ preventScroll: true });
+      });
+    },
+    [headerFocusTarget]
+  );
+
   const canvasesHere = showCanvases && canvases ? canvases : [];
+  const needsCanvasChooser = canvasesHere.length > 1;
+  const menu = useHeaderPopup(restoreFocusAfterDismiss);
+  const pins = useHeaderPopup(restoreFocusAfterDismiss);
+  const canvasMenu = useHeaderPopup(restoreFocusAfterDismiss, needsCanvasChooser);
+
+  const forgetActionFocus = ({ target, relatedTarget }: FocusEvent<HTMLElement>) => {
+    if (focusedAction.current !== target) return;
+    if (relatedTarget && relatedTarget !== target.ownerDocument.body) {
+      focusedAction.current = undefined;
+    } else {
+      queueMicrotask(() => {
+        if (target.isConnected && focusedAction.current === target)
+          focusedAction.current = undefined;
+      });
+    }
+  };
+  // Removing a focused header control does not always emit focusout.
+  useLayoutEffect(() => {
+    if (!focusedAction.current || focusedAction.current.isConnected) return;
+    focusedAction.current = undefined;
+    restoreFocusAfterDismiss();
+  });
+
+  const fromMenu = (act: (menuButton: HTMLButtonElement | undefined) => void) => () => {
+    menu.close();
+    act(menu.opener);
+  };
   const canvasShownHere = canvasesHere.some((canvas) => canvas.canvasId === openCanvasId);
-  const chooseCanvas = (canvasId: string) => {
-    setCanvasMenuAnchor(undefined);
+  const toggleCanvas = (canvasId: string) => {
     if (canvasId === openCanvasId) onCanvasClose?.();
     else onCanvasOpen?.(canvasId);
   };
@@ -321,9 +415,38 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
+  const cancelScheduledTask = useCallback(
+    (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
+    [mx, room]
+  );
+  const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
+    if (!isCommandSafeTaskId(task.taskId)) return undefined;
+    if (
+      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(pendingVoiceSendDraftAtom)?.recovered
+    ) {
+      return 'draft-busy';
+    }
+    const prefix = `!edit_schedule ${task.taskId} `;
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey(myUserId, room.roomId, threadId)
+    );
+    const existing = store.get(draftAtom);
+    const offer = [createParagraphElement(prefix)];
+    const targetOffer = toPlainText(existing, false).startsWith(prefix) ? existing : offer;
+    const offerState = store.get(
+      composerOfferAtom([myUserId, room.roomId, threadId], targetOffer, confirmedVoiceThreadId)
+    );
+    if (offerState === 'busy') return 'draft-busy';
+    const opener = schedules?.opener;
+    flushSync(() => setSchedules(undefined));
+    if (onFocusComposer) onFocusComposer(threadId);
+    else restoreFocusAfterDismiss(opener);
+    if (offerState === 'empty') store.set(draftAtom, offer);
+    return 'prefilled';
+  };
 
-  // The header's actions, in the order of its row; the room menu takes, in the same order, those
-  // that do not fit (showsInRow).
+  // The header's actions, in the order both the row and the room menu use.
   const listed: (RoomHeaderEntry | false | undefined)[] = [
     viewSwitch &&
       !threadId && {
@@ -362,11 +485,18 @@ export function RoomViewHeader({
     hasMindroomAgents && {
       id: 'schedules',
       placement: 'auto',
-      row: <RoomSchedulesButton room={room} onOpenThread={openScheduledThread} />,
+      phoneEligible: displayedScheduleCount > 0,
+      row: (
+        <RoomSchedulesButton
+          total={displayedScheduleCount}
+          open={schedulesOpen && openedFromRow(schedules?.opener)}
+          onOpen={openSchedules}
+        />
+      ),
       menu: (
         <RoomSchedulesMenuEntry
-          room={room}
-          onSelect={fromMenu(() => setSchedulesRoomId(room.roomId))}
+          total={pendingSchedules.length}
+          onSelect={fromMenu(openSchedules)}
         />
       ),
     },
@@ -380,17 +510,21 @@ export function RoomViewHeader({
             openCanvasId={openCanvasId}
             onOpen={onCanvasOpen}
             onClose={onCanvasClose}
+            chooser={{
+              open: openedFromRow(canvasMenu.opener),
+              onOpen: canvasMenu.open,
+            }}
           />
         ),
         menu: (
           <MenuEntry
             icon={Icons.Category}
             label={canvasEntryLabel}
-            aria-haspopup={canvasesHere.length > 1 ? 'menu' : undefined}
+            aria-haspopup={needsCanvasChooser ? 'menu' : undefined}
             onSelect={fromMenu((menuButton) => {
               const [only] = canvasesHere;
-              if (canvasesHere.length > 1) setCanvasMenuAnchor(menuButton);
-              else if (only) chooseCanvas(only.canvasId);
+              if (needsCanvasChooser) canvasMenu.open(menuButton);
+              else if (only) toggleCanvas(only.canvasId);
             })}
           />
         ),
@@ -414,22 +548,39 @@ export function RoomViewHeader({
           : subagentsLabel,
       icon: SubagentsIcon,
       placement: 'auto',
+      phoneEligible: activeSubagents > 0,
       pressed: subagentsVisible,
       active: subagentsVisible,
       badge: activeSubagents > 0 && cornerCount(activeSubagents),
       run: () => onPanelToggle?.('subagents'),
       marker: 'data-subagents-toggle',
     },
-    // The call buttons, in the row on phones too, so a call is one tap away.
-    calls && { id: 'call', placement: 'row', row: calls },
+    // Keep call controls in the same group across rotation. Only phones measure its width.
+    {
+      id: 'call',
+      placement: 'row',
+      row: (
+        <Box
+          alignItems="Center"
+          gap="100"
+          ref={callGroupRef}
+          className={css.CallGroup}
+          data-room-header-call-group=""
+        >
+          <RestoreHeaderFocus.Provider value={restoreFocusAfterDismiss}>
+            {calls}
+          </RestoreHeaderFocus.Provider>
+        </Box>
+      ),
+    },
     pinnedCount > 0 && {
       id: 'pins',
       label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
       icon: Icons.Pin,
       placement: 'auto',
       popup: 'dialog',
-      expanded: !!pinAnchor,
-      run: setPinAnchor,
+      expanded: openedFromRow(pins.opener),
+      run: pins.open,
     },
     {
       id: 'members',
@@ -437,6 +588,7 @@ export function RoomViewHeader({
       icon: Icons.User,
       placement: 'auto',
       shortcut: 'members',
+      focusFallback: () => headerFocusTarget(),
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
     },
@@ -481,8 +633,25 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
-  const menuEntries = entries.filter((entry) => !inRow(entry));
+  const promoted = selectPhoneHeaderActions(
+    slots,
+    entries
+      .filter((entry) => entry.placement === 'auto' && entry.phoneEligible !== false)
+      .map((entry) => entry.id)
+  );
+  const inBaseRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
+  const rowEntries = entries.filter((entry) => inBaseRow(entry) || promoted.has(entry.id));
+  // Plugins keep their original order on desktop and the same parent at either width. On phones
+  // only mandatory plugin controls reach this group, so promotions cannot affect its measurement.
+  const inMandatoryTail = ({ id }: RoomHeaderEntry) =>
+    id.startsWith('panel:') || id.startsWith('action:');
+  const drawRowEntry = (entry: RoomHeaderEntry) =>
+    drawnByHeader(entry) ? (
+      <HeaderActionButton key={entry.id} action={entry} />
+    ) : (
+      <Fragment key={entry.id}>{entry.row}</Fragment>
+    );
+  const menuEntries = entries.filter((entry) => !inBaseRow(entry));
   // What only works in the open room, before the room's own actions in the menu.
   const roomEntries =
     menuEntries.length > 0 &&
@@ -494,10 +663,37 @@ export function RoomViewHeader({
       )
     );
 
+  const moreOptions = (
+    <HeaderActionButton
+      action={{
+        label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
+        icon: Icons.VerticalDots,
+        popup: 'menu',
+        expanded: !!menu.opener,
+        run: menu.open,
+        marker: 'data-room-more-options',
+        // A promoted button already shows its own badge.
+        badge:
+          menuEntries.some(
+            (entry) => !promoted.has(entry.id) && drawnByHeader(entry) && !!entry.badge
+          ) && cornerDot('data-room-menu-dot'),
+      }}
+    />
+  );
+
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
-    <PageHeader role="banner" className={css.Header}>
+    <PageHeader
+      ref={headerRef}
+      role="banner"
+      className={css.Header}
+      onFocus={({ target, currentTarget }: FocusEvent<HTMLElement>) => {
+        // Track header controls only, not entries in the portaled menu.
+        if (currentTarget.contains(target)) focusedAction.current = target;
+      }}
+      onBlur={forgetActionFocus}
+    >
       {/* On phones the name leads: the top bar's menu button above it reaches the list. */}
       <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
         {!mobile && (
@@ -523,123 +719,105 @@ export function RoomViewHeader({
           <Text as="h1" size="H5" truncate {...ownDirectionLine}>
             {roomName}
           </Text>
-          {topic && (
+          {!mobile && topic && (
             <button
               type="button"
               className={classNames(HeaderTopic, css.Topic)}
-              onClick={() => setTopicOpen(true)}
+              onClick={(event) => setTopicOpener(event.currentTarget)}
             >
               <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
                 {topic}
               </Text>
             </button>
           )}
-          {topic && topicOpen && (
+          {topic && topicOpener && (
             <RoomTopicViewer
               name={roomName}
               topic={topic}
-              requestClose={() => setTopicOpen(false)}
+              requestClose={(dismissed) => {
+                setTopicOpener(undefined);
+                if (dismissed || (dismissed === false && !topicOpener.isConnected)) {
+                  restoreFocusAfterDismiss(topicOpener);
+                }
+              }}
             />
           )}
         </Box>
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box shrink="No" alignItems="Center" gap="100">
-        {entries
-          .filter(inRow)
-          .map((entry) =>
-            drawnByHeader(entry) ? (
-              <HeaderActionButton key={entry.id} action={entry} />
-            ) : (
-              <Fragment key={entry.id}>{entry.row}</Fragment>
-            )
-          )}
-        <HeaderActionButton
-          action={{
-            label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
-            icon: Icons.VerticalDots,
-            popup: 'menu',
-            expanded: !!menuAnchor,
-            run: setMenuAnchor,
-            // A dot marks what the menu holds that a button would show: join requests, active
-            // sub-agents or hidden active filters, on phones.
-            badge:
-              menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
-              cornerDot('data-room-menu-dot'),
-          }}
-        />
+        {rowEntries.filter((entry) => !inMandatoryTail(entry)).map(drawRowEntry)}
+        <Box
+          alignItems="Center"
+          gap="100"
+          ref={mandatoryTailRef}
+          data-room-header-mandatory-tail=""
+        >
+          {rowEntries.filter(inMandatoryTail).map(drawRowEntry)}
+          {moreOptions}
+        </Box>
       </Box>
       <PopOut
-        anchor={pinAnchor}
+        anchor={pins.anchor}
         position="Bottom"
         align="End"
         offset={4}
         content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              clickOutsideDeactivates: () => {
-                setPinAnchor(undefined);
-                return true;
-              },
-              escapeDeactivates: () => {
-                setPinAnchor(undefined);
-                return true;
-              },
-            }}
-          >
-            <RoomPinMenu room={room} requestClose={() => setPinAnchor(undefined)} />
+          <FocusTrap focusTrapOptions={pins.trap}>
+            <RoomPinMenu
+              room={room}
+              requestClose={(reason) => (reason === 'dismiss' ? pins.dismiss() : pins.close())}
+            />
           </FocusTrap>
         }
       />
       <PopOut
-        anchor={menuAnchor}
+        anchor={menu.anchor}
         position="Bottom"
         align="End"
         offset={4}
         content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              clickOutsideDeactivates: () => {
-                closeMenu();
-                return true;
-              },
-              escapeDeactivates: () => {
-                closeMenu();
-                return true;
-              },
-            }}
-          >
+          <FocusTrap focusTrapOptions={menu.trap}>
             <RoomActionsMenu
               room={room}
               spaceId={space?.roomId}
               threadId={threadId}
               submenuSide="Left"
-              close={closeMenu}
+              close={menu.close}
               showDialog={showDialog}
-              onLeft={() => navigate(sectionPath)}
+              onLeft={() => void navigate(sectionPath)}
               roomEntries={roomEntries}
             />
           </FocusTrap>
         }
       />
-      {mobile && canvasesHere.length > 1 && (
+      {needsCanvasChooser && (
         <CanvasMenu
-          anchor={canvasMenuAnchor}
+          anchor={canvasMenu.anchor}
+          focusTrapOptions={canvasMenu.trap}
           canvases={canvasesHere}
           openCanvasId={openCanvasId}
-          onChoose={chooseCanvas}
-          requestClose={() => setCanvasMenuAnchor(undefined)}
+          onChoose={(canvasId) => {
+            toggleCanvas(canvasId);
+            canvasMenu.dismiss();
+          }}
         />
       )}
-      {mobile && hasMindroomAgents && schedulesRoomId === room.roomId && (
+      {schedulesOpen && (
         <RoomSchedulesOverlay
-          room={room}
-          onClose={() => setSchedulesRoomId(undefined)}
-          onOpenThread={(scheduledThreadId) => navigateRoomThread(room.roomId, scheduledThreadId)}
+          roomId={room.roomId}
+          headerRef={headerRef}
+          tasks={pendingSchedules}
+          openThreadId={openThreadId}
+          onClose={(dismissed) => {
+            setSchedules(undefined);
+            if (dismissed || (dismissed === false && !schedules?.opener?.isConnected)) {
+              restoreFocusAfterDismiss(schedules?.opener);
+            }
+          }}
+          onOpenThread={openScheduledThread}
+          onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
+          onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
         />
       )}
       {dialog}

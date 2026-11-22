@@ -95,7 +95,7 @@ describe('getThreadUnread, a streamed reply', () => {
     const { thread, reply } = await setup();
     reply.setUnsigned({
       'm.relations': { [RelationType.Replace]: edit('$finish', 3000, 'completed').event },
-    } as never);
+    });
 
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
@@ -105,7 +105,7 @@ describe('getThreadUnread, a streamed reply', () => {
     // After a reload or on another device: only the bundled edit, and the receipt names it.
     reply.setUnsigned({
       'm.relations': { [RelationType.Replace]: edit('$finish', 3000, 'completed').event },
-    } as never);
+    });
     room.addReceipt(receipt('$finish', 3100));
 
     expect(getThreadUnread(thread, USER_ID)).toBe(false);

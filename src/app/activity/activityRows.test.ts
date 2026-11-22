@@ -187,6 +187,18 @@ describe('buildActivityRows', () => {
     expect(kinds(build([[job, news]]).rows)).toEqual(['job:reply']);
   });
 
+  it('lists a resolved thread with news as a reply even if its signals carry a question', () => {
+    const thread = entry('asks', { isResolved: true, resolvedTs: NOW - 2 * 3600_000 });
+    const pendingQuestion = {
+      eventId: '$q',
+      senderId: '@mindroom_mind:x',
+      text: 'Which deck should I polish?',
+      options: [],
+    };
+    const { rows } = build([[thread, { newsTs: NOW - 3600_000, pendingQuestion }]]);
+    expect(kinds(rows)).toEqual(['asks:reply']);
+  });
+
   it('calls a thread whose root names the user unread, though no reply is new', () => {
     const { rows } = build([[entry('root'), { mentionedMe: true, newCount: 0 }]]);
     expect(rows.map((row) => [row.key, row.kind, row.unread])).toEqual([['root', 'mention', true]]);

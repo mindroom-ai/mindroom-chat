@@ -47,9 +47,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
             roomIdOrAlias={roomIdOrAlias}
             roomId={summary?.room_id ?? resolvedRoomId}
             allRooms={joinedRoomIds}
-            joinRule={
-              summary ? (summary.join_rule as JoinRule | undefined) ?? JoinRule.Public : undefined
-            }
+            joinRule={summary ? summary.join_rule ?? JoinRule.Public : undefined}
             accessStatus={state.status}
             onAccessRetry={retry}
             viaServers={viaServers}

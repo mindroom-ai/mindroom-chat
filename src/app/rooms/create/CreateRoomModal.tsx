@@ -29,7 +29,7 @@ export function CreateRoomModalRenderer() {
 
   const openCreated = (roomId: string) => {
     if (space) {
-      navigate(
+      void navigate(
         getSpaceRoomPath(
           getCanonicalAliasOrRoomId(client, space.roomId),
           getCanonicalAliasOrRoomId(client, roomId)

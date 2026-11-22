@@ -1,9 +1,11 @@
-import { FormEvent, RefObject, useEffect, useId, useRef, useState } from 'react';
+import { FormEvent, RefObject, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
   Button,
+  Checkbox,
   Icon,
   Icons,
   Input,
@@ -16,11 +18,24 @@ import {
   config,
   toRem,
 } from 'folds';
-import type { Room } from 'matrix-js-sdk';
+import { RoomMemberEvent, type MatrixEvent, type Room, type RoomMember } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { InviteUserAutocomplete } from './InviteUserAutocomplete';
+import {
+  detachedGrantErrorAtom,
+  evaluateModeratorGrant,
+  formatGrantFailure,
+  grantRoleName,
+  grantRoomModeratorRights,
+  hasModeratorMindroomAgent,
+} from './moderatorInvite';
+import { usePowerLevelTags } from '../usePowerLevelTags';
+import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useAlive } from '../../lib/hooks/useAlive';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { isUserId } from '../../matrix/matrix';
 import { stopPropagation } from '../../lib/keyboard';
 
@@ -76,14 +91,55 @@ const dialogTrapOptions = (
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
   const { t } = useTranslation();
   const reasonId = useId();
+  const moderatorHelpId = useId();
+  const store = useStore();
   const client = useMatrixClient();
   const alive = useAlive();
+  const levels = usePowerLevels(room);
+  const creators = useRoomCreators(room);
+  const tags = usePowerLevelTags(room);
+  const me = client.getSafeUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string>();
   // The last person invited: the dialog stays open for the next one.
   const [invited, setInvited] = useState<string>();
+  const [grantOverride, setGrantOverride] = useState<{ target: string; checked: boolean }>();
+  const [rosterVersion, bumpRoster] = useForceUpdate();
+
+  const trimmedTarget = userId.trim();
+  const offer = evaluateModeratorGrant(room, trimmedTarget, me, levels, creators);
+  const offerLevel = offer.kind === 'grant' ? offer.level : undefined;
+  const canOffer = offerLevel !== undefined;
+  const membersLoaded = room.membersLoaded();
+
+  // Load or observe the roster only when the checkbox is offered; take one snapshot after hydration.
+  const memberLoads = useLoadedRoomMembers(client, canOffer ? [room.roomId] : []);
+  useEffect(() => {
+    if (!canOffer || !membersLoaded) return undefined;
+    const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
+      if ((event?.getRoomId() ?? member?.roomId) === room.roomId) bumpRoster();
+    };
+    client.on(RoomMemberEvent.Membership, onMembership);
+    return () => {
+      client.removeListener(RoomMemberEvent.Membership, onMembership);
+    };
+  }, [canOffer, membersLoaded, client, room.roomId, bumpRoster]);
+
+  const hasAgentModerator = useMemo(() => {
+    void memberLoads;
+    void rosterVersion;
+    return (
+      offerLevel !== undefined &&
+      membersLoaded &&
+      hasModeratorMindroomAgent(room.getMembers(), me, levels, creators, offerLevel)
+    );
+  }, [offerLevel, membersLoaded, memberLoads, rosterVersion, room, me, levels, creators]);
+
+  const defaultModerator = membersLoaded && !hasAgentModerator;
+  const grantModerator =
+    grantOverride?.target === trimmedTarget ? grantOverride.checked : defaultModerator;
 
   useEffect(() => {
     if (invited && !inviting) inputRef.current?.focus();
@@ -98,24 +154,19 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     if (inviting) return;
-    const target = userId.trim();
-    if (!isUserId(target)) {
+    if (!isUserId(trimmedTarget)) {
       setError(t('featureUi.createChat.pleaseEnterAValidUserId'));
       return;
     }
     const form = evt.target as InviteFormTarget;
     const reason = form.reasonInput?.value.trim() || undefined;
+    const grantCeiling = grantModerator ? offerLevel : undefined;
 
     setInviting(true);
     setError(undefined);
     setInvited(undefined);
     try {
-      await client.invite(room.roomId, target, reason);
-      if (!alive()) return;
-      setUserId('');
-      if (form.reasonInput) form.reasonInput.value = '';
-      setInvited(target);
-      setInviting(false);
+      await client.invite(room.roomId, trimmedTarget, reason);
     } catch (inviteError) {
       if (!alive()) return;
       setError(
@@ -124,8 +175,31 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
           : String(inviteError)
       );
       setInviting(false);
+      return;
     }
+    if (alive()) {
+      setUserId('');
+      if (form.reasonInput) form.reasonInput.value = '';
+      setGrantOverride(undefined);
+      setInvited(trimmedTarget);
+    }
+
+    // Finish the submitted grant even if the user closed the dialog while invite was in flight.
+    if (grantCeiling !== undefined) {
+      const failure = await grantRoomModeratorRights(client, room, trimmedTarget, grantCeiling);
+      if (failure) {
+        const message = formatGrantFailure(failure, trimmedTarget, grantCeiling, tags, t);
+        if (alive()) {
+          setError(message);
+        } else if (client.clientRunning !== false) {
+          store.set(detachedGrantErrorAtom, { message });
+        }
+      }
+    }
+    if (alive()) setInviting(false);
   };
+
+  const roleName = offerLevel !== undefined ? grantRoleName(tags, offerLevel, t) : '';
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
@@ -174,13 +248,42 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                     readOnly={inviting}
                   />
                 </Box>
+                {canOffer && (
+                  <Box direction="Column" gap="100">
+                    <Box
+                      as="label"
+                      alignItems="Center"
+                      gap="200"
+                      style={{ cursor: inviting ? 'default' : 'pointer' }}
+                    >
+                      <Checkbox
+                        variant="Primary"
+                        size="200"
+                        checked={grantModerator}
+                        disabled={inviting}
+                        aria-describedby={moderatorHelpId}
+                        // folds leaves onChange out of its Checkbox type; the click toggles the choice.
+                        readOnly
+                        onClick={() =>
+                          setGrantOverride({ target: trimmedTarget, checked: !grantModerator })
+                        }
+                      />
+                      <Text size="T300">
+                        {t('sharedUi.inviteUserPrompt.giveRoleRights', { role: roleName })}
+                      </Text>
+                    </Box>
+                    <Text id={moderatorHelpId} size="T200" priority="300">
+                      {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
+                    </Text>
+                  </Box>
+                )}
                 {error && (
                   <Text size="T300" style={{ color: color.Critical.Main }} role="alert">
                     {error}
                   </Text>
                 )}
                 <Text size="T300" role="status">
-                  {invited && t('sharedUi.inviteUserPrompt.invited', { user: invited })}
+                  {invited && !error && t('sharedUi.inviteUserPrompt.invited', { user: invited })}
                 </Text>
                 <Button
                   type="submit"

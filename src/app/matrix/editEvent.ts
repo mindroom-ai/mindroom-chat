@@ -94,5 +94,5 @@ export const getSameSenderBundledEdit = (event: {
 }): Partial<IEvent> | undefined => {
   const relations = isRecord(event.unsigned) ? event.unsigned['m.relations'] : undefined;
   const edit = isRecord(relations) ? relations[RelationType.Replace] : undefined;
-  return isRecord(edit) && edit.sender === event.sender ? (edit as Partial<IEvent>) : undefined;
+  return isRecord(edit) && edit.sender === event.sender ? edit : undefined;
 };

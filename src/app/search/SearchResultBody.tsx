@@ -24,9 +24,11 @@ import {
 import type { ResultItem } from './useMessageSearch';
 import * as css from './SearchResultBody.css';
 import { matchesEnum } from '../lib/matchesEnum';
-import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { readCallTranscript } from '../matrix/protocol/callTranscript';
 import { revealDirectionControls } from '../ui/directional';
+import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
+import { useThreadSummaryStateMap } from '../event-store/threads/threadSummaryState';
+import { useActiveSession } from '../matrix/session/useSessionStore';
 
 /** One search hit and the terms the server matched in it. */
 export type SearchResultBodyProps = {
@@ -93,6 +95,13 @@ const getStateHitText = (
   return undefined;
 };
 
+/** The current title of the thread a title hit names, from the titles this device keeps. */
+const useCurrentThreadTitle = (roomId: string, rootId: string | undefined) => {
+  const sessionId = useActiveSession()?.sessionId;
+  const titles = useThreadSummaryStateMap({ roomId, sessionId: rootId && sessionId });
+  return rootId ? titles.get(rootId) : undefined;
+};
+
 /** A reply quotes a message that search does not return, so the hit says so. */
 const quotesAnotherMessage = (content: Record<string, unknown>): boolean => {
   const relation = content['m.relates_to'] as
@@ -119,18 +128,13 @@ export function SearchResultBody({
   const authenticated = useMediaAuthentication();
   const mediaAutoLoad = useSettingValue(settingsAtom, 'mediaAutoLoad');
   const { event } = item;
-  // Search hits are raw events: the same shape and agent-key checks as the timeline's events.
   const content = useMemo(
-    () =>
-      sanitizeContent(
-        getSearchResultEffectiveContent(event),
-        isTrustedAgentSender(event.sender)
-      ) as Record<string, unknown>,
+    () => getSearchResultEffectiveContent(event) as Record<string, unknown>,
     [event]
   );
   const preview = useMemo(
-    () => getSearchResultPreviewText(event, highlights, t),
-    [event, highlights, t]
+    () => getSearchResultPreviewText(event, highlights, t, content),
+    [event, highlights, t, content]
   );
   const matrixEvent = useMemo(() => new MatrixEvent(event), [event]);
   // A mention opens its profile card or room here, as it does in the timeline.
@@ -146,6 +150,20 @@ export function SearchResultBody({
     [client, room.roomId, authenticated, highlightRegex, openMention]
   );
 
+  const target = getSearchResultOpenTarget(event);
+  // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
+  const currentTitle = useCurrentThreadTitle(
+    room.roomId,
+    target.threadTitle && target.threadRootId
+  );
+  if (currentTitle?.summaryText) {
+    return (
+      <ThreadSummaryCard
+        summaryInfo={currentTitle}
+        renderBody={({ body }) => highlightText(revealDirectionControls(body), highlightRegex)}
+      />
+    );
+  }
   const stateText = getStateHitText(event, (key) => t(`featureUi.roomSettings.permissions.${key}`));
   if (stateText !== undefined)
     return <MarkedText text={stateText} highlightRegex={highlightRegex} />;
@@ -178,7 +196,7 @@ export function SearchResultBody({
     body = (
       <RenderMessageContent
         mEvent={matrixEvent}
-        eventId={getSearchResultOpenTarget(event).mainEventId}
+        eventId={target.mainEventId}
         roomId={room.roomId}
         eventType={event.type}
         msgType={typeof content.msgtype === 'string' ? content.msgtype : ''}

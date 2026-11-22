@@ -12,6 +12,7 @@ import {
 } from '@playwright/test';
 import { activeAccountButtonNamePattern } from './auth';
 import { matrixFetch, sendRoomMessage } from './matrix';
+import { COMPOSER_NAME } from './composerName';
 
 /**
  * Fixtures for the agent specs (`e2e/<domain>/agent-*.spec.ts`): a real MindRoom backend with the stub model of
@@ -320,7 +321,7 @@ export { expect };
 export const uniqueWord = (prefix: string): string =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-/** The router's access token, from the stack's state file; the stack keeps it out of its output. */
+/** The owner account's access token, kept in the stack's state file and out of its output. */
 export const routerToken = (stack: AgentStack): string =>
   (JSON.parse(readFileSync(join(stack.dir, 'state.json'), 'utf8')) as { routerToken: string })
     .routerToken;
@@ -366,7 +367,7 @@ export const showThread = async (page: Page, stack: AgentStack, rootId: string):
 };
 
 export const composer = (page: Page): Locator =>
-  page.getByRole('textbox', { name: 'Send a message...' });
+  page.getByRole('textbox', { name: COMPOSER_NAME });
 
 /** Types into the composer (a rich-text editor, so keystrokes rather than fill) and sends with Enter. */
 export const sendFromComposer = async (page: Page, text: string): Promise<void> => {
@@ -495,7 +496,7 @@ export const waitForAgentReply = (
     }
   );
 
-/** A new room of the tester with the helper and the router, once both joined it. */
+/** A new room of the tester with the helper, once the helper joined it. */
 export const createAgentRoom = async (
   stack: AgentStack,
   name: string,
@@ -510,7 +511,7 @@ export const createAgentRoom = async (
       body: JSON.stringify({
         name,
         preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
+        invite: [stack.agents.helper],
         initial_state: encrypted
           ? [
               {
@@ -531,63 +532,17 @@ export const createAgentRoom = async (
           `/rooms/${encodeURIComponent(roomId)}/joined_members`,
           { accessToken: stack.tester.accessToken }
         );
-        return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
+        return !!joined[stack.agents.helper];
       },
-      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the room' }
+      { timeout: 90_000, intervals: [500, 1000], message: 'the helper joins the room' }
     )
     .toBe(true);
   return roomId;
 };
 
-/** A new encrypted room of the tester with the helper and the router, once both joined it. */
+/** A new encrypted room of the tester with the helper, once the helper joined it. */
 export const createEncryptedAgentRoom = (stack: AgentStack, name: string): Promise<string> =>
   createAgentRoom(stack, name, true);
-
-/**
- * Reads the router's welcome thread in a new room, its root with a main-timeline receipt and its
- * reply with a receipt in its thread, so a test's counts are its own. The reader's own messages
- * read only their own thread or the main timeline (mindroom-tuwunel #139), so the welcome would
- * stay unread on the server, and a session that cannot decrypt it counts it otherwise.
- */
-export const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<void> => {
-  type Raw = { event_id: string; sender: string; content: { 'm.relates_to'?: unknown } };
-  let welcome: Raw[] = [];
-  await expect
-    .poll(
-      async () => {
-        const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=20`,
-          { accessToken: stack.tester.accessToken }
-        );
-        welcome = chunk.filter(
-          (event) =>
-            event.sender === stack.agents.router && event.content['m.relates_to'] !== undefined
-        );
-        const root = chunk.find(
-          (event) => event.sender === stack.agents.router && !event.content['m.relates_to']
-        );
-        if (root) welcome = [root, ...welcome];
-        return welcome.length;
-      },
-      { timeout: 30_000, intervals: [500, 1000], message: "the router's welcome thread" }
-    )
-    .toBeGreaterThanOrEqual(2);
-  const [root, ...replies] = welcome;
-  if (!root) throw new Error("The router's welcome has no root");
-  const receipt = (eventId: string, threadId: string) =>
-    matrixFetch(
-      stack.homeserver,
-      `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
-      {
-        method: 'POST',
-        accessToken: stack.tester.accessToken,
-        body: JSON.stringify({ thread_id: threadId }),
-      }
-    );
-  await receipt(root.event_id, 'main');
-  if (replies[0]) await receipt(replies[0].event_id, root.event_id);
-};
 
 /** Sends "@Helper <text>" from the composer, with the mention Tab takes from its suggestions. */
 export const mentionHelper = async (page: Page, stack: AgentStack, text: string): Promise<void> => {

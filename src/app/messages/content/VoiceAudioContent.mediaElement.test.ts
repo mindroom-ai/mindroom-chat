@@ -9,6 +9,7 @@ import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { VoiceAudioContent } from './VoiceAudioContent';
 
 const mocks = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   srcState: { status: 'success' as const, data: 'blob:voice-a' } as {
     status: string;
     data?: string;

@@ -35,7 +35,13 @@ export type ActivityInviteRow = {
   ts: number;
 };
 export type ActivityRow = ActivityThreadRow | ActivityInviteRow;
-export type ActivityRowsResult = { rows: ActivityRow[]; hiddenAutomations: number };
+/** Activity's rows; `ActivityRowsFeature` adds from what it built them: an index still loading. */
+export type ActivityRowsResult = {
+  rows: ActivityRow[];
+  hiddenAutomations: number;
+  loading?: boolean;
+  showAutomations?: boolean;
+};
 export type ActivityInvite = { roomId: string; inviterId?: string; ts: number };
 
 /** How long a read thread stays in Activity after its last activity. */
@@ -61,7 +67,7 @@ export const unreadCount = (rows: ActivityRow[]): number =>
 
 const threadKind = (signals: ThreadSignals, waits: boolean): ActivityThreadRow['kind'] => {
   if (signals.pendingApproval) return 'approval';
-  if (signals.pendingQuestion) return 'question';
+  if (waits && signals.pendingQuestion) return 'question';
   if (waits) return 'approval';
   if (signals.mentionedMe) return 'mention';
   const { outcome, lastReply } = signals;

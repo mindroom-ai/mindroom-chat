@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Box, Spinner } from 'folds';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../navigation/useResolvedRoomIdOrAlias';
@@ -9,7 +9,8 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { JoinBeforeNavigate } from '../rooms/join/JoinBeforeNavigate';
 import { getRoomSearchParams } from '../routes/pathSearchParam';
-import { decodeRouteParam, getSpacePath } from '../routes/pathUtils';
+import { getSpacePath } from '../routes/pathUtils';
+import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { useClientStartupContext } from '../matrix/ClientStartupContext';
 import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../navigation/routeVisibility';
 
@@ -29,10 +30,9 @@ export function RouteResolving() {
  */
 export function RoomRoute({ children }: { children: ReactNode }) {
   const mx = useMatrixClient();
-  const { roomIdOrAlias: encoded, eventId } = useParams();
+  const { roomIdOrAlias = '', eventId } = useRoomRouteParams();
   const [searchParams] = useSearchParams();
   const { viaServers, threadId } = getRoomSearchParams(searchParams);
-  const roomIdOrAlias = encoded ? decodeRouteParam(encoded) : '';
   const { roomId, isResolvingAlias } = useResolvedRoomIdOrAlias(roomIdOrAlias);
   const { hasCompletedInitialSync } = useClientStartupContext();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
@@ -57,7 +57,7 @@ export function RoomRoute({ children }: { children: ReactNode }) {
       <JoinBeforeNavigate
         key={roomIdOrAlias}
         roomIdOrAlias={roomIdOrAlias}
-        eventId={eventId ? decodeRouteParam(eventId) : undefined}
+        eventId={eventId}
         viaServers={viaServers?.split(',').filter(Boolean)}
         threadId={threadId}
       />

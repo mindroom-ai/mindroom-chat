@@ -47,11 +47,17 @@ const joinNamespacedAgent = async (room: PanelRoom, name: string, displayname: s
 
 /**
  * One sub-agent run of the room's agent, sending its frames in order: a sub-agent's first turn, or
- * a later turn of the sub-agent `subagent` names.
+ * a later turn of the sub-agent `subagent` names. `sent` goes into each frame's meta (its model,
+ * what it used).
  */
 const startRun = (
   room: PanelRoom,
-  { name, task, subagent }: { name: string; task: string; subagent?: string }
+  {
+    name,
+    task,
+    subagent,
+    sent = {},
+  }: { name: string; task: string; subagent?: string; sent?: Record<string, unknown> }
 ) => {
   const startedAt = Date.now() / 1000;
   const sid = `${Date.now()}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
@@ -68,6 +74,7 @@ const startRun = (
     status: 'running',
     started_at: startedAt,
     ended_at: null,
+    ...sent,
     ...extra,
   });
   const send = async (frame: Record<string, unknown>) => {
@@ -122,7 +129,8 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(3 * 60_000);
-  const room = await openPanelRoom(context, page);
+  // The calls show as sent with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
   await joinNamespacedAgent(room, 'researcher', 'Research Desk');
   const first = startRun(room, { name: 'researcher', task: 'Find when version 2 shipped.' });
   const second = startRun(room, { name: 'reviewer', task: 'Check the release notes.' });
@@ -153,11 +161,14 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
     'Looking it up. Checking the tags.'.length,
     '\n\n🔧 `run_shell_command` [1] ⏳\n\n'
   );
-  // The card previews the tool call as a thread card does; the run, opened, shows its row.
-  await expect(researcher).toContainText('1 tool');
+  // The card names the call it makes now; the run, opened, is headed by its task and shows its row.
+  await expect(researcher.locator('[data-subagent-line="now"]')).toHaveText(
+    'Nowrun_shell_command command=git tag'
+  );
   await researcher.click();
-  await expect(panel.getByRole('heading', { name: 'Research Desk' })).toBeVisible();
-  await expect(panel.getByText('Find when version 2 shipped.')).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Find when version 2 shipped.' })).toBeVisible();
+  await expect(panel.locator('[data-subagent-task]')).toHaveText('Find when version 2 shipped.');
+  await expect(panel.locator('[data-subagent-now]')).toContainText('run_shell_command');
   await expect(panel.getByRole('button', { name: /Running 1 tool call/ })).toBeVisible();
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-open-run.png') });
   await panel.getByRole('button', { name: 'Back', exact: true }).click();
@@ -204,4 +215,69 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(cards).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath('subagents-panel-phone.png') });
+});
+
+test('the Sub-agents panel shows no live activity, as it starts', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The reader keeps the app's default: no usage details.
+  const room = await openPanelRoom(context, page);
+  // The run sends its model and what it used, which the panel keeps behind a closed Usage.
+  const run = startRun(room, {
+    name: 'researcher',
+    task: "Summarize this week's meeting notes",
+    sent: {
+      model: {
+        config: 'fable',
+        display_name: 'Fable 5.2',
+        provider: 'anthropic',
+        id: 'claude-fable-5.2',
+      },
+      usage: { input_tokens: 300_000, output_tokens: 20_000, tool_calls: 12, cost_usd: 0.4 },
+    },
+  });
+  await run.snapshot('Reading the notes.');
+  const show = roomHeader(page).getByRole('button', {
+    name: 'Show sub-agents, 1 active',
+    exact: true,
+  });
+  await expect(show).toBeVisible({ timeout: 30_000 });
+  await show.click();
+  const panel = panelLocator(page, 'subagents');
+  const card = panel.locator('[data-subagent]');
+  await expect(card).toHaveCount(1);
+  await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
+  await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
+  await card.click();
+  await expect(
+    panel.locator('[data-subagent-transcript]').getByRole('button', { name: /Running 1 tool call/ })
+  ).toContainText('run_shell_command');
+  await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Back', exact: true }).click();
+  // Its status says it runs and its model shows; no line says what it does now, and no numbers or
+  // call show.
+  await expect(card).toContainText('Running');
+  await expect(card.locator('[data-subagent-model]')).toHaveText('Fable 5.2');
+  await expect(card.locator('[data-subagent-line]')).toHaveCount(0);
+  await expect(card.locator('[data-subagent-stat]')).toHaveCount(0);
+  await expect(card.locator('[data-subagent-time]')).toBeVisible();
+  await card.click();
+  // The open run's header keeps its model, and what it used waits in the closed Usage.
+  await expect(panel.locator('header [data-subagent-model]')).toHaveText('Fable 5.2');
+  const usage = panel.locator('details[data-subagent-usage]');
+  const cell = (name: string) => usage.locator(`[data-subagent-cell="${name}"]`);
+  await expect(usage).toBeVisible();
+  await expect(usage).not.toHaveAttribute('open');
+  await expect(cell('calls')).toBeHidden();
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-quiet.png') });
+  await usage.locator('summary').click();
+  await expect(usage).toHaveAttribute('open');
+  await expect(cell('calls')).toHaveText('Calls12tool calls');
+  await expect(cell('tokens')).toHaveText('Tokens320K300K in · 20K out');
+  await expect(cell('cost')).toHaveText('Cost$0.40this run');
+  await expect(cell('status')).toHaveCount(0);
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-usage-open.png') });
 });

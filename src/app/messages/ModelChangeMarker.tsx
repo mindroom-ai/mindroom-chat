@@ -44,12 +44,12 @@ const describeModel = (
 type ModelChangeMarkerProps = {
   change: ModelChange;
   room: Room;
-  /** When the router applied the change: its acknowledgement's time. */
+  /** When the agent applied the change: its acknowledgement's time. */
   ts: number;
 };
 
 // A thread's model change is a quiet fact of the thread, not a conversation: one line in place of
-// the command and the router's reply to it (`planModelChanges`). It names what the command named
+// the command and the agent's reply to it (`planModelChanges`). It names what the command named
 // and nothing else, since nothing the room can read says which model the change replaced. A
 // click opens who changed it, when, and what the change covers.
 export function ModelChangeMarker({ change, room, ts }: ModelChangeMarkerProps) {

@@ -1,8 +1,18 @@
 import type { TFunction } from 'i18next';
-import type { AiRunInfo, AiRunModelInfo } from '../../matrix/protocol/aiRun';
+import {
+  AI_RUN_TOKEN_KINDS,
+  getAiRunTokenCounts,
+  type AiRunInfo,
+  type AiRunTokenCounts,
+  type AiRunTokenKind,
+} from '../../matrix/protocol/aiRun';
 
 export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
+
+/** A large count in the reader's short style, such as 61.4M. */
+export const formatAiRunCompactNumber = (value: number, locale?: string): string =>
+  new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 
 export const formatAiRunTimeToFirstToken = (value: number | undefined): string | undefined => {
   if (typeof value !== 'number' || value < 0) return undefined;
@@ -30,7 +40,7 @@ export const formatAiRunPercentage = (percentage: number, locale?: string): stri
   }).format(percentage / 100);
 
 type AiRunTokenPart = {
-  key: 'cacheRead' | 'newInput' | 'input' | 'output';
+  key: AiRunTokenKind;
   label: string;
   tokens: number;
   percentage: number;
@@ -42,6 +52,8 @@ type AiRunContextBarSegment = AiRunTokenPart & {
 
 const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
+  cacheWrite: ['mindroomUi.messages.mindroomReplyDetails.writtenToCache', 'Written to cache'],
+  notCached: ['mindroomUi.messages.mindroomReplyDetails.notCached', 'Not cached'],
   newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
@@ -52,31 +64,20 @@ const tokenPartLabel = (key: AiRunTokenPart['key'], t?: TFunction): string => {
   return t ? t(labelKey) : fallback;
 };
 
-/** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
-export const getAiRunTokenParts = (
-  info: AiRunInfo,
+/** Token counts as parts of their total, in the order they are shown. */
+export const getAiRunTokenCountParts = (
+  counts: AiRunTokenCounts,
   t?: TFunction
 ): { total: number; parts: AiRunTokenPart[] } | undefined => {
-  const counts: [AiRunTokenPart['key'], number | undefined][] =
-    info.uncachedInputTokens === undefined
-      ? [
-          ['input', info.inputTokens],
-          ['output', info.outputTokens],
-        ]
-      : [
-          ['cacheRead', info.cacheReadTokens],
-          ['newInput', info.uncachedInputTokens],
-          ['output', info.outputTokens],
-        ];
-  const used = counts.filter((entry): entry is [AiRunTokenPart['key'], number] => {
-    const tokens = entry[1];
-    return tokens !== undefined && tokens > 0;
+  const used = AI_RUN_TOKEN_KINDS.flatMap((key) => {
+    const tokens = counts[key];
+    return tokens ? [{ key, tokens }] : [];
   });
-  const total = used.reduce((sum, [, tokens]) => sum + tokens, 0);
+  const total = used.reduce((sum, { tokens }) => sum + tokens, 0);
   if (total <= 0) return undefined;
   return {
     total,
-    parts: used.map(([key, tokens]) => ({
+    parts: used.map(({ key, tokens }) => ({
       key,
       label: tokenPartLabel(key, t),
       tokens,
@@ -85,49 +86,9 @@ export const getAiRunTokenParts = (
   };
 };
 
-export const getAiRunModelLabel = (info: AiRunModelInfo): string | undefined => {
-  const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
-  if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;
-  if (info.modelConfig) return info.modelConfig;
-  return providerAndId || undefined;
-};
-
-const GENERIC_MODEL_CONFIGS = new Set(['auto', 'default']);
-
-const titleCaseWords = (value: string): string =>
-  value
-    .split(/[_\s]+/)
-    .filter(Boolean)
-    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
-    .join(' ');
-
-const formatModelId = (modelId: string): string => {
-  const claudeMatch = modelId.match(/claude-(?:\d+(?:[-.]\d+)*-)?(opus|sonnet|haiku)(?:-(.*))?/i);
-  if (claudeMatch) {
-    const family = titleCaseWords(claudeMatch[1]!);
-    const version = claudeMatch[2]?.replace(/-/g, '.').replace(/(?:^|\.)latest$/i, '');
-    return version ? `${family} ${version}` : family;
-  }
-
-  if (/^gpt-/i.test(modelId)) return modelId.replace(/^gpt/i, 'GPT');
-  return titleCaseWords(modelId.replace(/-/g, ' '));
-};
-
-/** A short, friendly model name intended for the always-visible message badge. */
-export const getAiRunCompactModelLabel = (info: AiRunModelInfo): string | undefined => {
-  if (info.modelDisplayName) return info.modelDisplayName;
-
-  const modelConfig = info.modelConfig?.trim();
-  if (modelConfig && !GENERIC_MODEL_CONFIGS.has(modelConfig.toLowerCase())) {
-    return titleCaseWords(modelConfig);
-  }
-
-  const modelId = info.modelId?.trim();
-  if (modelId) return formatModelId(modelId);
-
-  const provider = info.modelProvider?.trim();
-  return provider ? titleCaseWords(provider) : undefined;
-};
+/** What a reply's tokens were spent on: its input, by where it came from, and its output. */
+export const getAiRunTokenParts = (info: AiRunInfo, t?: TFunction) =>
+  getAiRunTokenCountParts(getAiRunTokenCounts(info), t);
 
 const isValidContextBarTokenCount = (value: number | undefined): value is number =>
   typeof value === 'number' && value >= 0;

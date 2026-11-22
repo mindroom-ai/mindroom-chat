@@ -14,6 +14,7 @@ import { MessageExtras } from '../MessageExtras';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { ToolCallMessageContext, ToolCallsCogContext } from '../agent-run/toolCallStatus';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const approvals = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../approvals/ThreadApprovalProvider', () => ({
   useThreadApprovals: () => approvals.current,
@@ -125,6 +126,7 @@ const render = (
                 }}
                 htmlReactParserOptions={{}}
                 markerContent={content}
+                toolRows
               />
             )}
           </ToolCallsFold>

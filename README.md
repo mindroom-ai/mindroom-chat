@@ -28,7 +28,7 @@ It is also a complete Matrix client, with rooms, direct messages, spaces, end-to
 - 🧵 **Threads first.** The Compact view shows one card per thread under a filter bar (status and sort, plus tags and search in the advanced filters); the Threads view shows the room's timeline with each thread behind a badge under its first message. Agents title their threads, and you rename, tag, pin or resolve them.
 - ⚡ **Live agent replies.** Watch a reply stream in, with each tool call, the model it ran on and its token usage.
 - ✋ **You stay in charge.** A tool call that MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules gate waits on a card where you review its arguments. Calls that no rule matches run without asking unless `tool_approval.default` is `require_approval`.
-- 🖼️ **More than text.** Agent canvases (HTML pages in sandboxed frames, when `config.json` turns them on), the agent's computer as a remote desktop panel, schedules, background jobs, Connections, and pairing with a MindRoom on your own machine.
+- 🖼️ **More than text.** Agent canvases (HTML pages in sandboxed frames), the agent's computer as a remote desktop panel, schedules, background jobs, Connections, and pairing with a MindRoom on your own machine.
 - ✍️ **A rich composer.** Markdown, mentions, emoji, custom emoji and stickers, attachments and voice messages.
 - 🔒 **End-to-end encryption.** Private rooms you create here are encrypted by default, with device verification, key backup and a recovery key. Rooms that MindRoom creates for its agents start unencrypted unless their [room policy](https://docs.mindroom.chat/rooms/#room-policy) sets `encrypted: true`.
 - 📞 **Calls.** Voice and video calls and screen sharing over MatrixRTC (LiveKit).

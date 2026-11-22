@@ -22,7 +22,7 @@ const LIST_STYLE = {
   minWidth: toRem(220),
 };
 
-type Shared = { spaces: Room[]; rooms: Room[]; directs: Room[] };
+export type Shared = { spaces: Room[]; rooms: Room[]; directs: Room[] };
 
 /** The joined rooms `userId` is also joined to, as spaces, rooms and direct messages. */
 const getMutualRooms = (
@@ -48,20 +48,37 @@ const getMutualRooms = (
 };
 
 /**
- * How many joined rooms the person shares with the user; the chip opens them by kind, and a
- * row opens that room. Computed from the rooms this client has, so it needs no server support.
+ * The joined rooms `userId` is also joined to, kept up to date with the room list and, given
+ * their latest `membership` event in a room, with their membership there.
  */
-export function MutualRoomsChip({ userId, onOpen }: { userId: string; onOpen: () => void }) {
-  const { t } = useTranslation();
+export const useMutualRooms = (userId: string, membership?: unknown): Shared => {
   const client = useMatrixClient();
-  const { navigateRoom, navigateSpace } = useRoomNavigate();
   const roomIds = useAtomValue(allRoomsAtom);
   const directIds = useAtomValue(mDirectAtom);
-  const [anchor, setAnchor] = useState<RectCords>();
-  const shared = useMemo(
+  return useMemo(
     () => getMutualRooms(client, roomIds, directIds, userId),
-    [client, roomIds, directIds, userId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `membership` only says when to count again.
+    [client, roomIds, directIds, userId, membership]
   );
+};
+
+/**
+ * How many joined rooms the person shares with the user; the chip opens them by kind, and a
+ * row opens that room. Computed from the rooms this client has, so it needs no server support.
+ * `label` names the chip instead of the count, such as "+3" after rooms shown beside it.
+ */
+export function MutualRoomsChip({
+  shared,
+  onOpen,
+  label,
+}: {
+  shared: Shared;
+  onOpen: () => void;
+  label?: string;
+}) {
+  const { t } = useTranslation();
+  const { navigateRoom, navigateSpace } = useRoomNavigate();
+  const [anchor, setAnchor] = useState<RectCords>();
   const count = shared.spaces.length + shared.rooms.length + shared.directs.length;
   if (count === 0) return null;
 
@@ -101,12 +118,13 @@ export function MutualRoomsChip({ userId, onOpen }: { userId: string; onOpen: ()
       radii="Pill"
       aria-haspopup="menu"
       aria-expanded={Boolean(anchor)}
-      before={<Icon size="50" src={Icons.Category} />}
+      before={label ? undefined : <Icon size="50" src={Icons.Category} />}
+      aria-label={label ? t(`${KEY}.mutualRooms`, { count }) : undefined}
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         setAnchor(event.currentTarget.getBoundingClientRect())
       }
     >
-      <Text size="B300">{t(`${KEY}.mutualRooms`, { count })}</Text>
+      <Text size="B300">{label ?? t(`${KEY}.mutualRooms`, { count })}</Text>
     </Chip>
   );
 

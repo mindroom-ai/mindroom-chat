@@ -5,12 +5,14 @@ import {
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
+  useLocation,
   useRouteError,
 } from 'react-router-dom';
 import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
 import { useHistoryStackRecorder } from '../routes/historyStack';
+import { decodeRouteParam, getSpaceLobbyPath } from '../routes/pathUtils';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
   resolveProtectedRouteRedirect,
@@ -31,6 +33,7 @@ import {
   HOME_PATH,
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
+  INVITE_PATH,
   ACTIVITY_INVITES_PATH,
   ACTIVITY_PATH,
   ACTIVITY_ROOM_PATH,
@@ -49,6 +52,7 @@ import {
   THREADS_ROOM_PATH,
 } from '../routes/paths';
 import { getAppBasePath } from '../lib/basePath';
+import { markPageStartup } from '../lib/startupTimeline';
 import { AuthLayout } from '../account/auth/AuthLayout';
 import { Login } from '../account/auth/login/Login';
 import { Register } from '../account/auth/register/Register';
@@ -65,11 +69,13 @@ let clientPages: ClientPages | undefined;
 let roomModule: RoomModule | undefined;
 const loadClientPages = () =>
   import('./clientPages').then((pages) => {
+    if (!clientPages) markPageStartup('pages.loaded');
     clientPages = pages;
     return pages;
   });
 const loadRoom = () =>
   import('../room/Room').then((room) => {
+    if (!roomModule) markPageStartup('room.loaded');
     roomModule = room;
     return room;
   });
@@ -131,6 +137,7 @@ const ActivityNav = fromPages((pages) => pages.ActivityNav);
 const ActivityEmpty = fromPages((pages) => pages.ActivityEmpty);
 const ExploreNav = fromPages((pages) => pages.ExploreNav);
 const PluginPageRoute = fromPages((pages) => pages.PluginPageRoute);
+const InvitePage = fromPages((pages) => pages.InvitePage);
 const Room = fromModule(
   () => roomModule,
   loadRoom,
@@ -174,6 +181,18 @@ function RootRedirect() {
   const decision = resolveRootRouteRedirect(currentHref());
   if (decision.afterLoginPath) setAfterLoginRedirectPath(decision.afterLoginPath);
   return <Navigate to={decision.redirectTo} replace />;
+}
+
+/**
+ * A space's own address on a desktop: its lobby, at the address the app's links to it use. Not the
+ * relative `lobby`, which React Router 7 resolves from the address as typed, encoding the `%` of
+ * an escaped `/` in the space's ID again. The ID comes from the address's own segment, decoded
+ * once: the route's parameter has its escaped `/` decoded already, so a `%2F` in the ID itself
+ * would be lost.
+ */
+function SpaceLobbyRedirect() {
+  const [, segment = ''] = useLocation().pathname.split('/');
+  return <Navigate to={getSpaceLobbyPath(decodeRouteParam(segment))} replace />;
 }
 
 /** Signed-in routes send signed-out visitors to login and remember where they were going. */
@@ -239,6 +258,8 @@ export const createRouter = (clientConfig: ClientConfig) => {
             </PageMain>
           }
         />
+        {/* A mailed invitation link. Its own route, or it would open as a space named "invite". */}
+        <Route path={INVITE_PATH} element={<InvitePage />} />
         <Route path={HOME_PATH} element={<SectionPage navId="home" nav={<Home />} />}>
           <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />
@@ -293,7 +314,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           {/* A space opens on its lobby; phones stay here, its room list out over the lobby. */}
           <Route
             index
-            element={<SectionIndex page={<Navigate to="lobby" replace />} phonePage={<Lobby />} />}
+            element={<SectionIndex page={<SpaceLobbyRedirect />} phonePage={<Lobby />} />}
           />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
           <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />

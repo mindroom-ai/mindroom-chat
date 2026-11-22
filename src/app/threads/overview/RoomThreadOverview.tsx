@@ -3,7 +3,7 @@ import {
   type ThreadWorkflowCounts,
 } from '../../event-store/threads/threadWorkflow';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
+import { Box, Icon, Icons, type IconSrc, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
 import {
@@ -93,7 +93,7 @@ function ThreadInfoPopover({
     : t('thread.stats.threadCount', { count: totalThreadCount });
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
       setOpen(false);
     }
   }, []);
@@ -279,8 +279,9 @@ export type RoomThreadOverviewProps = {
   isThreadSortFrozen?: boolean;
   onSortDirectionChange: () => void;
   onToggleThreadSortFreeze: () => void;
-  /** Simple mode's one filter: hide resolved threads or show them all. */
+  /** Simple mode: hide resolved threads or show them all. */
   onToggleUnresolvedOnly?: () => void;
+  onToggleForMe?: () => void;
   onReset: () => void;
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
@@ -289,26 +290,35 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
-  /** The cards show in sections (Working, Needs you, Later, Done), each in its own order. */
+  /** The cards show in sections (Needs you, Working, Later, Done), each in its own order. */
   threadSections?: boolean;
   /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
   onToggleThreadSections?: () => void;
 };
 
-/**
- * Compact's Group switch between the sorted cards and their sections, beside the sort. A narrow
- * bar shows only its icon, as the workflow tabs do.
- */
-function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  const { t } = useTranslation();
-  const label = t('threadNav.group');
+/** A filter-bar toggle that shows only its icon on a narrow bar. */
+function ThreadBarToggle({
+  label,
+  hint,
+  icon,
+  on,
+  onToggle,
+  sections,
+}: {
+  label: string;
+  hint: string;
+  icon: IconSrc;
+  on: boolean;
+  onToggle: () => void;
+  sections?: boolean;
+}) {
   return (
     <TooltipProvider
       position="Bottom"
       align="Center"
       tooltip={
         <Tooltip style={{ maxWidth: toRem(220) }}>
-          <Text size="T200">{t('threadNav.groupHint')}</Text>
+          <Text size="T200">{hint}</Text>
         </Tooltip>
       }
     >
@@ -320,10 +330,10 @@ function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => v
           aria-pressed={on}
           onClick={onToggle}
           aria-label={label}
-          data-thread-sections="true"
+          data-thread-sections={sections ? 'true' : undefined}
         >
-          <Icon size="100" src={GroupThreadsIcon} aria-hidden="true" />
-          <Text size="T200" className={css.SectionsSwitchLabel}>
+          <Icon size="100" src={icon} aria-hidden="true" />
+          <Text size="T200" className={css.BarToggleLabel}>
             {label}
           </Text>
         </button>
@@ -399,6 +409,7 @@ export function RoomThreadOverview({
   onSortDirectionChange,
   onToggleThreadSortFreeze,
   onToggleUnresolvedOnly,
+  onToggleForMe,
   onReset,
   onAddTag,
   onRemoveTag,
@@ -441,7 +452,7 @@ export function RoomThreadOverview({
     [hasMindroomAgents, onSearchQueryChange, state]
   );
 
-  const filterSummary = filtersActive
+  const countSummary = filtersActive
     ? t('mindroomUi.threads.roomThreadOverview.showingFilteredThreads', {
         count: threadCount,
         total: totalThreadCount,
@@ -449,6 +460,9 @@ export function RoomThreadOverview({
     : t('mindroomUi.threads.roomThreadOverview.showingAllThreads', {
         count: threadCount,
       });
+  const filterSummary = state.forMe
+    ? t('mindroomUi.threads.roomThreadOverview.forMeSummary', { summary: countSummary })
+    : countSummary;
   const liveSummary = isThreadSortFrozen
     ? t('mindroomUi.threads.roomThreadOverview.sortLockedSummary', {
         summary: filterSummary,
@@ -566,12 +580,27 @@ export function RoomThreadOverview({
 
   // Sections order their cards themselves, so the sort and its lock make way for the switch.
   const sectionsSwitch = onToggleThreadSections && (
-    <ThreadSectionsSwitch on={threadSections} onToggle={onToggleThreadSections} />
+    <ThreadBarToggle
+      sections
+      label={t('threadNav.group')}
+      hint={t('threadNav.groupHint')}
+      icon={GroupThreadsIcon}
+      on={threadSections}
+      onToggle={onToggleThreadSections}
+    />
+  );
+  const forMeSwitch = onToggleForMe && (
+    <ThreadBarToggle
+      label={t('threadNav.forMe')}
+      hint={t('threadNav.roomForMeHint')}
+      icon={Icons.User}
+      on={state.forMe === true}
+      onToggle={onToggleForMe}
+    />
   );
 
-  // Simple mode keeps the sorting choice plus one agent-room filter: hide
-  // resolved threads or show everything. The upstream filter state is already
-  // projected onto this visible subspace.
+  // Simple mode shows For me and, in agent rooms, Unresolved. The state already
+  // reflects which filters are visible.
   if (simpleMode) {
     const unresolvedOnly = state.resolved === 'exclude';
     return (
@@ -598,8 +627,8 @@ export function RoomThreadOverview({
                   <Tooltip style={{ maxWidth: toRem(220) }}>
                     <Text size="T200">
                       {unresolvedOnly
-                        ? t('thread.simpleFilter.showingUnresolved')
-                        : t('thread.simpleFilter.showingAll')}
+                        ? t('mindroomUi.threads.roomThreadOverview.includeResolvedThreads')
+                        : t('mindroomUi.threads.roomThreadOverview.hideResolvedThreads')}
                     </Text>
                   </Tooltip>
                 }
@@ -621,9 +650,10 @@ export function RoomThreadOverview({
           )}
           {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
           {sectionsSwitch}
+          {forMeSwitch}
           {filterModeSwitch}
         </div>
-        {hasMindroomAgents && emptyFilteredState}
+        {emptyFilteredState}
       </Box>
     );
   }
@@ -681,6 +711,7 @@ export function RoomThreadOverview({
 
         {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
         {sectionsSwitch}
+        {forMeSwitch}
         <ThreadSearchBar
           searchQuery={searchQueryDraft}
           filtering={hasSearchOnlyThreadFilters(state)}

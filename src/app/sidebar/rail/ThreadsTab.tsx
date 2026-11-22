@@ -28,7 +28,7 @@ export function ThreadsTab({ onSelect }: ThreadsTabProps) {
 
   const openThreads = () => {
     if (onSelect?.(active)) return;
-    navigate(getThreadsPath());
+    void navigate(getThreadsPath());
   };
 
   const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (

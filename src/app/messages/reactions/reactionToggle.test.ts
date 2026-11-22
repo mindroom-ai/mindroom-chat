@@ -30,7 +30,7 @@ const setup = async (status: number) => {
     baseUrl: 'https://matrix.example',
     userId: ME,
     accessToken: 'token',
-    fetchFn: fetchFn as unknown as typeof fetch,
+    fetchFn: fetchFn,
   });
   const room = new Room(ROOM_ID, mx, ME, {
     pendingEventOrdering: PendingEventOrdering.Chronological,

@@ -91,9 +91,14 @@ const buildMessageSection = (
   messages: CommandPaletteMessages,
   searchText: string,
   tab: CommandPaletteTab,
-  t: TFunction
+  t: TFunction,
+  listedIds: ReadonlySet<string>
 ): CommandPaletteListSection => {
   const notes: CommandPaletteListNote[] = [];
+  // A thread's title adds nothing beside that thread's own row.
+  const hits = messages.items.filter(
+    (item) => !item.titleOfThreadId || !listedIds.has(item.titleOfThreadId)
+  );
   const settled = messages.status === 'done' || messages.status === 'error';
   if (!searchText) {
     notes.push({ id: 'hint', text: t('commandPalette.messageSearch.hint') });
@@ -101,7 +106,7 @@ const buildMessageSection = (
     notes.push({ id: 'loading', text: t('commandPalette.messageSearch.searching'), busy: true });
   } else if (messages.status === 'error') {
     notes.push({ id: 'error', text: t('mindroomUi.message-search.messageSearch.searchFailed') });
-  } else if (messages.items.length === 0) {
+  } else if (hits.length === 0) {
     notes.push({
       id: 'none',
       text: t('mindroomUi.message-search.messageSearch.noResultsFor', { term: searchText }),
@@ -113,7 +118,7 @@ const buildMessageSection = (
 
   const items: ExecutableCommandPaletteItem[] =
     searchText && messages.status === 'done'
-      ? messages.items.slice(0, getCommandPaletteSectionLimit('messages', tab))
+      ? hits.slice(0, getCommandPaletteSectionLimit('messages', tab))
       : [];
   if (searchText && settled) {
     items.push({
@@ -321,9 +326,10 @@ export function CommandPalette({
         return [{ ...section, title: t(TAB_LABEL_KEYS[section.id]) }];
       }
     );
+    const listed = new Set(sections.flatMap((section) => section.items.map((item) => item.id)));
     // The server's messages go below everything the client found itself.
     return getCommandPaletteSectionOrder(tab, searchText.length > 0).includes('messages')
-      ? [...sections, buildMessageSection(messages, searchText, tab, t)]
+      ? [...sections, buildMessageSection(messages, searchText, tab, t, listed)]
       : sections;
   }, [messages, pageId, people, searchText, source, t, tab]);
   const visibleSections = useMemo(
@@ -483,7 +489,23 @@ export function CommandPalette({
       return;
     }
 
-    if (page && event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    const plainTab = event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (plainTab && !event.shiftKey && (page || tab === COMMAND_PALETTE_TABS.at(-1))) {
+      // The glass Modal around the dialog holds its notice slot, beside the dialog itself.
+      const noticeButton = event.currentTarget
+        .closest('[role="dialog"]')
+        ?.parentElement?.querySelector<HTMLButtonElement>(
+          '[data-dialog-notice-slot] button:not(:disabled)'
+        );
+      if (noticeButton) {
+        event.preventDefault();
+        event.stopPropagation?.();
+        noticeButton.focus();
+        return;
+      }
+    }
+
+    if (page && plainTab) {
       // A page has no tabs. Tab does nothing there, so the field keeps the focus and Escape
       // always goes back; the dialog's focus containment moves focus from a document listener.
       event.preventDefault();

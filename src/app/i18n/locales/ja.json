@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "スクロール可能なテーブル",
-    "scrollHint": "横スクロール"
+    "scrollHint": "横スクロール",
+    "readByRow": "行ごとに読む",
+    "showTable": "表を表示"
   },
   "messageCodeBlock": {
     "actions": "コードブロックの操作",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "このスペースは置き換えられ、現在は使用されていません。",
       "openNewSpace": "新しいスペースを開く",
       "joinNewSpace": "新しいスペースに参加する",
-      "lobby": "ロビー",
       "messageSearch": "メッセージ検索",
       "failedToJoinReplacementSpace": "代替スペースに参加できませんでした!",
       "rooms": "ルーム",
@@ -2229,8 +2230,8 @@
       "resumeRecording": "音声録音を再開する",
       "statusActive": "音声録音が有効です",
       "statusPaused": "音声録音が一時停止されました",
-      "statusProcessing": "音声録音の処理",
       "statusReadyToRetry": "音声録音を再試行する準備ができています",
+      "recoveredRecording": "復元された録音 · {{time}}",
       "statusSending": "音声録音を送信する",
       "statusStarting": "音声録音を開始する",
       "voiceRecorderDialog": {
@@ -2612,9 +2613,6 @@
         "argumentsMayDifferBetweenCalls": "引数は呼び出しごとに異なる場合があります。",
         "requestedBy": "{{requester}} によってリクエストされました"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "ルーターエージェントが転写中です"
-      },
       "streamingIndicator": {
         "aiIsResponding": "AI が応答中です"
       },
@@ -2917,7 +2915,9 @@
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
+      "canvasCard": "インタラクティブパネル",
+      "reminderCard": "リマインダー · {{when}}"
     },
     "canvas": {
       "panelLabel": "インタラクティブパネル",

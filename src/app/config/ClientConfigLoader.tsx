@@ -2,10 +2,12 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Capacitor } from '@capacitor/core';
 import { type ClientConfig, useOptionalClientConfig } from './useClientConfig';
 import { trimTrailingSlash } from '../lib/common';
+import { markPageStartup } from '../lib/startupTimeline';
 import {
   authenticationConfigurationLoaded,
   recoverAuthentication,
 } from '../../boot/authenticationRecovery';
+import { leavePage } from '../../boot/inviteFragment';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../boot/serviceWorkerNavigation';
 
 /** The server answered `config.json` with a sign-in redirect or 401/403: the web session expired. */
@@ -137,7 +139,7 @@ const navigateForSignIn = () => {
   const url = readLocationUrl();
   if (!url) return;
   url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
-  window.location.href = url.href;
+  leavePage(url.href);
 };
 
 type LoaderState =
@@ -169,6 +171,7 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
   const [state, setState] = useState<LoaderState>(() => {
     // Native apps wait for a fresh configuration; the web starts from the cached one.
     const cached = Capacitor.isNativePlatform() ? undefined : readCachedClientConfig();
+    if (cached) markPageStartup('config.ready');
     return cached ? { status: 'ready', config: cached } : { status: 'loading' };
   });
   const requestRef = useRef(0);
@@ -182,6 +185,7 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
       (config) => {
         if (request !== requestRef.current) return;
         if (!background) {
+          markPageStartup('config.ready');
           setState({ status: 'ready', config });
           return;
         }
@@ -239,6 +243,11 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
   if (state.status === 'loading') return fallback?.() ?? null;
 
   const { cached } = state;
-  const ignore = cached ? () => setState({ status: 'ready', config: cached }) : undefined;
+  const ignore = cached
+    ? () => {
+        markPageStartup('config.ready');
+        setState({ status: 'ready', config: cached });
+      }
+    : undefined;
   return error?.(state.error, retry, ignore, authenticate) ?? null;
 }

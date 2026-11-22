@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabla desplazable",
-    "scrollHint": "Desplázate horizontalmente"
+    "scrollHint": "Desplázate horizontalmente",
+    "readByRow": "Leer por fila",
+    "showTable": "Mostrar tabla"
   },
   "messageCodeBlock": {
     "actions": "Acciones del bloque de código",
@@ -1161,7 +1163,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Este espacio se ha sustituido y ya no está activo.",
       "openNewSpace": "Abrir nuevo espacio",
       "joinNewSpace": "Unirse al nuevo espacio",
-      "lobby": "Vestíbulo",
       "messageSearch": "Buscar mensajes",
       "failedToJoinReplacementSpace": "No se pudo unir al espacio de sustitución.",
       "rooms": "Salas",
@@ -2257,8 +2258,8 @@
       "resumeRecording": "Reanudar grabación de voz",
       "statusActive": "Grabación de voz activa",
       "statusPaused": "Grabación de voz en pausa",
-      "statusProcessing": "Procesando grabación de voz",
       "statusReadyToRetry": "Grabación de voz lista para reintentar",
+      "recoveredRecording": "Grabación recuperada · {{time}}",
       "statusSending": "Enviando grabación de voz",
       "statusStarting": "Iniciando grabación de voz",
       "voiceRecorderDialog": {
@@ -2661,9 +2662,6 @@
         "argumentsMayDifferBetweenCalls": "Los argumentos pueden variar entre llamadas.",
         "requestedBy": "Solicitado por {{requester}}"
       },
-      "mindroomTranscribingPlaceholder": {
-        "routerAgentIsTranscribing": "El agente enrutador está transcribiendo"
-      },
       "streamingIndicator": {
         "aiIsResponding": "La IA está respondiendo"
       },
@@ -2995,7 +2993,9 @@
       "computerUnavailable": "El ordenador de este agente no está disponible.",
       "releaseControl": "Libera el control del ordenador antes de abrir otra vista.",
       "openConversation": "Abre esta solicitud desde la conversación de la sala.",
-      "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
+      "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes.",
+      "canvasCard": "Panel interactivo",
+      "reminderCard": "Recordatorio · {{when}}"
     },
     "canvas": {
       "panelLabel": "Panel interactivo",
