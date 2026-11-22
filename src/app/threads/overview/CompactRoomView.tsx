@@ -736,10 +736,9 @@ export function CompactRoomView({
       const model = modelByRootId.get(row);
       return model ? renderCard(model) : null;
     }
-    // A Tab stop where its cards would be, in the order of the page: the keyboard's focus goes
-    // on to its first card, or coming from below (Shift+Tab) to the last control of its last.
-    // A button, so a browser that tabs past buttons (Safari, unless set otherwise) passes it too,
-    // and named: assistive technology finds the cards there, and shows them by activating it.
+    // A Tab stop where its cards would be: the keyboard's focus goes on to its first card, or
+    // from below (Shift+Tab) to the last control of its last. A button, so a browser that tabs
+    // past buttons (Safari) passes it too; named, so assistive technology can show its cards.
     return (
       <button
         key={`spacer:${row.key}`}
