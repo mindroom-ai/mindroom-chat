@@ -28,7 +28,9 @@ function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
   if (!room) return null;
   const title = viewModel?.displayTitleText ?? entry.summaryText;
   // The thread's face: the first agent or person who answered in it, else whoever started it.
-  const face = viewModel?.participants.find((person) => person.userId !== mx.getUserId());
+  const face =
+    viewModel?.participants.find((person) => person.userId !== mx.getUserId()) ??
+    viewModel?.participants[0];
   const roomName = revealDirectionControls(entry.roomName);
   return (
     <li>

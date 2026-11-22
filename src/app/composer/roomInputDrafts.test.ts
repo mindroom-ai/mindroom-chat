@@ -7,10 +7,11 @@ import {
   composerUploadItemsAtom,
   pendingVoiceSendDraftAtom,
   threadViewVoiceComposersAtom,
+  forgetComposerStateOfSession,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
   homeAskDestinationAtomFamily,
-  readHomeAskDestination,
+  homeAskPendingAtomFamily,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
@@ -136,7 +137,48 @@ describe('message draft persistence', () => {
       expect(createStore().get(roomIdToMsgDraftAtomFamily(HOME_KEY))).toEqual(
         text('Private note, longer')
       );
-      expect(readHomeAskDestination(ROBIN)).toEqual(toDirect);
+      expect(createStore().get(destination)).toEqual(toDirect);
+    });
+
+    it('reads the text and where it goes in one snapshot, whatever is stored between the two', () => {
+      const writer = createStore();
+      writer.set(destination, toDirect);
+      writer.set(homeDraft, text('Private note'));
+      // A tab reads the text; another tab stores its own entry before the first reads where
+      // its text goes.
+      const tab = createStore();
+      expect(tab.get(homeDraft)).toEqual(text('Private note'));
+      writer.set(destination, toShared);
+      writer.set(homeDraft, text('For everyone'));
+      expect(tab.get(destination)).toEqual(toDirect);
+
+      // In the other order too.
+      const late = createStore();
+      expect(late.get(destination)).toEqual(toShared);
+      writer.set(destination, toDirect);
+      writer.set(homeDraft, text('Private note'));
+      expect(late.get(homeDraft)).toEqual(text('For everyone'));
+    });
+
+    it('writes nothing as a page shows what is stored, so never over a newer entry of another tab', () => {
+      const writer = createStore();
+      writer.set(destination, toDirect);
+      writer.set(homeDraft, text('Private note'));
+      const tab = createStore();
+      expect(tab.get(homeDraft)).toEqual(text('Private note'));
+      const empty = createStore();
+      writer.set(homeDraft, []);
+      expect(empty.get(homeDraft)).toEqual([]);
+      writer.set(destination, toShared);
+      writer.set(homeDraft, text('For everyone'));
+      const newer = values.get(`roomInputDraft:${HOME_KEY}`);
+
+      // Home opens in the first tab on the draft it read, and sets where that goes: to what it is.
+      tab.set(destination, { ...toDirect });
+      // Home opens in a tab without a draft, and sets where a question would go.
+      empty.set(destination, toDirect);
+      expect(values.get(`roomInputDraft:${HOME_KEY}`)).toBe(newer);
+      expect(empty.get(destination)).toEqual(toDirect);
     });
 
     it('stores a changed destination with the text its own tab shows', () => {
@@ -159,10 +201,11 @@ describe('message draft persistence', () => {
     it('reads a stored draft whose destination is missing or corrupt as having none', () => {
       const entry = `roomInputDraft:${HOME_KEY}`;
       values.set(entry, JSON.stringify({ draft: text('Orphaned'), destination: { roomId: 5 } }));
-      expect(createStore().get(homeDraft)).toEqual(text('Orphaned'));
-      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+      const orphaned = createStore();
+      expect(orphaned.get(homeDraft)).toEqual(text('Orphaned'));
+      expect(orphaned.get(destination)).toBeUndefined();
       values.set(entry, JSON.stringify(text('An array, as a room draft is stored')));
-      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+      expect(createStore().get(destination)).toBeUndefined();
     });
 
     it("is cleared with the account's other drafts, in storage and in memory", () => {
@@ -172,8 +215,20 @@ describe('message draft persistence', () => {
       expect(values.size).toBe(1);
       clearRoomInputDrafts(ROBIN);
       expect(values.size).toBe(0);
-      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+      expect(createStore().get(homeAskDestinationAtomFamily(ROBIN))).toBeUndefined();
       expect(store.get(homeAskDestinationAtomFamily(ROBIN))).toBeUndefined();
+    });
+
+    it("forgets a question on its way with the account's drafts, and as its session ends", () => {
+      const store = createStore();
+      const sending = { state: 'sending' as const, ...toDirect, isDirect: true };
+      store.set(homeAskPendingAtomFamily(ROBIN), sending);
+      clearRoomInputDrafts(ROBIN);
+      expect(store.get(homeAskPendingAtomFamily(ROBIN))).toBeUndefined();
+
+      store.set(homeAskPendingAtomFamily(ROBIN), sending);
+      forgetComposerStateOfSession(store);
+      expect(store.get(homeAskPendingAtomFamily(ROBIN))).toBeUndefined();
     });
   });
 });

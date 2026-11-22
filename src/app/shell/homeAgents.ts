@@ -93,18 +93,23 @@ export const isDirectRoomWith = (
   room.getJoinedMemberCount() + room.getInvitedMemberCount() <= 2 &&
   memberships.includes(room.getMember(agentId)?.membership);
 
+/** The rooms `m.direct` lists for `agentId` that the client has. */
+const listedDirectRooms = (mx: MatrixClient, agentId: string): Room[] => {
+  // Account data holds whatever a client wrote: anything but a list of room IDs lists no room.
+  const content = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>();
+  const listed: unknown = content?.[agentId];
+  return (Array.isArray(listed) ? listed : []).flatMap((roomId: unknown) => {
+    const room = typeof roomId === 'string' ? mx.getRoom(roomId) : null;
+    return room ? [room] : [];
+  });
+};
+
 /**
  * The account's direct chat with `agentId`: a room `m.direct` lists that is one
  * (`isDirectRoomWith`), preferring one the agent has already joined over a pending invite.
  */
 const readDirect = (mx: MatrixClient, agentId: string): HomeAgent['direct'] => {
-  // Account data holds whatever a client wrote: anything but a list of room IDs lists no room.
-  const content = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>();
-  const listed: unknown = content?.[agentId];
-  const rooms = (Array.isArray(listed) ? listed : []).flatMap((roomId: unknown) => {
-    const room = typeof roomId === 'string' ? mx.getRoom(roomId) : null;
-    return room ? [room] : [];
-  });
+  const rooms = listedDirectRooms(mx, agentId);
   const joined = rooms.find((room) => isDirectRoomWith(room, agentId));
   if (joined) return { roomId: joined.roomId, waiting: false };
   const invited = rooms.find((room) => isDirectRoomWith(room, agentId, ['invite']));
@@ -123,8 +128,9 @@ const answerKey = (roomId: string, senderId: string): string => `${roomId}\0${se
  * When each sender last answered in each of `rooms`, by `answerKey`, read in one pass: its newest
  * message the client has loaded there, or the reply the thread index says ends one of the room's
  * threads. Someone else's later message in a thread it answered in does not count. The index's
- * time moves with an edit of that reply, so a thread whose answer is loaded counts by the time
- * that answer was sent.
+ * time moves with an edit of that reply, so a thread the client has counts by its last reply
+ * itself, by the time that was sent: the newest the server told of, also before the thread's
+ * events are loaded, so an older reply that is loaded hides no newer one.
  */
 const readLastAnswers = (
   rooms: Iterable<Room>,
@@ -148,14 +154,13 @@ const readLastAnswers = (
   }
   for (const { roomId, threadRootId, threadRecord } of threads) {
     const { lastSenderId, latestReplyTs } = threadRecord.presentation;
-    const loaded = byId.get(roomId)?.getThread(threadRootId)?.events ?? [];
-    if (
-      byId.has(roomId) &&
-      lastSenderId &&
-      latestReplyTs &&
-      !loaded.some((event) => event.getSender() === lastSenderId && isAnswer(event))
-    ) {
-      note(roomId, lastSenderId, latestReplyTs);
+    const room = byId.get(roomId);
+    if (room && lastSenderId) {
+      const reply = room.getThread(threadRootId)?.replyToEvent;
+      if (!reply) note(roomId, lastSenderId, latestReplyTs ?? 0);
+      else if (reply.getSender() === lastSenderId && isAnswer(reply)) {
+        note(roomId, lastSenderId, reply.getTs());
+      }
     }
   }
   return newest;
@@ -229,8 +234,21 @@ const directStarts = new WeakMap<
 >();
 
 /**
+ * The direct chat `m.direct` lists with `agentId`, read once the members of each listed room of
+ * two whose members the client has yet to load are loaded: the agent may be in one.
+ */
+const loadDirect = async (mx: MatrixClient, agentId: string): Promise<string | undefined> => {
+  const unloaded = listedDirectRooms(mx, agentId).filter((room) =>
+    isDirectRoomWith(room, agentId, [undefined])
+  );
+  await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(() => false)));
+  return readDirect(mx, agentId)?.roomId;
+};
+
+/**
  * Starts the account's direct chat with `agentId`, once: a second call while it starts gets the
  * same promise, and after a room was made but not listed in `m.direct`, a retry lists that room.
+ * It makes no second chat beside one `m.direct` lists whose members were not loaded yet.
  */
 export const startDirectChat = (mx: MatrixClient, agentId: string, version?: string) => {
   if (!directStarts.has(mx)) directStarts.set(mx, new Map());
@@ -240,7 +258,11 @@ export const startDirectChat = (mx: MatrixClient, agentId: string, version?: str
   known.start ??= (
     made
       ? addRoomIdToMDirect(mx, made, agentId).then(() => made)
-      : createDirectRoom(mx, agentId, { version, onCreated: (roomId) => (known.made = roomId) })
+      : loadDirect(mx, agentId).then(
+          (existing) =>
+            existing ??
+            createDirectRoom(mx, agentId, { version, onCreated: (roomId) => (known.made = roomId) })
+        )
   )
     .then((roomId) => {
       known.made = undefined;

@@ -137,14 +137,16 @@ export type RoomInputProps = {
   /**
    * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
    * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
-   * take the row's controls' place. Nothing sends while `canSend` says no, and `onSendingChange`
-   * hears while a send is on its way.
+   * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
+   * and again for the question on its way (`sent`) just before its message goes out, when the
+   * room or the agent may have changed. `onSendingChange` hears while a send is on its way, to
+   * its end also after the composer has gone.
    */
   ask?: {
     agentUserId: string;
     placeholder: string;
     pickers: ReactNode;
-    canSend: () => boolean;
+    canSend: (sent?: boolean) => boolean;
     onSendingChange?: (sending: boolean) => void;
   };
 };
@@ -296,7 +298,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         ? t('composer.newThreadWith', { name: roomName })
         : t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-    const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
+    // Typing in Home's ask field tells no room: the room it would go to is not open.
+    const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity || !!ask);
     const isComposing = useComposingCheck();
     const [autocompleteQuery, setAutocompleteQuery] = useState<AutocompleteQuery<string>>();
     // Set when the open menu reports that its query matches nothing (an `@` query no member has,
@@ -307,13 +310,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       []
     );
     const [submitPending, setSubmitPending] = useState(false);
-    const onSendingChange = ask?.onSendingChange;
-    useEffect(() => {
-      if (!submitPending || !onSendingChange) return undefined;
-      onSendingChange(true);
-      // Also as the composer goes: Home is not held by a send it can no longer follow.
-      return () => onSendingChange(false);
-    }, [onSendingChange, submitPending]);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
@@ -413,16 +409,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const askedAgent = ask?.agentUserId;
     const restoreComposerFallbackForRoom = useCallback(
       (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) => {
-        // Home's question returns to Home's draft only while that still goes to the agent and room
-        // the question went to, as it does once Home has gone. A draft that goes elsewhere by now
-        // never takes it: the question waits in its room's own draft.
-        const kept =
-          askedAgent === undefined ? undefined : store.get(homeAskDestinationAtomFamily(userId));
-        const toHome = !!kept && kept.agentId === askedAgent && kept.roomId === fallbackRoomId;
+        // Home's question returns to Home's draft alone, never to a room's, and that draft goes
+        // where the question went: as it does already, since nothing moves it while a question
+        // is being sent.
+        if (askedAgent !== undefined) {
+          const destinationAtom = homeAskDestinationAtomFamily(userId);
+          const kept = store.get(destinationAtom);
+          if (kept?.agentId !== askedAgent || kept.roomId !== fallbackRoomId) {
+            store.set(destinationAtom, { agentId: askedAgent, roomId: fallbackRoomId });
+          }
+        }
         // After any text typed there since: a failed caption is never dropped.
         restoreTextToDraft(
           store,
-          toHome ? textKey : getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+          askedAgent === undefined
+            ? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId)
+            : textKey,
           fragment
         );
       },
@@ -457,6 +459,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       onRoomMessageSent,
       forkFrom,
       takeRootModelDraft,
+      beforeSend: ask && (() => ask.canSend(true)),
     });
 
     const { restoreText: restoreSentText } = sessions;
@@ -595,12 +598,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (holdForRoot({ kind: 'message' })) return;
         const textContent = takeText();
         setSubmitPending(true);
+        ask?.onSendingChange?.(true);
         try {
           const sending = sessions.startSendSession({ textContent });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;
         } finally {
+          ask?.onSendingChange?.(false);
           if (mountedRef.current) setSubmitPending(false);
         }
       },

@@ -23,8 +23,11 @@ type RoomSpec = {
   agents?: string[];
   /** Events the client has loaded: sender and time, or full event spec. */
   messages?: MessageSpec[];
-  /** The threads whose events the client has loaded, by root. */
-  threads?: Record<string, MessageSpec[]>;
+  /**
+   * The threads the client has, by root: the events loaded, and with `latest` the newest reply the
+   * server told of, when that is not among them.
+   */
+  threads?: Record<string, MessageSpec[] | { loaded: MessageSpec[]; latest: MessageSpec }>;
   /** Membership by user, or the membership and the display name the room knows. */
   members?: Record<string, string | { membership: string; rawDisplayName: string }>;
   state?: Record<string, Record<string, unknown>>;
@@ -79,12 +82,20 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
           state[type] ? event('@admin:example.org', 0, state[type]) : undefined,
       }),
     }),
-    getThreads: () => Object.values(threads).map((entries) => ({ events: events(entries) })),
-    getThread: (rootId: string) => {
-      const loaded = threads[rootId];
-      return loaded ? { events: events(loaded) } : null;
-    },
+    getThreads: () => Object.keys(threads).map(sdkThread),
+    getThread: (rootId: string) => (threads[rootId] ? sdkThread(rootId) : null),
   } as unknown as Room;
+
+  // As the SDK's thread: its loaded events, and the reply it shows last, an edit never.
+  function sdkThread(rootId: string) {
+    const known = threads[rootId] ?? [];
+    const loaded = events(Array.isArray(known) ? known : known.loaded);
+    const replies = Array.isArray(known) ? loaded : events([known.latest]);
+    return {
+      events: loaded,
+      replyToEvent: replies.filter((reply) => !reply.getRelation()).at(-1) ?? null,
+    };
+  }
 };
 
 const client = (rooms: Room[], direct: unknown = {}) =>
@@ -232,6 +243,30 @@ describe('readHomeAgents', () => {
     expect(later).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 300 });
   });
 
+  it('ranks by the newest reply of a thread, which an older reply that is loaded does not hide', () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER],
+        // Its old answer is loaded; the server told of a newer one, edited since.
+        threads: { $partial: { loaded: [[HELPER, 100]], latest: [HELPER, 300] } },
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    const index = [thread('!lobby', HELPER, 900, '$partial')];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), index);
+    expect(helper).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 300 });
+
+    // A thread someone else wrote in last counts nothing from the index, whatever that still says.
+    const answered = [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: { $partial: { loaded: [[HELPER, 100]], latest: [ME, 300] } },
+      }),
+    ];
+    const [earlier] = readHomeAgents(client(answered), ids(answered), index);
+    expect(earlier?.lastUsedTs).toBe(100);
+  });
+
   it('counts the answers in a joined direct chat where the agent publishes no state', () => {
     const rooms = [
       room('!lobby', { agents: [HELPER, SCOUT], messages: [[HELPER, 100]] }),
@@ -301,8 +336,39 @@ describe('startDirectChat', () => {
         return { room_id: `!dm-${made}` };
       }),
       getAccountData: () => ({ getContent: () => direct }),
+      getRoom: () => null,
     };
   };
+
+  it('makes no second chat beside a listed one whose members were not loaded', async () => {
+    // A chat of two `m.direct` lists, the agent's membership in it not loaded yet.
+    let loaded = false;
+    const listed = Object.assign(room('!dm', { count: 2 }), {
+      getMember: (userId: string) => (loaded && userId === SCOUT ? { membership: 'join' } : null),
+      loadMembersIfNeeded: vi.fn(async () => {
+        loaded = true;
+        return true;
+      }),
+    });
+    const mx = Object.assign(client([listed], { [SCOUT]: ['!dm'] }), {
+      createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+      setAccountData: vi.fn(async () => undefined),
+    });
+    await expect(startDirectChat(mx, SCOUT)).resolves.toBe('!dm');
+    expect(listed.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(mx.createRoom).not.toHaveBeenCalled();
+
+    // Loaded, a chat the agent is not in is no chat with it: one is made.
+    const other = Object.assign(room('!other', { count: 2 }), {
+      loadMembersIfNeeded: vi.fn(async () => true),
+    });
+    const fresh = Object.assign(client([other], { [HELPER]: ['!other'] }), {
+      createRoom: vi.fn(async () => ({ room_id: '!made' })),
+      setAccountData: vi.fn(async () => undefined),
+    });
+    await expect(startDirectChat(fresh, HELPER)).resolves.toBe('!made');
+    expect(other.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+  });
 
   it('starts one chat however often it is asked while it starts', async () => {
     const mx = directClient();

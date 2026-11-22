@@ -232,6 +232,11 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
+  /**
+   * Asked just before a text message goes out, after anything it waited for (its long-text
+   * upload): false sends nothing, and the text returns to the composer.
+   */
+  beforeSend?: () => boolean;
 };
 
 const getTextContentStrings = (content: IContent | undefined): string[] => {
@@ -453,6 +458,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
+  beforeSend,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -479,6 +485,7 @@ export const useRoomInputSendSessionController = ({
   const composerContextRef = useRef({ roomId, threadId: composerThreadId });
   composerContextRef.current = { roomId, threadId: composerThreadId };
   const onRoomMessageSentRef = useLatestRef(onRoomMessageSent);
+  const beforeSendRef = useLatestRef(beforeSend);
 
   const isMounted = useCallback(() => mountedRef?.current ?? true, [mountedRef]);
   const showsContext = useCallback(
@@ -525,6 +532,9 @@ export const useRoomInputSendSessionController = ({
                 markedContent,
                 buildLongTextPreview(markedContent)
               );
+        if (beforeSendRef.current?.() === false) {
+          throw new Error('The message can no longer go where it was sent.');
+        }
       } catch (error) {
         settleFork?.();
         throw error;
@@ -573,7 +583,7 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       clearReplyDraftForSession(session);
     },
-    [mx]
+    [beforeSendRef, mx]
   );
 
   const sendSessionUpload = useCallback(

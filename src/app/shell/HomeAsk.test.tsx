@@ -10,12 +10,13 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
+import { ReactEditor } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoomInput } from '../composer/RoomInput';
 import {
   clearRoomInputDrafts,
   getHomeAskDraftKey,
-  readHomeAskDestination,
+  homeAskDestinationAtomFamily,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -91,8 +92,15 @@ vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-/** A room the account may post in; `members` and `joined`, how many are in it, can change. */
-type FakeRoom = Room & { members: Record<string, string>; joined: number };
+/**
+ * A room the account may post in; `members` and `joined`, how many are in it, can change, and
+ * `echoes` are its messages the server has yet to confirm.
+ */
+type FakeRoom = Room & {
+  members: Record<string, string>;
+  joined: number;
+  echoes: Map<string, MatrixEvent>;
+};
 const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joined = 3) => {
   const room = {
     roomId,
@@ -100,6 +108,8 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     myUserId: ME,
     members: Object.fromEntries(joinedAgents.map((agentId) => [agentId, 'join'])),
     joined,
+    echoes: new Map<string, MatrixEvent>(),
+    findEventById: (eventId: string) => room.echoes.get(eventId),
     getMyMembership: () => 'join',
     getMxcAvatarUrl: () => null,
     getMember: (userId: string) =>
@@ -159,11 +169,41 @@ const renderAsk = (
   return { ...view, refresh: (next = [...agents]) => view.rerender(tree(next)) };
 };
 
-/** The message the composer just reported sent, in the state the server left it in. */
-const echo = (status: EventStatus | null, id = '~!eng:txn-1') =>
-  ({ status, error: new Error('offline'), getId: () => id } as unknown as MatrixEvent);
+const ECHO_ID = '~!eng:txn-1';
+
+/** The composer sends a message in `room` and reports it: there it is, yet to be confirmed. */
+const sendEcho = (room: FakeRoom) => {
+  const sent = { status: EventStatus.SENDING, error: new Error('offline'), getId: () => ECHO_ID };
+  room.echoes.set(ECHO_ID, sent as unknown as MatrixEvent);
+  act(() => {
+    lastRoomInputProps.current?.onRoomMessageSent?.(ECHO_ID);
+  });
+  return sent as unknown as MatrixEvent;
+};
+
+/** The server's answer to the message: it failed, or was deleted (then it is gone). */
+const settleEcho = (mx: ReturnType<typeof makeClient>, room: FakeRoom, status: EventStatus) => {
+  const sent = room.echoes.get(ECHO_ID)!;
+  sent.status = status;
+  if (status === EventStatus.CANCELLED) room.echoes.delete(ECHO_ID);
+  act(() => {
+    mx.emit(RoomEvent.LocalEchoUpdated, sent, room, undefined);
+  });
+};
+
+/** The server confirms the message under the ID it gave. */
+const confirmEcho = (mx: ReturnType<typeof makeClient>, room: FakeRoom, eventId: string) => {
+  room.echoes.delete(ECHO_ID);
+  const confirmed = { status: EventStatus.SENT, getId: () => eventId } as unknown as MatrixEvent;
+  act(() => {
+    mx.emit(RoomEvent.LocalEchoUpdated, confirmed, room, ECHO_ID);
+  });
+};
 
 const ask = () => lastRoomInputProps.current?.ask;
+
+/** Where the stored Home draft goes, as a reload would find it. */
+const storedDestination = () => createStore().get(homeAskDestinationAtomFamily(ME));
 
 beforeEach(() => {
   localStorage.clear();
@@ -203,11 +243,7 @@ describe('HomeAsk', () => {
     act(() => {
       store.set(draftAtom, [{ type: 'paragraph', children: [{ text: 'Private note' }] }]);
     });
-    expect(readHomeAskDestination(ME)).toEqual({
-      agentId: HELPER,
-      roomId: '!lobby',
-      isDirect: false,
-    });
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!lobby', isDirect: false });
 
     // Unmount and remount: Lobby stays selected for the kept draft, not default Engineering.
     first.unmount();
@@ -223,7 +259,7 @@ describe('HomeAsk', () => {
     act(() => {
       store.set(draftAtom, []);
     });
-    expect(readHomeAskDestination(ME)).toBeUndefined();
+    expect(localStorage.length).toBe(0);
     second.unmount();
 
     // A kept draft whose destination is missing, as a reload finds it, refuses to adopt the
@@ -260,17 +296,8 @@ describe('HomeAsk', () => {
     );
 
     // Simulate RoomInput creating a local echo, then the server rejecting it.
-    act(() => {
-      lastRoomInputProps.current?.onRoomMessageSent?.('~!eng:txn-1');
-    });
-    const failedEvent = {
-      status: EventStatus.NOT_SENT,
-      error: new Error('offline'),
-      getId: () => '~!eng:txn-1',
-    } as unknown as MatrixEvent;
-    act(() => {
-      mx.emit(RoomEvent.LocalEchoUpdated, failedEvent, eng, undefined);
-    });
+    const failedEvent = sendEcho(eng);
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
 
     const retryButton = screen.getByRole('button', { name: 'Retry' });
     expect(retryButton).toBeTruthy();
@@ -281,13 +308,7 @@ describe('HomeAsk', () => {
     fireEvent.click(retryButton);
     expect(mx.resendEvent).toHaveBeenCalledWith(failedEvent, eng);
 
-    const confirmedEvent = {
-      status: EventStatus.SENT,
-      getId: () => '$confirmed-root',
-    } as unknown as MatrixEvent;
-    act(() => {
-      mx.emit(RoomEvent.LocalEchoUpdated, confirmedEvent, eng, '~!eng:txn-1');
-    });
+    confirmEcho(mx, eng, '$confirmed-root');
     expect(navigateRoomThreadDirect).toHaveBeenCalledWith('!eng', '$confirmed-root');
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   });
@@ -307,16 +328,13 @@ describe('HomeAsk', () => {
     expect(ask()?.canSend()).toBe(false);
     pickLobby();
     expect(lastRoomInputProps.current?.roomId).toBe('!eng');
-    act(() => {
-      lastRoomInputProps.current?.onRoomMessageSent?.('~!eng:txn-1');
-      ask()?.onSendingChange?.(false);
-    });
+    const sending = ask();
+    sendEcho(eng);
+    act(() => sending?.onSendingChange?.(false));
 
     // Its message is unconfirmed, then fails: a second question would hide its notice.
     expect(ask()?.canSend()).toBe(false);
-    act(() => {
-      mx.emit(RoomEvent.LocalEchoUpdated, echo(EventStatus.NOT_SENT), eng, undefined);
-    });
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
     expect(ask()?.canSend()).toBe(false);
     pickLobby();
     expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
@@ -324,9 +342,7 @@ describe('HomeAsk', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
 
     // Deleted, it frees the field.
-    act(() => {
-      mx.emit(RoomEvent.LocalEchoUpdated, echo(EventStatus.CANCELLED), eng, undefined);
-    });
+    settleEcho(mx, eng, EventStatus.CANCELLED);
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     expect(ask()?.canSend()).toBe(true);
   });
@@ -335,15 +351,20 @@ describe('HomeAsk', () => {
     const eng = makeRoom('!eng', 'Engineering', [HELPER]);
     const mx = makeClient([eng]);
     const { refresh } = renderAsk(mx, [helperAgent]);
-    act(() => {
-      lastRoomInputProps.current?.onRoomMessageSent?.('~!eng:txn-1');
-    });
-    const failed = echo(EventStatus.NOT_SENT);
-    act(() => {
-      mx.emit(RoomEvent.LocalEchoUpdated, failed, eng, undefined);
-    });
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    const failed = sendEcho(eng);
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
 
+    // The agent leaves, and Retry is pressed before the page has read that: nothing is sent
+    // again, and Retry goes.
+    eng.members[HELPER] = 'leave';
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(mx.resendEvent).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+
+    // It is offered again only while the agent is back.
+    eng.members[HELPER] = 'join';
+    refresh();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
     eng.members[HELPER] = 'leave';
     refresh([{ ...helperAgent, roomIds: ['!lobby'], defaultRoomId: '!lobby' }]);
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
@@ -376,6 +397,8 @@ describe('HomeAsk', () => {
     refresh();
     expect(lastRoomInputProps.current?.roomId).toBe('!dm');
     expect(ask()?.canSend()).toBe(true);
+    // It reads as the direct chat it is, not by the room's name, before `m.direct` lists it too.
+    expect(screen.getByRole('button', { name: 'In Direct chat' })).toBeTruthy();
 
     // Someone joins: at the next press already, and as a choice that no longer works after.
     dm.joined = 3;
@@ -403,7 +426,7 @@ describe('HomeAsk', () => {
       ]);
     });
     expect(ask()?.canSend()).toBe(true);
-    expect(readHomeAskDestination(ME)).toEqual({ agentId: HELPER, roomId: '!dm', isDirect: true });
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!dm', isDirect: true });
 
     // A third member makes it a room like any other, which Helper still answers in. The draft
     // does not follow it there, on this page or one opened later.
@@ -416,10 +439,148 @@ describe('HomeAsk', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
     expect(ask()?.canSend()).toBe(false);
 
-    // Picked by its name, as the room it is now, it takes the question.
+    // Picked by its name, as the room it is now and not chosen yet, it takes the question.
     fireEvent.click(screen.getByRole('button', { name: 'In Planning' }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Planning/ }));
+    const planning = screen.getByRole('menuitemradio', { name: /^Planning/ });
+    expect(planning.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(planning);
     expect(ask()?.canSend()).toBe(true);
+  });
+
+  it('holds the field while a question is sent, also as the page closes and opens again', () => {
+    const lobby = makeRoom('!lobby', 'Lobby', [HELPER]);
+    const mx = makeClient([makeRoom('!eng', 'Engineering', [HELPER]), lobby]);
+    const store = createStore();
+    const pick = (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name: /^In / }));
+      fireEvent.click(screen.getByRole('menuitemradio', { name: new RegExp(`^${name}`) }));
+    };
+    const first = renderAsk(mx, [helperAgent], store);
+    pick('Lobby');
+    const sending = ask();
+    act(() => sending?.onSendingChange?.(true));
+    first.unmount();
+
+    // Opened again with nothing typed, the field is still where the question goes, and takes
+    // neither another question nor another pick.
+    renderAsk(mx, [helperAgent], store);
+    expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
+    expect(ask()?.canSend()).toBe(false);
+    pick('Engineering');
+    expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
+
+    // The question on its way is asked again just before its message goes out: not held by
+    // itself, it goes only while the agent still answers there.
+    expect(ask()?.canSend(true)).toBe(true);
+    lobby.members[HELPER] = 'leave';
+    expect(ask()?.canSend(true)).toBe(false);
+    lobby.members[HELPER] = 'join';
+
+    // The send's end is heard from the composer that went.
+    act(() => sending?.onSendingChange?.(false));
+    expect(ask()?.canSend()).toBe(true);
+    pick('Engineering');
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+  });
+
+  it('finds the question sent before the page closed: failed, unconfirmed, or over', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const mx = makeClient([eng]);
+    const store = createStore();
+    const sent = (() => {
+      const first = renderAsk(mx, [helperAgent], store);
+      const echo = sendEcho(eng);
+      first.unmount();
+      return echo;
+    })();
+
+    // It failed while the page was closed: its notice is there, and nothing else goes out.
+    sent.status = EventStatus.NOT_SENT;
+    const failed = renderAsk(mx, [helperAgent], store);
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+    expect(ask()?.canSend()).toBe(false);
+    failed.unmount();
+
+    // Sent again and still unconfirmed, it holds the field without a notice.
+    sent.status = EventStatus.SENDING;
+    const unconfirmed = renderAsk(mx, [helperAgent], store);
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(ask()?.canSend()).toBe(false);
+    unconfirmed.unmount();
+
+    // Confirmed while the page was closed, it is over: the field is free, and nothing opens.
+    eng.echoes.delete(ECHO_ID);
+    renderAsk(mx, [helperAgent], store);
+    expect(ask()?.canSend()).toBe(true);
+    expect(navigateRoom).not.toHaveBeenCalled();
+    expect(navigateRoomThreadDirect).not.toHaveBeenCalled();
+  });
+
+  it('leaves a newer draft of another tab as it is when the page opens', () => {
+    const mx = makeClient([
+      makeRoom('!eng', 'Engineering', [HELPER]),
+      makeRoom('!lobby', 'Lobby', [HELPER]),
+    ]);
+    const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME));
+    const entry = () => localStorage.getItem(`roomInputDraft:${getHomeAskDraftKey(ME)}`);
+    const text = (words: string) => [{ type: 'paragraph' as const, children: [{ text: words }] }];
+    // This tab wrote a draft; another tab has stored a newer one since.
+    const tab = createStore();
+    const first = renderAsk(mx, [helperAgent], tab);
+    act(() => tab.set(draftAtom, text('Private note')));
+    first.unmount();
+    const other = createStore();
+    other.set(homeAskDestinationAtomFamily(ME), { agentId: HELPER, roomId: '!lobby' });
+    other.set(draftAtom, text('For everyone'));
+    const newer = entry();
+
+    // This tab's page opens on its own draft, and a new tab's on the stored one: neither writes.
+    const again = renderAsk(mx, [helperAgent], tab);
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+    again.unmount();
+    renderAsk(mx, [helperAgent], createStore());
+    expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
+    expect(entry()).toBe(newer);
+  });
+
+  it('shows a kept draft for a room the client no longer has as a choice to make again', () => {
+    localStorage.setItem(
+      `roomInputDraft:${getHomeAskDraftKey(ME)}`,
+      JSON.stringify({
+        draft: [{ type: 'paragraph', children: [{ text: 'Kept note' }] }],
+        destination: { agentId: HELPER, roomId: '!gone', isDirect: false },
+      })
+    );
+    renderAsk(makeClient([makeRoom('!eng', 'Engineering', [HELPER])]), [helperAgent]);
+    // No chat is being started: the field says so.
+    const field = screen.getByRole<HTMLButtonElement>('button', { name: 'Ask Helper anything…' });
+    expect(field.disabled).toBe(true);
+    expect(field.getAttribute('aria-busy')).toBe('false');
+    expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
+  });
+
+  it('focuses the chat it started also when `m.direct` lists it before the start is over', async () => {
+    const focus = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    try {
+      const dm = makeRoom('!dm', 'Quill', [QUILL], 2);
+      let started!: (roomId: string) => void;
+      vi.mocked(startDirectChat).mockReturnValue(
+        new Promise<string>((resolve) => {
+          started = resolve;
+        })
+      );
+      const { refresh } = renderAsk(makeClient([dm]), [quillAgent]);
+      fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+      // `m.direct` lists the chat, Quill in it: the field is its composer already.
+      refresh([{ ...quillAgent, direct: { roomId: '!dm', waiting: false }, defaultRoomId: '!dm' }]);
+      expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+      expect(focus).not.toHaveBeenCalled();
+      await act(async () => started('!dm'));
+      expect(focus).toHaveBeenCalledTimes(1);
+    } finally {
+      focus.mockRestore();
+    }
   });
 
   it('tells agents of one name apart by their IDs', () => {

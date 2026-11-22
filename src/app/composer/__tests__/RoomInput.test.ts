@@ -138,6 +138,8 @@ const {
   },
   typingState: {
     sendTypingStatus: vi.fn(),
+    // Whether the composer rendered last keeps its typing to itself.
+    hidden: undefined as boolean | undefined,
   },
   encryptionState: {
     encryptAttachment: vi.fn<
@@ -403,7 +405,10 @@ vi.mock('../../matrix/hooks/useRoomThreadMode', () => ({
 }));
 
 vi.mock('../useTypingStatusUpdater', () => ({
-  useTypingStatusUpdater: () => typingState.sendTypingStatus,
+  useTypingStatusUpdater: (_mx: unknown, _roomId: string, hidden?: boolean) => {
+    typingState.hidden = hidden;
+    return typingState.sendTypingStatus;
+  },
 }));
 
 vi.mock('../ComposerActionsMenu', () => ({
@@ -5194,10 +5199,15 @@ describe("RoomInput as Home's ask field", () => {
   });
 
   /** Sends a long question from Home to ROOM_ID; its upload is still on its way. */
-  const sendLongQuestion = async (onSendingChange?: (sending: boolean) => void) => {
+  const sendLongQuestion = async (
+    ask: Partial<NonNullable<React.ComponentProps<typeof RoomInput>['ask']>> = {},
+    keptRoomId: string | undefined = ROOM_ID
+  ) => {
     const store = createStore();
-    store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: ROOM_ID });
-    const { renderer } = await renderRoomInput(store, { ask: askProps({ onSendingChange }) });
+    if (keptRoomId) {
+      store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: keptRoomId });
+    }
+    const { renderer } = await renderRoomInput(store, { ask: askProps(ask) });
     stageComposerText(LONG_QUESTION);
     resetEditorOnNextSend();
     const upload = createDeferred<{ content_uri: string }>();
@@ -5207,61 +5217,101 @@ describe("RoomInput as Home's ask field", () => {
       sending = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
-    const fail = () =>
+    const settle = (uploaded: boolean) =>
       act(async () => {
-        upload.reject(new Error('offline'));
+        if (uploaded) upload.resolve({ content_uri: 'mxc://mindroom/long-question' });
+        else upload.reject(new Error('offline'));
         await sending.catch(() => undefined);
       });
-    return { store, renderer, fail };
+    return { store, renderer, fail: () => settle(false), finishUpload: () => settle(true) };
   };
   const question = [{ type: 'paragraph', children: [{ text: LONG_QUESTION }] }];
 
-  it("puts a question whose upload failed into no other room's draft once Home goes elsewhere", async () => {
+  it("returns a question whose upload failed to the field it shows in, and to no room's draft", async () => {
     const { store, renderer, fail } = await sendLongQuestion();
-    // Home moves on to another room, as its picker would, before the upload fails.
-    store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: OTHER_ROOM_ID });
-    await updateRoomInput(renderer, store, { roomId: OTHER_ROOM_ID, ask: askProps() });
     await fail();
 
-    // Neither Home's draft, which goes to the other room now, nor that room's draft takes it.
     expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
-    expect(store.get(homeDraft())).toEqual([]);
-    expect(store.get(roomDraft(OTHER_ROOM_ID))).toEqual([]);
-    expect(store.get(roomDraft(ROOM_ID))).toEqual(question);
-    renderer.unmount();
-    store.set(roomDraft(ROOM_ID), []);
-  });
-
-  it("returns a question whose upload failed after Home went to Home's draft, with where it was going", async () => {
-    const { store, renderer, fail } = await sendLongQuestion();
-    renderer.unmount();
-    await fail();
-
-    expect(store.get(homeDraft())).toEqual(question);
-    expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
-      agentId: HELPER,
-      roomId: ROOM_ID,
-    });
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledTimes(1);
+    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
     expect(store.get(roomDraft(ROOM_ID))).toEqual([]);
-    store.set(homeDraft(), []);
+    renderer.unmount();
   });
 
-  it('says while a send is on its way, and that it is over as the composer goes', async () => {
-    const onSendingChange = vi.fn();
-    const { renderer, fail } = await sendLongQuestion(onSendingChange);
-    expect(onSendingChange.mock.calls).toEqual([[true]]);
-    await fail();
-    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+  it.each([
+    ['goes there still', ROOM_ID],
+    ['has none kept', undefined],
+    ['goes elsewhere', OTHER_ROOM_ID],
+  ])(
+    "returns a question whose upload failed after Home went to Home's draft alone, with where it was going, when that %s",
+    async (_name, keptRoomId) => {
+      const { store, renderer, fail } = await sendLongQuestion({}, keptRoomId);
+      renderer.unmount();
+      await fail();
 
-    onSendingChange.mockClear();
-    stageComposerText(LONG_QUESTION);
-    mxState.uploadContent.mockReturnValueOnce(createDeferred<{ content_uri: string }>().promise);
-    await act(async () => {
-      void getPrimarySendButton(renderer).props.onClick();
-      await Promise.resolve();
-    });
-    renderer.unmount();
+      expect(store.get(homeDraft())).toEqual(question);
+      expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
+        agentId: HELPER,
+        roomId: ROOM_ID,
+      });
+      expect(store.get(roomDraft(ROOM_ID))).toEqual([]);
+      expect(store.get(roomDraft(OTHER_ROOM_ID))).toEqual([]);
+      store.set(homeDraft(), []);
+    }
+  );
+
+  it('says while a send is on its way, to its end also after the composer has gone', async () => {
+    const onSendingChange = vi.fn();
+    const mounted = await sendLongQuestion({ onSendingChange });
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
+    await mounted.fail();
     expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+    mounted.renderer.unmount();
+
+    // The composer goes while the question is sent: the send goes on, and its end is told.
+    onSendingChange.mockClear();
+    const gone = await sendLongQuestion({ onSendingChange });
+    gone.renderer.unmount();
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
+    await gone.fail();
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+    gone.store.set(homeDraft(), []);
+  });
+
+  it('asks again just before the message goes out, and sends nothing where it may no longer go', async () => {
+    // Allowed at the press; by the time the message would go out, the room or agent has changed.
+    const canSend = vi.fn((sent?: boolean) => !sent);
+    const { renderer } = await renderRoomInput(createStore(), { ask: askProps({ canSend }) });
+    stageComposerText('A short question');
+    resetEditorOnNextSend();
+    await act(async () => {
+      await getPrimarySendButton(renderer).props.onClick();
+    });
+    expect(canSend).toHaveBeenCalledWith(true);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual([
+      { type: 'paragraph', children: [{ text: 'A short question' }] },
+    ]);
+    renderer.unmount();
+
+    // A long question is asked about once its upload is done.
+    editorMocks.restoreEditorContent.mockClear();
+    canSend.mockClear();
+    const long = await sendLongQuestion({ canSend });
+    expect(canSend).not.toHaveBeenCalledWith(true);
+    await long.finishUpload();
+    expect(canSend).toHaveBeenCalledWith(true);
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
+    long.renderer.unmount();
+  });
+
+  it('tells no room that someone types in it', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { ask: askProps() });
+    expect(typingState.hidden).toBe(true);
+    renderer.unmount();
+    const room = await renderRoomInput();
+    expect(typingState.hidden).toBeFalsy();
+    room.renderer.unmount();
   });
 });

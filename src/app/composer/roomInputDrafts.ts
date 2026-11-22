@@ -133,20 +133,20 @@ const isHomeAskDestination = (value: unknown): value is HomeAskDestination =>
   (value.roomId === null || typeof value.roomId === 'string') &&
   (value.isDirect === undefined || typeof value.isDirect === 'boolean');
 
-/**
- * Home's ask draft as stored: its text and where it goes in one entry, written at once, so a write
- * from another tab never leaves this tab's text with that tab's room.
- */
-const readHomeAskEntry = (
-  storageKey: string
-): { draft: Descendant[]; destination?: HomeAskDestination } => {
+/** Home's ask draft: its text and where it goes. */
+type HomeAskEntry = { draft: Descendant[]; destination: HomeAskDestination | undefined };
+
+const readHomeAskEntry = (storageKey: string): HomeAskEntry => {
   const stored = readStoredJson(storageKey);
-  if (!isRecord(stored)) return { draft: [] };
+  if (!isRecord(stored)) return { draft: [], destination: undefined };
   return {
     draft: asDraft(stored.draft),
     destination: isHomeAskDestination(stored.destination) ? stored.destination : undefined,
   };
 };
+
+const sameDestination = (a?: HomeAskDestination, b?: HomeAskDestination): boolean =>
+  a?.agentId === b?.agentId && a?.roomId === b?.roomId && !!a?.isDirect === !!b?.isDirect;
 
 // Clearing an account's drafts revokes the atoms it created: a component still holding one
 // can keep editing in memory but no longer writes to storage.
@@ -154,18 +154,46 @@ const draftGenerations = new Map<string, number>();
 const getDraftGeneration = (userId: string | undefined) =>
   userId === undefined ? 0 : draftGenerations.get(userId) ?? 0;
 
+/**
+ * An account's Home ask draft: its text and where it goes, read from storage in one snapshot and
+ * stored in one entry, written at once. A write from another tab so never leaves this tab's text
+ * with that tab's room, neither as a tab first reads the draft nor after.
+ */
+const homeAskEntryAtomFamily = atomFamily((userId: string) => {
+  const storageKey = `${DRAFT_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`;
+  const generation = getDraftGeneration(userId);
+  const valueAtom = atom<HomeAskEntry | undefined>(undefined);
+  const entryAtom: WritableAtom<HomeAskEntry, [Partial<HomeAskEntry>], void> = atom(
+    (get) => get(valueAtom) ?? readHomeAskEntry(storageKey),
+    (get, set, change) => {
+      const entry = { ...get(entryAtom), ...change };
+      set(valueAtom, entry);
+      if (getDraftGeneration(userId) !== generation) return;
+      const storage = getSafeLocalStorage();
+      if (entry.draft.length > 0) setStorageItemSafe(storage, storageKey, JSON.stringify(entry));
+      // An emptied draft leaves no entry. Where an empty draft goes is kept in memory alone.
+      else if (change.draft) removeStorageItemSafe(storage, storageKey);
+    }
+  );
+  return entryAtom;
+});
+
 const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Descendant[]], void> => {
   const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const userId = getDraftUserId(draftKey);
+  if (userId !== undefined && draftKey === getHomeAskDraftKey(userId)) {
+    const entryAtom = homeAskEntryAtomFamily(userId);
+    return atom(
+      (get) => get(entryAtom).draft,
+      (_get, set, draft) => set(entryAtom, { draft })
+    );
+  }
   const generation = getDraftGeneration(userId);
-  const homeAsk = userId !== undefined && draftKey === getHomeAskDraftKey(userId);
   const valueAtom = atom<Descendant[] | undefined>(undefined);
 
   return atom<Descendant[], [Descendant[]], void>(
-    (get) =>
-      get(valueAtom) ??
-      (homeAsk ? readHomeAskEntry(storageKey).draft : asDraft(readStoredJson(storageKey))),
-    (get, set, draft) => {
+    (get) => get(valueAtom) ?? asDraft(readStoredJson(storageKey)),
+    (_get, set, draft) => {
       set(valueAtom, draft);
       if (getDraftGeneration(userId) !== generation) return;
       const storage = getSafeLocalStorage();
@@ -173,11 +201,7 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
         removeStorageItemSafe(storage, storageKey);
         return;
       }
-      // Home's draft goes to disk with where this session sends it, both in the one entry.
-      const stored = homeAsk
-        ? { draft, destination: get(homeAskDestinationAtomFamily(userId)) }
-        : draft;
-      setStorageItemSafe(storage, storageKey, JSON.stringify(stored));
+      setStorageItemSafe(storage, storageKey, JSON.stringify(draft));
     }
   );
 };
@@ -190,25 +214,38 @@ export const hasKeptDraft = (draftKey: string): boolean =>
   getStorageItemSafe(getSafeLocalStorage(), `${DRAFT_STORAGE_PREFIX}${draftKey}`) !== null;
 
 /**
- * The agent and room this session's Home sends its ask draft to, also after Home has gone. Set, it
- * is stored again with the draft's text, as every write of that text stores it too.
+ * The agent and room an account's Home ask draft goes to, also after Home has gone: the one stored
+ * with the text a reload finds, then the one Home shows. A change is stored with the text in the
+ * draft's entry; set to what it is, it writes nothing, so a page that only shows a stored draft
+ * never replaces a newer one of another tab.
  */
 export const homeAskDestinationAtomFamily = atomFamily((userId: string) => {
-  const valueAtom = atom<HomeAskDestination | undefined>(undefined);
+  const entryAtom = homeAskEntryAtomFamily(userId);
   return atom(
-    (get) => get(valueAtom),
+    (get) => get(entryAtom).destination,
     (get, set, destination: HomeAskDestination | undefined) => {
-      set(valueAtom, destination);
-      const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(userId));
-      const draft = get(draftAtom);
-      if (draft.length > 0) set(draftAtom, draft);
+      if (!sameDestination(get(entryAtom).destination, destination)) {
+        set(entryAtom, { destination });
+      }
     }
   );
 });
 
-/** The destination stored with an account's Home ask draft, as a reload finds it. */
-export const readHomeAskDestination = (userId: string): HomeAskDestination | undefined =>
-  readHomeAskEntry(`${DRAFT_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`).destination;
+/**
+ * Home's question on its way, per account: being sent, or sent as the message `eventId` that the
+ * server has yet to confirm (or that is yet to be deleted), with the agent and room it went to.
+ * It outlives Home's page, which can close and open again meanwhile.
+ */
+export type HomeAskPending = {
+  state: 'sending' | 'echo';
+  roomId: string;
+  agentId: string;
+  isDirect: boolean;
+  eventId?: string;
+};
+export const homeAskPendingAtomFamily = atomFamily((_userId: string) =>
+  atom<HomeAskPending | undefined>(undefined)
+);
 
 /** Puts text back into the stored draft `draftKey`, after any text typed there since. */
 export const restoreTextToDraft = (
@@ -253,7 +290,9 @@ export const clearRoomInputDrafts = (userId: string): void => {
     (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
   );
   roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+  homeAskEntryAtomFamily.remove(userId);
   homeAskDestinationAtomFamily.remove(userId);
+  homeAskPendingAtomFamily.remove(userId);
 
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage).forEach((storageKey) => {
@@ -516,16 +555,17 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
 
 /**
  * Forgets what an account left in its composers when its session ends: reply targets, staged
- * files and a voice send in progress. These are keyed by room alone, so the next account to open
- * a room both accounts are in would otherwise show them and send them as its own. Unsent
- * messages stay, since they are kept per account. A recorded voice message waiting for a retry
- * stays too: it names its account and no other one sends it. A voice message still being recorded
- * ends, and so does one whose Send is still on its way: the microphone is released at once, and
- * neither writes anything under the next account.
+ * files, a voice send in progress and Home's question on its way. A room's are keyed by room
+ * alone, so the next account to open a room both accounts are in would otherwise show them and
+ * send them as its own. Unsent messages stay, since they are kept per account. A recorded voice
+ * message waiting for a retry stays too: it names its account and no other one sends it. A voice
+ * message still being recorded ends, and so does one whose Send is still on its way: the
+ * microphone is released at once, and neither writes anything under the next account.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
+  dropEveryEntry(homeAskPendingAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   endVoiceRecordingsOfAccount(store);
 };
