@@ -26,7 +26,8 @@ app's log:
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
   long_thread  a room of its own with 4 short threads and a long one (150 replies, each streamed in 3 edits):
            the rows show from the thread list alone (at most 2 requests and 30 KB, before any thread or the
-           room's state is read), and the long thread's row then says what its full read finds
+           room's state is read) with the titles and edited replies the homeserver bundles, and the long
+           thread's row then says what its full read finds
 
 It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots in --out, and exits 1 on a failure.
 """
@@ -387,6 +388,14 @@ def main() -> int:
                   f"{sum(size for verb, _, size in all_reads if verb == 'done')} bytes", flush=True)
             if requests > 2 or size > 30_000:
                 return f"the first rows took {requests} requests and {size} bytes (at most 2 and 30000)"
+            # What the list alone says of a thread, before any thread is read: the title and the newest reply the
+            # homeserver bundles with the root, the reply as its bundled edit left it.
+            listed = {match[1]: match[2] for line in lines[:painted]
+                      if (match := re.search(r"listed (\$\S+) (.*)$", line))}
+            if not listed.get(long_root, "").endswith(": Placeholder step 150 of 150 complete."):
+                return f"the long thread's row before its read is {listed.get(long_root)!r}"
+            if not any(re.fullmatch(r"Sample Topic 4 \| .*: Placeholder reply for topic 4", row) for row in listed.values()):
+                return f"no row with its bundled title and reply before any read: {sorted(listed.values())}"
             shown = next((i for i, line in enumerate(lines) if f"row {long_root} " in line), None)
             read_at = next((i for i, line in enumerate(lines) if f"hydrated {long_root} " in line), None)
             if shown is None or read_at is None or shown > read_at:

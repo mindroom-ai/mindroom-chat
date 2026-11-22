@@ -55,9 +55,6 @@ final class RoomModel: ObservableObject {
     /// what another resolved.
     private let persistsResolved: Bool
     private var stateRead: Task<Void, Never>?
-    /// The thread on screen. Its own model reads it every 5 s and hands each snapshot over (`adopt`), so a
-    /// refresh does not download it a second time.
-    var openThread: String?
     /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
     /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
     private var threadRows: [String: ThreadRow] = [:]
@@ -132,14 +129,6 @@ final class RoomModel: ObservableObject {
 
     func snapshot(of rootId: String) -> ThreadSnapshot? { snapshots[rootId] }
 
-    /// The open thread as its own model just read it: its row says the same.
-    func adopt(_ snapshot: ThreadSnapshot) {
-        snapshots[snapshot.rootId] = snapshot
-        guard threadRows[snapshot.rootId] != nil else { return }
-        threadRows[snapshot.rootId] = row(snapshot)
-        publish()
-    }
-
     /// A voice message's audio (`ThreadSnapshot.Message.audio`), decrypted.
     func audio(_ source: String) async throws -> Data {
         try await client.getMediaContent(mediaSource: MediaSource.fromJson(json: source))
@@ -166,7 +155,8 @@ final class RoomModel: ObservableObject {
                 refreshAgain = false
                 // Coalesces a burst of changes (a streaming reply edits many times a second).
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await refresh()
+                // A pass the resolved threads changed under is followed by one that lists against the new ones.
+                if await !refresh() { refreshAgain = true }
             } while refreshAgain
             refreshing = false
         }
@@ -176,11 +166,12 @@ final class RoomModel: ObservableObject {
     func foregrounded() { resolved.expire() }
 
     /// Reads the threads now (background refresh). Nobody waits for rows there, so the room's state is read
-    /// first: the complications count the threads that are open now.
+    /// first: the complications count the threads that are open now. When that read fails and the one a pass
+    /// tries again changes the resolved threads, one more pass lists against them before this returns.
     func refreshNow() async {
         readStateIfDue()
         await stateRead?.value
-        await refresh()
+        if await !refresh() { await refresh() }
     }
 
     /// Reads the room's state for its resolved threads when that is due (`ResolvedRoots`), one read at a time.
@@ -195,9 +186,6 @@ final class RoomModel: ObservableObject {
             if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
             threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
             show()
-            // The threads resolved elsewhere left the list short, and one opened again is not in it: the list
-            // is read once more after this refresh, which leaves the complications to that pass.
-            refreshAgain = true
         }
     }
 
@@ -205,15 +193,18 @@ final class RoomModel: ObservableObject {
     /// `ThreadSnapshot` of the thread's full fetch, read again by the same rule as ever. Only the order and the
     /// time of showing differ from reading every thread first: rows show with the list's first page, before
     /// anything else is read, and then thread by thread, newest first (a long thread is megabytes).
-    private func refresh() async {
+    ///
+    /// False when the resolved threads changed under the pass (the state's answer, a thread resolved here): its
+    /// rows were chosen against the old ones, so threads resolved elsewhere left the list short and one opened
+    /// again is not in it. The pass that follows lists against the new ones and writes the complications.
+    @discardableResult
+    private func refresh() async -> Bool {
         // Left, or replaced by a new version of the room: the person picks another.
-        if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
+        if room.membership() != .joined || room.successorRoom() != nil { gone = true; return true }
         let resolvedBefore = resolved.roots
         var entries: [ThreadListEntry] = []
         var listed = Set<String>()
         var from: String?
-        // Whether the rows are the room's 30 newest open threads, each as its own read found it: no page of the
-        // list failed, and no thread waits for the read of the model that shows it.
         var complete = true
         let open = { entries.filter { !self.resolved.roots.contains($0.rootId) } }
         // Resolved threads do not count: read a few more pages while they fill the first one.
@@ -221,7 +212,7 @@ final class RoomModel: ObservableObject {
             guard let result = try? await room.threadsJsonPage(from: from, limit: UInt32(Self.pageSize)) else {
                 // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's
                 // own messages, queued or failed, kept current.
-                if page == 0 { show(); return }
+                if page == 0 { show(); return true }
                 complete = false
                 break
             }
@@ -229,6 +220,9 @@ final class RoomModel: ObservableObject {
                 guard let entry = parse(json).flatMap({ ThreadListEntry.parse($0, ownUserId: userId) }),
                       listed.insert(entry.rootId).inserted, !resolved.roots.contains(entry.rootId) else { continue }
                 entries.append(entry)
+                #if DEBUG
+                E2EHooks.trace("listed \(entry.rootId) \(entry.title) | \(line(entry.reply))")
+                #endif
                 // A thread read before keeps that row until it is read again.
                 threadRows[entry.rootId] = snapshots[entry.rootId].map { row($0) } ?? row(entry)
             }
@@ -249,7 +243,7 @@ final class RoomModel: ObservableObject {
         var roots = Set(items.map(\.rootId))
         if !complete {
             let others = threadRows.values.filter { !roots.contains($0.id) }.sorted { $0.ts > $1.ts }
-            roots.formUnion(others.prefix(Self.pageSize - roots.count).map(\.id))
+            roots.formUnion(others.prefix(max(0, Self.pageSize - roots.count)).map(\.id))
         }
         threadRows = threadRows.filter { roots.contains($0.key) }
         show()
@@ -258,11 +252,6 @@ final class RoomModel: ObservableObject {
             let key = item.key
             // Resolved while the threads before it were read.
             if resolved.roots.contains(rootId) { continue }
-            // The thread on screen is read by its own model, whose snapshot this is (`adopt`), or will be.
-            if rootId == openThread {
-                if snapshots[rootId] != nil { snapshotReads[rootId] = (key, Date()) } else { complete = false }
-                continue
-            }
             // A thread nothing new happened in keeps its snapshot for a minute, unless it streams or waits for
             // the person (edits and reactions do not show in the list).
             if let cached = snapshots[rootId], let read = snapshotReads[rootId], read.key == key,
@@ -288,13 +277,13 @@ final class RoomModel: ObservableObject {
         }
         await stateRead?.value
         show()
-        // The complications count the room's open threads as their own reads found them. When the resolved
-        // threads changed under this pass (the state's answer, a thread resolved here), its rows were chosen
-        // against the old ones: the pass that follows writes.
-        if complete, resolved.roots == resolvedBefore { publishWidgetSnapshot() }
+        // The complications count the room's open threads as their own reads found them.
+        let settled = resolved.roots == resolvedBefore
+        if settled { publishWidgetSnapshot() }
         #if DEBUG
         E2EHooks.trace("refresh done rows=\(rows.count)")
         #endif
+        return settled
     }
 
     /// Shows the thread rows as they are now, with the person's messages that nobody answered.
