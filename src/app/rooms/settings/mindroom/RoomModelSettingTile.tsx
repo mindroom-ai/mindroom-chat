@@ -95,6 +95,7 @@ export function RoomModelSettingTile({
   // Models are offered from a list a runtime just confirmed. With none, or after a refresh that
   // failed, the menu keeps the reset row and says so with Retry: a model of an old list may be gone.
   const unavailable = catalog.error !== undefined || catalog.runtimes.length === 0;
+  const mayWrite = canEdit && !sending;
   const state: ModelPickerState = {
     ...catalog,
     models: unavailable ? [] : models,
@@ -104,7 +105,9 @@ export function RoomModelSettingTile({
     reasoning: stored.kind === 'known' ? stored.level ?? null : null,
     pending: false,
     error: unavailable ? t(`${STRINGS}.model.catalogUnavailable`) : undefined,
-    canMutate: canEdit && !sending,
+    // A model or level writes once the runtime answered this opening's refresh: until then the
+    // rows show what it had, which may hold a model it has just lost. The reset needs no list.
+    canMutate: mayWrite && catalog.canMutate,
     selectModel: (key, level) => writeSetting(level ? `${key}@${level}` : key),
     resetToRoomDefault: () => writeSetting(''),
   };
@@ -116,7 +119,7 @@ export function RoomModelSettingTile({
       return;
     }
     // Asked again on each opening, as the composer's menu does: a runtime's models change when
-    // its configuration reloads. The rows it had stay while the answer is on its way.
+    // its configuration reloads.
     catalog.refresh();
     setAnchor(event.currentTarget.getBoundingClientRect());
   };
@@ -143,7 +146,7 @@ export function RoomModelSettingTile({
       }}
       room="50vh"
       ariaLabel={label}
-      roomSetting
+      roomSetting={{ canReset: mayWrite }}
       requestClose={close}
       onCommand={close}
     />

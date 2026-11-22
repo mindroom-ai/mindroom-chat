@@ -49,10 +49,11 @@ type ModelPickerPanelProps = {
   ariaLabel?: string;
   /**
    * The menu sets a room setting, not a thread's model: its default row needs no catalog, so it
-   * shows and counts as current without one; picking the current row writes it again; and an error
-   * names no thread command.
+   * shows and counts as current without one, and writes while `canReset` whatever `canMutate`
+   * says of the models; picking the current row writes it again; and an error names no thread
+   * command.
    */
-  roomSetting?: boolean;
+  roomSetting?: { canReset: boolean };
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -135,7 +136,7 @@ function ModelPickerPanel({
   defaults,
   room,
   ariaLabel,
-  roomSetting = false,
+  roomSetting,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
@@ -184,7 +185,7 @@ function ModelPickerPanel({
   );
   const isCurrent = (item: PickerItem): boolean =>
     item.kind === 'default'
-      ? state.override === null && (roomSetting || !!state.runtime)
+      ? state.override === null && (!!roomSetting || !!state.runtime)
       : !!state.runtime && state.override === item.model.key;
   // The highlight sits on the current choice, also once a late catalog lists it, until the user
   // moves it with the keys, the pointer or the filter.
@@ -193,6 +194,8 @@ function ModelPickerPanel({
   const activeItem = items[activeIndex];
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
+  const disabledItem = (item: PickerItem): boolean =>
+    item.kind === 'default' && roomSetting ? !roomSetting.canReset : mutationsDisabled;
   // The levels of the model the thread runs on, beside the models, once any model has levels.
   // They never follow the highlight: a level is picked for the model the thread has.
   const columnShown = !!state.runtime && state.models.some((model) => model.reasoning_levels);
@@ -244,7 +247,7 @@ function ModelPickerPanel({
   }, [levelsShown]);
 
   const selectItem = (item: PickerItem) => {
-    if (mutationsDisabled) return;
+    if (disabledItem(item)) return;
     // The current choice needs no command; choosing it again only closes the menu. A current model
     // at a named level goes back to its plain key, which runs it at its default.
     if (!roomSetting && isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
@@ -335,7 +338,7 @@ function ModelPickerPanel({
         id={optionId(listId, pickerItemId(item))}
         role="option"
         aria-selected={selected}
-        aria-disabled={mutationsDisabled}
+        aria-disabled={disabledItem(item)}
         className={css.Option}
         data-active={index === activeIndex}
         tabIndex={-1}

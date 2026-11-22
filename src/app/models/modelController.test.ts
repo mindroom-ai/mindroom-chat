@@ -2033,7 +2033,7 @@ describe('model mutation acknowledgement', () => {
     expect(settingsSnap.eligible).toBe(true);
     expect(settingsSnap.loading).toBe(false);
     expect(settingsSnap.models.map((m) => m.key)).toEqual(['fast', 'reset']);
-    expect(settingsSnap.canMutate).toBe(false);
+    expect(settingsSnap.canMutate).toBe(true);
 
     // The room composer stays ineligible for that same legacy runtime.
     const unsubComposer = h.controller.subscribe(h.room, undefined, () => {});
@@ -2154,13 +2154,17 @@ describe('model mutation acknowledgement', () => {
     h.response(h.request());
     await vi.advanceTimersByTimeAsync(12000);
     expect(snapshot().error).toBeUndefined();
+    expect(snapshot().canMutate).toBe(true);
 
-    // Asked again, as each opening of a model tile does, with the runtime away.
+    // Asked again, as each opening of a model tile does, with the runtime away: the models it
+    // had stay, unconfirmed.
     h.controller.refreshRoomCatalog(h.room);
     expect(snapshot().loading).toBe(true);
+    expect(snapshot().canMutate).toBe(false);
     expect(snapshot().models.map((m) => m.key)).toEqual(['fast', 'reset']);
     await vi.advanceTimersByTimeAsync(12000);
     expect(snapshot().loading).toBe(false);
+    expect(snapshot().canMutate).toBe(false);
     expect(snapshot().error).toBeDefined();
 
     // Its answer to the next attempt clears the error at once, not when the window ends.
@@ -2171,6 +2175,7 @@ describe('model mutation acknowledgement', () => {
     await flush();
     expect(snapshot().loading).toBe(true);
     expect(snapshot().error).toBeUndefined();
+    expect(snapshot().canMutate).toBe(true);
     expect(snapshot().models.map((m) => m.key)).toEqual(['new']);
 
     unsubSettings();

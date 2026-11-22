@@ -1554,7 +1554,7 @@ describe('TrappedModelPickerPanel', () => {
             }}
             room="50vh"
             ariaLabel="Model"
-            roomSetting
+            roomSetting={{ canReset: true }}
             requestClose={vi.fn()}
             onCommand={onCommand}
           />
@@ -1600,7 +1600,7 @@ describe('TrappedModelPickerPanel', () => {
             }}
             room="50vh"
             ariaLabel="Model"
-            roomSetting
+            roomSetting={{ canReset: true }}
             requestClose={requestClose}
             onCommand={onCommand}
           />

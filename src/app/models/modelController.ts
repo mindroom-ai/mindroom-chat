@@ -278,7 +278,10 @@ export class ModelController {
   getSnapshot = (room: Room, threadId?: string): ModelPickerSnapshot =>
     this.mx.getUserId() === this.userId ? this.scope(room, threadId).snapshot : INACTIVE_SNAPSHOT;
 
-  /** Room-settings catalog-only snapshot, independent of the room composer's draft and eligibility. */
+  /**
+   * Room-settings catalog-only snapshot, independent of the room composer's draft and eligibility.
+   * Its `canMutate` says the shown runtime answered the latest refresh, so its models are current.
+   */
   getRoomCatalogSnapshot = (room: Room): ModelPickerSnapshot =>
     this.mx.getUserId() === this.userId
       ? this.scope(room, undefined, true).snapshot
@@ -404,6 +407,8 @@ export class ModelController {
     };
     scope.query = query;
     this.queries.set(query.id, query);
+    // Room settings write no model of a list this refresh has not confirmed.
+    if (scope.catalogOnly) scope.needsRefresh = true;
     this.publish(scope, { loading: true });
     void this.probe(query);
   }
@@ -588,9 +593,9 @@ export class ModelController {
     // The shown runtime's answer is the thread's selection now, so show it at once.
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
-      // Room settings offer no model of a list that failed to refresh; this answer is one again.
-      if (scope.catalogOnly) this.publish(scope, { error: undefined });
-      this.showRuntime(scope, runtime);
+      // For room settings this answer confirms the list, also after a refresh that failed.
+      if (scope.catalogOnly) scope.needsRefresh = false;
+      this.showRuntime(scope, runtime, scope.catalogOnly ? { error: undefined } : undefined);
     } else if (
       !scope.catalogs.size &&
       !scope.send &&
@@ -621,12 +626,17 @@ export class ModelController {
     this.chooseScopeRuntime(this.scope(room, undefined, true), runtimeId);
   };
 
-  private showRuntime(scope: Scope, runtime?: ModelRuntime): void {
+  private showRuntime(
+    scope: Scope,
+    runtime?: ModelRuntime,
+    patch?: Partial<ModelPickerSnapshot>
+  ): void {
     const catalog = runtime && scope.catalogs.get(runtime.id);
     if (scope.draft && !draftMatches(catalog, scope.draft)) scope.draft = undefined;
     else if (scope.draft && catalog) scope.draft.catalog = catalog;
     const selection = catalog?.response.selection;
     this.publish(scope, {
+      ...patch,
       runtime,
       models: catalog ? catalog.response.models : [],
       override: scope.threadId ? selection?.override ?? null : scope.draft?.key ?? null,
@@ -671,10 +681,9 @@ export class ModelController {
     const catalog = runtime && scope.catalogs.get(runtime.id);
     return !!(
       this.active() &&
-      !scope.catalogOnly &&
       catalog &&
       runtime &&
-      (scope.threadId || supportsRootModel(catalog)) &&
+      (scope.catalogOnly || scope.threadId || supportsRootModel(catalog)) &&
       !scope.command &&
       !scope.send &&
       !scope.needsRefresh &&

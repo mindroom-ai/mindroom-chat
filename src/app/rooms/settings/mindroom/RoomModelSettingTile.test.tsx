@@ -97,7 +97,8 @@ const createCatalog = (overrides: Partial<ModelPickerState> = {}): ModelPickerSt
   inherited: [],
   loading: false,
   pending: false,
-  canMutate: false,
+  // The runtime answered the latest refresh.
+  canMutate: true,
   refresh: vi.fn(),
   chooseRuntime: vi.fn(),
   selectModel: vi.fn(),
@@ -105,7 +106,13 @@ const createCatalog = (overrides: Partial<ModelPickerState> = {}): ModelPickerSt
   ...overrides,
 });
 /** No runtime has answered. */
-const NO_CATALOG = { eligible: false, runtimes: [], runtime: undefined, models: [] };
+const NO_CATALOG = {
+  eligible: false,
+  runtimes: [],
+  runtime: undefined,
+  models: [],
+  canMutate: false,
+};
 
 const tile = (definition: RoomModelSettingDefinition, catalog: ModelPickerState) => (
   <ScreenSizeProvider value={ScreenSize.Desktop}>
@@ -267,7 +274,7 @@ describe('RoomModelSettingTile', () => {
   it('resets at once while two runtimes answer and none is chosen', async () => {
     setLive({ value: 'deep' });
     const runtimes = [RUNTIME, { ...RUNTIME, id: `${RUNTIME.userId}:DEV2`, deviceId: 'DEV2' }];
-    const catalog = createCatalog({ runtimes, runtime: undefined, models: [], loading: true });
+    const catalog = createCatalog({ ...NO_CATALOG, runtimes, loading: true });
     renderTile(MODEL_DEF, catalog);
 
     open();
@@ -278,24 +285,54 @@ describe('RoomModelSettingTile', () => {
     expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
   });
 
-  it('keeps its rows while a list that answered is asked again, and drops them when that fails', () => {
+  it('shows the rows it had while the list is asked again, and writes them once it answers', async () => {
+    setLive({ value: 'deep' });
     const refresh = vi.fn();
     const { rerender } = renderTile(MODEL_DEF, createCatalog({ refresh }));
 
     const dialog = open();
     expect(refresh).toHaveBeenCalledTimes(1);
-    rerender(tile(MODEL_DEF, createCatalog({ refresh, loading: true })));
+    rerender(tile(MODEL_DEF, createCatalog({ refresh, loading: true, canMutate: false })));
     expect(within(dialog).getByRole('status').textContent).toBe('Loading models');
-    expect(screen.getByRole('option', { name: /Deep/ })).toBeTruthy();
-    expect(defaultRow()).toBeTruthy();
+    // The runtime may have lost a model of the list it had: no row of it writes yet.
+    const quick = screen.getByRole('option', { name: /Quick/ });
+    expect(quick.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(quick);
+    fireEvent.click(screen.getByRole('radio', { name: 'Low' }));
+    expect(client.sendStateEvent).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBe(dialog);
+    expect(defaultRow().getAttribute('aria-disabled')).toBe('false');
+
+    // Its answer came, with the window for other runtimes still open.
+    rerender(tile(MODEL_DEF, createCatalog({ refresh, loading: true })));
+    fireEvent.click(screen.getByRole('option', { name: /Quick/ }));
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({ value: 'fast' }));
+  });
+
+  it('resets while the list is asked again', async () => {
+    setLive({ value: 'deep' });
+    renderTile(MODEL_DEF, createCatalog({ loading: true, canMutate: false }));
+
+    open();
+    fireEvent.click(defaultRow());
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
+  });
+
+  it('drops its rows when asking again fails, and keeps the reset row with Retry', () => {
+    const refresh = vi.fn();
+    const { rerender } = renderTile(MODEL_DEF, createCatalog({ refresh }));
+    open();
 
     // The runtime did not answer: its old rows may name models it no longer has.
-    rerender(tile(MODEL_DEF, createCatalog({ refresh, error: 'Model discovery unavailable.' })));
+    const failed = { refresh, error: 'Model discovery unavailable.', canMutate: false };
+    rerender(tile(MODEL_DEF, createCatalog(failed)));
     expect(screen.queryByRole('option', { name: /Deep/ })).toBeNull();
     expect(screen.getByRole('alert').textContent).toBe(
       'No model list is available right now. You can still reset to the configured default.Retry'
     );
-    expect(defaultRow()).toBeTruthy();
+    expect(defaultRow().getAttribute('aria-disabled')).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(refresh).toHaveBeenCalledTimes(2);
   });
