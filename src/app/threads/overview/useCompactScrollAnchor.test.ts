@@ -4,7 +4,6 @@ import { createElement, Fragment, useLayoutEffect, type PointerEvent } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MOUSE_REST_HOLD_MS,
-  SCROLL_SETTLE_MS,
   useCompactScrollAnchor,
   usePointerOverCards,
 } from './useCompactScrollAnchor';
@@ -306,16 +305,6 @@ describe('useCompactScrollAnchor', () => {
     expect(writes).toEqual([250, 300]);
   });
 
-  it("keeps the cards in place during a card's sideways swipe, which cancels its touch moves", () => {
-    const ids = ['$c', '$b', '$a'];
-    const { view, show, writes, rerender } = list(ids, 150);
-    const card = view.querySelector('[data-scroll-anchor="$b"]')!;
-    card.addEventListener('touchmove', (event) => event.preventDefault());
-    card.dispatchEvent(new Event('touchmove', { bubbles: true, cancelable: true }));
-    rerender(['$d', ...ids], () => show(['$d', ...ids]));
-    expect(writes).toEqual([250]);
-  });
-
   it('anchors a card below the floating header, not one it hides', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e'];
     const { view, show, writes, rerender } = list(ids, 120);
@@ -329,43 +318,15 @@ describe('useCompactScrollAnchor', () => {
   });
 
   it.each(['wheel', 'touchmove'])(
-    'leaves the list as a change during a %s scroll of the reader moves it',
+    'keeps the cards in place right after a %s too: a swipe or a sideways wheel scrolls nothing',
     (input) => {
-      vi.useFakeTimers();
       const ids = ['$c', '$b', '$a'];
-      const { view, show, writes, rerender, scrollBy } = list(ids, 150);
-      view.dispatchEvent(new Event(input));
+      const { view, show, writes, rerender } = list(ids, 150);
+      view.dispatchEvent(new Event(input, { bubbles: true }));
       rerender(['$d', ...ids], () => show(['$d', ...ids]));
-
-      // The scroll goes on (momentum): each of its events within the settle time carries it on.
-      vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
-      scrollBy(-20);
-      view.dispatchEvent(new Event('scroll'));
-      vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
-      rerender(['$e', '$d', ...ids], () => show(['$e', '$d', ...ids]));
-      expect(writes).toEqual([]);
-
-      // Settled, and nothing is made up for. The list's own scroll is no scrolling of the reader's.
-      vi.advanceTimersByTime(1);
-      rerender(['$f', '$e', '$d', ...ids], () => show(['$f', '$e', '$d', ...ids]));
-      expect(writes).toEqual([230]);
-      view.dispatchEvent(new Event('scroll'));
-      rerender(['$g', '$f', '$e', '$d', ...ids], () => show(['$g', '$f', '$e', '$d', ...ids]));
-      expect(writes).toEqual([230, 330]);
+      expect(writes).toEqual([250]);
     }
   );
-
-  it('scrolls at once, also during a scroll, when the commit itself moved the list', () => {
-    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
-    const { view, show, writes, rerender } = list(ids, 250);
-    view.dispatchEvent(new Event('wheel'));
-    const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
-    rerender(live, () => {
-      show(live);
-      view.scrollTop = 0;
-    });
-    expect(writes).toEqual([0, 350]);
-  });
 });
 
 describe('usePointerOverCards', () => {

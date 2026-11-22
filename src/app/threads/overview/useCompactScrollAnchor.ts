@@ -85,9 +85,6 @@ const stationaryRows = (
   return stationary;
 };
 
-/** How long after a wheel turn, a finger's move, or a scroll that follows one, the reader scrolls. */
-export const SCROLL_SETTLE_MS = 120;
-
 /** Runs `read` right before React changes the page: only a class is told when that is. */
 class BeforeCommit extends Component<{ read: () => void }> {
   override getSnapshotBeforeUpdate(): null {
@@ -120,10 +117,6 @@ class BeforeCommit extends Component<{ read: () => void }> {
  * with the cards as the last scroll left them, and only at the scroll offset they were read at:
  * another script that scrolled since has placed the list. Until that scroll's event has come, a
  * commit leaves the list where the script put it as well.
- *
- * While the reader scrolls, WebKit scrolls on a thread of its own, and a write sets its scroll
- * back: the list is left as it is then, unless the commit itself scrolled it. Nothing is made up
- * for once the scrolling settles, when the reader may have passed the cards that changed.
  */
 export const useCompactScrollAnchor = (
   rows: readonly string[],
@@ -135,8 +128,6 @@ export const useCompactScrollAnchor = (
   // What the listeners need of the latest commit. This ref does not decide the rows' order.
   const latestRef = useRef({ rows, sectionOfRow });
   const cardsInViewRef = useRef<CardsInView>();
-  // When the reader last scrolled (`performance.now()`).
-  const scrolledAtRef = useRef(-Infinity);
   // A scroll the hook did not make whose scroll event is still to come: the reader's, or another
   // script's that is placing the list (the list reopening where it was left, which gives up at a
   // scroll that is not its own).
@@ -164,9 +155,7 @@ export const useCompactScrollAnchor = (
         const viewTop = view.getBoundingClientRect().top;
         const top = anchor?.card?.getBoundingClientRect().top;
         const moved = anchor && top !== undefined ? top - viewTop - anchor.top : 0;
-        const scrolling = performance.now() - scrolledAtRef.current < SCROLL_SETTLE_MS;
-        const left = stayed && (scrolling || placedRef.current);
-        if (Math.abs(moved) >= 0.5 && !left) view.scrollTop += moved;
+        if (Math.abs(moved) >= 0.5 && !(stayed && placedRef.current)) view.scrollTop += moved;
       }
       cardsInViewRef.current = cardsInView(view, order);
     },
@@ -188,18 +177,9 @@ export const useCompactScrollAnchor = (
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return undefined;
-    // A wheel or a finger starts the reader's scrolling and each scroll within the settle time
-    // carries it on (momentum). A scroll of the list's own starts none.
-    const onScroll = (event: Event) => {
-      const now = performance.now();
-      // A touch a card's swipe owns scrolls nothing: the swipe cancelled the move on its way here.
-      if (event.type !== 'scroll') {
-        if (!event.defaultPrevented) scrolledAtRef.current = now;
-      } else {
-        if (now - scrolledAtRef.current < SCROLL_SETTLE_MS) scrolledAtRef.current = now;
-        placedRef.current = false;
-        cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
-      }
+    const onScroll = () => {
+      placedRef.current = false;
+      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
     const observer =
       typeof ResizeObserver === 'undefined'
@@ -207,11 +187,10 @@ export const useCompactScrollAnchor = (
         : new ResizeObserver(() => keepPlace(false));
     observer?.observe(view);
     if (contentRef?.current) observer?.observe(contentRef.current);
-    const events = ['scroll', 'wheel', 'touchmove'];
-    events.forEach((type) => view.addEventListener(type, onScroll, { passive: true }));
+    view.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       observer?.disconnect();
-      events.forEach((type) => view.removeEventListener(type, onScroll));
+      view.removeEventListener('scroll', onScroll);
     };
   }, [contentRef, keepPlace, viewRef]);
   return createElement(BeforeCommit, { read });
