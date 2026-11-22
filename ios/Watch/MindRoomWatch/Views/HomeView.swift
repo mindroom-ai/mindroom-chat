@@ -139,13 +139,12 @@ private struct RoomHome: View {
     @State private var following: String?
     @State private var collapsed: Set<ThreadSectionKind> = []
 
+    /// What the capsule says of the rows: a send that failed needs the person, as in the section below it.
     private var counts: WidgetSnapshot {
-        WidgetSnapshot(roomName: model.roomName, states: model.rows.map(\.state), at: Date())
+        WidgetSnapshot.home(roomName: model.roomName, states: model.rows.map(\.state), at: Date())
     }
 
-    private var hasUrgent: Bool {
-        counts.needsYou > 0 || model.rows.contains { $0.state == .failed }
-    }
+    private var hasUrgent: Bool { counts.needsYou > 0 }
 
     var body: some View {
         #if DEBUG

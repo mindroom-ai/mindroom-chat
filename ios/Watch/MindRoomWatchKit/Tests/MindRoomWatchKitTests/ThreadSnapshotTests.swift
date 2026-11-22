@@ -1338,7 +1338,7 @@ final class ThreadSnapshotTests: XCTestCase {
             "version": 2,
             "events": [["type": "tool_call_completed", "tool_name": "flights_search"] as JSON],
         ]
-        for divider in ["---", "***", "___", "- - -", "> ---"] {
+        for divider in ["---", "***", "___", "- - -", "> ---", "> - - -", "> * * *", "> _ _ _", ">- - -", "> > * * *"] {
             let v2Reply = event("$d2", 10_000, inThread([
                 "msgtype": "m.text",
                 "body": "Looking up flights.\n🔧 `flights_search` [1]\n\(divider)",
@@ -1373,5 +1373,143 @@ final class ThreadSnapshotTests: XCTestCase {
         let withAnswerSnap = ThreadSnapshot.build(root: voiceRoot, related: [withAnswer], ownUserId: me, now: now)
         XCTAssertEqual(withAnswerSnap.reply?.workText, "Looking up flights.")
         XCTAssertEqual(withAnswerSnap.reply?.answerText, "---\nFound 2 flights.")
+
+        // A quoted, spaced divider shows as the divider it is, not as a list item.
+        let quoted = event("$dq", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n> - - -\nFound 2 flights.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let quotedSnap = ThreadSnapshot.build(root: voiceRoot, related: [quoted], ownUserId: me, now: now)
+        XCTAssertEqual(quotedSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(quotedSnap.reply?.answerText, "- - -\nFound 2 flights.")
+    }
+
+    /// A finished reply of the local agent, with a version-2 trace of one `shell` call for a body that has its
+    /// marker line, else a version-3 trace of that call at `bodyLine`.
+    private func finishedReply(_ body: String, bodyLine: Int? = nil) -> ThreadSnapshot.Message? {
+        var call: JSON = ["type": "tool_call_completed", "tool_name": "shell"]
+        if let bodyLine { call["body_line"] = bodyLine }
+        let reply = event("$fr", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": ["version": bodyLine == nil ? 2 : 3, "events": [call]] as JSON,
+        ]))
+        return ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now).reply
+    }
+
+    func testALinkReferenceDefinitionAloneIsNoSideOfASplit() {
+        // The first is the body of "a link reference that links the index stays version 2" in MindRoom's
+        // shared fixture `tool-positions-v1.json`.
+        let definitions = [
+            ("See [1].", "[1]: https://example.org"),
+            ("Reading the guide.", "[docs]: https://example.com/guide"),
+            ("Reading the guide.", "   [docs]: <https://example.com/the guide> \"The guide\""),
+            ("Reading the guide.", "> [docs]: https://example.com/guide 'The guide'"),
+            ("Reading the guide.", "[a]: https://example.com/a\n[b]: https://example.com/b (B)"),
+        ]
+        for (prose, definition) in definitions {
+            // As it is in the text, without the quote marks: it stays, and shows as the web client's source does.
+            let shown = definition.hasPrefix("> ") ? String(definition.dropFirst(2)) : definition
+
+            // After the last call: there is no answer to fold the work before.
+            let v2After = finishedReply("\(prose)\n\n🔧 `shell` [1]\n\n\(definition)")
+            XCTAssertEqual(v2After?.toolNames, ["shell"], definition)
+            XCTAssertNil(v2After?.workText, definition)
+            XCTAssertEqual(v2After?.text, "\(prose)\n\n\(shown)", definition)
+            XCTAssertEqual(v2After?.answerText, v2After?.text, definition)
+            let v3After = finishedReply("\(prose)\n\n\(definition)", bodyLine: 2)
+            XCTAssertEqual(v3After?.toolNames, ["shell"], definition)
+            XCTAssertNil(v3After?.workText, definition)
+            XCTAssertEqual(v3After?.text, "\(prose)\n\n\(shown)", definition)
+            XCTAssertEqual(v3After?.answerText, v3After?.text, definition)
+
+            // Before it: there is no work to fold.
+            let v2Before = finishedReply("\(definition)\n\n🔧 `shell` [1]\n\n\(prose)")
+            XCTAssertNil(v2Before?.workText, definition)
+            XCTAssertEqual(v2Before?.answerText, "\(shown)\n\n\(prose)", definition)
+            let lines = definition.components(separatedBy: "\n").count
+            let v3Before = finishedReply("\(definition)\n\n\(prose)", bodyLine: lines + 1)
+            XCTAssertNil(v3Before?.workText, definition)
+            XCTAssertEqual(v3Before?.answerText, "\(shown)\n\n\(prose)", definition)
+        }
+
+        // With an answer beside it the reply folds, and the definition stays in its half.
+        let v2Answer = finishedReply("See [docs].\n\n🔧 `shell` [1]\n\nRead [docs] first.\n\n[docs]: https://example.com/guide")
+        XCTAssertEqual(v2Answer?.workText, "See [docs].")
+        XCTAssertEqual(v2Answer?.answerText, "Read [docs] first.\n\n[docs]: https://example.com/guide")
+        let v3Answer = finishedReply("See [docs].\n\nRead [docs] first.\n\n[docs]: https://example.com/guide", bodyLine: 2)
+        XCTAssertEqual(v3Answer?.workText, "See [docs].")
+        XCTAssertEqual(v3Answer?.answerText, "Read [docs] first.\n\n[docs]: https://example.com/guide")
+
+        // A line with more after the destination than a title is a paragraph, and one in a code block is code.
+        for answer in ["[note]: this stays an answer", "[]: https://example.org", "```\n[1]: https://example.org\n```"] {
+            let shown = answer.replacingOccurrences(of: "```", with: "").trimmingCharacters(in: .newlines)
+            let v2 = finishedReply("Checking.\n\n🔧 `shell` [1]\n\n\(answer)")
+            XCTAssertEqual(v2?.workText, "Checking.", answer)
+            XCTAssertEqual(v2?.answerText, shown, answer)
+            let v3 = finishedReply("Checking.\n\n\(answer)", bodyLine: 2)
+            XCTAssertEqual(v3?.workText, "Checking.", answer)
+            XCTAssertEqual(v3?.answerText, shown, answer)
+        }
+    }
+
+    func testAnAnswerOfCodeKeepsItsFirstLinesIndentation() {
+        let code = "    x = 1\n    y = 2"
+        let v2 = finishedReply("Writing it.\n\n🔧 `shell` [1]\n\n```python\n\(code)\n```\n")
+        XCTAssertEqual(v2?.workText, "Writing it.")
+        XCTAssertEqual(v2?.answerText, code)
+        XCTAssertEqual(v2?.text, "Writing it.\n\n\(code)")
+        let v3 = finishedReply("Writing it.\n\n```python\n\(code)\n```\n", bodyLine: 2)
+        XCTAssertEqual(v3?.workText, "Writing it.")
+        XCTAssertEqual(v3?.answerText, code)
+        XCTAssertEqual(v3?.text, "Writing it.\n\n\(code)")
+
+        // The work's first line keeps it too, and the blank lines around a half and the spaces that end it go.
+        let v2Work = finishedReply("\n```\n\(code)\n```\n  \n🔧 `shell` [1]\n \t\nDone.  \n\n")
+        XCTAssertEqual(v2Work?.workText, code)
+        XCTAssertEqual(v2Work?.answerText, "Done.")
+        let v3Work = finishedReply("\n```\n\(code)\n```\n  \n \t\nDone.  \n\n", bodyLine: 6)
+        XCTAssertEqual(v3Work?.workText, code)
+        XCTAssertEqual(v3Work?.answerText, "Done.")
+    }
+
+    func testOnlyAnAgentOfThisHomeserverRuns() {
+        let statuses: [Any] = ["streaming", ["state": "streaming"] as JSON]
+        for status in statuses {
+            // In the message itself, and in the edit that goes on with it.
+            let related = { (sender: String) -> [[JSON]] in
+                let live: JSON = ["msgtype": "m.text", "body": "Working on it", "io.mindroom.stream_status": status]
+                let edit = event("$e", 5, sender: sender, [
+                    "m.new_content": live, "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+                ])
+                return [[event("$r", 4, sender: sender, inThread(live))],
+                        [event("$r", 4, sender: sender, inThread(["msgtype": "m.text", "body": "…"])), edit]]
+            }
+            for sender in ["@anna:x", "@mindroom_mind:elsewhere.example"] {
+                for events in related(sender) {
+                    let snapshot = ThreadSnapshot.build(root: voiceRoot, related: events, ownUserId: me, now: now)
+                    XCTAssertEqual(snapshot.reply?.sender, sender)
+                    XCTAssertEqual(snapshot.reply?.run, RunState.none, "\(sender) \(status)")
+                    XCTAssertNotEqual(snapshot.rowState, .running, "\(sender) \(status)")
+                    XCTAssertEqual(WidgetSnapshot(roomName: "Notes", states: [snapshot.rowState], at: now).running, 0)
+                }
+            }
+            for events in related(agent) {
+                let snapshot = ThreadSnapshot.build(root: voiceRoot, related: events, ownUserId: me, now: now)
+                XCTAssertEqual(snapshot.reply?.run, .streaming, "\(status)")
+                XCTAssertEqual(snapshot.rowState, .running, "\(status)")
+            }
+        }
+
+        // The person's own message says nothing of a run either.
+        let own = event("$own", 4, sender: me, inThread(["msgtype": "m.text", "body": "Hi", "io.mindroom.stream_status": "streaming"]))
+        let ownSnapshot = ThreadSnapshot.build(root: voiceRoot, related: [own], ownUserId: me, now: now)
+        guard case let .message(message)? = ownSnapshot.entries.last else { return XCTFail("no message") }
+        XCTAssertEqual(message.eventId, "$own")
+        XCTAssertEqual(message.run, RunState.none)
+        XCTAssertNotEqual(ownSnapshot.rowState, .running)
     }
 }

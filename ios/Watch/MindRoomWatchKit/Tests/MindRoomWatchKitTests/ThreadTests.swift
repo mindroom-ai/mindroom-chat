@@ -281,10 +281,42 @@ final class PlainTextTests: XCTestCase {
         let dividerPrefix = PlainText.withToolDetails("***\n🔧 `calendar` [1]\nBooked for 10:00.")
         XCTAssertNil(dividerPrefix.workText)
 
+        // In a block quote too, where a spaced one is no list item.
+        for divider in ["> - - -", "> * * *", "> _ _ _", ">---", "> > - - -"] {
+            XCTAssertNil(PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]\n\(divider)").workText, divider)
+            XCTAssertNil(PlainText.withToolDetails("\(divider)\n🔧 `calendar` [1]\nBooked for 10:00.").workText, divider)
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "Checking calendar...\n\(divider)", atLFLine: 1), divider)
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "\(divider)\nBooked for 10:00.", atLFLine: 1), divider)
+        }
+        XCTAssertEqual(PlainText.of(markdown: "Before\n> - - -\nAfter"), "Before\n- - -\nAfter")
+        XCTAssertEqual(PlainText.of(markdown: "> - one\n> - two"), "• one\n• two")
+
         // Fenced "---" inside code block remains substantive.
         let fencedDivider = PlainText.withToolDetails("Checking config.\n🔧 `read_file` [1]\n```\n---\n```")
         XCTAssertEqual(fencedDivider.workText, "Checking config.")
         XCTAssertEqual(fencedDivider.answerText, "---")
+    }
+}
+
+final class PlainTextEdgesTests: XCTestCase {
+    func testTheFirstLineKeepsItsIndentation() {
+        XCTAssertEqual(PlainText.of(markdown: "```\n    x = 1\n    y = 2\n```"), "    x = 1\n    y = 2")
+        XCTAssertEqual(PlainText.of(markdown: "\n  \n```\n\tx = 1\n```\n \n"), "\tx = 1")
+    }
+
+    func testBlankLinesAroundTheTextAndTheSpacesThatEndItGo() {
+        XCTAssertEqual(PlainText.of(markdown: "\n \t\n\nHello  \n\n\n\nWorld \t\n  \n\n"), "Hello  \n\nWorld")
+        XCTAssertEqual(PlainText.of(markdown: " \n\t\n"), "")
+        XCTAssertEqual(PlainText.of(markdown: ""), "")
+    }
+
+    func testALinkReferenceDefinitionStaysInTheText() {
+        XCTAssertEqual(PlainText.of(markdown: "See [1].\n\n[1]: https://example.org"), "See [1].\n\n[1]: https://example.org")
+        let details = PlainText.withToolDetails("See [1].\n\n🔧 `shell` [1]\n\n[1]: https://example.org")
+        XCTAssertEqual(details.markers, [PlainText.ToolMarker(index: 1, name: "shell")])
+        XCTAssertNil(details.workText)
+        XCTAssertEqual(details.answerText, "See [1].\n\n[1]: https://example.org")
+        XCTAssertNil(PlainText.splitFinishedWork(markdown: "See [1].\n\n[1]: https://example.org", atLFLine: 2))
     }
 }
 

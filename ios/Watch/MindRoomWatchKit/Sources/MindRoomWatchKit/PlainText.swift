@@ -14,6 +14,14 @@ public enum PlainText {
     /// CommonMark thematic break (`---`, `***`, `___`, optionally spaced): visual divider, not substantive prose.
     private static let thematicBreak = try! NSRegularExpression(pattern: #"^ {0,3}(?:(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})$"#)
 
+    /// The block quote marks a line starts with (`> `, `> > `), each after up to three spaces.
+    private static let quotePrefix = try! NSRegularExpression(pattern: #"^(?:[ \t]{0,3}>[ \t]?)+"#)
+
+    /// CommonMark link reference definition on one line (`[label]: destination "title"`): it names a link's
+    /// target and draws nothing. A line with more after the destination than a title is a paragraph.
+    private static let linkReferenceDefinition = try! NSRegularExpression(
+        pattern: #"^ {0,3}\[(?![ \t]*\])[^\]\n]+\]:[ \t]*(?:<[^<>\n]*>|\S+)(?:[ \t]+(?:"[^"]*"|'[^']*'|\([^()]*\)))?[ \t]*$"#)
+
     public static func of(markdown: String) -> String { withToolCount(markdown).text }
 
     /// A Matrix user id in text: `@localpart:server`, without trailing punctuation.
@@ -67,12 +75,7 @@ public enum PlainText {
                 lastToolIndex = lines.count
                 continue
             }
-            if isThematicBreak(line) {
-                lines.append((line, false))
-            } else {
-                let formatted = prose(line)
-                lines.append((formatted, !isThematicBreak(formatted) && hasSubstantiveText(formatted)))
-            }
+            lines.append(rendered(line))
         }
         let allText = lines.map(\.text)
         let text = normalize(allText[...])
@@ -116,11 +119,8 @@ public enum PlainText {
                     formatted = nil
                 } else if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
                     formatted = nil
-                } else if isThematicBreak(line) {
-                    formatted = (line, false)
                 } else {
-                    let rendered = prose(line)
-                    formatted = (rendered, !isThematicBreak(rendered) && hasSubstantiveText(rendered))
+                    formatted = rendered(line)
                 }
                 if let formatted {
                     if index < splitLine { beforeLines.append(formatted) } else { afterLines.append(formatted) }
@@ -133,9 +133,24 @@ public enum PlainText {
         return (before, after)
     }
 
-    private static func isThematicBreak(_ line: String) -> Bool {
-        thematicBreak.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    /// A line outside a code fence that is no tool marker, as the text shows it, and whether it is substantive.
+    /// A thematic break and a link reference definition are not, in a block quote either: the web client draws
+    /// a rule for one and nothing for the other, so neither alone makes a side of a work/answer split. The break
+    /// is read before `prose` would make a list item of `- - -`, and shows without its quote marks.
+    private static func rendered(_ line: String) -> (text: String, substantive: Bool) {
+        let range = NSRange(line.startIndex..., in: line)
+        let unquoted = quotePrefix.stringByReplacingMatches(in: line, range: range, withTemplate: "")
+        if isThematicBreak(unquoted) { return (unquoted, false) }
+        let formatted = prose(line)
+        let shows = !isThematicBreak(formatted) && !matches(linkReferenceDefinition, unquoted)
+        return (formatted, shows && hasSubstantiveText(formatted))
     }
+
+    private static func matches(_ pattern: NSRegularExpression, _ line: String) -> Bool {
+        pattern.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    private static func isThematicBreak(_ line: String) -> Bool { matches(thematicBreak, line) }
 
     /// True when `text` has visible content beyond whitespace, pending hourglass markers (`⏳`), and zero-width characters
     /// (matching the web client's `finishedWorkSplit.ts`).
@@ -146,10 +161,19 @@ public enum PlainText {
         }
     }
 
+    /// The lines as one text: without the blank lines before and after them and the spaces that end the last
+    /// one, and with one blank line where there were more. The first line keeps its indentation, as every
+    /// line after it does: it may be a line of code, and the answer of a split may start with one.
     private static func normalize(_ lines: ArraySlice<String>) -> String {
-        lines.joined(separator: "\n")
+        let isBlank = { (line: String) in line.unicodeScalars.allSatisfy(CharacterSet.whitespacesAndNewlines.contains) }
+        guard let first = lines.firstIndex(where: { !isBlank($0) }),
+              let last = lines.lastIndex(where: { !isBlank($0) }) else { return "" }
+        var text = lines[first...last].joined(separator: "\n")
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while let scalar = text.unicodeScalars.last, CharacterSet.whitespacesAndNewlines.contains(scalar) {
+            text.unicodeScalars.removeLast()
+        }
+        return text
     }
 
     private static func prose(_ line: String) -> String {

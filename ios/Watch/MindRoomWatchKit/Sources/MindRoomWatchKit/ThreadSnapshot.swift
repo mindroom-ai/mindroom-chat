@@ -184,7 +184,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let latestEdit = edit(event)
             let content = effectiveContent(event, latestEdit: latestEdit)
             let body = content["body"] as? String ?? ""
-            let run = RunState.of(event, latestEdit: latestEdit)
+            // A run's state only of an agent on this person's homeserver, as its tools and work: anyone can put
+            // a stream status on a message, and it would show Live and count as running on the home screen.
+            let trustedAgent = !isOwn && !event.isRedacted && isAgent(sender)
+            let run = trustedAgent ? RunState.of(event, latestEdit: latestEdit) : .none
             let audio = isAudio(event)
             if audio {
                 let spoken = transcripts[id] ?? AudioCaption.of(content) ?? ""
@@ -198,7 +201,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
             // those lines whoever sent them, and a count shows no call and trusts no one.
             let trace = MindRoomAgent.hasAgentName(sender) ? toolTraceOutOfText(content) : (names: [String](), maxBodyLine: nil as Int?)
             let totalTools = details.markers.count + trace.names.count
-            let trustedAgent = !isOwn && !event.isRedacted && isAgent(sender)
             var toolNames: [String] = []
             var workText: String?
             var answerText = details.text

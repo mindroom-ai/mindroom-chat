@@ -256,10 +256,17 @@ struct ThreadView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                if message.run == .streaming {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(WatchTheme.tealBright)
+                // The work fold has its own mark of a run that goes on.
+                if !showsWorkFold && message.run == .streaming {
+                    if reduceMotion {
+                        Circle()
+                            .fill(WatchTheme.tealBright)
+                            .frame(width: 6, height: 6)
+                    } else {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(WatchTheme.tealBright)
+                    }
                 }
             }
             if showsWorkFold {
