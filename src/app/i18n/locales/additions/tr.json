@@ -735,6 +735,36 @@
           "default": "Varsayılan",
           "auto": "Her mesaja",
           "mentions": "Yalnızca bahsedilince"
+        },
+        "sections": {
+          "agents": "Ajanlar",
+          "threadTitles": "Konu başlıkları"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Bu odadaki her ajan, ekip ve yönlendirici için varsayılan model. Konu düzeyindeki geçersiz kılmalar önceliğini korur.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "defaultDescription": "Bu oda için MindRoom yapılandırmasındaki varsayılanı izle.",
+          "unknown": "Bilinmeyen model: \"{{value}}\" bu odanın model listesinde yok.",
+          "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz.",
+          "storedRaw": "Oda ayarı: {{value}}"
+        },
+        "threadMode": {
+          "label": "Konu modu",
+          "description": "Ajanların bu odada konularda mı yoksa ana akışta mı yanıt vereceği.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "thread": "Konular",
+          "room": "Ana akış",
+          "effective": "Geçerli etkin mod: {{mode}}",
+          "effectiveModes": {
+            "thread": "Konular",
+            "room": "Ana akış",
+            "mixed": "Karışık (ajana göre değişir)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Başlık modeli",
+          "description": "Bu odanın otomatik konu başlıklarını yazan model."
         }
       }
     },

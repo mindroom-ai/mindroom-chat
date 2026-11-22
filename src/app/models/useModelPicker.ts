@@ -70,3 +70,28 @@ export const useModelPicker = (room: Room, threadId: string | undefined): ModelP
   );
   return useMemo(() => ({ ...snapshot, ...actions }), [snapshot, actions]);
 };
+
+/** Room-scope model catalog for room settings, independent of the room composer's draft. */
+export const useRoomModelCatalog = (room: Room): ModelPickerState => {
+  const mx = useMatrixClient();
+  const controller = useMemo(() => getModelController(mx), [mx]);
+  const subscribe = useCallback(
+    (listener: () => void) => controller.subscribeRoomCatalog(room, listener),
+    [controller, room]
+  );
+  const getSnapshot = useCallback(
+    () => controller.getRoomCatalogSnapshot(room),
+    [controller, room]
+  );
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const actions = useMemo(
+    () => ({
+      refresh: () => controller.refreshRoomCatalog(room),
+      chooseRuntime: (runtimeId: string) => controller.chooseRoomCatalogRuntime(room, runtimeId),
+      selectModel: () => undefined,
+      resetToRoomDefault: () => undefined,
+    }),
+    [controller, room]
+  );
+  return useMemo(() => ({ ...snapshot, ...actions }), [snapshot, actions]);
+};

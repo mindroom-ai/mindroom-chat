@@ -748,6 +748,36 @@
           "default": "Par défaut",
           "auto": "À tout message",
           "mentions": "Seulement si mentionnés"
+        },
+        "sections": {
+          "agents": "Agents",
+          "threadTitles": "Titres des fils"
+        },
+        "model": {
+          "label": "Modèle",
+          "description": "Modèle par défaut pour chaque agent, équipe et routeur de ce salon. Les choix propres à un fil restent prioritaires.",
+          "default": "Utiliser la valeur par défaut configurée",
+          "defaultDescription": "Suivre la valeur par défaut configurée dans MindRoom pour ce salon.",
+          "unknown": "Modèle inconnu : « {{value}} » ne figure pas dans la liste des modèles de ce salon.",
+          "catalogUnavailable": "Aucune liste de modèles n’est disponible pour le moment. Vous pouvez tout de même rétablir la valeur par défaut configurée.",
+          "storedRaw": "Paramètre du salon : {{value}}"
+        },
+        "threadMode": {
+          "label": "Mode de fil",
+          "description": "Indique si les agents répondent dans des fils ou dans le fil principal de ce salon.",
+          "default": "Utiliser la valeur par défaut configurée",
+          "thread": "Fils",
+          "room": "Fil principal",
+          "effective": "Mode effectif actuel : {{mode}}",
+          "effectiveModes": {
+            "thread": "Fils",
+            "room": "Fil principal",
+            "mixed": "Mixte (varie selon l’agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modèle de titre",
+          "description": "Modèle chargé d’écrire les titres automatiques des fils de ce salon."
         }
       }
     },

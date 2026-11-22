@@ -722,6 +722,36 @@
           "default": "預設",
           "auto": "任何訊息",
           "mentions": "僅在被提及時"
+        },
+        "sections": {
+          "agents": "代理人",
+          "threadTitles": "討論串標題"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房間中所有代理人、團隊與路由器的預設模型。討論串中的個別覆寫仍具有較高優先順序。",
+          "default": "使用設定的預設值",
+          "defaultDescription": "遵循 MindRoom 為此房間設定的預設值。",
+          "unknown": "未知模型：「{{value}}」不在此房間的模型清單中。",
+          "catalogUnavailable": "目前沒有可用的模型清單。你仍可重設為設定的預設值。",
+          "storedRaw": "聊天室設定：{{value}}"
+        },
+        "threadMode": {
+          "label": "討論串模式",
+          "description": "此房間中的代理人要在討論串中或主時間軸中回覆。",
+          "default": "使用設定的預設值",
+          "thread": "討論串",
+          "room": "主時間軸",
+          "effective": "目前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "討論串",
+            "room": "主時間軸",
+            "mixed": "混合（依代理人而異）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "標題模型",
+          "description": "為此房間產生自動討論串標題的模型。"
         }
       }
     },

@@ -5,11 +5,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
-import { ROOM_SETTING_DEFINITIONS, type RoomTextSettingDefinition } from './roomSettingDefinitions';
+import { ROOM_SETTING_SECTIONS, type RoomTextSettingDefinition } from './roomSettingDefinitions';
 import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const DEFINITION = ROOM_SETTING_DEFINITIONS.find(
+const DEFINITION = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings).find(
   (definition): definition is RoomTextSettingDefinition => definition.kind === 'text'
 );
 const KEY = 'thread_summary_instructions';

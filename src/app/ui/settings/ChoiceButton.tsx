@@ -45,6 +45,8 @@ export function ChoiceButton<V extends string | number>({
 }: ChoiceButtonProps<V>) {
   const [anchor, setAnchor] = useState<RectCords>();
   const close = () => setAnchor(undefined);
+  // A choice that may no longer be made (the right to edit went) takes its open menu with it.
+  if (disabled && anchor) close();
   const current = choices.find((choice) => choice.value === value);
 
   const toggle = (event: MouseEvent<HTMLButtonElement>) => {

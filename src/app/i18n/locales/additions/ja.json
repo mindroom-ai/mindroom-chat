@@ -722,6 +722,36 @@
           "default": "デフォルト",
           "auto": "すべてのメッセージ",
           "mentions": "メンションされたときだけ"
+        },
+        "sections": {
+          "agents": "エージェント",
+          "threadTitles": "スレッドタイトル"
+        },
+        "model": {
+          "label": "モデル",
+          "description": "このルームのすべてのエージェント、チーム、ルーターの既定モデル。スレッド単位の上書きは引き続き優先されます。",
+          "default": "設定済みの既定を使用",
+          "defaultDescription": "このルームの MindRoom の設定済み既定値に従います。",
+          "unknown": "不明なモデル: 「{{value}}」はこのルームのモデル一覧にありません。",
+          "catalogUnavailable": "現在モデル一覧を取得できません。設定済みの既定にリセットすることは引き続き可能です。",
+          "storedRaw": "ルームの設定: {{value}}"
+        },
+        "threadMode": {
+          "label": "スレッドモード",
+          "description": "このルームでエージェントがスレッド内またはメインタイムラインのどちらに返信するかを設定します。",
+          "default": "設定済みの既定を使用",
+          "thread": "スレッド",
+          "room": "メインタイムライン",
+          "effective": "現在の有効モード: {{mode}}",
+          "effectiveModes": {
+            "thread": "スレッド",
+            "room": "メインタイムライン",
+            "mixed": "混在（エージェントにより異なる）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "タイトルモデル",
+          "description": "このルームの自動スレッドタイトルを生成するモデル。"
         }
       }
     },
