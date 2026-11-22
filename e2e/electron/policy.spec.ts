@@ -6,9 +6,14 @@ import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type FrameLocator } from '@playwright/test';
-import { launchDesktop } from '../helpers/electronApp';
+import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const REMOTE_ASSET_URL = 'https://assets.example.test/pixel.png';
+const PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64'
+);
 
 const copyDir = (src: string, dest: string): void => {
   fs.cpSync(src, dest, { recursive: true });
@@ -273,6 +278,8 @@ const buildInteractiveCanvasHtml = (label: string, probeUrl: string): string => 
   <div id="count">0</div>
   <div id="saved"></div>
   <div id="remote"></div>
+  <div id="remote-asset">pending</div>
+  <img id="remote-img" alt="" />
   <button id="inc" type="button">Increment</button>
   <button id="save" type="button">Save State</button>
   <button id="escape-inner" type="button">Escape Inner</button>
@@ -285,6 +292,14 @@ const buildInteractiveCanvasHtml = (label: string, probeUrl: string): string => 
   document.getElementById('saved').textContent = (window.mindroom && window.mindroom.state && window.mindroom.state.note) || 'none';
   const metaCsp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
   document.getElementById('remote').textContent = metaCsp && metaCsp.content.includes('img-src data: blob: https:') ? 'on' : 'off';
+  const remoteImg = document.getElementById('remote-img');
+  remoteImg.addEventListener('load', () => {
+    document.getElementById('remote-asset').textContent = 'loaded:' + remoteImg.naturalWidth;
+  });
+  remoteImg.addEventListener('error', () => {
+    document.getElementById('remote-asset').textContent = 'blocked';
+  });
+  remoteImg.src = ${JSON.stringify(REMOTE_ASSET_URL)};
   document.getElementById('inc').addEventListener('click', () => {
     n += 1;
     countEl.textContent = String(n);
@@ -316,6 +331,8 @@ const buildInteractiveCanvasHtml = (label: string, probeUrl: string): string => 
 </script>`;
 
 test.describe('Electron script policy and canvas frame', () => {
+  test.afterEach(() => assertNoUnexpectedViolations());
+
   test('serves combined framing and script CSP headers for /connect, /invite, /home, and /canvas-frame.html', async () => {
     const session = await launchDesktop({ offline: true });
     try {
@@ -415,41 +432,54 @@ test.describe('Electron script policy and canvas frame', () => {
         expect(results).toEqual({ pwn: [], evalBlocked: true });
       });
 
-      expect(caught.length).toBeGreaterThanOrEqual(4);
-      expect(caught.some((v) => v.includes('script-src-elem') && v.includes('inline'))).toBe(true);
-      expect(caught.some((v) => v.includes('script-src-attr'))).toBe(true);
-      expect(caught.some((v) => v.includes('https://example.org/pwn.js'))).toBe(true);
-      expect(caught.some((v) => v.includes('eval'))).toBe(true);
+      expect([...caught].sort()).toEqual(
+        [
+          'script-src-elem: inline',
+          'script-src-attr: inline',
+          'script-src-elem: https://example.org/pwn.js',
+          'script-src: eval',
+        ].sort()
+      );
       expect(session.violations).toEqual([]);
 
-      // PDF frame opens a PDF blob into an <embed type="application/pdf"> with zero violations.
-      const pdfEmbed = await page.evaluate(async (pdfText: string) => {
+      // PDF frame runs its hashed script with zero violations and mounts a sized PDF <embed>.
+      // Chromium's PDFium plugin internals are not inspectable via DOM; visual viewer rendering is
+      // verified by screenshot on the M2.
+      const pdfResult = await page.evaluate(async (pdfText: string) => {
         const blobUrl = URL.createObjectURL(new Blob([pdfText], { type: 'application/pdf' }));
         const frame = document.createElement('iframe');
+        frame.style.cssText = 'width:320px;height:240px;';
         frame.src = `/pdf-frame.html#${encodeURIComponent(blobUrl)}`;
         document.body.append(frame);
-        const embedSrc = await new Promise<string | null>((resolve) => {
-          const deadline = Date.now() + 5_000;
-          const poll = () => {
-            const embed = frame.contentDocument?.querySelector('embed[type="application/pdf"]');
-            const src = embed?.getAttribute('src') ?? null;
-            if (src) {
-              resolve(src);
-              return;
-            }
-            if (Date.now() > deadline) {
-              resolve(null);
-              return;
-            }
-            setTimeout(poll, 25);
-          };
-          poll();
-        });
+        const info = await new Promise<{ src: string | null; width: number; height: number }>(
+          (resolve) => {
+            const deadline = Date.now() + 5_000;
+            const poll = () => {
+              const embed = frame.contentDocument?.querySelector('embed[type="application/pdf"]');
+              const src = embed?.getAttribute('src') ?? null;
+              if (embed && src) {
+                const rect = embed.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                  resolve({ src, width: rect.width, height: rect.height });
+                  return;
+                }
+              }
+              if (Date.now() > deadline) {
+                resolve({ src, width: 0, height: 0 });
+                return;
+              }
+              setTimeout(poll, 25);
+            };
+            poll();
+          }
+        );
         frame.remove();
         URL.revokeObjectURL(blobUrl);
-        return embedSrc;
+        return info;
       }, MINIMAL_PDF);
-      expect(pdfEmbed).toMatch(/^blob:capacitor:\/\/localhost\//);
+      expect(pdfResult.src).toMatch(/^blob:capacitor:\/\/localhost\//);
+      expect(pdfResult.width).toBeGreaterThan(0);
+      expect(pdfResult.height).toBeGreaterThan(0);
     } finally {
       await session.close();
     }
@@ -594,8 +624,13 @@ test.describe('Electron script policy and canvas frame', () => {
     });
 
     const session = await launchDesktop();
+    let remoteAssetHits = 0;
     try {
       const { page } = session;
+      await page.context().route(REMOTE_ASSET_URL, (route) => {
+        remoteAssetHits += 1;
+        return route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL_PNG });
+      });
       const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
       await page.addLocatorHandler(setup, () =>
         setup.getByRole('button', { name: 'Not now' }).click()
@@ -656,6 +691,8 @@ test.describe('Electron script policy and canvas frame', () => {
       expect(mock.probeHits()).toBe(0);
 
       await expect(inlineInner.locator('#remote')).toHaveText('off');
+      await expect(inlineInner.locator('#remote-asset')).toHaveText('blocked', { timeout: 15_000 });
+      expect(remoteAssetHits).toBe(0);
       await expect(inlineInner.locator('#saved')).toHaveText('none');
 
       // 2a. Navigating the wrapper frame itself restarts the inline canvas with the same document and runs again.
@@ -830,8 +867,13 @@ test.describe('Electron script policy and canvas frame', () => {
       },
     ]);
     const session = await launchDesktop({ dist: tmpDist });
+    let remoteAssetHits = 0;
     try {
       const { page } = session;
+      await page.context().route(REMOTE_ASSET_URL, (route) => {
+        remoteAssetHits += 1;
+        return route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL_PNG });
+      });
       const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
       await page.addLocatorHandler(setup, () =>
         setup.getByRole('button', { name: 'Not now' }).click()
@@ -870,6 +912,8 @@ test.describe('Electron script policy and canvas frame', () => {
         .first()
         .frameLocator('iframe');
       await expect(inner.locator('#remote')).toHaveText('on', { timeout: 20_000 });
+      await expect(inner.locator('#remote-asset')).toHaveText('loaded:1', { timeout: 15_000 });
+      expect(remoteAssetHits).toBeGreaterThanOrEqual(1);
       await expect(inner.locator('#meta')).toHaveText(
         JSON.stringify({ origin: 'null', hasBridge: false, d3Ok: true, fetchBlocked: true }),
         { timeout: 15_000 }

@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import {
   _electron as electron,
   expect,
-  test,
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
@@ -30,10 +29,11 @@ export type DesktopSession = {
 
 const launchedSessions: DesktopSession[] = [];
 
-test.afterEach(() => {
+/** Call from each Electron spec file's `test.afterEach` so every spec enforces zero unexpected main-frame CSP violations. */
+export const assertNoUnexpectedViolations = (): void => {
   const unexpected = launchedSessions.splice(0).flatMap((session) => session.violations);
   expect(unexpected, 'unexpected main-frame CSP violations').toEqual([]);
-});
+};
 
 const installViolationHook = (): void => {
   const win = window as unknown as {

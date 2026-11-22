@@ -89,6 +89,9 @@ function SizedFrame({
     restart.current?.();
   }, [frame]);
   const { generation, ...frameProps } = useCanvasFrame(doc, frame, handleLoad);
+  // Load-based wrapper-escape detection applies only to the desktop `/canvas-frame.html` path;
+  // on web/phone a `srcDoc` update on the same iframe fires `load` again and is not an escape.
+  const iframeProps = 'src' in frameProps ? frameProps : { srcDoc: frameProps.srcDoc };
   useEffect(() => {
     // Size and escapes only; a page's host, when it has one, reads the rest.
     const receive = (event: MessageEvent) => {
@@ -154,7 +157,7 @@ function SizedFrame({
         key={`${reloads}:${generation}`}
         ref={frame}
         title={title}
-        {...frameProps}
+        {...iframeProps}
         sandbox={CANVAS_WRAPPER_SANDBOX}
         allow={CANVAS_PERMISSIONS}
         referrerPolicy="no-referrer"

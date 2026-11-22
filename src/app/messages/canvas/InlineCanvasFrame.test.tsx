@@ -368,6 +368,26 @@ describe('InlineCanvasFrame', () => {
     act(() => container.querySelector('button')!.click());
     expect(container.querySelector('iframe')).not.toBeNull();
   });
+  it('keeps the iframe mounted and counts no escape on web when srcDoc updates and loads again', () => {
+    const request = event();
+    render(request, true, false);
+    const first = frame();
+    expect(first.getAttribute('srcdoc')).not.toContain('img-src data: blob: https:');
+    act(() => {
+      first.dispatchEvent(new Event('load'));
+    });
+    render(request, true, true);
+    expect(frame()).toBe(first);
+    expect(first.getAttribute('srcdoc')).toContain('img-src data: blob: https:');
+    act(() => {
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+    });
+    expect(frame()).toBe(first);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
   it('shrinks a wide page to its column and never enlarges a narrow one', () => {
     expect(inlineCanvasScale(720, 1440)).toBe(0.5);
     expect(inlineCanvasScale(720, 390)).toBe(1);

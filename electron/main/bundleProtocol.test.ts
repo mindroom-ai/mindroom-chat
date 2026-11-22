@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CANVAS_LIBRARY_DIR } from '../../scripts/canvas-libraries.mjs';
 import { framingHeaders } from '../../scripts/frame-headers.mjs';
 import { canvasPolicy } from '../../src/app/messages/canvas/canvasDocument';
 import {
@@ -136,6 +137,36 @@ describe('bundleProtocol', () => {
             ).toBe(true);
           }
         }
+      }
+    });
+
+    it('pins the real hashed CANVAS_LIBRARY_DIR from the build and allows every canvasPolicy source for it', async () => {
+      expect(CANVAS_LIBRARY_DIR).toMatch(/^assets\/canvas-libs-[0-9a-f]{12}$/);
+      const g = globalThis as { __MINDROOM_CANVAS_LIBRARIES__?: string };
+      const prev = g.__MINDROOM_CANVAS_LIBRARIES__;
+      g.__MINDROOM_CANVAS_LIBRARIES__ = CANVAS_LIBRARY_DIR;
+      vi.resetModules();
+      try {
+        const mod = await import('./bundleProtocol');
+        const expectedDir = `${APP_ORIGIN}/${CANVAS_LIBRARY_DIR}/`;
+        expect(mod.CANVAS_FRAME_POLICY).toContain(expectedDir);
+        const outer = parseDirectives(mod.CANVAS_FRAME_POLICY);
+        const pinned = canvasLibraries(CANVAS_LIBRARY_NAMES, () => expectedDir);
+        const inner = parseDirectives(canvasPolicy(true, true, pinned));
+        for (const [directive, sources] of inner) {
+          const outerSources = outer.get(directive);
+          expect(outerSources, `${directive} missing`).toBeDefined();
+          for (const source of sources) {
+            expect(
+              sourceAllowedBy(source, outerSources!),
+              `${directive} source ${source} must be allowed`
+            ).toBe(true);
+          }
+        }
+      } finally {
+        if (prev === undefined) delete g.__MINDROOM_CANVAS_LIBRARIES__;
+        else g.__MINDROOM_CANVAS_LIBRARIES__ = prev;
+        vi.resetModules();
       }
     });
   });
@@ -277,6 +308,7 @@ describe('bundleProtocol', () => {
         'dist/canvas-frame.html': '<!doctype html><title>canvas</title>',
         'dist/script-hashes.json': JSON.stringify(scriptHashes),
         'dist/assets/app.js': 'console.log(1);',
+        'dist/res/svg/icon.svg': '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
       });
       const distDir = path.join(parent, 'dist');
       fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'leak.txt'));
@@ -328,8 +360,22 @@ describe('bundleProtocol', () => {
       expect(upperCaseFrame.status).toBe(200);
       expect(await upperCaseFrame.text()).toContain('<title>app</title>');
 
+      const nonHtmlCsp = `${scriptPolicy([])}; object-src 'none'`;
+      const svg = await handler(new Request(`${APP_ORIGIN}/res/svg/icon.svg`));
+      expect(svg.status).toBe(200);
+      expect(svg.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const missingAsset = await handler(new Request(`${APP_ORIGIN}/assets/missing.js`));
+      expect(missingAsset.status).toBe(404);
+      expect(missingAsset.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const badMethod = await handler(new Request(`${APP_ORIGIN}/index.html`, { method: 'POST' }));
+      expect(badMethod.status).toBe(405);
+      expect(badMethod.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
       const otherHost = await handler(new Request('capacitor://evil.com/index.html'));
       expect(otherHost.status).toBe(404);
+      expect(otherHost.headers.get('content-security-policy')).toBe(nonHtmlCsp);
 
       const otherPort = await handler(new Request('capacitor://localhost:8080/index.html'));
       expect(otherPort.status).toBe(404);

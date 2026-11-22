@@ -39,6 +39,10 @@ export const scriptPolicy = (inlineHashes: readonly string[]): string =>
 export const pageHeaders = (pathname: string, hashes: readonly string[]): Record<string, string> =>
   withCsp(pathname, scriptPolicy(hashes));
 
+const NON_HTML_CSP = `${scriptPolicy([])}; object-src 'none'`;
+const textResponse = (body: string, status: number): Response =>
+  new Response(body, { status, headers: { 'Content-Security-Policy': NON_HTML_CSP } });
+
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
     const u = new URL(raw);
@@ -148,27 +152,27 @@ export const serveBundle = (distDir: string): void => {
   const scriptHashes = readScriptHashes(realRoot);
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method Not Allowed', { status: 405 });
+      return textResponse('Method Not Allowed', 405);
     }
     const url = parseAppUrl(request.url);
-    if (!url) return new Response('Not Found', { status: 404 });
+    if (!url) return textResponse('Not Found', 404);
     const headOnly = request.method === 'HEAD';
     const candidate = resolveBundlePath(url.pathname, () => true);
-    if ('status' in candidate) return new Response('Not Found', { status: candidate.status });
+    if ('status' in candidate) return textResponse('Not Found', candidate.status);
     let served = await readBundleFile(realRoot, candidate.file, headOnly);
     if (!served) {
       const fallback = resolveBundlePath(url.pathname, (rel) => rel === 'index.html');
-      if ('status' in fallback) return new Response('Not Found', { status: fallback.status });
+      if ('status' in fallback) return textResponse('Not Found', fallback.status);
       served = await readBundleFile(realRoot, fallback.file, headOnly);
     }
-    if (!served) return new Response('Not Found', { status: 404 });
+    if (!served) return textResponse('Not Found', 404);
     const headers: Record<string, string> = {
       'Content-Type': contentType(path.basename(served.fullPath)) || 'application/octet-stream',
       ...(served.file === CANVAS_FRAME_FILE
         ? withCsp(url.pathname, CANVAS_FRAME_POLICY)
         : served.file.endsWith('.html')
         ? pageHeaders(url.pathname, scriptHashes[served.file] ?? [])
-        : {}),
+        : { 'Content-Security-Policy': NON_HTML_CSP }),
     };
     return new Response(served.body, { status: 200, headers });
   });

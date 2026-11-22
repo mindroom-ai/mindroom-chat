@@ -7,7 +7,7 @@ import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import { COMPOSER_NAME } from '../helpers/composerName';
 import { createRoom } from '../helpers/createRoom';
 import { DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { launchDesktop } from '../helpers/electronApp';
+import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 
 const APP_ORIGIN = 'capacitor://localhost';
@@ -121,6 +121,8 @@ const startProbeServer = async () => {
 };
 
 test.describe('Electron desktop shell', () => {
+  test.afterEach(() => assertNoUnexpectedViolations());
+
   test('starts offline on capacitor://localhost with secure context, IndexedDB, no SW and persistent storage', async () => {
     const session = await launchDesktop({ offline: true });
     try {
