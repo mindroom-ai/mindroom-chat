@@ -1395,7 +1395,7 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
 
     // Case 5: async Copy ID retry succeeds while focus is on the read-only Task ID input -> moves focus to Details button instead of body.
     let resolveRetry: ((ok: boolean) => void) | undefined;
-    copyToClipboardMock.mockResolvedValueOnce(false).mockImplementationOnce(
+    mocks.copyToClipboard.mockResolvedValueOnce(false).mockImplementationOnce(
       () =>
         new Promise<boolean>((resolve) => {
           resolveRetry = resolve;
