@@ -609,6 +609,15 @@ describe('streaming replies on thread cards', () => {
       }),
     ],
     [
+      // The sync's newest edit of the reply is then the member's, which is no revision of it, and
+      // the thread keeps the stale edit in place of the finishing one, sent at the same time.
+      'a stale edit after the finishing one and a later edit of the reply by a member',
+      (s, now) => {
+        const others = othersEdit('Checking the results', now + 1, 'streaming');
+        return { live: [[s.completed(now)], [others], [s.streaming(now)]] };
+      },
+    ],
+    [
       'a newer finishing edit from the saved sync that no thread took',
       (s, now) => ({ live: [[s.streaming(now - 1_000)]] }),
       (now) => ({ saved: [edit(finished, now, 'completed')] }),
