@@ -110,10 +110,12 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  // Keyed to the active filter so the first render after switching tabs or Unread uses PAGE_SIZE.
+  // Keyed to the active filter so every tab or Unread change resets to PAGE_SIZE on first render.
   const filterKey = `${tab}:${unreadOnly}`;
   const [windowState, setWindowState] = useState({ filterKey, limit: PAGE_SIZE });
-  const limit = windowState.filterKey === filterKey ? windowState.limit : PAGE_SIZE;
+  const filterChanged = windowState.filterKey !== filterKey;
+  if (filterChanged) setWindowState({ filterKey, limit: PAGE_SIZE });
+  const limit = filterChanged ? PAGE_SIZE : windowState.limit;
 
   const open = useCallback(
     (row: ActivityRow) => {
@@ -132,12 +134,14 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
 
   const rowsRef = useRef<HTMLDivElement>(null);
-  // Waiting rows are never capped; ordinary rows are windowed, extending through the current or
-  // focused row so a live prepend never unmounts it.
+  // Waiting rows are never capped; ordinary rows are windowed, extending only within one page past
+  // the boundary so a live prepend keeps the current/focused row without mounting deep rows.
+  const nearEdge = (index: number): number =>
+    index >= 0 && index < limit + PAGE_SIZE ? index + 1 : 0;
   const currentIndex = rest.findIndex(isCurrent);
-  const activeKey = focusedRowKey(rowsRef.current);
+  const activeKey = filterChanged ? null : focusedRowKey(rowsRef.current);
   const focusedIndex = activeKey ? rest.findIndex((row) => row.key === activeKey) : -1;
-  const effectiveLimit = Math.max(limit, currentIndex + 1, focusedIndex + 1);
+  const effectiveLimit = Math.max(limit, nearEdge(currentIndex), nearEdge(focusedIndex));
   const visibleRest = rest.slice(0, effectiveLimit);
   const visibleRows = [...waitingRows, ...visibleRest];
   const hasMore = visibleRest.length < rest.length;
@@ -149,16 +153,12 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   );
 
   const pendingFocusKeyRef = useRef<string | null>(null);
-  const pointerActivatingRef = useRef(false);
-  const appendPage = useCallback(
-    (focusFirstNew?: boolean) => {
-      if (focusFirstNew) {
-        pendingFocusKeyRef.current = rest[visibleRest.length]?.key ?? null;
-      }
-      setWindowState({ filterKey, limit: effectiveLimit + PAGE_SIZE });
-    },
-    [effectiveLimit, filterKey, rest, visibleRest.length]
-  );
+  const appendPage = (focusFirstNew?: boolean) => {
+    if (focusFirstNew) pendingFocusKeyRef.current = rest[visibleRest.length]?.key ?? null;
+    setWindowState({ filterKey, limit: effectiveLimit + PAGE_SIZE });
+  };
+  const appendRef = useRef(appendPage);
+  appendRef.current = appendPage;
 
   useLayoutEffect(() => {
     const key = pendingFocusKeyRef.current;
@@ -188,13 +188,13 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     if (!hasMore || !target || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) appendPage();
+        if (entries.some((entry) => entry.isIntersecting)) appendRef.current();
       },
       { root: findScrollParent(target), rootMargin: SENTINEL_MARGIN }
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [appendPage, hasMore]);
+  }, [hasMore, limit]);
   const openInvites = () => {
     void navigate(getActivityInvitesPath());
     onNavigate?.();
@@ -346,23 +346,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
                 variant="Secondary"
                 fill="None"
                 radii="300"
-                onPointerDown={() => {
-                  pointerActivatingRef.current = true;
-                }}
-                onPointerCancel={() => {
-                  pointerActivatingRef.current = false;
-                }}
-                onBlur={() => {
-                  pointerActivatingRef.current = false;
-                }}
-                onFocus={() => {
-                  if (!pointerActivatingRef.current) appendPage(true);
-                }}
-                onClick={() => {
-                  const fromPointer = pointerActivatingRef.current;
-                  pointerActivatingRef.current = false;
-                  appendPage(!fromPointer);
-                }}
+                onClick={(event) => appendPage(event.detail === 0)}
               >
                 <Text size="B300">{t('threadsPage.showMore')}</Text>
               </Button>
