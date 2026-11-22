@@ -112,7 +112,8 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
   await cdp.send('Audits.enable');
 
   await page.exposeBinding('__mindroomCspViolation', ({ frame }, detail: string) => {
-    if (frame === page.mainFrame()) record(detail);
+    // One collector at a time: CDP until the page hook is confirmed, then only the hook.
+    if (domListenerReady && frame === page.mainFrame()) record(detail);
   });
   await page.addInitScript(installViolationHook);
   await page.evaluate(installViolationHook).catch(() => undefined);
