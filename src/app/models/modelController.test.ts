@@ -2453,6 +2453,75 @@ describe('ModelController main-room next-thread draft', () => {
     expect(h.controller.getSnapshot(h.room, undefined).canMutate).toBe(true);
   });
 
+  it('keeps the room draft when the runtime withdraws model_selection but keeps thread_model_on_root', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: ['thread_model_on_root'], models: reasoningModels },
+      {},
+      router
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('does not reset an existing thread chosenRuntimeId when a refresh falls back to another runtime', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    const req1 = h.request();
+    h.response(req1, {}, {}, router);
+    h.response(req1, {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const routerRuntime = h.snapshot('$root').runtimes.find((r) => r.userId === router)!;
+    h.controller.chooseRuntime(h.room, '$root', routerRuntime.id);
+    expect(h.snapshot('$root').runtime?.userId).toBe(router);
+
+    // Refresh 2: only alpha answers, so the thread falls back temporarily to alpha.
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    h.response(h.request(), {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot('$root').runtime?.userId).toBe(alpha);
+
+    // Refresh 3: both answer again; the thread must still remember its explicit choice (router).
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    const req3 = h.request();
+    h.response(req3, {}, {}, router);
+    h.response(req3, {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot('$root').runtime?.userId).toBe(router);
+  });
+
   it('isolates drafts per account and clears on dispose', async () => {
     const h1 = setup(false, '@alice:test');
     const h2 = setup(false, '@bob:test');

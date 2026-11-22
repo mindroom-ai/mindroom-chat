@@ -52,7 +52,7 @@ import {
 import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
 import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
-import { hasFailedPasteMarkerInText, isCommandText } from './useRoomInputSendSessionController';
+import { hasFailedPasteMarkerInText, skipsRootModel } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
@@ -258,7 +258,7 @@ export const useRoomInputVoice = ({
     const target = parked && !parked.recovered ? parked.context : getContext();
     if (
       !bundle?.pastesMissing &&
-      !isCommandText(bundle?.textContent) &&
+      !skipsRootModel(bundle?.textContent) &&
       target.threadingEnabled !== false &&
       !target.threadId &&
       !target.replyDraft

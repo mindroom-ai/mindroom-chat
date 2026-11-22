@@ -346,7 +346,7 @@ const placeInFork = async (
   };
 };
 
-export const isCommandText = (content?: IContent): boolean =>
+export const skipsRootModel = (content?: IContent): boolean =>
   (content !== undefined && content.msgtype !== 'm.text') ||
   (typeof content?.body === 'string' && /^[!/]/.test(content.body.trim()));
 
@@ -737,7 +737,7 @@ export const useRoomInputSendSessionController = ({
           target.threadId ||
           target.replyDraft ||
           target.forkStart ||
-          isCommandText(textContent) ||
+          skipsRootModel(textContent) ||
           (!hasFiles && textContent?.['m.relates_to'])
         )
           return undefined;

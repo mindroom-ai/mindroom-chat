@@ -456,7 +456,8 @@ export class ModelController {
     const runtime =
       runtimes.find((r) => r.id === scope.chosenRuntimeId) ??
       (runtimes.length === 1 ? runtimes[0] : undefined);
-    if (runtime && scope.chosenRuntimeId !== runtime.id) scope.chosenRuntimeId = undefined;
+    if (!scope.threadId && runtime && scope.chosenRuntimeId !== runtime.id)
+      scope.chosenRuntimeId = undefined;
     this.publish(scope, { ...patch, eligible: runtimes.length > 0, runtimes, runtime });
     this.showRuntime(scope, runtime);
   }
@@ -504,7 +505,11 @@ export class ModelController {
     )
       return;
     const response = parseModelCatalogResponse(message.content);
-    if (!response) return;
+    if (
+      !response ||
+      (response.thread_id !== undefined && !response.capabilities.includes('model_selection'))
+    )
+      return;
     const query = this.queries.get(response.request_id);
     if (
       !query ||
@@ -525,18 +530,16 @@ export class ModelController {
     )
       return;
     const { scope } = query;
-    const hasSelection = response.capabilities.includes('model_selection');
-    if (hasSelection) {
+    const rootSupported = !scope.threadId && supportsRootModel({ runtime, response });
+    if (scope.threadId || rootSupported || response.capabilities.includes('model_selection')) {
       query.replies.set(runtime.id, { runtime, response });
       query.scope.failures = 0;
     }
-    if (!hasSelection || (!scope.threadId && !supportsRootModel({ runtime, response }))) {
-      if (!scope.threadId) {
-        if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
-        else if (scope.draft?.catalog.runtime.id === runtime.id) {
-          scope.draft = undefined;
-          this.publish(scope, { override: null, reasoning: null });
-        }
+    if (!scope.threadId && !rootSupported) {
+      if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
+      else if (scope.draft?.catalog.runtime.id === runtime.id) {
+        scope.draft = undefined;
+        this.publish(scope, { override: null, reasoning: null });
       }
       return;
     }
