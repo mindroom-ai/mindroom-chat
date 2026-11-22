@@ -235,4 +235,21 @@ describe('copyToClipboard', () => {
       dialog.remove();
     }
   });
+
+  it('returns false without copying when textarea normalization would alter CR or CRLF text', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    });
+    const execCommand = vi.fn(() => true);
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    await expect(copyToClipboard('task\r42')).resolves.toBe(false);
+    await expect(copyToClipboard('task\r\n42')).resolves.toBe(false);
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
+  });
 });

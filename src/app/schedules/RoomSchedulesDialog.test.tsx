@@ -1734,21 +1734,42 @@ describe('RoomSchedulesDialog recurrence', () => {
     }
   });
 
-  it('preserves multiline task IDs verbatim in the Copy ID fallback field', async () => {
-    mocks.copyToClipboard.mockResolvedValueOnce(false);
-    const { host, unmount } = mountDialog({
-      roomId: '!room:example.org',
-      tasks: [makeTask({ taskId: 'task\n42', description: 'Multiline ID task' })],
-      onClose: vi.fn(),
-      onOpenThread: vi.fn(),
-    });
+  it('preserves multiline LF task IDs in textarea and keeps CR/CRLF task IDs verbatim in code on Copy ID failure', async () => {
+    mocks.copyToClipboard.mockResolvedValue(false);
     try {
-      await click(findButtonByText(host, 'Copy ID')!);
-      const field = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task ID"]');
-      expect(field).not.toBeNull();
-      expect(field?.value).toBe('task\n42');
+      const lf = mountDialog({
+        roomId: '!room:example.org',
+        tasks: [makeTask({ taskId: 'task\n42', description: 'LF ID task' })],
+        onClose: vi.fn(),
+        onOpenThread: vi.fn(),
+      });
+      try {
+        await click(findButtonByText(lf.host, 'Copy ID')!);
+        const field = lf.host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task ID"]');
+        expect(field).not.toBeNull();
+        expect(field?.value).toBe('task\n42');
+      } finally {
+        lf.unmount();
+      }
+
+      for (const crId of ['task\r42', 'task\r\n42']) {
+        const cr = mountDialog({
+          roomId: '!room:example.org',
+          tasks: [makeTask({ taskId: crId, description: 'CR ID task' })],
+          onClose: vi.fn(),
+          onOpenThread: vi.fn(),
+        });
+        try {
+          await click(findButtonByText(cr.host, 'Copy ID')!);
+          expect(cr.host.querySelector('input[aria-label="Task ID"]')).toBeNull();
+          expect(cr.host.querySelector('textarea[aria-label="Task ID"]')).toBeNull();
+          expect(cr.host.querySelector('code.task-id')?.textContent).toBe(crId);
+        } finally {
+          cr.unmount();
+        }
+      }
     } finally {
-      unmount();
+      mocks.copyToClipboard.mockResolvedValue(true);
     }
   });
 });

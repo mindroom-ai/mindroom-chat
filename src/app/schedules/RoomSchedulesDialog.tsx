@@ -692,15 +692,15 @@ function ScheduleAccordionItem({
                 {t('roomSchedules.taskId')}
               </Text>
               <Text as="dd" size="T200" className={css.Wrap}>
-                {copyFailed ? (
-                  /[\r\n]/.test(task.taskId) ? (
+                {copyFailed && !task.taskId.includes('\r') ? (
+                  task.taskId.includes('\n') ? (
                     <textarea
                       ref={(node) => {
                         taskIdInputRef.current = node;
                       }}
                       readOnly
                       dir="ltr"
-                      rows={Math.min(4, task.taskId.split(/\r?\n/).length)}
+                      rows={Math.min(4, task.taskId.split('\n').length)}
                       value={task.taskId}
                       aria-label={t('roomSchedules.taskId')}
                       className={css.TaskIdInput}

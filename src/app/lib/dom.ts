@@ -43,6 +43,7 @@ const copyWithSelection = (text: string, container?: Element | null): boolean =>
   field.setAttribute('aria-hidden', 'true');
   field.readOnly = true;
   field.value = text;
+  if (field.value !== text) return false;
   Object.assign(field.style, {
     position: 'fixed',
     top: '0',
