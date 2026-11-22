@@ -155,9 +155,17 @@ describe('QuickAccountMenu', () => {
     expect(document.activeElement).toBe(anchor);
     expect(quickMenu().getAttribute('role')).toBe('none');
     expect(quickMenu().hasAttribute('aria-label')).toBe(false);
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(document.querySelector('[role="menu"], [role="menuitem"]')).toBeNull();
     expect(rowsOf(quickMenu()).some((row) => row.hasAttribute('aria-label'))).toBe(false);
+
+    // Hidden from assistive technology, and its scroller is no Tab stop when it overflows.
+    expect(quickMenu().getAttribute('aria-hidden')).toBe('true');
+    expect(screen.queryByText('Other accounts', { ignore: '[aria-hidden="true"] *' })).toBeNull();
+    const list = quickMenu().querySelector<HTMLElement>('[data-quick-account-list]')!;
+    expect(list.tabIndex).toBe(-1);
+    expect(
+      quickMenu().querySelector('button, a[href], input, [tabindex]:not([tabindex="-1"])')
+    ).toBe(null);
 
     // A shared menu takes these from the page and its opener for its rows.
     ['ArrowDown', 'ArrowUp', 'Home', 'End'].forEach((key) => {

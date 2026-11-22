@@ -1066,11 +1066,22 @@ describe('useAccountHoldSwitch', () => {
   );
 
   describe('a touch that ends with a touchend or touchcancel alone, with no pointer event', () => {
-    const touchEnd = (type: 'touchend' | 'touchcancel', fingersLeft = 0) => {
+    /** The finger at `at` leaves the screen, with `fingersLeft` others still on it. */
+    const touchEnd = (
+      type: 'touchend' | 'touchcancel',
+      at: { clientX: number; clientY: number },
+      fingersLeft = 0
+    ) => {
       const event = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperty(event, 'touches', { value: Array.from({ length: fingersLeft }) });
+      Object.defineProperty(event, 'changedTouches', { value: [at] });
       fireEvent(window, event);
     };
+    // With `layoutTriggerAndMenu`: Bob's row, Carol's row, the avatar, and beside the list.
+    const ON_BOB = { clientX: 120, clientY: 320 };
+    const ON_CAROL = { clientX: 120, clientY: 365 };
+    const ON_AVATAR = { clientX: 30, clientY: 420 };
+    const OUTSIDE = { clientX: 304, clientY: 320 };
     const runPendingTimers = () =>
       act(() => {
         vi.advanceTimersByTime(0);
@@ -1081,9 +1092,19 @@ describe('useAccountHoldSwitch', () => {
       return touchMove.defaultPrevented;
     };
 
-    it.each(['touchend', 'touchcancel'] as const)(
-      'closes the menu without switching and gives selection and scrolling back (%s)',
-      (type) => {
+    it.each([
+      {
+        type: 'touchend',
+        where: "a row, the highlighted row's neighbour",
+        at: ON_CAROL,
+        to: CAROL,
+      },
+      { type: 'touchend', where: 'the avatar', at: ON_AVATAR, to: undefined },
+      { type: 'touchend', where: 'neither the list nor the avatar', at: OUTSIDE, to: undefined },
+      { type: 'touchcancel', where: 'a row', at: ON_CAROL, to: undefined },
+    ] as const)(
+      'ends the gesture as a pointer event would have: $type over $where',
+      ({ type, at, to }) => {
         const onSwitch = vi.fn();
         const onClick = vi.fn();
         render(<Harness onSwitch={onSwitch} onClick={onClick} />);
@@ -1091,25 +1112,29 @@ describe('useAccountHoldSwitch', () => {
         const leftListening = watchWindowListeners();
         holdOpen(trigger);
         const { bobRow } = layoutTriggerAndMenu();
-        fireEvent(
-          window,
-          pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 })
-        );
+        // The last move the page heard of was over Bob; the finger lifts elsewhere.
+        fireEvent(window, pointerEvent('pointermove', { pointerId: 1, ...ON_BOB }));
         expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
         expect(document.documentElement.style.getPropertyValue('user-select')).toBe('none');
         expect(scrollIsLocked()).toBe(true);
 
         // Another finger still down: the touch goes on.
-        touchEnd(type, 1);
+        touchEnd(type, at, 1);
         runPendingTimers();
         expect(screen.getByTestId('quick-menu')).toBeTruthy();
 
         // The last finger lifts, and no pointerup or pointercancel follows.
-        touchEnd(type);
+        touchEnd(type, at);
         expect(screen.getByTestId('quick-menu')).toBeTruthy();
+        expect(onSwitch).not.toHaveBeenCalled();
         runPendingTimers();
         expect(screen.queryByTestId('quick-menu')).toBeNull();
-        expect(onSwitch).not.toHaveBeenCalled();
+        if (to) {
+          expect(onSwitch).toHaveBeenCalledTimes(1);
+          expect(onSwitch).toHaveBeenCalledWith(to.session);
+        } else {
+          expect(onSwitch).not.toHaveBeenCalled();
+        }
         expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
         expect(document.documentElement.style.getPropertyValue('-webkit-touch-callout')).toBe('');
         expect(scrollIsLocked()).toBe(false);
@@ -1122,32 +1147,76 @@ describe('useAccountHoldSwitch', () => {
         });
         expect(leftListening()).toEqual([]);
         expect(vi.getTimerCount()).toBe(0);
+        expect(onSwitch).toHaveBeenCalledTimes(to ? 1 : 0);
       }
     );
 
-    it('leaves the lift to its pointerup where one comes, before or after the touchend', () => {
+    it('does not switch through a dialog that opened over the menu', () => {
+      const onSwitch = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+      holdOpen(screen.getByTestId('trigger'));
+      layoutTriggerAndMenu();
+      openCoveringDialog();
+
+      touchEnd('touchend', ON_BOB);
+      runPendingTimers();
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(onSwitch).not.toHaveBeenCalled();
+    });
+
+    it('swallows the click of the lift when it comes before the gesture has ended', () => {
+      const onSwitch = vi.fn();
+      const onClick = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      holdOpen(trigger);
+      layoutTriggerAndMenu();
+
+      // The finger lifts on the avatar and its click follows at once, before any timer runs.
+      touchEnd('touchend', ON_AVATAR);
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).not.toHaveBeenCalled();
+      expect(screen.getByTestId('quick-menu')).toBeTruthy();
+
+      runPendingTimers();
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(onClick).not.toHaveBeenCalled();
+      expect(onSwitch).not.toHaveBeenCalled();
+
+      // A click without a pointer still passes while the menu is open.
+      holdOpen(trigger, 2);
+      fireEvent.click(trigger, { detail: 0 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it('switches once where a pointerup comes too, before or after the touchend', () => {
       const onSwitch = vi.fn();
       render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
       const trigger = screen.getByTestId('trigger');
 
-      // The touchend first: the pointerup still switches, and nothing is left to run.
+      // The pointerup first, as browsers order them: the touchend finds nothing left to end.
       holdOpen(trigger, 1);
       layoutTriggerAndMenu();
-      touchEnd('touchend');
-      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
-      expect(onSwitch).toHaveBeenCalledWith(BOB.session);
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, ...ON_BOB }));
+      touchEnd('touchend', ON_BOB);
+      runPendingTimers();
+      expect(onSwitch).toHaveBeenCalledTimes(1);
+      expect(onSwitch).toHaveBeenLastCalledWith(BOB.session);
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+
+      // The touchend first: the pointerup switches, and nothing is left to run.
+      holdOpen(trigger, 2);
+      layoutTriggerAndMenu();
+      touchEnd('touchend', ON_CAROL);
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 2, ...ON_CAROL }));
+      expect(onSwitch).toHaveBeenCalledTimes(2);
+      expect(onSwitch).toHaveBeenLastCalledWith(CAROL.session);
       act(() => {
         vi.advanceTimersByTime(400);
       });
       expect(vi.getTimerCount()).toBe(0);
-
-      // The pointerup first, as browsers order them.
-      holdOpen(trigger, 2);
-      layoutTriggerAndMenu();
-      fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 120, clientY: 365 }));
-      touchEnd('touchend');
-      runPendingTimers();
-      expect(onSwitch).toHaveBeenLastCalledWith(CAROL.session);
       expect(onSwitch).toHaveBeenCalledTimes(2);
     });
 
@@ -1156,12 +1225,20 @@ describe('useAccountHoldSwitch', () => {
       render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
       const trigger = screen.getByTestId('trigger');
 
+      // A short tap: its click passes, whether it comes before the gesture has ended or after.
       fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
-      touchEnd('touchend');
+      touchEnd('touchend', ON_AVATAR);
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+      runPendingTimers();
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 2, clientX: 25, clientY: 420 }));
+      touchEnd('touchend', ON_AVATAR);
       runPendingTimers();
       expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
       fireEvent.click(trigger, { detail: 1 });
-      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onClick).toHaveBeenCalledTimes(2);
 
       act(() => {
         vi.advanceTimersByTime(ACCOUNT_HOLD_MS);

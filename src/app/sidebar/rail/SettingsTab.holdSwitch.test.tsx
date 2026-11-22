@@ -293,6 +293,34 @@ describe('SettingsTab hold-and-swipe account switch', () => {
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
   });
 
+  it('does not open AccountMenu when a touch lifts on the avatar with a touchend alone and its click comes at once', () => {
+    renderTab({ inTopBar: true });
+    const trigger = screen.getByRole('button', { name: 'Open account menu for Alice' });
+    trigger.getBoundingClientRect = () => rect(10, 400, 42, 42);
+
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(quickMenu()).toBeTruthy();
+
+    // No pointerup: the web view sends the touchend and the click, before any timer runs.
+    const touchEnd = new Event('touchend', { bubbles: true, cancelable: true });
+    Object.defineProperty(touchEnd, 'touches', { value: [] });
+    Object.defineProperty(touchEnd, 'changedTouches', { value: [{ clientX: 25, clientY: 420 }] });
+    fireEvent(window, touchEnd);
+    fireEvent.click(trigger, { detail: 1 });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(quickMenu()).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(setActiveSession).not.toHaveBeenCalled();
+  });
+
   it('does not open AccountMenu when the window lost focus mid-hold and the pointer, still down, lifts on the avatar after coming back', () => {
     renderTab({ inTopBar: false });
     const trigger = screen.getByRole('button', { name: 'Open account menu for Alice' });

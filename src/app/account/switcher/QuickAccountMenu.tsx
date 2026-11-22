@@ -27,8 +27,9 @@ type QuickAccountMenuProps = {
  * the bottom beside the rail) without taking focus so a hold-and-swipe gesture switches cleanly
  * on pointer release.
  *
- * It is the pointer's alone: no menu role, no rows to focus and no keys of its own (the arrow
- * keys stay the page's). The keyboard and assistive technology switch accounts in `AccountMenu`.
+ * It is the pointer's alone: no menu role, no rows to focus, no keys of its own (the arrow keys
+ * stay the page's), no Tab stop, and hidden from assistive technology. The keyboard and assistive
+ * technology switch accounts in `AccountMenu`.
  * `data-quick-account-menu` still tells the page a layer is open (`hasOpenOverlay`, `useSwipeAway`).
  */
 export function QuickAccountMenu({
@@ -83,6 +84,7 @@ export function QuickAccountMenu({
     <Menu
       ref={menuRef}
       role="none"
+      aria-hidden="true"
       className={css.MenuSurface}
       data-quick-account-menu=""
       style={{ maxBlockSize }}
@@ -92,7 +94,8 @@ export function QuickAccountMenu({
           {t('featureUi.accountMenu.otherAccounts')}
         </Text>
       </div>
-      <div ref={listRef} className={css.AccountList} data-quick-account-list="">
+      {/* A scroller that overflows is a Tab stop in Chromium and Firefox unless it opts out. */}
+      <div ref={listRef} className={css.AccountList} data-quick-account-list="" tabIndex={-1}>
         {orderedAccounts.map((account) => {
           const highlighted = account.session.sessionId === hoveredSessionId;
           return (

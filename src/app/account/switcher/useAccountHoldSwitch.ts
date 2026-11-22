@@ -492,20 +492,12 @@ export function useAccountHoldSwitch({
         updateHoverAndAutoScroll(current);
       };
 
-      const onWindowPointerUp = (winEvent: PointerEvent) => {
-        const current = gestureRef.current;
-        if (!current || winEvent.pointerId !== current.pointerId) return;
-
-        // The last button of a mouse chord to lift is not the one that held the menu open.
-        const primaryRelease = winEvent.pointerType !== 'mouse' || winEvent.button === 0;
+      // The pointer lifted, at `point` when the lift may choose an account: over a visible row of
+      // an open menu that nothing covers it switches to that account, anywhere else to none.
+      const release = (current: ActiveGesture, point?: { x: number; y: number }) => {
         const targetSessionId =
-          current.open && primaryRelease && !isCovered(menuRef.current)
-            ? hitTestQuickAccountRow(
-                winEvent.clientX,
-                winEvent.clientY,
-                current.anchor,
-                menuRef.current
-              )
+          point && current.open && !isCovered(menuRef.current)
+            ? hitTestQuickAccountRow(point.x, point.y, current.anchor, menuRef.current)
             : undefined;
         finishGesture('lifted');
 
@@ -518,10 +510,19 @@ export function useAccountHoldSwitch({
         }
       };
 
+      const onWindowPointerUp = (winEvent: PointerEvent) => {
+        const current = gestureRef.current;
+        if (!current || winEvent.pointerId !== current.pointerId) return;
+
+        // The last button of a mouse chord to lift is not the one that held the menu open.
+        const primaryRelease = winEvent.pointerType !== 'mouse' || winEvent.button === 0;
+        release(current, primaryRelease ? { x: winEvent.clientX, y: winEvent.clientY } : undefined);
+      };
+
       const onWindowPointerCancel = (winEvent: PointerEvent) => {
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
-        finishGesture('lifted');
+        release(current);
       };
 
       // The pointer may lift in another window: no listener stays behind waiting for it.
@@ -547,14 +548,17 @@ export function useAccountHoldSwitch({
       };
 
       // A phone's web view can end a touch with a touchend or touchcancel alone, with no pointerup
-      // or pointercancel (iOS WebKit; `CompactCardSwipe` sees the same). The last finger up ends
-      // the gesture without a switch, after the pointer event of that lift where one does come.
+      // or pointercancel (iOS WebKit; `CompactCardSwipe` sees the same). The last finger up then
+      // ends the gesture as its pointer event would have, a touchend where the finger lifted and
+      // a touchcancel without a switch, after that pointer event where one does come.
       const onWindowTouchEnd = (touchEvent: TouchEvent) => {
         const current = gestureRef.current;
         if (!current || touchEvent.touches.length > 0 || current.liftTimer !== undefined) return;
+        const lifted = touchEvent.type === 'touchend' ? touchEvent.changedTouches[0] : undefined;
+        const liftPoint = lifted && { x: lifted.clientX, y: lifted.clientY };
         current.liftTimer = setTimeout(() => {
           current.liftTimer = undefined;
-          if (gestureRef.current === current) finishGesture('lifted');
+          if (gestureRef.current === current) release(current, liftPoint);
         }, 0);
       };
 
@@ -656,7 +660,10 @@ export function useAccountHoldSwitch({
       // Only a pointer's click counts presses (`detail` of 1 or more). Enter, Space and assistive
       // technology click with 0: never the click a lifted pointer leaves behind, so never
       // swallowed, and suppression stays armed for a pointer that is still down.
-      if (event.detail === 0 || !suppressNextClickRef.current) return;
+      if (event.detail === 0) return;
+      // While the menu is open, the pointer holding it is the only one on the avatar: its click
+      // can come before the gesture has ended, where a touch lifts with a touchend alone.
+      if (!suppressNextClickRef.current && !gestureRef.current?.open) return;
       clearSuppressNextClick();
       event.preventDefault();
       event.stopPropagation();
