@@ -83,6 +83,8 @@ export const installMediaAuth = (
   owners: () => readonly Electron.WebContents[]
 ): ((windowId: number) => void) => {
   const auth = createMediaAuth();
+  // Set while a needed cache clear has not succeeded; no session is accepted until one does.
+  let clearOwed = false;
   // The one synchronous channel (all others go through `handle()`): main must hold the token
   // before the page can send any request after its session store changed.
   ipcMain.on('desktop:set-media-session', (event, ...args) => {
@@ -98,13 +100,29 @@ export const installMediaAuth = (
       result =
         next === undefined ? { ok: false, code: 'BAD_ARGUMENTS' } : { ok: true, value: undefined };
       // A response cached for the account that left must not be served to a request without its header.
-      // If the cache cannot be cleared, fail closed: no session, and the page is told so.
-      if (previous && (previous.baseUrl !== next?.baseUrl || previous.userId !== next?.userId))
-        return void ses.clearCache().then(reply, () => {
-          auth.set(owner.id, undefined);
-          result = { ok: false, code: 'CACHE_CLEAR_FAILED' };
-          reply();
-        });
+      // If the cache cannot be cleared, fail closed: no session, the page is told so, and the clear
+      // is owed until a later push gets it done.
+      const left =
+        previous !== undefined &&
+        (previous.baseUrl !== next?.baseUrl || previous.userId !== next?.userId);
+      if (left || clearOwed) {
+        // The new session is withheld until the clear succeeds.
+        auth.set(owner.id, undefined);
+        return void Promise.resolve()
+          .then(() => ses.clearCache())
+          .then(
+            () => {
+              clearOwed = false;
+              if (!owner.isDestroyed()) auth.set(owner.id, next ?? undefined);
+              reply();
+            },
+            () => {
+              clearOwed = true;
+              result = { ok: false, code: 'CACHE_CLEAR_FAILED' };
+              reply();
+            }
+          );
+      }
     } catch {
       // Answer what was decided so far; the page must never stay blocked.
     }

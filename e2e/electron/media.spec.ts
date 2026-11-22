@@ -162,9 +162,11 @@ const startMediaServer = async (
   const { port } = server.address() as AddressInfo;
 
   const waitForRequest = async (
-    predicate: (req: RecordedRequest) => boolean,
+    matches: (req: RecordedRequest) => boolean,
     label: string
   ): Promise<RecordedRequest> => {
+    // A preflight is recorded too; a test waits for the request itself.
+    const predicate = (req: RecordedRequest) => req.method !== 'OPTIONS' && matches(req);
     const existing = requests.find(predicate);
     if (existing) return existing;
     return new Promise<RecordedRequest>((resolve, reject) => {
