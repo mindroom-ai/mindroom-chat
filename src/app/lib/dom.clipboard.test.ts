@@ -81,7 +81,7 @@ describe('copyToClipboard', () => {
     await expect(copyToClipboard('@alice:example.org')).resolves.toBe(true);
 
     expect(execCommand).toHaveBeenCalledWith('copy');
-    expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+    expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
   });
 
   it('returns the legacy copy failure when browser clipboard is unavailable', async () => {
@@ -98,7 +98,7 @@ describe('copyToClipboard', () => {
     await expect(copyToClipboard('@alice:example.org')).resolves.toBe(false);
 
     expect(execCommand).toHaveBeenCalledWith('copy');
-    expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+    expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
   });
 
   it('returns false without creating a fallback input when document.body is unavailable', async () => {
@@ -137,10 +137,12 @@ describe('copyToClipboard', () => {
     document.body.appendChild(dialog);
     button.focus();
 
-    let inputParent: Node | null = null;
+    let fieldParent: Node | null = null;
+    let fieldValue: string | null = null;
     const execCommand = vi.fn(() => {
-      const fallback = document.querySelector('input[data-clipboard-fallback]');
-      inputParent = fallback?.parentNode ?? null;
+      const fallback = document.querySelector<HTMLTextAreaElement>('[data-clipboard-fallback]');
+      fieldParent = fallback?.parentNode ?? null;
+      fieldValue = fallback?.value ?? null;
       return true;
     });
     Object.defineProperty(document, 'execCommand', {
@@ -149,10 +151,11 @@ describe('copyToClipboard', () => {
     });
 
     try {
-      await expect(copyToClipboard('task-123')).resolves.toBe(true);
-      expect(inputParent).toBe(dialog);
+      await expect(copyToClipboard('task\n123')).resolves.toBe(true);
+      expect(fieldParent).toBe(dialog);
+      expect(fieldValue).toBe('task\n123');
       expect(execCommand).toHaveBeenCalledWith('copy');
-      expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+      expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
       expect(document.activeElement).toBe(button);
     } finally {
       dialog.remove();
@@ -174,7 +177,7 @@ describe('copyToClipboard', () => {
 
     const stealFocus = (event: FocusEvent) => {
       if (
-        event.target instanceof HTMLInputElement &&
+        event.target instanceof HTMLElement &&
         event.target.hasAttribute('data-clipboard-fallback')
       ) {
         button.focus();
@@ -191,7 +194,7 @@ describe('copyToClipboard', () => {
     try {
       await expect(copyToClipboard('task-456')).resolves.toBe(false);
       expect(execCommand).not.toHaveBeenCalled();
-      expect(document.querySelector('input[data-clipboard-fallback]')).toBeNull();
+      expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
       expect(document.activeElement).toBe(button);
     } finally {
       dialog.removeEventListener('focusin', stealFocus);
@@ -213,10 +216,10 @@ describe('copyToClipboard', () => {
     // Simulate Safari click leaving focus on document.body.
     expect(document.activeElement).toBe(document.body);
 
-    let inputParent: Node | null = null;
+    let fieldParent: Node | null = null;
     const execCommand = vi.fn(() => {
-      const input = document.querySelector<HTMLInputElement>('input[data-clipboard-fallback]');
-      inputParent = input?.parentNode ?? null;
+      const field = document.querySelector<HTMLTextAreaElement>('[data-clipboard-fallback]');
+      fieldParent = field?.parentNode ?? null;
       return true;
     });
     Object.defineProperty(document, 'execCommand', {
@@ -226,7 +229,7 @@ describe('copyToClipboard', () => {
 
     try {
       await expect(copyToClipboard('task-safari', button)).resolves.toBe(true);
-      expect(inputParent).toBe(dialog);
+      expect(fieldParent).toBe(dialog);
       expect(execCommand).toHaveBeenCalledWith('copy');
     } finally {
       dialog.remove();

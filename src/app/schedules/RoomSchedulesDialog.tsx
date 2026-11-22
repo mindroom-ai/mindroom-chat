@@ -120,7 +120,7 @@ function ScheduleAccordionItem({
   const promptToggleRef = useRef<HTMLButtonElement>(null);
   const detailsButtonRef = useRef<HTMLButtonElement>(null);
   const detailsRef = useRef<HTMLDListElement>(null);
-  const taskIdInputRef = useRef<HTMLInputElement>(null);
+  const taskIdInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
   const confirmBarRef = useRef<HTMLDivElement>(null);
@@ -693,16 +693,33 @@ function ScheduleAccordionItem({
               </Text>
               <Text as="dd" size="T200" className={css.Wrap}>
                 {copyFailed ? (
-                  <input
-                    ref={taskIdInputRef}
-                    type="text"
-                    readOnly
-                    dir="ltr"
-                    value={task.taskId}
-                    aria-label={t('roomSchedules.taskId')}
-                    className={css.TaskIdInput}
-                    onFocus={(event) => event.currentTarget.select()}
-                  />
+                  /[\r\n]/.test(task.taskId) ? (
+                    <textarea
+                      ref={(node) => {
+                        taskIdInputRef.current = node;
+                      }}
+                      readOnly
+                      dir="ltr"
+                      rows={Math.min(4, task.taskId.split(/\r?\n/).length)}
+                      value={task.taskId}
+                      aria-label={t('roomSchedules.taskId')}
+                      className={css.TaskIdInput}
+                      onFocus={(event) => event.currentTarget.select()}
+                    />
+                  ) : (
+                    <input
+                      ref={(node) => {
+                        taskIdInputRef.current = node;
+                      }}
+                      type="text"
+                      readOnly
+                      dir="ltr"
+                      value={task.taskId}
+                      aria-label={t('roomSchedules.taskId')}
+                      className={css.TaskIdInput}
+                      onFocus={(event) => event.currentTarget.select()}
+                    />
+                  )
                 ) : (
                   <code className={css.TaskId}>
                     <bdi>{task.taskId}</bdi>

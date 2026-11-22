@@ -433,6 +433,12 @@ export const PromptToggle = style([
         borderRadius: config.radii.R300,
       },
     },
+    '@media': {
+      '(pointer: coarse)': {
+        minWidth: `max(${toRem(44)}, 44px)`,
+        textAlign: 'start',
+      },
+    },
   },
   touchTarget('4px', '', { blockReach: '12px' }),
 ]);
@@ -623,6 +629,7 @@ export const TaskIdInput = style({
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   fontSize: 'inherit',
   lineHeight: 1.4,
+  resize: 'none',
   selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Surface.OnContainer}`,

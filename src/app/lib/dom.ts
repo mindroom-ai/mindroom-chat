@@ -38,12 +38,12 @@ const copyWithSelection = (text: string, container?: Element | null): boolean =>
     container?.closest('[role="dialog"]') ??
     previouslyFocused?.closest('[role="dialog"]') ??
     document.body;
-  const input = document.createElement('input');
-  input.setAttribute('data-clipboard-fallback', '');
-  input.setAttribute('aria-hidden', 'true');
-  input.readOnly = true;
-  input.value = text;
-  Object.assign(input.style, {
+  const field = document.createElement('textarea');
+  field.setAttribute('data-clipboard-fallback', '');
+  field.setAttribute('aria-hidden', 'true');
+  field.readOnly = true;
+  field.value = text;
+  Object.assign(field.style, {
     position: 'fixed',
     top: '0',
     insetInlineStart: '0',
@@ -52,16 +52,16 @@ const copyWithSelection = (text: string, container?: Element | null): boolean =>
     opacity: '0',
     pointerEvents: 'none',
   });
-  mountTarget.appendChild(input);
+  mountTarget.appendChild(field);
   try {
-    input.focus({ preventScroll: true });
-    input.select();
-    if (document.activeElement !== input) return false;
+    field.focus({ preventScroll: true });
+    field.select();
+    if (document.activeElement !== field) return false;
     return document.execCommand('copy');
   } catch {
     return false;
   } finally {
-    input.remove();
+    field.remove();
     if (previouslyFocused?.isConnected && document.activeElement !== previouslyFocused) {
       previouslyFocused.focus({ preventScroll: true });
     }

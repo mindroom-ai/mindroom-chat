@@ -1733,4 +1733,22 @@ describe('RoomSchedulesDialog recurrence', () => {
       unmount();
     }
   });
+
+  it('preserves multiline task IDs verbatim in the Copy ID fallback field', async () => {
+    mocks.copyToClipboard.mockResolvedValueOnce(false);
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [makeTask({ taskId: 'task\n42', description: 'Multiline ID task' })],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    });
+    try {
+      await click(findButtonByText(host, 'Copy ID')!);
+      const field = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Task ID"]');
+      expect(field).not.toBeNull();
+      expect(field?.value).toBe('task\n42');
+    } finally {
+      unmount();
+    }
+  });
 });
