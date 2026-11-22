@@ -74,11 +74,13 @@ export function useCompactBlocks(options: Options) {
   const extentComplete = missing < 0 || small;
   const slotsOf = (ids: string[]) => ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
   const median = (slots: number[]) => slots[Math.floor(slots.length / 2)];
-  // The blocks `ids` span; after an order change, the median one: a card that jumped is left out.
-  const band = (ids: string[]): readonly [number, number] => {
-    const slots = slotsOf(ids);
-    const [from, to, middle] = [slots[0] ?? 0, slots.at(-1) ?? 0, median(slots) ?? 0];
-    return geometry.order === order || to - from <= BUFFER_BLOCKS ? [from, to] : [middle, middle];
+  // The blocks that hold `ids`, each buffered on its own: blocks side by side on screen can be
+  // far apart in the order while those between are unmeasured. After an order change, the median
+  // one: a card that jumped is left out.
+  const band = (ids: string[]): number[] => {
+    const slots = [...new Set(slotsOf(ids))];
+    const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
+    return same ? slots : [median(slots) ?? 0];
   };
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>
@@ -103,14 +105,14 @@ export function useCompactBlocks(options: Options) {
   const targetReady = known(targetSlot);
   // The reader's band stays mounted beside the destination's: the place Back goes to, the
   // target's block, or the list's end.
-  const [first, last] = band(geometry.visible);
-  const goal = back && survivors.length ? band(survivors) : [];
-  const near = (slot: number, from = -Infinity, to = from) =>
-    slot >= from - BUFFER_BLOCKS && slot <= to + BUFFER_BLOCKS;
+  const reader = geometry.visible.length ? band(geometry.visible) : [0];
+  const goal = back ? band(survivors) : [];
+  const near = (slot: number, slots: (number | undefined)[]) =>
+    slots.some((at) => at !== undefined && Math.abs(slot - at) <= BUFFER_BLOCKS);
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
-    missing >= 0 || first > 0
+    missing >= 0 || reader[0]! > 0
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
@@ -124,10 +126,12 @@ export function useCompactBlocks(options: Options) {
       const inBand =
         small ||
         slot === probe ||
-        near(slot, first, last) ||
-        near(slot, goal[0], goal[1]) ||
-        near(slot, targetReady ? targetSlot : undefined) ||
-        near(slot, state.end && missing < 0 ? blocks.length - 1 : undefined);
+        near(slot, reader) ||
+        near(slot, goal) ||
+        near(slot, [
+          targetReady ? targetSlot : undefined,
+          state.end ? blocks.length - 1 : undefined,
+        ]);
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
         if (inBand || retained.has(id)) {
@@ -267,8 +271,7 @@ export function useCompactBlocks(options: Options) {
       }
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
-      const [start, end] = band(geometry.visible);
-      return changed || start !== first || end !== last;
+      return changed || `${band(geometry.visible)}` !== `${reader}`;
     };
     const measured = layout();
     const pending = measured || (!small && probe >= 0);

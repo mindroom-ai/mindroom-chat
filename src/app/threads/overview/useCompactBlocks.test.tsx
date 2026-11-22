@@ -282,6 +282,25 @@ it('does not offer the saved place while the small pending index would clamp it'
   expect(view.dataset.ready).toBe('true');
 });
 
+it('keeps the window bounded when a scroll shows two distant runs of cards side by side', () => {
+  // A cold Back to the last card: its block mounts unmeasured, right under the first screen.
+  const memory: ScrollAnchorMemory = new Map([
+    ['!room', { scrollTop: 1, anchors: [{ key: '$row95', offset: 160 }] }],
+  ]);
+  const onIds = vi.fn();
+  const { container } = render(<List memory={memory} onIds={onIds} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  expect(view.querySelector('[data-scroll-anchor="$row95"]')).not.toBeNull();
+  // Before discovery goes on, the reader scrolls to where both runs show.
+  act(() => {
+    view.scrollTop = 24 * (199.25 / 2) - 200;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  tick(12);
+  const most = Math.max(...onIds.mock.calls.map(([live]: [string[]]) => live.length));
+  expect(most).toBeLessThanOrEqual(72);
+});
+
 it('lets a scroll take over a pending restore without wheel input', () => {
   const id = '$row38';
   const memory: ScrollAnchorMemory = new Map([
