@@ -362,7 +362,8 @@ test.describe('Electron script policy and canvas frame', () => {
         const { csp, xfo } = responses.out[unframeable]!;
         expect(xfo, unframeable).toBe('DENY');
         expect(csp, unframeable).toContain("frame-ancestors 'none'");
-        expect(csp, unframeable).toContain("script-src 'self'");
+        expect(csp, unframeable).toContain("script-src 'self' 'wasm-unsafe-eval'");
+        expect(csp, unframeable).not.toContain('sha256-');
         expect(csp, unframeable).toContain("'wasm-unsafe-eval'");
         expect(csp, unframeable).toContain("worker-src 'self' blob:");
         expect(csp, unframeable).not.toContain("'unsafe-inline'");
@@ -372,7 +373,8 @@ test.describe('Electron script policy and canvas frame', () => {
       const home = responses.out['/home']!;
       expect(home.xfo).toBe('SAMEORIGIN');
       expect(home.csp).toContain("frame-ancestors 'self'");
-      expect(home.csp).toContain("script-src 'self'");
+      expect(home.csp).toContain("script-src 'self' 'wasm-unsafe-eval'");
+      expect(home.csp).not.toContain('sha256-');
       expect(home.csp).toContain("'wasm-unsafe-eval'");
       expect(home.csp).toContain("worker-src 'self' blob:");
       expect(home.csp).not.toContain("'unsafe-inline'");
@@ -442,9 +444,29 @@ test.describe('Electron script policy and canvas frame', () => {
       );
       expect(session.violations).toEqual([]);
 
-      // PDF frame runs its hashed script with zero violations and mounts a sized PDF <embed>.
-      // Chromium's PDFium plugin internals are not inspectable via DOM; visual viewer rendering is
-      // verified by screenshot on the M2.
+      // PDF frame runs its external loader script with zero CSP violations inside /pdf-frame.html
+      // and mounts a sized PDF <embed>. Chromium's PDFium plugin internals are not inspectable via
+      // DOM; visual viewer rendering is verified by screenshot on the M2.
+      const pdfViolations: string[] = [];
+      await page.exposeBinding('__mindroomPdfCsp', ({ frame }, detail: string) => {
+        if (frame.url().includes('/pdf-frame.html')) pdfViolations.push(detail);
+      });
+      await page.addInitScript(() => {
+        if (!window.location.pathname.endsWith('/pdf-frame.html')) return;
+        window.addEventListener(
+          'securitypolicyviolation',
+          (event) => {
+            const fn = (window as unknown as { __mindroomPdfCsp?: (detail: string) => void })
+              .__mindroomPdfCsp;
+            fn?.(
+              `${event.effectiveDirective || event.violatedDirective}: ${
+                event.blockedURI || 'inline'
+              }`
+            );
+          },
+          true
+        );
+      });
       const pdfResult = await page.evaluate(async (pdfText: string) => {
         const blobUrl = URL.createObjectURL(new Blob([pdfText], { type: 'application/pdf' }));
         const frame = document.createElement('iframe');
@@ -477,6 +499,8 @@ test.describe('Electron script policy and canvas frame', () => {
         URL.revokeObjectURL(blobUrl);
         return info;
       }, MINIMAL_PDF);
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
+      expect(pdfViolations).toEqual([]);
       expect(pdfResult.src).toMatch(/^blob:capacitor:\/\/localhost\//);
       expect(pdfResult.width).toBeGreaterThan(0);
       expect(pdfResult.height).toBeGreaterThan(0);

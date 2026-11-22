@@ -164,7 +164,7 @@ describe('startupPrecache', () => {
     const { plugin, manifestTransform, workerPlugin } = startupPrecache({
       startupModules: STARTUP,
       onDemandAssets: ON_DEMAND,
-      shellFiles: ['index.html', 'pdf-frame.html'],
+      shellFiles: ['index.html', 'viewport.js', 'pdf-frame.html', 'pdf-frame.js'],
       localeOverlay: OVERLAY,
     });
     const writeBundle = plugin.writeBundle as unknown as (
@@ -201,7 +201,9 @@ describe('startupPrecache', () => {
     writeBundle({}, bundle());
     const globbed = [
       'index.html',
+      'viewport.js',
       'pdf-frame.html',
+      'pdf-frame.js',
       'favicon.ico',
       'res/branding/mindroom-logo.png',
       ...Object.keys(bundle()),
@@ -223,6 +225,8 @@ describe('startupPrecache', () => {
       'assets/shared-s1.js',
       'index.html',
       'pdf-frame.html',
+      'pdf-frame.js',
+      'viewport.js',
     ]);
     expect(manifest.find((item) => item.url === 'index.html')).toEqual(entry('index.html'));
   });
@@ -231,7 +235,11 @@ describe('startupPrecache', () => {
     const { writeBundle, manifestTransform } = plan();
     writeBundle({}, bundle());
     expect(() =>
-      manifestTransform(['index.html', 'pdf-frame.html', 'assets/index-e1.js'].map(entry))
+      manifestTransform(
+        ['index.html', 'viewport.js', 'pdf-frame.html', 'pdf-frame.js', 'assets/index-e1.js'].map(
+          entry
+        )
+      )
     ).toThrow('startup files outside the precache globs: assets/index-e1.css');
   });
 

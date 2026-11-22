@@ -59,31 +59,25 @@ describe('bundleProtocol', () => {
   });
 
   describe('scriptPolicy and pageHeaders', () => {
-    it('builds script-src and worker-src without unsafe-inline or unsafe-eval', () => {
-      expect(scriptPolicy([])).toBe(
-        "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:"
-      );
-      const withHashes = scriptPolicy(["'sha256-aaa='", "'sha256-bbb='"]);
-      expect(withHashes).toBe(
-        "script-src 'self' 'sha256-aaa=' 'sha256-bbb=' 'wasm-unsafe-eval'; worker-src 'self' blob:"
-      );
-      expect(withHashes).not.toContain("'unsafe-inline'");
-      expect(withHashes).not.toContain("'unsafe-eval'");
+    it('defines script-src and worker-src with no hashes, unsafe-inline, or unsafe-eval', () => {
+      expect(scriptPolicy).toBe("script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:");
+      expect(scriptPolicy).not.toContain('sha256-');
+      expect(scriptPolicy).not.toContain("'unsafe-inline'");
+      expect(scriptPolicy).not.toContain("'unsafe-eval'");
     });
 
     it('joins framing headers of the requested path and the script policy into one CSP header', () => {
-      const hashes = ["'sha256-abc='"];
       for (const route of ['/connect', '/CONNECT', '/invite', '/invite/']) {
-        expect(pageHeaders(route, hashes), route).toEqual({
+        expect(pageHeaders(route), route).toEqual({
           'Content-Security-Policy':
-            "frame-ancestors 'none'; script-src 'self' 'sha256-abc=' 'wasm-unsafe-eval'; worker-src 'self' blob:",
+            "frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:",
           'X-Frame-Options': 'DENY',
         });
       }
       for (const route of ['/home', '/!abc:server.org/$event']) {
-        expect(pageHeaders(route, hashes), route).toEqual({
+        expect(pageHeaders(route), route).toEqual({
           'Content-Security-Policy':
-            "frame-ancestors 'self'; script-src 'self' 'sha256-abc=' 'wasm-unsafe-eval'; worker-src 'self' blob:",
+            "frame-ancestors 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:",
           'X-Frame-Options': 'SAMEORIGIN',
         });
       }
@@ -297,16 +291,11 @@ describe('bundleProtocol', () => {
 
   describe('serveBundle', () => {
     it('serves bundle files, applies framing headers to HTML, and blocks escapes and other hosts', async () => {
-      const scriptHashes = {
-        'index.html': ["'sha256-indexHash='"],
-        'pdf-frame.html': ["'sha256-pdfHash='"],
-      };
       const parent = makeDist({
         'secret.txt': 'TOP_SECRET',
         'dist/index.html': '<!doctype html><title>app</title>',
         'dist/pdf-frame.html': '<!doctype html><title>pdf</title>',
         'dist/canvas-frame.html': '<!doctype html><title>canvas</title>',
-        'dist/script-hashes.json': JSON.stringify(scriptHashes),
         'dist/assets/app.js': 'console.log(1);',
         'dist/res/svg/icon.svg': '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
       });
@@ -325,7 +314,7 @@ describe('bundleProtocol', () => {
       expect({
         'Content-Security-Policy': home.headers.get('content-security-policy'),
         'X-Frame-Options': home.headers.get('x-frame-options'),
-      }).toEqual(pageHeaders('/!abc:server.org/$event', scriptHashes['index.html']));
+      }).toEqual(pageHeaders('/!abc:server.org/$event'));
 
       for (const unframeable of ['/connect', '/CONNECT', '/invite/', '/invite?code=1']) {
         const res = await handler(new Request(`${APP_ORIGIN}${unframeable}`));
@@ -336,9 +325,7 @@ describe('bundleProtocol', () => {
             'X-Frame-Options': res.headers.get('x-frame-options'),
           },
           unframeable
-        ).toEqual(
-          pageHeaders(unframeable.split('?')[0] ?? unframeable, scriptHashes['index.html'])
-        );
+        ).toEqual(pageHeaders(unframeable.split('?')[0] ?? unframeable));
       }
 
       const pdf = await handler(new Request(`${APP_ORIGIN}/pdf-frame.html`));
@@ -346,7 +333,7 @@ describe('bundleProtocol', () => {
       expect({
         'Content-Security-Policy': pdf.headers.get('content-security-policy'),
         'X-Frame-Options': pdf.headers.get('x-frame-options'),
-      }).toEqual(pageHeaders('/pdf-frame.html', scriptHashes['pdf-frame.html']));
+      }).toEqual(pageHeaders('/pdf-frame.html'));
 
       const canvas = await handler(new Request(`${APP_ORIGIN}/canvas-frame.html`));
       expect(canvas.status).toBe(200);
@@ -360,7 +347,7 @@ describe('bundleProtocol', () => {
       expect(upperCaseFrame.status).toBe(200);
       expect(await upperCaseFrame.text()).toContain('<title>app</title>');
 
-      const nonHtmlCsp = `${scriptPolicy([])}; object-src 'none'`;
+      const nonHtmlCsp = `${scriptPolicy}; object-src 'none'`;
       const svg = await handler(new Request(`${APP_ORIGIN}/res/svg/icon.svg`));
       expect(svg.status).toBe(200);
       expect(svg.headers.get('content-security-policy')).toBe(nonHtmlCsp);

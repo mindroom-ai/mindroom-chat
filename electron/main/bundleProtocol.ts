@@ -31,15 +31,12 @@ const withCsp = (pathname: string, policy: string): Record<string, string> => {
   return { ...framing, 'Content-Security-Policy': csp };
 };
 
-export const scriptPolicy = (inlineHashes: readonly string[]): string =>
-  `script-src ${["'self'", ...inlineHashes, "'wasm-unsafe-eval'"].join(
-    ' '
-  )}; worker-src 'self' blob:`;
+export const scriptPolicy = "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:";
 
-export const pageHeaders = (pathname: string, hashes: readonly string[]): Record<string, string> =>
-  withCsp(pathname, scriptPolicy(hashes));
+export const pageHeaders = (pathname: string): Record<string, string> =>
+  withCsp(pathname, scriptPolicy);
 
-const NON_HTML_CSP = `${scriptPolicy([])}; object-src 'none'`;
+const NON_HTML_CSP = `${scriptPolicy}; object-src 'none'`;
 const textResponse = (body: string, status: number): Response =>
   new Response(body, { status, headers: { 'Content-Security-Policy': NON_HTML_CSP } });
 
@@ -125,23 +122,6 @@ const readBundleFile = async (
 // write `dist` can already run code as the user, so mid-request parent swaps are out of scope.
 // Serves only a regular file whose real path equals the requested path inside root, from one handle
 // (inside asar, Electron reads packed entries through the archive descriptor, no temp copy).
-const readScriptHashes = (realRoot: string): Record<string, readonly string[]> => {
-  const file = path.resolve(realRoot, 'script-hashes.json');
-  try {
-    if (fs.realpathSync.native(file) !== file) return {};
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, string[]] =>
-          Array.isArray(entry[1]) && entry[1].every((v) => typeof v === 'string')
-      )
-    );
-  } catch {
-    return {};
-  }
-};
-
 export const serveBundle = (distDir: string): void => {
   let realRoot: string;
   try {
@@ -149,7 +129,6 @@ export const serveBundle = (distDir: string): void => {
   } catch {
     throw new Error(`No web bundle at ${distDir}: run \`npm run build:desktop\` first`);
   }
-  const scriptHashes = readScriptHashes(realRoot);
   protocol.handle(APP_SCHEME, async (request) => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return textResponse('Method Not Allowed', 405);
@@ -171,7 +150,7 @@ export const serveBundle = (distDir: string): void => {
       ...(served.file === CANVAS_FRAME_FILE
         ? withCsp(url.pathname, CANVAS_FRAME_POLICY)
         : served.file.endsWith('.html')
-        ? pageHeaders(url.pathname, scriptHashes[served.file] ?? [])
+        ? pageHeaders(url.pathname)
         : { 'Content-Security-Policy': NON_HTML_CSP }),
     };
     return new Response(served.body, { status: 200, headers });
