@@ -116,6 +116,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   clearCompactRoomSectionsStore(ME);
   localStorage.clear();
@@ -164,6 +165,27 @@ describe('the Compact room in sections', () => {
       on: false,
       folded: ['working'],
     });
+  });
+
+  it('tells the scroll anchor which commit shows a section the reader folded', () => {
+    const folding: (boolean | undefined)[] = [];
+    const anchor = scrollAnchor.useCompactScrollAnchor;
+    vi.spyOn(scrollAnchor, 'useCompactScrollAnchor').mockImplementation((...args) => {
+      folding.push(args[4]?.current);
+      return anchor(...args);
+    });
+    const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
+    expect(folding).not.toContain(true);
+
+    act(() => {
+      fireEvent.click(header('working'));
+    });
+    expect(folding).toContain(true);
+
+    // A commit that only changes the cards is none.
+    folding.length = 0;
+    rerender(view(['$streaming', '$snoozed', '$read', '$done']));
+    expect(folding).toEqual([false]);
   });
 
   it('opens a section that shows alone, as the Done tab shows it, and keeps its stored fold', () => {

@@ -390,7 +390,10 @@ export function CompactRoomView({
     () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
     [heldOpen, sectionsChoice.folded, soleSection]
   );
+  // Set for the commit that shows a section the reader opened or closed.
+  const foldingRef = useRef(false);
   const toggleFold = (id: ThreadWorkflowBucket) => {
+    foldingRef.current = true;
     // A section held open shows open, so its header folds it, stored as folded once.
     if (id === heldOpen) {
       heldOpenRef.current = undefined;
@@ -432,7 +435,13 @@ export function CompactRoomView({
     return [FLAT_PINNED, ...shownRows.filter(pinned), FLAT_OTHERS, ...others];
   }, [pinning.pinnedEventIds, shownRows, threadSections]);
   const groupOfRow = threadSections ? sectionOfRow : flatGroupOf;
-  const scrollAnchor = useCompactScrollAnchor(anchorRows, viewRef, groupOfRow, contentRef);
+  const scrollAnchor = useCompactScrollAnchor(
+    anchorRows,
+    viewRef,
+    groupOfRow,
+    contentRef,
+    foldingRef
+  );
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(

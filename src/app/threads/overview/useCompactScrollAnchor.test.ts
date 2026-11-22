@@ -33,7 +33,9 @@ describe('useCompactScrollAnchor', () => {
         offset = value;
       },
     });
-    view.getBoundingClientRect = () => ({ top: 0, bottom: 400 } as DOMRect);
+    // Where the view starts on the page: its rows are that far down as well.
+    let viewTop = 0;
+    view.getBoundingClientRect = () => ({ top: viewTop, bottom: viewTop + 400 } as DOMRect);
     const show = (shownIds: string[]) => {
       let rowTop = 0;
       view.replaceChildren(
@@ -49,7 +51,7 @@ describe('useCompactScrollAnchor', () => {
           const start = rowTop;
           rowTop += height;
           row.getBoundingClientRect = () => {
-            const top = start - offset;
+            const top = viewTop + start - offset;
             return { top, bottom: top + height } as DOMRect;
           };
           return row;
@@ -71,11 +73,12 @@ describe('useCompactScrollAnchor', () => {
       }
     );
     const viewRef = { current: view };
+    const foldingRef = { current: false };
     const List = ({ order, commit }: { order: string[]; commit?: () => void }) =>
       createElement(
         Fragment,
         null,
-        useCompactScrollAnchor(order, viewRef, sectionOfRow),
+        useCompactScrollAnchor(order, viewRef, sectionOfRow, undefined, foldingRef),
         createElement(Commit, { run: commit })
       );
     const { rerender } = render(createElement(List, { order: ids }));
@@ -89,6 +92,14 @@ describe('useCompactScrollAnchor', () => {
       /** The reader scrolls; the browser fires the scroll event at its next frame. */
       scrollBy: (delta: number) => {
         offset += delta;
+      },
+      /** The reader opens or closes a section: the next commit shows it. */
+      fold: () => {
+        foldingRef.current = true;
+      },
+      /** The page moves the whole view down. */
+      moveView: (by: number) => {
+        viewTop += by;
       },
       /** The list or one of its cards changed size outside a commit. */
       resize: () => act(() => resize?.()),
@@ -163,20 +174,24 @@ describe('useCompactScrollAnchor', () => {
     expect(writes).toEqual([SECTION_HEADER + 10]);
   });
 
-  it('holds the header that leads the view when its section opens or closes under it', () => {
+  it('leaves the list alone in the commit that opens or closes a section for the reader', () => {
     const later = ['#later', '$c', '$d', '$e', '$f'];
     const ids = ['#needsYou', '$a', '$b', '#working', ...later];
     // The folded section's header is the topmost row in view.
-    const { view, show, writes, rerender } = list(ids, SECTION_HEADER + 2 * CARD);
+    const { view, show, writes, rerender, fold } = list(ids, SECTION_HEADER + 2 * CARD);
     const open = ['#needsYou', '$a', '$b', '#working', '$w1', '$w2', ...later];
+    fold();
     rerender(open, () => show(open));
     expect(writes).toEqual([]);
-    expect(view.querySelector('[data-scroll-anchor="$w1"]')!.getBoundingClientRect().top).toBe(
-      SECTION_HEADER
-    );
+    expect(view.scrollTop).toBe(SECTION_HEADER + 2 * CARD);
 
+    fold();
     rerender(ids, () => show(ids));
     expect(writes).toEqual([]);
+
+    // The next commit keeps the cards in place again.
+    rerender(open, () => show(open));
+    expect(writes).toEqual([SECTION_HEADER + 4 * CARD]);
   });
 
   it('keeps the cards in view in place when a card joins right under the header that leads the view', () => {
@@ -191,25 +206,34 @@ describe('useCompactScrollAnchor', () => {
     expect(topOfC()).toBe(SECTION_HEADER);
   });
 
-  it('reads a header that glides where the layout has it', () => {
-    const ids = ['#needsYou', '$a', '#working', '#later', '$b', '$c', '$d'];
-    const { view, writes, rerender } = list(ids, SECTION_HEADER + CARD);
-    // The header is 30 px into a glide when the reader's scroll reads the rows.
-    const header = view.querySelector<HTMLElement>('[data-compact-section="#working"]')!;
-    let glide = 30;
-    const layoutRect = header.getBoundingClientRect.bind(header);
-    header.getBoundingClientRect = () => {
-      const { top, bottom } = layoutRect();
-      return { top: top + glide, bottom: bottom + glide } as DOMRect;
-    };
-    vi.stubGlobal('getComputedStyle', (row: Element) => ({
-      translate: row === header && glide ? `0px ${glide}px` : 'none',
-    }));
-    view.dispatchEvent(new Event('scroll'));
-    glide = 0;
-    // Its section opens once the glide is over (the cards it shows are left out of this page).
-    rerender(['#needsYou', '$a', '#working', '$w1', '#later', '$b', '$c', '$d']);
+  it('keeps the next section in place when the last card of a section leaves, its header kept', () => {
+    const later = ['#later', '$c', '$d', '$e', '$f'];
+    const ids = ['#needsYou', '$a', '#working', '$w', ...later];
+    // The Working header leads the view, with its one card and the next section under it.
+    const { view, show, writes, rerender } = list(ids, SECTION_HEADER + CARD);
+    const topOfC = () =>
+      view.querySelector('[data-scroll-anchor="$c"]')!.getBoundingClientRect().top;
+    const top = topOfC();
+    // The card leaves while the pointer holds the order, so its header stays: no fold.
+    const held = ['#needsYou', '$a', '#working', ...later];
+    rerender(held, () => show(held));
+    expect(writes).toEqual([SECTION_HEADER]);
+    expect(topOfC()).toBe(top);
+  });
+
+  it('does not take the whole view moving down the page for its cards moving', () => {
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes, resize, moveView } = list(ids, 250);
+    // A row above the room (a call to return to) pushes the view down.
+    moveView(48);
+    resize();
     expect(writes).toEqual([]);
+
+    // A card that joins above is still made up for.
+    show(['$new', ...ids]);
+    resize();
+    expect(writes).toEqual([350]);
+    expect(view.scrollTop).toBe(350);
   });
 
   it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {

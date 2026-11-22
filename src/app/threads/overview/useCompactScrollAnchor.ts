@@ -6,13 +6,14 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type MutableRefObject,
   type PointerEvent,
   type ReactElement,
   type RefObject,
   type TouchEvent,
 } from 'react';
 
-/** The topmost rows in view (a header's key is its `rootId`), their tops, the scroll offset and the order then. */
+/** The topmost cards in view, their tops below the view's top, the scroll offset and the order. */
 type CardsInView = {
   cards: { rootId: string; top: number }[];
   scrollTop: number;
@@ -22,24 +23,13 @@ type CardsInView = {
 /** How many cards in view are tried, from the top, for one that kept its place. */
 const ANCHOR_CANDIDATES = 8;
 
-/** The list's rows: its cards, and its section headers, which carry their key for the motion. */
-const ROWS = '[data-scroll-anchor], [data-compact-section]';
-const rowKey = (row: Element) =>
-  row.getAttribute('data-scroll-anchor') ?? row.getAttribute('data-motion-row');
-/** A row's top where the layout has it: a header glides itself, a card's glide is on a child. */
-const rowTop = (row: Element) => {
-  const { top } = row.getBoundingClientRect();
-  if (!row.hasAttribute('data-motion-row')) return top;
-  return top - (parseFloat(getComputedStyle(row).translate?.split(' ')[1] ?? '') || 0);
-};
-
-/** The topmost rows in view below the floating header. */
+/** The topmost cards in view below the floating header (cards carry `data-scroll-anchor`). */
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
-  const viewTop =
-    view.getBoundingClientRect().top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
-  const elements = view.querySelectorAll<HTMLElement>(ROWS);
-  // The rows stack in one column: find the first one in view by halving, so a reader far down a
-  // long list costs a few layout reads rather than one per row above the view.
+  const { top } = view.getBoundingClientRect();
+  const viewTop = top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
+  const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
+  // The cards stack in one column: find the first one in view by halving, so a reader far down a
+  // long list costs a few layout reads rather than one per card above the view.
   let low = 0;
   let high = elements.length;
   while (low < high) {
@@ -50,8 +40,8 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
   const cards: CardsInView['cards'] = [];
   for (let index = low; index < elements.length && cards.length < ANCHOR_CANDIDATES; index += 1) {
     const card = elements[index];
-    const rootId = card && rowKey(card);
-    if (card && rootId) cards.push({ rootId, top: rowTop(card) });
+    const rootId = card?.getAttribute('data-scroll-anchor');
+    if (card && rootId) cards.push({ rootId, top: card.getBoundingClientRect().top - top });
   }
   return cards.length > 0 ? { cards, scrollTop: view.scrollTop, order } : undefined;
 };
@@ -118,9 +108,9 @@ class BeforeCommit extends Component<{ read: () => void }> {
  * A reader at the top of the list sees new cards arrive there. Further down, the cards in view
  * stay where they are whatever changes around them: the list scrolls so that the topmost card in
  * view that kept its place among the rows shows where it did. That one rule holds in every
- * browser. Chromium's scroll anchoring stays on, and the rule scrolls by what it leaves. A section
- * header counts as a card only in the commit that opens or closes its section: one that leads the
- * view stays, and the section shows its cards under it.
+ * browser. Chromium's scroll anchoring stays on, and the rule scrolls by what it leaves.
+ * The commit that shows a section the reader opened or closed (`foldingRef`, set by the fold and
+ * cleared here) is left alone: the header the reader pressed stays, as the browser has it.
  *
  * In a commit, the cards are read right before React changes the page (render what the hook
  * returns inside the list) and compared after it, once React has put the focus back. A thread
@@ -139,7 +129,8 @@ export const useCompactScrollAnchor = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
   sectionOfRow?: SectionOfRow,
-  contentRef?: RefObject<HTMLElement>
+  contentRef?: RefObject<HTMLElement>,
+  foldingRef?: MutableRefObject<boolean>
 ): ReactElement => {
   // What the listeners need of the latest commit. This ref does not decide the rows' order.
   const latestRef = useRef({ rows, sectionOfRow });
@@ -152,35 +143,27 @@ export const useCompactScrollAnchor = (
   const placedRef = useRef(false);
 
   const keepPlace = useCallback(
-    (committed: boolean) => {
+    (committed: boolean, folding = false) => {
       const view = viewRef.current;
       if (!view) return;
       const { rows: order, sectionOfRow: sectionOf } = latestRef.current;
       const before = cardsInViewRef.current;
       const stayed = view.scrollTop === before?.scrollTop;
       if (!committed && !stayed) placedRef.current = true;
-      if (before && before.scrollTop > 0 && (committed || stayed)) {
-        const cards = [...view.querySelectorAll<HTMLElement>(ROWS)];
+      if (!folding && before && before.scrollTop > 0 && (committed || stayed)) {
+        const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
         const stationary =
           before.order === order ? undefined : stationaryRows(before.order, order, sectionOf);
-        // Whether a section shows cards: its header is followed by one.
-        const open = (rows: readonly string[], header: string) => {
-          const next = rows[rows.indexOf(header) + 1];
-          return next !== undefined && !sectionOf?.(next);
-        };
         const anchor = before.cards
           .filter(({ rootId }) => stationary?.has(rootId) ?? true)
-          // A header only in the commit that opened or closed its section.
-          .filter(
-            ({ rootId }) =>
-              !sectionOf?.(rootId) || open(before.order, rootId) !== open(order, rootId)
-          )
           .map(({ rootId, top }) => ({
             top,
-            card: cards.find((element) => rowKey(element) === rootId),
+            card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
           }))
           .find(({ card }) => card);
-        const moved = anchor?.card ? rowTop(anchor.card) - anchor.top : 0;
+        const viewTop = view.getBoundingClientRect().top;
+        const top = anchor?.card?.getBoundingClientRect().top;
+        const moved = anchor && top !== undefined ? top - viewTop - anchor.top : 0;
         const scrolling = performance.now() - scrolledAtRef.current < SCROLL_SETTLE_MS;
         const left = stayed && (scrolling || placedRef.current);
         if (Math.abs(moved) >= 0.5 && !left) view.scrollTop += moved;
@@ -199,7 +182,8 @@ export const useCompactScrollAnchor = (
   }, [viewRef]);
   useLayoutEffect(() => {
     latestRef.current = { rows, sectionOfRow };
-    keepPlace(true);
+    keepPlace(true, foldingRef?.current);
+    if (foldingRef) foldingRef.current = false;
   });
   useEffect(() => {
     const view = viewRef.current;
