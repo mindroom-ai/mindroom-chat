@@ -3,13 +3,11 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 /** The button of a Compact room's card that opens its thread. */
 const VIEW_SELECTOR = '[data-compact-room-view]';
 const CARD_SELECTOR = `${VIEW_SELECTOR} [data-thread-root-id]`;
-const TABBABLE =
-  'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** The full keyboard order and focus command for each mounted Compact scroller. */
 export const compactCardNavigation = new WeakMap<
   Element,
-  { ids: readonly string[]; focus: (id: string | undefined, preventScroll?: boolean) => boolean }
+  { ids: readonly string[]; focus: (id: string | undefined, last?: boolean) => boolean }
 >();
 
 const navigationIn = (root: HTMLElement | null) => {
@@ -25,7 +23,7 @@ const navigationIn = (root: HTMLElement | null) => {
 export const KEY_FOCUS_ATTRIBUTE = 'data-key-focus';
 
 /** Moves the keyboard's focus to `card`, and shows it there. False without a card. */
-export const focusCompactCard = (card: HTMLElement | undefined, preventScroll = false): boolean => {
+export const focusCompactCard = (card: HTMLElement | undefined): boolean => {
   if (!card) return false;
   card.setAttribute(KEY_FOCUS_ATTRIBUTE, '');
   // Until the focus moves on: a window that loses the focus blurs the card too, which keeps it.
@@ -35,7 +33,7 @@ export const focusCompactCard = (card: HTMLElement | undefined, preventScroll = 
     card.removeEventListener('blur', onBlur);
   };
   card.addEventListener('blur', onBlur);
-  card.focus({ preventScroll });
+  card.focus();
   return true;
 };
 
@@ -67,51 +65,29 @@ export const focusCardBeside = (
   root: HTMLElement | null,
   id: string | undefined,
   step: -1 | 0 | 1,
-  exact = false,
-  preventScroll = false
+  exact = false
 ): boolean => {
   const navigation = navigationIn(root);
   const index = id === undefined ? -1 : navigation?.ids.indexOf(id) ?? -1;
   if (navigation && index >= 0) {
-    return navigation.focus(navigation.ids[index + step] ?? navigation.ids[index], preventScroll);
+    return navigation.focus(navigation.ids[index + step] ?? navigation.ids[index]);
   }
-  return exact ? false : focusCompactCard(firstCardInView(compactCardsIn(root)), preventScroll);
+  return exact ? false : focusCompactCard(firstCardInView(compactCardsIn(root)));
 };
 
 /**
- * On a focused card, the up and down arrows, Home and End move the focus between the cards, and
- * Tab/Shift+Tab materialize a logical neighbour when leaving a card across a spacer. A card's own
- * buttons and every chord keep their keys.
+ * On a focused card, the up and down arrows, Home and End move the focus between the cards. A
+ * card's own buttons and every chord keep their keys.
  */
 export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
-  if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const { key, target } = event;
+  if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Home' && key !== 'End') return;
   const navigation = navigationIn(event.currentTarget);
-  if (!navigation) return;
-  const { key, target, shiftKey } = event;
-  if (key === 'Tab' && target instanceof HTMLElement) {
-    const shell = target.closest<HTMLElement>('[data-scroll-anchor]');
-    const gap = shiftKey ? shell?.previousElementSibling : shell?.nextElementSibling;
-    if (!shell || !gap?.hasAttribute('data-compact-spacer')) return;
-    const tabbable = [...shell.querySelectorAll<HTMLElement>(TABBABLE)].filter(
-      (node) => !node.closest('[inert], [hidden]')
-    );
-    const at = navigation.ids.indexOf(shell.dataset.scrollAnchor ?? '');
-    const next = at < 0 ? undefined : navigation.ids[at + (shiftKey ? -1 : 1)];
-    if (target !== (shiftKey ? tabbable[0] : tabbable.at(-1)) || !next) return;
-    event.preventDefault();
-    navigation.focus(next);
+  const at = navigation?.ids.indexOf((target as HTMLElement).dataset.threadRootId ?? '') ?? -1;
+  if (!navigation || at < 0 || !compactCardsIn(event.currentTarget).includes(target as HTMLElement))
     return;
-  }
-  if (shiftKey || (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Home' && key !== 'End'))
-    return;
-  const cards = compactCardsIn(event.currentTarget);
-  const index = cards.indexOf(target as HTMLElement);
-  if (index < 0) return;
   event.preventDefault();
-  const at = navigation.ids.indexOf(cards[index]?.dataset.threadRootId ?? '');
-  const next =
-    navigation.ids[
-      { ArrowUp: at - 1, ArrowDown: at + 1, Home: 0, End: navigation.ids.length - 1 }[key]
-    ];
-  navigation.focus(next);
+  const next = { ArrowUp: at - 1, ArrowDown: at + 1, Home: 0, End: navigation.ids.length - 1 }[key];
+  navigation.focus(navigation.ids[next]);
 };

@@ -25,11 +25,8 @@ const mountCards = (ids: string[]) => {
   document.body.append(view);
   compactCardNavigation.set(view, {
     ids,
-    focus: (id, preventScroll) =>
-      focusCompactCard(
-        compactCardsIn(view).find((el) => el.dataset.threadRootId === id),
-        preventScroll
-      ),
+    focus: (id) =>
+      focusCompactCard(compactCardsIn(view).find((el) => el.dataset.threadRootId === id)),
   });
   return view;
 };
@@ -131,30 +128,19 @@ describe('handleCardArrowKey', () => {
     expect(document.activeElement).toBe(card('$a'));
   });
 
-  it('hands Tab and Shift+Tab across a spacer to the logical neighbour', () => {
+  it('leaves Tab and Shift+Tab to the browser, which follows the order of the page', () => {
     const view = mountCards(['$a', '$d']);
-    const spacer = document.createElement('div');
-    spacer.dataset.compactSpacer = 'cards:0';
-    card('$a').parentElement!.after(spacer);
     const focus = vi.fn(() => true);
     compactCardNavigation.set(view, { ids: ['$a', '$b', '$c', '$d'], focus });
-    const actionsA = card('$a').parentElement!.querySelectorAll<HTMLElement>('button');
-    // Tab inside the card stays native.
-    expect(press(view, actionsA[0]!, 'Tab')).toBe(false);
-    // Tab from the last control crosses the spacer to $b.
-    expect(press(view, actionsA[1]!, 'Tab')).toBe(true);
-    expect(focus).toHaveBeenLastCalledWith('$b');
-    // Shift+Tab from the card after the spacer crosses back to $c.
-    expect(press(view, card('$d'), 'Tab', { shiftKey: true })).toBe(true);
-    expect(focus).toHaveBeenLastCalledWith('$c');
-    // Without a spacer sibling (e.g. end of list / section boundary), Tab stays native.
-    const actionsD = card('$d').parentElement!.querySelectorAll<HTMLElement>('button');
-    expect(press(view, actionsD[1]!, 'Tab')).toBe(false);
+    const actions = card('$a').parentElement!.querySelectorAll<HTMLElement>('button');
+    expect(press(view, actions[1]!, 'Tab')).toBe(false);
+    expect(press(view, card('$d'), 'Tab', { shiftKey: true })).toBe(false);
+    expect(focus).not.toHaveBeenCalled();
   });
 });
 
 describe('focusCardBeside', () => {
-  it('focuses the card above or below the thread just left, and keeps exact separate from preventScroll', () => {
+  it('focuses the card above or below the thread just left, or exactly its own', () => {
     const view = mountCards(['$a', '$b', '$c']);
     expect(focusCardBeside(view, '$b', 1)).toBe(true);
     expect(document.activeElement).toBe(card('$c'));
@@ -166,9 +152,7 @@ describe('focusCardBeside', () => {
     const focus = vi.fn(() => true);
     compactCardNavigation.set(view, { ids: ['$a', '$b', '$c'], focus });
     expect(focusCardBeside(view, '$b', 0, true)).toBe(true);
-    expect(focus).toHaveBeenLastCalledWith('$b', false);
-    expect(focusCardBeside(view, '$b', 0, true, true)).toBe(true);
-    expect(focus).toHaveBeenLastCalledWith('$b', true);
+    expect(focus).toHaveBeenLastCalledWith('$b');
     expect(focusCardBeside(view, '$gone', 0, true)).toBe(false);
   });
 

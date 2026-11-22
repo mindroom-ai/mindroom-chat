@@ -52,6 +52,7 @@ import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkf
 import { ThreadCardDetails } from './ThreadCardDetails';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useShortcut } from '../../shortcuts/useShortcut';
+import { tabbablesOf } from '../../lib/overlayFocus';
 import {
   KEY_FOCUS_ATTRIBUTE,
   compactCardsIn,
@@ -473,16 +474,19 @@ export function CompactRoomView({
   }, [folded, heldSections, pinnedRootIds, shownRows]);
   const ids = useMemo(() => Object.values(groups).flat(), [groups]);
   const keyScope = `${roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
-  type Intent = { id: string; scope: string; from: Element | null; preventScroll?: boolean };
+  type Intent = { id: string; scope: string; from: Element | null; last?: boolean };
   const [intent, setIntent] = useState<Intent>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
+  // One destination owns the window: the address while its card is in the shown order (one in a
+  // folded section or outside the filter is not), else the card the keys go to.
+  const address = !!pushed && ids.includes(focusRequest.eventId);
   const blocks = useCompactBlocks({
     groups,
     scrollRef: viewRef,
     contentRef,
     memory,
     roomId,
-    target: pushed ? focusRequest.eventId : pending?.id,
+    target: address ? focusRequest.eventId : pending?.id,
     protectedId: menu?.roomId === roomId ? menu.rootId : undefined,
     records: threadRecordMap,
     indexPending,
@@ -495,15 +499,19 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     const view = viewRef.current;
     if (!view || typeof document === 'undefined') return undefined;
-    const card = (id: string) =>
-      compactCardsIn(view).find((button) => button.dataset.threadRootId === id);
-    const focus = (id: string | undefined, preventScroll?: boolean) => {
+    // A card's button, or the last control Tab reaches in the card: where Shift+Tab enters it.
+    const card = (id: string, last?: boolean) => {
+      const button = compactCardsIn(view).find((entry) => entry.dataset.threadRootId === id);
+      const shell = last && button?.closest('[data-scroll-anchor]');
+      return (shell && tabbablesOf(shell).at(-1)) || button;
+    };
+    const focus = (id: string | undefined, last?: boolean) => {
       if (!id) return false;
-      if (focusCompactCard(card(id), preventScroll)) setIntent(undefined);
+      if (focusCompactCard(card(id, last))) setIntent(undefined);
       else {
         if (!document.activeElement || document.activeElement === document.body)
           view.focus({ preventScroll: true });
-        setIntent({ id, scope: keyScope, from: document.activeElement, preventScroll });
+        setIntent({ id, scope: keyScope, from: document.activeElement, last });
       }
       return true;
     };
@@ -511,12 +519,12 @@ export function CompactRoomView({
     const active = document.activeElement;
     if (intent && (!pending || (active !== pending.from && active !== document.body)))
       setIntent(undefined);
-    else if (pending && !pushed && blocks.targetReady) {
-      focusCompactCard(card(pending.id), pending.preventScroll);
+    else if (pending && !address && blocks.targetReady) {
+      focusCompactCard(card(pending.id, pending.last));
       setIntent(undefined);
     }
     return () => void compactCardNavigation.delete(view);
-  }, [ids, intent, pending, pushed, blocks.targetReady, keyScope]);
+  }, [ids, intent, pending, address, blocks.targetReady, keyScope]);
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
@@ -621,7 +629,7 @@ export function CompactRoomView({
   // thread beside the list closing) or a step back or forward leaves the list where it is.
   const focusShown =
     blocks.placeReady &&
-    (!pushed || blocks.targetReady) &&
+    (!address || blocks.targetReady) &&
     !!focusRequest &&
     modelByRootId.has(focusRequest.eventId);
   useLayoutEffect(() => {
@@ -719,13 +727,22 @@ export function CompactRoomView({
       const model = modelByRootId.get(row);
       return model ? renderCard(model) : null;
     }
+    // A Tab stop where its cards would be, in the order of the page: the keyboard's focus goes
+    // on to its first card, or coming from below (Shift+Tab) to the last control of its last.
     return (
       <div
         key={`spacer:${row.key}`}
-        aria-hidden
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
         data-compact-spacer={row.key}
         className={css.Spacer}
         style={{ height: row.height }}
+        onFocus={({ currentTarget: spacer, relatedTarget: from }) => {
+          const below =
+            from && spacer.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING;
+          if (isKeyboardFocus(spacer))
+            compactCardNavigation.get(viewRef.current!)?.focus(row.ids.at(below ? -1 : 0), !!below);
+        }}
       />
     );
   };

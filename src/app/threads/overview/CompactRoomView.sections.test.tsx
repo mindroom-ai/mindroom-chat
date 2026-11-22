@@ -886,6 +886,27 @@ describe('a focus request on the mounted Compact room', () => {
       expect(topOf('$card60')).toBe(0);
     });
 
+    it('places warm Back on the saved cards that survive while the index is still read', () => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      scrollTop = 6000;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      unmount();
+      expect(memory.get(ROOM_ID)?.anchors.map(({ key }) => key)).toContain('$card61');
+      scrollTop = 0;
+      // One of the cards in view was deleted while the reader was in a thread.
+      render(
+        at(
+          undefined,
+          large.filter((id) => id !== '$card61'),
+          true
+        )
+      );
+      expect(topOf('$card60')).toBe(0);
+      expect(scrollTop).toBe(6000);
+    });
+
     it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
       memory.clear();
       const partial = large.slice(0, 40);

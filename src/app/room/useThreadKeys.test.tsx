@@ -59,11 +59,8 @@ const registerNavigation = () => {
     .filter((id): id is string => Boolean(id));
   compactCardNavigation.set(scroller, {
     ids,
-    focus: (id, preventScroll) =>
-      focusCompactCard(
-        compactCardsIn(scroller).find((el) => el.dataset.threadRootId === id),
-        preventScroll
-      ),
+    focus: (id) =>
+      focusCompactCard(compactCardsIn(scroller).find((el) => el.dataset.threadRootId === id)),
   });
 };
 
@@ -107,10 +104,7 @@ describe('useThreadKeys', () => {
       mount('$e');
       expect(press('nextThread')).toBe(true);
       expect(press('previousThread')).toBe(true);
-      expect(focus.mock.calls).toEqual([
-        ['$f', false],
-        ['$d', false],
-      ]);
+      expect(focus.mock.calls).toEqual([['$f'], ['$d']]);
     } finally {
       compactCardNavigation.delete(scroller);
     }
@@ -192,7 +186,7 @@ describe('useThreadKeys', () => {
       card('$c').focus();
       expect(press('leaveThread')).toBe(true);
       rerender({ threadId: undefined });
-      expect(focus).toHaveBeenCalledWith('$b', false);
+      expect(focus).toHaveBeenCalledWith('$b');
     } finally {
       compactCardNavigation.delete(scroller);
     }
