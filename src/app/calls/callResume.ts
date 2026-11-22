@@ -60,8 +60,7 @@ export const rememberCallForResume = (mx: MatrixClient, active: ActiveCall, now 
     kind: active.kind,
     agentUserId: active.agentUserId,
     origin: active.origin,
-    microphone: state.microphone,
-    camera: state.camera,
+    ...active.call.getResumeInputs(),
     devices: state.devices,
     savedAt: now,
   };

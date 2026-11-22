@@ -495,7 +495,7 @@
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
         "connection": "De verbinding van de oproep is verbroken.",
-        "device": "Je microfoon of camera kon niet worden gebruikt.",
+        "device": "Een microfoon, camera of luidspreker kon niet worden gebruikt.",
         "untrustedService": "Deze oproep loopt via een oproepdienst die je homeserver niet aanbiedt, dus je kunt hier niet deelnemen."
       },
       "devices": {

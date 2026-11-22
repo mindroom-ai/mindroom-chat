@@ -505,7 +505,7 @@
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
         "connection": "La connexion de l’appel a été perdue.",
-        "device": "Impossible d’utiliser votre micro ou votre caméra.",
+        "device": "Impossible d’utiliser un microphone, une caméra ou un haut-parleur.",
         "untrustedService": "Cet appel passe par un service d’appel que votre serveur d’accueil ne propose pas, vous ne pouvez donc pas le rejoindre ici."
       },
       "devices": {

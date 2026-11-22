@@ -41,11 +41,19 @@ export type CallProblem =
   | 'service'
   /** The media connection failed or dropped. */
   | 'connection'
-  /** The microphone or camera could not be opened; the call goes on without it. */
+  /** An input could not be opened, or a device selection failed; the call goes on. */
   | 'device';
 
 export type CallDeviceKind = 'audioinput' | 'videoinput' | 'audiooutput';
 export type CallDevices = Partial<Record<CallDeviceKind, string>>;
+
+type InputKind = 'microphone' | 'camera';
+
+const unmutedInputTrack = (publication: LocalTrackPublication | undefined) =>
+  publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
+
+const isLiveInputTrack = (track: MediaStreamTrack | undefined) =>
+  track?.readyState === 'live' && track.muted === false;
 
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
@@ -156,6 +164,24 @@ export class RoomCall {
 
   private state: CallState;
 
+  private readonly captureFailures = new Set<InputKind>();
+
+  private readonly selectionFailures = new Set<CallDeviceKind>();
+
+  private readonly requestedInputs: Record<InputKind, boolean>;
+
+  private readonly inputTracks: Partial<Record<InputKind, MediaStreamTrack>> = {};
+
+  private readonly unmutedInputs: Partial<Record<InputKind, MediaStreamTrack>> = {};
+
+  private readonly toggleOps: Record<InputKind, number> = { microphone: 0, camera: 0 };
+
+  private readonly switchOps: Record<CallDeviceKind, number> = {
+    audioinput: 0,
+    videoinput: 0,
+    audiooutput: 0,
+  };
+
   private readonly listeners = new Set<() => void>();
 
   private media?: MediaRoom;
@@ -196,10 +222,13 @@ export class RoomCall {
     this.room = options.room;
     this.session = options.mx.matrixRTC.getRoomSession(options.room);
     this.encrypted = options.room.hasEncryptionStateEvent();
-    this.state = {
-      phase: 'connecting',
+    this.requestedInputs = {
       microphone: options.microphone ?? true,
       camera: options.video ?? false,
+    };
+    this.state = {
+      phase: 'connecting',
+      ...this.requestedInputs,
       screenShare: false,
       sound: true,
       audioBlocked: false,
@@ -218,6 +247,14 @@ export class RoomCall {
 
   getState = (): CallState => this.state;
 
+  /** A rejected mute can still show On, but a reload must honor the requested Off. */
+  getResumeInputs() {
+    return {
+      microphone: this.state.microphone && this.requestedInputs.microphone,
+      camera: this.state.camera && this.requestedInputs.camera,
+    };
+  }
+
   get identity(): string {
     return `${this.mx.getSafeUserId()}:${this.mx.getDeviceId() ?? ''}`;
   }
@@ -228,7 +265,20 @@ export class RoomCall {
   }
 
   private refresh = () => {
-    const participants = this.readParticipants();
+    void this.refreshState();
+  };
+
+  private refreshState(reapplyOff?: InputKind): Promise<void> | undefined {
+    if (this.stopped) return undefined;
+    const mic = this.refreshInput('microphone', reapplyOff === 'microphone');
+    const cam = this.refreshInput('camera', reapplyOff === 'camera');
+    const microphone = mic.enabled;
+    const camera = cam.enabled;
+    let { problem } = this.state;
+    if (problem === undefined || problem === 'device') {
+      problem = this.captureFailures.size || this.selectionFailures.size ? 'device' : undefined;
+    }
+    const participants = this.readParticipants(microphone);
     const media = this.media;
     const audioBlocked =
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
@@ -236,15 +286,71 @@ export class RoomCall {
     const screenShare = !!media?.localParticipant.isScreenShareEnabled;
     const microphoneTrack = this.readMicrophoneTrack();
     if (
-      sameParticipants(participants, this.state.participants) &&
-      audioBlocked === this.state.audioBlocked &&
-      screenShare === this.state.screenShare &&
-      microphoneTrack === this.state.microphoneTrack
+      !sameParticipants(participants, this.state.participants) ||
+      audioBlocked !== this.state.audioBlocked ||
+      screenShare !== this.state.screenShare ||
+      microphoneTrack !== this.state.microphoneTrack ||
+      microphone !== this.state.microphone ||
+      camera !== this.state.camera ||
+      problem !== this.state.problem
     ) {
-      return;
+      this.update({
+        participants,
+        audioBlocked,
+        screenShare,
+        microphoneTrack,
+        microphone,
+        camera,
+        problem,
+      });
     }
-    this.update({ participants, audioBlocked, screenShare, microphoneTrack });
-  };
+    if (reapplyOff === undefined) return undefined;
+    return reapplyOff === 'microphone' ? mic.muting : cam.muting;
+  }
+
+  private watchInputTrack(kind: InputKind, track?: MediaStreamTrack) {
+    const previous = this.inputTracks[kind];
+    if (previous === track) return;
+    previous?.removeEventListener('mute', this.refresh);
+    previous?.removeEventListener('unmute', this.refresh);
+    this.inputTracks[kind] = track;
+    this.unmutedInputs[kind] = undefined;
+    track?.addEventListener('mute', this.refresh);
+    track?.addEventListener('unmute', this.refresh);
+  }
+
+  private refreshInput(
+    kind: InputKind,
+    reapplyOff: boolean
+  ): {
+    enabled: boolean;
+    muting?: Promise<void>;
+  } {
+    const publication = this.inputPublication(kind);
+    this.watchInputTrack(kind, publication?.track?.mediaStreamTrack);
+    const track = unmutedInputTrack(publication);
+    const previous = this.unmutedInputs[kind];
+    this.unmutedInputs[kind] = track;
+    if (!publication || !track) return { enabled: this.state[kind] };
+    if (isLiveInputTrack(track)) this.captureFailures.delete(kind);
+    if (this.requestedInputs[kind]) return { enabled: true };
+    // A normal mute already owns a known SDK-unmuted track, even while the OS mutes it.
+    if (previous === track && !reapplyOff) return { enabled: this.state[kind] };
+    const op = this.toggleOps[kind];
+    const muting = publication.mute().then(this.refresh, () => {
+      if (
+        !this.stopped &&
+        op === this.toggleOps[kind] &&
+        this.inputPublication(kind) === publication &&
+        unmutedInputTrack(publication) === track
+      ) {
+        // Keep the mute action available if LiveKit is still unmuted.
+        this.update({ [kind]: true });
+        this.refresh();
+      }
+    });
+    return { enabled: false, muting };
+  }
 
   /** The media track of the microphone this device publishes, unless it is muted. */
   private readMicrophoneTrack(): MediaStreamTrack | undefined {
@@ -271,7 +377,7 @@ export class RoomCall {
   }
 
   /** This device first, then the call's other devices by the time they joined. */
-  private readParticipants(): CallParticipant[] {
+  private readParticipants(microphone = this.state.microphone): CallParticipant[] {
     const describe = (userId: string, deviceId: string, key: string): CallParticipant => {
       const local = key === this.identity;
       const participant = this.mediaParticipant(key);
@@ -288,7 +394,7 @@ export class RoomCall {
         local,
         connected: local ? this.media?.state === ConnectionState.Connected : !!participant,
         speaking: !!participant?.isSpeaking,
-        microphone: local ? this.state.microphone : !!participant?.isMicrophoneEnabled,
+        microphone: local ? microphone : !!participant?.isMicrophoneEnabled,
         video: shown(Track.Source.Camera),
         screen: shown(Track.Source.ScreenShare),
       };
@@ -372,7 +478,11 @@ export class RoomCall {
       .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
       .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
       .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
-      .on(RoomEvent.Reconnected, () => this.update({ phase: 'connected' }))
+      .on(RoomEvent.Reconnected, () => {
+        if (this.stopped) return;
+        this.update({ phase: 'connected' });
+        this.refresh();
+      })
       // The media server dropped this device for good (LiveKit retries before giving up); after
       // a leave or another failure this is the teardown's own disconnect.
       .on(RoomEvent.Disconnected, () => this.fail('connection'))
@@ -605,40 +715,52 @@ export class RoomCall {
       this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
     }
 
-    let problem: CallProblem | undefined;
-    await media.localParticipant.setMicrophoneEnabled(this.state.microphone).catch(() => {
-      problem = 'device';
-      this.update({ microphone: false });
-    });
-    if (this.state.camera) {
-      await media.localParticipant.setCameraEnabled(true).catch(() => {
-        problem = 'device';
-        this.update({ camera: false });
-      });
+    const cameraOp = this.toggleOps.camera;
+    await this.setMicrophone(this.requestedInputs.microphone);
+    if (!this.stopped && this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
+      await this.setCamera(true);
     }
+  }
+
+  private inputPublication(kind: InputKind): LocalTrackPublication | undefined {
+    const source = kind === 'microphone' ? Track.Source.Microphone : Track.Source.Camera;
+    return this.media?.localParticipant.getTrackPublication(source);
+  }
+
+  private async setInputEnabled(kind: InputKind, on: boolean) {
     if (this.stopped) return;
-    this.update({ problem });
-    this.refresh();
-  }
-
-  async setMicrophone(on: boolean) {
-    this.update({ microphone: on });
+    const op = (this.toggleOps[kind] += 1);
+    this.requestedInputs[kind] = on;
+    this.update({ [kind]: on });
     const participant = this.media?.localParticipant;
     if (!participant || this.state.phase === 'connecting') return;
-    await participant.setMicrophoneEnabled(on).catch(() => {
-      this.update({ microphone: false, problem: 'device' });
-    });
-    this.refresh();
+    const failed = await (kind === 'microphone'
+      ? participant.setMicrophoneEnabled(on)
+      : participant.setCameraEnabled(on)
+    ).then(
+      () => false,
+      () => true
+    );
+    if (this.stopped) return;
+
+    const latest = op === this.toggleOps[kind];
+    const track = unmutedInputTrack(this.inputPublication(kind));
+    const failedEnable =
+      on && (failed || (!isLiveInputTrack(track) && (latest || this.requestedInputs[kind])));
+    if (failedEnable) this.captureFailures.add(kind);
+    if (latest && (on ? failedEnable && !track : failed && track)) this.update({ [kind]: !on });
+
+    // Only a superseded enable can finish publishing after the user chose Off.
+    const reapplyOff = on && !latest && !this.requestedInputs[kind];
+    await this.refreshState(reapplyOff ? kind : undefined);
   }
 
-  async setCamera(on: boolean) {
-    this.update({ camera: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant.setCameraEnabled(on).catch(() => {
-      this.update({ camera: false, problem: 'device' });
-    });
-    this.refresh();
+  setMicrophone(on: boolean) {
+    return this.setInputEnabled('microphone', on);
+  }
+
+  setCamera(on: boolean) {
+    return this.setInputEnabled('camera', on);
   }
 
   /**
@@ -670,10 +792,16 @@ export class RoomCall {
   }
 
   async setDevice(kind: CallDeviceKind, deviceId: string) {
+    if (this.stopped) return;
+    const op = (this.switchOps[kind] += 1);
     this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-    await this.media?.switchActiveDevice(kind, deviceId).catch(() => {
-      this.update({ problem: 'device' });
-    });
+    const media = this.media;
+    if (!media) return;
+    const switched = await media.switchActiveDevice(kind, deviceId).catch(() => null);
+    if (!this.stopped && op === this.switchOps[kind]) {
+      if (switched === null) this.selectionFailures.add(kind);
+      else if (switched === true) this.selectionFailures.delete(kind);
+    }
     this.refresh();
   }
 
@@ -689,10 +817,15 @@ export class RoomCall {
     this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
     const media = this.media;
     this.media = undefined;
+    this.watchInputTrack('microphone');
+    this.watchInputTrack('camera');
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
     });
-    if (this.state.microphoneTrack) this.update({ microphoneTrack: undefined });
+    const participants = this.readParticipants();
+    if (this.state.microphoneTrack || !sameParticipants(participants, this.state.participants)) {
+      this.update({ microphoneTrack: undefined, participants });
+    }
     this.audioHost?.remove();
     this.audioHost = undefined;
     try {
