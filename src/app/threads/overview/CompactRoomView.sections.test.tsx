@@ -968,6 +968,71 @@ describe('a focus request on the mounted Compact room', () => {
       }
     );
 
+    // The cards that cross the list's 300 px, top to bottom, as this commit drew them.
+    const inView = () =>
+      [...document.querySelectorAll<HTMLElement>('[data-scroll-anchor]')]
+        .filter((card) => {
+          const { top, bottom } = card.getBoundingClientRect();
+          return bottom > 0 && top < VIEW_HEIGHT;
+        })
+        .map((card) => card.dataset.scrollAnchor);
+    const leaveAt6000 = () => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      scrollTop = 6000;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      unmount();
+      expect(memory.get(ROOM_ID)?.anchors.map(({ key }) => key)).toEqual(
+        [60, 61, 62].map((row) => `$card${row}`)
+      );
+      scrollTop = 0;
+    };
+
+    it('goes Back to the saved card that stayed when one left and one moved far down', () => {
+      leaveAt6000();
+      const rest = large.filter((id) => id !== '$card60' && id !== '$card62');
+      render(at(undefined, [...rest.slice(0, 100), '$card60', ...rest.slice(100)]));
+      // Both saved cards that are left vote, and the place nearer the one left wins.
+      expect(scrollTop).toBe(5900);
+      expect(inView()).toEqual(['$card59', '$card61', '$card63']);
+      measure();
+      expect(scrollTop).toBe(5900);
+      expect(topOf('$card61')).toBe(ROW_HEIGHT);
+    });
+
+    it('draws the cards at the saved place in the first commit back when its cards all left', () => {
+      leaveAt6000();
+      render(
+        at(
+          undefined,
+          large.filter((id) => !['$card60', '$card61', '$card62'].includes(id))
+        )
+      );
+      expect(scrollTop).toBe(6000);
+      expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+    });
+
+    it('draws the cards at the top in the commit that reverses the order', () => {
+      memory.clear();
+      const { rerender } = render(at(undefined, large));
+      measure();
+      rerender(at(undefined, [...large].reverse()));
+      expect(scrollTop).toBe(0);
+      expect(inView()).toEqual(['$card119', '$card118', '$card117']);
+    });
+
+    it('keeps the cards in view in the commit that brings 48 unseen roots above them', () => {
+      memory.clear();
+      const { rerender } = render(at(undefined, large));
+      measure();
+      scrollTop = 6000;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      rerender(at(undefined, [...Array.from({ length: 48 }, (_, i) => `$above${i}`), ...large]));
+      expect(inView()).toEqual(['$card60', '$card61', '$card62']);
+      expect(document.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(60);
+    });
+
     it('draws the cards at the top in the first commit back, though they were reordered', () => {
       memory.clear();
       const { unmount } = render(at(undefined, large));

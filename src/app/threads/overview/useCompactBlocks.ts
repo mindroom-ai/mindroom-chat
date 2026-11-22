@@ -15,7 +15,6 @@ type Geometry = {
   fresh: Set<string>;
   visible: string[];
   gap: number;
-  order?: string;
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
@@ -28,8 +27,6 @@ const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   cache.set(roomId, kept);
   const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
   if (idle.length > 7) cache.delete(idle[0]!);
-  // A list that returns to its top starts there: the cards last in view may have moved.
-  if (!memory.get(roomId)?.scrollTop) kept.visible = [];
   return kept;
 };
 
@@ -53,7 +50,7 @@ export function useCompactBlocks(options: Options) {
     return {
       geometry,
       saved: memory.get(roomId),
-      previousVisible: geometry.visible,
+      order: undefined as string | undefined,
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
@@ -79,15 +76,10 @@ export function useCompactBlocks(options: Options) {
   const small = index.size <= 2 * BLOCK_CARDS;
   // A dirty height still occupies space. Only undiscovered space delays placement.
   const extentComplete = missing < 0 || small;
-  const slotsOf = (ids: string[]) => ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
-  const median = (slots: number[]) => slots[Math.floor(slots.length / 2)];
   // The blocks that hold `ids`, each buffered alone: unmeasured blocks take no space, so two in
-  // view can be far apart. After an order change, the median card's: one that jumped is left out.
-  const band = (ids: string[]): number[] => {
-    const slots = [...new Set(slotsOf(ids))];
-    const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
-    return same && slots.length ? slots : [median(slotsOf(ids)) ?? 0];
-  };
+  // view can be far apart.
+  const slots = (ids: string[]) =>
+    [...new Set(ids.flatMap((id) => index.get(id) ?? []))].sort((a, b) => a - b);
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
@@ -99,8 +91,8 @@ export function useCompactBlocks(options: Options) {
   const back = !state.placed && !!saved?.scrollTop;
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
   const survivors = savedKeys.filter((id) => index.has(id));
-  const backSlot = median(slotsOf(survivors));
-  const warm = survivors.some((id) => state.previousVisible.includes(id));
+  const backSlot = slots(survivors).at(-1);
+  const warm = survivors.some((id) => geometry.visible.includes(id));
   const arriving = indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
   const ranged = !indexPending || savedKeys.length > 1 || state.reachable === order;
   const placeReady =
@@ -109,10 +101,23 @@ export function useCompactBlocks(options: Options) {
     (backSlot === undefined ? !arriving && extentComplete : known(backSlot) && ranged);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = known(targetSlot);
-  // The reader's blocks stay mounted beside the destination's: the place Back goes to, the
-  // target's block, or for End the blocks that fill the last screen, by the heights there are.
-  const reader = band(geometry.visible);
-  const wanted = [...reader, ...(back && survivors.length ? band(survivors) : [])];
+  // A new order, and a new mount, is drawn where the list is, or where Back puts it: the block
+  // `at` that offset, by the heights there are. The cards that were in view stay mounted where
+  // they went: what places the list (the anchor memory, the browser) chooses among them as it
+  // does with every card mounted.
+  const moved = state.order !== order;
+  const seen = moved ? [] : slots(geometry.visible);
+  const offset = (back && placeReady ? saved?.scrollTop : scrollRef.current?.scrollTop) ?? 0;
+  let at = 0;
+  for (let end = 0; offset > 0 && at < blocks.length - 1; at += 1) {
+    for (const id of blocks[at]!) end += (heights.get(id) ?? 0) + gap;
+    if (end > offset) break;
+  }
+  const reader = seen.length ? seen : [at];
+  const held = back ? survivors : moved && state.order ? geometry.visible : [];
+  // The reader's blocks stay mounted beside the destination's: the target's block, or for End
+  // the blocks that fill the last screen, by the heights there are.
+  const wanted = [...reader];
   if (targetReady) wanted.push(targetSlot!);
   const screen = state.end ? scrollRef.current?.clientHeight ?? 0 : 0;
   for (let slot = blocks.length - 1, room = screen; slot >= 0 && room > 0; slot -= 1) {
@@ -127,7 +132,7 @@ export function useCompactBlocks(options: Options) {
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
-  const retained = new Set([focused, protectedId, state.gesture?.id]);
+  const retained = new Set([focused, protectedId, state.gesture?.id, ...held]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
@@ -227,8 +232,11 @@ export function useCompactBlocks(options: Options) {
           heights.delete(id);
           fresh.delete(id);
         }
+    // The view shows a spacer: its cards mount before the paint, not on a frame.
+    let hole = false;
     // Undefined while the list has no size (hidden): nothing can be measured there.
     const layout = () => {
+      hole = false;
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
@@ -269,19 +277,17 @@ export function useCompactBlocks(options: Options) {
         }
       }
       for (const id of liveIds) if (!heights.has(id)) heights.set(id, 0);
-      if (back && !state.placed) {
-        if (!warm && visible.length) geometry.visible = visible;
-        return changed;
-      }
+      if (back && !state.placed) return changed;
       if (visible.length) geometry.visible = visible;
-      geometry.order = order;
+      state.order = order;
+      hole = visible.some((id) => !liveIds.includes(id));
       // A Back placed or retired since this render is dropped by the next one.
-      return changed || back || `${band(geometry.visible)}` !== `${reader}`;
+      return changed || back || (!!visible.length && `${slots(visible)}` !== `${reader}`);
     };
     const measured = layout();
     const pending = measured || (!small && probe >= 0);
     state.onWrite = () => {
-      if (layout()) state.wake?.();
+      if (layout()) (hole ? render : state.wake)?.();
     };
     // Discovery parks while the list cannot measure. A frame advances it; a scroll does not.
     state.measure = (advance) => {
@@ -289,7 +295,7 @@ export function useCompactBlocks(options: Options) {
       const now = layout();
       return now !== undefined && (now || (!!advance && pending));
     };
-    if (back && !placeReady && state.reachable === order) render();
+    if (hole || (back && !placeReady && state.reachable === order)) render();
     else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
   });
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
