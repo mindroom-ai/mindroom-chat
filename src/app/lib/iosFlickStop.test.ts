@@ -135,4 +135,43 @@ describe('iosFlickStop', () => {
     cleanup();
     expect(overflowWrites).not.toHaveBeenCalled();
   });
+
+  it('invokes onRestore exactly once on two-frame completion, supersession, and explicit cleanup', () => {
+    stubUserAgent(IPHONE);
+    const { view, stepFrame } = createFrameQueue();
+    const element = document.createElement('div');
+    element.style.overflowY = 'auto';
+
+    // 1. Two-frame completion.
+    const onRestoreComplete = vi.fn();
+    const cleanupComplete = stopIOSFlick(element, view, onRestoreComplete);
+    stepFrame();
+    expect(onRestoreComplete).not.toHaveBeenCalled();
+    stepFrame();
+    expect(onRestoreComplete).toHaveBeenCalledTimes(1);
+    cleanupComplete();
+    expect(onRestoreComplete).toHaveBeenCalledTimes(1);
+
+    // 2. Supersession by a second stopIOSFlick on the same element.
+    const onRestoreFirst = vi.fn();
+    const onRestoreSecond = vi.fn();
+    const cleanupFirst = stopIOSFlick(element, view, onRestoreFirst);
+    expect(onRestoreFirst).not.toHaveBeenCalled();
+    const cleanupSecond = stopIOSFlick(element, view, onRestoreSecond);
+    expect(onRestoreFirst).toHaveBeenCalledTimes(1);
+    expect(onRestoreSecond).not.toHaveBeenCalled();
+    // Stale first cleanup does not re-fire either callback.
+    cleanupFirst();
+    expect(onRestoreFirst).toHaveBeenCalledTimes(1);
+    expect(onRestoreSecond).not.toHaveBeenCalled();
+
+    // 3. Explicit cleanup on the active stop.
+    cleanupSecond();
+    expect(onRestoreSecond).toHaveBeenCalledTimes(1);
+    cleanupSecond();
+    stepFrame();
+    stepFrame();
+    expect(onRestoreSecond).toHaveBeenCalledTimes(1);
+    expect(element.style.overflowY).toBe('auto');
+  });
 });

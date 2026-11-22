@@ -743,8 +743,8 @@ export const useTimelineScrollLedgerController = ({
     compensationSettleArmedRef.current = true;
     const generation = ledgerGenerationRef.current;
     void waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
-      compensationSettleArmedRef.current = false;
       if (!alive() || ledgerGenerationRef.current !== generation) return;
+      compensationSettleArmedRef.current = false;
       settleScrollCompensation('quiescence');
     });
   }, [alive, getScrollElement, settleScrollCompensation]);
@@ -932,6 +932,8 @@ export const useTimelineScrollLedgerController = ({
     // Status-bar tap jumps straight to the top of the loaded rows: drop any unsettled offset
     // ledger atomically before writing `scrollTop = 0`, so neither the boundary guard at 0 nor
     // a later quiescence settle shifts `scrollTop` back down by the accumulated positive fold.
+    // Pending room folds are cleared as well so any in-flight room prepend becomes the new top
+    // rather than folding above it.
     const onStatusBarScrollTop = (event: Event) => {
       event.preventDefault();
       const inner = virtualInnerRef.current;
@@ -965,7 +967,7 @@ export const useTimelineScrollLedgerController = ({
       if (hadLedger) {
         virtualizerRef.current.scrollOffset = top;
         virtualizerRef.current.setOptions({ ...virtualizerRef.current.options, scrollMargin: 0 });
-        setLedgerCommitTick((tick) => tick + 1);
+        flushSync(() => setLedgerCommitTick((tick) => tick + 1));
       }
     };
     scrollElement.addEventListener('touchstart', onLedgerBoundaryTouchStart, {

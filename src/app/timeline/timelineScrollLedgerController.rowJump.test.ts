@@ -14,6 +14,10 @@ const virtualizer = vi.hoisted(() => ({
   setOptions: vi.fn(),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
+  getVirtualItemForOffset: (offset: number) => {
+    const index = Math.max(0, Math.floor(offset / 35));
+    return { index, start: index * 35 };
+  },
   getVirtualItems: () => [],
 }));
 
@@ -160,19 +164,30 @@ const mountRoomLedger = ({ settle = true } = {}) => {
     });
     return event;
   };
-  const flushQuiescence = async () => {
+  const flushQuiescence = async (count = quiescenceResolvers.length) => {
     await act(async () => {
-      const pending = quiescenceResolvers.splice(0, quiescenceResolvers.length);
+      const pending = quiescenceResolvers.splice(0, count);
       pending.forEach((resolve) => resolve());
       await Promise.resolve();
     });
   };
+  const dropCorrection = (delta: number) =>
+    act(() => {
+      expect(
+        correction({ end: 50 }, delta, {
+          scrollOffset: scrollTop,
+          scrollDirection: 'backward',
+          scrollElement: scrollArea,
+        })
+      ).toBe(false);
+    });
   return {
     rows,
     scrollArea,
     writes,
     scrollTo,
     applyCorrection,
+    dropCorrection,
     statusBarScrollTop,
     flushQuiescence,
     endSettleDiscardWatch: () => controller?.endSettleDiscardWatch(),
@@ -260,12 +275,14 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
   afterEach(() => {
     virtualizer.setOptions.mockClear();
     quiescenceResolvers.length = 0;
+    vi.unstubAllGlobals();
   });
 
   it('clears an unsettled positive ledger, jumps to 0, and prevents boundary or quiescence settles from shifting back down', async () => {
     const ledger = mountRoomLedger({ settle: false });
     expect(ledger.rows.style.marginTop).toBe('-830px');
     expect(ledger.scrollArea.scrollTop).toBe(129);
+    expect(quiescenceResolvers).toHaveLength(1);
     virtualizer.setOptions.mockClear();
 
     const event = ledger.statusBarScrollTop();
@@ -284,11 +301,27 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
     expect(ledger.rows.style.marginTop).toBe('');
     expect(ledger.writes).toEqual([0]);
 
-    // A previously armed quiescence wait from before the tap must also be ignored.
-    await ledger.flushQuiescence();
-    expect(ledger.scrollArea.scrollTop).toBe(0);
-    expect(ledger.rows.style.marginTop).toBe('');
+    // Scroll down again and arm new debt after the tap (starting a newer waiter).
+    ledger.scrollTo(129);
+    ledger.dropCorrection(100);
+    expect(ledger.rows.style.marginTop).toBe('-100px');
+    expect(quiescenceResolvers).toHaveLength(2);
+
+    // Resolving the stale pre-tap waiter must neither settle the new debt nor disarm the newer waiter.
+    await ledger.flushQuiescence(1);
+    expect(ledger.scrollArea.scrollTop).toBe(129);
+    expect(ledger.rows.style.marginTop).toBe('-100px');
     expect(ledger.writes).toEqual([0]);
+
+    // Additional debt must reuse the still-armed newer waiter rather than starting a duplicate.
+    ledger.dropCorrection(50);
+    expect(ledger.rows.style.marginTop).toBe('-150px');
+    expect(quiescenceResolvers).toHaveLength(1);
+
+    // Resolving the newer waiter settles the new 150px debt cleanly.
+    await ledger.flushQuiescence(1);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.scrollArea.scrollTop).toBe(279);
 
     ledger.unmount();
   });
@@ -310,5 +343,124 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
     expect(ledger.writes).toEqual([959, 0]);
 
     ledger.unmount();
+  });
+
+  it('clears the thread anchor and ledger in an open thread, jumps to 0, and re-anchors cleanly on the next commit', () => {
+    vi.stubGlobal('getComputedStyle', () => ({
+      scrollPaddingTop: '0px',
+      getPropertyValue: () => '',
+    }));
+    const makeEvents = (ids: string[]) => ids.map((id) => ({ getId: () => id }));
+    let threadEvents = makeEvents(Array.from({ length: 20 }, (_, i) => `$ev-${i}`));
+    let scrollTop = 350;
+    const writes: number[] = [];
+    let onStatusBarScrollTop: ((event: Event) => void) | undefined;
+    const scrollArea = {
+      clientHeight: 700,
+      scrollHeight: 2000,
+      getBoundingClientRect: () => ({ top: 0, bottom: 700 }),
+      addEventListener: (type: string, listener: (event: Event) => void) => {
+        if (type === STATUS_BAR_SCROLL_TOP_EVENT) onStatusBarScrollTop = listener;
+      },
+      removeEventListener: (type: string, listener: (event: Event) => void) => {
+        if (type === STATUS_BAR_SCROLL_TOP_EVENT && onStatusBarScrollTop === listener) {
+          onStatusBarScrollTop = undefined;
+        }
+      },
+      scrollTo: vi.fn((options?: ScrollToOptions | number) => {
+        if (typeof options === 'object' && options.top !== undefined) {
+          scrollArea.scrollTop = options.top;
+        }
+      }),
+      get scrollTop() {
+        return scrollTop;
+      },
+      set scrollTop(value: number) {
+        writes.push(value);
+        scrollTop = value;
+      },
+    };
+    const rows = {
+      style: { marginTop: '' },
+      getBoundingClientRect: () => ({
+        top: -scrollTop + (Number.parseFloat(rows.style.marginTop) || 0),
+        bottom: 700,
+      }),
+    };
+    let controller: TimelineScrollLedgerController | undefined;
+    function ThreadLedger() {
+      const threadEventIndexMap = new Map(
+        threadEvents.map((ev, index) => [ev.getId() ?? '', index])
+      );
+      controller = useTimelineScrollLedgerController({
+        alive: () => true,
+        estimateSize: () => 35,
+        getItemKey: (index) => threadEvents[index]?.getId() ?? index,
+        getScrollElement: () => scrollArea as unknown as HTMLDivElement,
+        itemCount: threadEvents.length,
+        pendingRoomFoldPxRef: useRef(0),
+        roomFoldPriceRef: useRef(() => 35),
+        roomId: '!logbook:example.org',
+        threadEventIndexMap,
+        threadEvents,
+        threadId: '$root:example.org',
+        threadInitialRenderMode: 'live',
+      });
+      return React.createElement('rows', { ref: controller.virtualInnerRef });
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(ThreadLedger), { createNodeMock: () => rows });
+    });
+
+    // Accumulate an unsettled positive measurement correction while scrolled to row 10 ($ev-10).
+    const correction = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction;
+    act(() => {
+      expect(
+        correction({ end: 100 }, 140, {
+          scrollOffset: 350,
+          scrollDirection: 'backward',
+          scrollElement: scrollArea,
+        })
+      ).toBe(false);
+    });
+    expect(rows.style.marginTop).toBe('-140px');
+
+    // Status-bar tap clears marginTop and old anchor, jumps to 0, and re-commits at row 0 ($ev-0).
+    const tapEvent = new Event(STATUS_BAR_SCROLL_TOP_EVENT, { cancelable: true });
+    act(() => {
+      onStatusBarScrollTop?.(tapEvent);
+    });
+    expect(tapEvent.defaultPrevented).toBe(true);
+    expect(rows.style.marginTop).toBe('');
+    expect(scrollArea.scrollTop).toBe(0);
+    expect(writes).toEqual([0]);
+
+    // Inserting a row below $ev-0 (which was above the old $ev-10 anchor) must NOT fold, proving
+    // the old anchor was cleared and re-anchored at $ev-0.
+    threadEvents = makeEvents([
+      '$ev-0',
+      '$ev-inserted-below-0',
+      ...Array.from({ length: 19 }, (_, i) => `$ev-${i + 1}`),
+    ]);
+    act(() => {
+      renderer?.update(React.createElement(ThreadLedger));
+    });
+    expect(rows.style.marginTop).toBe('');
+
+    // Prepending two older rows above $ev-0 folds 2 * 35px cleanly relative to the new $ev-0 anchor.
+    threadEvents = makeEvents([
+      '$ev-older-1',
+      '$ev-older-2',
+      '$ev-0',
+      '$ev-inserted-below-0',
+      ...Array.from({ length: 19 }, (_, i) => `$ev-${i + 1}`),
+    ]);
+    act(() => {
+      renderer?.update(React.createElement(ThreadLedger));
+    });
+    expect(rows.style.marginTop).toBe('-70px');
+
+    act(() => renderer?.unmount());
   });
 });

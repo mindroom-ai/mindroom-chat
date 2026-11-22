@@ -199,4 +199,59 @@ describe('installStatusBarTapScroll', () => {
     expect(timeline.scrollTo).not.toHaveBeenCalled();
     expect(timeline.scrollTop).toBe(0);
   });
+
+  it('restores both scrollers on uninstall after overlapping taps on two different scrollers', () => {
+    const { frames, stepFrame } = stubIOSFrames(IPHONE);
+    uninstall = installStatusBarTapScroll(window);
+    const parent = area(document.body, 500, 'auto');
+    const nested = area(parent, 120, 'scroll');
+    const innerRow = document.createElement('p');
+    nested.appendChild(innerRow);
+
+    // First tap scrolls and flick-stops the nested scroller.
+    tapUnder(innerRow);
+    expect(nested.scrollTop).toBe(0);
+    expect(nested.style.overflowY).toBe('hidden');
+    expect(parent.scrollTop).toBe(500);
+    expect(parent.style.overflowY).toBe('auto');
+
+    // Second tap one frame later passes over nested (now at 0) and flick-stops parent.
+    stepFrame();
+    tapUnder(innerRow);
+    expect(parent.scrollTop).toBe(0);
+    expect(parent.style.overflowY).toBe('hidden');
+    expect(nested.style.overflowY).toBe('hidden');
+    expect(frames.size).toBe(2);
+
+    // Uninstalling restores both active flick-stops and cancels all pending frames.
+    uninstall();
+    uninstall = undefined;
+    expect(nested.style.overflowY).toBe('scroll');
+    expect(parent.style.overflowY).toBe('auto');
+    expect(frames.size).toBe(0);
+  });
+
+  it('releases active flick-stop handles after two frames complete', () => {
+    const { frames, stepFrame } = stubIOSFrames(IPHONE);
+    uninstall = installStatusBarTapScroll(window);
+    const timeline = area(document.body, 400, 'auto');
+
+    tapUnder(timeline);
+    expect(timeline.style.overflowY).toBe('hidden');
+    stepFrame();
+    stepFrame();
+    expect(timeline.style.overflowY).toBe('auto');
+    expect(frames.size).toBe(0);
+
+    // After the two-frame stop finishes, uninstall should not touch the element's overflowY again.
+    const overflowWrites = vi.fn();
+    Object.defineProperty(timeline.style, 'overflowY', {
+      get: () => 'auto',
+      set: overflowWrites,
+      configurable: true,
+    });
+    uninstall();
+    uninstall = undefined;
+    expect(overflowWrites).not.toHaveBeenCalled();
+  });
 });

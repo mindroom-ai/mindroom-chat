@@ -38,27 +38,39 @@ export const statusBarTapScrollTarget = (doc: Document): HTMLElement | undefined
   return undefined;
 };
 
-const scrollToTopOnStatusBarTapWithCleanup = (doc: Document): (() => void) | undefined => {
+/**
+ * Runs the status-bar tap scroll sequence on the target area: dispatches an upward wheel turn so
+ * timelines treat the move as reader intent, starts an iOS flick-stop so active momentum cannot
+ * discard the jump, and dispatches the cancelable `STATUS_BAR_SCROLL_TOP_EVENT` before falling
+ * back to `scrollTo({ top: 0 })`. Returns the active flick-stop cleanup handle when started on
+ * iOS, or `undefined` when no flick-stop is active.
+ */
+const scrollToTopOnStatusBarTapWithCleanup = (
+  doc: Document,
+  onRestore?: () => void
+): (() => void) | undefined => {
   const target = statusBarTapScrollTarget(doc);
   const view = doc.defaultView;
   if (!target || !view) return undefined;
   target.dispatchEvent(
     new view.WheelEvent('wheel', { bubbles: true, deltaMode: 0, deltaY: -target.scrollTop })
   );
-  const restoreFlick = stopIOSFlick(target, view);
+  const restoreFlick = stopIOSFlick(target, view, onRestore);
+  const activeFlick = isIOSFlickStopped(target);
   const beforeTop = new view.Event(STATUS_BAR_SCROLL_TOP_EVENT, { cancelable: true });
   target.dispatchEvent(beforeTop);
   if (!beforeTop.defaultPrevented) {
     target.scrollTo({ top: 0 });
   }
-  return restoreFlick;
+  return activeFlick ? restoreFlick : undefined;
 };
 
 /**
  * Scrolls the area under the middle of the screen to its top. A wheel turn up as far as the area
- * goes comes first, so the timelines take the move as the reader's own scroll: they keep it, rather
- * than holding the reader at the newest row or at a row they were opening at, and load older rows
- * once it reaches the top.
+ * goes comes first so timelines take the move as the reader's own scroll (releasing opening/latest
+ * pins and loading older rows at the top), followed by an iOS flick-stop to cancel active momentum
+ * and a cancelable `STATUS_BAR_SCROLL_TOP_EVENT` so timelines with an offset ledger can reconcile
+ * and jump to 0 atomically before the fallback `scrollTo({ top: 0 })`.
  */
 export const scrollToTopOnStatusBarTap = (doc: Document): void => {
   scrollToTopOnStatusBarTapWithCleanup(doc);
@@ -66,15 +78,26 @@ export const scrollToTopOnStatusBarTap = (doc: Document): void => {
 
 /** Scrolls to the top on every status bar tap; returns what removes the listener. */
 export const installStatusBarTapScroll = (view: Window): (() => void) => {
-  let restoreLastFlick: (() => void) | undefined;
+  const activeRestores = new Set<() => void>();
   const onTap = () => {
-    const restore = scrollToTopOnStatusBarTapWithCleanup(view.document);
-    if (restore) restoreLastFlick = restore;
+    let restore: (() => void) | undefined;
+    let restored = false;
+    const onRestore = () => {
+      restored = true;
+      if (restore) activeRestores.delete(restore);
+    };
+    const cleanup = scrollToTopOnStatusBarTapWithCleanup(view.document, onRestore);
+    if (cleanup && !restored) {
+      restore = cleanup;
+      activeRestores.add(cleanup);
+    }
   };
   view.addEventListener('statusTap', onTap);
   return () => {
     view.removeEventListener('statusTap', onTap);
-    restoreLastFlick?.();
-    restoreLastFlick = undefined;
+    for (const cleanup of [...activeRestores]) {
+      cleanup();
+    }
+    activeRestores.clear();
   };
 };
