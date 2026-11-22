@@ -767,6 +767,19 @@ describe('a focus request on the mounted Compact room', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
+    it('keeps the off-window pushed target mounted for placement', () => {
+      memory.clear();
+      const { rerender } = render(at(undefined, large));
+      measure();
+      expect(document.querySelector('[data-scroll-anchor="$card100"]')).toBeNull();
+      rerender(at({ eventId: '$card100', entryKey: 'deep-push', pushed: true }, large));
+      expect(scrollTop).toBe(9840);
+      expect(topOf('$card100')).toBe(160);
+      // Even before a scroll event fires, an unrelated rerender keeps the placed target mounted.
+      rerender(at({ eventId: '$card100', entryKey: 'deep-push', pushed: true }, large));
+      expect(document.querySelector('[data-scroll-anchor="$card100"]')).not.toBeNull();
+    });
+
     it('places warm Back in its first commit when 48 unseen roots were prepended', () => {
       memory.clear();
       const { unmount } = render(at(undefined, large));

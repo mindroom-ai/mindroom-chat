@@ -451,6 +451,7 @@ export function CompactRoomView({
   const memory = compactRoomScrollStateRef.current;
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
+  const placing = useRef<string>();
   const pushed =
     focusRequest?.pushed &&
     requestKey !== mountRequestKeyRef.current &&
@@ -623,8 +624,13 @@ export function CompactRoomView({
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     if (!focusRequest || !focusShown) return;
     const place = pushed && viewRef.current && compactFocusPlace(focusRequest, viewRef.current);
-    if (place) placeList(place);
-    meetCompactFocusRequest(memory, focusRequest);
+    if (place && placing.current !== requestKey) {
+      placing.current = requestKey;
+      placeList(place);
+    } else {
+      placing.current = undefined;
+      meetCompactFocusRequest(memory, focusRequest);
+    }
   });
 
   const resolveLabel = t('thread.resolve');

@@ -116,7 +116,7 @@ type ScrollAnchorMemoryOptions = {
   /** False until the rows to restore against have rendered. */
   ready: boolean;
   /** Optional handoff for a window that waits for the first write. */
-  progress?: { offset?: number; cancelled?: boolean; onWrite?: () => void };
+  progress?: { placed?: boolean; onWrite?: () => void };
 };
 
 /**
@@ -149,7 +149,7 @@ export function useScrollAnchorMemory({
     if (restoreRef.current?.memoryKey !== memoryKey) {
       restoreRef.current = {
         memoryKey,
-        snapshot: progress?.cancelled ? undefined : memory.get(memoryKey),
+        snapshot: progress?.placed ? undefined : memory.get(memoryKey),
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
@@ -160,7 +160,7 @@ export function useScrollAnchorMemory({
     let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
-      if (progress && progress.offset === undefined) progress.cancelled = true;
+      if (progress) progress.placed = true;
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
@@ -192,7 +192,7 @@ export function useScrollAnchorMemory({
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
       if (progress) {
-        progress.offset = state.lastAppliedScrollTop;
+        progress.placed = true;
         progress.onWrite?.();
       }
     };

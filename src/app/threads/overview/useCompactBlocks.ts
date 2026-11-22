@@ -19,15 +19,10 @@ type Geometry = {
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
-  const cache = rooms.get(memory) ?? new Map<string, Geometry>();
-  rooms.set(memory, cache);
-  const geometry = cache.get(roomId) ?? {
-    heights: new Map(),
-    fresh: new Set(),
-    visible: [],
-    gap: 0,
-  };
-  cache.set(roomId, geometry);
+  let cache = rooms.get(memory);
+  if (!cache) rooms.set(memory, (cache = new Map()));
+  let geometry = cache.get(roomId);
+  if (!geometry) cache.set(roomId, (geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 }));
   return geometry;
 };
 
@@ -43,9 +38,17 @@ type Options = {
   indexPending?: boolean;
 };
 
-export function useCompactBlocks(options: Options) {
-  const { groups, memory, roomId, target, records, indexPending } = options;
-  const { scrollRef, contentRef, protectedId } = options;
+export function useCompactBlocks({
+  groups,
+  scrollRef,
+  contentRef,
+  memory,
+  roomId,
+  target,
+  protectedId,
+  records,
+  indexPending,
+}: Options) {
   const state = useMemo(() => {
     const geometry = getGeometry(memory, roomId);
     return {
@@ -53,8 +56,6 @@ export function useCompactBlocks(options: Options) {
       saved: memory.get(roomId),
       previousVisible: geometry.visible,
       readyOrder: undefined as string | undefined,
-      offset: undefined as number | undefined,
-      cancelled: false,
       placed: false,
       onWrite: undefined as (() => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
@@ -87,7 +88,7 @@ export function useCompactBlocks(options: Options) {
   const backSlot = medianSlot(savedKeys);
   const prefixReady = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
-  const back = !state.placed && !state.cancelled && !!saved?.scrollTop;
+  const back = !state.placed && !!saved?.scrollTop;
   const warm = savedKeys.some((id) => index.has(id) && state.previousVisible.includes(id));
   const canPlace =
     !(indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id))) &&
@@ -109,12 +110,7 @@ export function useCompactBlocks(options: Options) {
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   // Keep the visible rows while a partial restore discovers its new prefix.
-  const retained = new Set([
-    focused,
-    protectedId,
-    state.gesture?.id,
-    ...(back ? geometry.visible : []),
-  ]);
+  const retained = new Set([focused, protectedId, state.gesture?.id, ...(back ? geometry.visible : [])]);
   const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
@@ -158,6 +154,7 @@ export function useCompactBlocks(options: Options) {
       ? mounted.current
       : projectedIds;
   const measure = useRef<() => boolean>();
+  const scheduleRef = useRef<() => void>();
   const watch = useRef<(nodes: NodeListOf<Element>, wake: boolean) => void>();
 
   useEffect(() => {
@@ -172,17 +169,11 @@ export function useCompactBlocks(options: Options) {
           if (measure.current?.()) render();
         });
     };
+    scheduleRef.current = schedule;
     const scroll = () => {
-      const takeover =
-        state.offset === undefined &&
-        !state.cancelled &&
-        !!state.saved?.scrollTop &&
-        view.scrollTop !== 0;
-      if (takeover) state.cancelled = true;
+      const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
+      if (takeover) state.placed = true;
       if (measure.current?.() || takeover) flushSync(render);
-    };
-    state.onWrite = () => {
-      if (measure.current?.()) schedule();
     };
     const observer =
       typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
@@ -219,7 +210,7 @@ export function useCompactBlocks(options: Options) {
     events.forEach((event) => window.addEventListener(event, track, true));
     view.addEventListener('scroll', scroll, { passive: true });
     return () => {
-      state.onWrite = undefined;
+      scheduleRef.current = undefined;
       observer?.disconnect();
       events.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
@@ -234,11 +225,11 @@ export function useCompactBlocks(options: Options) {
     if (!view || !content || typeof window === 'undefined') return;
     mounted.current = liveIds;
     if (records && !indexPending)
-      for (const id of heights.keys()) {
-        if (records.has(id) || index.has(id)) continue;
-        heights.delete(id);
-        fresh.delete(id);
-      }
+      for (const id of heights.keys())
+        if (!records.has(id) && !index.has(id)) {
+          heights.delete(id);
+          fresh.delete(id);
+        }
     const layout = () => {
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
@@ -282,17 +273,19 @@ export function useCompactBlocks(options: Options) {
           edge = next + measuredGap;
         }
       }
-      if (back && state.offset === undefined && !state.cancelled) {
+      if (back && !state.placed) {
         if (!warm && visible.length) geometry.visible = visible;
         return changed;
       }
-      if (state.offset !== undefined) state.placed = true;
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
       const [start, end] = band(geometry.visible);
       return changed || start !== first || end !== last;
     };
     const measured = layout();
+    state.onWrite = () => {
+      if (layout()) scheduleRef.current?.();
+    };
     measure.current = () => layout() || measured || (!small && probe >= 0);
     watch.current?.(content.querySelectorAll(SHELL), measured || (!small && probe >= 0) || (back && placeReady));
     if (back && !placeReady && state.readyOrder === order) render();
