@@ -11,9 +11,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
-import type { Room } from 'matrix-js-sdk';
+import { MsgType, type Room } from 'matrix-js-sdk';
+import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/types';
+import { Element as SlateElement, Node as SlateNode, Text as SlateText } from 'slate';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
@@ -50,6 +52,10 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount } from '../schedules/roomSchedules';
+import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import { getMessageRelation } from '../matrix/send/composeMessageRelation';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
+import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
@@ -241,8 +247,10 @@ export function RoomViewHeader({
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
+  const store = useStore();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
+  const canSendMessages = permissions.event('m.room.message', myUserId);
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -389,6 +397,42 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
+  const cancelScheduledTask = async (task: ParsedScheduledTask) => {
+    const targetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+    const relation = getMessageRelation(undefined, undefined, targetThreadId);
+    const content = {
+      msgtype: MsgType.Text,
+      body: `!cancel_schedule ${task.taskId}`,
+      ...(relation ? { 'm.relates_to': relation } : {}),
+    } as RoomMessageEventContent;
+    await mx.sendMessage(room.roomId, content);
+  };
+  const editScheduledTask = (task: ParsedScheduledTask) => {
+    const targetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+    const prefix = `!edit_schedule ${task.taskId} `;
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey(myUserId, room.roomId, targetThreadId)
+    );
+    const existing = store.get(draftAtom);
+    const draftEmpty =
+      existing.length === 0 ||
+      existing.every(
+        (node) =>
+          SlateElement.isElement(node) &&
+          node.children.every((child) => SlateText.isText(child) && child.text === '')
+      );
+    if (draftEmpty) {
+      store.set(draftAtom, [createParagraphElement(prefix)]);
+    } else if (!SlateNode.string(existing[0]!).startsWith(prefix)) {
+      store.set(draftAtom, [createParagraphElement(prefix), ...existing]);
+    }
+    setSchedules(undefined);
+    if (targetThreadId && targetThreadId !== openThreadId) {
+      openScheduledThread(targetThreadId);
+    } else if (!targetThreadId && viewSwitch?.compact) {
+      viewSwitch.toggle();
+    }
+  };
 
   // The header's actions, in the order both the row and the room menu use.
   const listed: (RoomHeaderEntry | false | undefined)[] = [
@@ -760,6 +804,8 @@ export function RoomViewHeader({
             }
           }}
           onOpenThread={openScheduledThread}
+          onCancelTask={canSendMessages ? cancelScheduledTask : undefined}
+          onEditTask={canSendMessages ? editScheduledTask : undefined}
         />
       )}
       {dialog}

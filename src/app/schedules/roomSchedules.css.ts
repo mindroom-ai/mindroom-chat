@@ -6,17 +6,23 @@ import { touchTarget } from '../ui/styles/touchTarget';
 // A solid border line of the given width and color.
 const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}`;
 
+const subtleBorder = `color-mix(in srgb, ${color.Surface.OnContainer} 10%, transparent)`;
+const strongBorder = `color-mix(in srgb, ${color.Surface.OnContainer} 18%, transparent)`;
+const subtleSurface = `color-mix(in srgb, ${color.Surface.OnContainer} 4%, transparent)`;
+const hoverSurface = `color-mix(in srgb, ${color.Surface.OnContainer} 6%, transparent)`;
+
 // The room header's schedules button; the count sits on its corner. 40 px with 4 px to the next
 // button, so 44 by 44 px to a finger.
 export const Trigger = style([{ position: 'relative' }, touchTarget('2px')]);
 
 export const Count = style({
   position: 'absolute',
-  top: toRem(2),
+  insetBlockStart: toRem(2),
   insetInlineEnd: toRem(2),
   minWidth: toRem(14),
   height: toRem(14),
-  padding: `0 ${toRem(3)}`,
+  paddingBlock: 0,
+  paddingInline: toRem(3),
   borderRadius: config.radii.Pill,
   backgroundColor: color.Secondary.Main,
   color: color.Secondary.OnMain,
@@ -34,9 +40,9 @@ export const ROOM_VIEW_CENTER = '--mr-room-view-center';
 export const Dialog = style([
   glassDenseOverBackdrop,
   {
-    width: `min(${toRem(520)}, 100vw)`,
+    width: `min(${toRem(540)}, 100vw)`,
     maxWidth: '100vw',
-    maxHeight: `min(${toRem(680)}, 85vh, 100dvh)`,
+    maxHeight: `min(${toRem(700)}, 85vh, 100dvh)`,
     overflow: 'hidden',
     // Over the room view rather than the whole window, but never past the window's edges.
     translate: `clamp((100% - 100vw) / 2, var(${ROOM_VIEW_CENTER}, 50vw) - 50vw, (100vw - 100%) / 2) 0`,
@@ -49,28 +55,300 @@ export const Header = style({
   borderBlockEnd: solid(config.borderWidth.B300, color.Surface.ContainerLine),
 });
 
-// The task cards, one under the other.
+export const HeaderCount = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: toRem(22),
+  height: toRem(20),
+  paddingInline: toRem(7),
+  borderRadius: config.radii.Pill,
+  backgroundColor: `color-mix(in srgb, ${color.Surface.OnContainer} 8%, transparent)`,
+  color: color.Surface.OnContainer,
+  fontSize: config.fontSize.T200,
+  fontWeight: config.fontWeight.W600,
+  lineHeight: 1,
+  flexShrink: 0,
+});
+
 export const Content = style({
-  padding: config.space.S400,
+  paddingBlock: config.space.S300,
+  paddingInline: config.space.S400,
   minWidth: 0,
+  '@media': {
+    '(max-width: 380px)': {
+      paddingInline: config.space.S300,
+    },
+  },
 });
 
 export const Empty = style({
-  padding: `${config.space.S500} ${config.space.S300}`,
+  paddingBlock: config.space.S500,
+  paddingInline: config.space.S300,
   alignItems: 'center',
   textAlign: 'center',
 });
 
-// An outline on the dialog's own material: the badges and text carry the card, not a fill. The
-// line is a tint of the text color, so it stays darker than the glass in light themes too.
-export const Card = style({
+export const FilterBar = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
   minWidth: 0,
-  border: solid(
-    config.borderWidth.B300,
-    `color-mix(in srgb, ${color.Surface.OnContainer} 8%, transparent)`
-  ),
+});
+
+export const FilterPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(6),
+  paddingBlock: toRem(5),
+  paddingInline: toRem(10),
+  borderRadius: config.radii.Pill,
+  border: solid(config.borderWidth.B300, subtleBorder),
+  backgroundColor: 'transparent',
+  color: color.Surface.OnContainer,
+  fontSize: config.fontSize.T200,
+  fontWeight: config.fontWeight.W500,
+  lineHeight: 1.2,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      backgroundColor: hoverSurface,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Other.FocusRing}`,
+      outlineOffset: '1px',
+    },
+  },
+});
+
+export const FilterPillActive = style({
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+  borderColor: color.Primary.ContainerLine,
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Primary.ContainerHover,
+    },
+  },
+});
+
+export const FilterCount = style({
+  opacity: 0.75,
+  fontVariantNumeric: 'tabular-nums',
+});
+
+export const GroupHeading = style({
+  marginBlockStart: config.space.S100,
+  marginBlockEnd: 0,
+  textTransform: 'none',
+});
+
+export const Item = style({
+  minWidth: 0,
+  border: solid(config.borderWidth.B300, subtleBorder),
   borderRadius: config.radii.R400,
-  padding: config.space.S400,
+  overflow: 'hidden',
+  transition: 'border-color 140ms ease',
+  selectors: {
+    '&[data-expanded="true"]': {
+      borderColor: strongBorder,
+    },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
+    },
+  },
+});
+
+export const RowHeader = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: config.space.S300,
+  width: '100%',
+  minWidth: 0,
+  paddingBlock: config.space.S300,
+  paddingInline: config.space.S300,
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: color.Surface.OnContainer,
+  textAlign: 'start',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      backgroundColor: hoverSurface,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Other.FocusRing}`,
+      outlineOffset: '-2px',
+    },
+  },
+});
+
+export const IconTile = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: toRem(28),
+  height: toRem(28),
+  borderRadius: config.radii.R300,
+  flexShrink: 0,
+  marginBlockStart: toRem(1),
+});
+
+export const IconTilePrimary = style({
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+});
+
+export const IconTileSuccess = style({
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+});
+
+export const IconTileWarning = style({
+  backgroundColor: color.Warning.Container,
+  color: color.Warning.OnContainer,
+});
+
+export const RowBody = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: toRem(4),
+  flex: '1 1 auto',
+  minWidth: 0,
+});
+
+export const RowTopLine = style({
+  display: 'flex',
+  alignItems: 'baseline',
+  justifyContent: 'space-between',
+  gap: config.space.S200,
+  flexWrap: 'wrap',
+  minWidth: 0,
+});
+
+export const RowTitle = style({
+  flex: '1 1 0%',
+  minWidth: 0,
+  margin: 0,
+});
+
+export const StatusPill = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  paddingBlock: toRem(2),
+  paddingInline: toRem(8),
+  borderRadius: config.radii.Pill,
+  border: solid(config.borderWidth.B300, 'transparent'),
+  fontSize: config.fontSize.T200,
+  fontWeight: config.fontWeight.W500,
+  lineHeight: 1.3,
+  flexShrink: 0,
+  maxWidth: '100%',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  fontVariantNumeric: 'tabular-nums',
+});
+
+export const StatusPillPrimary = style({
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+  borderColor: color.Primary.ContainerLine,
+});
+
+export const StatusPillSuccess = style({
+  backgroundColor: color.Success.Container,
+  color: color.Success.OnContainer,
+  borderColor: color.Success.ContainerLine,
+});
+
+export const StatusPillWarning = style({
+  backgroundColor: color.Warning.Container,
+  color: color.Warning.OnContainer,
+  borderColor: color.Warning.ContainerLine,
+});
+
+export const RowSubtitle = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'baseline',
+  columnGap: toRem(6),
+  rowGap: toRem(2),
+  minWidth: 0,
+  color: `color-mix(in srgb, ${color.Surface.OnContainer} 72%, transparent)`,
+});
+
+export const SubtitleDot = style({
+  opacity: 0.5,
+  userSelect: 'none',
+});
+
+export const Chevron = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  marginBlockStart: toRem(4),
+  opacity: 0.65,
+  transition: 'transform 160ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
+    },
+  },
+});
+
+export const ChevronOpen = style({
+  transform: 'rotate(180deg)',
+});
+
+export const Drawer = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S300,
+  paddingBlock: config.space.S300,
+  paddingInline: config.space.S300,
+  borderBlockStart: solid(config.borderWidth.B300, subtleBorder),
+  minWidth: 0,
+});
+
+export const ChipRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: config.space.S100,
+  minWidth: 0,
+});
+
+export const Chip = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  maxWidth: '100%',
+  minWidth: 0,
+  paddingBlock: toRem(2),
+  paddingInline: toRem(8),
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Secondary.Container,
+  color: color.Secondary.OnContainer,
+  fontSize: config.fontSize.L400,
+  fontWeight: config.fontWeight.W500,
+  lineHeight: 1.35,
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+});
+
+export const PromptWell = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S200,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.R300,
+  backgroundColor: subtleSurface,
+  border: solid(config.borderWidth.B300, subtleBorder),
+  minWidth: 0,
 });
 
 // Long words, URLs and display names wrap instead of widening the card on phones.
@@ -80,7 +358,6 @@ export const Wrap = style({
   wordBreak: 'break-word',
 });
 
-// Plain text under its label, like the other fields, with a reading line height for long prompts.
 export const Prompt = style([
   Wrap,
   {
@@ -90,12 +367,120 @@ export const Prompt = style([
   },
 ]);
 
+export const PromptClamped = style({
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+});
+
+export const InlineCode = style({
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  fontSize: '0.9em',
+  paddingBlock: toRem(1),
+  paddingInline: toRem(4),
+  borderRadius: config.radii.R300,
+  backgroundColor: `color-mix(in srgb, ${color.Surface.OnContainer} 8%, transparent)`,
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+});
+
+export const PromptMention = style({
+  color: color.Primary.OnContainer,
+  backgroundColor: color.Primary.Container,
+  borderRadius: config.radii.R300,
+  paddingInline: toRem(3),
+  fontWeight: config.fontWeight.W500,
+});
+
+export const PromptToggle = style({
+  alignSelf: 'flex-start',
+  paddingBlock: toRem(2),
+  paddingInline: 0,
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: color.Primary.Main,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      textDecoration: 'underline',
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${color.Other.FocusRing}`,
+      outlineOffset: '2px',
+      borderRadius: config.radii.R300,
+    },
+  },
+});
+
+export const CancelBar = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S200,
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Critical.Container,
+  color: color.Critical.OnContainer,
+  border: solid(config.borderWidth.B300, color.Critical.ContainerLine),
+  minWidth: 0,
+});
+
+export const CancelBarActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S200,
+});
+
+export const CancelError = style({
+  color: color.Critical.Main,
+  fontWeight: config.fontWeight.W500,
+});
+
+export const CancelSentBar = style({
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.R300,
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  minWidth: 0,
+});
+
+export const ActionsRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  flexWrap: 'wrap',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+
+export const ActionsPrimary = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
+  minWidth: 0,
+});
+
+export const ActionsSecondary = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: config.space.S100,
+  marginInlineStart: 'auto',
+  minWidth: 0,
+});
+
 export const Metadata = style({
   display: 'grid',
   gridTemplateColumns: 'minmax(0, max-content) minmax(0, 1fr)',
   columnGap: config.space.S300,
   rowGap: config.space.S100,
   margin: 0,
+  paddingBlockStart: config.space.S300,
+  borderBlockStart: solid(config.borderWidth.B300, subtleBorder),
   minWidth: 0,
   '@media': {
     '(max-width: 360px)': { gridTemplateColumns: 'minmax(0, 1fr)' },
@@ -104,7 +489,27 @@ export const Metadata = style({
 
 globalStyle(`${Metadata} dd`, { margin: 0, minWidth: 0 });
 
+export const TaskId = style([
+  Wrap,
+  {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    userSelect: 'text',
+  },
+]);
+
 export const Awaiting = style({
   color: color.Warning.Main,
   fontWeight: config.fontWeight.W500,
+});
+
+export const SrOnly = style({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 });

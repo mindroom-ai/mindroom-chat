@@ -64,6 +64,8 @@ type RoomSchedulesOverlayProps = {
   headerRef?: RefObject<HTMLElement>;
   onClose: (dismissed?: boolean) => void;
   onOpenThread: (threadId: string) => void;
+  onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
+  onEditTask?: (task: ParsedScheduledTask) => void;
 };
 
 /** The room's pending scheduled tasks over the room view; it follows the room state while open. */
@@ -74,6 +76,8 @@ export function RoomSchedulesOverlay({
   headerRef,
   onClose,
   onOpenThread,
+  onCancelTask,
+  onEditTask,
 }: RoomSchedulesOverlayProps) {
   const centerX = useCenterX(headerRef);
   return (
@@ -95,6 +99,8 @@ export function RoomSchedulesOverlay({
               onClose();
               onOpenThread(threadId);
             }}
+            onCancelTask={onCancelTask}
+            onEditTask={onEditTask}
           />
         </FocusTrap>
       </OverlayCenter>
