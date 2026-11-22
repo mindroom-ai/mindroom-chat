@@ -40,7 +40,7 @@ import type { ThreadTurnFold, ThreadTurnFoldView } from './threadTurnFolds';
 import { TurnBreak } from './TurnBreak';
 import {
   heldFoldHeight,
-  type FoldedRowSizes,
+  type RenderedRoomRows,
   type MembershipFold,
   type MembershipFoldView,
 } from './membershipFolds';
@@ -195,7 +195,7 @@ export const timelineRowSizing = ({
   threadRecordMapRef,
   turnFolds,
   membershipFoldsRef,
-  foldedRowSizesRef,
+  renderedRoomRowsRef,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -213,8 +213,8 @@ export const timelineRowSizing = ({
    * fold's first row holds its break too. Read through refs, as the rows are.
    */
   membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
-  /** The heights of the last render's membership rows (`useMembershipFoldRowSizes`). */
-  foldedRowSizesRef?: MutableRefObject<FoldedRowSizes>;
+  /** The room's list as it last rendered (`useMembershipFoldRowSizes`). */
+  renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
 }) => {
   const estimateSize = (index?: number): number => {
     if (!threadId) {
@@ -224,8 +224,8 @@ export const timelineRowSizing = ({
       const membershipFold = event && membershipFoldsRef?.current.breaks.get(event.getId() ?? '');
       if (membershipFold?.open === false) {
         // A fold that closed over rows of the last render takes their place at their height.
-        const heldPx = foldedRowSizesRef
-          ? heldFoldHeight(foldedRowSizesRef.current, membershipFold.fold)
+        const heldPx = renderedRoomRowsRef
+          ? heldFoldHeight(renderedRoomRowsRef.current.sizes, membershipFold.fold)
           : 0;
         return heldPx > 0 ? heldPx : TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
       }

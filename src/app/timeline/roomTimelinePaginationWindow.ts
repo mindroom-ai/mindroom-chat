@@ -253,6 +253,7 @@ export const useRoomWindowPaginator = ({
   loadedRangeOfRef,
   threadIdRef,
   firstRoomTimelineRef,
+  lastRoomTimelineRef,
   scrollRef,
   setTimeline,
   paginateRoom,
@@ -271,6 +272,7 @@ export const useRoomWindowPaginator = ({
   loadedRangeOfRef: MutableRefObject<(rowRange: ItemRange) => ItemRange>;
   threadIdRef: MutableRefObject<string | undefined>;
   firstRoomTimelineRef: MutableRefObject<EventTimeline | undefined>;
+  lastRoomTimelineRef: MutableRefObject<EventTimeline | undefined>;
   scrollRef: MutableRefObject<HTMLElement | null>;
   setTimeline: SetTimeline;
   paginateRoom: (back: boolean) => Promise<void>;
@@ -331,7 +333,10 @@ export const useRoomWindowPaginator = ({
   // So does a page whose chain a limited sync replaced while it ran: the page asked for the new
   // chain meanwhile waited for it instead of running, and the new chain may hold only hidden
   // events, which leaves the room blank.
-  const [roomBackPage, setRoomBackPage] = useState<{
+  // A page of newer events that adds no row to the room's rows leaves the window as it was, too:
+  // one that only moved the room's forward token, or one whose events all went into the closed
+  // fold the rows end with, which stays one row. Its sentinel is checked once more as well.
+  const [settledRoomPage, setSettledRoomPage] = useState<{
     rowsBefore: number;
     chainReplaced: boolean;
   }>();
@@ -342,8 +347,9 @@ export const useRoomWindowPaginator = ({
   const backPageRef = useRef<{ page: Promise<void>; joined: boolean }>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
-      const edge = back ? firstRoomTimelineRef.current : undefined;
-      const tokenBefore = edge?.getPaginationToken(Direction.Backward);
+      const edge = back ? firstRoomTimelineRef.current : lastRoomTimelineRef.current;
+      const direction = back ? Direction.Backward : Direction.Forward;
+      const tokenBefore = edge?.getPaginationToken(direction);
       const rowsBefore = roomRowsRef.current.length;
       const page = paginateRoom(back);
       if (back && backPageRef.current?.page === page) {
@@ -354,18 +360,23 @@ export const useRoomWindowPaginator = ({
       if (backPage) backPageRef.current = backPage;
       void page.then(() => {
         if (!edge || !alive()) return;
+        const tokenMoved = edge.getPaginationToken(direction) !== tokenBefore;
+        if (!back) {
+          // A page that failed, or was not asked for, leaves its token: the reader asks again.
+          if (tokenMoved) setSettledRoomPage({ rowsBefore, chainReplaced: false });
+          return;
+        }
         const shown = firstRoomTimelineRef.current;
         const chainReplaced = !!shown && !getLinkedTimelines(shown).includes(edge);
         const joined = !!backPage?.joined;
-        const tokenMoved = edge.getPaginationToken(Direction.Backward) !== tokenBefore;
         if (!chainReplaced && !tokenMoved && !joined) return;
-        setRoomBackPage({
+        setSettledRoomPage({
           rowsBefore: joined ? roomRowsRef.current.length : rowsBefore,
           chainReplaced,
         });
       });
     },
-    [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
+    [alive, firstRoomTimelineRef, lastRoomTimelineRef, paginateRoom, roomRowsRef]
   );
   const shouldSuppressPagination = useCallback(
     () => suppressFocusPaginationRef.current,
@@ -389,26 +400,26 @@ export const useRoomWindowPaginator = ({
     pendingRoomFoldPxRef,
     roomFoldWindowRef,
     roomFoldPriceRef,
-    roomBackPage,
+    settledRoomPage,
     getRoomRowElement,
   };
 };
 
 /**
- * A back page that added no rows, or that went to a chain the room no longer shows, asks the
- * paginator again; one with rows moved the window.
+ * A page that added no row to the room's rows, or a back page that went to a chain the room no
+ * longer shows, asks the paginator again; one with rows moved the window.
  */
-export const useRetryAfterEmptyBackPage = (
-  roomBackPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
+export const useRetryAfterPageWithoutRows = (
+  settledRoomPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
   roomRowsRef: MutableRefObject<MatrixEvent[]>,
   retryPagination: () => void
 ) => {
   useLayoutEffect(() => {
-    if (!roomBackPage) return;
+    if (!settledRoomPage) return;
     // A page that added rows moved the window, and the paginator carries on from there.
-    if (roomBackPage.chainReplaced || roomRowsRef.current.length === roomBackPage.rowsBefore)
+    if (settledRoomPage.chainReplaced || roomRowsRef.current.length === settledRoomPage.rowsBefore)
       retryPagination();
-  }, [retryPagination, roomBackPage, roomRowsRef]);
+  }, [retryPagination, settledRoomPage, roomRowsRef]);
 };
 
 /**

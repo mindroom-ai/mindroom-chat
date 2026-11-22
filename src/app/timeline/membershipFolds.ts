@@ -24,6 +24,11 @@ export type MembershipFold = {
   key: string;
   /** The IDs of the run's events, in timeline order. */
   eventIds: readonly string[];
+  /**
+   * The IDs of every loaded event from the run's first to its last: its events and the rowless
+   * and skipped ones between them, which a closed fold holds with them.
+   */
+  spanIds: readonly string[];
   /** Total event count and deduplicated user tallies per category. */
   summary: MembershipFoldSummary;
 };
@@ -116,8 +121,9 @@ export const summarizeMembershipRun = (events: readonly MatrixEvent[]): Membersh
 /**
  * Plans folds for consecutive visible `m.room.member` events across the full loaded room rows.
  * Day changes do not split a run; room state changes (name, topic, avatar) and messages do.
- * Rowless and skipped events pass through without splitting a run, and any run containing a
- * pinned event ID stays unfolded.
+ * Rowless and skipped events pass through without splitting a run, and any run with a pinned
+ * event ID stays unfolded, whether the ID is of one of its events or of one passed over between
+ * them: a jump to that one finds no row of its own, and lands where it would show.
  */
 export const planMembershipFolds = (
   events: readonly MatrixEvent[],
@@ -125,28 +131,37 @@ export const planMembershipFolds = (
 ): MembershipFold[] => {
   const folds: MembershipFold[] = [];
   let run: MatrixEvent[] = [];
+  let spanIds: string[] = [];
+  // Passed over since the run's last event: in its span once another event of the run follows.
+  let passedIds: string[] = [];
 
   const flush = () => {
     if (run.length >= MIN_FOLDED_MEMBERSHIP_EVENTS) {
       const eventIds = run.flatMap((event) => event.getId() ?? []);
       const key = eventIds[0];
-      if (
-        key &&
-        eventIds.length === run.length &&
-        !eventIds.some((id) => rules.pinnedIds.has(id))
-      ) {
-        folds.push({ key, eventIds, summary: summarizeMembershipRun(run) });
+      if (key && eventIds.length === run.length && !spanIds.some((id) => rules.pinnedIds.has(id))) {
+        folds.push({
+          key,
+          eventIds,
+          spanIds: spanIds.length === eventIds.length ? eventIds : spanIds,
+          summary: summarizeMembershipRun(run),
+        });
       }
     }
     run = [];
+    spanIds = [];
+    passedIds = [];
   };
 
   for (const event of events) {
-    if (!event.getId() || isRowlessTimelineEvent(event) || rules.isSkipped(event)) {
-      continue;
-    }
-    if (isFoldableMembershipEvent(event)) {
+    const id = event.getId();
+    if (!id) continue;
+    if (isRowlessTimelineEvent(event) || rules.isSkipped(event)) {
+      if (run.length > 0) passedIds.push(id);
+    } else if (isFoldableMembershipEvent(event)) {
       run.push(event);
+      spanIds.push(...passedIds, id);
+      passedIds = [];
     } else {
       flush();
     }
@@ -184,7 +199,10 @@ export type RoomRowProjection = {
   loadedCount: number;
   /** Each row's first loaded row. Without a closed fold the rows are the loaded rows: undefined. */
   loadedStarts?: readonly number[];
-  /** The row of each event a closed fold holds, by its ID. */
+  /**
+   * The row of each loaded event a closed fold holds, by its ID: the fold's events, its first one
+   * too, and the rowless and skipped ones between them.
+   */
   foldedRows: ReadonlyMap<string, number>;
 };
 
@@ -222,7 +240,12 @@ export const projectRoomRows = (
       while (last < events.length && events[last]?.getId() !== lastId) last += 1;
       // A fold of other rows than these: its first event is a row of its own.
       if (last === events.length) last = index;
-      else state.fold.eventIds.forEach((id) => foldedRows.set(id, rows.length));
+      else {
+        for (let held = index; held <= last; held += 1) {
+          const heldId = events[held]?.getId();
+          if (heldId) foldedRows.set(heldId, rows.length);
+        }
+      }
     }
     loadedStarts.push(index);
     rows.push(event);
@@ -284,13 +307,38 @@ export const loadedRangeOfRows = (
   return { start: loadedIndex(range.start), end: loadedIndex(range.end) };
 };
 
-/** The height the list gave each membership row of the window it last rendered, by event ID. */
+/** The height the list gave each row of the window it last rendered, by event ID. */
 export type FoldedRowSizes = ReadonlyMap<string, number>;
 
-/** The height of the rows of the last render that a fold now holds, or 0 when it held none. */
+/**
+ * The height of the rows of the last render that a fold now holds, or 0 when it held none: the
+ * rows of its events, and those of the events between them that had a row then.
+ */
 export const heldFoldHeight = (sizes: FoldedRowSizes, fold: MembershipFold): number => {
   if (sizes.size === 0) return 0;
   let px = 0;
-  for (const id of fold.eventIds) px += sizes.get(id) ?? 0;
+  for (const id of fold.spanIds) px += sizes.get(id) ?? 0;
   return px;
 };
+
+/** The room's list as it last rendered: what a fold that forms over its rows takes the place of. */
+export type RenderedRoomRows = {
+  sizes: FoldedRowSizes;
+  /** The folds of that render. */
+  view: MembershipFoldView;
+  /** The list's own record of the heights it measured, by row key, which it lays rows out by. */
+  measured?: Map<string | number | bigint, number>;
+};
+
+/**
+ * Whether a closed fold took the place of rows of the last render beside its first event's own:
+ * it formed over them, or grew over them. A fold the reader closed did too, but its row is on
+ * screen and measures itself: not that one.
+ */
+export const foldFormedOverRows = (
+  { sizes, view: before }: RenderedRoomRows,
+  { fold, open }: MembershipFoldState
+): boolean =>
+  !open &&
+  before.breaks.get(fold.key)?.open !== true &&
+  fold.spanIds.some((id) => id !== fold.key && sizes.has(id));

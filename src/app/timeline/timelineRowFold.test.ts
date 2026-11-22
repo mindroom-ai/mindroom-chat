@@ -271,7 +271,11 @@ describe('foldTimelineRowContexts', () => {
       ...more,
     });
     /** The rows that quote what they reply to, as the message renderer decides it. */
-    const quoting = (rows: Row[], indexes = rows.map((_, index) => index)) => {
+    const quoting = (
+      rows: Row[],
+      indexes = rows.map((_, index) => index),
+      foldBreakId?: string
+    ) => {
       const events = rows.map(toEvent);
       const quiet = new Set(rows.flatMap((row) => (row.quiet ? [row.id] : [])));
       const contexts = foldTimelineRowContexts({
@@ -279,6 +283,7 @@ describe('foldTimelineRowContexts', () => {
         getEvent: (index) => events[index],
         isSkipped: () => false,
         isQuietMarker: (event) => quiet.has(event.getId() ?? ''),
+        isFoldBreak: (index) => foldBreakId !== undefined && rows[index]?.id === foldBreakId,
       });
       return indexes.flatMap((index) => {
         const event = events[index];
@@ -387,6 +392,45 @@ describe('foldTimelineRowContexts', () => {
       ];
       expect(quoting(rows)).toEqual(['$second']);
       expect(quoting(rows, [3])).toEqual(['$second']);
+    });
+
+    it('show it below a closed fold, whether or not the list mounts the fold', () => {
+      const join: Row = {
+        id: '$join',
+        sender: '@bob:x',
+        type: 'm.room.member',
+        minute: 1,
+        stateKey: '@bob:x',
+      };
+      const from = (rows: Row[], first: number) =>
+        quoting(rows, rows.map((_, index) => index).slice(first), '$join');
+      // Replies to a message above the fold: it is not right above them.
+      const answers = [
+        message('$ask', '@alice:x', 0),
+        join,
+        message('$first', '@mindroom_helper:x', 2, { replyTo: '$ask' }),
+        message('$second', '@mindroom_coder:x', 3, { replyTo: '$ask' }),
+        message('$third', '@mindroom_helper:x', 4, { replyTo: '$ask' }),
+      ];
+      // Replies to the event that draws the fold's break, which shows no message: read from the
+      // top, the break ends the run of rows above them. Read backwards from a window that starts
+      // below it, the break's event was taken as the row right above the first reply, and the
+      // second reply lost its quote.
+      const toFolded = [
+        message('$ask', '@alice:x', 0),
+        join,
+        message('$first', '@alice:x', 2, { replyTo: '$join' }),
+        message('$second', '@carol:x', 3, { replyTo: '$join' }),
+        message('$third', '@alice:x', 4, { replyTo: '$join' }),
+      ];
+      for (const rows of [answers, toFolded]) {
+        const whole = from(rows, 0);
+        expect(whole).toEqual(['$first', '$second', '$third']);
+        rows.forEach((_, first) => {
+          const mounted = new Set<string | undefined>(rows.slice(first).map((row) => row.id));
+          expect(from(rows, first)).toEqual(whole.filter((id) => mounted.has(id)));
+        });
+      }
     });
   });
 

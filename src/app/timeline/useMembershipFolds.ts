@@ -14,15 +14,16 @@ import type { TimelineEventEntry } from '../event-store/timeline/roomTimelineEve
 import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
-  isFoldableMembershipEvent,
+  EMPTY_MEMBERSHIP_FOLD_VIEW,
+  foldFormedOverRows,
   loadedRangeOfRows,
   planMembershipFolds,
   projectRoomRows,
   rowRangeOfLoaded,
   viewMembershipFolds,
-  type FoldedRowSizes,
   type MembershipFold,
   type MembershipFoldView,
+  type RenderedRoomRows,
   type RoomRowProjection,
 } from './membershipFolds';
 
@@ -132,58 +133,91 @@ export const useRoomRowWindow = (
   return { rowRange, loadedRange };
 };
 
-const NO_SIZES: FoldedRowSizes = new Map();
+export const NO_RENDERED_ROOM_ROWS: RenderedRoomRows = {
+  sizes: new Map(),
+  view: EMPTY_MEMBERSHIP_FOLD_VIEW,
+};
 
+type RoomList = Virtualizer<HTMLDivElement, Element>;
 type RowSizeSource = Pick<
-  Virtualizer<HTMLDivElement, Element>,
-  'elementsCache' | 'itemSizeCache' | 'measurementsCache'
->;
+  RoomList,
+  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement'
+> & { options: Pick<RoomList['options'], 'measureElement'> };
 
 /**
- * The height the list gives each membership row of the window it rendered. It also notes a
- * mounted closed fold's height as measured: the list notes a measured height only when it differs
- * from the one the row had, and a fold that took the place of another fold's break has that
- * break's height.
+ * The room's list as it rendered: the height it gives each row of its window, and its folds.
+ *
+ * A closed fold the list has no measured height for starts at the height of the rows it took the
+ * place of. A mounted one is measured here: its element can be the one that drew its first
+ * event's row or another fold's break, which reports no new size when the break is as high. The
+ * list notes a measured height only when it differs from the one the row had, so a fold as high
+ * as the rows it replaced is noted here as measured.
  */
-export const readMembershipRowSizes = (
+export const readRenderedRoomRows = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[],
   view: MembershipFoldView
-): FoldedRowSizes => {
-  let sizes: Map<string, number> | undefined;
+): RenderedRoomRows => {
+  const sizes = new Map<string, number>();
   windowRows.forEach((event, index) => {
-    if (!isFoldableMembershipEvent(event)) return;
     const id = event.getId();
     if (!id) return;
     let size = virtualizer.itemSizeCache.get(id);
     if (size === undefined) {
       size = virtualizer.measurementsCache[index]?.size;
       if (size === undefined) return;
-      if (view.breaks.get(id)?.open === false && virtualizer.elementsCache.get(id)?.isConnected) {
-        virtualizer.itemSizeCache.set(id, size);
+      const element =
+        view.breaks.get(id)?.open === false ? virtualizer.elementsCache.get(id) : undefined;
+      if (element?.isConnected) {
+        if (
+          virtualizer.options.measureElement(element, undefined, virtualizer as RoomList) === size
+        )
+          virtualizer.itemSizeCache.set(id, size);
+        // Another height: the list takes it as any row's new size, and holds the reader's rows.
+        else virtualizer.measureElement(element);
+        size = virtualizer.itemSizeCache.get(id) ?? size;
       }
     }
-    sizes ??= new Map();
     sizes.set(id, size);
   });
-  return sizes ?? NO_SIZES;
+  return { sizes, view, measured: virtualizer.itemSizeCache };
+};
+
+/**
+ * A closed fold can form over rows the list holds while the list has a measured height for the
+ * row of its first event: an event between two short runs decrypts into one that draws nothing,
+ * and the runs are one fold at the first run's first row. The list would lay the fold out at the
+ * height it measured for that row alone, and every row after it would move up by the height of
+ * the rows that went into the fold. So before the list lays out its rows, it forgets that height:
+ * the fold then starts at the height of the rows it holds (`heldFoldHeight`, the row estimate),
+ * as a fold at a row the list never measured does, and takes its own height once it mounts.
+ */
+export const forgetFormedFoldHeights = (rendered: RenderedRoomRows, view: MembershipFoldView) => {
+  const { measured } = rendered;
+  if (!measured || rendered.view === view || rendered.sizes.size === 0) return;
+  view.breaks.forEach((state, key) => {
+    if (measured.has(key) && foldFormedOverRows(rendered, state)) measured.delete(key);
+  });
 };
 
 /**
  * A closed fold can take the place of rows the list already holds: a page of history brings
  * earlier events of the run the loaded rows start with, so its fold starts at another event, or
- * makes a fold of rows that stood alone. Such a fold starts at the height of the rows it holds
- * (`heldFoldHeight`, which the row estimate reads from `sizesRef`), so no row moves when it takes
- * their place, and its own height then reaches the list as any row's new size does. The heights
- * are read after each commit.
+ * makes a fold of rows that stood alone, and an event that decrypts into one without a row joins
+ * the runs around it. Such a fold starts at the height of the rows it holds (`heldFoldHeight`,
+ * which the row estimate reads from `renderedRef`), so no row moves when it takes their place,
+ * and its own height then reaches the list as any row's new size does. The list is read after
+ * each commit that shows the room's rows (`windowRows`); in an open thread it lists the thread's.
  */
 export const useMembershipFoldRowSizes = (
   virtualizer: RowSizeSource,
-  windowRows: readonly MatrixEvent[],
+  windowRows: readonly MatrixEvent[] | undefined,
   view: MembershipFoldView,
-  sizesRef: MutableRefObject<FoldedRowSizes>
+  renderedRef: MutableRefObject<RenderedRoomRows>
 ) => {
   useLayoutEffect(() => {
-    sizesRef.current = readMembershipRowSizes(virtualizer, windowRows, view);
+    renderedRef.current = windowRows
+      ? readRenderedRoomRows(virtualizer, windowRows, view)
+      : NO_RENDERED_ROOM_ROWS;
   });
 };

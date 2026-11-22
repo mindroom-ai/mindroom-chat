@@ -11,7 +11,12 @@ import {
   projectRoomRows,
   viewMembershipFolds,
 } from './membershipFolds';
-import { readMembershipRowSizes, useMembershipFolds, useRoomRowWindow } from './useMembershipFolds';
+import {
+  forgetFormedFoldHeights,
+  readRenderedRoomRows,
+  useMembershipFolds,
+  useRoomRowWindow,
+} from './useMembershipFolds';
 import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 
 const ROOM_ID = '!room:example.org';
@@ -330,55 +335,140 @@ describe('useRoomRowWindow', () => {
 });
 
 describe('the heights a fold takes over from the rows it holds', () => {
+  const m1 = joinEvent('$m1', '@a:x');
+  const m2 = joinEvent('$m2', '@b:x');
   const m3 = joinEvent('$m3', '@c:x');
   const m4 = joinEvent('$m4', '@d:x');
   const m5 = joinEvent('$m5', '@e:x');
   const msg = msgEvent('$msg');
-  const closedView = (events: MatrixEvent[]) =>
+  const viewOf = (events: MatrixEvent[], open = false) =>
     viewMembershipFolds(
       planMembershipFolds(events, { isSkipped: () => false, pinnedIds: new Set() }),
-      () => false
+      () => open
     );
-  const list = (sizes: number[], measured: Record<string, number>, mounted: string[] = []) => ({
-    itemSizeCache: new Map<string | number | bigint, number>(Object.entries(measured)),
-    measurementsCache: sizes.map((size) => ({ size })),
-    elementsCache: new Map(mounted.map((id) => [id, { isConnected: true }])),
-  });
-  type List = Parameters<typeof readMembershipRowSizes>[0];
+  /** The list: its rows' sizes, the measured ones, and the mounted rows with their heights. */
+  const list = (
+    sizes: number[],
+    measured: Record<string, number>,
+    mounted: Record<string, number> = {}
+  ) => {
+    const remeasured: string[] = [];
+    const elements = new Map(
+      Object.keys(mounted).map((id) => [id, { isConnected: true, id } as unknown as Element])
+    );
+    const virtualizer = {
+      itemSizeCache: new Map<string | number | bigint, number>(Object.entries(measured)),
+      measurementsCache: sizes.map((size) => ({ size })),
+      elementsCache: elements,
+      options: { measureElement: (element: Element) => mounted[element.id] ?? 0 },
+      // As the list measures a row: it notes a height that differs from the row's.
+      measureElement: (element: Element | null) => {
+        if (!element) return;
+        remeasured.push(element.id);
+        virtualizer.itemSizeCache.set(element.id, mounted[element.id] ?? 0);
+      },
+    };
+    return {
+      virtualizer: virtualizer as unknown as List,
+      cache: virtualizer.itemSizeCache,
+      remeasured,
+    };
+  };
+  type List = Parameters<typeof readRenderedRoomRows>[0];
 
-  it('reads the membership rows of the window, measured or not, and no other row', () => {
-    const virtualizer = list([30.5, 31, 50], { $m5: 31, $msg: 50 });
-    const sizes = readMembershipRowSizes(
-      virtualizer as unknown as List,
-      [m4, m5, msg],
-      EMPTY_MEMBERSHIP_FOLD_VIEW
-    );
-    expect([...sizes]).toEqual([
+  it('reads every row of the window, measured or not', () => {
+    const { virtualizer, cache } = list([30.5, 31, 50], { $m5: 31, $msg: 50 });
+    const rendered = readRenderedRoomRows(virtualizer, [m4, m5, msg], EMPTY_MEMBERSHIP_FOLD_VIEW);
+    expect([...rendered.sizes]).toEqual([
       ['$m4', 30.5],
       ['$m5', 31],
+      ['$msg', 50],
     ]);
+    expect(rendered.view).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
+    expect(rendered.measured).toBe(cache);
     // A fold that history made of these rows takes their place at their height.
     const fold = planMembershipFolds([m3, m4, m5], {
       isSkipped: () => false,
       pinnedIds: new Set(),
     })[0]!;
-    expect(heldFoldHeight(sizes, fold)).toBe(61.5);
+    expect(heldFoldHeight(rendered.sizes, fold)).toBe(61.5);
     // One that holds no row of the last render has none to take.
     expect(heldFoldHeight(new Map(), fold)).toBe(0);
   });
 
+  it('counts the rows of the events between the events of a fold', () => {
+    // A message between two runs showed a row; it now draws nothing, and the fold holds it.
+    const hidden = msgEvent('$hidden');
+    const fold = planMembershipFolds([m1, m2, hidden, m3], {
+      isSkipped: (event) => event === hidden,
+      pinnedIds: new Set(),
+    })[0]!;
+    const sizes = new Map([
+      ['$m1', 30],
+      ['$m2', 30],
+      ['$hidden', 50],
+      ['$m3', 30],
+      ['$msg', 50],
+    ]);
+    expect(heldFoldHeight(sizes, fold)).toBe(140);
+  });
+
   it("notes a mounted closed fold's height as measured, and leaves one that is not mounted", () => {
     const rows = [m3, msg];
-    const view = closedView([m3, m4, m5, msg]);
-    const mounted = list([60, 50], { $msg: 50 }, ['$m3']);
-    expect([...readMembershipRowSizes(mounted as unknown as List, rows, view)]).toEqual([
-      ['$m3', 60],
-    ]);
-    expect(mounted.itemSizeCache.get('$m3')).toBe(60);
+    const view = viewOf([m3, m4, m5, msg]);
+    const mounted = list([60, 50], { $msg: 50 }, { $m3: 60 });
+    expect(readRenderedRoomRows(mounted.virtualizer, rows, view).sizes.get('$m3')).toBe(60);
+    expect(mounted.cache.get('$m3')).toBe(60);
+    expect(mounted.remeasured).toEqual([]);
     const unmounted = list([60, 50], { $msg: 50 });
-    expect([...readMembershipRowSizes(unmounted as unknown as List, rows, view)]).toEqual([
-      ['$m3', 60],
-    ]);
-    expect(unmounted.itemSizeCache.has('$m3')).toBe(false);
+    expect(readRenderedRoomRows(unmounted.virtualizer, rows, view).sizes.get('$m3')).toBe(60);
+    expect(unmounted.cache.has('$m3')).toBe(false);
+  });
+
+  it('has the list measure a mounted closed fold that is not as high as the rows it took over', () => {
+    // Its element drew another fold's break before, as high as this one: it reports no new size.
+    const { virtualizer, cache, remeasured } = list([134, 50], { $msg: 50 }, { $m3: 42 });
+    const rendered = readRenderedRoomRows(virtualizer, [m3, msg], viewOf([m3, m4, m5, msg]));
+    expect(remeasured).toEqual(['$m3']);
+    expect(cache.get('$m3')).toBe(42);
+    expect(rendered.sizes.get('$m3')).toBe(42);
+  });
+
+  describe('a fold that forms at a row the list has measured', () => {
+    // The last render: two joins, a message and two more joins, each a row, the first measured.
+    const before = [m1, m2, msg, m3, m4];
+    const rendered = (view = viewOf(before), measured: Record<string, number> = { $m1: 30 }) => {
+      const { virtualizer, cache } = list([30, 30, 50, 30, 30], measured);
+      return { cache, last: readRenderedRoomRows(virtualizer, before, view) };
+    };
+    const joined = [m1, m2, m3, m4];
+
+    it('starts at the height of the rows it holds: the list forgets the height of its row', () => {
+      const { cache, last } = rendered();
+      forgetFormedFoldHeights(last, viewOf(joined));
+      expect(cache.has('$m1')).toBe(false);
+      // Again, in a render the list did not commit: nothing more to forget.
+      forgetFormedFoldHeights(last, viewOf(joined));
+      expect(cache.size).toBe(0);
+    });
+
+    it('keeps the height of a fold that holds the rows it held', () => {
+      const closed = viewOf(joined);
+      const { virtualizer, cache } = list([42, 50], { $m1: 42, $msg: 50 });
+      const last = readRenderedRoomRows(virtualizer, [m1, msg], closed);
+      // The same fold in another view, and one that a newer event joined.
+      forgetFormedFoldHeights(last, viewOf(joined));
+      forgetFormedFoldHeights(last, viewOf([...joined, m5]));
+      expect(cache.get('$m1')).toBe(42);
+    });
+
+    it('keeps the height of a fold the reader closed, and of one that is open', () => {
+      const open = rendered(viewOf(joined, true));
+      forgetFormedFoldHeights(open.last, viewOf(joined));
+      expect(open.cache.get('$m1')).toBe(30);
+      const stillOpen = rendered();
+      forgetFormedFoldHeights(stillOpen.last, viewOf(joined, true));
+      expect(stillOpen.cache.get('$m1')).toBe(30);
+    });
   });
 });

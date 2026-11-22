@@ -6,7 +6,7 @@ import { Direction, MatrixEvent, type EventTimeline, type MatrixClient } from 'm
 import type { ItemRange } from './useVirtualPaginator';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
-  useRetryAfterEmptyBackPage,
+  useRetryAfterPageWithoutRows,
   useRoomWindowPaginator,
   useWindowHoldsWholeFolds,
   useWindowKeepsNewestRow,
@@ -61,11 +61,14 @@ type Shown = {
   count: number;
   view: MembershipFoldView;
   moreHistory: boolean;
+  /** Newer events of the room wait at the server, past the loaded rows. */
+  moreNewer: boolean;
 };
 
 /**
  * The room's scroll area as the browser lays it out: the back sentinel (1 px), then one element
- * per row of the window, then the front sentinel while newer rows wait outside the window.
+ * per row of the window, then the front sentinel while newer rows wait outside the window or at
+ * the server.
  */
 const fakeRoomScroller = () => {
   const shown: { current: Shown } = {
@@ -75,6 +78,7 @@ const fakeRoomScroller = () => {
       count: 0,
       view: { breaks: new Map() },
       moreHistory: false,
+      moreNewer: false,
     },
   };
   const rowPx = (event: MatrixEvent) => {
@@ -102,7 +106,7 @@ const fakeRoomScroller = () => {
       scrollTop = clamp() + top;
     },
     querySelector: (selector: string) => {
-      const { rows, range, count, moreHistory } = shown.current;
+      const { rows, range, count, moreHistory, moreNewer } = shown.current;
       const contentTop = -clamp();
       if (selector.includes('data-paginator-anchor="B"')) {
         return range.start > 0 || moreHistory
@@ -110,7 +114,7 @@ const fakeRoomScroller = () => {
           : null;
       }
       if (selector.includes('data-paginator-anchor="F"')) {
-        return range.end < count
+        return range.end < count || moreNewer
           ? { getBoundingClientRect: () => rectAt(contentTop + contentPx() - 1, 1) }
           : null;
       }
@@ -141,14 +145,18 @@ const fakeRoomScroller = () => {
   };
 };
 
-/** A loaded stretch of the room with a back token and no neighbours. */
-const fakeTimeline = (token: string | null) => {
+/** A loaded stretch of the room with its tokens and no neighbours. */
+const fakeTimeline = (token: string | null, newerToken: string | null = null) => {
   let backToken = token;
+  let forwardToken = newerToken;
   return {
     getPaginationToken: (direction: Direction) =>
-      direction === Direction.Backward ? backToken : null,
+      direction === Direction.Backward ? backToken : forwardToken,
     setBackToken: (next: string | null) => {
       backToken = next;
+    },
+    setForwardToken: (next: string | null) => {
+      forwardToken = next;
     },
     getNeighbouringTimeline: () => null,
     getEvents: () => [],
@@ -226,6 +234,7 @@ function RoomWindow({
   );
   const threadIdRef = useRef<string>();
   const firstRoomTimelineRef = useLatestRef(chain as unknown as EventTimeline | undefined);
+  const lastRoomTimelineRef = firstRoomTimelineRef;
   const scrollRef = useRef<HTMLElement | null>(scroller.element);
   const suppressFocusPaginationRef = useRef(false);
   useLayoutEffect(() => {
@@ -235,6 +244,7 @@ function RoomWindow({
       count: roomRows.length,
       view: folds.view,
       moreHistory: !!chain?.getPaginationToken(Direction.Backward),
+      moreNewer: !!chain?.getPaginationToken(Direction.Forward),
     };
     handles.stateRange = timeline.range;
     handles.rowRange = rowRange;
@@ -256,7 +266,7 @@ function RoomWindow({
     threadId: undefined,
     setTimeline,
   });
-  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage } =
+  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, settledRoomPage } =
     useRoomWindowPaginator({
       alive: () => true,
       roomRows,
@@ -266,6 +276,7 @@ function RoomWindow({
       loadedRangeOfRef,
       threadIdRef,
       firstRoomTimelineRef,
+      lastRoomTimelineRef,
       scrollRef,
       setTimeline,
       paginateRoom,
@@ -275,7 +286,7 @@ function RoomWindow({
       deferAutomaticPagination: () => false,
       readAhead: true,
     });
-  useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, paginator.retryPagination);
+  useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, paginator.retryPagination);
   // The ledger prices a row it has measured at that height: here every row is.
   useLayoutEffect(() => {
     roomFoldPriceRef.current = (_key, index) => {
@@ -463,6 +474,65 @@ describe('a page of history that brings earlier events of the fold the window st
       await running;
     });
     expect(started).toEqual(['token-2', 'token-1']);
+    room.unmount();
+  });
+});
+
+describe('a page of newer events that all go into the closed fold the rows end with', () => {
+  it('asks for the next page once it settles, and not again after a page that failed', async () => {
+    // A message link's window: it ends with the first three joins of a longer run, and newer
+    // events wait at the server.
+    const chain = fakeTimeline(null, 'newer-1');
+    const started: (string | null)[] = [];
+    const pending: (() => void)[] = [];
+    let running: Promise<void> | undefined;
+    const paginateRoom = (back: boolean) => {
+      if (back) return Promise.resolve();
+      if (!running) {
+        started.push(chain.getPaginationToken(Direction.Forward));
+        running = new Promise<void>((resolve) => {
+          pending.push(resolve);
+        }).finally(() => {
+          running = undefined;
+        });
+      }
+      return running;
+    };
+    const settle = () =>
+      act(async () => {
+        pending.shift()?.();
+        await running;
+      });
+    const first = [...messages('a', 5), join('$m1'), join('$m2'), join('$m3')];
+    const room = mountRoomWindow(
+      first,
+      { start: 0, end: first.length },
+      { chain, paginateRoom, eventId: '$a2' }
+    );
+    const { handles, windowIds } = room;
+    const shown = ['$a0', '$a1', '$a2', '$a3', '$a4', '$m1'];
+    expect(windowIds()).toEqual(shown);
+    const shownBefore = handles.rowRange;
+    // A short room: the front sentinel is in view.
+    act(() => handles.paginator?.retryPagination());
+    expect(started).toEqual(['newer-1']);
+
+    // The page brings `$m4` and `$m5`, which the fold takes: the room's rows are the same six,
+    // and so is the window the paginator follows.
+    chain.setForwardToken('newer-2');
+    room.renderWith([...first, join('$m4'), join('$m5')]);
+    expect(windowIds()).toEqual(shown);
+    expect(handles.rowRange).toBe(shownBefore);
+    // The state follows the fold shown whole.
+    expect(handles.stateRange).toEqual({ start: 0, end: first.length + 2 });
+
+    // Its sentinel is still in view: once the page settles, the next one loads.
+    await settle();
+    expect(started).toEqual(['newer-1', 'newer-2']);
+
+    // That one fails and leaves its token: it is not asked for again by itself.
+    await settle();
+    expect(started).toEqual(['newer-1', 'newer-2']);
     room.unmount();
   });
 });

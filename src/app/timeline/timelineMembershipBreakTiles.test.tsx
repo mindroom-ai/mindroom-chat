@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderTimelineTiles, timelineRowSizing } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import {
+  EMPTY_MEMBERSHIP_FOLD_VIEW,
   planMembershipFolds,
   projectRoomRows,
   rowIndexOfLoaded,
@@ -427,7 +428,7 @@ describe('timelineRowSizing with membership folds', () => {
       activeRangeRef: { current: { start: 0, end: rows.length } },
       threadRecordMapRef: { current: new Map() },
       membershipFoldsRef: { current: view },
-      foldedRowSizesRef: { current: held },
+      renderedRoomRowsRef: { current: { sizes: held, view: EMPTY_MEMBERSHIP_FOLD_VIEW } },
     });
     return {
       rows,

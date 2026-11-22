@@ -147,6 +147,7 @@ describe('planMembershipFolds', () => {
       {
         key: '$m1',
         eventIds: ['$m1', '$m2', '$m3'],
+        spanIds: ['$m1', '$m2', '$m3'],
         summary: {
           total: 3,
           joined: 3,
@@ -247,6 +248,23 @@ describe('planMembershipFolds', () => {
     });
     expect(folds).toHaveLength(1);
     expect(folds[0]?.eventIds).toEqual(['$m1', '$m2', '$m3']);
+    // The fold holds the events passed over between its first event and its last.
+    expect(folds[0]?.spanIds).toEqual(['$m1', '$react', '$skip', '$m2', '$m3']);
+  });
+
+  it("leaves the events passed over after a run's last event out of its span", () => {
+    const events = [
+      reactionEvent('$before', '$msg0'),
+      joinEvent('$m1', '@a:x'),
+      joinEvent('$m2', '@b:x'),
+      joinEvent('$m3', '@c:x'),
+      reactionEvent('$after', '$msg0'),
+      messageEvent('$msg'),
+    ];
+    const fold = planMembershipFolds(events, defaultRules)[0];
+    expect(fold?.spanIds).toEqual(['$m1', '$m2', '$m3']);
+    // A run of its events alone: one list of them.
+    expect(fold?.spanIds).toBe(fold?.eventIds);
   });
 
   it('counts a redacted event that shows as its row reads, and skips one that is hidden', () => {
@@ -331,6 +349,29 @@ describe('planMembershipFolds', () => {
     });
     expect(folds.map((fold) => fold.eventIds)).toEqual([['$m4', '$m5', '$m6']]);
   });
+
+  it('keeps a run unfolded when an event passed over inside it is in pinnedIds', () => {
+    const events = [
+      joinEvent('$m1', '@a:x'),
+      reactionEvent('$react', '$msg0'),
+      joinEvent('$m2', '@b:x'),
+      joinEvent('$hidden', '@ignored:x'),
+      joinEvent('$m3', '@c:x'),
+      reactionEvent('$after', '$msg0'),
+      messageEvent('$msg'),
+    ];
+    const foldsWith = (...pinned: string[]) =>
+      planMembershipFolds(events, {
+        isSkipped: (event) => event.getId() === '$hidden',
+        pinnedIds: new Set(pinned),
+      }).map((fold) => fold.eventIds);
+    expect(foldsWith()).toEqual([['$m1', '$m2', '$m3']]);
+    // A jump to the reaction or to the hidden event lands where it would show: inside the run.
+    expect(foldsWith('$react')).toEqual([]);
+    expect(foldsWith('$hidden')).toEqual([]);
+    // One passed over after the run's last event is a row of its own after the fold.
+    expect(foldsWith('$after')).toEqual([['$m1', '$m2', '$m3']]);
+  });
 });
 
 describe('viewMembershipFolds', () => {
@@ -391,9 +432,12 @@ describe('projectRoomRows', () => {
       ['$m5', 70],
       ['$msg2', 80],
     ]);
+    // Every loaded event the fold holds is found at its row, the reaction too: a jump to it
+    // unfolds the run, and the room does not load its timeline again.
     expect([...projection.foldedRows]).toEqual([
       ['$m1', 1],
       ['$m2', 1],
+      ['$react', 1],
       ['$m3', 1],
       ['$m4', 1],
     ]);

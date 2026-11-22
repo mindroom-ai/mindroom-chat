@@ -181,7 +181,7 @@ import {
 } from './roomTimelineScroll';
 import {
   useRelinkKeepingRows,
-  useRetryAfterEmptyBackPage,
+  useRetryAfterPageWithoutRows,
   useRoomRowRemoval,
   useRoomThreadDeleted,
   useRoomWindowPaginator,
@@ -199,8 +199,10 @@ import {
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
 import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
-import { loadedRangeOfRows, rowIndexOfLoaded, type FoldedRowSizes } from './membershipFolds';
+import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './membershipFolds';
 import {
+  NO_RENDERED_ROOM_ROWS,
+  forgetFormedFoldHeights,
   useMembershipFoldRowSizes,
   useMembershipFolds,
   useRoomRowWindow,
@@ -654,6 +656,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     typeof firstRoomTimeline?.getPaginationToken(Direction.Backward) === 'string';
   const firstRoomTimelineRef = useLatestRef(firstRoomTimeline);
   const lastRoomTimeline = timeline.linkedTimelines[timeline.linkedTimelines.length - 1];
+  const lastRoomTimelineRef = useLatestRef(lastRoomTimeline);
   const canPaginateRoomFront =
     typeof lastRoomTimeline?.getPaginationToken(Direction.Forward) === 'string';
 
@@ -1092,7 +1095,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pinnedIds: membershipPinnedIds,
   });
   const membershipFoldsRef = useLatestRef(membershipFolds.view);
-  const foldedRowSizesRef = useRef<FoldedRowSizes>(new Map());
+  const renderedRoomRowsRef = useRef<RenderedRoomRows>(NO_RENDERED_ROOM_ROWS);
+  // Before the list lays out this render's rows: a fold that formed over rows it holds starts at
+  // their height, whatever the list measured for the row of its first event.
+  forgetFormedFoldHeights(renderedRoomRowsRef.current, membershipFolds.view);
   // The room's rows: the loaded rows with each closed fold as one row. The window, the virtual
   // list, the paginator and every jump count in these; the state's window counts loaded rows.
   const roomProjection = membershipFolds.rows;
@@ -1169,7 +1175,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pendingRoomFoldPxRef,
     roomFoldWindowRef,
     roomFoldPriceRef,
-    roomBackPage,
+    settledRoomPage,
     getRoomRowElement,
   } = useRoomWindowPaginator({
     alive,
@@ -1180,6 +1186,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     loadedRangeOfRef,
     threadIdRef,
     firstRoomTimelineRef,
+    lastRoomTimelineRef,
     scrollRef,
     setTimeline,
     paginateRoom,
@@ -1216,7 +1223,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadRecordMapRef,
     turnFolds: turnFolds.view,
     membershipFoldsRef,
-    foldedRowSizesRef,
+    renderedRoomRowsRef,
   });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
@@ -1335,7 +1342,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
   useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
-  useMembershipFoldRowSizes(virtualizer, roomWindowRows, membershipFolds.view, foldedRowSizesRef);
+  useMembershipFoldRowSizes(
+    virtualizer,
+    threadId ? undefined : roomWindowRows,
+    membershipFolds.view,
+    renderedRoomRowsRef
+  );
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1344,7 +1356,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     scrollToElement: paginatorScrollToElement,
     retryPagination,
   } = paginator;
-  useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, retryPagination);
+  useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, retryPagination);
   const { scrollToItem, scrollToElement, scrollThreadEventIntoView } = useTimelineRowJumps({
     paginatorScrollToItem,
     paginatorScrollToElement,
@@ -1452,6 +1464,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEventsLength: threadEvents.length,
     threadFilteredEvents: roomRows,
     threadFilteredEventsRef: roomRowsRef,
+    foldedRows: roomProjection.foldedRows,
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,

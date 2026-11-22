@@ -156,7 +156,9 @@ export const useRoomEventOpenController = ({
   threadFilteredEvents: MatrixEvent[];
   /**
    * The row of each loaded event that a closed fold of the room's rows holds, by event ID
-   * (`RoomRowProjection`): such an event is no row of `threadFilteredEvents` until its fold opens.
+   * (`RoomRowProjection`). Such an event shows no row until its fold opens: the fold's first
+   * event, a row of `threadFilteredEvents` that draws the fold's break, as much as the others,
+   * which are no rows of it. A jump to any of them unfolds the run instead of scrolling to a row.
    */
   foldedRows?: ReadonlyMap<string, number>;
   threadFilterStateRef: MutableRefObject<ThreadFilterState>;
@@ -437,6 +439,15 @@ export const useRoomEventOpenController = ({
         }
       }
 
+      const foldedRow = threadId ? undefined : foldedRows?.get(evtId);
+      if (foldedRow !== undefined) {
+        // Loaded, inside a closed fold: the focus keeps its run unfolded from the next render
+        // on, and the focus scroll lands on its row there.
+        setFocusItem({ eventId: evtId, index: foldedRow, scrollTo: true, highlight });
+        onScroll?.(true);
+        return;
+      }
+
       const filteredIndex = threadFilteredEvents.findIndex((event) => event.getId() === evtId);
 
       if (filteredIndex !== -1) {
@@ -453,14 +464,6 @@ export const useRoomEventOpenController = ({
           highlight,
         });
       } else {
-        const foldedRow = threadId ? undefined : foldedRows?.get(evtId);
-        if (foldedRow !== undefined) {
-          // Loaded, inside a closed fold: the focus keeps its run unfolded from the next render
-          // on, and the focus scroll lands on its row there.
-          setFocusItem({ eventId: evtId, index: foldedRow, scrollTo: true, highlight });
-          onScroll?.(true);
-          return;
-        }
         if (threadId) {
           let currentThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
           const expectedThreadId = threadId;

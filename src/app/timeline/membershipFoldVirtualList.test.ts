@@ -9,12 +9,16 @@ import {
   projectRoomRows,
   rowRangeOfLoaded,
   viewMembershipFolds,
-  type FoldedRowSizes,
   type MembershipFoldView,
+  type RenderedRoomRows,
   type RoomRowProjection,
 } from './membershipFolds';
 import { timelineRowSizing } from './roomTimelineRows';
-import { readMembershipRowSizes } from './useMembershipFolds';
+import {
+  NO_RENDERED_ROOM_ROWS,
+  forgetFormedFoldHeights,
+  readRenderedRoomRows,
+} from './useMembershipFolds';
 
 // The room's virtual list with folded membership runs, against the real virtual-core, its
 // overscan of ten rows and the timeline's own measurement correction: what the list mounts, and
@@ -47,6 +51,28 @@ const join = (id: string): MatrixEvent =>
     content: { membership: 'join', displayname: id.slice(1) },
   });
 
+/** A message the client has no key for: a row that says so. */
+const undecrypted = (id: string): MatrixEvent =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: '!room:example.org',
+    sender: '@sam:example.org',
+    type: 'm.room.encrypted',
+    origin_server_ts: START_TS,
+    content: { algorithm: 'm.megolm.v1.aes-sha2' },
+  });
+
+/** What it was, once its key arrives: a call invite, which the timeline draws nothing for. */
+const callInvite = (id: string): MatrixEvent =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: '!room:example.org',
+    sender: '@sam:example.org',
+    type: 'm.call.invite',
+    origin_server_ts: START_TS,
+    content: { call_id: 'call', version: 1 },
+  });
+
 const messages = (prefix: string, count: number) =>
   Array.from({ length: count }, (_, index) => message(`$${prefix}${index}`));
 const joins = (prefix: string, count: number) =>
@@ -54,9 +80,9 @@ const joins = (prefix: string, count: number) =>
 
 /**
  * The room's list as the timeline renders it. `render` lists the loaded rows with each closed
- * fold as one row, takes the state's window in those rows and hands the list its sizes and keys;
- * `commit` mounts the list's rows, which measure, and reads the membership rows' heights, as the
- * timeline does after each commit.
+ * fold as one row, takes the state's window in those rows, has the list forget the height of a
+ * row a fold formed at, and hands the list its sizes and keys; `commit` mounts the list's rows,
+ * which measure, and reads the list as it rendered, as the timeline does after each commit.
  */
 const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange }) => {
   let { loaded, stateRange } = initial;
@@ -75,7 +101,7 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
   const roomRowsRef = { current: [] as MatrixEvent[] };
   const activeRangeRef = { current: { start: 0, end: 0 } };
   const membershipFoldsRef: { current: MembershipFoldView } = { current: { breaks: new Map() } };
-  const foldedRowSizesRef: { current: FoldedRowSizes } = { current: new Map() };
+  const renderedRoomRowsRef: { current: RenderedRoomRows } = { current: NO_RENDERED_ROOM_ROWS };
   let projection: RoomRowProjection;
   let windowRows: MatrixEvent[] = [];
 
@@ -83,6 +109,7 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
     count: 0,
     overscan: 10,
     estimateSize: () => 0,
+    measureElement: (row) => tilePx(windowRows[Number(row.getAttribute('data-index'))]),
     getScrollElement: () => element as unknown as HTMLDivElement,
     scrollToFn: (offset, options) => {
       element.scrollTop = offset + (options.adjustments ?? 0);
@@ -121,6 +148,7 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
     roomRowsRef.current = projection.rows;
     activeRangeRef.current = range;
     membershipFoldsRef.current = view;
+    forgetFormedFoldHeights(renderedRoomRowsRef.current, view);
     const { estimateSize, getItemKey } = timelineRowSizing({
       threadId: undefined,
       compactLayout: false,
@@ -132,7 +160,7 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
       activeRangeRef,
       threadRecordMapRef: { current: new Map() },
       membershipFoldsRef,
-      foldedRowSizesRef,
+      renderedRoomRowsRef,
     });
     virtualizer.setOptions({
       ...virtualizer.options,
@@ -145,12 +173,13 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
   };
 
   /** A row's height as its tile measures: a closed fold's is its break, an open one's adds it. */
-  const tilePx = (event: MatrixEvent) => {
+  function tilePx(event: MatrixEvent | undefined): number {
+    if (!event) return 0;
     const fold = membershipFoldsRef.current.breaks.get(event.getId() ?? '');
     if (fold?.open === false) return breakPx;
     const rowPx = event.getType() === 'm.room.member' ? MEMBER_PX : MESSAGE_PX;
     return fold ? rowPx + breakPx : rowPx;
-  };
+  }
 
   const commit = () => {
     const mountedIds = new Set(render().map((item) => String(item.key)));
@@ -158,11 +187,12 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
     windowRows.forEach((event, index) => {
       const id = event.getId() ?? '';
       if (!mountedIds.has(id)) return;
-      virtualizer.elementsCache.set(id, { isConnected: true } as Element);
+      const row = { isConnected: true, getAttribute: () => String(index) };
+      virtualizer.elementsCache.set(id, row as unknown as Element);
       virtualizer.resizeItem(index, tilePx(event));
     });
     render();
-    foldedRowSizesRef.current = readMembershipRowSizes(
+    renderedRoomRowsRef.current = readRenderedRoomRows(
       virtualizer,
       windowRows,
       membershipFoldsRef.current
@@ -204,7 +234,12 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
       loaded = [...older, ...loaded];
       stateRange = { start: stateRange.start + older.length, end: stateRange.end + older.length };
     },
+    /** An event that decrypts in place: the same event of the loaded rows, as another type. */
+    decrypt: (id: string, clear: MatrixEvent) => {
+      loaded = loaded.map((event) => (event.getId() === id ? clear : event));
+    },
     open: (id: string) => openIds.add(id),
+    close: (id: string) => openIds.delete(id),
     wrapBreak: (px: number) => {
       breakPx = px;
     },
@@ -368,5 +403,87 @@ describe("the reader's rows as a page of history lands at a fold", () => {
     expect(list.windowIds()).toEqual(windowBefore);
     expect(list.screenTop(readingAt)).toBe(before);
     expect(list.scrollWrites).toEqual([]);
+  });
+
+  // An event between two runs decrypts, off screen, into one that draws nothing: the runs are one
+  // run, folded at its first event, whose row the list has measured.
+  it('keeps them still when a decrypted event joins two short runs into a fold', () => {
+    const loaded = [
+      join('$m1'),
+      join('$m2'),
+      undecrypted('$enc'),
+      join('$m3'),
+      join('$m4'),
+      ...below,
+    ];
+    const list = roomList({ loaded, stateRange: { start: 0, end: loaded.length } });
+    readDownTo(list, readingAt);
+    expect(list.windowIds().slice(0, 6)).toEqual(['$m1', '$m2', '$enc', '$m3', '$m4', '$b0']);
+    expect(list.sizes().slice(0, 5)).toEqual([
+      MEMBER_PX,
+      MEMBER_PX,
+      MESSAGE_PX,
+      MEMBER_PX,
+      MEMBER_PX,
+    ]);
+    expect(list.isMeasured('$m1')).toBe(true);
+    expect(list.mountedIds()).not.toContain('$m1');
+    const before = list.screenTop(readingAt);
+    expect(before).toBe(-10);
+
+    list.decrypt('$enc', callInvite('$enc'));
+    list.render();
+    // Five rows are one. It takes their place at their height, not at the height the list
+    // measured for `$m1` alone, which would move the reader's rows by 140 px.
+    expect(list.windowIds().slice(0, 2)).toEqual(['$m1', '$b0']);
+    expect(list.sizes()[0]).toBe(4 * MEMBER_PX + MESSAGE_PX);
+    expect(list.screenTop(readingAt)).toBe(before);
+    list.commit();
+    expect(list.screenTop(readingAt)).toBe(before);
+    expect(list.scrollWrites).toEqual([]);
+
+    // Its break is measured once it mounts above the view: the correction keeps the reader's
+    // rows where they are.
+    list.scrollToRow('$b6');
+    const nearTop = list.screenTop('$b8');
+    list.commit();
+    expect(list.mountedIds()).toContain('$m1');
+    expect(list.sizes()[0]).toBe(BREAK_PX);
+    expect(list.screenTop('$b8')).toBe(nearTop);
+  });
+
+  it('keeps them still when a decrypted event joins two closed folds into one', () => {
+    const loaded = [...joins('j', 3), undecrypted('$enc'), ...joins('k', 3), ...below];
+    const list = roomList({ loaded, stateRange: { start: 0, end: loaded.length } });
+    readDownTo(list, readingAt);
+    expect(list.windowIds().slice(0, 4)).toEqual(['$j0', '$enc', '$k0', '$b0']);
+    expect(list.sizes().slice(0, 3)).toEqual([BREAK_PX, MESSAGE_PX, BREAK_PX]);
+    const before = list.screenTop(readingAt);
+
+    list.decrypt('$enc', callInvite('$enc'));
+    list.render();
+    // The first fold's row now holds both folds and the row between them.
+    expect(list.windowIds().slice(0, 2)).toEqual(['$j0', '$b0']);
+    expect(list.sizes()[0]).toBe(2 * BREAK_PX + MESSAGE_PX);
+    expect(list.screenTop(readingAt)).toBe(before);
+    list.commit();
+    expect(list.screenTop(readingAt)).toBe(before);
+    expect(list.scrollWrites).toEqual([]);
+  });
+
+  it('leaves a fold the reader closes at the height its row has, to measure itself', () => {
+    const loaded = [...joins('j', 4), ...below];
+    const list = roomList({ loaded, stateRange: { start: 0, end: loaded.length } });
+    list.open('$j0');
+    list.commit();
+    expect(list.sizes()[0]).toBe(MEMBER_PX + BREAK_PX);
+    // On screen, its row measures as soon as it draws the break alone: it does not take the
+    // height of the rows that close with it meanwhile.
+    list.close('$j0');
+    list.render();
+    expect(list.windowIds().slice(0, 2)).toEqual(['$j0', '$b0']);
+    expect(list.sizes()[0]).toBe(MEMBER_PX + BREAK_PX);
+    list.commit();
+    expect(list.sizes()[0]).toBe(BREAK_PX);
   });
 });

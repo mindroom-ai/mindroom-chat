@@ -109,18 +109,21 @@ const passMarker = (run: ReplyRun, event: MatrixEvent): ReplyRun => ({
 /**
  * The reply run above `index`, read backwards: the quiet markers below the nearest other row, that
  * row, and the message it and the rows above it all reply to, if that message sits right above
- * them past quiet markers. Matches folding from the top.
+ * them past quiet markers. A closed fold's break ends the run, and is no row of it: the rows
+ * above it, and the event that draws it, are not right above a reply below it. Matches folding
+ * from the top.
  */
 const primeReplyRun = (
   getEvent: (index: number) => MatrixEvent | undefined,
   index: number,
   isSkipped: (event: MatrixEvent) => boolean,
-  isQuietMarker: (event: MatrixEvent) => boolean
+  isQuietMarker: (event: MatrixEvent) => boolean,
+  isBreakRow: (index: number) => boolean
 ): ReplyRun => {
   const markerIds: string[] = [];
   let rowId: string | undefined;
   let targetId: string | undefined;
-  for (let above = index - 1; above >= 0; above -= 1) {
+  for (let above = index - 1; above >= 0 && !isBreakRow(above); above -= 1) {
     const event = getEvent(above);
     if (showsRow(event, isSkipped)) {
       if (rowId !== undefined && event.getId() === targetId) {
@@ -263,7 +266,7 @@ export const foldTimelineRowContexts = ({
   let above: MatrixEvent | undefined;
   let aboveHasRow = false;
   let dayChanged = false;
-  let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker);
+  let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker, isBreakRow);
   let quietRun: number[] = [];
   const endQuietRun = () => {
     const [shownIndex, ...folded] = quietRun;
