@@ -47,9 +47,12 @@ export function useCompactBlocks(options: Options) {
   const { target, protectedId, records, indexPending } = options;
   const state = useMemo(() => {
     const geometry = getGeometry(memory, roomId);
+    const saved = memory.get(roomId);
+    // A list that returns to its top starts there: the cards last in view may have moved.
+    if (!saved?.scrollTop) geometry.visible = [];
     return {
       geometry,
-      saved: memory.get(roomId),
+      saved,
       previousVisible: geometry.visible,
       reachable: undefined as string | undefined,
       placed: false,

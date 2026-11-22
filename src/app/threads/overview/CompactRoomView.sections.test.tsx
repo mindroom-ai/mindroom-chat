@@ -953,6 +953,19 @@ describe('a focus request on the mounted Compact room', () => {
       }
     );
 
+    it('draws the cards at the top in the first commit back, though they were reordered', () => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      unmount();
+      expect(memory.get(ROOM_ID)?.scrollTop).toBe(0);
+      // The lower half now leads: the cards that were in view are far down the list.
+      render(at(undefined, [...large.slice(60), ...large.slice(0, 60)]));
+      expect(scrollTop).toBe(0);
+      expect(document.querySelector('[data-scroll-anchor="$card60"]')).not.toBeNull();
+      expect([60, 61, 62].map((row) => topOf(`$card${row}`) || 0)).toEqual([0, 100, 200]);
+    });
+
     it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
       memory.clear();
       const partial = large.slice(0, 40);
