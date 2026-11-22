@@ -93,9 +93,7 @@
       "wheelZoomHint": "{{key}} + scrollen om te zoomen"
     },
     "inviteUserPrompt": {
-      "close": "Sluiten",
       "invited": "{{user}} is uitgenodigd.",
-      "giveRoleRights": "{{role}}-rechten geven",
       "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
       "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
       "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
@@ -116,7 +114,11 @@
       "addNote": "+ Uitnodigingsbericht toevoegen",
       "hideNote": "− Uitnodigingsbericht verbergen",
       "notePlaceholder": "Voeg een bericht toe aan je uitnodiging...",
-      "giveRoleRightsAgents": "Uitgenodigde agents {{role}}-rechten geven"
+      "giveRoleRightsAgents": "Uitgenodigde agents {{role}}-rechten geven",
+      "alreadyInRoom": "Al in deze ruimte",
+      "alreadyInvited": "Al uitgenodigd",
+      "bannedFromRoom": "Verbannen uit deze ruimte",
+      "retryUser": "Uitnodigen van {{user}} opnieuw proberen"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",

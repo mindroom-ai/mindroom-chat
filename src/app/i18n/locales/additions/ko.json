@@ -90,9 +90,7 @@
       "wheelZoomHint": "{{key}} + 스크롤로 확대/축소"
     },
     "inviteUserPrompt": {
-      "close": "닫기",
       "invited": "{{user}} 님을 초대했습니다.",
-      "giveRoleRights": "{{role}} 권한 부여",
       "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
       "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
       "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
@@ -113,7 +111,11 @@
       "addNote": "+ 초대 메모 추가",
       "hideNote": "− 초대 메모 숨기기",
       "notePlaceholder": "초대에 메모를 추가하세요...",
-      "giveRoleRightsAgents": "초대된 에이전트에 {{role}} 권한 부여"
+      "giveRoleRightsAgents": "초대된 에이전트에 {{role}} 권한 부여",
+      "alreadyInRoom": "이미 이 방에 있습니다",
+      "alreadyInvited": "이미 초대되었습니다",
+      "bannedFromRoom": "이 방에서 차단되었습니다",
+      "retryUser": "{{user}} 초대 다시 시도"
     },
     "joinAddressPrompt": {
       "close": "닫기",

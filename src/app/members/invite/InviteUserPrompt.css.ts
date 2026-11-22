@@ -1,5 +1,17 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+
+// On mobile Safari the fixed Overlay spans the layout viewport while the keyboard shrinks the
+// visual viewport; follow --app-height and --app-viewport-offset-top so header and footer stay
+// visible above the keyboard.
+export const PhoneViewportCenter = style({
+  selectors: {
+    '&&': {
+      height: 'var(--app-height, 100%)',
+      marginBlockStart: 'var(--app-viewport-offset-top, 0px)',
+    },
+  },
+});
 
 export const Dialog = style({
   width: '100%',
@@ -37,11 +49,19 @@ export const Controls = style({
   paddingInline: config.space.S400,
 });
 
+// The field draws its own Clear button, so the browser's search cancel mark stays hidden.
+export const SearchField = style({});
+globalStyle(`${SearchField} input::-webkit-search-cancel-button`, { display: 'none' });
+
 export const FilterRow = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
   gap: config.space.S200,
+});
+
+export const FilterChip = style({
+  '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
 });
 
 export const ListArea = style({
@@ -97,18 +117,23 @@ export const Identity = style({
   display: 'flex',
   flexDirection: 'column',
   flexGrow: 1,
-  minWidth: 0,
+  minInlineSize: 0,
 });
 
 export const NameLine = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
-  minWidth: 0,
+  minInlineSize: 0,
 });
 
 export const AgentBadge = style({
   flexShrink: 0,
+});
+
+export const Subtitle = style({
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
 });
 
 export const RowError = style({
@@ -120,11 +145,18 @@ export const RowError = style({
 export const RowAction = style({
   flexShrink: 0,
   minWidth: toRem(88),
+  '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
 });
 
 export const RowActionSent = style({
   vars: { [config.opacity.Disabled]: '1' },
   selectors: { '&[aria-disabled="true"]': { cursor: 'default' } },
+});
+
+export const InlineHint = style({
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S200,
+  textAlign: 'center',
 });
 
 export const EmptyState = style({

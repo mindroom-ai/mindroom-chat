@@ -105,9 +105,7 @@
       "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
-      "close": "إغلاق",
       "invited": "تمت دعوة ⁨{{user}}⁩.",
-      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
       "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
       "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
@@ -115,7 +113,7 @@
       "inviteToRoom": "دعوة إلى ⁨{{room}}⁩",
       "memberSummary": "⁨{{members}}⁩ · ⁨{{invited}}⁩",
       "done": "تم",
-      "searchPlaceholder": "ابحث عن الأشخاص أو الوكلاء أو @user:server",
+      "searchPlaceholder": "ابحث عن الأشخاص أو الوكلاء أو ⁦@user:server⁩",
       "filterLabel": "تصفية حسب النوع",
       "filterAll": "الكل",
       "filterPeople": "الأشخاص",
@@ -123,12 +121,16 @@
       "recentAndDirect": "الأخيرة والمباشرة",
       "directory": "الدليل",
       "externalUserId": "معرّف Matrix خارجي",
-      "noMatches": "لا يوجد مستخدمون مطابقون. أدخل معرّف @user:server كاملًا للدعوة مباشرةً.",
-      "emptyDirectory": "لا يوجد مستخدمون لدعوتهم بعد. أدخل معرّف @user:server كاملًا للدعوة مباشرةً.",
+      "noMatches": "لا يوجد مستخدمون مطابقون. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "emptyDirectory": "لا يوجد مستخدمون لدعوتهم بعد. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
       "addNote": "+ إضافة ملاحظة دعوة",
       "hideNote": "− إخفاء ملاحظة الدعوة",
       "notePlaceholder": "أضف ملاحظة إلى دعوتك...",
-      "giveRoleRightsAgents": "منح الوكلاء المدعوين صلاحيات ⁨{{role}}⁩"
+      "giveRoleRightsAgents": "منح الوكلاء المدعوين صلاحيات ⁨{{role}}⁩",
+      "alreadyInRoom": "موجود بالفعل في هذه الغرفة",
+      "alreadyInvited": "تمت دعوته بالفعل",
+      "bannedFromRoom": "محظور من هذه الغرفة",
+      "retryUser": "إعادة محاولة دعوة ⁨{{user}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",

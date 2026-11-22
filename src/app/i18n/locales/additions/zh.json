@@ -90,9 +90,7 @@
       "wheelZoomHint": "{{key}} + 滚动以缩放"
     },
     "inviteUserPrompt": {
-      "close": "关闭",
       "invited": "已邀请 {{user}}。",
-      "giveRoleRights": "授予{{role}}权限",
       "giveRoleRightsHelp": "此房间需要{{role}}权限才能折叠语音转写，并管理定时任务和房间设置。",
       "roleFailed": "已邀请 {{user}}，但无法授予{{role}}权限：{{error}}",
       "roleRequirementChanged": "此房间现在需要{{role}}权限。",
@@ -113,7 +111,11 @@
       "addNote": "+ 添加邀请附言",
       "hideNote": "− 隐藏邀请附言",
       "notePlaceholder": "为你的邀请添加附言...",
-      "giveRoleRightsAgents": "为受邀智能体授予{{role}}权限"
+      "giveRoleRightsAgents": "为受邀智能体授予{{role}}权限",
+      "alreadyInRoom": "已在此房间中",
+      "alreadyInvited": "已邀请",
+      "bannedFromRoom": "已被此房间封禁",
+      "retryUser": "重试邀请 {{user}}"
     },
     "joinAddressPrompt": {
       "close": "关闭",

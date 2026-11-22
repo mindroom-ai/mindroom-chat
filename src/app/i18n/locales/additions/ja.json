@@ -90,9 +90,7 @@
       "wheelZoomHint": "{{key}} + スクロールでズーム"
     },
     "inviteUserPrompt": {
-      "close": "閉じる",
       "invited": "{{user}} を招待しました。",
-      "giveRoleRights": "{{role}} 権限を付与",
       "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
       "roleFailed": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}",
       "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。",
@@ -113,7 +111,11 @@
       "addNote": "+ 招待メッセージを追加",
       "hideNote": "− 招待メッセージを隠す",
       "notePlaceholder": "招待にメッセージを追加...",
-      "giveRoleRightsAgents": "招待するエージェントに {{role}} 権限を付与"
+      "giveRoleRightsAgents": "招待するエージェントに {{role}} 権限を付与",
+      "alreadyInRoom": "すでにこのルームに参加しています",
+      "alreadyInvited": "すでに招待済みです",
+      "bannedFromRoom": "このルームから禁止されています",
+      "retryUser": "{{user}} の招待を再試行"
     },
     "joinAddressPrompt": {
       "close": "閉じる",

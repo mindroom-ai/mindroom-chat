@@ -11,7 +11,12 @@ import {
   type ServerUserDirectoryUser,
   type UserDirectoryCacheState,
 } from '../userDirectoryCache';
-import { detachedGrantErrorAtom, evaluateRoomModeratorGrant } from './moderatorInvite';
+import {
+  createDetachedGrantError,
+  detachedGrantErrorAtom,
+  evaluateRoomModeratorGrant,
+  grantRoomModeratorRights,
+} from './moderatorInvite';
 import { ModeratorGrantErrorNotice } from './ModeratorGrantErrorNotice';
 import { InviteUserPrompt } from './InviteUserPrompt';
 
@@ -40,11 +45,14 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 vi.mock('./InviteUserPrompt.css', () => ({
+  PhoneViewportCenter: 'PhoneViewportCenter',
   Dialog: 'InviteDialog',
   TitleBar: 'InviteTitleBar',
   TitleBlock: 'InviteTitleBlock',
   Controls: 'InviteControls',
+  SearchField: 'InviteSearchField',
   FilterRow: 'InviteFilterRow',
+  FilterChip: 'InviteFilterChip',
   ListArea: 'InviteListArea',
   SectionHeader: 'InviteSectionHeader',
   List: 'InviteList',
@@ -53,9 +61,11 @@ vi.mock('./InviteUserPrompt.css', () => ({
   Identity: 'InviteIdentity',
   NameLine: 'InviteNameLine',
   AgentBadge: 'InviteAgentBadge',
+  Subtitle: 'InviteSubtitle',
   RowError: 'InviteRowError',
   RowAction: 'InviteRowAction',
   RowActionSent: 'InviteRowActionSent',
+  InlineHint: 'InviteInlineHint',
   EmptyState: 'InviteEmptyState',
   FetchingRow: 'InviteFetchingRow',
   Footer: 'InviteFooter',
@@ -189,11 +199,23 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
   const createEvent = options.createContent
     ? makeStateEvent(options.createContent, options.createSender)
     : undefined;
+  const roomListeners = new Map<string, Set<EventListener>>();
   return {
     roomId: '!room:example.org',
     name: options.name ?? 'Design Review',
     client: mx,
     state,
+    on: vi.fn((event: string, listener: EventListener) => {
+      const set = roomListeners.get(event) ?? new Set<EventListener>();
+      set.add(listener);
+      roomListeners.set(event, set);
+    }),
+    removeListener: vi.fn((event: string, listener: EventListener) => {
+      roomListeners.get(event)?.delete(listener);
+    }),
+    emit: (event: string, ...args: unknown[]) => {
+      roomListeners.get(event)?.forEach((listener) => listener(...args));
+    },
     isSpaceRoom: () => options.isSpace ?? false,
     getVersion: () =>
       options.roomVersion ??
@@ -321,10 +343,14 @@ const typeSearch = (renderer: ReactTestRenderer, value: string) => {
   });
 };
 
-const pressKeyInSearch = async (renderer: ReactTestRenderer, key: string) => {
+const pressKeyInSearch = async (
+  renderer: ReactTestRenderer,
+  key: string,
+  extra: Record<string, unknown> = {}
+) => {
   const preventDefault = vi.fn();
   await act(async () => {
-    getSearchInput(renderer).props.onKeyDown({ key, preventDefault });
+    getSearchInput(renderer).props.onKeyDown({ key, preventDefault, ...extra });
     await Promise.resolve();
     await Promise.resolve();
   });
@@ -351,7 +377,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe('evaluateRoomModeratorGrant', () => {
+describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
   it('returns grant level for an admin in a v10+ non-Space room and forbidden otherwise', () => {
     const room = { isSpaceRoom: () => false, getVersion: () => '12' };
     const levels = {
@@ -381,10 +407,73 @@ describe('evaluateRoomModeratorGrant', () => {
       )
     ).toEqual({ kind: 'forbidden' });
   });
+
+  it('serializes concurrent room grants and merges against live server power levels before /sync arrives', async () => {
+    // Homeserver state starts with only the admin; synced room state stays stale throughout.
+    let serverPowerLevels: Record<string, unknown> = {
+      users: { '@me:example.org': 100 },
+      users_default: 0,
+      state_default: 50,
+      events: { 'm.room.power_levels': 100 },
+    };
+    let resolveFirstWrite!: () => void;
+    const writtenUsersSnapshots: Array<Record<string, number>> = [];
+    const getStateEvent = vi.fn(async () => structuredClone(serverPowerLevels));
+    const sendStateEvent = vi.fn(
+      async (_roomId: string, _eventType: string, content: Record<string, unknown>) => {
+        if (writtenUsersSnapshots.length === 0) {
+          await new Promise<void>((resolve) => {
+            resolveFirstWrite = resolve;
+          });
+        }
+        serverPowerLevels = structuredClone(content);
+        writtenUsersSnapshots.push({ ...(content.users as Record<string, number>) });
+        return { event_id: `$pl_${writtenUsersSnapshots.length}` };
+      }
+    );
+
+    const mx = {
+      ...makeMx(() => null),
+      getStateEvent,
+      sendStateEvent,
+    };
+    const room = makeRoom(mx);
+
+    // Fire two grants concurrently before /sync updates room.state.powerLevels.
+    const first = grantRoomModeratorRights(
+      mx as unknown as MatrixClient,
+      room as unknown as Room,
+      '@mindroom_coder:example.org',
+      50
+    );
+    const second = grantRoomModeratorRights(
+      mx as unknown as MatrixClient,
+      room as unknown as Room,
+      '@mindroom_helper:example.org',
+      50
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    // Second grant must wait until the first write finishes before reading live state.
+    expect(getStateEvent).toHaveBeenCalledTimes(1);
+
+    resolveFirstWrite();
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult).toBeNull();
+    expect(secondResult).toBeNull();
+    expect(getStateEvent).toHaveBeenCalledTimes(2);
+    expect(sendStateEvent).toHaveBeenCalledTimes(2);
+    expect(writtenUsersSnapshots[1]).toEqual({
+      '@me:example.org': 100,
+      '@mindroom_coder:example.org': 50,
+      '@mindroom_helper:example.org': 50,
+    });
+  });
 });
 
 describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
-  it('uses desktop dialog framing by default and PhoneModal framing on mobile', () => {
+  it('uses desktop dialog framing by default and PhoneModal + PhoneViewportCenter framing on mobile', () => {
     const desktop = renderPrompt({ screenSize: ScreenSize.Desktop });
     expect(getDialog(desktop.renderer).props['aria-modal']).toBe('true');
     expect(getDialog(desktop.renderer).props.className).toContain('InviteDialog');
@@ -395,12 +484,14 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     const mobile = renderPrompt({ screenSize: ScreenSize.Mobile });
     expect(getDialog(mobile.renderer).props.className).toContain('PhoneModal');
-    expect(mobile.renderer.root.findByProps({ 'data-overlay-center': true }).props.className).toBe(
-      'PhoneOverlayCenter'
-    );
+    const mobileCenterClass = mobile.renderer.root.findByProps({
+      'data-overlay-center': true,
+    }).props.className;
+    expect(mobileCenterClass).toContain('PhoneOverlayCenter');
+    expect(mobileCenterClass).toContain('PhoneViewportCenter');
   });
 
-  it('shows room title, Done button, and live member/invited counts without double-counting after sync', async () => {
+  it('shows isolated room title, Done button, and live member/invited counts without double-counting or resurrection', async () => {
     const requestClose = vi.fn();
     const { renderer, mx, room } = renderPrompt({
       name: 'Design Review',
@@ -410,7 +501,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     });
 
     const heading = renderer.root.findByProps({ id: 'invite-user-prompt-title' });
-    expect(extractText(heading)).toBe('Invite to Design Review');
+    expect(extractText(heading)).toBe('Invite to \u2068Design Review\u2069');
     expect(extractText(getDialog(renderer))).toContain('2 Members');
     expect(extractText(getDialog(renderer))).not.toContain('Invited');
 
@@ -422,10 +513,32 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     act(() => {
       room.state.members.push({ userId: '@maya:example.org', membership: 'invite' });
       room.state.invitedCount = 1;
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@maya:example.org',
+      });
     });
     expect(extractText(getDialog(renderer))).toContain('2 Members · 1 Invited');
     expect(extractText(getDialog(renderer))).not.toContain('2 Invited');
+
+    // Maya declines/leaves: header count must drop back to 0 (no optimistic resurrection!).
+    act(() => {
+      room.state.members = [{ userId: '@maya:example.org', membership: 'leave' }];
+      room.state.invitedCount = 0;
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@maya:example.org',
+      });
+    });
+    expect(extractText(getDialog(renderer))).toContain('2 Members');
+    expect(extractText(getDialog(renderer))).not.toContain('1 Invited');
+
+    // Room.summary updates header count live as well.
+    act(() => {
+      room.state.joinedCount = 5;
+      room.emit('Room.Summary', {});
+    });
+    expect(extractText(getDialog(renderer))).toContain('5 Members');
 
     // Clicking Done calls requestClose.
     const doneBtn = renderer.root.find(
@@ -443,7 +556,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(extractText(heading)).toBe('Invite');
   });
 
-  it('shows browsable Recent & Direct and Directory sections on open, and filters People / Agents cleanly', () => {
+  it('shows browsable Recent & Direct and Directory sections on open, filters People / Agents, and keeps consent checkbox visible on People tab', () => {
     directUsersMock.users = ['@maya:example.org', '@mindroom_coder:example.org'];
     const { renderer } = renderPrompt({
       cache: readyCache([
@@ -469,7 +582,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(extractText(getRowByText(renderer, 'Maya Chen')!)).not.toContain('Agent');
     expect(extractText(getRowByText(renderer, 'Foreign Bot')!)).not.toContain('Agent');
 
-    // People tab: flat list (no section headers), hides same-server agents and hides moderator checkbox.
+    // People tab: flat list (no section headers), hides same-server agents, keeps moderator checkbox visible.
     act(() => {
       getFilterButton(renderer, 'People').props.onClick();
     });
@@ -484,7 +597,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getRows(renderer).map(extractText).join(' ')).toContain('Liam Park');
     expect(getRows(renderer).map(extractText).join(' ')).toContain('Foreign Bot');
     expect(getRows(renderer).map(extractText).join(' ')).not.toContain('Coder');
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
+    expect(findModeratorCheckbox(renderer)).toBeDefined();
 
     // Agents tab: flat list of same-server agents only, moderator checkbox visible.
     act(() => {
@@ -496,13 +609,126 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(findModeratorCheckbox(renderer)).toBeDefined();
   });
 
-  it('caps browse directory rows at 100 entries', () => {
+  it('on People tab, typing a listed agent MXID shows its directory name (not External Matrix ID) and respects checkbox toggle on both Enter and click', async () => {
+    const { renderer, mx } = renderPrompt();
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
+
+    typeSearch(renderer, '@mindroom_coder:example.org');
+    const coderRow = getRowByText(renderer, 'Coder');
+    expect(coderRow).toBeDefined();
+    expect(extractText(coderRow!)).not.toContain('External Matrix ID');
+    expect(extractText(coderRow!)).toContain('@mindroom_coder:example.org');
+
+    // Uncheck consent checkbox (always visible on People tab) -> Enter does not grant.
+    const checkbox = findModeratorCheckbox(renderer);
+    expect(checkbox?.props.checked).toBe(true);
+    act(() => {
+      checkbox?.props.onClick();
+    });
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
+
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_coder:example.org',
+      undefined
+    );
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+
+    // Also verify button click on another listed agent while checkbox is OFF skips grant.
+    typeSearch(renderer, '@mindroom_helper:example.org');
+    await clickRowInvite(renderer, 'Helper');
+    expect(mx.invite).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_helper:example.org',
+      undefined
+    );
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+  });
+
+  it('finds a matching agent under Agents tab even when 10 higher-ranked people match the query', () => {
+    const tenPeople: ServerUserDirectoryUser[] = Array.from({ length: 10 }, (_, index) => ({
+      userId: `@alpha_${String(index).padStart(2, '0')}:example.org`,
+      displayName: `Alpha Person ${String(index).padStart(2, '0')}`,
+    }));
+    const agent: ServerUserDirectoryUser = {
+      userId: '@mindroom_ops:example.org',
+      displayName: 'Operations Alpha',
+    };
+    const { renderer } = renderPrompt({ cache: readyCache([...tenPeople, agent]) });
+
+    act(() => {
+      getFilterButton(renderer, 'Agents').props.onClick();
+    });
+    typeSearch(renderer, 'alpha');
+
+    expect(getRows(renderer)).toHaveLength(1);
+    expect(getRowByText(renderer, 'Operations Alpha')).toBeDefined();
+  });
+
+  it('caps browse directory rows at 100 entries including carried-over attempts, and deduplicates across sections', async () => {
     const manyUsers: ServerUserDirectoryUser[] = Array.from({ length: 130 }, (_, index) => ({
       userId: `@user_${String(index).padStart(3, '0')}:example.org`,
       displayName: `User ${String(index).padStart(3, '0')}`,
     }));
-    const { renderer } = renderPrompt({ cache: readyCache(manyUsers) });
+    const { renderer, mx } = renderPrompt({ cache: readyCache(manyUsers) });
     expect(getRows(renderer)).toHaveLength(100);
+
+    // Search for a directory user, fail the invite, then clear search:
+    // MXID must appear ONCE (as Retry) and total rows must stay <= 100.
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Temporary outage'));
+    typeSearch(renderer, 'User 005');
+    await clickRowInvite(renderer, 'User 005');
+
+    typeSearch(renderer, '');
+    const matchingRows = getRows(renderer).filter((row) => extractText(row).includes('User 005'));
+    expect(matchingRows).toHaveLength(1);
+    expect(extractText(getRowActionButton(matchingRows[0]!))).toBe('Retry');
+    expect(getRowActionButton(matchingRows[0]!).props['aria-label']).toBe(
+      'Retry inviting User 005'
+    );
+    expect(getRows(renderer).length).toBeLessThanOrEqual(100);
+  });
+
+  it('prevents inviting the same user twice across filter changes before /sync arrives', async () => {
+    const { renderer, mx } = renderPrompt();
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+
+    // Switch filter before Matrix sync adds Maya to room.state.members.
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
+    expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
+
+    // Typing Maya's MXID shows Already invited and Enter does not fire a duplicate invite.
+    typeSearch(renderer, '@maya:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Already invited');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows inline hints for already-joined, banned, and invalid Enter queries', async () => {
+    const { renderer, mx } = renderPrompt({
+      members: [
+        { userId: '@joined:example.org', membership: 'join' },
+        { userId: '@banned:example.org', membership: 'ban' },
+      ],
+    });
+
+    typeSearch(renderer, '@joined:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Already in this room');
+    expect(extractText(getDialog(renderer))).not.toContain('No matching users');
+
+    typeSearch(renderer, '@banned:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Banned from this room');
+
+    typeSearch(renderer, 'not-a-matrix-id');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).not.toHaveBeenCalled();
+    expect(extractText(getDialog(renderer))).toContain('Please enter a valid User ID.');
   });
 
   it('shows a direct-invite row with External Matrix ID subtitle for unlisted typed MXIDs regardless of filter', async () => {
@@ -533,6 +759,23 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getSearchInput(renderer).props.value).toBe('');
     expect(focusInput).toHaveBeenCalled();
     expect(textContentByRole(renderer, 'status')).toContain('@alice:example.org');
+  });
+
+  it('ignores Enter and ArrowDown while IME composition is active', async () => {
+    const focusFirst = vi.fn();
+    rowFocusElements.push({ focus: focusFirst });
+    const { renderer, mx } = renderPrompt();
+
+    typeSearch(renderer, '@alice:example.org');
+    await pressKeyInSearch(renderer, 'Enter', { nativeEvent: { isComposing: true, keyCode: 13 } });
+    await pressKeyInSearch(renderer, 'Enter', { keyCode: 229 });
+    await pressKeyInSearch(renderer, 'ArrowDown', {
+      nativeEvent: { isComposing: true, keyCode: 40 },
+    });
+
+    expect(mx.invite).not.toHaveBeenCalled();
+    expect(focusFirst).not.toHaveBeenCalled();
+    expect(getSearchInput(renderer).props.value).toBe('@alice:example.org');
   });
 
   it('moves focus between search input and row actions with ArrowDown / ArrowUp and clears search', async () => {
@@ -607,7 +850,6 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
   it('keeps an invited row in place after Matrix sync and supports Retry on invite failure', async () => {
     const { renderer, mx, room } = renderPrompt();
 
-    // First attempt fails -> shows alert and Retry button.
     vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
     await clickRowInvite(renderer, 'Maya Chen');
 
@@ -615,16 +857,17 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(extractText(getRowActionButton(failedRow))).toBe('Retry');
     expect(textContentByRole(renderer, 'alert')).toContain('Network down');
 
-    // Changing search carries over failed attempts so errors are never lost.
     typeSearch(renderer, 'liam');
     expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
 
-    // Retrying succeeds and keeps the row in place as Invited even after Matrix sync marks her invited.
     await clickRowInvite(renderer, 'Maya Chen');
     expect(mx.invite).toHaveBeenCalledTimes(2);
     act(() => {
       room.state.members.push({ userId: '@maya:example.org', membership: 'invite' });
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@maya:example.org',
+      });
     });
     const sentRow = getRowByText(renderer, 'Maya Chen')!;
     expect(extractText(getRowActionButton(sentRow))).toBe('Invited');
@@ -639,38 +882,100 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     act(() => {
       room.state.members.push({ userId: '@maya:example.org', membership: 'join' });
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@maya:example.org',
+      });
     });
     expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
     expect(textContentByRole(renderer, 'alert')).toBe('');
   });
 
-  it('keeps invite note collapsed by default and passes trimmed note as reason when expanded', async () => {
+  it('handles invite note lifecycle: clears after success, does not send when collapsed, Retry preserves original note, and never erases a newer draft', async () => {
     const { renderer, mx, room } = renderPrompt();
-    const toggle = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-expanded'] !== undefined
-    );
-    expect(toggle.props['aria-expanded']).toBe(false);
-    expect(extractText(toggle)).toBe('+ Add invite note');
+    const getNoteToggle = () =>
+      renderer.root.find(
+        (node) => node.type === 'button' && node.props['aria-expanded'] !== undefined
+      );
+    const getNoteInput = () =>
+      renderer.root.find(
+        (node) => node.type === 'input' && node.props.placeholder === 'Add a note to your invite...'
+      );
 
+    expect(getNoteToggle().props['aria-expanded']).toBe(false);
+    expect(extractText(getNoteToggle())).toBe('+ Add invite note');
+
+    // Expand note, type reason, invite Maya -> sends trimmed note and clears input afterward.
     act(() => {
-      toggle.props.onClick();
+      getNoteToggle().props.onClick();
     });
-    const expandedToggle = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-expanded'] !== undefined
-    );
-    expect(expandedToggle.props['aria-expanded']).toBe(true);
-    expect(extractText(expandedToggle)).toBe('− Hide invite note');
-
-    const noteInput = renderer.root.find(
-      (node) => node.type === 'input' && node.props.placeholder === 'Add a note to your invite...'
-    );
+    expect(getNoteToggle().props['aria-expanded']).toBe(true);
+    expect(extractText(getNoteToggle())).toBe('− Hide invite note');
     act(() => {
-      noteInput.props.onChange({ target: { value: '  Welcome aboard!  ' } });
+      getNoteInput().props.onChange({ target: { value: '  Welcome aboard!  ' } });
     });
 
     await clickRowInvite(renderer, 'Maya Chen');
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@maya:example.org', 'Welcome aboard!');
+    expect(mx.invite).toHaveBeenNthCalledWith(
+      1,
+      room.roomId,
+      '@maya:example.org',
+      'Welcome aboard!'
+    );
+    expect(getNoteInput().props.value).toBe('');
+
+    // Second invite with empty note sends undefined.
+    await clickRowInvite(renderer, 'Liam Park');
+    expect(mx.invite).toHaveBeenNthCalledWith(2, room.roomId, '@liam:example.org', undefined);
+
+    // Type a note, collapse the note field -> hidden note is NOT sent.
+    act(() => {
+      getNoteInput().props.onChange({ target: { value: 'Hidden secret note' } });
+    });
+    act(() => {
+      getNoteToggle().props.onClick();
+    });
+    expect(getNoteToggle().props['aria-expanded']).toBe(false);
+    typeSearch(renderer, '@alice:example.org');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenNthCalledWith(3, room.roomId, '@alice:example.org', undefined);
+
+    // Expand note again, fail invite to @bob:example.org with original note, then edit note;
+    // Retry must send @bob's original note, not the edited draft.
+    act(() => {
+      getNoteToggle().props.onClick();
+    });
+    act(() => {
+      getNoteInput().props.onChange({ target: { value: 'Note for Bob' } });
+    });
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Failed once'));
+    typeSearch(renderer, '@bob:example.org');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenNthCalledWith(4, room.roomId, '@bob:example.org', 'Note for Bob');
+
+    act(() => {
+      getNoteInput().props.onChange({ target: { value: 'Different draft for Carol' } });
+    });
+    await clickRowInvite(renderer, '@bob:example.org');
+    expect(mx.invite).toHaveBeenNthCalledWith(5, room.roomId, '@bob:example.org', 'Note for Bob');
+    expect(getNoteInput().props.value).toBe('Different draft for Carol');
+
+    // Start an invite with current draft, edit draft while invite is in flight -> newer draft is preserved.
+    let resolveCarol!: () => void;
+    vi.mocked(mx.invite).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCarol = () => resolve({} as never)))
+    );
+    typeSearch(renderer, '@carol:example.org');
+    await pressKeyInSearch(renderer, 'Enter');
+    act(() => {
+      getNoteInput().props.onChange({ target: { value: 'Newer draft while in flight' } });
+    });
+    await act(async () => {
+      resolveCarol();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(getNoteInput().props.value).toBe('Newer draft while in flight');
   });
 
   it('defaults moderator rights ON for MindRoom agents when none holds moderator power, and invites before granting', async () => {
@@ -887,7 +1192,10 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
         getId: () => '$pl1',
         getContent: () => room.state.powerLevels,
       });
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@mindroom_helper:example.org',
+      });
       return { event_id: '$pl1' };
     });
 
@@ -896,7 +1204,10 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     act(() => {
       room.state.members = [{ userId: '@mindroom_helper:example.org', membership: 'leave' }];
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, {
+        roomId: room.roomId,
+        userId: '@mindroom_helper:example.org',
+      });
     });
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
   });
@@ -917,6 +1228,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await act(async () => {
       finishInvite();
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -1005,15 +1317,23 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     );
   });
 
-  it('publishes a non-blocking detached notice when a grant fails after the dialog closed', async () => {
-    let finishInvite: () => void = () => undefined;
+  it('queues multiple detached grant failures after dialog closes without overwriting', async () => {
+    let finishFirst: () => void = () => undefined;
+    let finishSecond: () => void = () => undefined;
     const { renderer, mx, store } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(
-      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
-    );
-    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+    vi.mocked(mx.invite)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishFirst = () => resolve({} as never)))
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishSecond = () => resolve({} as never)))
+      );
+    vi.mocked(mx.setPowerLevel)
+      .mockRejectedValueOnce(new Error('Forbidden 1'))
+      .mockRejectedValueOnce(new Error('Forbidden 2'));
 
     act(() => {
+      getRowActionButton(getRowByText(renderer, 'Coder')!).props.onClick();
       getRowActionButton(getRowByText(renderer, 'Helper')!).props.onClick();
     });
     act(() => {
@@ -1021,14 +1341,19 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     });
 
     await act(async () => {
-      finishInvite();
+      finishFirst();
+      finishSecond();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    expect(store.get(detachedGrantErrorAtom)?.message).toBe(
-      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden'
-    );
+    expect(store.get(detachedGrantErrorAtom).map((item) => item.message)).toEqual([
+      'Invited @mindroom_coder:example.org, but could not give Moderator rights: Forbidden 1',
+      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden 2',
+    ]);
   });
 
   it('writes nothing and reports a changed requirement if the router level rises while invite is in flight', async () => {
@@ -1070,11 +1395,14 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       finishInvite();
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(store.get(detachedGrantErrorAtom)?.message).toContain('@mindroom_helper:example.org');
-    expect(store.get(detachedGrantErrorAtom)?.message).toContain('Admin');
+    const notices = store.get(detachedGrantErrorAtom);
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.message).toContain('@mindroom_helper:example.org');
+    expect(notices[0]?.message).toContain('Admin');
   });
 
   it('uses the localized forbidden error if viewer loses permission while invite is in flight', async () => {
@@ -1100,12 +1428,16 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
   });
 
-  it('renders and dismisses a detached grant failure notice', () => {
+  it('renders multiple queued detached grant failure notices and dismisses them individually', () => {
     const store = createStore();
-    store.set(detachedGrantErrorAtom, {
-      message:
-        'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden',
-    });
+    store.set(detachedGrantErrorAtom, [
+      createDetachedGrantError(
+        'Invited @mindroom_coder:example.org, but could not give Moderator rights: Forbidden'
+      ),
+      createDetachedGrantError(
+        'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden'
+      ),
+    ]);
     let notice: ReactTestRenderer;
     act(() => {
       notice = create(
@@ -1114,13 +1446,25 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
         </Provider>
       );
     });
-    const alert = notice!.root.findByProps({ role: 'alert' });
-    expect(alert).toBeDefined();
-    const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss notice' });
+    const findAlerts = () =>
+      notice!.root.findAll((node) => typeof node.type === 'string' && node.props.role === 'alert');
+    const findDismissButtons = () =>
+      notice!.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Dismiss notice'
+      );
+    expect(findAlerts()).toHaveLength(2);
+    expect(findDismissButtons()).toHaveLength(2);
+
     act(() => {
-      dismiss.props.onClick();
+      findDismissButtons()[0]!.props.onClick();
     });
-    expect(store.get(detachedGrantErrorAtom)).toBeUndefined();
+    expect(store.get(detachedGrantErrorAtom)).toHaveLength(1);
+    expect(findAlerts()).toHaveLength(1);
+
+    act(() => {
+      findDismissButtons()[0]!.props.onClick();
+    });
+    expect(store.get(detachedGrantErrorAtom)).toEqual([]);
     expect(notice!.toJSON()).toBeNull();
   });
 });

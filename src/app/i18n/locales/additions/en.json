@@ -93,9 +93,7 @@
       "wheelZoomHint": "{{key}} + scroll to zoom"
     },
     "inviteUserPrompt": {
-      "close": "Close",
       "invited": "Invited {{user}}.",
-      "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
       "roleRequirementChanged": "This room now requires {{role}} rights.",
@@ -116,7 +114,11 @@
       "addNote": "+ Add invite note",
       "hideNote": "− Hide invite note",
       "notePlaceholder": "Add a note to your invite...",
-      "giveRoleRightsAgents": "Give invited agents {{role}} rights"
+      "giveRoleRightsAgents": "Give invited agents {{role}} rights",
+      "alreadyInRoom": "Already in this room",
+      "alreadyInvited": "Already invited",
+      "bannedFromRoom": "Banned from this room",
+      "retryUser": "Retry inviting {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Close",

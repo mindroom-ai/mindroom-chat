@@ -96,9 +96,7 @@
       "wheelZoomHint": "{{key}} + rolar para ampliar"
     },
     "inviteUserPrompt": {
-      "close": "Fechar",
       "invited": "{{user}} foi convidado.",
-      "giveRoleRights": "Conceder permissões de {{role}}",
       "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
       "roleFailed": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}",
       "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}.",
@@ -119,7 +117,11 @@
       "addNote": "+ Adicionar nota de convite",
       "hideNote": "− Ocultar nota de convite",
       "notePlaceholder": "Adicione uma nota ao seu convite...",
-      "giveRoleRightsAgents": "Conceder permissões de {{role}} aos agentes convidados"
+      "giveRoleRightsAgents": "Conceder permissões de {{role}} aos agentes convidados",
+      "alreadyInRoom": "Já está nesta sala",
+      "alreadyInvited": "Já convidado",
+      "bannedFromRoom": "Banido desta sala",
+      "retryUser": "Tentar convidar {{user}} novamente"
     },
     "joinAddressPrompt": {
       "close": "Fechar",

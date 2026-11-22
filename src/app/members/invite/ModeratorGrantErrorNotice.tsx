@@ -7,17 +7,18 @@ import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { PageSlot, noticeCard } from '../../ui/noticeSlots.css';
 import { detachedGrantErrorAtom } from './moderatorInvite';
 
-/** Non-blocking notice when a dialog-submitted moderator grant fails after the dialog closed. */
+/** Non-blocking notices when dialog-submitted moderator grants fail after the dialog closed. */
 export function ModeratorGrantErrorNotice() {
   const { t } = useTranslation();
-  const [failure, setFailure] = useAtom(detachedGrantErrorAtom);
+  const [failures, setFailures] = useAtom(detachedGrantErrorAtom);
   const coverSlot = useAtomValue(coverNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const slot = coverSlot ?? pageSlot;
 
-  if (!failure) return null;
-  const card = (
+  if (failures.length === 0) return null;
+  const cards = failures.map((failure) => (
     <Surface
+      key={failure.id}
       variant="Critical"
       role="alert"
       style={{ ...noticeCard, maxInlineSize: toRem(440), flexShrink: 0 }}
@@ -37,12 +38,16 @@ export function ModeratorGrantErrorNotice() {
           variant="Critical"
           fill="None"
           aria-label={t('mindroomUi.notices.dismiss')}
-          onClick={() => setFailure(undefined)}
+          onClick={() => setFailures((current) => current.filter((item) => item.id !== failure.id))}
         >
           <Icon size="100" src={Icons.Cross} />
         </IconButton>
       </Box>
     </Surface>
+  ));
+  return slot ? (
+    createPortal(cards, slot)
+  ) : (
+    <div className={PageSlot({ phone: false })}>{cards}</div>
   );
-  return slot ? createPortal(card, slot) : <div className={PageSlot({ phone: false })}>{card}</div>;
 }

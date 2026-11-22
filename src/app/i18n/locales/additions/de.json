@@ -93,9 +93,7 @@
       "wheelZoomHint": "{{key}} + Scrollen zum Zoomen"
     },
     "inviteUserPrompt": {
-      "close": "Schließen",
       "invited": "{{user}} wurde eingeladen.",
-      "giveRoleRights": "{{role}}-Rechte erteilen",
       "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
       "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
       "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
@@ -116,7 +114,11 @@
       "addNote": "+ Einladungsnotiz hinzufügen",
       "hideNote": "− Einladungsnotiz ausblenden",
       "notePlaceholder": "Notiz zur Einladung hinzufügen...",
-      "giveRoleRightsAgents": "Eingeladenen Agenten {{role}}-Rechte erteilen"
+      "giveRoleRightsAgents": "Eingeladenen Agenten {{role}}-Rechte erteilen",
+      "alreadyInRoom": "Bereits in diesem Raum",
+      "alreadyInvited": "Bereits eingeladen",
+      "bannedFromRoom": "Aus diesem Raum verbannt",
+      "retryUser": "Einladung für {{user}} erneut versuchen"
     },
     "joinAddressPrompt": {
       "close": "Schließen",

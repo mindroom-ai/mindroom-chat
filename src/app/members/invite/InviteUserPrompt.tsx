@@ -3,6 +3,7 @@ import {
   KeyboardEvent,
   ReactNode,
   RefObject,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -30,6 +31,7 @@ import {
 } from 'folds';
 import {
   KnownMembership,
+  RoomEvent,
   RoomMemberEvent,
   type MatrixEvent,
   type Room,
@@ -45,6 +47,7 @@ import { useAlive } from '../../lib/hooks/useAlive';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { stopPropagation } from '../../lib/keyboard';
+import { isComposingKey } from '../../shortcuts/shortcuts';
 import { useDirectUsers } from '../../matrix/hooks/useDirectUsers';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -53,10 +56,7 @@ import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getMxIdLocalPart, isUserId } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
-import {
-  isMindroomAgentUserId,
-  isMindroomAgentUserIdForViewer,
-} from '../../matrix/protocol/agentIdentity';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { usePowerLevelTags } from '../usePowerLevelTags';
 import { useInviteUserSearch } from '../useInviteUserSearch';
 import { useUserDirectoryCache } from '../useUserDirectoryCache';
@@ -64,6 +64,7 @@ import { mergeUserDirectoryUsers, type ServerUserDirectoryUser } from '../userDi
 import { filterInviteUserCandidates } from '../userDirectorySearch';
 import { getDisplayName } from './InviteUserAutocomplete';
 import {
+  createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateModeratorGrant,
   evaluateRoomModeratorGrant,
@@ -97,10 +98,12 @@ type Candidate = {
 
 type Attempt = Candidate & {
   index: number;
+  reason?: string;
   state: AttemptState;
 };
 
 type InviteRow = Candidate & {
+  reason?: string;
   state?: AttemptState;
 };
 
@@ -125,22 +128,16 @@ const FILTER_LABEL_KEY: Record<
   agents: 'sharedUi.inviteUserPrompt.filterAgents',
 };
 
-const isAgentCandidate = (userId: string, viewerId: string | undefined): boolean =>
-  viewerId ? isMindroomAgentUserIdForViewer(userId, viewerId) : isMindroomAgentUserId(userId);
+const browseCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
 
-const matchesFilter = (
-  userId: string,
-  filter: InviteFilter,
-  viewerId: string | undefined
-): boolean => {
+const matchesFilter = (userId: string, filter: InviteFilter, viewerId: string): boolean => {
   if (filter === 'all') return true;
-  const isAgent = isAgentCandidate(userId, viewerId);
+  const isAgent = isMindroomAgentUserIdForViewer(userId, viewerId);
   return filter === 'agents' ? isAgent : !isAgent;
 };
 
 const compareBrowseUsers = (a: ServerUserDirectoryUser, b: ServerUserDirectoryUser): number =>
-  getDisplayName(a).localeCompare(getDisplayName(b), undefined, { sensitivity: 'base' }) ||
-  a.userId.localeCompare(b.userId);
+  browseCollator.compare(getDisplayName(a), getDisplayName(b)) || a.userId.localeCompare(b.userId);
 
 const rowDisplayName = ({ user, listed }: Pick<Candidate, 'user' | 'listed'>): string =>
   listed ? getDisplayName(user) : user.userId;
@@ -203,22 +200,28 @@ const dialogTrapOptions = (
   clickOutsideDeactivates: true,
 });
 
+const isReflectedMembership = (membership: string | undefined): boolean =>
+  membership === KnownMembership.Invite ||
+  membership === KnownMembership.Join ||
+  membership === KnownMembership.Ban;
+
 function InviteDirectoryRow({
   row,
   viewerId,
+  authenticatedMedia,
   onInvite,
 }: {
   row: InviteRow;
-  viewerId: string | undefined;
+  viewerId: string;
+  authenticatedMedia: boolean;
   onInvite: () => void;
 }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const authenticatedMedia = useMediaAuthentication();
   const subtitleId = useId();
   const { user, listed, state } = row;
   const name = rowDisplayName(row);
-  const isAgent = isAgentCandidate(user.userId, viewerId);
+  const isAgent = isMindroomAgentUserIdForViewer(user.userId, viewerId);
   const avatarSrc = user.avatarMxcUrl
     ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
@@ -242,10 +245,9 @@ function InviteDirectoryRow({
     ariaLabel = undefined;
   } else if (failed) {
     variant = 'Critical';
-    fill = 'Soft';
     before = undefined;
     buttonLabel = t('sharedUi.roomCard.retry');
-    ariaLabel = undefined;
+    ariaLabel = t('sharedUi.inviteUserPrompt.retryUser', { user: name });
   }
 
   return (
@@ -280,7 +282,7 @@ function InviteDirectoryRow({
           id={subtitleId}
           size="T200"
           priority="300"
-          truncate
+          className={css.Subtitle}
           title={user.userId}
           {...ownDirectionLine}
         >
@@ -320,6 +322,35 @@ function InviteDirectoryRow({
   );
 }
 
+function RowList({
+  rows,
+  viewerId,
+  authenticatedMedia,
+  ariaLabelledBy,
+  onInvite,
+}: {
+  rows: readonly InviteRow[];
+  viewerId: string;
+  authenticatedMedia: boolean;
+  ariaLabelledBy?: string;
+  onInvite: (row: InviteRow, index: number) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <ul className={css.List} aria-labelledby={ariaLabelledBy}>
+      {rows.map((row, index) => (
+        <InviteDirectoryRow
+          key={row.user.userId}
+          row={row}
+          viewerId={viewerId}
+          authenticatedMedia={authenticatedMedia}
+          onInvite={() => onInvite(row, index)}
+        />
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Instant Directory Sheet for inviting people and agents to a room. Opens directly onto a
  * browsable, filterable directory with one-tap per-row invites, inline search, Enter-to-invite
@@ -333,6 +364,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const directoryHeadingId = useId();
   const store = useStore();
   const client = useMatrixClient();
+  const authenticatedMedia = useMediaAuthentication();
   const alive = useAlive();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const levels = usePowerLevels(room);
@@ -352,32 +384,63 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [note, setNote] = useState('');
   const [grantOverride, setGrantOverride] = useState<boolean>();
   const [announcement, setAnnouncement] = useState('');
-  const [sessionInvitedIds, setSessionInvitedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [enterHint, setEnterHint] = useState<string>();
+  const [pendingSyncInvited, setPendingSyncInvited] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   const [rosterVersion, bumpRoster] = useForceUpdate();
 
   const trimmedQuery = query.trim();
   const viewKey = `${filter}|${trimmedQuery}`;
   const [attempts, setAttempts] = useState<Attempts>({ viewKey, byUser: {} });
 
-  const { suggestions, isFetching } = useInviteUserSearch(room, trimmedQuery);
+  // Filter before ranking, limiting, and server-fallback threshold so 8 people never crowd out agents.
+  const searchPredicate = useMemo(
+    () =>
+      filter === 'all'
+        ? undefined
+        : (user: ServerUserDirectoryUser) => matchesFilter(user.userId, filter, me),
+    [filter, me]
+  );
+  const { suggestions, isFetching } = useInviteUserSearch(room, trimmedQuery, searchPredicate);
 
-  // Room-level moderator grant offer for MindRoom agents.
+  // Room-level moderator grant offer for MindRoom agents (always visible when offered so consent
+  // is never hidden on tab switches).
   const roomGrantOffer = evaluateRoomModeratorGrant(room, me, levels, creators);
   const roomGrantLevel = roomGrantOffer.kind === 'grant' ? roomGrantOffer.level : undefined;
   const canOfferRoomGrant = roomGrantLevel !== undefined;
-  const showGrantCheckbox = canOfferRoomGrant && filter !== 'people';
+  const showGrantCheckbox = canOfferRoomGrant;
   const membersLoaded = room.membersLoaded();
 
   const memberLoads = useLoadedRoomMembers(client, canOfferRoomGrant ? [room.roomId] : []);
   useEffect(() => {
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
-      if ((event?.getRoomId() ?? member?.roomId) === room.roomId) bumpRoster();
+      if ((event?.getRoomId() ?? member?.roomId) !== room.roomId) return;
+      const memberId = member?.userId ?? event?.getStateKey?.();
+      setPendingSyncInvited((current) => {
+        if (current.size === 0) return current;
+        let changed = false;
+        const next = new Set(current);
+        if (memberId && next.delete(memberId)) changed = true;
+        current.forEach((userId) => {
+          if (isReflectedMembership(room.getMember(userId)?.membership) && next.delete(userId)) {
+            changed = true;
+          }
+        });
+        return changed ? next : current;
+      });
+      bumpRoster();
+    };
+    const onSummary = () => {
+      bumpRoster();
     };
     client.on(RoomMemberEvent.Membership, onMembership);
+    room.on?.(RoomEvent.Summary, onSummary);
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
+      room.removeListener?.(RoomEvent.Summary, onSummary);
     };
-  }, [client, room.roomId, bumpRoster]);
+  }, [client, room, bumpRoster]);
 
   const hasAgentModerator = useMemo(() => {
     void memberLoads;
@@ -393,22 +456,36 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const grantModerator = grantOverride ?? defaultModerator;
   const roleName = roomGrantLevel !== undefined ? grantRoleName(tags, roomGrantLevel, t) : '';
 
-  // Live header counts: reflect session invites immediately without double-counting once sync lands.
-  void rosterVersion;
-  const joinedCount = room.getJoinedMemberCount();
-  const roomInvitedCount = room.getInvitedMemberCount();
-  let uncountedSessionInvites = 0;
-  sessionInvitedIds.forEach((userId) => {
-    const membership = room.getMember(userId)?.membership;
-    if (membership !== KnownMembership.Invite && membership !== KnownMembership.Join) {
-      uncountedSessionInvites += 1;
-    }
-  });
-  const displayInvitedCount = roomInvitedCount + uncountedSessionInvites;
+  const isInvitable = useCallback(
+    (userId: string): boolean => {
+      void rosterVersion;
+      return (
+        !pendingSyncInvited.has(userId) &&
+        filterInviteUserCandidates([{ userId }], room, me).length > 0
+      );
+    },
+    [pendingSyncInvited, room, me, rosterVersion]
+  );
+
+  // Live header counts: reflect pending session invites until authoritative room state syncs.
+  const { joinedCount, displayInvitedCount } = useMemo(() => {
+    void rosterVersion;
+    let unreflectedPending = 0;
+    pendingSyncInvited.forEach((userId) => {
+      if (!isReflectedMembership(room.getMember(userId)?.membership)) {
+        unreflectedPending += 1;
+      }
+    });
+    return {
+      joinedCount: room.getJoinedMemberCount(),
+      displayInvitedCount: room.getInvitedMemberCount() + unreflectedPending,
+    };
+  }, [room, rosterVersion, pendingSyncInvited]);
 
   const roomName = room.name?.trim();
+  // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading.
   const title = roomName
-    ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: roomName })
+    ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: `\u2068${roomName}\u2069` })
     : t('sharedUi.inviteUserPrompt.invite');
   const membersLabel = t('featureUi.room.membersDrawer.memberCount', { count: joinedCount });
   const subtitle =
@@ -421,8 +498,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
   // Drop failed attempts if the person joined or got invited externally.
   const isAttemptOffered = (attempt: Attempt) =>
-    attempt.state.status !== 'failed' ||
-    filterInviteUserCandidates([attempt.user], room, me).length > 0;
+    attempt.state.status !== 'failed' || isInvitable(attempt.user.userId);
 
   if (attempts.viewKey !== viewKey) {
     setAttempts({ viewKey, byUser: carryOver(attempts.byUser, isAttemptOffered) });
@@ -455,11 +531,36 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
   const eligibleLocalUsers = useMemo(() => {
     void rosterVersion;
-    return filterInviteUserCandidates(allLocalUsers, room, me);
-  }, [allLocalUsers, room, me, rosterVersion]);
+    return filterInviteUserCandidates(allLocalUsers, room, me).filter(
+      (user) => !pendingSyncInvited.has(user.userId)
+    );
+  }, [allLocalUsers, room, me, rosterVersion, pendingSyncInvited]);
+
+  // Memoize sorting separately from note/attempt edits so typing never re-sorts a large directory.
+  const sortedBrowse = useMemo(() => {
+    if (filter === 'all') {
+      const direct = eligibleLocalUsers
+        .filter((user) => directUserSet.has(user.userId))
+        .sort(compareBrowseUsers);
+      const directory = eligibleLocalUsers
+        .filter((user) => !directUserSet.has(user.userId))
+        .sort(compareBrowseUsers);
+      return { direct, directory, flat: [] as ServerUserDirectoryUser[] };
+    }
+    const flat = eligibleLocalUsers
+      .filter((user) => matchesFilter(user.userId, filter, me))
+      .sort(compareBrowseUsers);
+    return {
+      direct: [] as ServerUserDirectoryUser[],
+      directory: [] as ServerUserDirectoryUser[],
+      flat,
+    };
+  }, [eligibleLocalUsers, directUserSet, filter, me]);
 
   const isSearching = trimmedQuery.length > 0;
   const showSections = !isSearching && filter === 'all';
+  const allAttempts = Object.values(placed);
+  const attemptedIds = new Set(Object.keys(placed));
 
   let pinnedRows: InviteRow[] = [];
   let directRows: InviteRow[] = [];
@@ -467,19 +568,18 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   let flatRows: InviteRow[] = [];
 
   if (showSections) {
-    const directCandidates: Candidate[] = eligibleLocalUsers
-      .filter((user) => directUserSet.has(user.userId))
-      .sort(compareBrowseUsers)
-      .slice(0, BROWSE_DIRECTORY_LIMIT)
+    // Deduplicate all attempted MXIDs across every section before spending the 100-row budget.
+    const remainingAfterAttempts = Math.max(0, BROWSE_DIRECTORY_LIMIT - allAttempts.length);
+    const directCandidates: Candidate[] = sortedBrowse.direct
+      .filter((user) => !attemptedIds.has(user.userId))
+      .slice(0, remainingAfterAttempts)
       .map((user) => ({ user, listed: true, section: 'direct' }));
-    const directoryBudget = Math.max(0, BROWSE_DIRECTORY_LIMIT - directCandidates.length);
-    const directoryCandidates: Candidate[] = eligibleLocalUsers
-      .filter((user) => !directUserSet.has(user.userId))
-      .sort(compareBrowseUsers)
+    const directoryBudget = Math.max(0, remainingAfterAttempts - directCandidates.length);
+    const directoryCandidates: Candidate[] = sortedBrowse.directory
+      .filter((user) => !attemptedIds.has(user.userId))
       .slice(0, directoryBudget)
       .map((user) => ({ user, listed: true, section: 'directory' }));
 
-    const allAttempts = Object.values(placed);
     pinnedRows = mergeAttemptsIntoRows(
       [],
       allAttempts.filter((attempt) => attempt.section === 'search'),
@@ -496,28 +596,50 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       knownUsersMap
     );
   } else if (!isSearching) {
-    const filteredBrowse: Candidate[] = eligibleLocalUsers
-      .filter((user) => matchesFilter(user.userId, filter, me))
-      .sort(compareBrowseUsers)
-      .slice(0, BROWSE_DIRECTORY_LIMIT)
+    const remainingBudget = Math.max(0, BROWSE_DIRECTORY_LIMIT - allAttempts.length);
+    const filteredBrowse: Candidate[] = sortedBrowse.flat
+      .filter((user) => !attemptedIds.has(user.userId))
+      .slice(0, remainingBudget)
       .map((user) => ({ user, listed: true, section: 'directory' }));
-    flatRows = mergeAttemptsIntoRows(filteredBrowse, Object.values(placed), knownUsersMap);
+    flatRows = mergeAttemptsIntoRows(filteredBrowse, allAttempts, knownUsersMap);
   } else {
     const filteredSuggestions: Candidate[] = suggestions
-      .filter((user) => matchesFilter(user.userId, filter, me))
+      .filter((user) => !pendingSyncInvited.has(user.userId))
       .map((user) => ({ user, listed: true, section: 'search' }));
     const typedEligible =
       isUserId(trimmedQuery) &&
-      filterInviteUserCandidates([{ userId: trimmedQuery }], room, me).length > 0 &&
+      isInvitable(trimmedQuery) &&
       !filteredSuggestions.some((candidate) => candidate.user.userId === trimmedQuery);
-    const searchCandidates: Candidate[] = typedEligible
-      ? [
-          { user: { userId: trimmedQuery }, listed: false, section: 'search' },
-          ...filteredSuggestions,
-        ]
+    const knownTyped = typedEligible ? knownUsersMap.get(trimmedQuery) : undefined;
+    const typedCandidate: Candidate | undefined = typedEligible
+      ? knownTyped
+        ? { user: knownTyped, listed: true, section: 'search' }
+        : { user: { userId: trimmedQuery }, listed: false, section: 'search' }
+      : undefined;
+    const searchCandidates: Candidate[] = typedCandidate
+      ? [typedCandidate, ...filteredSuggestions]
       : filteredSuggestions;
-    flatRows = mergeAttemptsIntoRows(searchCandidates, Object.values(placed), knownUsersMap);
+    flatRows = mergeAttemptsIntoRows(searchCandidates, allAttempts, knownUsersMap);
   }
+
+  // Inline hint when a typed valid MXID is already in the room, invited, or banned.
+  let nonInvitableHint: string | undefined;
+  if (
+    isSearching &&
+    isUserId(trimmedQuery) &&
+    placed[trimmedQuery] === undefined &&
+    !isInvitable(trimmedQuery)
+  ) {
+    const membership = room.getMember(trimmedQuery)?.membership;
+    if (trimmedQuery === me || membership === KnownMembership.Join) {
+      nonInvitableHint = t('sharedUi.inviteUserPrompt.alreadyInRoom');
+    } else if (membership === KnownMembership.Invite || pendingSyncInvited.has(trimmedQuery)) {
+      nonInvitableHint = t('sharedUi.inviteUserPrompt.alreadyInvited');
+    } else if (membership === KnownMembership.Ban) {
+      nonInvitableHint = t('sharedUi.inviteUserPrompt.bannedFromRoom');
+    }
+  }
+  const activeHint = nonInvitableHint ?? enterHint;
 
   const totalVisibleRows = showSections
     ? pinnedRows.length + directRows.length + directoryRows.length
@@ -542,22 +664,28 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   ) => {
     const targetId = candidate.user.userId;
     if (inFlightRef.current.has(targetId)) return;
-    const existing = placed[targetId]?.state;
+    const existingAttempt = placed[targetId];
+    const existingState = existingAttempt?.state;
     if (
-      existing?.status === 'inviting' ||
-      existing?.status === 'invited' ||
-      existing?.status === 'grantFailed'
+      existingState?.status === 'inviting' ||
+      existingState?.status === 'invited' ||
+      existingState?.status === 'grantFailed'
     ) {
       return;
     }
 
-    const reason = note.trim() || undefined;
+    const isRetry = existingState?.status === 'failed';
+    const submittedNote = !isRetry && noteOpen ? note : '';
+    const reason = isRetry ? existingAttempt?.reason : submittedNote.trim() || undefined;
+    const shouldClearNote = !isRetry && reason !== undefined;
+
     const targetOffer = grantModerator
       ? evaluateModeratorGrant(room, targetId, me, levels, creators)
       : undefined;
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
+    setEnterHint(undefined);
 
     if (options?.clearQuery) {
       const nextViewKey = `${filter}|`;
@@ -570,6 +698,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             ...candidate,
             section: 'search',
             index: 0,
+            reason,
             state: { status: 'inviting' },
           },
         },
@@ -585,6 +714,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             [targetId]: {
               ...candidate,
               index: previous?.index ?? index,
+              reason,
               state: { status: 'inviting' },
             },
           },
@@ -603,12 +733,17 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       }
 
       if (alive()) {
-        setSessionInvitedIds((current) => {
-          if (current.has(targetId)) return current;
-          const next = new Set(current);
-          next.add(targetId);
-          return next;
-        });
+        if (!isReflectedMembership(room.getMember(targetId)?.membership)) {
+          setPendingSyncInvited((current) => {
+            if (current.has(targetId)) return current;
+            const next = new Set(current);
+            next.add(targetId);
+            return next;
+          });
+        }
+        if (shouldClearNote) {
+          setNote((current) => (current === submittedNote ? '' : current));
+        }
       }
 
       // Finish the submitted grant even if the user closed the dialog while invite was in flight.
@@ -620,7 +755,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             setAnnouncement('');
             updateAttemptState(targetId, { status: 'grantFailed', message });
           } else if (client.clientRunning !== false) {
-            store.set(detachedGrantErrorAtom, { message });
+            store.set(detachedGrantErrorAtom, (current) => [
+              ...current,
+              createDetachedGrantError(message),
+            ]);
           }
           return;
         }
@@ -635,6 +773,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
   };
 
+  const handleRowInvite = (row: InviteRow, index: number) => {
+    void inviteUser(row, index);
+  };
+
   const handleListKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
@@ -642,35 +784,62 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && isUserId(trimmedQuery)) {
-      const eligible = filterInviteUserCandidates([{ userId: trimmedQuery }], room, me).length > 0;
-      const existing = placed[trimmedQuery]?.state;
-      const busyOrDone =
-        inFlightRef.current.has(trimmedQuery) ||
-        existing?.status === 'inviting' ||
-        existing?.status === 'invited' ||
-        existing?.status === 'grantFailed';
-      if (eligible && !busyOrDone) {
+    const native = event.nativeEvent as Partial<globalThis.KeyboardEvent> | undefined;
+    if (
+      isComposingKey({
+        key: native?.key ?? event.key,
+        isComposing: Boolean(native?.isComposing),
+        keyCode: native?.keyCode ?? event.keyCode ?? 0,
+      })
+    ) {
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      if (isUserId(trimmedQuery)) {
+        const existing = placed[trimmedQuery]?.state;
+        const busyOrDone =
+          inFlightRef.current.has(trimmedQuery) ||
+          existing?.status === 'inviting' ||
+          existing?.status === 'invited' ||
+          existing?.status === 'grantFailed';
+        if (isInvitable(trimmedQuery) && !busyOrDone) {
+          event.preventDefault();
+          const known = knownUsersMap.get(trimmedQuery);
+          const candidate: Candidate = known
+            ? { user: known, listed: true, section: 'search' }
+            : { user: { userId: trimmedQuery }, listed: false, section: 'search' };
+          void inviteUser(candidate, 0, { clearQuery: true });
+        }
+      } else if (trimmedQuery.length > 0) {
         event.preventDefault();
-        const known = knownUsersMap.get(trimmedQuery);
-        const candidate: Candidate = known
-          ? { user: known, listed: true, section: 'search' }
-          : { user: { userId: trimmedQuery }, listed: false, section: 'search' };
-        void inviteUser(candidate, 0, { clearQuery: true });
+        setEnterHint(t('featureUi.createChat.pleaseEnterAValidUserId'));
       }
       return;
     }
     handleListKeyDown(event);
   };
 
+  const handleQueryChange = (evt: ChangeEvent<HTMLInputElement>) => {
+    setEnterHint(undefined);
+    setQuery(evt.target.value);
+  };
+
   const handleClearSearch = () => {
+    setEnterHint(undefined);
     setQuery('');
     inputRef.current?.focus();
   };
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter className={phone ? modalCss.PhoneOverlayCenter : modalCss.SafeOverlayCenter}>
+      <OverlayCenter
+        className={
+          phone
+            ? classNames(modalCss.PhoneOverlayCenter, css.PhoneViewportCenter)
+            : modalCss.SafeOverlayCenter
+        }
+      >
         <FocusTrap focusTrapOptions={dialogTrapOptions(inputRef, requestClose)}>
           <Dialog
             role="dialog"
@@ -681,7 +850,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
           >
             <Header size="500" className={css.TitleBar}>
               <div className={css.TitleBlock}>
-                <Text as="h2" size="H4" id={TITLE_ID} truncate {...ownDirectionLine}>
+                <Text as="h2" size="H4" id={TITLE_ID} truncate>
                   {title}
                 </Text>
                 <Text as="p" size="T200" priority="300" truncate>
@@ -703,12 +872,13 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             <div className={css.Controls}>
               <Input
                 ref={inputRef}
+                className={css.SearchField}
                 type="search"
                 size="400"
                 variant="Background"
                 radii="400"
                 value={query}
-                onChange={(evt: ChangeEvent<HTMLInputElement>) => setQuery(evt.target.value)}
+                onChange={handleQueryChange}
                 onKeyDown={handleInputKeyDown}
                 before={<Icon size="200" src={Icons.Search} />}
                 after={
@@ -742,6 +912,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   <Chip
                     key={entry}
                     type="button"
+                    className={css.FilterChip}
                     variant={entry === filter ? 'Primary' : 'SurfaceVariant'}
                     radii="Pill"
                     aria-pressed={entry === filter}
@@ -756,20 +927,20 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             {/* Arrow keys move focus between row actions and back up into the search field. */}
             {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
             <div ref={listRef} className={css.ListArea} onKeyDown={handleListKeyDown}>
+              {activeHint && (
+                <Text as="p" size="T200" priority="300" className={css.InlineHint}>
+                  {activeHint}
+                </Text>
+              )}
+
               {showSections ? (
                 <>
-                  {pinnedRows.length > 0 && (
-                    <ul className={css.List}>
-                      {pinnedRows.map((row, index) => (
-                        <InviteDirectoryRow
-                          key={row.user.userId}
-                          row={row}
-                          viewerId={me}
-                          onInvite={() => void inviteUser(row, index)}
-                        />
-                      ))}
-                    </ul>
-                  )}
+                  <RowList
+                    rows={pinnedRows}
+                    viewerId={me}
+                    authenticatedMedia={authenticatedMedia}
+                    onInvite={handleRowInvite}
+                  />
                   {directRows.length > 0 && (
                     <>
                       <Text
@@ -781,16 +952,13 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                       >
                         {t('sharedUi.inviteUserPrompt.recentAndDirect')}
                       </Text>
-                      <ul className={css.List} aria-labelledby={directHeadingId}>
-                        {directRows.map((row, index) => (
-                          <InviteDirectoryRow
-                            key={row.user.userId}
-                            row={row}
-                            viewerId={me}
-                            onInvite={() => void inviteUser(row, index)}
-                          />
-                        ))}
-                      </ul>
+                      <RowList
+                        rows={directRows}
+                        viewerId={me}
+                        authenticatedMedia={authenticatedMedia}
+                        ariaLabelledBy={directHeadingId}
+                        onInvite={handleRowInvite}
+                      />
                     </>
                   )}
                   {directoryRows.length > 0 && (
@@ -804,32 +972,23 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                       >
                         {t('sharedUi.inviteUserPrompt.directory')}
                       </Text>
-                      <ul className={css.List} aria-labelledby={directoryHeadingId}>
-                        {directoryRows.map((row, index) => (
-                          <InviteDirectoryRow
-                            key={row.user.userId}
-                            row={row}
-                            viewerId={me}
-                            onInvite={() => void inviteUser(row, index)}
-                          />
-                        ))}
-                      </ul>
+                      <RowList
+                        rows={directoryRows}
+                        viewerId={me}
+                        authenticatedMedia={authenticatedMedia}
+                        ariaLabelledBy={directoryHeadingId}
+                        onInvite={handleRowInvite}
+                      />
                     </>
                   )}
                 </>
               ) : (
-                flatRows.length > 0 && (
-                  <ul className={css.List}>
-                    {flatRows.map((row, index) => (
-                      <InviteDirectoryRow
-                        key={row.user.userId}
-                        row={row}
-                        viewerId={me}
-                        onInvite={() => void inviteUser(row, index)}
-                      />
-                    ))}
-                  </ul>
-                )
+                <RowList
+                  rows={flatRows}
+                  viewerId={me}
+                  authenticatedMedia={authenticatedMedia}
+                  onInvite={handleRowInvite}
+                />
               )}
 
               {(isDirectoryLoading || (isSearching && isFetching)) && (
@@ -843,13 +1002,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                 </div>
               )}
 
-              {!isDirectoryLoading && !(isSearching && isFetching) && totalVisibleRows === 0 && (
-                <Text as="p" size="T200" priority="300" className={css.EmptyState}>
-                  {isSearching
-                    ? t('sharedUi.inviteUserPrompt.noMatches')
-                    : t('sharedUi.inviteUserPrompt.emptyDirectory')}
-                </Text>
-              )}
+              {!isDirectoryLoading &&
+                !(isSearching && isFetching) &&
+                totalVisibleRows === 0 &&
+                !activeHint && (
+                  <Text as="p" size="T200" priority="300" className={css.EmptyState}>
+                    {isSearching
+                      ? t('sharedUi.inviteUserPrompt.noMatches')
+                      : t('sharedUi.inviteUserPrompt.emptyDirectory')}
+                  </Text>
+                )}
             </div>
 
             <div className={css.Footer}>

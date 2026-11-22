@@ -90,9 +90,7 @@
       "wheelZoomHint": "{{key}} + gulir untuk memperbesar"
     },
     "inviteUserPrompt": {
-      "close": "Tutup",
       "invited": "{{user}} telah diundang.",
-      "giveRoleRights": "Berikan hak {{role}}",
       "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
       "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
       "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
@@ -113,7 +111,11 @@
       "addNote": "+ Tambah catatan undangan",
       "hideNote": "− Sembunyikan catatan undangan",
       "notePlaceholder": "Tambahkan catatan pada undangan Anda...",
-      "giveRoleRightsAgents": "Berikan hak {{role}} kepada agen yang diundang"
+      "giveRoleRightsAgents": "Berikan hak {{role}} kepada agen yang diundang",
+      "alreadyInRoom": "Sudah ada di ruangan ini",
+      "alreadyInvited": "Sudah diundang",
+      "bannedFromRoom": "Diblokir dari ruangan ini",
+      "retryUser": "Coba lagi mengundang {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
