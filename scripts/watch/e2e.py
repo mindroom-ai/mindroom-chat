@@ -24,6 +24,10 @@ app's log:
            answer in order, and the audio plays to its end (not run in an encrypted room: the script cannot
            encrypt the answer)
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
+  long_thread  a room of its own with 12 short threads and a long one (150 replies, each streamed in 3 edits):
+           the first 10 rows show from the thread list alone (at most 2 requests and 30 KB, before any thread or the
+           room's state is read) with the titles and edited replies the homeserver bundles, and the long
+           thread's row then says what its full read finds
 
 It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots in --out, and exits 1 on a failure.
 """
@@ -31,7 +35,9 @@ It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
+import re
 import secrets
 import subprocess
 import sys
@@ -118,6 +124,13 @@ class Homeserver:
         _, body = self.call("GET", f"/_matrix/client/v3/rooms/{urllib.parse.quote(room)}/state", token=self.token)
         return body if isinstance(body, list) else []
 
+    def create_room(self, name: str, invite: list[str]) -> str:
+        status, body = self.call("POST", "/_matrix/client/v3/createRoom",
+                                 {"name": name, "preset": "private_chat", "invite": invite}, self.token)
+        if status != 200:
+            raise RuntimeError(f"creating room failed: {status} {body}")
+        return body["room_id"]
+
 
 def simctl(*args: str, check: bool = True) -> str:
     env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "DEVELOPER_DIR": DEVELOPER_DIR, "HOME": str(Path.home())}
@@ -170,7 +183,12 @@ def main() -> int:
     parser.add_argument("--room", required=True)
     parser.add_argument("--simulator", default="MindRoom Watch Spike")
     parser.add_argument("--out", default="/tmp/mindroom-watch-e2e")
+    parser.add_argument("--only", help="comma-separated subset of scenarios to run")
     args = parser.parse_args()
+    selected = set(args.only.split(",")) if args.only else None
+    unknown = (selected or set()) - {"voice", "approve", "ask", "listen", "resolve", "long_thread"}
+    if unknown:
+        parser.error(f"unknown scenario(s): {', '.join(sorted(unknown))}")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     server = Homeserver(args.homeserver, args.user, args.password)
@@ -178,11 +196,14 @@ def main() -> int:
     me = server.login()["user_id"]
     results = []
 
-    def scenario(name: str, hooks: dict[str, str], seconds: int, check, during=None) -> None:
-        before = {event["event_id"] for event in server.events(args.room)}
-        log = run_app(udid, args.app, server.credentials(), args.room, hooks, seconds, out, name,
+    def scenario(name: str, hooks: dict[str, str], seconds: int, check, during=None, room_id: str | None = None) -> None:
+        if selected is not None and name not in selected:
+            return
+        target_room = room_id or args.room
+        before = {event["event_id"] for event in server.events(target_room)}
+        log = run_app(udid, args.app, server.credentials(), target_room, hooks, seconds, out, name,
                       during and (lambda: during(before)))
-        new = [event for event in server.events(args.room) if event["event_id"] not in before]
+        new = [event for event in server.events(target_room) if event["event_id"] not in before]
         problem = check(new, log)
         results.append((name, problem))
         print(f"{'FAIL' if problem else 'PASS'} {name}{': ' + problem if problem else ''}", flush=True)
@@ -281,6 +302,123 @@ def main() -> int:
         scenario("listen", {"MINDROOM_WATCH_E2E_SEND_TEXT": "Tell me aloud", "MINDROOM_WATCH_E2E_OPEN": "newest",
                             "MINDROOM_WATCH_E2E_LISTEN": "voice"}, 90, listen, answer_by_voice)
     scenario("resolve", {"MINDROOM_WATCH_E2E_RESOLVE": "newest"}, 25, resolve)
+
+    if selected is None or "long_thread" in selected:
+        replier, replier_token = server.register(f"watch-e2e-long-{secrets.token_hex(4)}")
+        long_room = server.create_room("Watch Placeholder Room", [replier])
+        status, body = server.call("POST", f"/_matrix/client/v3/join/{urllib.parse.quote(long_room)}", {}, replier_token)
+        if status != 200:
+            raise RuntimeError(f"long_thread replier could not join room: {status} {body}")
+
+        # Seed 12 short placeholder threads + 1 long thread (150 replies, each streamed with 3 edits = 600 events):
+        # two pages of the thread list.
+        for idx in range(1, 13):
+            r = server.send(long_room, {"msgtype": "m.text", "body": f"Placeholder topic {idx}"}, server.token)
+            server.send(long_room, {
+                "msgtype": "m.text", "body": f"Placeholder reply for topic {idx}",
+                "m.relates_to": {"rel_type": "m.thread", "event_id": r, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": r}},
+            }, replier_token)
+            server.send(long_room, {
+                "msgtype": "m.notice", "body": f"Sample Topic {idx}",
+                "io.mindroom.thread_summary": {"version": 1, "summary": f"Sample Topic {idx}"},
+                "m.relates_to": {"rel_type": "m.thread", "event_id": r, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": r}},
+            }, replier_token)
+
+        long_root = server.send(long_room, {"msgtype": "m.text", "body": "Long thread placeholder prompt"}, server.token)
+        server.send(long_room, {
+            "msgtype": "m.notice", "body": "Long Streamed Thread",
+            "io.mindroom.thread_summary": {"version": 1, "summary": "Long Streamed Thread"},
+            "m.relates_to": {"rel_type": "m.thread", "event_id": long_root, "is_falling_back": True,
+                             "m.in_reply_to": {"event_id": long_root}},
+        }, replier_token)
+
+        prev = long_root
+        for i in range(1, 151):
+            reply_id = server.send(long_room, {
+                "msgtype": "m.text", "body": f"Placeholder step {i}: starting…",
+                "io.mindroom.stream_status": "streaming",
+                "m.relates_to": {"rel_type": "m.thread", "event_id": long_root, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": prev}},
+            }, replier_token)
+            for rev in (1, 2, 3):
+                final = rev == 3
+                body_text = (f"Placeholder step {i} of 150 complete." if final
+                             else f"Placeholder step {i}: draft {rev} with sample streaming text")
+                new_content = {"msgtype": "m.text", "body": body_text,
+                               "io.mindroom.stream_status": "completed" if final else "streaming"}
+                server.send(long_room, {
+                    "msgtype": "m.text", "body": f"* {body_text}",
+                    "m.new_content": new_content,
+                    "m.relates_to": {"rel_type": "m.replace", "event_id": reply_id},
+                }, replier_token)
+            prev = reply_id
+
+        def check_long_thread(_new, log):
+            lines = log.splitlines()
+
+            def read(line: str) -> tuple[str, str, int] | None:
+                """A request for the room's threads, one event or what relates to it, or the room's state, as the
+                app logs it when it starts ("http GET <path>") and when its answer is in ("http done <path> <bytes>")."""
+                match = re.search(rf"http (GET|done) \S*/rooms/{re.escape(long_room)}/"
+                                  r"(threads|state|relations/\S+|event/\S+|context/\S+)(?: (\d+))?$", line)
+                return match and (match[1], match[2].split("/")[0], int(match[3] or 0))
+
+            def at(index: int) -> datetime.datetime:
+                return datetime.datetime.strptime(lines[index][:23], "%Y-%m-%d %H:%M:%S.%f")
+
+            painted = next((i for i, line in enumerate(lines)
+                            if (match := re.search(r"refresh painted rows=(\d+)", line)) and int(match[1]) >= 10), None)
+            if painted is None:
+                return "the room's first 10 rows did not show with the thread list's first page"
+            before = [found for line in lines[:painted] if (found := read(line))]
+            early = [kind for verb, kind, _ in before if verb == "GET" and kind != "threads"]
+            if early:
+                return f"read before the first rows showed: {early}"
+            requests = sum(1 for verb, _, _ in before if verb == "GET")
+            size = sum(size for verb, _, size in before if verb == "done")
+            first = next((i for i, line in enumerate(lines) if (found := read(line)) and found[1] == "threads"), None)
+            if first is None:
+                return "the app's log has no request for the room's thread list"
+            done = next((i for i in range(painted, len(lines)) if "refresh done " in lines[i]), None)
+            if done is None:
+                return "the refresh did not finish"
+            if not lines[done].endswith("rows=13"):
+                return "the refresh did not end with the room's 13 rows (the list's second page)"
+            # The second page is a request of its own, after the first rows and before the refresh ends: a page of
+            # 10 roots, as main reads the list.
+            if not any((found := read(line)) and found[:2] == ("GET", "threads") for line in lines[painted:done]):
+                return "the list's second page was not read after the first rows showed"
+            all_reads = [found for line in lines[first:done] if (found := read(line))]
+            print(f"  long_thread: first rows after {(at(painted) - at(first)).total_seconds() * 1000:.0f} ms, "
+                  f"{requests} request(s), {size} bytes; every thread read after "
+                  f"{(at(done) - at(first)).total_seconds() * 1000:.0f} ms, "
+                  f"{sum(1 for verb, _, _ in all_reads if verb == 'GET')} requests, "
+                  f"{sum(size for verb, _, size in all_reads if verb == 'done')} bytes", flush=True)
+            if requests > 2 or size > 30_000:
+                return f"the first rows took {requests} requests and {size} bytes (at most 2 and 30000)"
+            # What the list alone says of a thread, before any thread is read: the title and the newest reply the
+            # homeserver bundles with the root, the reply as its bundled edit left it.
+            listed = {match[1]: match[2] for line in lines[:painted]
+                      if (match := re.search(r"listed (\$\S+) (.*)$", line))}
+            if not listed.get(long_root, "").endswith(": Placeholder step 150 of 150 complete."):
+                return f"the long thread's row before its read is {listed.get(long_root)!r}"
+            if not any(re.fullmatch(r"Sample Topic 12 \| .*: Placeholder reply for topic 12", row) for row in listed.values()):
+                return f"no row with its bundled title and reply before any read: {sorted(listed.values())}"
+            shown = next((i for i, line in enumerate(lines) if f"row {long_root} " in line), None)
+            read_at = next((i for i, line in enumerate(lines) if f"hydrated {long_root} " in line), None)
+            if shown is None or read_at is None or shown > read_at:
+                return "the long thread's row did not show before the thread was read"
+            # What reading the whole thread finds: its title, the last reply as its last edit left it, no chip.
+            final = lines[read_at].split(f"hydrated {long_root} ")[-1]
+            if not (final.startswith("idle(") and " Long Streamed Thread | " in final
+                    and final.endswith(": Placeholder step 150 of 150 complete.")):
+                return f"the long thread's row after its read is {final!r}"
+            return None
+
+        scenario("long_thread", {"MINDROOM_WATCH_E2E_SCROLL_ROWS": "1"}, 25, check_long_thread, room_id=long_room)
+
     return 1 if any(problem for _, problem in results) else 0
 
 
