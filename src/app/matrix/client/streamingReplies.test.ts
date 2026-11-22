@@ -1749,6 +1749,19 @@ describe('streaming replies on thread cards', () => {
         expect(f.requested(`/relations/${rootId}`)).toBe(0);
       });
 
+      it('loads nothing for a bundled reply that finished, by a run without a status', async () => {
+        const now = Date.now();
+        const listed = listedRoot(now, 'completed');
+        const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+        const latestReply = summary['io.mindroom.latest_reply'] as IEvent;
+        const newest = latestReply.unsigned['m.relations']?.['m.replace'] as IEvent;
+        // Alone, a run that names no status reads as one that goes on.
+        const newContent = newest.content['m.new_content'] as Record<string, unknown>;
+        newContent['io.mindroom.ai_run'] = { version: 1 };
+        const f = await reloadUnopened(now, listed);
+        expect(f.requested(`/relations/${rootId}`)).toBe(0);
+      });
+
       it('loads nothing for a bundled reply that went idle', async () => {
         const now = Date.now();
         const listed = listedRoot(now, 'streaming');
