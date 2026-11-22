@@ -478,7 +478,7 @@ export function CompactRoomView({
   }, [folded, heldSections, pinnedRootIds, shownRows]);
   const ids = useMemo(() => Object.values(groups).flat(), [groups]);
   const keyScope = `${roomId}|${requestKey ?? ''}|${focusScope ?? ''}`;
-  type Intent = { id: string; scope: string; from: Element | null; last?: boolean };
+  type Intent = { id: string; scope: string; from: Element | null; last?: boolean; at: number[] };
   const [intent, setIntent] = useState<Intent>();
   const pending = intent?.scope === keyScope && ids.includes(intent.id) ? intent : undefined;
   // One destination owns the window: the address while its card is in the shown order (one in a
@@ -509,19 +509,22 @@ export function CompactRoomView({
       const shell = last && button?.closest('[data-scroll-anchor]');
       return (shell && tabbablesOf(shell).at(-1)) || button;
     };
+    const at = () => [view.scrollTop, blocks.progress.input];
     const focus = (id: string | undefined, last?: boolean) => {
       if (!id) return false;
       if (focusCompactCard(card(id, last))) setIntent(undefined);
       else {
         if (!document.activeElement || document.activeElement === document.body)
           view.focus({ preventScroll: true });
-        setIntent({ id, scope: keyScope, from: document.activeElement, last });
+        setIntent({ id, scope: keyScope, from: document.activeElement, last, at: at() });
       }
       return true;
     };
     compactCardNavigation.set(view, { ids, focus });
     const active = document.activeElement;
-    if (intent && (!pending || (active !== pending.from && active !== document.body)))
+    // A reader whose input scrolled the list since the key keeps the place, as with an address.
+    const left = pending && at().every((now, i) => now !== pending.at[i]);
+    if (intent && (!pending || left || (active !== pending.from && active !== document.body)))
       setIntent(undefined);
     else if (pending && !address && blocks.targetReady) {
       focusCompactCard(card(pending.id, pending.last));

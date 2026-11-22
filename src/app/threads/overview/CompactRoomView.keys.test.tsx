@@ -169,6 +169,33 @@ describe('the thread keys on the compact thread list', () => {
     }
   });
 
+  it('gives up a pending End once the reader scrolls on before the last card is measured', () => {
+    vi.useFakeTimers();
+    try {
+      const ids = Array.from({ length: 96 }, (_, index) => `$card${index}`);
+      render(list('!wheel:example.org', ids));
+      const first = card('$card0');
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+      first.focus();
+      fireEvent.keyDown(first, { key: 'End' });
+      // The end is not measured yet: the reader wheels a screen down meanwhile.
+      fireEvent.wheel(view);
+      view.scrollTop = 300;
+      fireEvent.scroll(view);
+      for (let i = 0; i < 12; i += 1)
+        act(() => {
+          vi.advanceTimersByTime(17);
+        });
+      expect(document.activeElement).toBe(first);
+      expect(view.scrollTop).toBe(300);
+      // The key is not waiting any more: the same card takes the next End.
+      fireEvent.keyDown(first, { key: 'End' });
+      expect(document.activeElement).toBe(card('$card95'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('resolve-next reaches a logical neighbour that is not mounted in the filtered order', () => {
     vi.useFakeTimers();
     try {
