@@ -782,7 +782,7 @@ describe('InviteUserPrompt', () => {
     });
     const alert = notice!.root.findByProps({ role: 'alert' });
     expect(alert).toBeDefined();
-    const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss' });
+    const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss notice' });
     act(() => {
       dismiss.props.onClick();
     });
