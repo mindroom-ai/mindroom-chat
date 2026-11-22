@@ -24,8 +24,8 @@ app's log:
            answer in order, and the audio plays to its end (not run in an encrypted room: the script cannot
            encrypt the answer)
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
-  long_thread  a room of its own with 4 short threads and a long one (150 replies, each streamed in 3 edits):
-           the rows show from the thread list alone (at most 2 requests and 30 KB, before any thread or the
+  long_thread  a room of its own with 12 short threads and a long one (150 replies, each streamed in 3 edits):
+           the first 10 rows show from the thread list alone (at most 2 requests and 30 KB, before any thread or the
            room's state is read) with the titles and edited replies the homeserver bundles, and the long
            thread's row then says what its full read finds
 
@@ -307,8 +307,9 @@ def main() -> int:
         if status != 200:
             raise RuntimeError(f"long_thread replier could not join room: {status} {body}")
 
-        # Seed 4 short placeholder threads + 1 long thread (150 replies, each streamed with 3 edits = 600 events).
-        for idx in range(1, 5):
+        # Seed 12 short placeholder threads + 1 long thread (150 replies, each streamed with 3 edits = 600 events):
+        # two pages of the thread list.
+        for idx in range(1, 13):
             r = server.send(long_room, {"msgtype": "m.text", "body": f"Placeholder topic {idx}"}, server.token)
             server.send(long_room, {
                 "msgtype": "m.text", "body": f"Placeholder reply for topic {idx}",
@@ -355,31 +356,33 @@ def main() -> int:
             lines = log.splitlines()
 
             def read(line: str) -> tuple[str, str, int] | None:
-                """A request for the room's threads, a thread's events or the room's state, as the app logs it
-                when it starts ("http GET <path>") and when its answer is in ("http done <path> <bytes>")."""
-                match = re.search(rf"http (GET|done) \S*/rooms/{re.escape(long_room)}/(threads|state|relations/\S+|event/\S+)"
-                                  r"(?: (\d+))?$", line)
+                """A request for the room's threads, one event or what relates to it, or the room's state, as the
+                app logs it when it starts ("http GET <path>") and when its answer is in ("http done <path> <bytes>")."""
+                match = re.search(rf"http (GET|done) \S*/rooms/{re.escape(long_room)}/"
+                                  r"(threads|state|relations/\S+|event/\S+|context/\S+)(?: (\d+))?$", line)
                 return match and (match[1], match[2].split("/")[0], int(match[3] or 0))
 
             def at(index: int) -> datetime.datetime:
                 return datetime.datetime.strptime(lines[index][:23], "%Y-%m-%d %H:%M:%S.%f")
 
             painted = next((i for i, line in enumerate(lines)
-                            if (match := re.search(r"refresh painted rows=(\d+)", line)) and int(match[1]) >= 5), None)
+                            if (match := re.search(r"refresh painted rows=(\d+)", line)) and int(match[1]) >= 10), None)
             if painted is None:
-                return "the room's 5 rows did not show with the thread list's first page"
+                return "the room's first 10 rows did not show with the thread list's first page"
             before = [found for line in lines[:painted] if (found := read(line))]
-            early = [kind for verb, kind, _ in before if verb == "GET" and kind in ("relations", "state")]
+            early = [kind for verb, kind, _ in before if verb == "GET" and kind != "threads"]
             if early:
                 return f"read before the first rows showed: {early}"
-            requests = sum(1 for verb, kind, _ in before if verb == "GET" and kind == "threads")
-            size = sum(size for verb, kind, size in before if verb == "done" and kind == "threads")
+            requests = sum(1 for verb, _, _ in before if verb == "GET")
+            size = sum(size for verb, _, size in before if verb == "done")
             first = next((i for i, line in enumerate(lines) if (found := read(line)) and found[1] == "threads"), None)
             if first is None:
                 return "the app's log has no request for the room's thread list"
             done = next((i for i in range(painted, len(lines)) if "refresh done " in lines[i]), None)
             if done is None:
                 return "the refresh did not finish"
+            if not lines[done].endswith("rows=13"):
+                return "the refresh did not end with the room's 13 rows (the list's second page)"
             all_reads = [found for line in lines[first:done] if (found := read(line))]
             print(f"  long_thread: first rows after {(at(painted) - at(first)).total_seconds() * 1000:.0f} ms, "
                   f"{requests} request(s), {size} bytes; every thread read after "
@@ -394,7 +397,7 @@ def main() -> int:
                       if (match := re.search(r"listed (\$\S+) (.*)$", line))}
             if not listed.get(long_root, "").endswith(": Placeholder step 150 of 150 complete."):
                 return f"the long thread's row before its read is {listed.get(long_root)!r}"
-            if not any(re.fullmatch(r"Sample Topic 4 \| .*: Placeholder reply for topic 4", row) for row in listed.values()):
+            if not any(re.fullmatch(r"Sample Topic 12 \| .*: Placeholder reply for topic 12", row) for row in listed.values()):
                 return f"no row with its bundled title and reply before any read: {sorted(listed.values())}"
             shown = next((i for i, line in enumerate(lines) if f"row {long_root} " in line), None)
             read_at = next((i for i, line in enumerate(lines) if f"hydrated {long_root} " in line), None)

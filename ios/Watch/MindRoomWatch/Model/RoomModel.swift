@@ -25,6 +25,8 @@ struct ThreadRow: Identifiable, Equatable {
 @MainActor
 final class RoomModel: ObservableObject {
     static let pageSize = 30
+    /// The roots a page of the thread list asks for: what the homeserver gives when none is named.
+    private static let listPageSize: UInt32 = 10
 
     let room: Room
     let userId: String
@@ -50,10 +52,10 @@ final class RoomModel: ObservableObject {
     /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
     private static let snapshotLifetime: TimeInterval = 60
     private var resolved: ResolvedRoots
-    /// Whether this model writes `ResolvedCache`: the default room's, which the app shows, does. The background
-    /// refresh's own model and the model of a room a notification opened only read it, so that none overwrites
-    /// what another resolved.
-    private let persistsResolved: Bool
+    /// Whether this model writes `ResolvedCache`: the default room's, which the app shows, does, until another
+    /// takes its place (a read of the state may still be under way then). The background refresh's own model
+    /// and the model of a room a notification opened only read it, so that none overwrites what another resolved.
+    var persistsResolved: Bool
     private var stateRead: Task<Void, Never>?
     /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
     /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
@@ -194,14 +196,15 @@ final class RoomModel: ObservableObject {
     /// time of showing differ from reading every thread first: rows show with the list's first page, before
     /// anything else is read, and then thread by thread, newest first (a long thread is megabytes).
     ///
-    /// False when the resolved threads changed under the pass (the state's answer, a thread resolved here): its
-    /// rows were chosen against the old ones, so threads resolved elsewhere left the list short and one opened
-    /// again is not in it. The pass that follows lists against the new ones and writes the complications.
+    /// False when a page's rows were chosen against other resolved threads than the pass ends with (the state's
+    /// answer, a thread resolved here): threads resolved elsewhere left the list short, and one opened again is
+    /// not in it. The pass that follows lists against the new ones and writes the complications.
     @discardableResult
     private func refresh() async -> Bool {
         // Left, or replaced by a new version of the room: the person picks another.
         if room.membership() != .joined || room.successorRoom() != nil { gone = true; return true }
-        let resolvedBefore = resolved.roots
+        // The resolved threads each page's rows were chosen against.
+        var chosenAgainst: [Set<String>] = []
         var entries: [ThreadListEntry] = []
         var listed = Set<String>()
         var from: String?
@@ -209,13 +212,14 @@ final class RoomModel: ObservableObject {
         let open = { entries.filter { !self.resolved.roots.contains($0.rootId) } }
         // Resolved threads do not count: read a few more pages while they fill the first one.
         for page in 0...3 {
-            guard let result = try? await room.threadsJsonPage(from: from, limit: UInt32(Self.pageSize)) else {
+            guard let result = try? await room.threadsJsonPage(from: from, limit: Self.listPageSize) else {
                 // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's
                 // own messages, queued or failed, kept current.
                 if page == 0 { show(); return true }
                 complete = false
                 break
             }
+            chosenAgainst.append(resolved.roots)
             for json in result.roots where open().count < Self.pageSize {
                 guard let entry = parse(json).flatMap({ ThreadListEntry.parse($0, ownUserId: userId) }),
                       listed.insert(entry.rootId).inserted, !resolved.roots.contains(entry.rootId) else { continue }
@@ -242,7 +246,7 @@ final class RoomModel: ObservableObject {
         // threads are no longer in it. After a failed page the newest rows of before fill what is left of the 30.
         var roots = Set(items.map(\.rootId))
         if !complete {
-            let others = threadRows.values.filter { !roots.contains($0.id) }.sorted { $0.ts > $1.ts }
+            let others = threadRows.values.filter { !roots.contains($0.id) }.sorted { ($0.ts, $0.id) > ($1.ts, $1.id) }
             roots.formUnion(others.prefix(max(0, Self.pageSize - roots.count)).map(\.id))
         }
         threadRows = threadRows.filter { roots.contains($0.key) }
@@ -278,7 +282,7 @@ final class RoomModel: ObservableObject {
         await stateRead?.value
         show()
         // The complications count the room's open threads as their own reads found them, from a whole list only.
-        let settled = resolved.roots == resolvedBefore
+        let settled = chosenAgainst.allSatisfy { $0 == resolved.roots }
         if complete, settled { publishWidgetSnapshot() }
         #if DEBUG
         E2EHooks.trace("refresh done rows=\(rows.count)")

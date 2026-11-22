@@ -86,6 +86,7 @@ struct HomeView: View {
         // The room was left or replaced: choose another.
         DefaultRoom.set(nil, userId: userId)
         path = []
+        model?.persistsResolved = false
         model = nil
     }
 
@@ -101,6 +102,8 @@ struct HomeView: View {
     private func open(_ roomId: String) {
         guard model?.room.id() != roomId, let room = try? client.getRoom(roomId: roomId) else { return }
         let model = RoomModel(room: room, userId: userId, client: client, persistsResolved: true)
+        // The model it replaces may still be reading its room's state: only the newest writes `ResolvedCache`.
+        self.model?.persistsResolved = false
         self.model = model
         Task { await model.start() }
     }
