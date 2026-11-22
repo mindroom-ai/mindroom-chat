@@ -26,7 +26,10 @@ type RecordedRequest = {
 type MediaServer = {
   url: string;
   requests: RecordedRequest[];
-  waitForRequest: (predicate: (req: RecordedRequest) => boolean) => Promise<RecordedRequest>;
+  waitForRequest: (
+    predicate: (req: RecordedRequest) => boolean,
+    label: string
+  ) => Promise<RecordedRequest>;
   close: () => Promise<void>;
 };
 
@@ -131,13 +134,14 @@ const startMediaServer = async (
   const { port } = server.address() as AddressInfo;
 
   const waitForRequest = async (
-    predicate: (req: RecordedRequest) => boolean
+    predicate: (req: RecordedRequest) => boolean,
+    label: string
   ): Promise<RecordedRequest> => {
     const existing = requests.find(predicate);
     if (existing) return existing;
     return new Promise<RecordedRequest>((resolve, reject) => {
       const timer = setTimeout(
-        () => reject(new Error('Timed out waiting for media request')),
+        () => reject(new Error(`Timed out waiting for media request: ${label}`)),
         10_000
       );
       const check = (): void => {
@@ -174,9 +178,12 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
   try {
     const { app, page } = desktop;
 
-    // Cancel downloads once response headers arrive so nothing lands on disk.
+    // Record and cancel downloads once triggered so nothing lands on disk.
     await app.evaluate(({ session }) => {
+      const downloaded: string[] = [];
+      Object.assign(globalThis, { __mindroomDownloadedFiles: downloaded });
       session.defaultSession.on('will-download', (_event, item) => {
+        downloaded.push(item.getFilename());
         item.cancel();
       });
     });
@@ -229,7 +236,7 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
         }),
       `${server.url}/_matrix/client/v1/media/download/a/img.png`
     );
-    const imgReq = await server.waitForRequest((r) => r.url.includes('/img.png'));
+    const imgReq = await server.waitForRequest((r) => r.url.includes('/img.png'), 'img.png');
     expect(imgReq.authorization).toBe('Bearer tok-a');
     expect(imgReq.url).not.toContain('access_token');
 
@@ -239,21 +246,35 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       return res.ok && (await res.text()) === 'ok';
     }, `${server.url}/_matrix/client/v1/media/download/a/data.txt`);
     expect(fetchOk).toBe(true);
-    const fetchReq = await server.waitForRequest((r) => r.url.includes('/data.txt'));
+    const fetchReq = await server.waitForRequest((r) => r.url.includes('/data.txt'), 'data.txt');
     expect(fetchReq.authorization).toBe('Bearer tok-a');
     expect(fetchReq.url).not.toContain('access_token');
 
-    // 3. download (<a download>)
-    await page.evaluate((href) => {
+    // 3. download (downloadMedia -> Blob -> <a download> as saveFile does)
+    await page.evaluate(async (href) => {
+      const res = await fetch(href, { method: 'GET' });
+      if (!res.ok) throw new Error(`download failed: ${res.status}`);
+      const blobUrl = URL.createObjectURL(await res.blob());
       const a = document.createElement('a');
-      a.href = href;
+      a.href = blobUrl;
       a.download = 'file.bin';
       document.body.append(a);
       a.click();
     }, `${server.url}/_matrix/client/v1/media/download/a/file.bin`);
-    const downloadReq = await server.waitForRequest((r) => r.url.includes('/file.bin'));
+    const downloadReq = await server.waitForRequest(
+      (r) => r.url.includes('/file.bin'),
+      'download file.bin'
+    );
     expect(downloadReq.authorization).toBe('Bearer tok-a');
     expect(downloadReq.url).not.toContain('access_token');
+    await expect
+      .poll(() =>
+        app.evaluate(
+          () =>
+            (globalThis as { __mindroomDownloadedFiles?: string[] }).__mindroomDownloadedFiles ?? []
+        )
+      )
+      .toContain('file.bin');
 
     // 4. <video> Range request
     await page.evaluate((src) => {
@@ -263,7 +284,8 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       document.body.append(video);
     }, `${server.url}/_matrix/client/v1/media/download/a/video.mp4`);
     const videoReq = await server.waitForRequest(
-      (r) => r.url.includes('/video.mp4') && Boolean(r.range)
+      (r) => r.url.includes('/video.mp4') && Boolean(r.range),
+      'video.mp4 Range'
     );
     expect(videoReq.authorization).toBe('Bearer tok-a');
     expect(videoReq.range).toMatch(/^bytes=/);
@@ -274,7 +296,10 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       const res = await fetch(url, { headers: { Authorization: 'Bearer sdk-bearer' } });
       if (!res.ok) throw new Error(`sync status ${res.status}`);
     }, `${server.url}/_matrix/client/v3/sync`);
-    const syncReq = await server.waitForRequest((r) => r.url.includes('/_matrix/client/v3/sync'));
+    const syncReq = await server.waitForRequest(
+      (r) => r.url.includes('/_matrix/client/v3/sync'),
+      'sync'
+    );
     expect(syncReq.authorization).toBe('Bearer sdk-bearer');
 
     // 6. same-origin subframe arrives without Authorization
@@ -283,7 +308,10 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       iframe.srcdoc = `<img src="${src}">`;
       document.body.append(iframe);
     }, `${server.url}/_matrix/client/v1/media/download/a/subframe.png`);
-    const subReq = await server.waitForRequest((r) => r.url.includes('/subframe.png'));
+    const subReq = await server.waitForRequest(
+      (r) => r.url.includes('/subframe.png'),
+      'subframe.png'
+    );
     expect(subReq.authorization).toBeUndefined();
 
     // 7. opaque sandboxed frame arrives without Authorization
@@ -293,7 +321,10 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       iframe.srcdoc = `<img src="${src}">`;
       document.body.append(iframe);
     }, `${server.url}/_matrix/client/v1/media/download/a/opaque.png`);
-    const opaqueReq = await server.waitForRequest((r) => r.url.includes('/opaque.png'));
+    const opaqueReq = await server.waitForRequest(
+      (r) => r.url.includes('/opaque.png'),
+      'opaque.png'
+    );
     expect(opaqueReq.authorization).toBeUndefined();
 
     // 8. after sign-out, requests arrive without Authorization
@@ -371,15 +402,21 @@ test('never attaches a token on redirects across two signed-in windows or same-o
     await page2.evaluate(async (url) => {
       await fetch(url);
     }, `${serverB.url}/_matrix/client/v1/media/download/b/direct.txt`);
-    const directB = await serverB.waitForRequest((r) => r.url.includes('/direct.txt'));
+    const directB = await serverB.waitForRequest(
+      (r) => r.url.includes('/direct.txt'),
+      'direct.txt'
+    );
     expect(directB.authorization).toBe('Bearer tok-b');
 
     // Window 1 hits A's media URL, which redirects to B's media URL: B gets no header.
     await page.evaluate(async (url) => {
       await fetch(url);
     }, `${serverA.url}/_matrix/client/v1/media/download/a/redirect-to-b`);
-    const hopA = await serverA.waitForRequest((r) => r.url.includes('/redirect-to-b'));
-    const hopB = await serverB.waitForRequest((r) => r.url.includes('/target.txt'));
+    const hopA = await serverA.waitForRequest(
+      (r) => r.url.includes('/redirect-to-b'),
+      'redirect-to-b'
+    );
+    const hopB = await serverB.waitForRequest((r) => r.url.includes('/target.txt'), 'target.txt');
     expect(hopA.authorization).toBe('Bearer tok-a');
     expect(hopB.authorization).toBeUndefined();
 
@@ -387,8 +424,14 @@ test('never attaches a token on redirects across two signed-in windows or same-o
     await page.evaluate(async (url) => {
       await fetch(url);
     }, `${serverA.url}/_matrix/client/v1/media/download/a/redirect-same`);
-    const sameHop1 = await serverA.waitForRequest((r) => r.url.includes('/redirect-same'));
-    const sameHop2 = await serverA.waitForRequest((r) => r.url.includes('/same-target.txt'));
+    const sameHop1 = await serverA.waitForRequest(
+      (r) => r.url.includes('/redirect-same'),
+      'redirect-same'
+    );
+    const sameHop2 = await serverA.waitForRequest(
+      (r) => r.url.includes('/same-target.txt'),
+      'same-target.txt'
+    );
     expect(sameHop1.authorization).toBe('Bearer tok-a');
     expect(sameHop2.authorization).toBeUndefined();
   } finally {
