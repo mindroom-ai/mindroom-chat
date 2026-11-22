@@ -1060,6 +1060,55 @@ describe('RoomCall after joining', () => {
     expect(session.leave).toHaveBeenCalledTimes(1);
   });
 
+  it('clears remote speaking and connected state when failing before teardown', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const peerIdentity = '@peer:calls.test:PEERDEVICE';
+    const remoteParticipant = {
+      identity: peerIdentity,
+      isSpeaking: true,
+      isMicrophoneEnabled: true,
+      audioTrackPublications: new Map(),
+      getTrackPublication: () => undefined,
+    };
+    media.remoteParticipants.set(peerIdentity, remoteParticipant);
+    session.setMemberships([membership(ME, DEVICE), membership('@peer:calls.test', 'PEERDEVICE')]);
+    media.emit('ActiveSpeakersChanged', [remoteParticipant]);
+
+    expect(call.getState().participants).toEqual([
+      expect.objectContaining({ key: `${ME}:${DEVICE}`, connected: true, speaking: false }),
+      expect.objectContaining({
+        key: peerIdentity,
+        connected: true,
+        speaking: true,
+        microphone: true,
+      }),
+    ]);
+
+    media.disconnect.mockImplementationOnce(async () => {
+      remoteParticipant.isSpeaking = false;
+      media.remoteParticipants.clear();
+      media.emit('ParticipantDisconnected', remoteParticipant);
+      media.emit('ActiveSpeakersChanged', []);
+      media.state = 'disconnected';
+    });
+
+    session.emit(MatrixRTCSessionEvent.MembershipManagerError, new Error('state event refused'));
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(call.getState().participants).toEqual([
+      expect.objectContaining({ key: `${ME}:${DEVICE}`, connected: false, speaking: false }),
+      expect.objectContaining({
+        key: peerIdentity,
+        connected: false,
+        speaking: false,
+        microphone: false,
+      }),
+    ]);
+  });
+
   it('keeps a failed call failed when it is left, and lets go of everything once', async () => {
     const { call, session } = setup({ encrypted: true });
     await call.join();

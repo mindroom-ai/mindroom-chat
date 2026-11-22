@@ -822,7 +822,10 @@ export class RoomCall {
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
     });
-    if (this.state.microphoneTrack) this.update({ microphoneTrack: undefined });
+    const participants = this.readParticipants();
+    if (this.state.microphoneTrack || !sameParticipants(participants, this.state.participants)) {
+      this.update({ microphoneTrack: undefined, participants });
+    }
     this.audioHost?.remove();
     this.audioHost = undefined;
     try {
