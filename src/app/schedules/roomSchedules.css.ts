@@ -94,7 +94,7 @@ export const FilterBar = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  rowGap: config.space.S300,
+  rowGap: toRem(14),
   columnGap: config.space.S200,
   minWidth: 0,
 });
@@ -125,8 +125,8 @@ export const FilterPill = style([
       },
     },
   },
-  // 32 px + 2 * 6 px = 44 px tall; 6 + 6 <= 12 px rowGap and 4 + 4 <= 8 px columnGap (zero overlap).
-  touchTarget('4px', '', { blockReach: '6px' }),
+  // 30 px padding box (32 px with 1 px borders) + 2 * 7 px = 44 px tall; 7 + 7 <= 14 px rowGap (zero overlap).
+  touchTarget('4px', '', { blockReach: '7px' }),
 ]);
 
 export const FilterPillActive = style({
@@ -484,7 +484,8 @@ export const ActionsRow = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   flexWrap: 'wrap',
-  gap: config.space.S200,
+  rowGap: toRem(14),
+  columnGap: config.space.S200,
   minWidth: 0,
 });
 
@@ -492,7 +493,8 @@ export const ActionsPrimary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S200,
+  rowGap: toRem(14),
+  columnGap: config.space.S200,
   minWidth: 0,
 });
 
@@ -500,13 +502,15 @@ export const ActionsSecondary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S300,
+  rowGap: toRem(14),
+  columnGap: config.space.S300,
   marginInlineStart: 'auto',
   minWidth: 0,
 });
 
 export const CompactAction = style([
   {
+    minHeight: toRem(32),
     selectors: {
       '&:focus-visible': {
         outline: `2px solid ${color.Surface.OnContainer}`,
@@ -514,7 +518,8 @@ export const CompactAction = style([
       },
     },
   },
-  touchTarget('4px', '', { blockReach: '10px' }),
+  // 30-32 px padding box + 2 * 7 px = 44-46 px tall; 7 + 7 <= 14 px rowGap (zero overlap).
+  touchTarget('4px', '', { blockReach: '7px' }),
 ]);
 
 export const IconAction = style([

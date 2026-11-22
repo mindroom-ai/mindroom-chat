@@ -915,7 +915,15 @@ export const RoomSchedulesDialog = forwardRef<
         modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
       if (fallbackToggle) fallbackToggle.focus();
       else closeButtonRef.current?.focus();
-    }, [expandedId, filteredTasks, hasCancelAction, hasEditAction, showFilterBar]);
+    }, [
+      cancelSentIds,
+      expandedId,
+      filteredTasks,
+      hasCancelAction,
+      hasEditAction,
+      pendingCancelIds,
+      showFilterBar,
+    ]);
 
     const threadTasks: ParsedScheduledTask[] = [];
     const elsewhereTasks: ParsedScheduledTask[] = [];

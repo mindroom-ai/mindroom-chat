@@ -222,4 +222,17 @@ describe('renderSchedulePrompt', () => {
       cleanup();
     }
   });
+
+  it('treats backslashes inside inline code spans as literal', () => {
+    const { host, cleanup } = renderPrompt('Inspect `C:\\temp\\` then run `dir`.');
+    try {
+      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
+        'C:\\temp\\',
+        'dir',
+      ]);
+      expect(host.textContent).toBe('Inspect C:\\temp\\ then run dir.');
+    } finally {
+      cleanup();
+    }
+  });
 });

@@ -158,11 +158,8 @@ const tokenizeInlineCode = (segment: string): PromptToken[] => {
 
     let closeIndex = -1;
     let j = i + 1;
+    // CommonMark §6.1: backslashes inside a code span are literal, never escaping the closer.
     while (j < segment.length && segment[j] !== '\n') {
-      if (segment[j] === '\\' && segment[j + 1] === '`') {
-        j += 2;
-        continue;
-      }
       if (segment[j] === '`') {
         let closeRunEnd = j;
         while (closeRunEnd < segment.length && segment[closeRunEnd] === '`') {

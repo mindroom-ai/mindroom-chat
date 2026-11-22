@@ -1447,6 +1447,47 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     } finally {
       mount6.unmount();
     }
+
+    // Case 7: reopened dialog with pending cancel -> user focuses "Cancelling..." -> cancel resolves -> focus recovers to row toggle.
+    const task = makeTask({ taskId: 'reopen-pending', description: 'Reopened pending task' });
+    const sharedCancelState = {
+      pendingCancelIds: new Set(['reopen-pending']),
+      cancelSentIds: new Set<string>(),
+      cancelErrors: new Map<string, boolean>(),
+      handleCancelTask: vi.fn(async () => true),
+      clearCancelError: vi.fn(),
+    };
+    const mount7 = mountDialog({
+      ...base,
+      tasks: [task],
+      onCancelTask: vi.fn(async () => undefined),
+      cancelState: sharedCancelState,
+    });
+    try {
+      const cancellingBtn = findButtonByText(mount7.host, 'Cancelling...')!;
+      expect(cancellingBtn).toBeDefined();
+      act(() => {
+        cancellingBtn.focus();
+      });
+      expect(document.activeElement).toBe(cancellingBtn);
+
+      mount7.rerender({
+        ...base,
+        tasks: [task],
+        onCancelTask: vi.fn(async () => undefined),
+        cancelState: {
+          ...sharedCancelState,
+          pendingCancelIds: new Set<string>(),
+          cancelSentIds: new Set(['reopen-pending']),
+        },
+      });
+      expect(findButtonByText(mount7.host, 'Cancelling...')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        mount7.host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+    } finally {
+      mount7.unmount();
+    }
   });
 });
 
