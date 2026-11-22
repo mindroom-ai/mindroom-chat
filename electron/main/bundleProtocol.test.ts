@@ -99,9 +99,9 @@ describe('bundleProtocol', () => {
       };
       expect(resolveBundlePath('/etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
       expect(resolveBundlePath('//etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
-      expect(probed.every((relative) => !path.isAbsolute(relative) && !relative.includes('..'))).toBe(
-        true
-      );
+      expect(
+        probed.every((relative) => !path.isAbsolute(relative) && !relative.includes('..'))
+      ).toBe(true);
     });
   });
 

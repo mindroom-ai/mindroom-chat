@@ -123,7 +123,11 @@ describe('security', () => {
       const { emitter, contents } = createFakeWebContents();
       guardWebContents(contents);
 
-      const subframeEvent = { preventDefault: vi.fn(), isMainFrame: false, url: 'https://example.org' };
+      const subframeEvent = {
+        preventDefault: vi.fn(),
+        isMainFrame: false,
+        url: 'https://example.org',
+      };
       emitter.emit('will-frame-navigate', subframeEvent);
       expect(subframeEvent.preventDefault).not.toHaveBeenCalled();
     });

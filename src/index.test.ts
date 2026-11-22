@@ -279,6 +279,39 @@ describe('application bootstrap', () => {
     expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
   });
 
+  it('marks the desktop shell and requests persistent storage in Electron', async () => {
+    const persist = vi.fn().mockResolvedValue(true);
+    const originalStorage = navigator.storage;
+    const listeners: Array<(event: { type: 'fullscreen'; value: boolean }) => void> = [];
+    const bridge = {
+      onShellEvent: vi.fn((listener: (event: { type: 'fullscreen'; value: boolean }) => void) => {
+        listeners.push(listener);
+        return () => undefined;
+      }),
+    };
+    const win = window as Window & { mindroomDesktop?: typeof bridge };
+    win.mindroomDesktop = bridge;
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { persist },
+    });
+    try {
+      await import('./index');
+      expect(document.documentElement.dataset.shell).toBe('desktop');
+      expect(persist).toHaveBeenCalledOnce();
+      listeners[0]?.({ type: 'fullscreen', value: true });
+      expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
+    } finally {
+      delete win.mindroomDesktop;
+      delete document.documentElement.dataset.shell;
+      document.documentElement.removeAttribute('data-fullscreen');
+      Object.defineProperty(navigator, 'storage', {
+        configurable: true,
+        value: originalStorage,
+      });
+    }
+  });
+
   it('continues boot when IndexedDB loss recovery setup throws', async () => {
     mocks.installIndexedDbLossRecovery.mockImplementationOnce(() => {
       throw new TypeError('indexeddb unavailable');

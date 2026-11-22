@@ -15,7 +15,7 @@ const makeOwner = (frame: { url: string; origin: string }, destroyed = false) =>
   ({
     mainFrame: frame,
     isDestroyed: () => destroyed,
-  }) as unknown as Electron.WebContents;
+  } as unknown as Electron.WebContents);
 
 describe('ipc', () => {
   afterEach(() => {
@@ -72,16 +72,15 @@ describe('ipc', () => {
       for (const path of ['/pdf-frame.html', '/%70df-frame.html', '//pdf-frame.html?a=1']) {
         const framePage = { url: `${APP_ORIGIN}${path}`, origin: APP_ORIGIN };
         const frameOwner = makeOwner(framePage);
-        expect(
-          isAuthorized({ sender: frameOwner, senderFrame: framePage }, frameOwner),
-          path
-        ).toBe(false);
+        expect(isAuthorized({ sender: frameOwner, senderFrame: framePage }, frameOwner), path).toBe(
+          false
+        );
       }
 
       const destroyedOwner = makeOwner(mainFrame, true);
-      expect(
-        isAuthorized({ sender: destroyedOwner, senderFrame: mainFrame }, destroyedOwner)
-      ).toBe(false);
+      expect(isAuthorized({ sender: destroyedOwner, senderFrame: mainFrame }, destroyedOwner)).toBe(
+        false
+      );
     });
   });
 

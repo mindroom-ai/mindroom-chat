@@ -29,11 +29,6 @@ export const guardWebContents = (
     event.preventDefault();
     onBlockedUrl?.(url);
   });
-  contents.on('will-frame-navigate', (event) => {
-    if (!event.isMainFrame || isAllowedAppPage(event.url)) return;
-    event.preventDefault();
-    onBlockedUrl?.(event.url);
-  });
 };
 
 export const guardSession = (
@@ -43,46 +38,34 @@ export const guardSession = (
 ): void => {
   session.webRequest.onBeforeRequest({ urls: [`${APP_ORIGIN}/*`] }, (details, callback) => {
     const parsed = parseAppUrl(details.url);
-    const cancel =
-      parsed !== undefined && isFramePage(parsed.pathname) && details.resourceType !== 'subFrame';
-    callback({ cancel });
+    callback({
+      cancel:
+        parsed !== undefined && isFramePage(parsed.pathname) && details.resourceType !== 'subFrame',
+    });
   });
 
   const canGrant = (
-    webContents: Electron.WebContents | null,
-    permission: string,
+    wc: Electron.WebContents | null,
+    perm: string,
     isMainFrame: boolean,
-    origin: string | undefined,
-    requestingUrl: string | undefined
-  ): boolean => {
-    if (!isMainFrame || !ALLOWED_PERMISSIONS.has(permission)) return false;
-    if (isMainWindow ? !isMainWindow(webContents) : webContents === null) return false;
-    if (origin !== undefined && parseAppUrl(origin) === undefined) return false;
-    if (requestingUrl !== undefined && !isAllowedAppPage(requestingUrl)) return false;
-    return origin !== undefined || requestingUrl !== undefined;
-  };
+    origin?: string,
+    url?: string
+  ): boolean =>
+    isMainFrame &&
+    ALLOWED_PERMISSIONS.has(perm) &&
+    (isMainWindow ? isMainWindow(wc) : wc !== null) &&
+    (origin === undefined || parseAppUrl(origin) !== undefined) &&
+    (url === undefined || isAllowedAppPage(url)) &&
+    (origin !== undefined || url !== undefined);
 
-  session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    const granted = canGrant(
-      webContents,
-      permission,
-      details.isMainFrame,
-      requestingOrigin,
-      details.requestingUrl
-    );
-    onPermission?.('check', permission, granted);
-    return granted;
+  session.setPermissionCheckHandler((wc, perm, origin, d) => {
+    const ok = canGrant(wc, perm, d.isMainFrame, origin, d.requestingUrl);
+    onPermission?.('check', perm, ok);
+    return ok;
   });
-
-  session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const granted = canGrant(
-      webContents,
-      permission,
-      details.isMainFrame,
-      undefined,
-      details.requestingUrl
-    );
-    onPermission?.('request', permission, granted);
-    callback(granted);
+  session.setPermissionRequestHandler((wc, perm, cb, d) => {
+    const ok = canGrant(wc, perm, d.isMainFrame, undefined, d.requestingUrl);
+    onPermission?.('request', perm, ok);
+    cb(ok);
   });
 };

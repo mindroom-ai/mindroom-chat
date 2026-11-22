@@ -48,6 +48,7 @@ import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 import { leavePage } from './boot/inviteFragment';
 import { markPageStartup } from './app/lib/startupTimeline';
+import { isDesktopApp, markDesktopShell } from './app/lib/nativeShell';
 
 markPageStartup('js.entry');
 
@@ -90,6 +91,12 @@ const startDiagnostics = (): void => {
 };
 
 const prepareDocument = (): void => {
+  runSafely('desktop shell', () => {
+    markDesktopShell();
+    if (isDesktopApp() && typeof navigator !== 'undefined' && navigator.storage?.persist) {
+      void navigator.storage.persist().catch(() => undefined);
+    }
+  });
   runSafely('theme', () => applyAppTheme(resolveInitialTheme()));
   runSafely('ride trace flag', () => bootstrapRideTraceFlagFromUrl());
   // The legacy push flag moves first, so the settings store migration sees it.

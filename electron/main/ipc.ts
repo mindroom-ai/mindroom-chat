@@ -7,11 +7,11 @@ export const isAuthorized = (
   event: { sender: unknown; senderFrame: { url: string; origin: string } | null },
   owner: Electron.WebContents
 ): boolean => {
-  if (event.sender !== owner) return false;
-  if (typeof owner.isDestroyed === 'function' && owner.isDestroyed()) return false;
+  if (event.sender !== owner || (typeof owner.isDestroyed === 'function' && owner.isDestroyed())) {
+    return false;
+  }
   const frame = event.senderFrame;
-  if (!frame || frame !== owner.mainFrame) return false;
-  if (frame.origin !== APP_ORIGIN) return false;
+  if (!frame || frame !== owner.mainFrame || frame.origin !== APP_ORIGIN) return false;
   const parsed = parseAppUrl(frame.url);
   return parsed !== undefined && !isFramePage(parsed.pathname);
 };
