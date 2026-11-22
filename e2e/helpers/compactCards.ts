@@ -1,6 +1,23 @@
-import type { Locator } from '@playwright/test';
+import { expect, type Locator } from '@playwright/test';
 
 export const COMPACT_VIEW = '[data-compact-room-view]';
+
+/**
+ * The Compact list has `count` cards (or at least that many) and has measured where they end.
+ * It mounts a window of them, so the cards in the page say neither.
+ */
+export const expectCompactCardCount = async (
+  view: Locator,
+  count: number,
+  { atLeast = false, timeout = 180_000 } = {}
+) => {
+  const listed = expect.poll(
+    async () => Number((await view.getAttribute('data-compact-card-count')) ?? -1),
+    { timeout }
+  );
+  await (atLeast ? listed.toBeGreaterThanOrEqual(count) : listed.toBe(count));
+  await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout });
+};
 
 /** Read cards as they enter the Compact scroller, stopping at a selector or after seeing roots. */
 export const walkCompactCards = (view: Locator, stopAt?: string | string[]) =>
