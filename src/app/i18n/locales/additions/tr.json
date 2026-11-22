@@ -95,14 +95,11 @@
     "inviteUserPrompt": {
       "close": "Kapat",
       "invited": "{{user}} davet edildi.",
-      "giveModeratorRights": "Moderatör yetkisi ver",
-      "giveModeratorRightsHelp": "Ajanın sesli mesaj dökümlerini daraltmasına ve zamanlamalar ile oda ayarlarını yönetmesine olanak tanır.",
-      "moderatorFailed": "Moderatör yetkisi verilemedi: {{error}}",
       "giveRoleRights": "{{role}} yetkisi ver",
       "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
-      "roleFailed": "{{role}} yetkisi verilemedi: {{error}}",
-      "moderatorFailedDetached": "{{user}} davet edildi, ancak moderatör yetkisi verilemedi: {{error}}",
-      "roleFailedDetached": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}"
+      "roleFailed": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}",
+      "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor.",
+      "rolePermissionsUnreadable": "Bu odanın yetki düzeyleri doğrulanamadı."
     },
     "joinAddressPrompt": {
       "close": "Kapat",

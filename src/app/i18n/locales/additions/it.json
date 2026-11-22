@@ -98,14 +98,11 @@
     "inviteUserPrompt": {
       "close": "Chiudi",
       "invited": "{{user}} è stato invitato.",
-      "giveModeratorRights": "Assegna i permessi di moderatore",
-      "giveModeratorRightsHelp": "Consente all'agente di comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
-      "moderatorFailed": "Impossibile assegnare i permessi di moderatore: {{error}}",
       "giveRoleRights": "Assegna i permessi di {{role}}",
       "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
-      "roleFailed": "Impossibile assegnare i permessi di {{role}}: {{error}}",
-      "moderatorFailedDetached": "{{user}} è stato invitato, ma impossibile assegnare i permessi di moderatore: {{error}}",
-      "roleFailedDetached": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}"
+      "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
+      "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
+      "rolePermissionsUnreadable": "Impossibile verificare i livelli di permessi di questa stanza."
     },
     "joinAddressPrompt": {
       "close": "Chiudi",

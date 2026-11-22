@@ -98,14 +98,11 @@
     "inviteUserPrompt": {
       "close": "Fermer",
       "invited": "{{user}} a été invité.",
-      "giveModeratorRights": "Donner les droits de modérateur",
-      "giveModeratorRightsHelp": "Permet à l'agent de replier les transcriptions vocales et de gérer les tâches planifiées et les paramètres du salon.",
-      "moderatorFailed": "Impossible de donner les droits de modérateur : {{error}}",
       "giveRoleRights": "Donner les droits {{role}}",
       "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
-      "roleFailed": "Impossible de donner les droits {{role}} : {{error}}",
-      "moderatorFailedDetached": "{{user}} a été invité, mais impossible de donner les droits de modérateur : {{error}}",
-      "roleFailedDetached": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}"
+      "roleFailed": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}",
+      "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}.",
+      "rolePermissionsUnreadable": "Impossible de vérifier les niveaux de permissions de ce salon."
     },
     "joinAddressPrompt": {
       "close": "Fermer",

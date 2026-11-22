@@ -1,7 +1,6 @@
-import { atom } from 'jotai';
 import type { TFunction } from 'i18next';
+import { atom } from 'jotai';
 import {
-  EventTimeline,
   KnownMembership,
   type MatrixClient,
   type MatrixEvent,
@@ -9,144 +8,182 @@ import {
   type RoomMember,
 } from 'matrix-js-sdk';
 import {
-  getPowersLevelFromMatrixEvent,
-  readPowerLevel,
-  type IPowerLevels,
-} from '../../matrix/hooks/usePowerLevels';
-import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
-import { isUserId } from '../../matrix/matrix';
-import {
   isMindroomAgentUserIdForViewer,
   isMindroomOwnerUserId,
-} from '../../matrix/protocol/agentIdentity';
-import { MINDROOM_ROUTER_STATE_EVENT } from '../../matrix/protocol/routerBinding';
+  isUserId,
+} from '../../matrix/matrix';
+import { MODERATOR_LEVEL } from '../../matrix/hooks/usePowerLevels';
+import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
+import { getStateEvent } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import type { PowerLevelTags } from '../usePowerLevelTags';
 
-export const MODERATOR_LEVEL = 50;
+const MINDROOM_ROUTER_STATE_EVENT = 'io.mindroom.router';
 
-/** Non-blocking notice shown when a dialog-submitted grant fails after the dialog closed. */
-export type DetachedGrantFailure = { id: number; message: string };
+export type DetachedGrantFailure = { readonly message: string };
+
+/** Non-blocking alert shown at shell level if a dialog-submitted grant fails after unmount. */
 export const detachedGrantErrorAtom = atom<DetachedGrantFailure | undefined>(undefined);
 
-let nextFailureId = 1;
-export const nextDetachedGrantFailure = (message: string): DetachedGrantFailure => ({
-  id: nextFailureId++,
-  message,
-});
+export type PowerSnapshot = {
+  readonly raw: Record<string, unknown>;
+  readonly stateSpecDefault: number;
+} | null;
 
-export const moderatorGrantLevel = (levels: IPowerLevels): number =>
-  Math.max(MODERATOR_LEVEL, readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT));
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
 
-export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string =>
-  tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
+const isFiniteLevel = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
-const getStateEvent = (
-  room: Pick<Room, 'getLiveTimeline'>,
-  type: StateEvent
-): MatrixEvent | undefined =>
-  room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, '') ?? undefined;
-
-export const getRawPowerLevels = (room: Pick<Room, 'getLiveTimeline'>): Record<string, unknown> => {
-  const content = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  return content && typeof content === 'object' ? content : {};
+/** Single snapshot of `m.room.power_levels` content (or `null` if its shape is unreadable). */
+export const readPowerSnapshot = (event: MatrixEvent | undefined): PowerSnapshot => {
+  if (!event) return { raw: {}, stateSpecDefault: 0 };
+  const raw = event.getContent();
+  if (
+    !isRecord(raw) ||
+    (raw.events !== undefined && !isRecord(raw.events)) ||
+    (raw.users !== undefined && !isRecord(raw.users))
+  ) {
+    return null;
+  }
+  return { raw, stateSpecDefault: MODERATOR_LEVEL };
 };
 
-const isOptionalMap = (v: unknown): v is Record<string, unknown> | undefined =>
-  v === undefined || (typeof v === 'object' && v !== null && !Array.isArray(v));
+/** Reads an explicit map override, checking `fallback` only when the override is absent. */
+const effectiveLevel = (
+  map: unknown,
+  key: string,
+  fallback: unknown,
+  specDefault: number
+): number | undefined => {
+  if (isRecord(map) && Object.prototype.hasOwnProperty.call(map, key) && map[key] !== undefined) {
+    return isFiniteLevel(map[key]) ? map[key] : undefined;
+  }
+  if (fallback === undefined) return specDefault;
+  return isFiniteLevel(fallback) ? fallback : undefined;
+};
 
-const isOptionalNum = (v: unknown): boolean =>
-  v === undefined || (typeof v === 'number' && Number.isFinite(v));
-
-const hasUnreadableGrantLevels = (
-  raw: Record<string, unknown>,
-  viewerId: string,
-  targetId: string
-) =>
-  !isOptionalMap(raw.events) ||
-  !isOptionalMap(raw.users) ||
-  [
-    raw.state_default,
-    raw.users_default,
-    raw.events?.[StateEvent.RoomPowerLevels],
-    raw.events?.[MINDROOM_ROUTER_STATE_EVENT],
-    raw.users?.[viewerId],
-    raw.users?.[targetId],
-  ].some((v) => !isOptionalNum(v));
+const userPower = (
+  userId: string,
+  snapshot: NonNullable<PowerSnapshot>,
+  creators: ReadonlySet<string>
+): number | undefined =>
+  creators.has(userId)
+    ? Infinity
+    : effectiveLevel(snapshot.raw.users, userId, snapshot.raw.users_default, 0);
 
 const isEligibleAgent = (userId: string, viewerId: string) =>
   isUserId(userId) &&
   isMindroomAgentUserIdForViewer(userId, viewerId) &&
   !isMindroomOwnerUserId(userId);
 
-const powerOf = (userId: string, levels: IPowerLevels, creators: ReadonlySet<string>) =>
-  creators.has(userId) ? Infinity : readPowerLevel.user(levels, userId);
+export type ModeratorGrantDecision =
+  | { readonly kind: 'grant' | 'levelRaised'; readonly level: number }
+  | { readonly kind: 'alreadySatisfied' | 'forbidden' | 'ineligible' | 'unreadable' };
 
-export const canOfferModeratorGrant = (
+/** Evaluates whether `viewerId` can grant `targetId` moderator rights using only effective levels. */
+export const evaluateModeratorGrant = (
   room: Pick<Room, 'isSpaceRoom'>,
   targetId: string,
   viewerId: string,
-  levels: IPowerLevels,
+  snapshot: PowerSnapshot,
   creators: ReadonlySet<string>,
-  raw: Record<string, unknown> = {}
-): boolean => {
-  if (room.isSpaceRoom() || !isEligibleAgent(targetId, viewerId)) return false;
-  if (hasUnreadableGrantLevels(raw, viewerId, targetId)) return false;
-  const level = moderatorGrantLevel(levels);
-  return (
-    getRoomPermissionsAPI(creators, levels).stateEvent(StateEvent.RoomPowerLevels, viewerId) &&
-    powerOf(viewerId, levels, creators) >= level &&
-    powerOf(targetId, levels, creators) < level
-  );
+  maxLevel?: number
+): ModeratorGrantDecision => {
+  if (room.isSpaceRoom() || !isEligibleAgent(targetId, viewerId)) return { kind: 'ineligible' };
+  if (!snapshot) return { kind: 'unreadable' };
+
+  const stateLevel = (key: string) =>
+    effectiveLevel(snapshot.raw.events, key, snapshot.raw.state_default, snapshot.stateSpecDefault);
+  const routerLevel = stateLevel(MINDROOM_ROUTER_STATE_EVENT);
+  const targetPower = userPower(targetId, snapshot, creators);
+  if (routerLevel === undefined || targetPower === undefined) return { kind: 'unreadable' };
+
+  const level = Math.max(MODERATOR_LEVEL, routerLevel);
+  if (targetPower >= level) return { kind: 'alreadySatisfied' };
+  if (maxLevel !== undefined && level > maxLevel) return { kind: 'levelRaised', level };
+
+  const viewerPower = userPower(viewerId, snapshot, creators);
+  const powerEventLevel = creators.has(viewerId) ? 0 : stateLevel(StateEvent.RoomPowerLevels);
+  if (viewerPower === undefined || powerEventLevel === undefined) return { kind: 'unreadable' };
+  if (viewerPower < powerEventLevel || viewerPower < level) return { kind: 'forbidden' };
+  return { kind: 'grant', level };
 };
 
 export const hasModeratorMindroomAgent = (
   members: readonly Pick<RoomMember, 'membership' | 'userId'>[],
   viewerId: string,
-  levels: IPowerLevels,
+  snapshot: PowerSnapshot,
   creators: ReadonlySet<string>,
-  raw: Record<string, unknown> = {}
+  level: number
 ): boolean => {
-  const rawUsers = isOptionalMap(raw.users) ? raw.users : undefined;
-  if (raw.users !== undefined && rawUsers === undefined) return true;
-  const level = moderatorGrantLevel(levels);
-  return members.some(
-    ({ membership, userId }) =>
-      (membership === KnownMembership.Join || membership === KnownMembership.Invite) &&
-      isEligibleAgent(userId, viewerId) &&
-      (!isOptionalNum(rawUsers?.[userId]) || powerOf(userId, levels, creators) >= level)
-  );
+  if (!snapshot) return true;
+  return members.some(({ membership, userId }) => {
+    if (membership !== KnownMembership.Join && membership !== KnownMembership.Invite) return false;
+    if (!isEligibleAgent(userId, viewerId)) return false;
+    const power = userPower(userId, snapshot, creators);
+    return power === undefined || power >= level;
+  });
 };
 
-export class ModeratorGrantError extends Error {
-  constructor(cause: unknown, readonly level: number) {
-    super(cause instanceof Error && cause.message ? cause.message : String(cause));
-  }
-}
+export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string =>
+  tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
 
-/** Re-reads live power levels before writing; never lowers a target already at or above the level. */
+export type GrantFailure =
+  | { readonly kind: 'forbidden' | 'unreadable' }
+  | { readonly kind: 'levelRaised'; readonly level: number }
+  | { readonly kind: 'failed'; readonly detail: string };
+
+/** Re-reads live power levels before writing; never lowers a target or exceeds the shown level. */
 export const grantRoomModeratorRights = async (
   client: MatrixClient,
-  room: Pick<Room, 'roomId' | 'isSpaceRoom' | 'getLiveTimeline'>,
-  targetId: string
-): Promise<void> => {
-  const powerEvent = getStateEvent(room, StateEvent.RoomPowerLevels);
-  const raw = powerEvent?.getContent() ?? {};
-  const levels = getPowersLevelFromMatrixEvent(powerEvent);
+  room: Room,
+  targetId: string,
+  maxLevel: number
+): Promise<GrantFailure | null> => {
+  const snapshot = readPowerSnapshot(getStateEvent(room, StateEvent.RoomPowerLevels));
   const createEvent = getStateEvent(room, StateEvent.RoomCreate);
   const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
-  const me = client.getSafeUserId();
-
-  if (hasUnreadableGrantLevels(raw, me, targetId)) return;
-  const level = moderatorGrantLevel(levels);
-  if (powerOf(targetId, levels, creators) >= level) return;
-  if (!canOfferModeratorGrant(room, targetId, me, levels, creators, raw)) {
-    throw new ModeratorGrantError(new Error('Not allowed to change power levels'), level);
-  }
+  const decision = evaluateModeratorGrant(
+    room,
+    targetId,
+    client.getSafeUserId(),
+    snapshot,
+    creators,
+    maxLevel
+  );
+  if (decision.kind === 'alreadySatisfied') return null;
+  if (decision.kind === 'unreadable' || decision.kind === 'levelRaised') return decision;
+  if (decision.kind !== 'grant') return { kind: 'forbidden' };
   try {
-    await client.setPowerLevel(room.roomId, targetId, level);
+    await client.setPowerLevel(room.roomId, targetId, decision.level);
+    return null;
   } catch (error) {
-    throw new ModeratorGrantError(error, level);
+    return {
+      kind: 'failed',
+      detail: error instanceof Error && error.message ? error.message : String(error),
+    };
   }
+};
+
+export const formatGrantFailure = (
+  failure: GrantFailure,
+  user: string,
+  displayedLevel: number,
+  tags: PowerLevelTags,
+  t: TFunction
+): string => {
+  let error: string;
+  if (failure.kind === 'forbidden') error = t('errors.forbidden');
+  else if (failure.kind === 'unreadable') error = t('sharedUi.inviteUserPrompt.rolePermissionsUnreadable');
+  else if (failure.kind === 'levelRaised') {
+    error = t('sharedUi.inviteUserPrompt.roleRequirementChanged', {
+      role: grantRoleName(tags, failure.level, t),
+    });
+  } else error = failure.detail || t('errors.unknown');
+  return t('sharedUi.inviteUserPrompt.roleFailed', {
+    user,
+    role: grantRoleName(tags, displayedLevel, t),
+    error,
+  });
 };

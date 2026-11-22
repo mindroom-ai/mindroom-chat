@@ -98,14 +98,11 @@
     "inviteUserPrompt": {
       "close": "Fechar",
       "invited": "{{user}} foi convidado.",
-      "giveModeratorRights": "Conceder permissões de moderador",
-      "giveModeratorRightsHelp": "Permite que o agente recolha transcrições de voz e gerencie agendamentos e configurações da sala.",
-      "moderatorFailed": "Não foi possível conceder permissões de moderador: {{error}}",
       "giveRoleRights": "Conceder permissões de {{role}}",
       "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
-      "roleFailed": "Não foi possível conceder permissões de {{role}}: {{error}}",
-      "moderatorFailedDetached": "{{user}} foi convidado, mas não foi possível conceder permissões de moderador: {{error}}",
-      "roleFailedDetached": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}"
+      "roleFailed": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}.",
+      "rolePermissionsUnreadable": "Não foi possível verificar os níveis de permissão desta sala."
     },
     "joinAddressPrompt": {
       "close": "Fechar",

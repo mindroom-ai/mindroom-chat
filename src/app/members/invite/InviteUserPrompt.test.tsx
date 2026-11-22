@@ -609,6 +609,7 @@ describe('InviteUserPrompt', () => {
       mx.emit('RoomState.events', {
         getRoomId: () => room.roomId,
         getType: () => 'm.room.power_levels',
+        getStateKey: () => '',
         getId: () => '$pl1',
         getContent: () => room.state.powerLevels,
       });
@@ -755,7 +756,7 @@ describe('InviteUserPrompt', () => {
       .map((node) => node.children.join(''))
       .join(' ');
     expect(allText).toContain('Give Admin rights');
-    expect(allText).not.toContain('Give moderator rights');
+    expect(allText).not.toContain('Give Moderator rights');
   });
 
   it('keys the checkbox override to the trimmed target ID', () => {
@@ -799,7 +800,7 @@ describe('InviteUserPrompt', () => {
     });
 
     expect(store.get(detachedGrantErrorAtom)?.message).toBe(
-      'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden'
+      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden'
     );
   });
 
@@ -964,9 +965,8 @@ describe('InviteUserPrompt', () => {
   it('renders and dismisses a detached grant failure notice', () => {
     const store = createStore();
     store.set(detachedGrantErrorAtom, {
-      id: 1,
       message:
-        'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden',
+        'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden',
     });
     let notice: ReactTestRenderer;
     act(() => {

@@ -92,14 +92,11 @@
     "inviteUserPrompt": {
       "close": "Tutup",
       "invited": "{{user}} telah diundang.",
-      "giveModeratorRights": "Berikan hak moderator",
-      "giveModeratorRightsHelp": "Memungkinkan agen melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
-      "moderatorFailed": "Tidak dapat memberikan hak moderator: {{error}}",
       "giveRoleRights": "Berikan hak {{role}}",
       "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
-      "roleFailed": "Tidak dapat memberikan hak {{role}}: {{error}}",
-      "moderatorFailedDetached": "{{user}} telah diundang, tetapi tidak dapat memberikan hak moderator: {{error}}",
-      "roleFailedDetached": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}"
+      "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
+      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
+      "rolePermissionsUnreadable": "Tidak dapat memverifikasi tingkat izin ruangan ini."
     },
     "joinAddressPrompt": {
       "close": "Tutup",

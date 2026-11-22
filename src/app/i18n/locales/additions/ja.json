@@ -92,14 +92,11 @@
     "inviteUserPrompt": {
       "close": "閉じる",
       "invited": "{{user}} を招待しました。",
-      "giveModeratorRights": "モデレータ権限を付与",
-      "giveModeratorRightsHelp": "エージェントが音声の文字起こしを折りたたみ、スケジュールやルーム設定を管理できるようになります。",
-      "moderatorFailed": "モデレータ権限を付与できませんでした: {{error}}",
       "giveRoleRights": "{{role}} 権限を付与",
       "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
-      "roleFailed": "{{role}} 権限を付与できませんでした: {{error}}",
-      "moderatorFailedDetached": "{{user}} を招待しましたが、モデレータ権限を付与できませんでした: {{error}}",
-      "roleFailedDetached": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}"
+      "roleFailed": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}",
+      "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。",
+      "rolePermissionsUnreadable": "このルームの権限レベルを確認できませんでした。"
     },
     "joinAddressPrompt": {
       "close": "閉じる",

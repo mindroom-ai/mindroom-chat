@@ -95,14 +95,11 @@
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",
       "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।",
-      "giveModeratorRights": "মডারেটরের অধিকার দিন",
-      "giveModeratorRightsHelp": "এজেন্টকে ভয়েস ট্রান্সক্রিপ্ট ভাঁজ করতে এবং সময়সূচি ও রুমের সেটিংস পরিচালনা করতে দেয়।",
-      "moderatorFailed": "মডারেটরের অধিকার দেওয়া যায়নি: {{error}}",
       "giveRoleRights": "{{role}}-এর অধিকার দিন",
       "giveRoleRightsHelp": "ভয়েস ট্রান্সক্রিপ্ট ভাঁজ করতে এবং সময়সূচি ও রুমের সেটিংস পরিচালনা করতে এই রুমে {{role}}-এর অধিকার প্রয়োজন।",
-      "roleFailed": "{{role}}-এর অধিকার দেওয়া যায়নি: {{error}}",
-      "moderatorFailedDetached": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে, তবে মডারেটরের অধিকার দেওয়া যায়নি: {{error}}",
-      "roleFailedDetached": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে, তবে {{role}}-এর অধিকার দেওয়া যায়নি: {{error}}"
+      "roleFailed": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে, তবে {{role}}-এর অধিকার দেওয়া যায়নি: {{error}}",
+      "roleRequirementChanged": "এই রুমে এখন {{role}}-এর অধিকার প্রয়োজন।",
+      "rolePermissionsUnreadable": "এই রুমের পাওয়ার লেভেল যাচাই করা যায়নি।"
     },
     "joinAddressPrompt": {
       "close": "বন্ধ করুন",

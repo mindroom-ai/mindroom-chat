@@ -95,14 +95,11 @@
     "inviteUserPrompt": {
       "close": "Sluiten",
       "invited": "{{user}} is uitgenodigd.",
-      "giveModeratorRights": "Moderatorrechten geven",
-      "giveModeratorRightsHelp": "Laat de agent spraaktranscripties inklappen en schema's en ruimte-instellingen beheren.",
-      "moderatorFailed": "Kan geen moderatorrechten geven: {{error}}",
       "giveRoleRights": "{{role}}-rechten geven",
       "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
-      "roleFailed": "Kan geen {{role}}-rechten geven: {{error}}",
-      "moderatorFailedDetached": "{{user}} is uitgenodigd, maar kan geen moderatorrechten geven: {{error}}",
-      "roleFailedDetached": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}"
+      "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
+      "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
+      "rolePermissionsUnreadable": "Kan de machtigingsniveaus van deze ruimte niet controleren."
     },
     "joinAddressPrompt": {
       "close": "Sluiten",

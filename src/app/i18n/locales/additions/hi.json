@@ -95,14 +95,11 @@
     "inviteUserPrompt": {
       "close": "बंद करें",
       "invited": "{{user}} को आमंत्रित किया गया।",
-      "giveModeratorRights": "मध्यस्थ अधिकार दें",
-      "giveModeratorRightsHelp": "एजेंट को वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने देता है।",
-      "moderatorFailed": "मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}",
       "giveRoleRights": "{{role}} अधिकार दें",
       "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
-      "roleFailed": "{{role}} अधिकार नहीं दिए जा सके: {{error}}",
-      "moderatorFailedDetached": "{{user}} को आमंत्रित किया गया, लेकिन मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}",
-      "roleFailedDetached": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}"
+      "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
+      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
+      "rolePermissionsUnreadable": "इस रूम के पावर लेवल की जांच नहीं की जा सकी।"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",

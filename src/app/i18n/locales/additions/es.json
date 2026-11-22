@@ -98,14 +98,11 @@
     "inviteUserPrompt": {
       "close": "Cerrar",
       "invited": "Se invitó a {{user}}.",
-      "giveModeratorRights": "Dar permisos de moderador",
-      "giveModeratorRightsHelp": "Permite al agente plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
-      "moderatorFailed": "No se pudieron dar permisos de moderador: {{error}}",
       "giveRoleRights": "Dar permisos de {{role}}",
       "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
-      "roleFailed": "No se pudieron dar permisos de {{role}}: {{error}}",
-      "moderatorFailedDetached": "Se invitó a {{user}}, pero no se pudieron dar permisos de moderador: {{error}}",
-      "roleFailedDetached": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}"
+      "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
+      "rolePermissionsUnreadable": "No se pudieron verificar los niveles de permisos de esta sala."
     },
     "joinAddressPrompt": {
       "close": "Cerrar",

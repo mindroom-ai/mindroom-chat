@@ -107,14 +107,11 @@
     "inviteUserPrompt": {
       "close": "إغلاق",
       "invited": "تمت دعوة ⁨{{user}}⁩.",
-      "giveModeratorRights": "منح صلاحيات المراقب",
-      "giveModeratorRightsHelp": "يتيح للوكيل طي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
-      "moderatorFailed": "تعذر منح صلاحيات المراقب: ⁨{{error}}⁩",
       "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
-      "roleFailed": "تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
-      "moderatorFailedDetached": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات المراقب: ⁨{{error}}⁩",
-      "roleFailedDetached": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩"
+      "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
+      "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
+      "rolePermissionsUnreadable": "تعذر التحقق من مستويات الصلاحيات في هذه الغرفة."
     },
     "joinAddressPrompt": {
       "close": "إغلاق",

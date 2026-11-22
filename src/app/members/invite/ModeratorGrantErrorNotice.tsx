@@ -2,10 +2,10 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
-import { Box, Icon, IconButton, Icons, Text, color, config, toRem } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, color, toRem } from 'folds';
 import { Surface } from '../../ui/glass/GlassPrimitives';
 import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
-import { PageSlot } from '../../ui/noticeSlots.css';
+import { PageSlot, noticeCard } from '../../ui/noticeSlots.css';
 import { detachedGrantErrorAtom } from './moderatorInvite';
 
 const SHOWN_MS = 12_000;
@@ -21,7 +21,7 @@ export function ModeratorGrantErrorNotice() {
   useEffect(() => {
     if (!failure) return undefined;
     const timer = window.setTimeout(
-      () => setFailure((cur) => (cur?.id === failure.id ? undefined : cur)),
+      () => setFailure((cur) => (cur === failure ? undefined : cur)),
       SHOWN_MS
     );
     return () => window.clearTimeout(timer);
@@ -32,13 +32,7 @@ export function ModeratorGrantErrorNotice() {
     <Surface
       variant="Critical"
       role="alert"
-      style={{
-        padding: config.space.S300,
-        borderRadius: config.radii.R500,
-        pointerEvents: 'auto',
-        maxInlineSize: toRem(440),
-        flexShrink: 0,
-      }}
+      style={{ ...noticeCard, maxInlineSize: toRem(440), flexShrink: 0 }}
     >
       <Box alignItems="Center" gap="200">
         <Icon

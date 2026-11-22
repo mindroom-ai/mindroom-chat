@@ -92,14 +92,11 @@
     "inviteUserPrompt": {
       "close": "닫기",
       "invited": "{{user}} 님을 초대했습니다.",
-      "giveModeratorRights": "중재자 권한 부여",
-      "giveModeratorRightsHelp": "에이전트가 음성 기록을 접고 일정과 방 설정을 관리할 수 있게 합니다.",
-      "moderatorFailed": "중재자 권한을 부여할 수 없습니다: {{error}}",
       "giveRoleRights": "{{role}} 권한 부여",
       "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
-      "roleFailed": "{{role}} 권한을 부여할 수 없습니다: {{error}}",
-      "moderatorFailedDetached": "{{user}} 님을 초대했지만 중재자 권한을 부여할 수 없습니다: {{error}}",
-      "roleFailedDetached": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}"
+      "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
+      "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
+      "rolePermissionsUnreadable": "이 방의 권한 수준을 확인할 수 없습니다."
     },
     "joinAddressPrompt": {
       "close": "닫기",
