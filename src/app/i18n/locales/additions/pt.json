@@ -746,6 +746,9 @@
         "save": "Guardar",
         "saved": "Guardado",
         "clear": "Limpar",
+        "saveSetting": "Guardar {{setting}}",
+        "savedSetting": "Guardado: {{setting}}",
+        "clearSetting": "Limpar {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Só quem pode alterar as definições desta sala pode editar isto.",
         "saveFailed": "Não foi possível guardar a definição. Tente novamente.",
@@ -785,6 +788,11 @@
         "threadSummaryModel": {
           "label": "Modelo de títulos",
           "description": "Modelo que escreve os títulos automáticos dos tópicos desta sala."
+        },
+        "agentInstructions": {
+          "label": "Instruções para agentes",
+          "description": "Instruções adicionais fornecidas a cada agente que responde nesta sala. Moderadores podem editá-las; elas não concedem permissões adicionais aos agentes. Todos na sala podem lê-las e o estado da sala não tem encriptação ponto a ponto, por isso não coloque segredos aqui.",
+          "placeholder": "Por exemplo: mantenha as respostas curtas e responda em neerlandês"
         }
       }
     },

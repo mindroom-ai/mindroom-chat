@@ -746,6 +746,9 @@
         "save": "Enregistrer",
         "saved": "Enregistré",
         "clear": "Effacer",
+        "saveSetting": "Enregistrer {{setting}}",
+        "savedSetting": "Enregistré : {{setting}}",
+        "clearSetting": "Effacer {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Seules les personnes autorisées à modifier les paramètres de ce salon peuvent changer ceci.",
         "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez.",
@@ -785,6 +788,11 @@
         "threadSummaryModel": {
           "label": "Modèle de titre",
           "description": "Modèle chargé d’écrire les titres automatiques des fils de ce salon."
+        },
+        "agentInstructions": {
+          "label": "Instructions pour les agents",
+          "description": "Instructions supplémentaires transmises à chaque agent lorsqu’il répond dans ce salon. Les modérateurs peuvent les modifier ; elles n’accordent aucune autorisation supplémentaire aux agents. Tous les membres du salon peuvent les lire et l’état du salon n’est pas chiffré de bout en bout, ne mettez donc aucun secret ici.",
+          "placeholder": "Par exemple : répondez brièvement et en néerlandais"
         }
       }
     },

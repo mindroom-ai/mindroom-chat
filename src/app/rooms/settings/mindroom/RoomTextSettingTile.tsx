@@ -44,6 +44,7 @@ export function RoomTextSettingTile({
     if (canSave) void write(draft.trim()).then((took) => took && setDraft(undefined));
   };
 
+  const label = t(definition.label);
   const fieldId = `${id}-field`;
   const descriptionId = `${id}-description`;
   const noteId = `${id}-note`;
@@ -59,7 +60,7 @@ export function RoomTextSettingTile({
     <Box as="form" direction="Column" gap="200" data-room-setting={definition.key} onSubmit={save}>
       <Box direction="Column" gap="100">
         <Text as="label" htmlFor={fieldId} size="T300">
-          {t(definition.label)}
+          {label}
         </Text>
         <Text id={descriptionId} size="T200" priority="300">
           {t(definition.description)}
@@ -99,6 +100,7 @@ export function RoomTextSettingTile({
             variant="Secondary"
             fill="Soft"
             disabled={sending}
+            aria-label={t(`${STRINGS}.clearSetting`, { setting: label })}
             onClick={() => void write('').then((took) => took && setDraft(undefined))}
           >
             <Text size="B300">{t(`${STRINGS}.clear`)}</Text>
@@ -113,6 +115,9 @@ export function RoomTextSettingTile({
             fill={justSaved ? 'None' : 'Solid'}
             className={justSaved ? css.Saved : undefined}
             disabled={!canSave}
+            aria-label={t(justSaved ? `${STRINGS}.savedSetting` : `${STRINGS}.saveSetting`, {
+              setting: label,
+            })}
             before={
               justSaved ? (
                 <Icon className={css.SavedCheck} size="100" src={Icons.Check} aria-hidden />

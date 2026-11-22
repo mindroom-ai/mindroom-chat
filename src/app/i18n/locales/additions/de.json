@@ -733,6 +733,9 @@
         "save": "Speichern",
         "saved": "Gespeichert",
         "clear": "Löschen",
+        "saveSetting": "{{setting}} speichern",
+        "savedSetting": "{{setting}} gespeichert",
+        "clearSetting": "{{setting}} löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
         "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
@@ -772,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Titelmodell",
           "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
+        },
+        "agentInstructions": {
+          "label": "Anweisungen für Agents",
+          "description": "Zusätzliche Anweisungen, die jeder Agent beim Antworten in diesem Raum erhält. Moderatoren können sie bearbeiten; sie verleihen Agents keine zusätzlichen Berechtigungen. Alle im Raum können sie lesen, und der Raumzustand ist nicht Ende-zu-Ende-verschlüsselt, also gib hier keine Geheimnisse ein.",
+          "placeholder": "Zum Beispiel: Antworten kurz halten und auf Niederländisch antworten"
         }
       }
     },

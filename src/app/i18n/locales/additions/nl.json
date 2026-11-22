@@ -733,6 +733,9 @@
         "save": "Opslaan",
         "saved": "Opgeslagen",
         "clear": "Wissen",
+        "saveSetting": "{{setting}} opslaan",
+        "savedSetting": "{{setting}} opgeslagen",
+        "clearSetting": "{{setting}} wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
         "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw.",
@@ -772,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Titelmodel",
           "description": "Model dat de automatische threadtitels in deze ruimte schrijft."
+        },
+        "agentInstructions": {
+          "label": "Agentinstructies",
+          "description": "Extra instructies die elke agent krijgt bij het antwoorden in deze ruimte. Moderators kunnen ze bewerken; ze geven agents geen extra rechten. Iedereen in de ruimte kan ze lezen en de status van de ruimte is niet end-to-end versleuteld, dus zet hier geen geheimen in.",
+          "placeholder": "Bijvoorbeeld: houd antwoorden kort en antwoord in het Nederlands"
         }
       }
     },

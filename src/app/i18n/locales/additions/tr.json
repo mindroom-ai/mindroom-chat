@@ -733,6 +733,9 @@
         "save": "Kaydet",
         "saved": "Kaydedildi",
         "clear": "Temizle",
+        "saveSetting": "{{setting}} kaydet",
+        "savedSetting": "{{setting}} kaydedildi",
+        "clearSetting": "{{setting}} temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
         "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
@@ -772,6 +775,11 @@
         "threadSummaryModel": {
           "label": "Başlık modeli",
           "description": "Bu odanın otomatik konu başlıklarını yazan model."
+        },
+        "agentInstructions": {
+          "label": "Ajan yönergeleri",
+          "description": "Bu odada yanıt veren her ajana verilen ek yönergeler. Moderatörler bunları düzenleyebilir; ajanlara fazladan izin vermez. Odadaki herkes bunları okuyabilir ve oda durumu uçtan uca şifrelenmediği için buraya gizli bilgi yazmayın.",
+          "placeholder": "Örneğin: Yanıtları kısa tutun ve Felemenkçe yanıtlayın"
         }
       }
     },

@@ -52,6 +52,7 @@ const SECTIONS = 'featureUi.roomSettings.mindroom.sections';
 const MODEL = 'featureUi.roomSettings.mindroom.model';
 const REPLY_MODE = 'featureUi.roomSettings.mindroom.replyMode';
 const THREAD_MODE = 'featureUi.roomSettings.mindroom.threadMode';
+const AGENT_INSTRUCTIONS = 'featureUi.roomSettings.mindroom.agentInstructions';
 const TITLES = 'featureUi.roomSettings.mindroom.threadSummaryInstructions';
 const TITLE_MODEL = 'featureUi.roomSettings.mindroom.threadSummaryModel';
 
@@ -90,6 +91,14 @@ export const ROOM_SETTING_SECTIONS: readonly RoomSettingSection[] = [
           { value: 'room', label: `${THREAD_MODE}.room` },
         ],
         showEffectiveThreadMode: true,
+      },
+      {
+        kind: 'text',
+        key: 'agent_instructions',
+        maxLength: 2000,
+        label: `${AGENT_INSTRUCTIONS}.label`,
+        description: `${AGENT_INSTRUCTIONS}.description`,
+        placeholder: `${AGENT_INSTRUCTIONS}.placeholder`,
       },
     ],
   },
