@@ -43,6 +43,11 @@ import { getFinishingEdit, getSyncedEdit } from './syncedEdits';
 /** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
 const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
 
+/** The card's rule for a stream that ended: the run's status, or either form of stream status. */
+const isTerminalContent = (content: Record<string, unknown>): boolean =>
+  hasTerminalStreamMetadata(content) ||
+  TERMINAL_STREAM_STATUSES.has(readStreamStatus(content) ?? '');
+
 /**
  * The id of the root's bundled reply, when it streams, is not the summary's newest event, is not
  * idle, and the thread does not hold it.
@@ -70,12 +75,7 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
   const content = isRecord(newContent) ? newContent : reply.content;
   const status = readStreamStatus(content);
   const streams = isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status));
-  if (
-    !streams ||
-    hasTerminalStreamMetadata(content) ||
-    (status && TERMINAL_STREAM_STATUSES.has(status))
-  )
-    return undefined;
+  if (!streams || isTerminalContent(content)) return undefined;
   const ts = Math.max(
     typeof reply.origin_server_ts === 'number' ? reply.origin_server_ts : 0,
     typeof edit?.origin_server_ts === 'number' ? edit.origin_server_ts : 0
@@ -95,13 +95,6 @@ const clientHints = new WeakMap<MatrixClient, Map<string, StreamHint>>();
 const newContentOf = (edit: MatrixEvent): Record<string, unknown> => {
   const content: unknown = edit.getOriginalContent()['m.new_content'];
   return isRecord(content) ? content : {};
-};
-
-/** As `syncedEdits` reads a finish: the status may sit on the edit, beside its new content. */
-const endsStream = (edit: MatrixEvent): boolean => {
-  const content = edit.getOriginalContent<Record<string, unknown>>();
-  const status = readStreamStatus(content);
-  return hasTerminalStreamMetadata(content) || (!!status && TERMINAL_STREAM_STATUSES.has(status));
 };
 
 /**
@@ -130,9 +123,14 @@ const revisionsOf = (
   );
 };
 
-/** Whether one of `revisions` since `edit` ended the stream; an edit after that one changes nothing. */
+/**
+ * Whether one of `revisions` since `edit` ended the stream, by the status on it or on what it puts
+ * on the reply; an edit after that one changes nothing.
+ */
 const finishedSince = (revisions: MatrixEvent[], edit: MatrixEvent): boolean =>
-  revisions.some((other) => endsStream(other) && !isEventOrderedAfter(edit, other));
+  revisions.some(
+    (other) => isTerminalContent(other.getOriginalContent()) && !isEventOrderedAfter(edit, other)
+  );
 
 /** Whether a live edit says that a reply the thread lacks streams, where it may still say so. */
 export const hasStreamHint = (room: Room, thread: Thread | null): boolean =>
