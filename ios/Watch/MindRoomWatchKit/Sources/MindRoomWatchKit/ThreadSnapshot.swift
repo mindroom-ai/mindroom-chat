@@ -198,14 +198,15 @@ public struct ThreadSnapshot: Equatable, Sendable {
             // those lines whoever sent them, and a count shows no call and trusts no one.
             let trace = MindRoomAgent.hasAgentName(sender) ? toolTraceOutOfText(content) : (names: [String](), maxBodyLine: nil as Int?)
             let totalTools = details.toolNames.count + trace.names.count
-            let trustedAgent = !isOwn && isAgent(sender)
+            let trustedAgent = !isOwn && !event.isRedacted && isAgent(sender)
             var toolNames: [String] = []
             var workText: String?
             var answerText = details.text
             var durationSeconds: Int?
             if trustedAgent {
                 toolNames = details.toolNames + trace.names
-                let isFinished = run == .finished
+                let streamStatus = content["io.mindroom.stream_status"] as? String
+                let isFinished = run == .finished && (streamStatus == nil || streamStatus == "completed")
                 if isFinished {
                     var splitWork = details.workText
                     var splitAnswer = details.answerText
@@ -274,13 +275,15 @@ func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?)
           let calls = trace["events"] as? [Any] else { return ([], nil) }
     var names: [String] = []
     var maxLine: Int?
+    var monotonic = true
     for case let call as JSON in calls {
         guard let name = call["tool_name"] as? String, !name.isEmpty,
               let line = call["body_line"] as? Int, line >= 0 else { continue }
         names.append(name)
+        if let prev = maxLine, line < prev { monotonic = false }
         maxLine = max(maxLine ?? line, line)
     }
-    return (names, maxLine)
+    return (names, monotonic ? maxLine : nil)
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an

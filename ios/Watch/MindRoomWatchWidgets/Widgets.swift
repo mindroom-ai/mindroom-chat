@@ -66,28 +66,38 @@ struct RoomStatusWidget: Widget {
                 }
                 if let snapshot = entry.snapshot {
                     if snapshot.needsYou > 0 {
-                        HStack(spacing: 5) {
-                            Text(snapshot.needsYou == 1
-                                 ? String(localized: "1 needs you")
-                                 : String(localized: "\(snapshot.needsYou) need you"))
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(WidgetPalette.amberWarm)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(WidgetPalette.amber.opacity(0.24)))
-                                .lineLimit(1)
-                            if snapshot.running > 0 {
-                                HStack(spacing: 3) {
-                                    Circle()
-                                        .fill(WidgetPalette.tealBright)
-                                        .frame(width: 5, height: 5)
-                                        .accessibilityHidden(true)
-                                    Text("\(snapshot.running) running")
-                                        .font(.caption2.weight(.semibold).monospacedDigit())
-                                        .foregroundStyle(WidgetPalette.tealBright)
-                                        .lineLimit(1)
+                        let needsPill = Text(snapshot.needsYou == 1
+                                             ? String(localized: "1 needs you")
+                                             : String(localized: "\(snapshot.needsYou) need you"))
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(WidgetPalette.amberWarm)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(WidgetPalette.amber.opacity(0.24)))
+                            .lineLimit(1)
+                        if snapshot.running > 0 {
+                            let runningBadge = HStack(spacing: 3) {
+                                Circle()
+                                    .fill(WidgetPalette.tealBright)
+                                    .frame(width: 5, height: 5)
+                                    .accessibilityHidden(true)
+                                Text("\(snapshot.running) running")
+                                    .font(.caption2.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(WidgetPalette.tealBright)
+                                    .lineLimit(1)
+                            }
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 5) {
+                                    needsPill
+                                    runningBadge
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    needsPill
+                                    runningBadge
                                 }
                             }
+                        } else {
+                            needsPill
                         }
                     } else if snapshot.running > 0 {
                         HStack(spacing: 5) {

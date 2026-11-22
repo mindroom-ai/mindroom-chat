@@ -241,9 +241,9 @@ private struct RoomHome: View {
         }
         .onChange(of: model.rows) { oldRows, newRows in
             openSent(newRows)
-            let oldUrgent = oldRows.filter { $0.state == .needsYou || $0.state == .failed }.count
-            let newUrgent = newRows.filter { $0.state == .needsYou || $0.state == .failed }.count
-            if newUrgent > oldUrgent {
+            let oldUrgentIds = Set(oldRows.filter { $0.state == .needsYou || $0.state == .failed }.map(\.id))
+            let newUrgentIds = Set(newRows.filter { $0.state == .needsYou || $0.state == .failed }.map(\.id))
+            if !newUrgentIds.subtracting(oldUrgentIds).isEmpty {
                 collapsed.remove(.needsYou)
             }
         }
@@ -308,7 +308,8 @@ private struct RoomHome: View {
                     Text(summary)
                         .font(.caption2.weight(counts.needsYou > 0 ? .semibold : .regular))
                         .foregroundStyle(counts.needsYou > 0 ? WatchTheme.amberWarm : WatchTheme.tealBright.opacity(0.88))
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 2)
             }

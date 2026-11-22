@@ -903,9 +903,9 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.reply?.answerText, "Booked your meeting for 3 PM.")
         XCTAssertEqual(snapshot.reply?.durationSeconds, 14)
 
-        // Sub-second edit produces nil durationSeconds.
+        // Sub-second edit produces nil durationSeconds even when completed.
         let fastEdit = event("$fastEdit", 1_700_000_000_400, [
-            "m.new_content": ["msgtype": "m.text", "body": "Done."] as JSON,
+            "m.new_content": ["msgtype": "m.text", "body": "Done.", "io.mindroom.stream_status": "completed"] as JSON,
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON,
         ])
         let fastSnap = ThreadSnapshot.build(root: voiceRoot, related: [initial, fastEdit], ownUserId: me, now: now)
@@ -978,7 +978,7 @@ final class ThreadSnapshotTests: XCTestCase {
         ]))
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
         XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
-        XCTAssertEqual(snapshot.reply?.workText, "Checking\u{2028}calendar.")
+        XCTAssertEqual(snapshot.reply?.workText, "Checking\ncalendar.")
         XCTAssertEqual(snapshot.reply?.answerText, "Booked for 3 PM.")
     }
 
@@ -1042,6 +1042,80 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(fencedSnap.reply?.toolNames, ["shell"])
         XCTAssertNil(fencedSnap.reply?.workText)
         XCTAssertEqual(fencedSnap.reply?.answerText, "Example:\n🔧 `demo` [1]\nDone.")
+        // Mixed bare-CR inside an LF-indexed body must keep fenced code intact (matching withToolDetails).
+        let mixedBody = "Checking.\n\nResult:\n~~~\rreturn 42\r~~~"
+        let mixedReply = event("$rm", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": mixedBody,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "eval", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let mixedSnap = ThreadSnapshot.build(root: voiceRoot, related: [mixedReply], ownUserId: me, now: now)
+        XCTAssertEqual(mixedSnap.reply?.workText, "Checking.")
+        XCTAssertEqual(mixedSnap.reply?.answerText, "Result:\nreturn 42")
+
+        // Out-of-order body_line positions must not split prose.
+        let outOfOrder = event("$ro", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Line 0.\nLine 1.\nLine 2.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [
+                    ["type": "tool_call_completed", "tool_name": "first", "body_line": 2] as JSON,
+                    ["type": "tool_call_completed", "tool_name": "second", "body_line": 1] as JSON,
+                ],
+            ] as JSON,
+        ]))
+        let outOfOrderSnap = ThreadSnapshot.build(root: voiceRoot, related: [outOfOrder], ownUserId: me, now: now)
+        XCTAssertEqual(outOfOrderSnap.reply?.toolNames, ["first", "second"])
+        XCTAssertNil(outOfOrderSnap.reply?.workText)
+        XCTAssertEqual(outOfOrderSnap.reply?.answerText, outOfOrderSnap.reply?.text)
+
+        // ai_run.status=completed combined with an active or stopped stream_status must NOT fold or show duration.
+        for conflicting in ["streaming", "cancelled", "approval_pending"] {
+            let initial = event("$rc", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$rce", 1_700_000_012_000, [
+                "m.new_content": [
+                    "msgtype": "m.text",
+                    "body": body,
+                    "io.mindroom.ai_run": ["version": 1, "status": "completed"] as JSON,
+                    "io.mindroom.stream_status": conflicting,
+                    "io.mindroom.tool_trace": [
+                        "version": 3,
+                        "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                    ] as JSON,
+                ] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$rc"] as JSON,
+            ])
+            let snap = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
+            XCTAssertNil(snap.reply?.workText, "conflicting=\(conflicting)")
+            XCTAssertEqual(snap.reply?.answerText, snap.reply?.text, "conflicting=\(conflicting)")
+            XCTAssertNil(snap.reply?.durationSeconds, "conflicting=\(conflicting)")
+        }
+
+        // Redacted agent reply with a surviving same-sender edit must NOT expose tool names or work fold.
+        var redacted = event("$red", 1_700_000_000_000, inThread([:]))
+        redacted["unsigned"] = ["redacted_because": ["event_id": "$redaction"] as JSON] as JSON
+        let survivingEdit = event("$rede", 1_700_000_012_000, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "secret_tool", "body_line": 1] as JSON],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$red"] as JSON,
+        ])
+        let redactedSnap = ThreadSnapshot.build(root: voiceRoot, related: [redacted, survivingEdit], ownUserId: me, now: now)
+        XCTAssertEqual(redactedSnap.reply?.toolNames, [String]())
+        XCTAssertNil(redactedSnap.reply?.workText)
+        XCTAssertNil(redactedSnap.reply?.durationSeconds)
     }
 
     func testDurationSecondsHandlesExtremeAndNonPositiveTimestampsWithoutOverflow() {
@@ -1056,7 +1130,7 @@ final class ThreadSnapshotTests: XCTestCase {
         for (startTs, editTs) in cases {
             let initial = event("$r", startTs, inThread(["msgtype": "m.text", "body": "…"]))
             let edit = event("$e", editTs, [
-                "m.new_content": ["msgtype": "m.text", "body": "Done."] as JSON,
+                "m.new_content": ["msgtype": "m.text", "body": "Done.", "io.mindroom.stream_status": "completed"] as JSON,
                 "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
             ])
             let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)

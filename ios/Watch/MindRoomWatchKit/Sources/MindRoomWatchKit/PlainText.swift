@@ -66,7 +66,8 @@ public enum PlainText {
     }
 
     /// Splits a raw Markdown body at an LF-indexed line boundary (`body_line` in a v3 tool trace) in a single
-    /// fence-aware pass. Returns `nil` if the boundary is out of range, lands inside an open code fence, or has
+    /// fence-aware pass. Counts `splitLine` strictly on LF bytes while formatting embedded newlines identically to
+    /// `withToolDetails`. Returns `nil` if the boundary is out of range, lands inside an open code fence, or has
     /// no non-empty prose on either side.
     public static func splitFinishedWork(markdown: String, atLFLine splitLine: Int) -> (workText: String, answerText: String)? {
         let rawLines = markdown.utf8.split(separator: 0x0A, omittingEmptySubsequences: false).map { slice -> String in
@@ -77,27 +78,29 @@ public enum PlainText {
         var fence: String?
         var beforeLines: [String] = []
         var afterLines: [String] = []
-        for (index, line) in rawLines.enumerated() {
+        for (index, rawLine) in rawLines.enumerated() {
             if index == splitLine && fence != nil { return nil }
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            let formatted: String?
-            if let open = fence {
-                if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) {
-                    fence = nil
+            for line in rawLine.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                let formatted: String?
+                if let open = fence {
+                    if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) {
+                        fence = nil
+                        formatted = nil
+                    } else {
+                        formatted = line
+                    }
+                } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                    fence = String(trimmed.prefix { $0 == trimmed.first })
+                    formatted = nil
+                } else if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
                     formatted = nil
                 } else {
-                    formatted = line
+                    formatted = prose(line)
                 }
-            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                fence = String(trimmed.prefix { $0 == trimmed.first })
-                formatted = nil
-            } else if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
-                formatted = nil
-            } else {
-                formatted = prose(line)
-            }
-            if let formatted {
-                if index < splitLine { beforeLines.append(formatted) } else { afterLines.append(formatted) }
+                if let formatted {
+                    if index < splitLine { beforeLines.append(formatted) } else { afterLines.append(formatted) }
+                }
             }
         }
         let before = normalize(beforeLines[...])
