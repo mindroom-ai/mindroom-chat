@@ -347,7 +347,7 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
     const targetCard = compactView(page).locator(`[data-thread-root-id="${target.key}"]${LIVE}`);
 
     await targetCard.hover();
-    await send('Held live reply released when moving pointer to opened thread', roots[4]!);
+    await send('Held live reply released when moving pointer to opened thread', roots[4]);
     await page.waitForTimeout(400);
     await takeFrames(page);
 
