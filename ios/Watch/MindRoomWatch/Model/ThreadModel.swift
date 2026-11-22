@@ -22,11 +22,14 @@ final class ThreadModel: ObservableObject {
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
+    private let trustedAccounts: @MainActor () -> Set<String>
 
-    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?) {
+    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?,
+         trustedAccounts: @escaping @MainActor () -> Set<String> = { [] }) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
+        self.trustedAccounts = trustedAccounts
         snapshot = initial
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
@@ -96,7 +99,8 @@ final class ThreadModel: ObservableObject {
     private func fetch() async {
         guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
               let root = jsons.first.flatMap(parse) else { return }
-        let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+        let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date(),
+                                        trustedAccounts: trustedAccounts())
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)

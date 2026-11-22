@@ -51,6 +51,7 @@ final class RoomModel: ObservableObject {
     /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
     private static let snapshotLifetime: TimeInterval = 60
     private var resolved: Set<String> = []
+    private(set) var trustedAccounts: Set<String> = []
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
@@ -169,7 +170,15 @@ final class RoomModel: ObservableObject {
             publish()
             return
         }
-        if let resolved = await resolvedRoots() { self.resolved = resolved }
+        if let state = await roomState() {
+            resolved = ThreadTags.resolvedRoots(state: state)
+            let nextTrusted = TrustedAccounts.inRoom(state: state)
+            if nextTrusted != trustedAccounts {
+                trustedAccounts = nextTrusted
+                snapshots = [:]
+                snapshotReads = [:]
+            }
+        }
         // Resolved threads do not count: read a few more pages while they fill the first one.
         for _ in 0..<3 {
             let open = threads.items().filter { !resolved.contains($0.rootEvent.eventId) }.count
@@ -193,7 +202,8 @@ final class RoomModel: ObservableObject {
             if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
                let root = jsons.first.flatMap(parse) {
                 let related = jsons.dropFirst().compactMap(parse)
-                let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date())
+                let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date(),
+                                                    trustedAccounts: trustedAccounts)
                 snapshots[rootId] = snapshot
                 snapshotReads[rootId] = (key, Date())
                 if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
@@ -269,9 +279,9 @@ final class RoomModel: ObservableObject {
         }
     }
 
-    /// The thread tags and pinned events in the room's state: one request per refresh (state events are not
-    /// encrypted); nil when it could not be read.
-    private func resolvedRoots() async -> Set<String>? {
+    /// The room's state events: one request per refresh (state events are not encrypted); nil when it could
+    /// not be read.
+    private func roomState() async -> [JSON]? {
         guard let session, let base = URL(string: session.homeserverUrl) else { return nil }
         let roomId = room.id().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "!:/"))) ?? room.id()
         guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return nil }
@@ -279,8 +289,8 @@ final class RoomModel: ObservableObject {
         request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
-              let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-        return ThreadTags.resolvedRoots(state: state)
+              let state = try? JSONSerialization.jsonObject(with: data) as? [JSON] else { return nil }
+        return state
     }
 }
 
