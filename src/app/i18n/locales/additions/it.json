@@ -759,7 +759,8 @@
           "default": "Usa predefinito configurato",
           "defaultDescription": "Segui il modello predefinito configurato in MindRoom per questa stanza.",
           "unknown": "Modello sconosciuto: \"{{value}}\" non è presente nell’elenco modelli di questa stanza.",
-          "catalogUnavailable": "Nessun elenco modelli disponibile al momento. Puoi comunque ripristinare il valore predefinito configurato."
+          "catalogUnavailable": "Nessun elenco modelli disponibile al momento. Puoi comunque ripristinare il valore predefinito configurato.",
+          "storedRaw": "Valore configurato: {{value}}"
         },
         "threadMode": {
           "label": "Modalità thread",

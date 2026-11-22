@@ -746,7 +746,8 @@
           "default": "Konfigurierten Standard verwenden",
           "defaultDescription": "Folgt dem in MindRoom konfigurierten Standard für diesen Raum.",
           "unknown": "Unbekanntes Modell: „{{value}}“ steht nicht in der Modellliste dieses Raums.",
-          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen."
+          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen.",
+          "storedRaw": "Konfigurierter Wert: {{value}}"
         },
         "threadMode": {
           "label": "Thread-Modus",

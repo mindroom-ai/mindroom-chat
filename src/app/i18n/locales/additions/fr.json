@@ -759,7 +759,8 @@
           "default": "Utiliser la valeur par défaut configurée",
           "defaultDescription": "Suivre la valeur par défaut configurée dans MindRoom pour ce salon.",
           "unknown": "Modèle inconnu : « {{value}} » ne figure pas dans la liste des modèles de ce salon.",
-          "catalogUnavailable": "Aucune liste de modèles n’est disponible pour le moment. Vous pouvez tout de même rétablir la valeur par défaut configurée."
+          "catalogUnavailable": "Aucune liste de modèles n’est disponible pour le moment. Vous pouvez tout de même rétablir la valeur par défaut configurée.",
+          "storedRaw": "Valeur configurée : {{value}}"
         },
         "threadMode": {
           "label": "Mode de fil",

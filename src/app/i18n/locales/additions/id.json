@@ -733,7 +733,8 @@
           "default": "Gunakan bawaan yang dikonfigurasi",
           "defaultDescription": "Ikuti pengaturan bawaan MindRoom untuk ruang ini.",
           "unknown": "Model tidak dikenal: \"{{value}}\" tidak ada dalam daftar model ruang ini.",
-          "catalogUnavailable": "Daftar model tidak tersedia saat ini. Anda tetap dapat mengatur ulang ke bawaan yang dikonfigurasi."
+          "catalogUnavailable": "Daftar model tidak tersedia saat ini. Anda tetap dapat mengatur ulang ke bawaan yang dikonfigurasi.",
+          "storedRaw": "Nilai yang dikonfigurasi: {{value}}"
         },
         "threadMode": {
           "label": "Mode utas",

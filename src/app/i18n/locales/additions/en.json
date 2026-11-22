@@ -746,7 +746,8 @@
           "default": "Use configured default",
           "defaultDescription": "Follow MindRoom's configured default for this room.",
           "unknown": "Unknown model: \"{{value}}\" is not in this room's model list.",
-          "catalogUnavailable": "No model list is available right now. You can still reset to the configured default."
+          "catalogUnavailable": "No model list is available right now. You can still reset to the configured default.",
+          "storedRaw": "Configured value: {{value}}"
         },
         "threadMode": {
           "label": "Thread mode",

@@ -733,7 +733,8 @@
           "default": "設定済みの既定を使用",
           "defaultDescription": "このルームの MindRoom の設定済み既定値に従います。",
           "unknown": "不明なモデル: 「{{value}}」はこのルームのモデル一覧にありません。",
-          "catalogUnavailable": "現在モデル一覧を取得できません。設定済みの既定にリセットすることは引き続き可能です。"
+          "catalogUnavailable": "現在モデル一覧を取得できません。設定済みの既定にリセットすることは引き続き可能です。",
+          "storedRaw": "設定済みの値: {{value}}"
         },
         "threadMode": {
           "label": "スレッドモード",

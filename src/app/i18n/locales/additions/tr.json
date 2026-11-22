@@ -746,7 +746,8 @@
           "default": "Yapılandırılmış varsayılanı kullan",
           "defaultDescription": "Bu oda için MindRoom yapılandırmasındaki varsayılanı izle.",
           "unknown": "Bilinmeyen model: \"{{value}}\" bu odanın model listesinde yok.",
-          "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz."
+          "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz.",
+          "storedRaw": "Yapılandırılmış değer: {{value}}"
         },
         "threadMode": {
           "label": "Konu modu",

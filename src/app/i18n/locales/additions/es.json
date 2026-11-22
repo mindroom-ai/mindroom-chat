@@ -759,7 +759,8 @@
           "default": "Usar el valor predeterminado configurado",
           "defaultDescription": "Seguir el valor predeterminado configurado en MindRoom para esta sala.",
           "unknown": "Modelo desconocido: «{{value}}» no está en la lista de modelos de esta sala.",
-          "catalogUnavailable": "No hay ninguna lista de modelos disponible en este momento. Aun así puedes restablecer al valor predeterminado configurado."
+          "catalogUnavailable": "No hay ninguna lista de modelos disponible en este momento. Aun así puedes restablecer al valor predeterminado configurado.",
+          "storedRaw": "Valor configurado: {{value}}"
         },
         "threadMode": {
           "label": "Modo de hilos",
