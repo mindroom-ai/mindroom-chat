@@ -106,7 +106,7 @@ class CompactHeightGuard extends React.Component<GuardProps> {
     if (globalThis.CSS?.supports?.('overflow-anchor', 'auto')) return false;
     // Pin height across React's mutation phase so WebKit does not clamp scrollTop between removals
     // and insertions.
-    const height = content.getBoundingClientRect().height;
+    const height = content.getBoundingClientRect?.().height ?? 0;
     if (height <= 0) return false;
     content.style.minHeight = `${height}px`;
     content.getBoundingClientRect();
