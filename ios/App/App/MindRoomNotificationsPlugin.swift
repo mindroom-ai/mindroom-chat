@@ -27,8 +27,9 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         lock.lock()
         let generation = accountGenerations[accountTag] ?? 0
         let previous = syncTasks[accountTag]
-        let task = Task.detached(priority: .utility) { [weak self] in
-            await self?.performAvatarSync(
+        let task = Task<Void, Never>.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            await self.performAvatarSync(
                 accountTag: accountTag,
                 generation: generation,
                 entries: entries
