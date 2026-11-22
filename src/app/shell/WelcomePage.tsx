@@ -218,7 +218,8 @@ function Greeting() {
  * Shown when no room is open: a greeting, a field that asks one of the rooms' agents a question as
  * a new thread, the newest threads, quiet notices for recovery and this device's verification,
  * and links to docs, the interface tour and the source. An account without agents gets the
- * deployment's welcome heading in place of the greeting and the field.
+ * deployment's welcome heading in place of the greeting, and of the field only what is left of
+ * a question on its way.
  */
 export function WelcomePage() {
   const { t } = useTranslation();
@@ -233,10 +234,7 @@ export function WelcomePage() {
       <div className={css.Scroll}>
         <div className={css.Column}>
           {agents.length > 0 ? (
-            <>
-              <Greeting />
-              <HomeAsk agents={agents} />
-            </>
+            <Greeting />
           ) : (
             <Box direction="Column" alignItems="Center" gap="200">
               <Text as="h1" size="H2" align="Center">
@@ -247,6 +245,7 @@ export function WelcomePage() {
               </Text>
             </Box>
           )}
+          <HomeAsk agents={agents} />
           <HomeRecentThreads />
           <UnverifiedDeviceCard />
           <KeyBackupNudge />

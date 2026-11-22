@@ -44,7 +44,10 @@ export type HomeAgent = {
   avatarMxc?: string;
   /** The rooms a question to it can go to (`canAskIn`), the one it last answered in first. */
   roomIds: string[];
-  /** Its direct chat with the account, waiting while it has yet to join. */
+  /**
+   * Its direct chat with the account, waiting while it has yet to join: of several it has joined,
+   * the one it last answered in.
+   */
   direct?: { roomId: string; waiting: boolean };
   /**
    * Where a question to it goes: the room it last answered in, else its direct chat; undefined
@@ -116,15 +119,15 @@ const listedDirectRooms = (mx: MatrixClient, agentId: string): Room[] => {
 };
 
 /**
- * The account's direct chat with `agentId`: a room `m.direct` lists that is one
- * (`isDirectRoomWith`), preferring one the agent has already joined over a pending invite.
+ * The account's direct chats with `agentId`, in `m.direct`'s order: the rooms it lists that are
+ * one (`isDirectRoomWith`) the agent has joined, and the first it is invited to.
  */
-const readDirect = (mx: MatrixClient, agentId: string): HomeAgent['direct'] => {
+const readDirects = (mx: MatrixClient, agentId: string): { joined: Room[]; invited?: Room } => {
   const rooms = listedDirectRooms(mx, agentId);
-  const joined = rooms.find((room) => isDirectRoomWith(room, agentId));
-  if (joined) return { roomId: joined.roomId, waiting: false };
-  const invited = rooms.find((room) => isDirectRoomWith(room, agentId, ['invite']));
-  return invited ? { roomId: invited.roomId, waiting: true } : undefined;
+  return {
+    joined: rooms.filter((room) => isDirectRoomWith(room, agentId)),
+    invited: rooms.find((room) => isDirectRoomWith(room, agentId, ['invite'])),
+  };
 };
 
 /** A message that answers: no reaction, edit, redacted message or thread's title notice. */
@@ -138,12 +141,12 @@ const answerKey = (roomId: string, senderId: string): string => `${roomId}\0${se
 
 /**
  * When each sender last answered in each of `rooms`, by `answerKey`, read in one pass: its newest
- * message the client has loaded there, or the reply the thread index says ends one of the room's
- * threads. Someone else's later message in a thread it answered in does not count. The index's
- * time moves with an edit of that reply, so a thread the client has counts by its last reply
- * itself, by the time that was sent: the newest the server told of, also before the thread's
- * events are loaded, so an older reply that is loaded hides no newer one. A title notice that
- * followed that reply is not it: the reply kept from before counts, else the index's.
+ * message the client has loaded there, the newest reply the server told of in one of the room's
+ * threads (also before the thread's events are loaded, so an older reply that is loaded hides no
+ * newer one; a title notice that followed it is not it, the reply kept from before is), or the
+ * reply the thread index says ends a thread. Someone else's later message in a thread it answered
+ * in does not count. The index's time moves with an edit of that reply, so it counts only for a
+ * sender none of whose answers in the thread the client has: those count by when they were sent.
  */
 const readLastAnswers = (
   rooms: Iterable<Room>,
@@ -168,12 +171,15 @@ const readLastAnswers = (
   for (const { roomId, threadRootId, threadRecord } of threads) {
     const { lastSenderId, latestReplyTs } = threadRecord.presentation;
     const room = byId.get(roomId);
-    if (room && lastSenderId) {
-      const reply = getThreadSummaryReply(room.getThread(threadRootId));
-      if (!reply || isThreadSummaryEvent(reply)) note(roomId, lastSenderId, latestReplyTs ?? 0);
-      else if (reply.getSender() === lastSenderId && isAnswer(reply)) {
-        note(roomId, lastSenderId, reply.getTs());
-      }
+    if (room) {
+      const thread = room.getThread(threadRootId);
+      const reply = getThreadSummaryReply(thread);
+      const replySender = reply && isAnswer(reply) ? reply.getSender() : undefined;
+      if (reply && replySender) note(roomId, replySender, reply.getTs());
+      const known =
+        replySender === lastSenderId ||
+        thread?.events.some((event) => event.getSender() === lastSenderId && isAnswer(event));
+      if (lastSenderId && !known) note(roomId, lastSenderId, latestReplyTs ?? 0);
     }
   }
   return newest;
@@ -199,14 +205,11 @@ export const readHomeAgents = (
     });
   });
   const directs = new Map(
-    Array.from(roomsByAgent.keys(), (agentId) => [agentId, readDirect(mx, agentId)] as const)
+    Array.from(roomsByAgent.keys(), (agentId) => [agentId, readDirects(mx, agentId)] as const)
   );
-  // An agent's answers in its direct chat count too, also in one where it publishes no state.
+  // An agent's answers in its direct chats count too, also in one where it publishes no state.
   const answerRooms = new Set(Array.from(roomsByAgent.values()).flat());
-  directs.forEach((direct) => {
-    const directRoom = direct && !direct.waiting ? mx.getRoom(direct.roomId) : null;
-    if (directRoom) answerRooms.add(directRoom);
-  });
+  directs.forEach(({ joined }) => joined.forEach((room) => answerRooms.add(room)));
   const answers = readLastAnswers(answerRooms, threads);
   const agents = Array.from(roomsByAgent, ([userId, rooms]): HomeAgent => {
     const answered = (roomId: string) => answers.get(answerKey(roomId, userId)) ?? 0;
@@ -215,7 +218,12 @@ export const readHomeAgents = (
       .filter((room) => canAskIn(room, userId))
       .map((room) => room.roomId)
       .sort((a, b) => answered(b) - answered(a));
-    const direct = directs.get(userId);
+    // Of several direct chats, the one it last answered in, else the first `m.direct` lists.
+    const { joined, invited } = directs.get(userId)!;
+    const [chat] = [...joined].sort((a, b) => answered(b.roomId) - answered(a.roomId));
+    let direct: HomeAgent['direct'];
+    if (chat) direct = { roomId: chat.roomId, waiting: false };
+    else if (invited) direct = { roomId: invited.roomId, waiting: true };
     let [lastRoomId] = usable;
     let lastUsedTs = lastRoomId ? answered(lastRoomId) : 0;
     if (direct && !direct.waiting && answered(direct.roomId) > lastUsedTs) {
@@ -260,7 +268,8 @@ const loadDirect = async (mx: MatrixClient, agentId: string): Promise<string | u
     failed = true;
   };
   await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(fail)));
-  const direct = readDirect(mx, agentId)?.roomId;
+  const { joined, invited } = readDirects(mx, agentId);
+  const direct = (joined[0] ?? invited)?.roomId;
   if (!direct && failed) throw new Error('The members of a listed direct chat did not load.');
   return direct;
 };

@@ -17,6 +17,7 @@ import {
   clearRoomInputDrafts,
   getHomeAskDraftKey,
   homeAskDestinationAtomFamily,
+  homeAskPendingAtomFamily,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -100,6 +101,7 @@ type FakeRoom = Room & {
   members: Record<string, string>;
   joined: number;
   echoes: Map<string, MatrixEvent>;
+  alias: string | null;
 };
 const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joined = 3) => {
   const room = {
@@ -109,6 +111,8 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     members: Object.fromEntries(joinedAgents.map((agentId) => [agentId, 'join'])),
     joined,
     echoes: new Map<string, MatrixEvent>(),
+    alias: null as string | null,
+    getCanonicalAlias: () => room.alias,
     findEventById: (eventId: string) => room.echoes.get(eventId),
     getMyMembership: () => 'join',
     getMxcAvatarUrl: () => null,
@@ -546,6 +550,82 @@ describe('HomeAsk', () => {
     expect(mx.resendEvent).toHaveBeenCalledWith(sent, eng);
   });
 
+  it('keeps the notice of a failed question, to delete it, once no agent is left to ask', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const mx = makeClient([eng]);
+    const store = createStore();
+    const { refresh } = renderAsk(mx, [helperAgent], store);
+    const failed = sendEcho(eng);
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+
+    // The last agent leaves: the field goes, the notice stays, with nowhere to send again.
+    eng.members[HELPER] = 'leave';
+    refresh([]);
+    expect(screen.queryByTestId('room-input')).toBeNull();
+    expect(screen.getByText('Not sent')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+
+    // Deleted, the question is over.
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(mx.cancelPendingEvent).toHaveBeenCalledWith(failed);
+    settleEcho(mx, eng, EventStatus.CANCELLED);
+    expect(store.get(homeAskPendingAtomFamily(ME))).toBeUndefined();
+    expect(screen.queryByText('Not sent')).toBeNull();
+  });
+
+  it('finds a failed question with no agent to ask, and opens one confirmed meanwhile', () => {
+    const eng = makeRoom('!eng', 'Engineering');
+    const mx = makeClient([eng]);
+    const store = createStore();
+    const sent = { roomId: '!eng', agentId: HELPER, isDirect: false, eventId: ECHO_ID };
+    store.set(homeAskPendingAtomFamily(ME), { state: 'echo', ...sent });
+    eng.echoes.set(ECHO_ID, {
+      status: EventStatus.NOT_SENT,
+      getId: () => ECHO_ID,
+    } as unknown as MatrixEvent);
+    renderAsk(mx, [], store);
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
+
+    // Sent again from its room, it is confirmed: its thread opens.
+    confirmEcho(mx, eng, '$confirmed-root');
+    expect(navigateRoomThreadDirect).toHaveBeenCalledWith('!eng', '$confirmed-root');
+    expect(store.get(homeAskPendingAtomFamily(ME))).toBeUndefined();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+
+  it('keeps a draft for a direct chat with that chat when another becomes the direct chat', () => {
+    const first = makeRoom('!dm-first', 'Helper', [HELPER], 2);
+    const second = makeRoom('!dm-second', 'Helper', [HELPER], 2);
+    const mx = makeClient([first, second]);
+    const agent = (roomId: string): HomeAgent => ({
+      ...helperAgent,
+      roomIds: [],
+      direct: { roomId, waiting: false },
+      defaultRoomId: roomId,
+    });
+    const store = createStore();
+    const { refresh } = renderAsk(mx, [agent('!dm-first')], store);
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+    });
+
+    // Helper answers in the other chat, which is its direct chat from now on.
+    refresh([agent('!dm-second')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-first');
+    expect(ask()?.canSend()).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'In Direct chat' })).toBeTruthy();
+
+    // Once someone else is in it, it is no direct chat, and takes the draft no longer.
+    first.joined = 3;
+    refresh([agent('!dm-second')]);
+    expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
+    expect(ask()?.canSend()).toBe(false);
+  });
+
   it('leaves a newer draft of another tab as it is when the page opens', () => {
     const mx = makeClient([
       makeRoom('!eng', 'Engineering', [HELPER]),
@@ -610,6 +690,50 @@ describe('HomeAsk', () => {
     } finally {
       focus.mockRestore();
     }
+  });
+
+  it('stays with the agent pressed while its chat starts, whoever answers meanwhile', async () => {
+    const focus = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    try {
+      const dm = makeRoom('!dm', 'Quill', [QUILL], 2);
+      let started!: (roomId: string) => void;
+      vi.mocked(startDirectChat).mockReturnValue(
+        new Promise<string>((resolve) => {
+          started = resolve;
+        })
+      );
+      const mx = makeClient([dm, makeRoom('!eng', 'Engineering', [HELPER])]);
+      const { refresh } = renderAsk(mx, [quillAgent, helperAgent]);
+      fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+      // Helper answers somewhere, and comes first: the field is still Quill's, starting.
+      refresh([helperAgent, quillAgent]);
+      expect(screen.queryByTestId('room-input')).toBeNull();
+      expect(screen.getByRole('button', { name: /^Starting/ }).getAttribute('aria-busy')).toBe(
+        'true'
+      );
+      await act(async () => started('!dm'));
+      expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+      expect(lastRoomInputProps.current?.ask?.agentUserId).toBe(QUILL);
+      expect(focus).toHaveBeenCalledTimes(1);
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
+  it('tells rooms of one name apart by their addresses, else by their IDs', () => {
+    const rooms = [
+      makeRoom('!eng', 'Planning', [HELPER]),
+      makeRoom('!lobby', 'Planning', [HELPER]),
+      makeRoom('!other', 'Lobby', [HELPER]),
+    ];
+    rooms[0]!.alias = '#planning:example.org';
+    const agent = { ...helperAgent, roomIds: ['!eng', '!lobby', '!other'] };
+    renderAsk(makeClient(rooms), [agent]);
+    fireEvent.click(screen.getByRole('button', { name: 'In Planning' }));
+    const entries = screen.getAllByRole('menuitemradio').map((entry) => entry.textContent);
+    expect(entries[0]).toContain('Planning#planning:example.org');
+    expect(entries[1]).toContain('Planning!lobby');
+    expect(entries[2]).not.toContain('!other');
   });
 
   it('tells agents of one name apart by their IDs', () => {

@@ -332,6 +332,68 @@ describe('readHomeAgents', () => {
     expect(indexed).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 900 });
   });
 
+  it('keeps a loaded answer at the time it was sent when a title notice ends its thread', () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: {
+          // Helper's answer, edited since, then the router's title notice.
+          $titled: [
+            [ME, 90],
+            [HELPER, 100],
+            { sender: HELPER, ts: 400, relType: RelationType.Replace },
+            { sender: ROUTER, ts: 500, title: true },
+          ],
+        },
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    // The index gives the edit's time, which counts nothing beside the answer the client has.
+    const index = [thread('!lobby', HELPER, 400, '$titled')];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), index);
+    expect(helper).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+  });
+
+  it("counts a thread's newest reply for its sender when the index names someone else", () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER, SCOUT],
+        // Not loaded: the server told of Helper's reply, the index still of Scout's.
+        threads: { $unopened: { loaded: [], latest: [HELPER, 300] } },
+      }),
+    ];
+    const index = [thread('!lobby', SCOUT, 900, '$unopened')];
+    const agents = readHomeAgents(client(rooms), ids(rooms), index);
+    expect(agents.map((agent) => [agent.userId, agent.lastUsedTs])).toEqual([
+      [SCOUT, 900],
+      [HELPER, 300],
+    ]);
+  });
+
+  it('takes, of several direct chats the agent has joined, the one it last answered in', () => {
+    // Helper publishes no state in either chat.
+    const chats = (first: number, second: number) => [
+      room('!lobby', { agents: [HELPER], messages: [[HELPER, 100]] }),
+      room('!dm-first', { members: { [HELPER]: 'join' }, count: 2, messages: [[HELPER, first]] }),
+      room('!dm-second', { members: { [HELPER]: 'join' }, count: 2, messages: [[HELPER, second]] }),
+    ];
+    const direct = { [HELPER]: ['!dm-first', '!dm-second'] };
+    const [newest] = readHomeAgents(client(chats(200, 500), direct), ['!lobby'], []);
+    expect(newest).toMatchObject({
+      direct: { roomId: '!dm-second', waiting: false },
+      defaultRoomId: '!dm-second',
+      lastUsedTs: 500,
+    });
+    // Answered in at one time, or never, the first `m.direct` lists is it; a room answered in
+    // later than both is where a question goes.
+    const [tied] = readHomeAgents(client(chats(50, 50), direct), ['!lobby'], []);
+    expect(tied).toMatchObject({
+      direct: { roomId: '!dm-first', waiting: false },
+      defaultRoomId: '!lobby',
+      lastUsedTs: 100,
+    });
+  });
+
   it('counts the answers in a joined direct chat where the agent publishes no state', () => {
     const rooms = [
       room('!lobby', { agents: [HELPER, SCOUT], messages: [[HELPER, 100]] }),

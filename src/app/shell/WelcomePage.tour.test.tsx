@@ -18,7 +18,11 @@ vi.mock('../ui/page/Page', () => {
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });
 vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
-vi.mock('./HomeAsk', () => ({ HomeAsk: () => <div data-testid="ask-field" /> }));
+vi.mock('./HomeAsk', () => ({
+  HomeAsk: ({ agents }: { agents: unknown[] }) => (
+    <div data-testid="ask-field" data-agents={agents.length} />
+  ),
+}));
 vi.mock('./HomeRecentThreads', () => ({ HomeRecentThreads: () => null }));
 vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayName: 'Ada' }) }));
 vi.mock('../account/verification/UnverifiedDeviceCard', () => ({
@@ -109,13 +113,14 @@ describe('WelcomePage greeting', () => {
     vi.mocked(useHomeAgents).mockReturnValueOnce([agent]);
     showWelcome({});
     expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/Ada/);
-    expect(screen.getByTestId('ask-field')).toBeTruthy();
+    expect(screen.getByTestId('ask-field').dataset.agents).toBe('1');
   });
 
   it("keeps the deployment's welcome heading for an account without agents", () => {
     showWelcome({ title: 'Welcome to Example' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Welcome to Example');
-    expect(screen.queryByTestId('ask-field')).toBeNull();
+    // The field is given no agent, and shows only what is left of a question on its way.
+    expect(screen.getByTestId('ask-field').dataset.agents).toBe('0');
   });
 
   it('says good morning before noon, good afternoon until six, then good evening', () => {

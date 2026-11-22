@@ -92,14 +92,89 @@ const answersIn = (room: Room, agentId: string, isDirect: boolean): boolean =>
   isDirect ? isDirectRoomWith(room, agentId) : canAskIn(room, agentId);
 
 /**
+ * Opens a question once the server has it, under the ID it gave: the room at it where agents
+ * answer in the room's main timeline, elsewhere its new thread.
+ */
+const useOpenQuestion = () => {
+  const mx = useMatrixClient();
+  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  return useCallback(
+    (roomId: string, eventId: string) => {
+      if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') navigateRoom(roomId, eventId);
+      else navigateRoomThreadDirect(roomId, eventId);
+    },
+    [mx, navigateRoom, navigateRoomThreadDirect]
+  );
+};
+
+/**
+ * Follows the account's question on its way (`homeAskPendingAtomFamily`) while Home shows, with
+ * or without an agent left to ask: confirmed, its thread opens; failed, this is its notice.
+ */
+const useHomeAskPendingNotice = (): ReactNode => {
+  const mx = useMatrixClient();
+  const store = useStore();
+  const pendingAtom = homeAskPendingAtomFamily(mx.getSafeUserId());
+  const pending = useAtomValue(pendingAtom);
+  const open = useOpenQuestion();
+  const [failedSend, setFailedSend] = useState<{ room: Room; event: MatrixEvent }>();
+  // The question's message as the page opens, and as it is tracked: confirmed or deleted while
+  // the page was closed, it is over, and nothing opens; failed, it shows its notice.
+  useEffect(() => {
+    const echoRoom = pending?.state === 'echo' ? mx.getRoom(pending.roomId) : null;
+    const echo = pending?.eventId ? echoRoom?.findEventById(pending.eventId) : undefined;
+    setFailedSend(
+      echoRoom && echo && isFailedLocalEchoEvent(echo) ? { room: echoRoom, event: echo } : undefined
+    );
+    if (pending?.state === 'echo' && !echo) store.set(pendingAtom, undefined);
+  }, [mx, pending, pendingAtom, store]);
+  useEffect(() => {
+    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
+      const tracked = store.get(pendingAtom);
+      if (tracked?.state !== 'echo' || echoRoom.roomId !== tracked.roomId) return;
+      const id = event.getId();
+      if (oldId !== tracked.eventId && id !== tracked.eventId) return;
+      if (id && !isLocalEchoEventId(id)) {
+        store.set(pendingAtom, undefined);
+        open(echoRoom.roomId, id);
+      } else if (event.status === EventStatus.CANCELLED) {
+        store.set(pendingAtom, undefined);
+      } else {
+        setFailedSend(isFailedLocalEchoEvent(event) ? { room: echoRoom, event } : undefined);
+      }
+    };
+    mx.on(RoomEvent.LocalEchoUpdated, onEcho);
+    return () => {
+      mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
+    };
+  }, [mx, open, pendingAtom, store]);
+  // Sent again, the question goes where it went: offered only while the agent still answers there.
+  return (
+    failedSend &&
+    pending && (
+      <FailedSendActions
+        room={failedSend.room}
+        event={failedSend.event}
+        canRetry={() => answersIn(failedSend.room, pending.agentId, pending.isDirect)}
+      />
+    )
+  );
+};
+
+/**
  * Home's ask field: a question to one of the rooms' agents, sent as a new thread, which then
  * opens. It goes to the room the agent last answered in, else its direct chat, which a press on
  * the field starts when there is none yet; the pickers choose another agent or room. The text is
- * Home's own draft, whichever room it is to go to.
+ * Home's own draft, whichever room it is to go to. With no agent left to ask, a question on its
+ * way is still followed, and one that failed keeps its notice.
  */
 export function HomeAsk({ agents }: { agents: HomeAgent[] }) {
   const first = agents[0];
-  return first ? <HomeAskField agents={agents} first={first} /> : null;
+  return first ? <HomeAskField agents={agents} first={first} /> : <HomeAskPendingNotice />;
+}
+
+function HomeAskPendingNotice() {
+  return <>{useHomeAskPendingNotice()}</>;
 }
 
 function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent }) {
@@ -135,14 +210,14 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   );
   const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
   const [focusOnMount, setFocusOnMount] = useState(false);
-  const [failedSend, setFailedSend] = useState<{ room: Room; event: MatrixEvent }>();
   const typed = useAtomValue(draftAtom).length > 0;
   const selected = choice ?? destinationOf(first, first.defaultRoomId ?? null);
   const agent =
     agents.find((candidate) => candidate.userId === selected.agentId) ??
     goneAgent(selected.agentId);
-  const { roomId } = selected;
   const isDirect = !!selected.isDirect;
+  // A direct chat yet to be started is the agent's direct chat once it has one.
+  const roomId = selected.roomId ?? (isDirect ? agent.direct?.roomId ?? null : null);
   if (typed && !choice) setChoice(selected);
   // The draft's text is stored with where it goes, in one entry. This keeps that current, with
   // nothing typed too, so the first letter typed is stored with it. Storage is written only as
@@ -152,7 +227,8 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   }, [agent.userId, destinationAtom, isDirect, roomId, store]);
   const selection = useRef({ agentId: agent.userId, roomId });
   selection.current = { agentId: agent.userId, roomId };
-  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  const open = useOpenQuestion();
+  const failedNotice = useHomeAskPendingNotice();
   // No drop zone: a file dropped on Home is not attached.
   const noDrop = useRef<HTMLElement>(null);
   const agentPickerRef = useRef<HTMLButtonElement | null>(null);
@@ -167,10 +243,11 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   if (!direct) roomIds.push(null);
   else if (!roomIds.includes(direct.roomId)) roomIds.push(direct.roomId);
   const room = roomId ? mx.getRoom(roomId) : null;
-  // A room picked as the direct chat stays a choice only while it is that chat, not as a room of
-  // the same ID that others have joined since.
+  // A room picked as the direct chat stays a choice only while it is one, not as a room of the
+  // same ID that others have joined since: the agent's direct chat, or another chat of the two
+  // that was it when picked.
   const listed = isDirect
-    ? roomId === (direct?.roomId ?? null)
+    ? roomId === (direct?.roomId ?? null) || (!!room && isDirectRoomWith(room, agent.userId))
     : roomId !== null && agent.roomIds.includes(roomId);
   // A chat just started is among the choices once the client has it, and waits until the agent
   // joins even if the room arrives before `m.direct` syncs back, or before the agent's invitation
@@ -197,49 +274,13 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
     (target === 'agent' ? agentPickerRef : roomPickerRef).current?.focus();
   }, [choice, composerShown]);
 
-  // A question opens once the server has it, under the ID it gave: the room at it where agents
-  // answer in the room's main timeline, elsewhere its new thread.
-  const open = useCallback(
-    (openRoomId: string, eventId: string) => {
-      if (getRoomThreadMode(mx.getRoom(openRoomId)) === 'room') navigateRoom(openRoomId, eventId);
-      else navigateRoomThreadDirect(openRoomId, eventId);
-    },
-    [mx, navigateRoom, navigateRoomThreadDirect]
-  );
-  // The question's message as the page opens, and as it is tracked: confirmed or deleted while
-  // the page was closed, it is over, and nothing opens; failed, it shows its notice.
-  useEffect(() => {
-    const echoRoom = pending?.state === 'echo' ? mx.getRoom(pending.roomId) : null;
-    const echo = pending?.eventId ? echoRoom?.findEventById(pending.eventId) : undefined;
-    setFailedSend(
-      echoRoom && echo && isFailedLocalEchoEvent(echo) ? { room: echoRoom, event: echo } : undefined
-    );
-    if (pending?.state === 'echo' && !echo) store.set(pendingAtom, undefined);
-  }, [mx, pending, pendingAtom, store]);
-  useEffect(() => {
-    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
-      const tracked = store.get(pendingAtom);
-      if (tracked?.state !== 'echo' || echoRoom.roomId !== tracked.roomId) return;
-      const id = event.getId();
-      if (oldId !== tracked.eventId && id !== tracked.eventId) return;
-      if (id && !isLocalEchoEventId(id)) {
-        store.set(pendingAtom, undefined);
-        open(echoRoom.roomId, id);
-      } else if (event.status === EventStatus.CANCELLED) {
-        store.set(pendingAtom, undefined);
-      } else {
-        setFailedSend(isFailedLocalEchoEvent(event) ? { room: echoRoom, event } : undefined);
-      }
-    };
-    mx.on(RoomEvent.LocalEchoUpdated, onEcho);
-    return () => {
-      mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
-    };
-  }, [mx, open, pendingAtom, store]);
   // A chat being started, or started but not yet in the client.
   const busy = starting === 'busy' || (!!choice?.started && roomId !== null && !room);
 
   const startDirect = (agentId: string) => {
+    // The field stays with the agent pressed: another that answers meanwhile comes first, and
+    // would take it. A pick already made stays as it is.
+    if (!choice) setChoice({ agentId, roomId: null, isDirect: true });
     setStarts((all) => ({ ...all, [agentId]: 'busy' }));
     startDirectChat(mx, agentId, version).then(
       (started) => {
@@ -346,17 +387,24 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
             label: t('home.ask.roomChoice', { room: current.label }),
           }}
         >
-          {({ choose }) =>
-            roomIds.map((id) =>
-              radio(
+          {({ choose }) => {
+            const choices = roomIds.map((id) => ({ id, ...shown(id) }));
+            return choices.map(({ id, ...face }) => {
+              // Rooms of one name are told apart by their addresses, else by their IDs.
+              const twin = choices.some((other) => other.id !== id && other.label === face.label);
+              const twinRoom = twin && id ? mx.getRoom(id) : null;
+              const address = twinRoom?.getCanonicalAlias() || twinRoom?.roomId;
+              return radio(
                 id ?? 'new-direct',
                 id === roomId && valid,
-                shown(id),
+                face,
                 choose(() => pick('room', destinationOf(agent, id))),
-                id === null ? t('home.ask.startsDirectChat', { name }) : undefined
-              )
-            )
-          }
+                id === null
+                  ? t('home.ask.startsDirectChat', { name })
+                  : address && revealDirectionControls(address)
+              );
+            });
+          }}
         </ComposerMenuButton>
       )}
     </>
@@ -368,15 +416,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
       {t('home.ask.chooseAgain')}
     </Text>
   );
-  // Sent again, the question goes where it went: offered only while the agent still answers there.
-  const failedNotice = failedSend && pending && (
-    <FailedSendActions
-      room={failedSend.room}
-      event={failedSend.event}
-      canRetry={() => answersIn(failedSend.room, pending.agentId, pending.isDirect)}
-    />
-  );
-
   if (room && composerShown) {
     return (
       <div className={css.Ask}>

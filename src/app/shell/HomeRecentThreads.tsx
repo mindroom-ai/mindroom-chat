@@ -66,7 +66,13 @@ function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
           >
             {title}
           </Text>
-          <Text as="span" size="T200" priority="300" className={css.ThreadRoom}>
+          <Text
+            as="span"
+            size="T200"
+            priority="300"
+            className={css.ThreadRoom}
+            {...ownDirectionLine}
+          >
             {roomName}
           </Text>
         </span>
