@@ -1,10 +1,22 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({}));
+const ipcHandlers = new Map<string, (...args: unknown[]) => Promise<unknown>>();
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: vi.fn((channel: string, handler: (...args: unknown[]) => Promise<unknown>) => {
+      ipcHandlers.set(channel, handler);
+    }),
+  },
+}));
 
 import { APP_ORIGIN } from './bundleProtocol';
-import { guardSession, guardWebContents } from './security';
+import {
+  guardSession,
+  guardWebContents,
+  isOpenable,
+  registerExternalOpenHandler,
+} from './security';
 
 const createFakeWebContents = (
   mainFrame: { url: string; origin: string } = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN }
@@ -289,5 +301,88 @@ describe('security', () => {
         })
       ).toBe(false);
     });
+  });
+});
+
+describe('isOpenable', () => {
+  it('allows http, https, and mailto URLs without media paths or access tokens', () => {
+    for (const url of [
+      'https://example.org/path?q=1',
+      'http://127.0.0.1:8000/docs',
+      'mailto:alice@example.org',
+      'mailto:alice@example.org?subject=Hello',
+    ]) {
+      expect(isOpenable(url), url).toBe(true);
+    }
+  });
+
+  it('refuses non-web schemes, Matrix media paths, and URLs carrying access_token', () => {
+    for (const url of [
+      'javascript:alert(1)',
+      'file:///etc/passwd',
+      'data:text/html,hi',
+      'blob:https://example.org/123',
+      'capacitor://localhost/home',
+      'mindroom://auth/login',
+      'mailto:',
+      'https://example.org/page?access_token=syt_secret',
+      'https://example.org/page?a=1&ACCESS_TOKEN=syt_secret',
+      'https://example.org/page#access_token=syt_secret',
+      'mailto:alice@example.org?access_token=syt_secret',
+      'https://hs.example/_matrix/client/v1/media/download/hs.example/abc',
+      'https://hs.example/_matrix/client/v1/media/thumbnail/hs.example/abc?width=64',
+      'https://hs.example/_matrix/media/v3/download/hs.example/abc',
+      'https://hs.example/_matrix/media/r0/thumbnail/hs.example/abc',
+      'https://hs.example/sub/_matrix/client/v1/media/download/hs.example/abc',
+      'https://hs.example/%5fmatrix/client/v1/media/download/hs.example/abc',
+      'https://hs.example/_matrix/client/v1/media%2fdownload/hs.example/abc',
+      'https://example.org/a\nb',
+      'not-a-url',
+    ]) {
+      expect(isOpenable(url), url).toBe(false);
+    }
+  });
+});
+
+describe('external open IPC channel', () => {
+  it('validates sender and openable URLs', async () => {
+    ipcHandlers.clear();
+    const opened: string[] = [];
+    const mainFrame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
+    const owner = {
+      isDestroyed: () => false,
+      mainFrame,
+    } as unknown as Electron.WebContents;
+    registerExternalOpenHandler(
+      () => [owner],
+      async (url) => {
+        opened.push(url);
+      }
+    );
+
+    const event = { sender: owner, senderFrame: mainFrame };
+    const badEvent = {
+      sender: owner,
+      senderFrame: { url: `${APP_ORIGIN}/canvas-frame.html`, origin: APP_ORIGIN },
+    };
+
+    const openExternal = ipcHandlers.get('desktop:open-external')!;
+    expect(await openExternal(badEvent, 'https://example.org')).toEqual({
+      ok: false,
+      code: 'FORBIDDEN',
+    });
+    expect(await openExternal(event, 'javascript:alert(1)')).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    expect(await openExternal(event, 'https://example.org/?access_token=1')).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    expect(await openExternal(event, 'https://example.org/ok')).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(opened).toEqual(['https://example.org/ok']);
   });
 });

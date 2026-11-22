@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text } from 'folds';
+import { externalOpenProps, isDesktopApp } from '../lib/nativeShell';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MessageLink } from './MessageLink';
 import { linkTextMisleads } from './linkDestination';
@@ -89,6 +90,7 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
 
   const open = () => {
     setAsking(false);
+    if (isDesktopApp()) return;
     // The link itself opens, with its own target and rel, as if clicked without the check.
     confirmed.current = true;
     anchor.current?.click();
@@ -131,7 +133,13 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
               >
                 <Text size="B300">{t('threadActions.cancel')}</Text>
               </Button>
-              <Button type="button" size="300" variant="Primary" onClick={open}>
+              <Button
+                type="button"
+                size="300"
+                variant="Primary"
+                {...externalOpenProps(href)}
+                onClick={open}
+              >
                 <Text size="B300">{t('mindroomUi.messages.linkCheck.open')}</Text>
               </Button>
             </Box>

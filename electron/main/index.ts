@@ -1,9 +1,9 @@
 import path from 'node:path';
-import { app, BrowserWindow, dialog, session } from 'electron';
+import { app, BrowserWindow, dialog, session, shell } from 'electron';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
-import { guardSession, setBlockedUrlRecorder } from './security';
+import { guardSession, registerExternalOpenHandler, setBlockedUrlRecorder } from './security';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
 app.commandLine.appendSwitch(
@@ -28,7 +28,11 @@ const distDir =
     : path.resolve(__dirname, '../../dist');
 
 const telemetry = isTest
-  ? { blockedUrls: [] as string[], networkPermissions: [] as string[] }
+  ? {
+      blockedUrls: [] as string[],
+      networkPermissions: [] as string[],
+      externalOpens: [] as string[],
+    }
   : undefined;
 if (telemetry) {
   Object.assign(globalThis, { __mindroomTestTelemetry: telemetry });
@@ -57,6 +61,10 @@ void app.whenReady().then(() => {
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
+  registerExternalOpenHandler(appWindows, async (url) => {
+    if (telemetry) telemetry.externalOpens.push(url);
+    else await shell.openExternal(url);
+  });
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);

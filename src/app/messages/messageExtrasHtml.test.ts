@@ -270,4 +270,11 @@ describe('sanitizeMessageExtraHtml', () => {
       '<p><strong>broken</strong></p>'
     );
   });
+
+  it('never keeps data-open-external or a button from message HTML', () => {
+    const html = `<button data-open-external="https://evil.example">Click</button><a href="https://good.example" data-open-external="https://evil.example">Link</a><span data-open-external="https://evil.example">Text</span>`;
+    const sanitized = sanitizeMessageExtraHtml(html);
+    expect(sanitized).not.toContain('<button');
+    expect(sanitized).not.toContain('data-open-external');
+  });
 });

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopShellEvent } from './desktopBridge';
 import {
   desktopBridge,
+  externalOpenProps,
   isBundledApp,
   isCapacitorApp,
   isDesktopApp,
@@ -114,5 +115,13 @@ describe('nativeShell', () => {
     markDesktopShell();
     expect(first.unsubscribe).toHaveBeenCalledTimes(1);
     expect(second.onShellEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns data-open-external props only inside the Electron desktop app', () => {
+    expect(externalOpenProps('https://example.org')).toEqual({});
+    setDesktopBridge(makeBridge().bridge);
+    expect(externalOpenProps('https://example.org')).toEqual({
+      'data-open-external': 'https://example.org',
+    });
   });
 });
