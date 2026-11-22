@@ -199,7 +199,8 @@ const renderList = (
   initialPath = '/home/'
 ) => {
   const store = createStore();
-  store.set(activityRowsAtom, result);
+  // As `ActivityRowsFeature` publishes them: the rows say whether the index was still loading.
+  store.set(activityRowsAtom, bootstrapped ? result : { ...result, loading: true });
   store.set(crossRoomThreadIndexAtom, { ...emptyCrossRoomThreadIndexSnapshot(), bootstrapped });
   render(
     <Provider store={store}>
@@ -1211,13 +1212,72 @@ describe('ActivityList', () => {
     expect(screen.queryByText('Thread f40')).toBeNull();
   });
 
-  it('keeps the first page while the index still fills in', () => {
-    const rows = replies('h', 40);
-    const store = renderList({ rows, hiddenAutomations: 0 }, false);
+  it('starts at one page when the index has loaded, whatever was mounted before', () => {
+    const early = replies('h', 40);
+    const store = renderList({ rows: early, hiddenAutomations: 0 }, false);
+    const loading = (rows: ActivityRow[]) => ({ rows, hiddenAutomations: 0, loading: true });
+    act(() => store.set(activityRowsAtom, loading([...replies('i', 300), ...early])));
+    expect(listItems()).toHaveLength(40);
+
+    // The index says it has loaded one commit before the rows of its last batch arrive.
     act(() =>
-      store.set(activityRowsAtom, { rows: [...replies('i', 300), ...rows], hiddenAutomations: 0 })
+      store.set(crossRoomThreadIndexAtom, {
+        ...emptyCrossRoomThreadIndexSnapshot(),
+        bootstrapped: true,
+      })
     );
     expect(listItems()).toHaveLength(40);
+    const rows = [...replies('j', 600), ...replies('i', 300), ...early];
+    act(() => store.set(activityRowsAtom, { rows, hiddenAutomations: 0 }));
+    expect(listItems()).toHaveLength(40);
+    expect(screen.getByText('Thread j39')).toBeTruthy();
+
+    // From here on a live update keeps what is mounted.
+    act(() =>
+      store.set(activityRowsAtom, { rows: [...replies('k', 1), ...rows], hiddenAutomations: 0 })
+    );
+    expect(listItems()).toHaveLength(41);
+  });
+
+  it('starts at one page when automation runs are shown or hidden', () => {
+    const people = replies('p', 50);
+    const runs = replies('auto', 600);
+    const store = renderList({ rows: people.slice(0, 20), hiddenAutomations: 600 });
+    expect(listItems()).toHaveLength(20);
+
+    // The switch alone changes nothing; the rows built with it arrive a commit later.
+    fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+    expect(listItems()).toHaveLength(20);
+    const shown = { rows: [...runs, ...people], hiddenAutomations: 0, showAutomations: true };
+    act(() => store.set(activityRowsAtom, shown));
+    expect(listItems()).toHaveLength(40);
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(listItems()).toHaveLength(80);
+    act(() =>
+      store.set(activityRowsAtom, { rows: people, hiddenAutomations: 600, showAutomations: false })
+    );
+    expect(listItems()).toHaveLength(40);
+  });
+
+  it('hands the focus of Show more to the last row when a live update takes it away', () => {
+    // The observer stays silent.
+    standInForIntersectionObserver();
+    const rows = replies('v', 41);
+    const store = renderList({ rows, hiddenAutomations: 0 });
+    screen.getByRole('button', { name: 'Show more' }).focus();
+
+    // A reply brings the one row past the window to the top: all 41 show, Show more goes.
+    act(() =>
+      store.set(activityRowsAtom, {
+        rows: [rows[40]!, ...rows.slice(0, 40)],
+        hiddenAutomations: 0,
+      })
+    );
+    expect(listItems()).toHaveLength(41);
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByText('Thread v39').closest('button'));
   });
 
   it('moves focus from Show more to the first new row when the observer appends a page', () => {
@@ -1266,11 +1326,16 @@ describe('ActivityList', () => {
     const prevHeight = window.innerHeight;
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 3000 });
     try {
-      renderList({ rows: replies('w', 45), hiddenAutomations: 0 });
+      // The rows past the first page are of an earlier day, under a divider of their own.
+      const rows = replies('w', 45).map((row, index) =>
+        index < 40 ? row : { ...row, ts: NOW - 36 * 3600_000 }
+      );
+      renderList({ rows, hiddenAutomations: 0 });
       fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
       expect(listItems()).toHaveLength(45);
 
-      // Replies holds the same rows and starts again at 40: w40 to w44 were not read or removed.
+      // Replies holds the same rows and starts again at 40: w40 to w44 were not read or removed,
+      // and neither was their day.
       fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
       expect(listItems()).toHaveLength(40);
       expect(motion.left()).toEqual([]);
