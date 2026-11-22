@@ -93,11 +93,11 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}`);
   await signIn(page, first);
 
-  // One account: the menu names it and offers Settings, Add Account and Sign out.
+  // One account: the menu names it and offers Settings, Add Account and Logout.
   await openAccountMenu(page);
   const menu = page.getByRole('menu');
   await expect(menu).toHaveAccessibleName(`Avery Menu ${firstId}`);
-  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account', 'Sign out']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account', 'Logout']);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Only the active account's button is on the rail.
@@ -118,8 +118,46 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
     'Manage',
     new RegExp(`Avery Menu.*${firstId}`),
     'Add Account',
-    'Sign out',
+    'Logout',
   ]);
+  await expect(menu.getByRole('menuitem', { name: 'Manage accounts', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // Keyboard flow: open the menu via keyboard, arrow to Logout, cancel the confirmation, and
+  // verify focus returns to the rail avatar button.
+  const avatarButton = page.getByRole('button', { name: 'Open account menu for Blake Menu' });
+  await avatarButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(menu.getByRole('menuitem', { name: 'Logout', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const logoutDialog = page.getByRole('dialog', { name: 'Logout' });
+  await expect(logoutDialog).toBeVisible();
+  await expect(logoutDialog.locator(':focus')).toBeVisible();
+  await logoutDialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await expect(logoutDialog).toHaveCount(0);
+  await expect(avatarButton).toBeFocused();
+
+  // Short landscape viewport: the menu caps to available height and keeps the footer reachable.
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 640, height: 320 });
+  await openAccountMenu(page);
+  const logoutItem = menu.getByRole('menuitem', { name: 'Logout', exact: true });
+  const addItem = menu.getByRole('menuitem', { name: 'Add Account', exact: true });
+  await expect(logoutItem).toBeVisible();
+  await expect(addItem).toBeVisible();
+  const logoutBox = (await logoutItem.boundingBox())!;
+  const addBox = (await addItem.boundingBox())!;
+  expect(logoutBox.y + logoutBox.height).toBeLessThanOrEqual(320);
+  expect(addBox.y + addBox.height).toBeLessThanOrEqual(320);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  if (originalViewport) await page.setViewportSize(originalViewport);
+
+  await openAccountMenu(page);
   await menu.getByRole('menuitem', { name: `Switch to account Avery Menu (${firstId})` }).click();
   await waitForShell(page);
   await expect.poll(() => activeUserId(page)).toBe(firstId);

@@ -632,8 +632,7 @@
     "accountMenu": {
       "open": "Открыть меню учётной записи {{name}}",
       "otherAccounts": "Другие учётные записи",
-      "manage": "Управлять",
-      "signOut": "Выйти"
+      "manage": "Управлять"
     },
     "roomOrder": {
       "sortByName": "Сортировать комнаты от А до Я"

@@ -99,11 +99,11 @@ describe('AccountMenu', () => {
     expect(screen.getByText('Other accounts')).toBeTruthy();
     expect(entryNames()).toEqual([
       'Settings',
-      'Manage',
+      'Manage accounts',
       'Switch to account Bob (@bob:matrix.org)',
       'Switch to account Carol (@carol:example.org)',
       'Add Account',
-      'Sign out',
+      'Logout',
     ]);
     // Each account shows its picture, name and Matrix ID.
     const bob = screen.getByRole('menuitem', { name: 'Switch to account Bob (@bob:matrix.org)' });
@@ -114,8 +114,8 @@ describe('AccountMenu', () => {
   it('omits the Other accounts well and Manage with a single account', () => {
     open([]);
     expect(screen.queryByText('Other accounts')).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: 'Manage' })).toBeNull();
-    expect(entryNames()).toEqual(['Settings', 'Add Account', 'Sign out']);
+    expect(screen.queryByRole('menuitem', { name: 'Manage accounts' })).toBeNull();
+    expect(entryNames()).toEqual(['Settings', 'Add Account', 'Logout']);
     // Settings shows its shortcut beside its name, not in it, and names it for assistive technology.
     const settings = screen.getByRole('menuitem', { name: 'Settings' });
     expect(settings.textContent).toBe('Settings');
@@ -133,9 +133,9 @@ describe('AccountMenu', () => {
   it('closes before opening Settings, managing accounts, adding an account or signing out', () => {
     const { onClose, onOpenSettings, onManageAccounts, onAddAccount, onSignOut } = open([BOB]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage accounts' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add Account' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Logout' }));
     expect(onClose).toHaveBeenCalledTimes(4);
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
     expect(onManageAccounts).toHaveBeenCalledTimes(1);

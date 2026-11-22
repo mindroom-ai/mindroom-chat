@@ -606,8 +606,7 @@
     "accountMenu": {
       "open": "Accountmenu voor {{name}} openen",
       "otherAccounts": "Andere accounts",
-      "manage": "Beheren",
-      "signOut": "Uitloggen"
+      "manage": "Beheren"
     },
     "roomOrder": {
       "sortByName": "Kamers sorteren van A tot Z"

@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// The Accounts dialog (account menu, Manage) ends below its last control: with two
+// The Accounts dialog (account menu, Manage accounts) ends below its last control: with two
 // accounts signed in on a desktop it kept the full height of the settings dialog, about 350 px of
 // it empty, where the page behind showed through. On a desktop it is about 480 px wide, as a list
 // of a few accounts needs, not the 800 px of the settings dialog. A phone's fills its screen, as
@@ -46,7 +46,7 @@ const checkDialog = async (
     password: PASSWORD,
     addAccount: true,
   });
-  await chooseFromAccountMenu(page, 'Manage');
+  await chooseFromAccountMenu(page, 'Manage accounts');
   const dialog = page.getByRole('dialog', { name: 'Accounts' });
   const close = dialog.getByRole('button', { name: 'Close', exact: true });
   await expect(close).toBeVisible();

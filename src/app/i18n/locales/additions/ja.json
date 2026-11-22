@@ -593,8 +593,7 @@
     "accountMenu": {
       "open": "{{name}} のアカウントメニューを開く",
       "otherAccounts": "他のアカウント",
-      "manage": "管理",
-      "signOut": "ログアウト"
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "ルームを A から Z の順に並べる"

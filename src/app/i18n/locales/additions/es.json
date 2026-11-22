@@ -619,8 +619,7 @@
     "accountMenu": {
       "open": "Abrir el menú de la cuenta de {{name}}",
       "otherAccounts": "Otras cuentas",
-      "manage": "Gestionar",
-      "signOut": "Cerrar sesión"
+      "manage": "Gestionar"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de la A a la Z"

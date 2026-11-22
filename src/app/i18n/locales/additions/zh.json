@@ -593,8 +593,7 @@
     "accountMenu": {
       "open": "打开 {{name}} 的账户菜单",
       "otherAccounts": "其他账户",
-      "manage": "管理",
-      "signOut": "退出登录"
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "按 A 到 Z 排序房间"

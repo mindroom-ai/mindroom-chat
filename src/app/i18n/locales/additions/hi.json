@@ -606,8 +606,7 @@
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
       "otherAccounts": "अन्य खाते",
-      "manage": "प्रबंधित करें",
-      "signOut": "लॉग आउट"
+      "manage": "प्रबंधित करें"
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"

@@ -593,8 +593,7 @@
     "accountMenu": {
       "open": "Buka menu akun untuk {{name}}",
       "otherAccounts": "Akun lain",
-      "manage": "Kelola",
-      "signOut": "Keluar"
+      "manage": "Kelola"
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"

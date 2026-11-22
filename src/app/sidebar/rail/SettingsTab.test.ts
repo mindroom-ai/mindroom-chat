@@ -167,7 +167,7 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
       React.createElement('button', { 'aria-label': 'Settings', onClick: onOpenSettings }),
       onManageAccounts &&
         React.createElement('button', {
-          'aria-label': 'Manage',
+          'aria-label': 'Manage accounts',
           onClick: onManageAccounts,
         }),
       others.map((account) =>
@@ -178,7 +178,7 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
         })
       ),
       React.createElement('button', { 'aria-label': 'Add account', onClick: onAddAccount }),
-      React.createElement('button', { 'aria-label': 'Sign out', onClick: onSignOut })
+      React.createElement('button', { 'aria-label': 'Logout', onClick: onSignOut })
     ),
 }));
 
@@ -281,22 +281,22 @@ describe('SettingsTab', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('shows the Manage trigger only when multiple sessions exist', () => {
+  it('shows the Manage accounts trigger only when multiple sessions exist', () => {
     const { renderer: multiSessionRenderer } = renderSettingsTab();
     openAccountMenu(multiSessionRenderer);
-    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage')).toBeDefined();
+    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage accounts')).toBeDefined();
 
     const { renderer: singleSessionRenderer } = renderSettingsTab([activeSession]);
     openAccountMenu(singleSessionRenderer);
-    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage')).toBeUndefined();
+    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage accounts')).toBeUndefined();
   });
 
-  it('opens the account switcher from the Manage trigger', async () => {
+  it('opens the account switcher from the Manage accounts trigger', async () => {
     const { renderer, store } = renderSettingsTab();
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
     });
 
     expect(
@@ -305,7 +305,7 @@ describe('SettingsTab', () => {
     expect(store.get(settingsModalAtom)).toBeUndefined();
   });
 
-  it('opens the shared active-account logout confirmation from Sign out and closes it on cancel', async () => {
+  it('opens the shared active-account logout confirmation from Logout and closes it on cancel', async () => {
     const { renderer } = renderSettingsTab([activeSession]);
     openAccountMenu(renderer);
     const dialogs = () =>
@@ -314,7 +314,7 @@ describe('SettingsTab', () => {
       );
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Sign out')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Logout')!.props.onClick();
     });
 
     expect(dialogs()).toHaveLength(1);
@@ -377,7 +377,7 @@ describe('SettingsTab', () => {
     const { renderer } = renderSettingsTab();
     openAccountMenu(renderer);
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
     });
     const dialogs = () =>
       renderer.root.findAll(

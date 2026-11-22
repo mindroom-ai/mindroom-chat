@@ -593,8 +593,7 @@
     "accountMenu": {
       "open": "開啟 {{name}} 的帳戶選單",
       "otherAccounts": "其他帳戶",
-      "manage": "管理",
-      "signOut": "登出"
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "依 A 到 Z 排序房間"

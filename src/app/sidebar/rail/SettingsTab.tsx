@@ -113,7 +113,7 @@ const useCachedActiveAvatar = (
 /**
  * The account button at the foot of the icon rail, or with `inTopBar` at the end of a phone's top
  * bar: the active account's avatar, which opens the account menu (Settings, the other accounts,
- * Add Account, Sign out).
+ * Add Account, Logout).
  */
 export function SettingsTab({
   inTopBar = false,

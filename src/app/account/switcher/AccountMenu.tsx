@@ -187,6 +187,7 @@ export function AccountMenu({
                         type="button"
                         role="menuitem"
                         className={css.ManageButton}
+                        aria-label={t('accountsRail.manageAccounts')}
                         onClick={closeThen(onManageAccounts)}
                       >
                         <Text as="span" size="T200">
@@ -254,7 +255,7 @@ export function AccountMenu({
             >
               <Icon size="100" src={Icons.Power} className={css.IconShrink} />
               <Text as="span" size="B300" className={css.FooterLabel}>
-                {t('featureUi.accountMenu.signOut')}
+                {t('settings.logout')}
               </Text>
             </button>
           </div>

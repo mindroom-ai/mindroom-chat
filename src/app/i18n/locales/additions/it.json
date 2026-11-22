@@ -619,8 +619,7 @@
     "accountMenu": {
       "open": "Apri il menu dell'account di {{name}}",
       "otherAccounts": "Altri account",
-      "manage": "Gestisci",
-      "signOut": "Disconnetti"
+      "manage": "Gestisci"
     },
     "roomOrder": {
       "sortByName": "Ordina le stanze dalla A alla Z"

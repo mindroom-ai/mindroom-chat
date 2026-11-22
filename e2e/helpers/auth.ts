@@ -35,7 +35,7 @@ export const openAccountMenu = async (page: Page) => {
   await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
 };
 
-/** Opens the account menu and chooses an entry: Settings, Manage, an account, Add Account, Sign out. */
+/** Opens the account menu and chooses an entry: Settings, Manage accounts, an account, Add Account, Logout. */
 export const chooseFromAccountMenu = async (page: Page, name: string | RegExp) => {
   await openAccountMenu(page);
   await page.getByRole('menuitem', { name, exact: typeof name === 'string' }).click();
