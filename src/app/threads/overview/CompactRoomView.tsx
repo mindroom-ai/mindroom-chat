@@ -57,6 +57,7 @@ import {
   KEY_FOCUS_ATTRIBUTE,
   compactCardsIn,
   compactCardNavigation,
+  navigationIn,
   focusCardBeside,
   focusCompactCard,
   focusedCompactCard,
@@ -749,12 +750,12 @@ export function CompactRoomView({
         data-compact-spacer={row.key}
         className={css.Spacer}
         style={{ height: row.height }}
-        onClick={() => compactCardNavigation.get(viewRef.current!)?.focus(row.ids[0])}
+        onClick={() => navigationIn(viewRef.current)?.focus(row.ids[0])}
         onFocus={({ currentTarget: spacer, relatedTarget: from }) => {
           const below =
             from && spacer.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING;
           if (isKeyboardFocus(spacer))
-            compactCardNavigation.get(viewRef.current!)?.focus(row.ids.at(below ? -1 : 0), !!below);
+            navigationIn(viewRef.current)?.focus(row.ids.at(below ? -1 : 0), !!below);
         }}
       />
     );

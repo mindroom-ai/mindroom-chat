@@ -10,7 +10,7 @@ export const compactCardNavigation = new WeakMap<
   { ids: readonly string[]; focus: (id: string | undefined, last?: boolean) => boolean }
 >();
 
-const navigationIn = (root: HTMLElement | null) => {
+export const navigationIn = (root: HTMLElement | null) => {
   const view = root?.closest(VIEW_SELECTOR) ?? root?.querySelector(VIEW_SELECTOR);
   return view ? compactCardNavigation.get(view) : undefined;
 };
