@@ -13,7 +13,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
-import { crossRoomThreadIndexBootstrappedAtom } from '../threads/cross-room/crossRoomThreadIndex';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import { getViewedPlace } from '../navigation/viewedPlace';
@@ -69,7 +68,8 @@ const rowPath = (roomSegment: string, row: ActivityRow): string =>
  * answer first and the rest under day dividers, and how many automation runs it leaves out.
  */
 export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProps) {
-  const { rows, hiddenAutomations } = useActivityRows();
+  const result = useActivityRows();
+  const { rows, hiddenAutomations, loading = false } = result;
   const { t } = useTranslation();
   const [tab, setTab] = useState<ActivityTab>('all');
   const mx = useMatrixClient();
@@ -81,7 +81,6 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
 
   // Every pending invite, also those Activity leaves out as spam: the list sorts them.
   const hasInvites = useAtomValue(allInvitesAtom).length > 0;
-  const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom);
   const place = getViewedPlace(mx, useLocation());
   // The row of the thread, or the invite's room, that the page shows beside the list.
   const { roomId: shownRoomId, threadId: shownThreadId } = place;
@@ -104,9 +103,10 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  // The window over the ordinary rows belongs to one filter: a tab or Unread change starts it
-  // again at one page, from the first render on.
-  const filterKey = `${tab}:${unreadOnly}`;
+  // The window over the ordinary rows belongs to one filter: a tab or Unread change, automation
+  // runs shown or hidden, and the loaded index each start it again at one page, from the first
+  // render on. The last two come with the rows, which arrive a commit after their switch.
+  const filterKey = `${tab}:${unreadOnly}:${result.showAutomations}:${loading}`;
   const [paged, setPaged] = useState({ filterKey, limit: PAGE_SIZE });
   if (paged.filterKey !== filterKey) setPaged({ filterKey, limit: PAGE_SIZE });
   const limit = paged.filterKey === filterKey ? paged.limit : PAGE_SIZE;
@@ -160,6 +160,10 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   };
   const appendRef = useRef(appendPage);
   appendRef.current = appendPage;
+  // A live update that shows the last rows takes a focused Show more away as well.
+  if (!hasMore && moreRef.current?.contains(document.activeElement)) {
+    focusKeyRef.current ??= visibleRest.at(-1)?.key;
+  }
   useLayoutEffect(() => {
     const key = focusKeyRef.current;
     focusKeyRef.current = undefined;
@@ -174,7 +178,11 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   // The rows that wait come first, so their number tells when one moves under the day's divider
   // while the order stays.
   const offWindow = hasMore
-    ? new Set(rest.slice(visibleRest.length).map((row) => row.key))
+    ? new Set(
+        rest
+          .slice(visibleRest.length)
+          .flatMap((row) => [row.key, `day:${activityDay(row.ts, now)}`])
+      )
     : undefined;
   const listMotion = useListMotion(
     rowsRef,
