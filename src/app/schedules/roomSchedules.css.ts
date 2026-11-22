@@ -523,10 +523,18 @@ export const IconAction = style([
         outline: `2px solid ${color.Surface.OnContainer}`,
         outlineOffset: toRem(2),
       },
+      '&[aria-disabled="true"]': {
+        opacity: '1 !important',
+        cursor: 'progress',
+      },
     },
   },
   touchTarget('6px', '', { blockReach: '6px' }),
 ]);
+
+export const IconMuted = style({
+  opacity: 0.5,
+});
 
 export const CopiedStatus = style({
   display: 'inline-flex',
@@ -553,11 +561,6 @@ export const CancelBarButton = style({
       cursor: 'progress',
     },
   },
-});
-
-export const AriaDisabledButton = style({
-  opacity: 0.65,
-  cursor: 'progress',
 });
 
 export const Metadata = style({

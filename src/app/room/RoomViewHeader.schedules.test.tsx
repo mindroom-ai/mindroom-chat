@@ -278,6 +278,17 @@ describe('RoomViewHeader schedule actions', () => {
     expect(overlayCapture.props?.onCancelTask).toBeUndefined();
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
 
+    // Router-only room (@mindroom_router without any real agent) hides Cancel/Edit.
+    roomState.joinedMembers = [
+      { userId: '@me:example.org' },
+      { userId: '@mindroom_router:example.org' },
+    ];
+    act(() => {
+      emitClientEvent(RoomMemberEvent.Membership, undefined, { roomId: '!room:example.org' });
+    });
+    expect(overlayCapture.props?.onCancelTask).toBeUndefined();
+    expect(overlayCapture.props?.onEditTask).toBeUndefined();
+
     // Unrelated federated mindroom_* account hides Cancel/Edit.
     roomState.joinedMembers = [
       { userId: '@me:example.org' },
@@ -384,8 +395,12 @@ describe('RoomViewHeader schedule actions', () => {
     expect(discardFailedLocalEcho).toHaveBeenCalledWith(expect.anything(), failedEvent);
 
     sendMessage.mockClear();
-    await overlayCapture.props!.onCancelTask!(task({ taskId: 'all' }));
-    await overlayCapture.props!.onCancelTask!(task({ taskId: 'bad id' }));
+    await expect(overlayCapture.props!.onCancelTask!(task({ taskId: 'all' }))).rejects.toThrow(
+      'Unsupported task ID'
+    );
+    await expect(overlayCapture.props!.onCancelTask!(task({ taskId: 'bad id' }))).rejects.toThrow(
+      'Unsupported task ID'
+    );
     expect(sendMessage).not.toHaveBeenCalled();
   });
 

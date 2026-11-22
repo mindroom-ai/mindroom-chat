@@ -12,7 +12,7 @@ import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/types';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import type { IPowerLevels } from '../matrix/hooks/usePowerLevels';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
-import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
@@ -103,10 +103,8 @@ export function useHasJoinedMindroomAgent(
       joinedIds,
       EMPTY_IGNORED_USERS
     );
-    return joinedMembers.some(
-      (member) =>
-        isMindroomAgentUserIdForViewer(member.userId, viewerUserId) ||
-        trustedAccountIds.has(member.userId)
+    return joinedMembers.some((member) =>
+      isMindroomResponderForViewer(member.userId, viewerUserId, trustedAccountIds)
     );
   }, [boundRouterId, enabled, membershipRevision, room, rosterAccountIds, viewerUserId]);
 }
@@ -120,7 +118,9 @@ export async function sendCancelScheduledTask(
   room: Room,
   task: ParsedScheduledTask
 ): Promise<void> {
-  if (!isCommandSafeTaskId(task.taskId)) return;
+  if (!isCommandSafeTaskId(task.taskId)) {
+    throw new Error('Unsupported task ID');
+  }
   // Always post the cancel command to the task's own destination (never an unrelated or local thread).
   const cancelTargetThreadId =
     !task.newThread && task.threadId

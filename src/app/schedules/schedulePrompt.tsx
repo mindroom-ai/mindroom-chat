@@ -221,9 +221,9 @@ const renderPlainSegment = (
     }
 
     nodes.push(
-      <span key={`${keyPrefix}-m-${mentionStart}`} className={css.PromptMention}>
+      <bdi key={`${keyPrefix}-m-${mentionStart}`} dir="ltr" className={css.PromptMention}>
         {trimmedMention}
-      </span>
+      </bdi>
     );
     cursor = mentionStart + trimmedMention.length;
     match = pattern.exec(segment);
@@ -237,8 +237,9 @@ const renderPlainSegment = (
 };
 
 /**
- * Formats a scheduled task prompt into pure React nodes: single-line inline code spans and
- * highlighted `@handle` mentions, preserving fenced code blocks, newlines, and exact textContent.
+ * Formats a scheduled task prompt into pure React nodes: single-line backtick spans render their
+ * code content inside `<code>` and `@handle` mentions render inside `<bdi dir="ltr">`, while
+ * fenced code blocks and newlines stay verbatim.
  */
 export const renderSchedulePrompt = (prompt: string): ReactNode => {
   if (!prompt) return prompt;

@@ -62,7 +62,7 @@ vi.mock('./roomSchedules.css', () => ({
   IconAction: 'icon-action',
   CopiedStatus: 'copied-status',
   CancelBarButton: 'cancel-bar-button',
-  AriaDisabledButton: 'aria-disabled-button',
+  IconMuted: 'icon-muted',
   Metadata: 'metadata',
   TaskId: 'task-id',
   Awaiting: 'awaiting',
@@ -1059,6 +1059,49 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       expect(cancelStatus?.textContent).toBe('Cancellation sent');
       expect(actionStatus?.className).toBe('notice-bar');
       expect(actionStatus?.textContent).toBe('Could not copy. Select the Task ID in Details.');
+    } finally {
+      unmount();
+    }
+  });
+
+  it('recovers focus cleanly when collapsing Details or a row on Safari without dropping focus to body', async () => {
+    mocks.renderMatrixMention.mockImplementation(() => <a href="#alice">@Alice</a>);
+    const firstTask = makeTask({ taskId: 'safari-1', description: 'First task' });
+    const secondTask = makeTask({
+      taskId: 'safari-2',
+      description: 'Second task',
+      createdBy: '@alice:example.org',
+    });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [firstTask, secondTask],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    });
+    try {
+      const toggles = host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]');
+      const secondToggle = toggles[1]!;
+      await click(secondToggle);
+
+      // Open Details, focus the link inside <dl>, then click Hide details without pre-focusing it (Safari behavior).
+      await click(findButtonByText(host, 'Details')!);
+      const creatorLink = host.querySelector<HTMLAnchorElement>('dl a')!;
+      act(() => {
+        creatorLink.focus();
+      });
+      expect(document.activeElement).toBe(creatorLink);
+      await click(findButtonByText(host, 'Hide details')!);
+      expect(host.querySelector('dl')).toBeNull();
+      expect(document.activeElement).toBe(findButtonByText(host, 'Details'));
+
+      // Focus Copy ID inside row 2's drawer, then click row 2's toggle without pre-focusing it (Safari behavior).
+      const copyBtn = findButtonByText(host, 'Copy ID')!;
+      act(() => {
+        copyBtn.focus();
+      });
+      expect(document.activeElement).toBe(copyBtn);
+      await click(secondToggle);
+      expect(document.activeElement).toBe(secondToggle);
     } finally {
       unmount();
     }

@@ -108,6 +108,8 @@ function ScheduleAccordionItem({
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const detailsButtonRef = useRef<HTMLButtonElement>(null);
+  const detailsRef = useRef<HTMLDListElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
   const confirmBarRef = useRef<HTMLDivElement>(null);
@@ -115,6 +117,7 @@ function ScheduleAccordionItem({
   const copyTimerRef = useRef<number>();
   const mountedRef = useRef(true);
   const prevConfirmingRef = useRef(false);
+  const prevDetailsOpenRef = useRef(detailsOpen);
   const prevCancelSentRef = useRef(cancelSent);
 
   useEffect(() => {
@@ -144,6 +147,17 @@ function ScheduleAccordionItem({
     }
     prevConfirmingRef.current = confirmingCancel;
   }, [confirmingCancel]);
+
+  useLayoutEffect(() => {
+    const wasOpen = prevDetailsOpenRef.current;
+    prevDetailsOpenRef.current = detailsOpen;
+    if (wasOpen && !detailsOpen) {
+      const doc = detailsButtonRef.current?.ownerDocument;
+      if (!doc?.activeElement || doc.activeElement === doc.body) {
+        detailsButtonRef.current?.focus();
+      }
+    }
+  }, [detailsOpen]);
 
   useEffect(() => {
     if (cancelSent && !prevCancelSentRef.current) {
@@ -297,6 +311,7 @@ function ScheduleAccordionItem({
           ref={toggleButtonRef}
           type="button"
           data-schedule-toggle=""
+          data-schedule-task-id={task.taskId}
           className={css.RowHeader}
           aria-expanded={open}
           aria-controls={open ? drawerId : undefined}
@@ -409,6 +424,7 @@ function ScheduleAccordionItem({
                 </Button>
               )}
               <Button
+                ref={detailsButtonRef}
                 type="button"
                 size="300"
                 variant="Secondary"
@@ -417,7 +433,23 @@ function ScheduleAccordionItem({
                 className={css.CompactAction}
                 aria-expanded={detailsOpen}
                 aria-controls={detailsOpen ? detailsId : undefined}
-                onClick={() => setDetailsOpen((shown) => !shown)}
+                onClick={() => {
+                  if (detailsOpen) {
+                    const detailsEl = detailsRef.current;
+                    const doc = detailsEl?.ownerDocument ?? detailsButtonRef.current?.ownerDocument;
+                    const active = doc?.activeElement;
+                    const focusWasInDetails =
+                      (!!detailsEl && !!active && detailsEl.contains(active)) ||
+                      !active ||
+                      active === doc?.body;
+                    setDetailsOpen(false);
+                    if (focusWasInDetails) {
+                      detailsButtonRef.current?.focus();
+                    }
+                  } else {
+                    setDetailsOpen(true);
+                  }
+                }}
               >
                 <Text size="T200">
                   {detailsOpen ? t('roomSchedules.hideDetails') : t('roomSchedules.details')}
@@ -470,10 +502,7 @@ function ScheduleAccordionItem({
                   variant="Critical"
                   fill="None"
                   radii="300"
-                  className={classNames(
-                    css.IconAction,
-                    (isCancelling || cancelSent) && css.AriaDisabledButton
-                  )}
+                  className={css.IconAction}
                   aria-label={t('roomSchedules.cancel')}
                   title={t('roomSchedules.cancel')}
                   aria-expanded={showCancelBar}
@@ -491,7 +520,11 @@ function ScheduleAccordionItem({
                     }
                   }}
                 >
-                  <Icon size="100" src={Icons.Delete} />
+                  <Icon
+                    size="100"
+                    src={Icons.Delete}
+                    className={isCancelling || cancelSent ? css.IconMuted : undefined}
+                  />
                 </IconButton>
               )}
             </div>
@@ -573,7 +606,7 @@ function ScheduleAccordionItem({
           </div>
 
           {detailsOpen && (
-            <dl id={detailsId} className={css.Metadata}>
+            <dl id={detailsId} ref={detailsRef} className={css.Metadata}>
               <Text as="dt" size="T200" priority="300">
                 {t('roomSchedules.taskId')}
               </Text>
@@ -715,6 +748,7 @@ export const RoomSchedulesDialog = forwardRef<
     const dialogRef = useRef<HTMLDivElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const lastFocusedRef = useRef<HTMLElement | null>(null);
+    const lastCollapsedTaskIdRef = useRef<string | null>(null);
     const [now, setNow] = useState(Date.now);
     const [filter, setFilter] = useState<ScheduleFilter>('all');
     const [expandedId, setExpandedId] = useState<string | null>(() =>
@@ -790,13 +824,22 @@ export const RoomSchedulesDialog = forwardRef<
       const doc = modal.ownerDocument;
       if (doc.activeElement && doc.activeElement !== doc.body) return;
       lastFocusedRef.current = null;
+      const collapsedId = lastCollapsedTaskIdRef.current;
+      lastCollapsedTaskIdRef.current = null;
+      const collapsedToggle = collapsedId
+        ? [...modal.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]')].find(
+            (button) => button.dataset.scheduleTaskId === collapsedId
+          )
+        : undefined;
       const fallbackToggle =
+        collapsedToggle ??
         modal.querySelector<HTMLButtonElement>(
           '[data-expanded="true"] button[data-schedule-toggle]'
-        ) ?? modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
+        ) ??
+        modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
       if (fallbackToggle) fallbackToggle.focus();
       else closeButtonRef.current?.focus();
-    }, [filteredTasks, hasCancelAction, hasEditAction, showFilterBar]);
+    }, [expandedId, filteredTasks, hasCancelAction, hasEditAction, showFilterBar]);
 
     const threadTasks: ParsedScheduledTask[] = [];
     const elsewhereTasks: ParsedScheduledTask[] = [];
@@ -951,7 +994,10 @@ export const RoomSchedulesDialog = forwardRef<
                             isCancelling={pendingCancelIds.has(task.taskId)}
                             cancelSent={cancelSentIds.has(task.taskId)}
                             cancelError={cancelErrors.get(task.taskId) === true}
-                            onToggle={() => setExpandedId(open ? null : task.taskId)}
+                            onToggle={() => {
+                              lastCollapsedTaskIdRef.current = open ? task.taskId : null;
+                              setExpandedId(open ? null : task.taskId);
+                            }}
                             onOpenThread={onOpenThread}
                             onCancelTask={onCancelTask}
                             onConfirmCancel={() => handleCancelTask(task)}

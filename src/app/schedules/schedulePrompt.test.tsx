@@ -171,6 +171,19 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
+  it('wraps @handle mentions in <bdi dir="ltr"> for RTL-safe rendering', () => {
+    const { host, cleanup } = renderPrompt('تذكّر @helper run tests');
+    try {
+      const mention = host.querySelector('bdi.prompt-mention');
+      expect(mention).not.toBeNull();
+      expect(mention?.getAttribute('dir')).toBe('ltr');
+      expect(mention?.textContent).toBe('@helper');
+      expect(host.textContent).toBe('تذكّر @helper run tests');
+    } finally {
+      cleanup();
+    }
+  });
+
   it('preserves newlines across plain text and multiple mentions', () => {
     const { host, cleanup } = renderPrompt('Line one with @alpha\nLine two with @beta');
     try {
