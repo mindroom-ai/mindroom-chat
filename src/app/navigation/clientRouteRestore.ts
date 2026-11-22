@@ -5,7 +5,6 @@
 
 import type { MatrixClient } from 'matrix-js-sdk';
 import { generatePath, matchPath } from 'react-router-dom';
-import { rememberDirectoryViaServers } from '../matrix/directoryViaServers';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
@@ -63,17 +62,19 @@ const knownRoomId = (mx: MatrixClient, roomIdOrAlias: string): string | undefine
   isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias;
 
 /**
- * The room ID the homeserver's room directory gives for an alias; else the alias, never a throw.
- * The servers the directory names for the room are remembered for its join page.
+ * The room ID the homeserver's room directory gives for an alias, with any routing servers it
+ * named; else the alias alone, never a throw.
  */
-const directoryRoomId = async (mx: MatrixClient, alias: string): Promise<string> => {
+const directoryRoom = async (
+  mx: MatrixClient,
+  alias: string
+): Promise<{ roomId: string; servers?: unknown }> => {
   try {
     const { room_id: roomId, servers } = await mx.getRoomIdForAlias(alias);
-    if (!roomId) return alias;
-    rememberDirectoryViaServers(mx, roomId, servers);
-    return roomId;
+    if (!roomId) return { roomId: alias };
+    return { roomId, servers };
   } catch {
-    return alias;
+    return { roomId: alias };
   }
 };
 
@@ -99,6 +100,40 @@ export const canonicalizeSessionPathname = (mx: MatrixClient, pathname: string):
   return buildPathname(route.pattern, segments);
 };
 
+/** A resolved alias route: the room-ID pathname and the directory servers to commit if still active. */
+export type ResolvedCanonicalRoute = {
+  pathname: string;
+  directoryVia: ReadonlyArray<{ roomId: string; servers: unknown }>;
+};
+
+/**
+ * The pathname with room IDs for the visible route and any routing servers returned by the
+ * homeserver's directory, without committing them yet so a cancelled navigation cannot overwrite
+ * an active visit's hints. A failed lookup keeps its alias, so the promise rejects only when the
+ * client itself throws.
+ */
+export const resolveCanonicalizedRoute = async (
+  mx: MatrixClient,
+  pathname: string
+): Promise<ResolvedCanonicalRoute> => {
+  const route = matchRoomRoute(pathname);
+  if (!route) return { pathname, directoryVia: [] };
+  const directoryVia: Array<{ roomId: string; servers: unknown }> = [];
+  const segments = await Promise.all(
+    route.segments.map(async (segment) => {
+      if (!namesRoom(segment)) return segment;
+      const local = knownRoomId(mx, segment.text);
+      if (local !== undefined) return { ...segment, text: local };
+      const resolved = await directoryRoom(mx, segment.text);
+      if (resolved.servers !== undefined) {
+        directoryVia.push({ roomId: resolved.roomId, servers: resolved.servers });
+      }
+      return { ...segment, text: resolved.roomId };
+    })
+  );
+  return { pathname: buildPathname(route.pattern, segments), directoryVia };
+};
+
 /**
  * The pathname with room IDs for the visible route: like `canonicalizeSessionPathname`, and the
  * aliases the client does not know are looked up in the homeserver's room directory, all at once.
@@ -107,18 +142,4 @@ export const canonicalizeSessionPathname = (mx: MatrixClient, pathname: string):
 export const resolveCanonicalizedPathname = async (
   mx: MatrixClient,
   pathname: string
-): Promise<string> => {
-  const route = matchRoomRoute(pathname);
-  if (!route) return pathname;
-  const segments = await Promise.all(
-    route.segments.map(async (segment) =>
-      namesRoom(segment)
-        ? {
-            ...segment,
-            text: knownRoomId(mx, segment.text) ?? (await directoryRoomId(mx, segment.text)),
-          }
-        : segment
-    )
-  );
-  return buildPathname(route.pattern, segments);
-};
+): Promise<string> => (await resolveCanonicalizedRoute(mx, pathname)).pathname;

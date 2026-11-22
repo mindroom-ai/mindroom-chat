@@ -713,4 +713,71 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
       }
     );
   });
+
+  it('does not let an abandoned alias lookup overwrite the active room routing servers', async () => {
+    signIn();
+    const SHARED_ROOM_ID = '!shared:good.example';
+    let resolveSlow!: (value: { room_id: string; servers: string[] }) => void;
+    mockClientState.getRoomIdForAlias.mockImplementation((alias: string) => {
+      if (alias === '#slow:stale.example') {
+        return new Promise((resolve) => {
+          resolveSlow = resolve;
+        });
+      }
+      return Promise.resolve({ room_id: SHARED_ROOM_ID, servers: ['good.example'] });
+    });
+    mockClientState.getRoomSummary.mockImplementation(async (_roomId: string, via?: string[]) => {
+      if (via?.includes('broken.example')) throw new Error('unreachable');
+      return {
+        room_id: SHARED_ROOM_ID,
+        name: 'Field notes',
+        join_rule: JoinRule.Public,
+        num_joined_members: 4,
+      };
+    });
+    mockClientState.joinRoom.mockResolvedValue({ roomId: SHARED_ROOM_ID });
+
+    let navigate!: ReturnType<typeof useNavigate>;
+    const Probe = () => {
+      navigate = useNavigate();
+      return null;
+    };
+
+    const { renderer, queryClient } = await renderWithRoomRoute(
+      '/home/%23slow%3Astale.example',
+      <Probe />
+    );
+    expect(mockClientState.getRoomIdForAlias).toHaveBeenCalledWith('#slow:stale.example');
+
+    // Navigate to a second alias for the same room before the first lookup completes.
+    await act(async () => {
+      void navigate('/home/%23fast%3Agood.example');
+      await flush();
+    });
+    expect(mockClientState.getRoomSummary.mock.calls).toEqual([[SHARED_ROOM_ID, ['good.example']]]);
+
+    // The abandoned lookup answers late with an unreachable server.
+    await act(async () => {
+      resolveSlow({ room_id: SHARED_ROOM_ID, servers: ['broken.example'] });
+      await flush();
+    });
+
+    expect(mockClientState.getRoomSummary.mock.calls).toEqual([[SHARED_ROOM_ID, ['good.example']]]);
+
+    const joinButton = renderer.root
+      .findAllByType('button')
+      .find((button) => textOf(button) === 'Join');
+    expect(joinButton).toBeDefined();
+    await act(async () => {
+      (joinButton?.props.onClick as () => void)?.();
+      await flush();
+    });
+
+    expect(mockClientState.joinRoom.mock.calls).toEqual([
+      [SHARED_ROOM_ID, { viaServers: ['good.example'] }],
+    ]);
+
+    act(() => renderer.unmount());
+    queryClient.clear();
+  });
 });

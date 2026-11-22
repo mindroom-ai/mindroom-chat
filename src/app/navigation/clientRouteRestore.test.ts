@@ -5,6 +5,7 @@ import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
   resolveCanonicalizedPathname,
+  resolveCanonicalizedRoute,
 } from './clientRouteRestore';
 
 const makeRoom = (roomId: string, alias?: string) => ({
@@ -69,42 +70,34 @@ describe('clientRouteRestore', () => {
   });
 
   describe('the servers the directory names for a room', () => {
-    const manyServers = Array.from({ length: 500 }, (_, index) => `s${index}.example.org`);
-
-    it('are remembered for the room ID, bounded, and stay out of the address', async () => {
+    it('are returned per resolved room ID without mutating the cache or the address', async () => {
       const mx = makeMatrixClient({
         resolvedAliases: {
           '#field-notes:remote.example.org': {
             room_id: '!field-notes:remote.example.org',
-            servers: ['remote.example.org', '', 'relay.example.org', 'remote.example.org'],
-          },
-          '#crowded:remote.example.org': {
-            room_id: '!crowded:remote.example.org',
-            servers: manyServers,
+            servers: ['remote.example.org', 'relay.example.org'],
           },
         },
       });
 
-      const resolved = await resolveCanonicalizedPathname(
+      const resolved = await resolveCanonicalizedRoute(
         mx,
         '/home/%23field-notes%3Aremote.example.org/'
       );
-      expect(resolved).toBe('/home/!field-notes%3Aremote.example.org');
-      expect(resolved).not.toContain('?');
-      expect(getDirectoryViaServers(mx, '!field-notes:remote.example.org')).toEqual([
-        'remote.example.org',
-        'relay.example.org',
-      ]);
-
-      await expect(
-        resolveCanonicalizedPathname(mx, '/home/%23crowded%3Aremote.example.org/')
-      ).resolves.toBe('/home/!crowded%3Aremote.example.org');
-      expect(getDirectoryViaServers(mx, '!crowded:remote.example.org')).toEqual(
-        manyServers.slice(0, 5)
-      );
+      expect(resolved).toEqual({
+        pathname: '/home/!field-notes%3Aremote.example.org',
+        directoryVia: [
+          {
+            roomId: '!field-notes:remote.example.org',
+            servers: ['remote.example.org', 'relay.example.org'],
+          },
+        ],
+      });
+      expect(resolved.pathname).not.toContain('?');
+      expect(getDirectoryViaServers(mx, '!field-notes:remote.example.org')).toBeUndefined();
     });
 
-    it('are remembered for the space and for the room below it, each its own', async () => {
+    it('are returned separately for the space and for the room below it', async () => {
       const mx = makeMatrixClient({
         resolvedAliases: {
           '#space:one.example': { room_id: '!space:one.example', servers: ['one.example'] },
@@ -112,15 +105,18 @@ describe('clientRouteRestore', () => {
         },
       });
 
-      await expect(
-        resolveCanonicalizedPathname(mx, '/%23space%3Aone.example/%23room%3Atwo.example/')
-      ).resolves.toBe('/!space%3Aone.example/!room%3Atwo.example');
-
-      expect(getDirectoryViaServers(mx, '!space:one.example')).toEqual(['one.example']);
-      expect(getDirectoryViaServers(mx, '!room:two.example')).toEqual(['two.example']);
+      const resolved = await resolveCanonicalizedRoute(
+        mx,
+        '/%23space%3Aone.example/%23room%3Atwo.example/'
+      );
+      expect(resolved.pathname).toBe('/!space%3Aone.example/!room%3Atwo.example');
+      expect(resolved.directoryVia).toEqual([
+        { roomId: '!space:one.example', servers: ['one.example'] },
+        { roomId: '!room:two.example', servers: ['two.example'] },
+      ]);
     });
 
-    it('are remembered for no room the directory was not asked about', async () => {
+    it('are omitted for rooms the directory was not asked about or answered without servers', async () => {
       const mx = makeMatrixClient({
         rooms: [makeRoom('!known:one.example', '#known:one.example')],
         resolvedAliases: {
@@ -129,25 +125,30 @@ describe('clientRouteRestore', () => {
         },
       });
 
-      // A space named by its room ID, an alias the client knows, and an answer without servers.
-      await resolveCanonicalizedPathname(mx, '/!space%3Aone.example/%23room%3Atwo.example/');
-      await resolveCanonicalizedPathname(mx, '/home/%23known%3Aone.example/');
-      await resolveCanonicalizedPathname(mx, '/home/%23bare%3Athree.example/');
+      const nested = await resolveCanonicalizedRoute(
+        mx,
+        '/!space%3Aone.example/%23room%3Atwo.example/'
+      );
+      const known = await resolveCanonicalizedRoute(mx, '/home/%23known%3Aone.example/');
+      const bare = await resolveCanonicalizedRoute(mx, '/home/%23bare%3Athree.example/');
 
-      expect(getDirectoryViaServers(mx, '!space:one.example')).toBeUndefined();
-      expect(getDirectoryViaServers(mx, '!known:one.example')).toBeUndefined();
-      expect(getDirectoryViaServers(mx, '!bare:three.example')).toBeUndefined();
-      expect(getDirectoryViaServers(mx, '!room:two.example')).toEqual(['two.example']);
+      expect(nested.directoryVia).toEqual([
+        { roomId: '!room:two.example', servers: ['two.example'] },
+      ]);
+      expect(known.directoryVia).toEqual([]);
+      expect(bare.directoryVia).toEqual([]);
     });
 
-    it('are remembered for nothing when the lookup fails', async () => {
+    it('are omitted when the lookup fails', async () => {
       const mx = makeMatrixClient();
       vi.mocked(mx.getRoomIdForAlias).mockRejectedValue(new Error('M_NOT_FOUND'));
 
       await expect(
-        resolveCanonicalizedPathname(mx, '/home/%23gone%3Aremote.example.org/')
-      ).resolves.toBe('/home/%23gone%3Aremote.example.org');
-      expect(getDirectoryViaServers(mx, '#gone:remote.example.org')).toBeUndefined();
+        resolveCanonicalizedRoute(mx, '/home/%23gone%3Aremote.example.org/')
+      ).resolves.toEqual({
+        pathname: '/home/%23gone%3Aremote.example.org',
+        directoryVia: [],
+      });
     });
   });
 });
