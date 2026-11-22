@@ -59,6 +59,7 @@ export function useCompactBlocks(options: Options) {
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
+      input: 0,
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as ((advance?: boolean) => boolean) | undefined,
       wake: undefined as (() => void) | undefined,
@@ -196,6 +197,7 @@ export function useCompactBlocks(options: Options) {
     document.fonts?.addEventListener('loadingdone', fontsChanged);
     const track = (event: Event) => {
       const { type, target } = event;
+      if (/down|wheel|touchmove/.test(type)) state.input += 1;
       const pointer = (event as Partial<PointerEvent>).pointerId;
       if (type === 'pointerdown' || type === 'dragstart') {
         const id = target instanceof Element && content.contains(target) && cardId(target);
@@ -207,12 +209,15 @@ export function useCompactBlocks(options: Options) {
       )
         state.gesture = undefined;
     };
-    GESTURE_EVENTS.forEach((event) => window.addEventListener(event, track, true));
+    // What the reader does to scroll counts as their input: a scroll without it is the browser's.
+    const events = [...GESTURE_EVENTS, 'wheel', 'touchmove', 'keydown'];
+    const listen = { capture: true, passive: true };
+    events.forEach((event) => window.addEventListener(event, track, listen));
     view.addEventListener('scroll', scroll, { passive: true });
     return () => {
       state.wake = undefined;
       observer?.disconnect();
-      GESTURE_EVENTS.forEach((event) => window.removeEventListener(event, track, true));
+      events.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);

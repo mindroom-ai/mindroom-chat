@@ -878,10 +878,25 @@ describe('a focus request on the mounted Compact room', () => {
       const { rerender } = render(at(undefined, cold));
       rerender(at(far, cold));
       expect(scrollTop).toBe(0);
+      fireEvent.wheel(document.querySelector('[data-compact-room-view]')!);
       scrollTop = 150;
       measure();
       rerender(at(far, cold));
       expect(scrollTop).toBe(150);
+    });
+
+    it('places a far link though the browser moved the list while its card was measured', () => {
+      memory.clear();
+      const cold = large.map((id) => `${id}-unseen`);
+      const far = { eventId: cold[100]!, entryKey: 'far-moved', pushed: true };
+      const { rerender } = render(at(undefined, cold));
+      rerender(at(far, cold));
+      // Content above changed and the browser kept the cards in place: no reader input.
+      scrollTop = 150;
+      measure();
+      rerender(at(far, cold));
+      expect(scrollTop).toBe(9840);
+      expect(topOf(cold[100]!)).toBe(160);
     });
 
     it('places warm Back in its first commit when 48 unseen roots were prepended', () => {

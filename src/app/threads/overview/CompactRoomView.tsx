@@ -458,7 +458,7 @@ export function CompactRoomView({
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
   const placing = useRef<string>();
-  const asked = useRef<[key?: string, top?: number]>([]);
+  const asked = useRef<[key?: string, top?: number, input?: number]>([]);
   const pushed =
     focusRequest?.pushed &&
     requestKey !== mountRequestKeyRef.current &&
@@ -639,11 +639,12 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     const view = viewRef.current;
-    if (address && asked.current[0] !== requestKey) asked.current = [requestKey, view?.scrollTop];
+    const now = [view?.scrollTop, blocks.progress.input] as const;
+    if (address && asked.current[0] !== requestKey) asked.current = [requestKey, ...now];
     if (!focusRequest || !focusShown) return;
-    // A newer address retires a Back that still waits; a reader who scrolled meanwhile stays.
+    // A newer address retires a Back that still waits; a reader whose input scrolled it stays.
     if (address) blocks.progress.placed = true;
-    const stayed = asked.current[1] === view?.scrollTop;
+    const stayed = now.some((value, i) => value === asked.current[i + 1]);
     const place = pushed && view && stayed && compactFocusPlace(focusRequest, view);
     if (place && placing.current !== requestKey) {
       placing.current = requestKey;
