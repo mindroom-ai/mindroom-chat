@@ -94,7 +94,7 @@ public enum VoiceEcho {
         let content = effectiveContent(event, latestEdit: latestEdit)
         guard event.content["com.mindroom.visible_router_voice_echo"] as? Bool == true,
               content["com.mindroom.voice_raw_audio_fallback"] as? Bool != true else { return nil }
-        let nonEmpty = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
         guard let voiceId = nonEmpty(content["com.mindroom.voice_source_event_id"])
             ?? nonEmpty(event.content["com.mindroom.voice_source_event_id"])
             ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
