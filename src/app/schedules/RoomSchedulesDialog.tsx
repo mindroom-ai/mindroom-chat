@@ -1,9 +1,11 @@
 import {
+  type FocusEvent,
   Fragment,
   type ReactNode,
   forwardRef,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -47,6 +49,7 @@ const LONG_PROMPT_CHAR_LIMIT = 180;
 const LONG_PROMPT_LINE_LIMIT = 3;
 const COPY_FEEDBACK_MS = 2_000;
 const CANCEL_SENT_CLEAR_MS = 6_000;
+const IMMINENT_COUNTDOWN_WINDOW_MS = 120_000;
 
 const isLongPrompt = (prompt: string): boolean =>
   prompt.length > LONG_PROMPT_CHAR_LIMIT || prompt.split('\n').length > LONG_PROMPT_LINE_LIMIT;
@@ -89,6 +92,7 @@ function ScheduleAccordionItem({
   const { t } = useTranslation();
   const drawerId = useId();
   const detailsId = useId();
+  const confirmId = useId();
   const mx = useMatrixClient();
   const mentionClickHandler = useMentionClickHandler(roomId);
 
@@ -102,6 +106,8 @@ function ScheduleAccordionItem({
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmBarRef = useRef<HTMLDivElement>(null);
+  const focusInsideConfirmRef = useRef(false);
   const copyTimerRef = useRef<number>();
   const mountedRef = useRef(true);
   const prevConfirmingRef = useRef(false);
@@ -133,8 +139,15 @@ function ScheduleAccordionItem({
 
   useEffect(() => {
     if (cancelSent && !prevCancelSentRef.current) {
+      const bar = confirmBarRef.current;
+      const doc = bar?.ownerDocument;
+      const shouldRestoreFocus =
+        (!!bar && !!doc && bar.contains(doc.activeElement)) || focusInsideConfirmRef.current;
       setConfirmingCancel(false);
-      if (open) toggleButtonRef.current?.focus();
+      focusInsideConfirmRef.current = false;
+      if (open && shouldRestoreFocus) {
+        toggleButtonRef.current?.focus();
+      }
     }
     prevCancelSentRef.current = cancelSent;
   }, [cancelSent, open]);
@@ -224,7 +237,6 @@ function ScheduleAccordionItem({
 
   const promptText = task.message;
   const promptLong = promptText !== undefined && isLongPrompt(promptText);
-  const HeadingTag = grouped ? 'h4' : 'h3';
 
   const handleCopyId = async () => {
     const ok = await copyToClipboard(task.taskId);
@@ -252,6 +264,7 @@ function ScheduleAccordionItem({
   const handleKeepCancel = () => {
     if (isCancelling) return;
     setConfirmingCancel(false);
+    focusInsideConfirmRef.current = false;
     onClearCancelError();
     cancelButtonRef.current?.focus();
   };
@@ -263,10 +276,11 @@ function ScheduleAccordionItem({
 
   return (
     <article className={css.Item} data-expanded={open ? 'true' : undefined}>
-      <HeadingTag className={css.RowHeading}>
+      <div role="heading" aria-level={grouped ? 4 : 3} className={css.RowHeading}>
         <button
           ref={toggleButtonRef}
           type="button"
+          data-schedule-toggle=""
           className={css.RowHeader}
           aria-expanded={open}
           aria-controls={open ? drawerId : undefined}
@@ -314,7 +328,7 @@ function ScheduleAccordionItem({
             <Icon size="100" src={Icons.ChevronBottom} />
           </span>
         </button>
-      </HeadingTag>
+      </div>
 
       {open && (
         <div id={drawerId} className={css.Drawer}>
@@ -421,7 +435,7 @@ function ScheduleAccordionItem({
                   variant="SurfaceVariant"
                   fill="None"
                   radii="300"
-                  className={css.CompactAction}
+                  className={css.IconAction}
                   aria-label={t('roomSchedules.edit')}
                   title={t('roomSchedules.edit')}
                   onClick={handleEditClick}
@@ -439,17 +453,19 @@ function ScheduleAccordionItem({
                   fill="None"
                   radii="300"
                   className={classNames(
-                    css.CompactAction,
+                    css.IconAction,
                     (isCancelling || cancelSent) && css.AriaDisabledButton
                   )}
                   aria-label={t('roomSchedules.cancel')}
                   title={t('roomSchedules.cancel')}
                   aria-expanded={showCancelBar}
+                  aria-controls={showCancelBar ? confirmId : undefined}
                   aria-disabled={isCancelling || cancelSent || undefined}
                   onClick={() => {
                     if (isCancelling || cancelSent) return;
                     if (showCancelBar) {
                       setConfirmingCancel(false);
+                      focusInsideConfirmRef.current = false;
                       onClearCancelError();
                     } else {
                       setConfirmingCancel(true);
@@ -463,10 +479,22 @@ function ScheduleAccordionItem({
           </div>
 
           {showCancelBar && (
-            <div className={css.CancelBar}>
+            <div
+              id={confirmId}
+              ref={confirmBarRef}
+              className={css.CancelBar}
+              onFocusCapture={() => {
+                focusInsideConfirmRef.current = true;
+              }}
+              onBlurCapture={(event) => {
+                if (!confirmBarRef.current?.contains(event.relatedTarget)) {
+                  focusInsideConfirmRef.current = false;
+                }
+              }}
+            >
               <Text size="T200">{t('roomSchedules.cancelConfirm')}</Text>
               {cancelError && (
-                <Text size="T200" role="status" className={css.CancelError}>
+                <Text size="T200" role="alert" className={css.CancelError}>
                   {t('roomSchedules.cancelError')}
                 </Text>
               )}
@@ -655,7 +683,9 @@ export const RoomSchedulesDialog = forwardRef<
 >(({ roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask }, ref) => {
   const { t, i18n } = useTranslation();
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const hadDialogFocusRef = useRef(false);
   const [now, setNow] = useState(Date.now);
   const [filter, setFilter] = useState<ScheduleFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(() =>
@@ -666,6 +696,12 @@ export const RoomSchedulesDialog = forwardRef<
   const [cancelErrors, setCancelErrors] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const cancelSentTimersRef = useRef<Map<string, number>>(new Map());
   const mountedRef = useRef(true);
+
+  const setModalRef = (node: HTMLDivElement | null) => {
+    dialogRef.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) ref.current = node;
+  };
 
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const formatter = useMemo(
@@ -686,7 +722,15 @@ export const RoomSchedulesDialog = forwardRef<
       ? 'all'
       : filter;
 
-  const prevShowFilterBarRef = useRef(showFilterBar);
+  const filteredTasks = useMemo(
+    () =>
+      effectiveFilter === 'all'
+        ? tasks
+        : tasks.filter((task) =>
+            effectiveFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
+          ),
+    [effectiveFilter, tasks]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -712,23 +756,16 @@ export const RoomSchedulesDialog = forwardRef<
     }
   }, [filter, showFilterBar]);
 
-  // Recover focus inside the dialog if the unmounting filter bar held focus.
-  useEffect(() => {
-    if (prevShowFilterBarRef.current && !showFilterBar) {
-      const doc = closeButtonRef.current?.ownerDocument;
-      if (!doc?.activeElement || doc.activeElement === doc.body) {
-        closeButtonRef.current?.focus();
-      }
-    }
-    prevShowFilterBarRef.current = showFilterBar;
-  }, [showFilterBar]);
-
-  const filteredTasks =
-    effectiveFilter === 'all'
-      ? tasks
-      : tasks.filter((task) =>
-          effectiveFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
-        );
+  // Recover focus inside the dialog if a focused task row or filter pill unmounts.
+  useLayoutEffect(() => {
+    const modal = dialogRef.current;
+    if (!modal || !hadDialogFocusRef.current) return;
+    const doc = modal.ownerDocument;
+    if (doc.activeElement && doc.activeElement !== doc.body) return;
+    const firstToggle = modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
+    if (firstToggle) firstToggle.focus();
+    else closeButtonRef.current?.focus();
+  }, [filteredTasks, showFilterBar]);
 
   const threadTasks: ParsedScheduledTask[] = [];
   const elsewhereTasks: ParsedScheduledTask[] = [];
@@ -743,10 +780,34 @@ export const RoomSchedulesDialog = forwardRef<
     { id: 'elsewhere', heading: 'roomSchedules.elsewhereInRoom', tasks: elsewhereTasks },
   ] as const;
 
+  const hasImminentTask = tasks.some((task) => {
+    if (isRecurringTask(task)) return false;
+    const executionTime = getScheduleTimestamp(task);
+    return (
+      executionTime !== undefined &&
+      executionTime > now &&
+      executionTime - now <= IMMINENT_COUNTDOWN_WINDOW_MS
+    );
+  });
+
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 10_000);
+    const intervalMs = hasImminentTask ? 1_000 : 10_000;
+    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [hasImminentTask]);
+
+  const handleSelectFilter = (nextFilter: ScheduleFilter) => {
+    setFilter(nextFilter);
+    const nextFiltered =
+      nextFilter === 'all'
+        ? tasks
+        : tasks.filter((task) =>
+            nextFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
+          );
+    if (nextFiltered.length === 1) {
+      setExpandedId(nextFiltered[0]!.taskId);
+    }
+  };
 
   const handleConfirmCancel = async (task: ParsedScheduledTask): Promise<boolean> => {
     if (!onCancelTask || pendingCancelIds.has(task.taskId)) return false;
@@ -815,13 +876,21 @@ export const RoomSchedulesDialog = forwardRef<
 
   return (
     <Modal
-      ref={ref}
+      ref={setModalRef}
       size="400"
       flexHeight
       className={css.Dialog}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
+      onFocusCapture={() => {
+        hadDialogFocusRef.current = true;
+      }}
+      onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
+        if (event.relatedTarget && !dialogRef.current?.contains(event.relatedTarget)) {
+          hadDialogFocusRef.current = false;
+        }
+      }}
     >
       <PageScroll
         header={
@@ -879,7 +948,7 @@ export const RoomSchedulesDialog = forwardRef<
                         type="button"
                         aria-pressed={active}
                         className={classNames(css.FilterPill, active && css.FilterPillActive)}
-                        onClick={() => setFilter(option.id)}
+                        onClick={() => handleSelectFilter(option.id)}
                       >
                         <span>{option.label}</span>
                         <span className={css.FilterCount}>{option.count}</span>

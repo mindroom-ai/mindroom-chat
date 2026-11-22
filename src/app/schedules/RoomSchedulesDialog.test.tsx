@@ -59,6 +59,7 @@ vi.mock('./roomSchedules.css', () => ({
   ActionsPrimary: 'actions-primary',
   ActionsSecondary: 'actions-secondary',
   CompactAction: 'compact-action',
+  IconAction: 'icon-action',
   AriaDisabledButton: 'aria-disabled-button',
   Metadata: 'metadata',
   TaskId: 'task-id',
@@ -156,12 +157,10 @@ describe('RoomSchedulesDialog destinations and heading semantics', () => {
       onClose: vi.fn(),
       onOpenThread: vi.fn(),
     });
-    // Headings must wrap accordion buttons, never sit inside buttons.
-    expect(host.querySelectorAll('button h3, button h4')).toHaveLength(0);
-    expect(host.querySelectorAll('article > h3 > button, article > h4 > button')).toHaveLength(
-      tasks.length
-    );
-    const result = [...host.querySelectorAll('h3, h4')].map(
+    // Headings wrap accordion buttons cleanly and never sit inside buttons.
+    expect(host.querySelectorAll('button [role="heading"], button h3, button h4')).toHaveLength(0);
+    expect(host.querySelectorAll('article > [role="heading"] > button')).toHaveLength(tasks.length);
+    const result = [...host.querySelectorAll('h3, h4, [role="heading"]')].map(
       (el) => el.querySelector('.row-title')?.textContent ?? el.textContent ?? ''
     );
     unmount();
@@ -178,6 +177,40 @@ describe('RoomSchedulesDialog destinations and heading semantics', () => {
       'Check the herbs',
     ]);
   });
+
+  it.each([true, false])(
+    'keeps row toggle button focused when grouped flips false -> true -> false (local first: %s)',
+    (localFirst) => {
+      const first = localFirst ? local : elsewhere[2]!;
+      const next = localFirst ? elsewhere[2]! : local;
+      const base = {
+        roomId: '!room:example.org',
+        openThreadId: threadId,
+        onClose: vi.fn(),
+        onOpenThread: vi.fn(),
+      };
+      const { host, rerender, unmount } = mountDialog({ ...base, tasks: [first] });
+      try {
+        const toggleBtn = host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')!;
+        const headingEl = toggleBtn.parentElement!;
+        expect(headingEl.getAttribute('role')).toBe('heading');
+        expect(headingEl.getAttribute('aria-level')).toBe('3');
+        toggleBtn.focus();
+        expect(document.activeElement).toBe(toggleBtn);
+
+        rerender({ ...base, tasks: [first, next] });
+        expect(host.textContent).toContain('Elsewhere in this room');
+        expect(headingEl.getAttribute('aria-level')).toBe('4');
+        expect(document.activeElement).toBe(toggleBtn);
+
+        rerender({ ...base, tasks: [first] });
+        expect(headingEl.getAttribute('aria-level')).toBe('3');
+        expect(document.activeElement).toBe(toggleBtn);
+      } finally {
+        unmount();
+      }
+    }
+  );
 
   it.each([true, false])(
     'keeps a single auto-expanded card open and Open thread focused when the other group arrives (local first: %s)',
@@ -219,7 +252,7 @@ describe('RoomSchedulesDialog destinations and heading semantics', () => {
   });
 });
 
-describe('RoomSchedulesDialog accordion and filters', () => {
+describe('RoomSchedulesDialog accordion, filters, and focus recovery', () => {
   it('auto-expands a single initial task, collapses multiple tasks, and sets aria-controls only when open', async () => {
     const first = makeTask({ taskId: 'one', description: 'First task', message: 'First prompt' });
     const second = makeTask({
@@ -274,7 +307,7 @@ describe('RoomSchedulesDialog accordion and filters', () => {
     }
   });
 
-  it('persists filter reset when a category empties and returns, and recovers focus from unmounting filter bar', async () => {
+  it('auto-expands when clicking a filter pill that narrows to 1 task, persists reset, and recovers focus cleanly', async () => {
     const onceTask = makeTask({
       taskId: 'once-1',
       description: 'One-off check',
@@ -283,6 +316,7 @@ describe('RoomSchedulesDialog accordion and filters', () => {
     const cronTask = makeTask({
       taskId: 'cron-1',
       description: 'Weekly digest',
+      message: 'Summarize the week',
       scheduleType: 'cron',
       cronDescription: 'Every Monday',
     });
@@ -298,16 +332,24 @@ describe('RoomSchedulesDialog accordion and filters', () => {
       const pills = [...filterBar.querySelectorAll<HTMLButtonElement>('button')];
       expect(pills.map((btn) => btn.textContent)).toEqual(['All2', 'One-time1', 'Recurring1']);
 
+      // Clicking Recurring narrows to 1 task and auto-expands it.
       pills[2]!.focus();
       await click(pills[2]!);
       expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
-      expect(mixed.host.textContent).toContain('Weekly digest');
+      expect(mixed.host.textContent).toContain('Summarize the week');
+      expect(
+        mixed.host
+          .querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+          ?.getAttribute('aria-expanded')
+      ).toBe('true');
 
-      // Live sync removes the recurring task: filter resets to All and focus recovers to Close.
+      // Live sync removes the recurring task: filter resets to All and focus recovers inside dialog.
       mixed.rerender({ ...base, tasks: [onceTask] });
       expect(mixed.host.querySelector('.filter-bar')).toBeNull();
       expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
-      expect(document.activeElement).toBe(findButtonByAriaLabel(mixed.host, 'Close'));
+      expect(document.activeElement).toBe(
+        mixed.host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
 
       // When a recurring task returns later, the persisted reset keeps All active.
       mixed.rerender({ ...base, tasks: [onceTask, cronTask] });
@@ -320,8 +362,52 @@ describe('RoomSchedulesDialog accordion and filters', () => {
         'false',
       ]);
       expect(mixed.host.querySelectorAll('article')).toHaveLength(2);
+
+      // When a focused task row unmounts because it was cancelled, focus moves to the next toggle, then Close.
+      const firstToggle = mixed.host.querySelector<HTMLButtonElement>(
+        'button[data-schedule-toggle]'
+      )!;
+      firstToggle.focus();
+      mixed.rerender({ ...base, tasks: [cronTask] });
+      const remainingToggle = mixed.host.querySelector<HTMLButtonElement>(
+        'button[data-schedule-toggle]'
+      )!;
+      expect(document.activeElement).toBe(remainingToggle);
+
+      mixed.rerender({ ...base, tasks: [] });
+      expect(document.activeElement).toBe(findButtonByAriaLabel(mixed.host, 'Close'));
     } finally {
       mixed.unmount();
+    }
+  });
+
+  it('ticks every 1s for imminent one-time tasks so countdown transitions promptly to Awaiting', () => {
+    vi.useFakeTimers();
+    const baseNow = new Date('2026-09-15T12:00:00.000Z').getTime();
+    vi.setSystemTime(baseNow);
+    const imminent = makeTask({
+      taskId: 'soon',
+      description: 'Imminent task',
+      executeAt: new Date(baseNow + 2_000).toISOString(),
+    });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [imminent],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    });
+    try {
+      expect(host.querySelector('.status-pill')?.textContent).toBe('in 2s');
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+      expect(host.querySelector('.status-pill')?.textContent).toBe('in 1s');
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+      expect(host.querySelector('.status-pill')?.textContent).toBe('Awaiting');
+    } finally {
+      unmount();
     }
   });
 });
@@ -488,7 +574,7 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     }
   });
 
-  it('manages cancel focus, keeps aria-disabled focus during pending, survives filter remount, and auto-clears sent status', async () => {
+  it('manages cancel focus, aria-controls, alert role, filter remount guard, and 6s sent auto-clear', async () => {
     vi.useFakeTimers();
     const onceTask = makeTask({
       taskId: 'sched-99',
@@ -522,9 +608,13 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       const rowToggle = host.querySelector<HTMLButtonElement>('article button.row-header')!;
       await click(rowToggle);
 
-      // Opening cancel moves focus to Keep; Keep returns focus to Cancel.
       const cancelIcon = findButtonByAriaLabel(host, 'Cancel')!;
+      expect(cancelIcon.getAttribute('aria-controls')).toBeNull();
+
+      // Opening cancel sets aria-controls and moves focus to Keep; Keep returns focus to Cancel.
       await click(cancelIcon);
+      const confirmBar = host.querySelector('.cancel-bar')!;
+      expect(cancelIcon.getAttribute('aria-controls')).toBe(confirmBar.id);
       const keepBtn = findButtonByText(host, 'Keep')!;
       expect(document.activeElement).toBe(keepBtn);
 
@@ -532,11 +622,12 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       expect(host.textContent).not.toContain('Cancel this scheduled task?');
       expect(document.activeElement).toBe(cancelIcon);
 
-      // Re-open -> first attempt fails and displays error.
+      // Re-open -> first attempt fails and displays role="alert" error.
       await click(cancelIcon);
       await click(findButtonByText(host, 'Cancel task')!);
       expect(onCancelTask).toHaveBeenCalledTimes(1);
-      expect(host.textContent).toContain('Could not cancel task. Try again.');
+      const alert = host.querySelector('[role="alert"]');
+      expect(alert?.textContent).toBe('Could not cancel task. Try again.');
 
       // Retry -> button uses aria-disabled (not HTML disabled) so focus stays on it.
       const retryBtn = findButtonByText(host, 'Cancel task')!;
@@ -551,18 +642,22 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       const filterButtons = [...host.querySelectorAll<HTMLButtonElement>('.filter-bar button')];
       await click(filterButtons[2]!); // Recurring (hides onceTask)
       await click(filterButtons[0]!); // All (remounts onceTask, still expanded)
-      const stillPending = findButtonByText(host, 'Cancelling...')!;
+      // Re-focus the pending cancel button so focus is inside the confirm bar before resolve.
+      const onceArticle = host.querySelectorAll('article')[0]!;
+      await click(onceArticle.querySelector('button.row-header')!);
+      const stillPending = findButtonByText(onceArticle, 'Cancelling...')!;
       expect(stillPending.getAttribute('aria-disabled')).toBe('true');
+      stillPending.focus();
       await click(stillPending);
       expect(onCancelTask).toHaveBeenCalledTimes(2);
 
-      // Resolving cancel closes confirmation bar, moves focus to row toggle, and shows Cancellation sent.
+      // Resolving cancel while focus is in confirm bar closes bar and focuses row toggle.
       await act(async () => {
         resolveCancel?.();
       });
       expect(host.textContent).toContain('Cancellation sent');
       expect(document.activeElement).toBe(
-        host.querySelector<HTMLButtonElement>('article button.row-header')
+        onceArticle.querySelector<HTMLButtonElement>('button.row-header')
       );
 
       // Sent status auto-clears after 6 seconds so Cancel is usable again if backend rejected it.
@@ -570,7 +665,44 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
         vi.advanceTimersByTime(6_000);
       });
       expect(host.textContent).not.toContain('Cancellation sent');
-      expect(findButtonByAriaLabel(host, 'Cancel')?.getAttribute('aria-disabled')).toBeNull();
+      expect(
+        findButtonByAriaLabel(onceArticle, 'Cancel')?.getAttribute('aria-disabled')
+      ).toBeNull();
+    } finally {
+      unmount();
+    }
+  });
+
+  it('does not steal focus on cancel completion when the user moved focus to Details or Close', async () => {
+    let resolveCancel: (() => void) | undefined;
+    const onCancelTask = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCancel = resolve;
+        })
+    );
+    const task = makeTask({ taskId: 'sched-55', description: 'Background cancel' });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask,
+    });
+    try {
+      await click(findButtonByAriaLabel(host, 'Cancel')!);
+      await click(findButtonByText(host, 'Cancel task')!);
+
+      // User moves focus to Details while cancellation is still in-flight.
+      const detailsBtn = findButtonByText(host, 'Details')!;
+      detailsBtn.focus();
+      expect(document.activeElement).toBe(detailsBtn);
+
+      await act(async () => {
+        resolveCancel?.();
+      });
+      expect(host.textContent).toContain('Cancellation sent');
+      expect(document.activeElement).toBe(detailsBtn);
     } finally {
       unmount();
     }

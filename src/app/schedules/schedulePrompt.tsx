@@ -4,14 +4,15 @@ import * as css from './roomSchedules.css';
 const MENTION_SOURCE = '(^|[\\s(])(@[A-Za-z0-9._=/+-]+(?::[A-Za-z0-9.-]+(?::\\d+)?)?)';
 
 type PromptToken = {
-  kind: 'text' | 'code';
+  kind: 'text' | 'code' | 'verbatim';
   value: string;
   offset: number;
 };
 
 /**
  * Splits only clean single-backtick inline spans on a single line.
- * Escaped backticks (`\``) and multi-backtick runs (`` `` ``, ```` ``` ````) stay verbatim.
+ * Escaped backticks (`\``) and multi-backtick spans or fenced blocks (`` `` ``, ```` ``` ````)
+ * stay completely verbatim.
  */
 const tokenizeInlineCode = (prompt: string): PromptToken[] => {
   const tokens: PromptToken[] = [];
@@ -33,8 +34,38 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
     while (runEnd < prompt.length && prompt[runEnd] === '`') {
       runEnd += 1;
     }
-    if (runEnd - i > 1) {
-      i = runEnd;
+    const runLen = runEnd - i;
+
+    if (runLen >= 2) {
+      let k = runEnd;
+      let matchedEnd = -1;
+      while (k < prompt.length) {
+        if (prompt[k] === '\\' && prompt[k + 1] === '`') {
+          k += 2;
+          continue;
+        }
+        if (prompt[k] === '`') {
+          let closeEnd = k;
+          while (closeEnd < prompt.length && prompt[closeEnd] === '`') {
+            closeEnd += 1;
+          }
+          if (closeEnd - k === runLen) {
+            matchedEnd = closeEnd;
+            break;
+          }
+          k = closeEnd;
+          continue;
+        }
+        k += 1;
+      }
+
+      const verbatimEnd = matchedEnd === -1 ? prompt.length : matchedEnd;
+      if (i > textStart) {
+        tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
+      }
+      tokens.push({ kind: 'verbatim', value: prompt.slice(i, verbatimEnd), offset: i });
+      i = verbatimEnd;
+      textStart = i;
       continue;
     }
 
@@ -147,6 +178,8 @@ export const renderSchedulePrompt = (prompt: string): ReactNode => {
           {token.value}
         </code>
       );
+    } else if (token.kind === 'verbatim') {
+      nodes.push(token.value);
     } else {
       nodes.push(...renderPlainSegment(token.value, token.offset, `s${index}`));
     }

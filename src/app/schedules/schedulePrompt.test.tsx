@@ -70,12 +70,17 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
-  it('leaves escaped backticks and multi-backtick fences verbatim without splitting or stripping', () => {
-    const prompt = 'Escaped \\`not code\\`, double ``raw`` and fence:\n```ts\nconst x = 1;\n```';
+  it('leaves escaped backticks, double-backtick spans, and fenced JS template literals verbatim', () => {
+    const prompt =
+      'Escaped \\`not code\\`, double ``has `inner` ticks`` and fence:\n```js\nconst s = `hi ${x}`;\n@decorator\n```\nthen `real`';
     const { host, cleanup } = renderPrompt(prompt);
     try {
-      expect(host.querySelectorAll('code.inline-code')).toHaveLength(0);
-      expect(host.textContent).toBe(prompt);
+      const codes = [...host.querySelectorAll('code.inline-code')].map((el) => el.textContent);
+      expect(codes).toEqual(['real']);
+      expect(host.querySelectorAll('.prompt-mention')).toHaveLength(0);
+      expect(host.textContent).toBe(
+        'Escaped \\`not code\\`, double ``has `inner` ticks`` and fence:\n```js\nconst s = `hi ${x}`;\n@decorator\n```\nthen real'
+      );
     } finally {
       cleanup();
     }

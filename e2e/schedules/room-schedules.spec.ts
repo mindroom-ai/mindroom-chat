@@ -29,13 +29,12 @@ test('room schedule accordion filters, formats prompts, reveals details, runs ac
   await expect(dialog.getByText('Awaiting execution', { exact: true })).toBeVisible();
   await expect(dialog.getByText('New thread', { exact: true })).toBeVisible();
 
-  // Type filter bar switches between All, One-time, and Recurring.
+  // Type filter bar switches between All, One-time, and Recurring; single match auto-expands.
   const filterGroup = dialog.getByRole('group', { name: 'Filter scheduled tasks' });
   await filterGroup.getByRole('button', { name: /^Recurring/ }).click();
   await expect(dialog.getByRole('article')).toHaveCount(1);
 
   const morningCard = dialog.getByRole('article').first();
-  await morningCard.getByRole('button', { name: /Morning inbox/ }).click();
   await expect(morningCard.locator('code')).toHaveText('inbox');
   await expect(morningCard.getByText('@helper', { exact: true })).toBeVisible();
   await expect(morningCard.getByText('Silent', { exact: true })).toBeVisible();
@@ -108,14 +107,20 @@ test('room schedule accordion filters, formats prompts, reveals details, runs ac
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Opened $inbox', { exact: true })).toBeVisible();
 
-  // Live state updates remove cancelled tasks while keeping focus tidy.
+  // Live state updates removing a focused task row keep focus inside the dialog (never body).
   await trigger.click();
+  const overdueToggle = dialog
+    .getByRole('article')
+    .filter({ hasText: 'Report reminder' })
+    .getByRole('button', { name: /Report reminder/ });
+  await overdueToggle.focus();
+  await expect(overdueToggle).toBeFocused();
   await page.evaluate(() => window.dispatchEvent(new Event('cancel-schedule')));
   await expect(dialog.getByRole('article')).toHaveCount(2);
   await expect(
     page.getByRole('button', { name: 'Scheduled tasks (2)', exact: true })
   ).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('article').first().getByRole('button').first()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(

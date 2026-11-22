@@ -30,6 +30,8 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -54,8 +56,12 @@ import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSche
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
-import { toPlainText } from '../editor/output';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
 import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
@@ -97,8 +103,8 @@ export type RoomViewHeaderProps = {
   openThreadId?: string;
   /** The room's thread filters: the filter button marks them while their bar is hidden. */
   threadFilterState?: ThreadFilterState;
-  /** Focuses the active conversation composer after an action closes a header dialog. */
-  onFocusComposer?: () => void;
+  /** Focuses the target conversation composer after an action closes a header dialog. */
+  onFocusComposer?: (targetThreadId?: string) => void;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -255,6 +261,8 @@ export function RoomViewHeader({
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const canManageSchedules = canSendMessages && !tombstone;
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -401,50 +409,51 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
-  const getScheduleTargetThreadId = (task: ParsedScheduledTask): string | undefined => {
-    const rawTargetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
-    return rawTargetThreadId && isConfirmedMatrixEventId(rawTargetThreadId)
-      ? rawTargetThreadId
-      : undefined;
-  };
   const cancelScheduledTask = async (task: ParsedScheduledTask) => {
     if (!isCommandSafeTaskId(task.taskId)) return;
-    const targetThreadId = getScheduleTargetThreadId(task);
-    const relation = getMessageRelation(undefined, undefined, targetThreadId);
+    // Always post the cancel command to the task's own destination (never an unrelated or local thread).
+    const cancelTargetThreadId =
+      !task.newThread && task.threadId
+        ? isConfirmedMatrixEventId(task.threadId)
+          ? task.threadId
+          : undefined
+        : undefined;
+    const relation = getMessageRelation(undefined, undefined, cancelTargetThreadId);
     const content = {
       msgtype: MsgType.Text,
       body: `!cancel_schedule ${task.taskId}`,
       ...(relation ? { 'm.relates_to': relation } : {}),
     } as RoomMessageEventContent;
-    await mx.sendMessage(room.roomId, targetThreadId ?? null, content);
+    await mx.sendMessage(room.roomId, cancelTargetThreadId ?? null, content);
   };
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
-    const targetThreadId = getScheduleTargetThreadId(task);
+    const editTargetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
     const prefix = `!edit_schedule ${task.taskId} `;
-    const draftAtom = roomIdToMsgDraftAtomFamily(
-      getRoomInputDraftKey(myUserId, room.roomId, targetThreadId)
+    const offer = [createParagraphElement(prefix)];
+    const offerState = store.get(
+      composerOfferAtom([myUserId, room.roomId, editTargetThreadId], offer, confirmedVoiceThreadId)
     );
-    const existing = store.get(draftAtom);
-    const existingText = toPlainText(existing, false);
-    const hasContent = existingText.trim().length > 0;
-    if (hasContent && !existingText.startsWith(prefix)) {
+    if (offerState === 'busy') {
       return 'draft-busy';
     }
-    if (!hasContent) {
-      store.set(draftAtom, [createParagraphElement(prefix)]);
+    if (offerState === 'empty') {
+      const draftKey = getRoomInputDraftKey(myUserId, room.roomId, editTargetThreadId);
+      store.set(roomIdToMsgDraftAtomFamily(draftKey), offer);
     }
     const opener = schedules?.opener;
     setSchedules(undefined);
-    if (targetThreadId && targetThreadId !== openThreadId) {
-      openScheduledThread(targetThreadId);
-    } else if (!targetThreadId && viewSwitch?.compact) {
-      viewSwitch.toggle();
+    if (editTargetThreadId && editTargetThreadId !== openThreadId) {
+      openScheduledThread(editTargetThreadId);
+    } else {
+      if (!editTargetThreadId && viewSwitch?.compact) {
+        viewSwitch.toggle();
+      }
+      requestAnimationFrame(() => {
+        if (onFocusComposer) onFocusComposer(editTargetThreadId);
+        else restoreFocusAfterDismiss(opener);
+      });
     }
-    requestAnimationFrame(() => {
-      if (onFocusComposer) onFocusComposer();
-      else restoreFocusAfterDismiss(opener);
-    });
     return 'prefilled';
   };
 
@@ -818,8 +827,8 @@ export function RoomViewHeader({
             }
           }}
           onOpenThread={openScheduledThread}
-          onCancelTask={canSendMessages ? cancelScheduledTask : undefined}
-          onEditTask={canSendMessages ? editScheduledTask : undefined}
+          onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
+          onEditTask={canManageSchedules ? editScheduledTask : undefined}
         />
       )}
       {dialog}

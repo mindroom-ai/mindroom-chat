@@ -117,12 +117,12 @@ export const FilterPill = style([
         backgroundColor: hoverSurface,
       },
       '&:focus-visible': {
-        outline: `2px solid ${color.Other.FocusRing}`,
+        outline: `2px solid ${color.Surface.OnContainer}`,
         outlineOffset: '1px',
       },
     },
   },
-  touchTarget('4px', '', { blockReach: '8px' }),
+  touchTarget('4px', '', { blockReach: '10px' }),
 ]);
 
 export const FilterPillActive = style({
@@ -132,6 +132,9 @@ export const FilterPillActive = style({
   selectors: {
     '&:hover': {
       backgroundColor: color.Primary.ContainerHover,
+    },
+    '&:focus-visible': {
+      outlineColor: color.Primary.OnContainer,
     },
   },
 });
@@ -188,7 +191,7 @@ export const RowHeader = style({
       backgroundColor: hoverSurface,
     },
     '&:focus-visible': {
-      outline: `2px solid ${color.Other.FocusRing}`,
+      outline: `2px solid ${color.Surface.OnContainer}`,
       outlineOffset: '-2px',
     },
   },
@@ -419,13 +422,13 @@ export const PromptToggle = style([
         opacity: 0.85,
       },
       '&:focus-visible': {
-        outline: `2px solid ${color.Other.FocusRing}`,
+        outline: `2px solid ${color.Surface.OnContainer}`,
         outlineOffset: '2px',
         borderRadius: config.radii.R300,
       },
     },
   },
-  touchTarget('8px', '', { blockReach: '10px' }),
+  touchTarget('4px', '', { blockReach: '12px' }),
 ]);
 
 export const CancelBar = style({
@@ -498,7 +501,9 @@ export const ActionsSecondary = style({
   minWidth: 0,
 });
 
-export const CompactAction = style([touchTarget('4px', '', { blockReach: '8px' })]);
+export const CompactAction = style([touchTarget('4px', '', { blockReach: '10px' })]);
+
+export const IconAction = style([touchTarget('10px', '', { blockReach: '10px' })]);
 
 export const AriaDisabledButton = style({
   opacity: 0.65,
