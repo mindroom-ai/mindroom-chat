@@ -28,7 +28,6 @@ import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
 import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
-import type { ScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
 
 /** Pending tasks from the room's current state, shared by its header, menu and dialog. */
@@ -67,7 +66,6 @@ type RoomSchedulesOverlayProps = {
   onOpenThread: (threadId: string) => void;
   onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
   onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
-  cancelState?: ScheduleCancelState;
 };
 
 /** The room's pending scheduled tasks over the room view; it follows the room state while open. */
@@ -80,7 +78,6 @@ export function RoomSchedulesOverlay({
   onOpenThread,
   onCancelTask,
   onEditTask,
-  cancelState,
 }: RoomSchedulesOverlayProps) {
   const centerX = useCenterX(headerRef);
   return (
@@ -104,7 +101,6 @@ export function RoomSchedulesOverlay({
             }}
             onCancelTask={onCancelTask}
             onEditTask={onEditTask}
-            cancelState={cancelState}
           />
         </FocusTrap>
       </OverlayCenter>

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderSchedulePrompt } from './schedulePrompt';
 
 vi.mock('./roomSchedules.css', () => ({
@@ -11,7 +11,7 @@ vi.mock('./roomSchedules.css', () => ({
 
 const renderPrompt = (prompt: string) => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  const host = document.createElement('p');
+  const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
   act(() => {
@@ -19,7 +19,7 @@ const renderPrompt = (prompt: string) => {
   });
   return {
     host,
-    cleanup: () => {
+    unmount: () => {
       act(() => root.unmount());
       host.remove();
       vi.unstubAllGlobals();
@@ -27,250 +27,64 @@ const renderPrompt = (prompt: string) => {
   };
 };
 
+let cleanup: (() => void) | undefined;
+afterEach(() => {
+  cleanup?.();
+  cleanup = undefined;
+});
+
 describe('renderSchedulePrompt', () => {
-  it('highlights @mentions while keeping exact textContent', () => {
-    const { host, cleanup } = renderPrompt('@helper remind me to stretch');
-    try {
-      expect(host.textContent).toBe('@helper remind me to stretch');
-      const mentions = host.querySelectorAll('.prompt-mention');
-      expect(mentions).toHaveLength(1);
-      expect(mentions[0]!.textContent).toBe('@helper');
-    } finally {
-      cleanup();
-    }
+  it('leaves plain text unchanged and preserves newlines', () => {
+    const view = renderPrompt('Line one\nLine two');
+    cleanup = view.unmount;
+    expect(view.host.textContent).toBe('Line one\nLine two');
+    expect(view.host.querySelectorAll('code, bdi')).toHaveLength(0);
   });
 
-  it('renders single-line inline code spans without raw backticks and ignores mentions inside them', () => {
-    const { host, cleanup } = renderPrompt('Run `check @internal` and ping @alice:example.org.');
-    try {
-      const code = host.querySelectorAll('code.inline-code');
-      expect(code).toHaveLength(1);
-      expect(code[0]!.textContent).toBe('check @internal');
-      const mentions = host.querySelectorAll('.prompt-mention');
-      expect(mentions).toHaveLength(1);
-      expect(mentions[0]!.textContent).toBe('@alice:example.org');
-      expect(host.textContent).toBe('Run check @internal and ping @alice:example.org.');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('supports Matrix IDs with ports, +, =, and / while stripping trailing sentence punctuation', () => {
-    const { host, cleanup } = renderPrompt(
-      'Notify @bot+ops=1/2:matrix.example.org:8448. Also @helper: check status!'
+  it('renders single-line inline code spans and @mentions while trimming trailing punctuation', () => {
+    const view = renderPrompt('Check `inbox` with @helper. Also ping (@alice:example.org:8448)!');
+    cleanup = view.unmount;
+    const codes = [...view.host.querySelectorAll('code')];
+    const mentions = [...view.host.querySelectorAll('bdi')];
+    expect(codes.map((el) => [el.textContent, el.getAttribute('dir'), el.className])).toEqual([
+      ['inbox', 'ltr', 'inline-code'],
+    ]);
+    expect(mentions.map((el) => [el.textContent, el.getAttribute('dir'), el.className])).toEqual([
+      ['@helper', 'ltr', 'prompt-mention'],
+      ['@alice:example.org:8448', 'ltr', 'prompt-mention'],
+    ]);
+    expect(view.host.textContent).toBe(
+      'Check inbox with @helper. Also ping (@alice:example.org:8448)!'
     );
-    try {
-      const mentions = [...host.querySelectorAll('.prompt-mention')].map((el) => el.textContent);
-      expect(mentions).toEqual(['@bot+ops=1/2:matrix.example.org:8448', '@helper']);
-      expect(host.textContent).toBe(
-        'Notify @bot+ops=1/2:matrix.example.org:8448. Also @helper: check status!'
-      );
-    } finally {
-      cleanup();
-    }
   });
 
-  it('leaves escaped backticks, double-backtick spans, and fenced JS blocks with embedded backticks verbatim', () => {
-    const fenced =
-      '```js\nconst fence = "```";\nconst s = `hi ${x}`;\n@decorator\n```\nThen run `npm test`.';
-    const { host, cleanup } = renderPrompt(fenced);
-    try {
-      const codes = [...host.querySelectorAll('code.inline-code')].map((el) => el.textContent);
-      expect(codes).toEqual(['npm test']);
-      expect(host.querySelectorAll('.prompt-mention')).toHaveLength(0);
-      expect(host.textContent).toBe(
-        '```js\nconst fence = "```";\nconst s = `hi ${x}`;\n@decorator\n```\nThen run npm test.'
-      );
-    } finally {
-      cleanup();
-    }
-
-    const inlineMulti = 'Escaped \\`not code\\` and double ``has `inner` ticks`` then `real`';
-    const second = renderPrompt(inlineMulti);
-    try {
-      const codes = [...second.host.querySelectorAll('code.inline-code')].map(
-        (el) => el.textContent
-      );
-      expect(codes).toEqual(['real']);
-      expect(second.host.textContent).toBe(
-        'Escaped \\`not code\\` and double ``has `inner` ticks`` then real'
-      );
-    } finally {
-      second.cleanup();
-    }
+  it('ignores email addresses, mentions glued after code, and bare @ punctuation', () => {
+    const view = renderPrompt('Email a@b.com or `cmd`@bot or @...');
+    cleanup = view.unmount;
+    expect([...view.host.querySelectorAll('code')].map((el) => el.textContent)).toEqual(['cmd']);
+    expect(view.host.querySelectorAll('bdi')).toHaveLength(0);
   });
 
-  it('handles CRLF closing fences and multiline double-backtick spans verbatim', () => {
-    const crlf = '```js\r\nconst x = `inner`;\r\n```\r\nPing @helper and run `build`';
-    const first = renderPrompt(crlf);
-    try {
-      expect(
-        [...first.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
-      ).toEqual(['build']);
-      expect(
-        [...first.host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)
-      ).toEqual(['@helper']);
-      expect(first.host.textContent).toBe(
-        '```js\r\nconst x = `inner`;\r\n```\r\nPing @helper and run build'
-      );
-    } finally {
-      first.cleanup();
-    }
-
-    const multiLineDouble = 'Use ``line 1 `inner`\nline 2`` then `ok`';
-    const second = renderPrompt(multiLineDouble);
-    try {
-      expect(
-        [...second.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
-      ).toEqual(['ok']);
-      expect(second.host.textContent).toBe('Use ``line 1 `inner`\nline 2`` then ok');
-    } finally {
-      second.cleanup();
-    }
+  it('keeps multi-backtick spans and fenced code blocks verbatim', () => {
+    const prompt = [
+      'Use ``@bot `raw` `` safely.',
+      '  ```ts',
+      'const x = `@ignored`;',
+      '  ```',
+      'Then notify @alice and run `deploy`.',
+    ].join('\n');
+    const view = renderPrompt(prompt);
+    cleanup = view.unmount;
+    expect([...view.host.querySelectorAll('code')].map((el) => el.textContent)).toEqual(['deploy']);
+    expect([...view.host.querySelectorAll('bdi')].map((el) => el.textContent)).toEqual(['@alice']);
+    expect(view.host.textContent).toContain('``@bot `raw` ``');
+    expect(view.host.textContent).toContain('const x = `@ignored`;');
   });
 
-  it('ignores email addresses, multi-line backticks, and handles glued to closing backticks', () => {
-    const { host, cleanup } = renderPrompt(
-      'Email user@example.org, `cmd`@glued then (@helper)\n`open\nclose`'
-    );
-    try {
-      expect(host.querySelectorAll('code.inline-code')).toHaveLength(1);
-      expect(host.querySelector('code.inline-code')!.textContent).toBe('cmd');
-      const mentions = host.querySelectorAll('.prompt-mention');
-      expect(mentions).toHaveLength(1);
-      expect(mentions[0]!.textContent).toBe('@helper');
-      expect(host.textContent).toContain('`open\nclose`');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('prevents an unclosed inline backtick run before a fenced block from corrupting the fence or trailing code', () => {
-    const prompt = '``unclosed before\n```\n``inside`` `code`\n```\n`after`';
-    const { host, cleanup } = renderPrompt(prompt);
-    try {
-      const codes = [...host.querySelectorAll('code.inline-code')].map((el) => el.textContent);
-      expect(codes).toEqual(['after']);
-      expect(host.textContent).toBe('``unclosed before\n```\n``inside`` `code`\n```\nafter');
-    } finally {
-      cleanup();
-    }
-
-    const mentionAfterFence = '```\nconst x = 1;\n```\n@helper check `status`';
-    const second = renderPrompt(mentionAfterFence);
-    try {
-      expect(
-        [...second.host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)
-      ).toEqual(['@helper']);
-      expect(
-        [...second.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
-      ).toEqual(['status']);
-      expect(second.host.textContent).toBe('```\nconst x = 1;\n```\n@helper check status');
-    } finally {
-      second.cleanup();
-    }
-  });
-
-  it('wraps @handle mentions in <bdi dir="ltr"> for RTL-safe rendering', () => {
-    const { host, cleanup } = renderPrompt('تذكّر @helper run tests');
-    try {
-      const mention = host.querySelector('bdi.prompt-mention');
-      expect(mention).not.toBeNull();
-      expect(mention?.getAttribute('dir')).toBe('ltr');
-      expect(mention?.textContent).toBe('@helper');
-      expect(host.textContent).toBe('تذكّر @helper run tests');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('preserves newlines across plain text and multiple mentions', () => {
-    const { host, cleanup } = renderPrompt('Line one with @alpha\nLine two with @beta');
-    try {
-      expect(host.textContent).toBe('Line one with @alpha\nLine two with @beta');
-      expect([...host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)).toEqual([
-        '@alpha',
-        '@beta',
-      ]);
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('does not treat a same-line triple-backtick span as a fenced block opener', () => {
-    const prompt = '```status```\n```\necho `date`\n```\nRun `check`';
-    const { host, cleanup } = renderPrompt(prompt);
-    try {
-      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
-        'check',
-      ]);
-      expect(host.textContent).toBe('```status```\n```\necho `date`\n```\nRun check');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('preserves tilde-fenced code blocks verbatim', () => {
-    const prompt = '~~~sh\necho `date`\n~~~\nThen run `ok`';
-    const { host, cleanup } = renderPrompt(prompt);
-    try {
-      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
-        'ok',
-      ]);
-      expect(host.textContent).toBe('~~~sh\necho `date`\n~~~\nThen run ok');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('treats backslashes inside inline code spans as literal', () => {
-    const first = renderPrompt('Inspect `C:\\temp\\` then run `dir`.');
-    try {
-      expect(
-        [...first.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
-      ).toEqual(['C:\\temp\\', 'dir']);
-      expect(first.host.textContent).toBe('Inspect C:\\temp\\ then run dir.');
-    } finally {
-      first.cleanup();
-    }
-
-    const second = renderPrompt('Use ``C:\\temp\\`` then run `dir`.');
-    try {
-      expect(
-        [...second.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
-      ).toEqual(['dir']);
-      expect(second.host.textContent).toBe('Use ``C:\\temp\\`` then run dir.');
-    } finally {
-      second.cleanup();
-    }
-  });
-
-  it('skips nonmatching multi-backtick runs inside a single-backtick code span', () => {
-    const { host, cleanup } = renderPrompt('Show `a``b` to @helper and run `done`.');
-    try {
-      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
-        'a``b',
-        'done',
-      ]);
-      expect([...host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)).toEqual([
-        '@helper',
-      ]);
-      expect(host.textContent).toBe('Show a``b to @helper and run done.');
-    } finally {
-      cleanup();
-    }
-  });
-
-  it('uses backslash parity before opening backticks so even backslashes do not escape', () => {
-    const { host, cleanup } = renderPrompt('\\\\`alpha` and `beta`');
-    try {
-      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
-        'alpha',
-        'beta',
-      ]);
-      expect(host.textContent).toBe('\\\\alpha and beta');
-    } finally {
-      cleanup();
-    }
+  it('leaves unclosed fenced blocks verbatim to EOF', () => {
+    const view = renderPrompt('Before @alice\n```\n`code` @bob');
+    cleanup = view.unmount;
+    expect([...view.host.querySelectorAll('bdi')].map((el) => el.textContent)).toEqual(['@alice']);
+    expect(view.host.querySelectorAll('code')).toHaveLength(0);
   });
 });

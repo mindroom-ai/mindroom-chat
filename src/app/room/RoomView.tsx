@@ -22,10 +22,7 @@ import { useSyncEngine } from '../event-store/engine/engineContext';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import type { RoomRowsPlace } from '../timeline/roomTimelineScroll';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
-import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { useScheduleCancelState } from '../schedules/useScheduleCancelState';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
-import { sendCancelScheduledTask, useHasJoinedMindroomAgent } from './roomScheduleActions';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
 import {
@@ -67,10 +64,7 @@ const COLUMN_STYLE: CSSProperties = {
   minWidth: 0,
 };
 
-export type RoomViewProps = Omit<
-  RoomViewHeaderProps,
-  'threadId' | 'threadFilterState' | 'scheduleCancelState' | 'hasJoinedMindroomAgent'
-> & {
+export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilterState'> & {
   room: Room;
   eventId?: string;
   threadId?: string;
@@ -157,16 +151,7 @@ export function RoomView({
   const threadReturnPlaceRef = useRef<RoomRowsPlace>();
 
   const myUserId = client.getSafeUserId();
-  const roomCreators = useRoomCreators(room);
-  const powerLevels = usePowerLevelsContext();
-  const permissions = useRoomPermissions(roomCreators, powerLevels);
-  const hasJoinedAgent = useHasJoinedMindroomAgent(
-    client,
-    room,
-    powerLevels,
-    roomCreators,
-    Boolean(hasMindroomAgents)
-  );
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const canMessage = permissions.event('m.room.message', myUserId);
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
@@ -199,14 +184,6 @@ export function RoomView({
   // An upgraded room takes no more messages; its notice leads to the replacement.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   const composerShown = canMessage && !tombstone;
-  const cancelScheduledTask = useCallback(
-    (task: ParsedScheduledTask) => sendCancelScheduledTask(client, room, task),
-    [client, room]
-  );
-  const scheduleCancelState = useScheduleCancelState(
-    roomId,
-    hasMindroomAgents && hasJoinedAgent && composerShown ? cancelScheduledTask : undefined
-  );
   // Under a plugin's cover, behind a side panel or under the thread column filling the page, the
   // composer takes no keys.
   const hidden = useAtomValue(conversationHiddenAtom);
@@ -369,8 +346,6 @@ export function RoomView({
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
               canEditSchedule={composerShown && !hidden}
-              hasJoinedMindroomAgent={hasJoinedAgent}
-              scheduleCancelState={scheduleCancelState}
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -423,8 +398,6 @@ export function RoomView({
                     threadId={openThreadId}
                     threadFilterState={threadState.threadFilterState}
                     canEditSchedule={false}
-                    hasJoinedMindroomAgent={hasJoinedAgent}
-                    scheduleCancelState={scheduleCancelState}
                     {...headerProps}
                   />
                 )}
@@ -468,8 +441,6 @@ export function RoomView({
                             canEditSchedule={
                               composerShown && !isConfirmedMatrixEventId(forkAt) && !behindPanel
                             }
-                            hasJoinedMindroomAgent={hasJoinedAgent}
-                            scheduleCancelState={scheduleCancelState}
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

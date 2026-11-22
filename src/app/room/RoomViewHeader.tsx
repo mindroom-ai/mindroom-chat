@@ -54,10 +54,6 @@ import {
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
-import {
-  useScheduleCancelState,
-  type ScheduleCancelState,
-} from '../schedules/useScheduleCancelState';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
   composerOfferAtom,
@@ -84,7 +80,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
-import { sendCancelScheduledTask, useHasJoinedMindroomAgent } from './roomScheduleActions';
+import { sendCancelScheduledTask } from './roomScheduleActions';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
   HeaderActionButton,
@@ -114,10 +110,6 @@ export type RoomViewHeaderProps = {
   onFocusComposer?: (targetThreadId?: string) => void;
   /** False when the active view has no eligible composer to receive an edit command. */
   canEditSchedule?: boolean;
-  /** Precomputed joined recognized MindRoom agent flag lifted from RoomView to avoid duplicate listeners. */
-  hasJoinedMindroomAgent?: boolean;
-  /** Shared per-room schedule cancel state, lifted by RoomView across layout switches. */
-  scheduleCancelState?: ScheduleCancelState;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -239,8 +231,6 @@ export function RoomViewHeader({
   threadFilterState,
   onFocusComposer,
   canEditSchedule = true,
-  hasJoinedMindroomAgent,
-  scheduleCancelState,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -274,23 +264,11 @@ export function RoomViewHeader({
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const store = useStore();
-  const roomCreators = useRoomCreators(room);
-  const powerLevels = usePowerLevelsContext();
-  const permissions = useRoomPermissions(roomCreators, powerLevels);
-  const localHasJoinedAgent = useHasJoinedMindroomAgent(
-    mx,
-    room,
-    powerLevels,
-    roomCreators,
-    hasJoinedMindroomAgent === undefined && Boolean(hasMindroomAgents)
-  );
-  const hasJoinedAgent = hasJoinedMindroomAgent ?? localHasJoinedAgent;
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const canManageSchedules = Boolean(
-    hasMindroomAgents && hasJoinedAgent && canSendMessages && !tombstone
-  );
+  const canManageSchedules = Boolean(hasMindroomAgents && canSendMessages && !tombstone);
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -441,11 +419,6 @@ export function RoomViewHeader({
     (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
     [mx, room]
   );
-  const localScheduleCancelState = useScheduleCancelState(
-    room.roomId,
-    !scheduleCancelState && canManageSchedules ? cancelScheduledTask : undefined
-  );
-  const activeScheduleCancelState = scheduleCancelState ?? localScheduleCancelState;
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
     if (
@@ -454,35 +427,22 @@ export function RoomViewHeader({
     ) {
       return 'draft-busy';
     }
-    // Target this header's own conversation composer: the room composer when shown beside a
-    // thread (`threadId === undefined`), or the thread composer in full-width thread view.
-    const targetThreadId = threadId;
     const prefix = `!edit_schedule ${task.taskId} `;
-    const draftKey = getRoomInputDraftKey(myUserId, room.roomId, targetThreadId);
-    const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
-    const existing = store.get(draftAtom);
-    const existingText = toPlainText(existing, false);
-    const offer = [createParagraphElement(prefix)];
-    // Allow resuming an existing edit draft for this exact task while still rejecting
-    // unrelated drafts, staged attachments, reply targets, or voice drafts.
-    const targetOffer = existingText.startsWith(prefix) ? existing : offer;
-    const offerState = store.get(
-      composerOfferAtom(
-        [myUserId, room.roomId, targetThreadId],
-        targetOffer,
-        confirmedVoiceThreadId
-      )
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey(myUserId, room.roomId, threadId)
     );
-    if (offerState === 'busy') {
-      return 'draft-busy';
-    }
+    const existing = store.get(draftAtom);
+    const offer = [createParagraphElement(prefix)];
+    const targetOffer = toPlainText(existing, false).startsWith(prefix) ? existing : offer;
+    const offerState = store.get(
+      composerOfferAtom([myUserId, room.roomId, threadId], targetOffer, confirmedVoiceThreadId)
+    );
+    if (offerState === 'busy') return 'draft-busy';
     const opener = schedules?.opener;
     flushSync(() => setSchedules(undefined));
-    if (onFocusComposer) onFocusComposer(targetThreadId);
+    if (onFocusComposer) onFocusComposer(threadId);
     else restoreFocusAfterDismiss(opener);
-    if (offerState === 'empty') {
-      store.set(draftAtom, offer);
-    }
+    if (offerState === 'empty') store.set(draftAtom, offer);
     return 'prefilled';
   };
 
@@ -858,7 +818,6 @@ export function RoomViewHeader({
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
           onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
-          cancelState={activeScheduleCancelState}
         />
       )}
       {dialog}

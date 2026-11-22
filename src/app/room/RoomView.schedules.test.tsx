@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 import type { ReactNode, RefObject } from 'react';
-import { act, cleanup, render } from '@testing-library/react';
-import { createClient, MatrixEvent, Room, RoomMemberEvent, RoomStateEvent } from 'matrix-js-sdk';
+import { cleanup, render } from '@testing-library/react';
+import { createClient, Room } from 'matrix-js-sdk';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
@@ -14,28 +13,27 @@ import type { RoomViewHeaderProps } from './RoomViewHeader';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
-const getJoinedMembersSpy = vi
-  .spyOn(room, 'getJoinedMembers')
-  .mockImplementation(
-    () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
-  );
 
-const { capturedHeaderProps, threadRouteState, threadLayoutState, sendMessage } = vi.hoisted(() => {
-  const layoutState: { layout: 'full' | 'beside'; roomy: boolean } = {
-    layout: 'full',
-    roomy: false,
-  };
-  return {
-    capturedHeaderProps: [] as RoomViewHeaderProps[],
-    threadRouteState: { effectiveThreadId: undefined as string | undefined },
-    threadLayoutState: layoutState,
-    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-  };
-});
+const { capturedHeaderProps, threadRouteState, threadLayoutState, focusEditor, focusThreadColumn } =
+  vi.hoisted(() => {
+    const layoutState: { layout: 'full' | 'beside'; roomy: boolean } = {
+      layout: 'full',
+      roomy: false,
+    };
+    return {
+      capturedHeaderProps: [] as RoomViewHeaderProps[],
+      threadRouteState: { effectiveThreadId: undefined as string | undefined },
+      threadLayoutState: layoutState,
+      focusEditor: vi.fn(),
+      focusThreadColumn: vi.fn(),
+    };
+  });
 
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => Object.assign(mx, { sendMessage, makeTxnId: () => 'txn-room-1' }),
+vi.mock('slate-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('slate-react')>()),
+  ReactEditor: { focus: focusEditor },
 }));
+vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
@@ -72,8 +70,16 @@ vi.mock('./RoomViewHeader', () => ({
   },
 }));
 vi.mock('./ThreadView', () => ({
-  ThreadView: ({ roomHeader }: { roomHeader?: (headerRef: RefObject<HTMLElement>) => ReactNode }) =>
-    roomHeader?.({ current: null }) ?? null,
+  ThreadView: ({
+    roomHeader,
+    focusRef,
+  }: {
+    roomHeader?: (headerRef: RefObject<HTMLElement>) => ReactNode;
+    focusRef?: { current?: () => void };
+  }) => {
+    if (focusRef) focusRef.current = focusThreadColumn;
+    return roomHeader?.({ current: null }) ?? null;
+  },
 }));
 vi.mock('../timeline/RoomTimeline', () => ({ RoomTimeline: () => null }));
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
@@ -84,32 +90,25 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 }));
 vi.mock('../composer/RoomInput', () => ({ RoomInput: () => null }));
 
-const makeTask = (overrides: Partial<ParsedScheduledTask> = {}): ParsedScheduledTask => ({
-  taskId: 'layout-task-1',
-  status: 'pending',
-  threadId: null,
-  newThread: false,
-  executeAt: null,
-  scheduleType: 'once',
-  ...overrides,
-});
-
 afterEach(() => {
   cleanup();
   capturedHeaderProps.length = 0;
   threadRouteState.effectiveThreadId = undefined;
   threadLayoutState.layout = 'full';
   threadLayoutState.roomy = false;
-  sendMessage.mockReset();
-  sendMessage.mockResolvedValue({ event_id: '$sent' });
+  focusEditor.mockClear();
+  focusThreadColumn.mockClear();
   getDefaultStore().set(conversationCoveredAtom, false);
   getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
 describe('RoomView schedule wiring', () => {
-  it('enables canEditSchedule when the room composer is visible and disables it under a plugin cover or side panel', () => {
+  it('wires canEditSchedule and onFocusComposer for room view, plugin cover, and side panel', () => {
     render(<RoomView room={room} hasMindroomAgents />);
-    expect(capturedHeaderProps.at(-1)?.canEditSchedule).toBe(true);
+    const roomHeader = capturedHeaderProps.at(-1)!;
+    expect(roomHeader.canEditSchedule).toBe(true);
+    roomHeader.onFocusComposer?.(undefined);
+    expect(focusEditor).toHaveBeenCalledTimes(1);
 
     cleanup();
     capturedHeaderProps.length = 0;
@@ -125,158 +124,31 @@ describe('RoomView schedule wiring', () => {
     expect(capturedHeaderProps.at(-1)?.canEditSchedule).toBe(false);
   });
 
-  it('preserves in-flight schedule cancel state across switching from the room header to a full-width thread header', async () => {
-    let resolveSend!: () => void;
-    sendMessage.mockImplementationOnce(
-      () =>
-        new Promise<{ event_id: string }>((resolve) => {
-          resolveSend = () => resolve({ event_id: '$cancelled' });
-        })
-    );
-
-    const { rerender } = render(<RoomView room={room} hasMindroomAgents />);
-    const roomHeaderProps = capturedHeaderProps.at(-1)!;
-    expect(roomHeaderProps.threadId).toBeUndefined();
-
-    const target = makeTask();
-    let cancelPromise!: Promise<boolean>;
-    act(() => {
-      cancelPromise = roomHeaderProps.scheduleCancelState!.handleCancelTask(target);
-    });
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-
-    // Switch into a full-width thread column whose own RoomViewHeader takes over.
-    capturedHeaderProps.length = 0;
+  it('wires canEditSchedule and onFocusComposer for full-width thread, forkAt, and behindPanel', () => {
     threadRouteState.effectiveThreadId = '$thread-1';
-    rerender(<RoomView room={room} threadId="$thread-1" hasMindroomAgents />);
+    render(<RoomView room={room} threadId="$thread-1" hasMindroomAgents />);
+    const threadHeader = capturedHeaderProps.find((props) => props.threadId === '$thread-1')!;
+    expect(threadHeader.canEditSchedule).toBe(true);
+    threadHeader.onFocusComposer?.('$thread-1');
+    expect(focusThreadColumn).toHaveBeenCalledTimes(1);
 
-    const threadHeaderProps = capturedHeaderProps.find((props) => props.threadId === '$thread-1');
-    expect(threadHeaderProps).toBeDefined();
-    expect(threadHeaderProps?.scheduleCancelState?.pendingCancelIds.has('layout-task-1')).toBe(
-      true
-    );
-
-    // Duplicate cancel from the thread header is blocked while the room-level send is still in flight.
-    let duplicate = true;
-    await act(async () => {
-      duplicate = await threadHeaderProps!.scheduleCancelState!.handleCancelTask(target);
-    });
-    expect(duplicate).toBe(false);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveSend();
-      await cancelPromise;
-    });
-    const settledThreadHeaderProps = capturedHeaderProps
-      .filter((props) => props.threadId === '$thread-1')
-      .at(-1);
-    expect(
-      settledThreadHeaderProps?.scheduleCancelState?.pendingCancelIds.has('layout-task-1')
-    ).toBe(false);
-    expect(settledThreadHeaderProps?.scheduleCancelState?.cancelSentIds.has('layout-task-1')).toBe(
-      true
-    );
-  });
-
-  it('skips membership listeners when the room has no agents and ignores replayed or unchanged member events', () => {
-    const noAgents = render(<RoomView room={room} hasMindroomAgents={false} />);
-    expect(mx.listenerCount(RoomMemberEvent.Membership)).toBe(0);
-    expect(mx.listenerCount(RoomStateEvent.Members)).toBe(0);
-    noAgents.unmount();
-
+    cleanup();
     capturedHeaderProps.length = 0;
-    getJoinedMembersSpy.mockClear();
+    render(<RoomView room={room} threadId="$thread-1" forkAt="$event-1" hasMindroomAgents />);
+    expect(capturedHeaderProps.find((p) => p.threadId === '$thread-1')?.canEditSchedule).toBe(
+      false
+    );
 
-    render(<RoomView room={room} hasMindroomAgents />);
-    const initialRenders = capturedHeaderProps.length;
-    const initialScans = getJoinedMembersSpy.mock.calls.length;
-    expect(mx.listenerCount(RoomStateEvent.Members)).toBe(0);
-
-    const memberEvent = new MatrixEvent({
-      type: 'm.room.member',
-      room_id: room.roomId,
-      state_key: '@mindroom_helper:example.org',
-      content: { membership: 'join', displayname: 'Helper' },
-    });
-    const fakeMember = {
-      roomId: room.roomId,
-      userId: '@mindroom_helper:example.org',
-      membership: 'join',
-    };
-    act(() => {
-      for (let i = 0; i < 5; i += 1) {
-        mx.emit(RoomStateEvent.Members, memberEvent, room.currentState, fakeMember as never);
-        mx.emit(RoomMemberEvent.Membership, memberEvent, fakeMember as never, 'join');
-      }
-      // Irrelevant human leaving also triggers neither a rescan nor a rerender.
-      mx.emit(
-        RoomMemberEvent.Membership,
-        new MatrixEvent({
-          type: 'm.room.member',
-          room_id: room.roomId,
-          state_key: '@bob:example.org',
-          content: { membership: 'leave' },
-        }),
-        { roomId: room.roomId, userId: '@bob:example.org', membership: 'leave' } as never,
-        'join'
-      );
-    });
-
-    expect(capturedHeaderProps.length).toBe(initialRenders);
-    expect(getJoinedMembersSpy.mock.calls.length).toBe(initialScans);
+    cleanup();
+    capturedHeaderProps.length = 0;
+    getDefaultStore().set(conversationBehindPanelAtom, true);
+    render(<RoomView room={room} threadId="$thread-1" hasMindroomAgents />);
+    expect(capturedHeaderProps.find((p) => p.threadId === '$thread-1')?.canEditSchedule).toBe(
+      false
+    );
   });
 
-  it('caches eligibility across unrelated rerenders after enabling and enables on lazy-loaded profile edits', () => {
-    let members = [{ userId: '@alice:example.org' }, { userId: '@mindroom_router:example.org' }];
-    getJoinedMembersSpy.mockImplementation(() => members as never);
-    try {
-      const { rerender } = render(<RoomView room={room} hasMindroomAgents={false} />);
-      getJoinedMembersSpy.mockClear();
-
-      rerender(<RoomView room={room} hasMindroomAgents />);
-      const scansAfterEnable = getJoinedMembersSpy.mock.calls.length;
-      expect(scansAfterEnable).toBe(2);
-      expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(false);
-
-      // Subsequent unrelated rerenders reuse the memoized value without rescanning members.
-      for (let i = 0; i < 4; i += 1) {
-        rerender(<RoomView room={room} hasMindroomAgents joinRequestCount={i + 1} />);
-      }
-      expect(getJoinedMembersSpy.mock.calls.length).toBe(scansAfterEnable);
-
-      // Lazy-loaded agent whose first local event is a join->join profile update (`oldMembership`
-      // undefined, `prev_content.membership === 'join'`) must still flip eligibility to true.
-      members = [...members, { userId: '@mindroom_helper:example.org' }];
-      const profileEvent = new MatrixEvent({
-        type: 'm.room.member',
-        room_id: room.roomId,
-        state_key: '@mindroom_helper:example.org',
-        content: { membership: 'join', displayname: 'Helper Updated' },
-        unsigned: { prev_content: { membership: 'join', displayname: 'Helper' } },
-      });
-      act(() => {
-        mx.emit(
-          RoomMemberEvent.Membership,
-          profileEvent,
-          {
-            roomId: room.roomId,
-            userId: '@mindroom_helper:example.org',
-            membership: 'join',
-          } as never,
-          undefined
-        );
-      });
-      expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(true);
-    } finally {
-      getJoinedMembersSpy.mockImplementation(
-        () =>
-          [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
-      );
-    }
-  });
-
-  it('keeps canEditSchedule enabled on the room header in side-by-side layout even when the open thread is a fork draft', () => {
+  it('keeps canEditSchedule enabled on the room header in side-by-side layout even with forkAt', () => {
     const prevResizeObserver = globalThis.ResizeObserver;
     globalThis.ResizeObserver = class {
       observe() {}
@@ -289,7 +161,6 @@ describe('RoomView schedule wiring', () => {
       threadLayoutState.roomy = true;
       render(<RoomView room={room} threadId="$thread-1" forkAt="$event-1" hasMindroomAgents />);
       const roomHeader = capturedHeaderProps.find((props) => props.threadId === undefined);
-      expect(roomHeader).toBeDefined();
       expect(roomHeader?.openThreadId).toBe('$thread-1');
       expect(roomHeader?.canEditSchedule).toBe(true);
     } finally {

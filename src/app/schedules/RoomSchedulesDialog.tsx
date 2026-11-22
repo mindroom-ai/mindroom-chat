@@ -1,5 +1,4 @@
 import {
-  type FocusEvent,
   Fragment,
   type MouseEvent,
   type ReactNode,
@@ -33,103 +32,89 @@ import {
   parseScheduleTimestamp,
   type ParsedScheduledTask,
 } from '../matrix/protocol/scheduledTaskContract';
-import {
-  formatCompactExecutionTime,
-  formatRelativeCountdown,
-  formatShortCadence,
-  getScheduleTimestamp,
-  isCommandSafeTaskId,
-  isRecurringTask,
-  isScheduleInThread,
-} from './roomSchedules';
+import * as sched from './roomSchedules';
 import { renderSchedulePrompt } from './schedulePrompt';
-import { useScheduleCancelState, type ScheduleCancelState } from './useScheduleCancelState';
+import { useScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
 
 export type EditScheduledTaskResult = 'prefilled' | 'draft-busy' | void;
-
 type ScheduleFilter = 'all' | 'once' | 'recurring';
 
 const LONG_PROMPT_CHAR_LIMIT = 180;
 const LONG_PROMPT_LINE_LIMIT = 3;
 const COPY_FEEDBACK_MS = 2_000;
 const IMMINENT_COUNTDOWN_WINDOW_MS = 120_000;
+const BTN = { type: 'button', size: '300', radii: '300' } as const;
+const COMPACT_BTN = { ...BTN, variant: 'Secondary', className: css.CompactAction } as const;
+const ICON_BTN = { ...BTN, fill: 'None', className: css.IconAction } as const;
+const CANCEL_BTN = { ...BTN, className: css.CancelBarButton } as const;
 
-const isLongPrompt = (prompt: string): boolean =>
-  prompt.length > LONG_PROMPT_CHAR_LIMIT || prompt.split('\n').length > LONG_PROMPT_LINE_LIMIT;
+const isLongPrompt = (p: string) =>
+  p.length > LONG_PROMPT_CHAR_LIMIT || p.split('\n').length > LONG_PROMPT_LINE_LIMIT;
+const filterByType = (tasks: readonly ParsedScheduledTask[], filter: ScheduleFilter) =>
+  filter === 'all'
+    ? tasks
+    : tasks.filter((task) => sched.isRecurringTask(task) === (filter === 'recurring'));
+const timeEl = (ts: number, label: string) => (
+  <time dateTime={new Date(ts).toISOString()}>{label}</time>
+);
 
-function ScheduleAccordionItem({
-  roomId,
-  task,
-  now,
-  locale,
-  timeZone,
-  formatter,
-  grouped,
-  open,
-  isCancelling,
-  cancelSent,
-  cancelError,
-  onToggle,
-  onOpenThread,
-  onCancelTask,
-  onConfirmCancel,
-  onClearCancelError,
-  onEditTask,
+const MetaRow = ({
+  label,
+  children,
+  wrap,
 }: {
-  roomId: string;
-  task: ParsedScheduledTask;
+  label: string;
+  children: ReactNode;
+  wrap?: boolean;
+}) => (
+  <>
+    <Text as="dt" size="T200" className={css.MetaLabel}>
+      {label}
+    </Text>
+    <Text as="dd" size="T200" className={wrap ? css.Wrap : undefined}>
+      {children}
+    </Text>
+  </>
+);
+
+type ScheduleContext = {
   now: number;
   locale: string;
-  timeZone?: string;
   formatter: Intl.DateTimeFormat;
   grouped: boolean;
-  open: boolean;
-  isCancelling: boolean;
-  cancelSent: boolean;
-  cancelError: boolean;
-  onToggle: () => void;
+  canManageCancel: boolean;
+  cancel: ReturnType<typeof useScheduleCancelState>;
+  renderOwner: (userId: string) => ReactNode;
   onOpenThread: (threadId: string) => void;
-  onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
-  onConfirmCancel: () => Promise<boolean>;
-  onClearCancelError: () => void;
   onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
-}) {
-  const { t } = useTranslation();
-  const drawerId = useId();
-  const promptTextId = useId();
-  const detailsId = useId();
-  const confirmId = useId();
-  const confirmQuestionId = useId();
-  const mx = useMatrixClient();
-  const mentionClickHandler = useMentionClickHandler(roomId);
+};
 
+function ScheduleAccordionItem({
+  ctx,
+  task,
+  open,
+  onToggle,
+}: {
+  ctx: ScheduleContext;
+  task: ParsedScheduledTask;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { now, locale, formatter, grouped, onOpenThread, onEditTask } = ctx;
+  const { t } = useTranslation();
+  const id = useId();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
-  const promptText = task.message;
-  const [promptOverflows, setPromptOverflows] = useState(
-    () => promptText !== undefined && isLongPrompt(promptText)
-  );
   const [copied, setCopied] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
-  const [editBusy, setEditBusy] = useState(false);
+  const [notice, setNotice] = useState<'edit-busy' | 'copy-failed' | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
-  const promptTextRef = useRef<HTMLParagraphElement>(null);
-  const promptToggleRef = useRef<HTMLButtonElement>(null);
-  const detailsButtonRef = useRef<HTMLButtonElement>(null);
-  const detailsRef = useRef<HTMLDListElement>(null);
-  const taskIdInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
-  const confirmBarRef = useRef<HTMLDivElement>(null);
-  const focusInsideConfirmRef = useRef(false);
   const copyTimerRef = useRef<number>();
   const mountedRef = useRef(true);
-  const prevConfirmingRef = useRef(false);
-  const prevDetailsOpenRef = useRef(detailsOpen);
-  const prevCancelSentRef = useRef(cancelSent);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -139,238 +124,124 @@ function ScheduleAccordionItem({
     };
   }, []);
 
-  const prevPromptTextRef = useRef(promptText);
-  useLayoutEffect(() => {
-    const promptChanged = prevPromptTextRef.current !== promptText;
-    if (promptChanged) {
-      prevPromptTextRef.current = promptText;
-      if (promptExpanded) {
-        setPromptExpanded(false);
-        return undefined;
-      }
-    }
-    if (!open) return undefined;
-    const el = promptTextRef.current;
-    const updatePromptOverflows = (next: boolean) => {
-      if (!next && promptToggleRef.current && document.activeElement === promptToggleRef.current) {
-        toggleButtonRef.current?.focus();
-      }
-      setPromptOverflows(next);
-    };
-    if (!el || promptText === undefined) {
-      updatePromptOverflows(false);
-      return undefined;
-    }
-    const measure = () => {
-      if (promptExpanded) {
-        updatePromptOverflows(true);
-        return;
-      }
-      if (el.clientHeight > 0) {
-        updatePromptOverflows(el.scrollHeight > el.clientHeight + 1);
-      } else {
-        updatePromptOverflows(isLongPrompt(promptText));
-      }
-    };
-    measure();
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) measure();
-    });
-    const observer =
-      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
-    observer?.observe(el);
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  }, [open, promptExpanded, promptText]);
+  const promptText = task.message;
+  useEffect(() => setPromptExpanded(false), [promptText]);
 
-  const commandSafe = isCommandSafeTaskId(task.taskId);
+  const commandSafe = sched.isCommandSafeTaskId(task.taskId);
   const canCancel = Boolean(
-    onCancelTask &&
+    ctx.canManageCancel &&
       commandSafe &&
       (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId))
   );
-
-  useEffect(() => {
-    if (!open || !canCancel) {
-      setConfirmingCancel(false);
-      focusInsideConfirmRef.current = false;
-    }
-    if (!open) {
-      setEditBusy(false);
-      setCopyFailed(false);
-    }
-  }, [canCancel, open]);
-
+  const cancelStatus = ctx.cancel.statusByTaskId.get(task.taskId);
+  const isCancelling = cancelStatus === 'pending';
+  const cancelSent = cancelStatus === 'sent';
+  const cancelError = cancelStatus === 'error';
   const showCancelBar = Boolean(canCancel && (confirmingCancel || isCancelling || cancelError));
 
   useEffect(() => {
-    if (confirmingCancel && !prevConfirmingRef.current) {
-      keepButtonRef.current?.focus();
-    }
-    prevConfirmingRef.current = confirmingCancel;
+    if (!open || !canCancel) setConfirmingCancel(false);
+    if (!open) setNotice(null);
+  }, [canCancel, open]);
+  useEffect(() => {
+    if (confirmingCancel) keepButtonRef.current?.focus();
   }, [confirmingCancel]);
 
-  useLayoutEffect(() => {
-    const wasOpen = prevDetailsOpenRef.current;
-    prevDetailsOpenRef.current = detailsOpen;
-    if (wasOpen && !detailsOpen) {
-      const doc = detailsButtonRef.current?.ownerDocument;
-      if (!doc?.activeElement || doc.activeElement === doc.body) {
-        detailsButtonRef.current?.focus();
-      }
-    }
-  }, [detailsOpen]);
-
-  useEffect(() => {
-    if (cancelSent && !prevCancelSentRef.current) {
-      const bar = confirmBarRef.current;
-      const doc = bar?.ownerDocument;
-      const shouldRestoreFocus =
-        (!!bar && !!doc && bar.contains(doc.activeElement)) || focusInsideConfirmRef.current;
-      setConfirmingCancel(false);
-      focusInsideConfirmRef.current = false;
-      if (open && shouldRestoreFocus) {
-        toggleButtonRef.current?.focus();
-      }
-    }
-    prevCancelSentRef.current = cancelSent;
-  }, [cancelSent, open]);
-
-  const recurring = isRecurringTask(task);
-  const executionTime = getScheduleTimestamp(task);
+  const recurring = sched.isRecurringTask(task);
+  const executionTime = sched.getScheduleTimestamp(task);
   const createdTime = parseScheduleTimestamp(task.createdAt);
   const updatedTime = parseScheduleTimestamp(task.updatedAt);
   const awaiting = !recurring && executionTime !== undefined && executionTime <= now;
-  const showUpdated = updatedTime !== undefined && updatedTime !== createdTime;
+  const tone = awaiting ? 'warning' : recurring ? 'success' : 'primary';
 
   // Cron fields are UTC; the runtime writes the description in the task's own wall time.
-  const utcCronExpression = task.cronExpression ? (
-    <bdi>{task.cronExpression} (UTC)</bdi>
-  ) : undefined;
-
-  const creatorMention =
-    detailsOpen && task.createdBy && isUserId(task.createdBy)
-      ? renderMatrixMention(mx, roomId, getMatrixToUser(task.createdBy), {
-          ...makeMentionCustomProps(mentionClickHandler),
-          title: task.createdBy,
-        })
-      : undefined;
-
-  const destinationLabel = task.newThread
-    ? t('roomSchedules.newThread')
-    : task.threadId
-    ? t('roomSchedules.thread')
-    : t('roomSchedules.roomTimeline');
-
-  const historyChipLabel =
+  const utcCron = task.cronExpression ? <bdi>{task.cronExpression} (UTC)</bdi> : undefined;
+  const destinationLabel = t(
+    task.newThread
+      ? 'roomSchedules.newThread'
+      : task.threadId
+      ? 'roomSchedules.thread'
+      : 'roomSchedules.roomTimeline'
+  );
+  const historyChip =
     task.historyLimit === 0
       ? t('roomSchedules.noHistory')
       : typeof task.historyLimit === 'number' && task.historyLimit > 0
       ? t('roomSchedules.recentMessages', { total: task.historyLimit })
       : undefined;
-
-  const statusPill = awaiting
-    ? { label: t('roomSchedules.awaitingShort'), variant: css.StatusPillWarning }
+  const statusLabel = awaiting
+    ? t('roomSchedules.awaitingShort')
     : recurring
-    ? { label: formatShortCadence(task, t), variant: css.StatusPillSuccess }
+    ? sched.formatShortCadence(task, t)
     : executionTime !== undefined
-    ? {
-        label: formatRelativeCountdown(executionTime, now, t, locale, timeZone),
-        variant: css.StatusPillPrimary,
-      }
+    ? sched.formatRelativeCountdown(executionTime, now, t, locale)
     : undefined;
 
-  const subtitleItems: { key: string; node: ReactNode }[] = [];
-  if (recurring) {
-    subtitleItems.push({
-      key: 'timing',
-      node: task.cronDescription ? (
-        <span dir="auto">{task.cronDescription}</span>
-      ) : (
-        utcCronExpression ?? t('roomSchedules.unknownTime')
-      ),
-    });
-  } else {
-    subtitleItems.push({
-      key: 'timing',
-      node:
-        executionTime === undefined ? (
-          t('roomSchedules.unknownTime')
-        ) : (
-          <time dateTime={new Date(executionTime).toISOString()}>
-            {formatCompactExecutionTime(executionTime, now, locale, timeZone)}
-          </time>
-        ),
-    });
-    if (awaiting) {
-      subtitleItems.push({
-        key: 'awaiting',
-        node: <span className={css.Awaiting}>{t('roomSchedules.awaitingExecution')}</span>,
-      });
-    }
-  }
-  subtitleItems.push({ key: 'destination', node: destinationLabel });
-  if (!open) {
-    if (task.silent) subtitleItems.push({ key: 'silent', node: t('roomSchedules.silent') });
-    if (task.isConditional) {
-      subtitleItems.push({ key: 'conditional', node: t('roomSchedules.conditional') });
-    }
-    if (task.model) subtitleItems.push({ key: 'model', node: <bdi>{task.model}</bdi> });
-  }
-
-  const clearCopyFailed = () => {
-    if (taskIdInputRef.current && document.activeElement === taskIdInputRef.current) {
-      detailsButtonRef.current?.focus();
-    }
-    setCopyFailed(false);
-  };
+  const formatTime = (ts: number) => timeEl(ts, formatter.format(ts));
+  const timingNode = recurring ? (
+    task.cronDescription ? (
+      <span dir="auto">{task.cronDescription}</span>
+    ) : (
+      utcCron ?? t('roomSchedules.unknownTime')
+    )
+  ) : executionTime === undefined ? (
+    t('roomSchedules.unknownTime')
+  ) : (
+    timeEl(executionTime, sched.formatCompactExecutionTime(executionTime, now, locale))
+  );
+  const badges = [
+    task.silent && t('roomSchedules.silent'),
+    task.isConditional && t('roomSchedules.conditional'),
+    task.model && <bdi>{task.model}</bdi>,
+  ].filter(Boolean);
+  const subtitleParts = [
+    timingNode,
+    awaiting && <span className={css.Awaiting}>{t('roomSchedules.awaitingExecution')}</span>,
+    destinationLabel,
+    ...(open ? [] : badges),
+  ].filter(Boolean);
+  const chips = [
+    t(recurring ? 'roomSchedules.recurring' : 'roomSchedules.once'),
+    ...badges,
+    historyChip,
+  ].filter(Boolean);
 
   const handleCopyId = async (trigger?: Element | null) => {
     const ok = await copyToClipboard(task.taskId, trigger);
     if (!mountedRef.current) return;
     if (ok) {
-      clearCopyFailed();
+      setNotice(null);
       setCopied(true);
       window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = window.setTimeout(() => {
-        if (mountedRef.current) setCopied(false);
-      }, COPY_FEEDBACK_MS);
+      copyTimerRef.current = window.setTimeout(
+        () => mountedRef.current && setCopied(false),
+        COPY_FEEDBACK_MS
+      );
     } else {
-      setEditBusy(false);
       setCopied(false);
-      setCopyFailed(true);
+      setNotice('copy-failed');
       setDetailsOpen(true);
     }
   };
 
-  const handleEditClick = () => {
-    if (!onEditTask || !commandSafe) return;
-    const result = onEditTask(task);
-    if (result === 'draft-busy') clearCopyFailed();
-    setEditBusy(result === 'draft-busy');
-  };
-
-  const actionNotice = editBusy
-    ? t('roomSchedules.editDraftBusy')
-    : copyFailed
-    ? t('roomSchedules.copyFailed')
-    : undefined;
-
   const handleKeepCancel = () => {
     if (isCancelling) return;
     setConfirmingCancel(false);
-    focusInsideConfirmRef.current = false;
-    onClearCancelError();
+    ctx.cancel.clearCancelError(task.taskId);
     cancelButtonRef.current?.focus();
   };
 
-  const handleConfirmCancelClick = () => {
+  const handleConfirmCancelClick = async () => {
     if (isCancelling) return;
-    void onConfirmCancel();
+    if ((await ctx.cancel.handleCancelTask(task)) && mountedRef.current) {
+      setConfirmingCancel(false);
+      toggleButtonRef.current?.focus();
+    }
   };
+
+  const actionNotice = notice
+    ? t(notice === 'edit-busy' ? 'roomSchedules.editDraftBusy' : 'roomSchedules.copyFailed')
+    : undefined;
 
   return (
     <article
@@ -386,16 +257,10 @@ function ScheduleAccordionItem({
           data-schedule-task-id={task.taskId}
           className={css.RowHeader}
           aria-expanded={open}
-          aria-controls={open ? drawerId : undefined}
+          aria-controls={open ? `${id}-drawer` : undefined}
           onClick={onToggle}
         >
-          <span
-            className={classNames(
-              css.IconTile,
-              awaiting ? css.IconTileWarning : recurring ? css.IconTileSuccess : css.IconTilePrimary
-            )}
-            aria-hidden="true"
-          >
+          <span className={css.IconTile[tone]} aria-hidden="true">
             <Icon
               size="100"
               src={awaiting ? Icons.Warning : recurring ? Icons.Reload : Icons.Clock}
@@ -406,22 +271,18 @@ function ScheduleAccordionItem({
               <Text as="span" size="H5" className={classNames(css.RowTitle, css.Wrap)} dir="auto">
                 {task.description ?? task.taskId}
               </Text>
-              {statusPill && (
-                <span className={classNames(css.StatusPill, statusPill.variant)}>
-                  {statusPill.label}
-                </span>
-              )}
+              {statusLabel && <span className={css.StatusPill[tone]}>{statusLabel}</span>}
             </span>
             <span className={css.RowSubtitle}>
-              {subtitleItems.map((item, index) => (
-                <Fragment key={item.key}>
+              {subtitleParts.map((node, index) => (
+                <Fragment key={index}>
                   {index > 0 && (
                     <span className={css.SubtitleDot} aria-hidden="true">
                       ·
                     </span>
                   )}
                   <Text as="span" size="T200" className={css.Wrap}>
-                    {item.node}
+                    {node}
                   </Text>
                 </Fragment>
               ))}
@@ -434,27 +295,18 @@ function ScheduleAccordionItem({
       </div>
 
       {open && (
-        <div id={drawerId} className={css.Drawer}>
+        <div id={`${id}-drawer`} className={css.Drawer}>
           <div className={css.ChipRow}>
-            <span className={css.Chip}>
-              {recurring ? t('roomSchedules.recurring') : t('roomSchedules.once')}
-            </span>
-            {task.silent && <span className={css.Chip}>{t('roomSchedules.silent')}</span>}
-            {task.isConditional && (
-              <span className={css.Chip}>{t('roomSchedules.conditional')}</span>
-            )}
-            {task.model && (
-              <span className={css.Chip}>
-                <bdi>{task.model}</bdi>
+            {chips.map((chip, i) => (
+              <span key={i} className={css.Chip}>
+                {chip}
               </span>
-            )}
-            {historyChipLabel && <span className={css.Chip}>{historyChipLabel}</span>}
+            ))}
           </div>
 
           <div className={css.PromptWell} role="region" aria-label={t('roomSchedules.prompt')}>
             <Text
-              ref={promptTextRef}
-              id={promptTextId}
+              id={`${id}-prompt`}
               as="p"
               size="T300"
               className={classNames(
@@ -467,19 +319,18 @@ function ScheduleAccordionItem({
                 ? renderSchedulePrompt(promptText)
                 : t('roomSchedules.promptUnavailable')}
             </Text>
-            {promptOverflows && (
+            {promptText !== undefined && isLongPrompt(promptText) && (
               <button
-                ref={promptToggleRef}
                 type="button"
                 className={css.PromptToggle}
-                aria-controls={promptTextId}
+                aria-controls={`${id}-prompt`}
                 aria-expanded={promptExpanded}
-                onClick={() => setPromptExpanded((expanded) => !expanded)}
+                onClick={() => setPromptExpanded((v) => !v)}
               >
                 <Text as="span" size="T200">
-                  {promptExpanded
-                    ? t('roomSchedules.showLessPrompt')
-                    : t('roomSchedules.showFullPrompt')}
+                  {t(
+                    promptExpanded ? 'roomSchedules.showLessPrompt' : 'roomSchedules.showFullPrompt'
+                  )}
                 </Text>
               </button>
             )}
@@ -489,13 +340,9 @@ function ScheduleAccordionItem({
             <div className={css.ActionsPrimary}>
               {!task.newThread && task.threadId && (
                 <Button
-                  type="button"
-                  size="300"
-                  variant="Secondary"
+                  {...COMPACT_BTN}
                   fill="Soft"
                   outlined
-                  radii="300"
-                  className={css.CompactAction}
                   onClick={() => onOpenThread(task.threadId!)}
                 >
                   <Icon size="100" src={Icons.Thread} />
@@ -503,50 +350,23 @@ function ScheduleAccordionItem({
                 </Button>
               )}
               <Button
-                ref={detailsButtonRef}
-                type="button"
-                size="300"
-                variant="Secondary"
+                {...COMPACT_BTN}
                 fill="None"
-                radii="300"
-                className={css.CompactAction}
                 aria-expanded={detailsOpen}
-                aria-controls={detailsOpen ? detailsId : undefined}
-                onClick={() => {
-                  if (detailsOpen) {
-                    const detailsEl = detailsRef.current;
-                    const doc = detailsEl?.ownerDocument ?? detailsButtonRef.current?.ownerDocument;
-                    const active = doc?.activeElement;
-                    const focusWasInDetails =
-                      (!!detailsEl && !!active && detailsEl.contains(active)) ||
-                      !active ||
-                      active === doc?.body;
-                    setDetailsOpen(false);
-                    if (focusWasInDetails) {
-                      detailsButtonRef.current?.focus();
-                    }
-                  } else {
-                    setDetailsOpen(true);
-                  }
-                }}
+                aria-controls={detailsOpen ? `${id}-details` : undefined}
+                onClick={() => setDetailsOpen((v) => !v)}
               >
                 <Text size="T200">
-                  {detailsOpen ? t('roomSchedules.hideDetails') : t('roomSchedules.details')}
+                  {t(detailsOpen ? 'roomSchedules.hideDetails' : 'roomSchedules.details')}
                 </Text>
               </Button>
             </div>
 
             <div className={css.ActionsSecondary}>
               <Button
-                type="button"
-                size="300"
-                variant="Secondary"
+                {...COMPACT_BTN}
                 fill="None"
-                radii="300"
-                className={css.CompactAction}
-                onClick={(event: MouseEvent<HTMLButtonElement>) =>
-                  void handleCopyId(event.currentTarget)
-                }
+                onClick={(e: MouseEvent<HTMLButtonElement>) => void handleCopyId(e.currentTarget)}
               >
                 {copied ? <Icon size="100" src={Icons.Check} /> : <CopyIcon />}
                 <Text size="T200">{t('roomSchedules.copyId')}</Text>
@@ -561,15 +381,11 @@ function ScheduleAccordionItem({
 
               {onEditTask && commandSafe && !task.preApprovedCall && (
                 <IconButton
-                  type="button"
-                  size="300"
+                  {...ICON_BTN}
                   variant="SurfaceVariant"
-                  fill="None"
-                  radii="300"
-                  className={css.IconAction}
                   aria-label={t('roomSchedules.edit')}
                   title={t('roomSchedules.edit')}
-                  onClick={handleEditClick}
+                  onClick={() => setNotice(onEditTask(task) === 'draft-busy' ? 'edit-busy' : null)}
                 >
                   <Icon size="100" src={Icons.Pencil} />
                 </IconButton>
@@ -578,27 +394,17 @@ function ScheduleAccordionItem({
               {canCancel && (
                 <IconButton
                   ref={cancelButtonRef}
-                  type="button"
-                  size="300"
+                  {...ICON_BTN}
                   variant="Critical"
-                  fill="None"
-                  radii="300"
-                  className={css.IconAction}
                   aria-label={t('roomSchedules.cancel')}
                   title={t('roomSchedules.cancel')}
                   aria-expanded={showCancelBar}
-                  aria-controls={showCancelBar ? confirmId : undefined}
+                  aria-controls={showCancelBar ? `${id}-confirm` : undefined}
                   aria-disabled={isCancelling || cancelSent || undefined}
                   onClick={() => {
                     if (isCancelling || cancelSent) return;
-                    if (showCancelBar) {
-                      setConfirmingCancel(false);
-                      focusInsideConfirmRef.current = false;
-                      onClearCancelError();
-                      cancelButtonRef.current?.focus();
-                    } else {
-                      setConfirmingCancel(true);
-                    }
+                    if (showCancelBar) handleKeepCancel();
+                    else setConfirmingCancel(true);
                   }}
                 >
                   <Icon
@@ -613,21 +419,12 @@ function ScheduleAccordionItem({
 
           {showCancelBar && (
             <div
-              id={confirmId}
-              ref={confirmBarRef}
+              id={`${id}-confirm`}
               role="group"
-              aria-labelledby={confirmQuestionId}
+              aria-labelledby={`${id}-confirm-q`}
               className={css.CancelBar}
-              onFocusCapture={() => {
-                focusInsideConfirmRef.current = true;
-              }}
-              onBlurCapture={(event) => {
-                if (!confirmBarRef.current?.contains(event.relatedTarget)) {
-                  focusInsideConfirmRef.current = false;
-                }
-              }}
             >
-              <Text id={confirmQuestionId} size="T200">
+              <Text id={`${id}-confirm-q`} size="T200">
                 {t('roomSchedules.cancelConfirm')}
               </Text>
               {cancelError && (
@@ -638,30 +435,24 @@ function ScheduleAccordionItem({
               <div className={css.CancelBarActions}>
                 <Button
                   ref={keepButtonRef}
-                  type="button"
-                  size="300"
+                  {...CANCEL_BTN}
                   variant="Secondary"
                   fill="Soft"
-                  radii="300"
-                  className={css.CancelBarButton}
-                  aria-describedby={confirmQuestionId}
+                  aria-describedby={`${id}-confirm-q`}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleKeepCancel}
                 >
                   <Text size="T200">{t('roomSchedules.keep')}</Text>
                 </Button>
                 <Button
-                  type="button"
-                  size="300"
+                  {...CANCEL_BTN}
                   variant="Critical"
                   fill="Solid"
-                  radii="300"
-                  className={css.CancelBarButton}
                   aria-disabled={isCancelling || undefined}
-                  onClick={handleConfirmCancelClick}
+                  onClick={() => void handleConfirmCancelClick()}
                 >
                   <Text size="T200">
-                    {isCancelling ? t('roomSchedules.cancelling') : t('roomSchedules.cancelTask')}
+                    {t(isCancelling ? 'roomSchedules.cancelling' : 'roomSchedules.cancelTask')}
                   </Text>
                 </Button>
               </div>
@@ -674,165 +465,67 @@ function ScheduleAccordionItem({
             data-schedule-cancel-status=""
             className={cancelSent ? css.CancelSentBar : css.SrOnly}
           >
-            {cancelSent ? <Text size="T200">{t('roomSchedules.cancellationSent')}</Text> : ''}
+            {cancelSent && <Text size="T200">{t('roomSchedules.cancellationSent')}</Text>}
           </div>
-
           <div
             role="status"
             aria-live="polite"
             data-schedule-action-status=""
             className={actionNotice ? css.NoticeBar : css.SrOnly}
           >
-            {actionNotice ? <Text size="T200">{actionNotice}</Text> : ''}
+            {actionNotice && <Text size="T200">{actionNotice}</Text>}
           </div>
 
           {detailsOpen && (
-            <dl id={detailsId} ref={detailsRef} className={css.Metadata}>
-              <Text as="dt" size="T200" className={css.MetaLabel}>
-                {t('roomSchedules.taskId')}
-              </Text>
-              <Text as="dd" size="T200" className={css.Wrap}>
-                {copyFailed && !task.taskId.includes('\r') ? (
-                  task.taskId.includes('\n') ? (
-                    <textarea
-                      ref={(node) => {
-                        taskIdInputRef.current = node;
-                      }}
-                      readOnly
-                      dir="ltr"
-                      rows={Math.min(4, task.taskId.split('\n').length)}
-                      value={task.taskId}
-                      aria-label={t('roomSchedules.taskId')}
-                      className={css.TaskIdInput}
-                      onFocus={(event) => event.currentTarget.select()}
-                    />
-                  ) : (
-                    <input
-                      ref={(node) => {
-                        taskIdInputRef.current = node;
-                      }}
-                      type="text"
-                      readOnly
-                      dir="ltr"
-                      value={task.taskId}
-                      aria-label={t('roomSchedules.taskId')}
-                      className={css.TaskIdInput}
-                      onFocus={(event) => event.currentTarget.select()}
-                    />
-                  )
-                ) : (
-                  <code className={css.TaskId}>
-                    <bdi>{task.taskId}</bdi>
-                  </code>
-                )}
-              </Text>
-
+            <dl id={`${id}-details`} className={css.Metadata}>
+              <MetaRow label={t('roomSchedules.taskId')} wrap>
+                <code className={css.TaskId}>
+                  <bdi>{task.taskId}</bdi>
+                </code>
+              </MetaRow>
               {task.createdBy && (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.owner')}
-                  </Text>
-                  <Text as="dd" size="T200" className={css.Wrap}>
-                    <bdi>{creatorMention ?? task.createdBy}</bdi>
-                  </Text>
-                </>
+                <MetaRow label={t('roomSchedules.owner')} wrap>
+                  <bdi>{ctx.renderOwner(task.createdBy) ?? task.createdBy}</bdi>
+                </MetaRow>
               )}
-
-              <Text as="dt" size="T200" className={css.MetaLabel}>
-                {t('roomSchedules.model')}
-              </Text>
-              <Text as="dd" size="T200" className={css.Wrap}>
+              <MetaRow label={t('roomSchedules.model')} wrap>
                 {task.model ? <bdi>{task.model}</bdi> : t('roomSchedules.inheritedModel')}
-              </Text>
-
+              </MetaRow>
               {task.historyLimit !== undefined && (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.historyLimit')}
-                  </Text>
-                  <Text as="dd" size="T200">
-                    {task.historyLimit === null
-                      ? t('roomSchedules.fullHistory')
-                      : task.historyLimit === 0
-                      ? t('roomSchedules.noHistory')
-                      : t('roomSchedules.recentMessages', { total: task.historyLimit })}
-                  </Text>
-                </>
+                <MetaRow label={t('roomSchedules.historyLimit')}>
+                  {task.historyLimit === null ? t('roomSchedules.fullHistory') : historyChip}
+                </MetaRow>
               )}
-
-              {recurring ? (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.recurrence')}
-                  </Text>
-                  <Text as="dd" size="T200" className={css.Wrap}>
-                    {task.cronDescription ? (
-                      <Box direction="Column" gap="100">
-                        <span dir="auto">{task.cronDescription}</span>
-                        {utcCronExpression && (
-                          <Text
-                            as="span"
-                            size="T200"
-                            className={classNames(css.MetaLabel, css.Wrap)}
-                          >
-                            {utcCronExpression}
-                          </Text>
-                        )}
-                      </Box>
-                    ) : (
-                      utcCronExpression ?? t('roomSchedules.unknownTime')
-                    )}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.executionTime')}
-                  </Text>
-                  <Text as="dd" size="T200" className={css.Wrap}>
-                    {executionTime === undefined ? (
-                      t('roomSchedules.unknownTime')
-                    ) : (
-                      <time dateTime={new Date(executionTime).toISOString()}>
-                        {formatter.format(executionTime)}
-                      </time>
-                    )}
-                  </Text>
-                </>
-              )}
-
+              <MetaRow
+                label={t(recurring ? 'roomSchedules.recurrence' : 'roomSchedules.executionTime')}
+                wrap
+              >
+                {recurring ? (
+                  task.cronDescription ? (
+                    <Box direction="Column" gap="100">
+                      <span dir="auto">{task.cronDescription}</span>
+                      {utcCron && (
+                        <Text as="span" size="T200" className={classNames(css.MetaLabel, css.Wrap)}>
+                          {utcCron}
+                        </Text>
+                      )}
+                    </Box>
+                  ) : (
+                    utcCron ?? t('roomSchedules.unknownTime')
+                  )
+                ) : executionTime === undefined ? (
+                  t('roomSchedules.unknownTime')
+                ) : (
+                  formatTime(executionTime)
+                )}
+              </MetaRow>
               {createdTime !== undefined && (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.createdAt')}
-                  </Text>
-                  <Text as="dd" size="T200">
-                    <time dateTime={new Date(createdTime).toISOString()}>
-                      {formatter.format(createdTime)}
-                    </time>
-                  </Text>
-                </>
+                <MetaRow label={t('roomSchedules.createdAt')}>{formatTime(createdTime)}</MetaRow>
               )}
-
-              {showUpdated && (
-                <>
-                  <Text as="dt" size="T200" className={css.MetaLabel}>
-                    {t('roomSchedules.updatedAt')}
-                  </Text>
-                  <Text as="dd" size="T200">
-                    <time dateTime={new Date(updatedTime).toISOString()}>
-                      {formatter.format(updatedTime)}
-                    </time>
-                  </Text>
-                </>
+              {updatedTime !== undefined && updatedTime !== createdTime && (
+                <MetaRow label={t('roomSchedules.updatedAt')}>{formatTime(updatedTime)}</MetaRow>
               )}
-
-              <Text as="dt" size="T200" className={css.MetaLabel}>
-                {t('roomSchedules.destination')}
-              </Text>
-              <Text as="dd" size="T200">
-                {destinationLabel}
-              </Text>
+              <MetaRow label={t('roomSchedules.destination')}>{destinationLabel}</MetaRow>
             </dl>
           )}
         </div>
@@ -841,41 +534,30 @@ function ScheduleAccordionItem({
   );
 }
 
-export const RoomSchedulesDialog = forwardRef<
-  HTMLDivElement,
-  {
-    roomId: string;
-    tasks: readonly ParsedScheduledTask[];
-    openThreadId?: string;
-    onClose: () => void;
-    onOpenThread: (threadId: string) => void;
-    onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
-    onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
-    cancelState?: ScheduleCancelState;
-  }
->(
-  (
-    { roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask, cancelState },
-    ref
-  ) => {
+type RoomSchedulesDialogProps = {
+  roomId: string;
+  tasks: readonly ParsedScheduledTask[];
+  openThreadId?: string;
+  onClose: () => void;
+  onOpenThread: (threadId: string) => void;
+  onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
+  onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
+};
+
+export const RoomSchedulesDialog = forwardRef<HTMLDivElement, RoomSchedulesDialogProps>(
+  ({ roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask }, ref) => {
     const { t, i18n } = useTranslation();
     const titleId = useId();
+    const mx = useMatrixClient();
+    const mentionClickHandler = useMentionClickHandler(roomId);
     const dialogRef = useRef<HTMLDivElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
-    const lastFocusedRef = useRef<HTMLElement | null>(null);
-    const lastFocusedTaskIdRef = useRef<string | null>(null);
-    const lastCollapsedTaskIdRef = useRef<string | null>(null);
     const [now, setNow] = useState(Date.now);
     const [filter, setFilter] = useState<ScheduleFilter>('all');
     const [expandedId, setExpandedId] = useState<string | null>(() =>
       tasks.length === 1 ? tasks[0]!.taskId : null
     );
-    const internalCancelState = useScheduleCancelState(
-      roomId,
-      cancelState ? undefined : onCancelTask
-    );
-    const { pendingCancelIds, cancelSentIds, cancelErrors, handleCancelTask, clearCancelError } =
-      cancelState ?? internalCancelState;
+    const cancel = useScheduleCancelState(roomId, onCancelTask);
 
     const setModalRef = useCallback(
       (node: HTMLDivElement | null) => {
@@ -891,125 +573,90 @@ export const RoomSchedulesDialog = forwardRef<
       () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
       [locale]
     );
-    const timeZone = useMemo(() => formatter.resolvedOptions().timeZone, [formatter]);
 
-    let onceCount = 0;
-    let recurringCount = 0;
-    tasks.forEach((task) => {
-      if (isRecurringTask(task)) recurringCount += 1;
-      else onceCount += 1;
-    });
-
+    const recurringCount = tasks.filter(sched.isRecurringTask).length;
+    const onceCount = tasks.length - recurringCount;
     const showFilterBar = onceCount > 0 && recurringCount > 0;
     const effectiveFilter: ScheduleFilter =
       (filter === 'once' && onceCount === 0) || (filter === 'recurring' && recurringCount === 0)
         ? 'all'
         : filter;
-
     const filteredTasks = useMemo(
-      () =>
-        effectiveFilter === 'all'
-          ? tasks
-          : tasks.filter((task) =>
-              effectiveFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
-            ),
+      () => filterByType(tasks, effectiveFilter),
       [effectiveFilter, tasks]
     );
 
-    // Clear expandedId only when the expanded task itself leaves the list.
     useEffect(() => {
       if (expandedId !== null && !tasks.some((task) => task.taskId === expandedId)) {
         setExpandedId(null);
       }
-    }, [expandedId, tasks]);
+      if (!showFilterBar && filter !== 'all') setFilter('all');
+    }, [expandedId, filter, showFilterBar, tasks]);
 
-    // Persist the filter reset so a returning category does not silently re-activate an old filter.
-    useEffect(() => {
-      if (!showFilterBar && filter !== 'all') {
-        setFilter('all');
-      }
-    }, [filter, showFilterBar]);
-
-    const hasCancelAction = Boolean(onCancelTask);
-    const hasEditAction = Boolean(onEditTask);
-
-    // Recover focus inside the dialog only when the previously focused element unmounted.
+    // Recover focus inside the dialog if a focused task row or filter button unmounted.
     useLayoutEffect(() => {
-      const collapsedId = lastCollapsedTaskIdRef.current;
-      lastCollapsedTaskIdRef.current = null;
       const modal = dialogRef.current;
-      const lastFocused = lastFocusedRef.current;
-      if (!modal || !lastFocused || lastFocused.isConnected) return;
-      const doc = modal.ownerDocument;
-      if (doc.activeElement && doc.activeElement !== doc.body) return;
-      const preferredTaskId = collapsedId ?? lastFocusedTaskIdRef.current;
-      lastFocusedRef.current = null;
-      lastFocusedTaskIdRef.current = null;
-      const preferredToggle = preferredTaskId
-        ? [...modal.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]')].find(
-            (button) => button.dataset.scheduleTaskId === preferredTaskId
-          )
-        : undefined;
-      const fallbackToggle =
-        preferredToggle ??
-        modal.querySelector<HTMLButtonElement>(
-          '[data-expanded="true"] button[data-schedule-toggle]'
-        ) ??
-        modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
-      if (fallbackToggle) fallbackToggle.focus();
-      else closeButtonRef.current?.focus();
-    }, [
-      cancelSentIds,
-      expandedId,
-      filteredTasks,
-      hasCancelAction,
-      hasEditAction,
-      openThreadId,
-      pendingCancelIds,
-      showFilterBar,
-    ]);
+      if (!modal) return;
+      const active = modal.ownerDocument.activeElement;
+      if (active && active !== modal.ownerDocument.body) return;
+      const fallback = modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
+      (fallback ?? closeButtonRef.current)?.focus();
+    }, [filteredTasks, expandedId, showFilterBar]);
 
-    const threadTasks: ParsedScheduledTask[] = [];
-    const elsewhereTasks: ParsedScheduledTask[] = [];
-    filteredTasks.forEach((task) => {
-      if (openThreadId !== undefined && isScheduleInThread(task, openThreadId))
-        threadTasks.push(task);
-      else elsewhereTasks.push(task);
-    });
+    const inThread = (task: ParsedScheduledTask) =>
+      openThreadId !== undefined && sched.isScheduleInThread(task, openThreadId);
+    const threadTasks = filteredTasks.filter(inThread);
+    const elsewhereTasks = filteredTasks.filter((task) => !inThread(task));
     const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
     const groups = [
-      { id: 'thread', heading: 'roomSchedules.thisThread', tasks: threadTasks },
-      { id: 'elsewhere', heading: 'roomSchedules.elsewhereInRoom', tasks: elsewhereTasks },
+      ['thread', 'roomSchedules.thisThread', threadTasks],
+      ['elsewhere', 'roomSchedules.elsewhereInRoom', elsewhereTasks],
     ] as const;
 
     const hasImminentTask = tasks.some((task) => {
-      if (isRecurringTask(task)) return false;
-      const executionTime = getScheduleTimestamp(task);
+      const ts = sched.getScheduleTimestamp(task);
       return (
-        executionTime !== undefined &&
-        executionTime > now &&
-        executionTime - now <= IMMINENT_COUNTDOWN_WINDOW_MS
+        !sched.isRecurringTask(task) &&
+        ts !== undefined &&
+        ts > now &&
+        ts - now <= IMMINENT_COUNTDOWN_WINDOW_MS
       );
     });
-
     useEffect(() => {
-      const intervalMs = hasImminentTask ? 1_000 : 10_000;
-      const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
+      const timer = window.setInterval(() => setNow(Date.now()), hasImminentTask ? 1_000 : 10_000);
       return () => window.clearInterval(timer);
     }, [hasImminentTask]);
 
     const handleSelectFilter = (nextFilter: ScheduleFilter) => {
       setFilter(nextFilter);
-      const nextFiltered =
-        nextFilter === 'all'
-          ? tasks
-          : tasks.filter((task) =>
-              nextFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
-            );
-      if (nextFiltered.length === 1) {
-        setExpandedId(nextFiltered[0]!.taskId);
-      }
+      const nextFiltered = filterByType(tasks, nextFilter);
+      if (nextFiltered.length === 1) setExpandedId(nextFiltered[0]!.taskId);
     };
+
+    const renderOwner = (userId: string) =>
+      isUserId(userId)
+        ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
+            ...makeMentionCustomProps(mentionClickHandler),
+            title: userId,
+          })
+        : undefined;
+
+    const itemCtx: ScheduleContext = {
+      now,
+      locale,
+      formatter,
+      grouped,
+      canManageCancel: Boolean(onCancelTask),
+      cancel,
+      renderOwner,
+      onOpenThread,
+      onEditTask,
+    };
+    const filterOptions = [
+      ['all', t('roomSchedules.filterAll'), tasks.length],
+      ['once', t('roomSchedules.once'), onceCount],
+      ['recurring', t('roomSchedules.recurring'), recurringCount],
+    ] as const;
 
     return (
       <Modal
@@ -1020,20 +667,6 @@ export const RoomSchedulesDialog = forwardRef<
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        onFocusCapture={(event: FocusEvent<HTMLDivElement>) => {
-          if (event.target instanceof HTMLElement) {
-            lastFocusedRef.current = event.target;
-            const taskEl = event.target.closest<HTMLElement>('[data-schedule-task-id]');
-            lastFocusedTaskIdRef.current = taskEl?.dataset.scheduleTaskId ?? null;
-          }
-        }}
-        onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
-          const next = event.relatedTarget;
-          if (next instanceof Node && dialogRef.current && !dialogRef.current.contains(next)) {
-            lastFocusedRef.current = null;
-            lastFocusedTaskIdRef.current = null;
-          }
-        }}
       >
         <PageScroll
           header={
@@ -1073,30 +706,20 @@ export const RoomSchedulesDialog = forwardRef<
                     aria-label={t('roomSchedules.filterLabel')}
                     className={css.FilterBar}
                   >
-                    {(
-                      [
-                        { id: 'all', label: t('roomSchedules.filterAll'), count: tasks.length },
-                        { id: 'once', label: t('roomSchedules.once'), count: onceCount },
-                        {
-                          id: 'recurring',
-                          label: t('roomSchedules.recurring'),
-                          count: recurringCount,
-                        },
-                      ] as const
-                    ).map((option) => {
-                      const active = effectiveFilter === option.id;
+                    {filterOptions.map(([optId, label, count]) => {
+                      const active = effectiveFilter === optId;
                       return (
                         <button
-                          key={option.id}
+                          key={optId}
                           type="button"
                           aria-pressed={active}
                           className={classNames(css.FilterPill, active && css.FilterPillActive)}
-                          onClick={() => handleSelectFilter(option.id)}
+                          onClick={() => handleSelectFilter(optId)}
                         >
                           {active && <Icon size="50" src={Icons.Check} aria-hidden />}
-                          <span>{option.label}</span>
+                          <span>{label}</span>
                           <span className={css.FilterCount}>
-                            {localDigits(String(option.count), locale)}
+                            {localDigits(String(count), locale)}
                           </span>
                         </button>
                       );
@@ -1105,8 +728,8 @@ export const RoomSchedulesDialog = forwardRef<
                 )}
 
                 <Box direction="Column" gap="200">
-                  {groups.map(({ id, heading, tasks: groupTasks }) => (
-                    <Fragment key={id}>
+                  {groups.map(([groupId, heading, groupTasks]) => (
+                    <Fragment key={groupId}>
                       {grouped && (
                         <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
                           {t(heading)}
@@ -1117,26 +740,10 @@ export const RoomSchedulesDialog = forwardRef<
                         return (
                           <ScheduleAccordionItem
                             key={task.taskId}
-                            roomId={roomId}
+                            ctx={itemCtx}
                             task={task}
-                            now={now}
-                            locale={locale}
-                            timeZone={timeZone}
-                            formatter={formatter}
-                            grouped={grouped}
                             open={open}
-                            isCancelling={pendingCancelIds.has(task.taskId)}
-                            cancelSent={cancelSentIds.has(task.taskId)}
-                            cancelError={cancelErrors.get(task.taskId) === true}
-                            onToggle={() => {
-                              lastCollapsedTaskIdRef.current = task.taskId;
-                              setExpandedId(open ? null : task.taskId);
-                            }}
-                            onOpenThread={onOpenThread}
-                            onCancelTask={onCancelTask}
-                            onConfirmCancel={() => handleCancelTask(task)}
-                            onClearCancelError={() => clearCancelError(task.taskId)}
-                            onEditTask={onEditTask}
+                            onToggle={() => setExpandedId(open ? null : task.taskId)}
                           />
                         );
                       })}
