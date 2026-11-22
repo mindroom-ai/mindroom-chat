@@ -26,7 +26,9 @@ function List({
   indexPending,
   onIds,
   onEnd,
+  roomId = '!room',
 }: {
+  roomId?: string;
   memory: ScrollAnchorMemory;
   shown?: Record<string, string[]>;
   records?: ReadonlyMap<string, ThreadRecord>;
@@ -42,7 +44,7 @@ function List({
     scrollRef,
     contentRef,
     memory,
-    roomId: '!room',
+    roomId,
     records,
     protectedId,
     indexPending,
@@ -299,6 +301,38 @@ it('keeps the window bounded when a scroll shows two distant runs of cards side 
   tick(12);
   const most = Math.max(...onIds.mock.calls.map(([live]: [string[]]) => live.length));
   expect(most).toBeLessThanOrEqual(72);
+});
+
+it('leaves discovery to its frames when a scroll changes nothing in view', () => {
+  const onIds = vi.fn();
+  const { container } = render(<List memory={new Map()} onIds={onIds} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(2);
+  expect(view.dataset.complete).toBe('false');
+  const renders = onIds.mock.calls.length;
+  for (const top of [1, 2, 3]) {
+    act(() => {
+      view.scrollTop = top;
+      view.dispatchEvent(new Event('scroll'));
+    });
+  }
+  expect(onIds.mock.calls.length).toBe(renders);
+  tick(12);
+  expect(view.dataset.complete).toBe('true');
+});
+
+it('keeps the measured heights of the rooms last shown, and lets the oldest go', () => {
+  const memory = new Map();
+  const visit = (roomId: string) => {
+    const { container, unmount } = render(<List memory={memory} roomId={roomId} />);
+    const warm = container.querySelector<HTMLElement>('[data-view]')!.dataset.complete;
+    tick(12);
+    unmount();
+    return warm;
+  };
+  for (let room = 0; room < 9; room += 1) expect(visit(`!room${room}`)).toBe('false');
+  expect(visit('!room8')).toBe('true');
+  expect(visit('!room0')).toBe('false');
 });
 
 it('settles on a list without cards', () => {

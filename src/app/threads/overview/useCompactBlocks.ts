@@ -19,12 +19,20 @@ type Geometry = {
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
+// The rooms last shown keep their heights: the oldest of more than eight is let go.
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   const cache = rooms.get(memory) ?? new Map<string, Geometry>();
   rooms.set(memory, cache);
-  if (!cache.has(roomId))
-    cache.set(roomId, { heights: new Map(), fresh: new Set(), visible: [], gap: 0 });
-  return cache.get(roomId)!;
+  const geometry = cache.get(roomId) ?? {
+    heights: new Map(),
+    fresh: new Set(),
+    visible: [],
+    gap: 0,
+  };
+  cache.delete(roomId);
+  cache.set(roomId, geometry);
+  if (cache.size > 8) cache.delete(cache.keys().next().value!);
+  return geometry;
 };
 
 type Options = {
@@ -53,7 +61,7 @@ export function useCompactBlocks(options: Options) {
       end: false,
       endSlot: undefined as number | undefined,
       onWrite: undefined as (() => void) | undefined,
-      measure: undefined as (() => boolean) | undefined,
+      measure: undefined as ((advance?: boolean) => boolean) | undefined,
       wake: undefined as (() => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
@@ -173,7 +181,7 @@ export function useCompactBlocks(options: Options) {
       if (!frame)
         frame = requestAnimationFrame(() => {
           frame = 0;
-          if (state.measure?.()) render();
+          if (state.measure?.(true)) render();
         });
     };
     const scroll = () => {
@@ -285,12 +293,13 @@ export function useCompactBlocks(options: Options) {
       if (layout()) state.wake?.();
     };
     // Discovery parks while the list cannot measure; the ResizeObserver wakes it with a size.
-    state.measure = () => {
+    // A frame advances discovery; a scroll renders only for what it changed in view.
+    state.measure = (advance) => {
       const now = layout();
-      return now !== undefined && (now || pending);
+      return now !== undefined && (now || (!!advance && pending));
     };
-    if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
     if (back && !placeReady && state.reachable === order) render();
+    else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
   });
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
   // heights that a width or font change left stale are not the list's end. It renders until
