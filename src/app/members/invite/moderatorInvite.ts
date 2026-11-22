@@ -204,47 +204,22 @@ export const grantRoomModeratorRights = (
   enqueueRoomGrant(client, room.roomId, async () => {
     const createEvent = getStateEvent(room, StateEvent.RoomCreate);
     const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
-    const canMergeLiveState =
-      typeof client.getStateEvent === 'function' && typeof client.sendStateEvent === 'function';
 
-    if (canMergeLiveState) {
-      let liveContent: Record<string, unknown> | undefined;
-      try {
-        const fetched = await client.getStateEvent(room.roomId, StateEvent.RoomPowerLevels, '');
-        liveContent = isRecord(fetched) ? fetched : {};
-      } catch (error) {
-        if (isNotFoundError(error)) {
-          liveContent = undefined;
-        } else {
-          return { kind: 'failed', detail: errorDetail(error) };
-        }
-      }
-
-      const levels = getPowersLevelFromMatrixEvent(
-        liveContent ? ({ getContent: () => liveContent } as MatrixEvent) : undefined
-      );
-      const decision = evaluateModeratorGrant(
-        room,
-        targetId,
-        client.getSafeUserId(),
-        levels,
-        creators,
-        maxLevel
-      );
-      if (decision.kind === 'alreadySatisfied') return null;
-      if (decision.kind !== 'grant') return decision;
-
-      const nextContent = clonePowerLevelsContent(liveContent ?? {});
-      (nextContent.users as Record<string, number>)[targetId] = decision.level;
-      try {
-        await client.sendStateEvent(room.roomId, EventType.RoomPowerLevels, nextContent, '');
-        return null;
-      } catch (error) {
+    let liveContent: Record<string, unknown> | undefined;
+    try {
+      const fetched = await client.getStateEvent(room.roomId, StateEvent.RoomPowerLevels, '');
+      liveContent = isRecord(fetched) ? fetched : {};
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        liveContent = undefined;
+      } else {
         return { kind: 'failed', detail: errorDetail(error) };
       }
     }
 
-    const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
+    const levels = getPowersLevelFromMatrixEvent(
+      liveContent ? ({ getContent: () => liveContent } as MatrixEvent) : undefined
+    );
     const decision = evaluateModeratorGrant(
       room,
       targetId,
@@ -255,8 +230,11 @@ export const grantRoomModeratorRights = (
     );
     if (decision.kind === 'alreadySatisfied') return null;
     if (decision.kind !== 'grant') return decision;
+
+    const nextContent = clonePowerLevelsContent(liveContent ?? {});
+    (nextContent.users as Record<string, number>)[targetId] = decision.level;
     try {
-      await client.setPowerLevel(room.roomId, targetId, decision.level);
+      await client.sendStateEvent(room.roomId, EventType.RoomPowerLevels, nextContent, '');
       return null;
     } catch (error) {
       return { kind: 'failed', detail: errorDetail(error) };

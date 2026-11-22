@@ -73,7 +73,10 @@ test('agents publish their room state in a room made with Create Room', async ({
   await field.fill(stack.agents.helper);
   // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
   await field.press('Enter');
-  await expect(dialog.getByRole('status')).toContainText(stack.agents.helper, { timeout: 15_000 });
+  // The sheet has a second status region, for hints about the typed ID.
+  await expect(dialog.getByRole('status').filter({ hasText: stack.agents.helper })).toHaveCount(1, {
+    timeout: 15_000,
+  });
   await page.keyboard.press('Escape');
   await expect
     .poll(

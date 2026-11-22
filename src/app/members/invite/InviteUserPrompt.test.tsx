@@ -1,10 +1,12 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import i18next from 'i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import arAdditions from '../../i18n/locales/additions/ar.json';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import {
   userDirectoryCacheAtom,
@@ -45,7 +47,7 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 vi.mock('./InviteUserPrompt.css', () => ({
-  PhoneViewportCenter: 'PhoneViewportCenter',
+  ViewportCenter: 'InviteViewportCenter',
   Dialog: 'InviteDialog',
   TitleBar: 'InviteTitleBar',
   TitleBlock: 'InviteTitleBlock',
@@ -53,6 +55,7 @@ vi.mock('./InviteUserPrompt.css', () => ({
   SearchField: 'InviteSearchField',
   FilterRow: 'InviteFilterRow',
   FilterChip: 'InviteFilterChip',
+  Body: 'InviteBody',
   ListArea: 'InviteListArea',
   SectionHeader: 'InviteSectionHeader',
   List: 'InviteList',
@@ -61,6 +64,7 @@ vi.mock('./InviteUserPrompt.css', () => ({
   Identity: 'InviteIdentity',
   NameLine: 'InviteNameLine',
   AgentBadge: 'InviteAgentBadge',
+  NameWrap: 'InviteNameWrap',
   Subtitle: 'InviteSubtitle',
   RowError: 'InviteRowError',
   RowAction: 'InviteRowAction',
@@ -102,7 +106,8 @@ type MockMatrixClient = Pick<
   | 'mxcUrlToHttp'
   | 'searchUserDirectory'
   | 'invite'
-  | 'setPowerLevel'
+  | 'getStateEvent'
+  | 'sendStateEvent'
   | 'getRoom'
   | 'on'
   | 'removeListener'
@@ -156,6 +161,14 @@ const makeStateEvent = (content: Record<string, unknown>, sender?: string) => ({
 
 type EventListener = (...args: unknown[]) => void;
 
+type PowerLevelsHolder = { state: { powerLevels: Record<string, unknown> } };
+
+/** Lets every pending promise chain run, however many steps a grant takes. */
+const settle = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
 const makeMx = (getRoom: (roomId: string) => Room | null) => {
   const listeners = new Map<string, Set<EventListener>>();
   const emit = (event: string, ...args: unknown[]) => {
@@ -171,7 +184,20 @@ const makeMx = (getRoom: (roomId: string) => Room | null) => {
       results: [],
     })),
     invite: vi.fn(async () => undefined) as unknown as MockMatrixClient['invite'],
-    setPowerLevel: vi.fn(async () => undefined) as unknown as MockMatrixClient['setPowerLevel'],
+    // The grant reads and writes `m.room.power_levels` on the homeserver; the room's mock state
+    // stands in for it, so a test that changes that state changes what the grant finds.
+    getStateEvent: vi.fn(async (roomId: string) => {
+      const room = getRoom(roomId) as unknown as PowerLevelsHolder | null;
+      if (!room) throw Object.assign(new Error('Not found'), { errcode: 'M_NOT_FOUND' });
+      return structuredClone(room.state.powerLevels);
+    }),
+    sendStateEvent: vi.fn(
+      async (roomId: string, _eventType: string, content: Record<string, unknown>) => {
+        const room = getRoom(roomId) as unknown as PowerLevelsHolder | null;
+        if (room) room.state.powerLevels = structuredClone(content);
+        return { event_id: '$power_levels' };
+      }
+    ) as unknown as MockMatrixClient['sendStateEvent'],
     getRoom: vi.fn(getRoom),
     on: vi.fn((event: string, listener: EventListener) => {
       const set = listeners.get(event) ?? new Set<EventListener>();
@@ -335,7 +361,80 @@ const textContentByRole = (renderer: ReactTestRenderer, role: string) =>
   renderer.root
     .findAll((node) => typeof node.type === 'string' && node.props.role === role)
     .map(extractText)
+    .filter((text) => text.length > 0)
     .join(' ');
+
+const getSubtitle = (renderer: ReactTestRenderer) =>
+  extractText(
+    renderer.root
+      .find((node) => node.type === 'div' && node.props.className === 'InviteTitleBlock')
+      .find((node) => node.type === 'p')
+  );
+
+const getNoteToggle = (renderer: ReactTestRenderer) =>
+  renderer.root.find((node) => node.type === 'button' && node.props['aria-expanded'] !== undefined);
+
+const getNoteInput = (renderer: ReactTestRenderer) =>
+  renderer.root.find(
+    (node) => node.type === 'input' && node.props.placeholder === 'Add a note to your invite...'
+  );
+
+const writeNote = (renderer: ReactTestRenderer, value: string) => {
+  if (getNoteToggle(renderer).props['aria-expanded'] !== true) {
+    act(() => {
+      getNoteToggle(renderer).props.onClick();
+    });
+  }
+  act(() => {
+    getNoteInput(renderer).props.onChange({ target: { value } });
+  });
+};
+
+const emitMembership = (
+  mx: ReturnType<typeof makeMx>,
+  room: ReturnType<typeof makeRoom>,
+  userId: string,
+  membership: string
+) => {
+  act(() => {
+    room.state.members = [
+      ...room.state.members.filter((member) => member.userId !== userId),
+      { userId, membership },
+    ];
+    mx.emit('RoomMember.membership', undefined, { roomId: room.roomId, userId });
+  });
+};
+
+/** An invite that stays pending until the returned function is called. */
+const holdNextInvite = (mx: ReturnType<typeof makeMx>) => {
+  let finish: () => void = () => undefined;
+  vi.mocked(mx.invite).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve({} as never);
+      })
+  );
+  return async () => {
+    await act(async () => {
+      finish();
+      await settle();
+    });
+  };
+};
+
+const expectGrant = (
+  mx: ReturnType<typeof makeMx>,
+  room: ReturnType<typeof makeRoom>,
+  userId: string,
+  level: number
+) => {
+  expect(mx.sendStateEvent).toHaveBeenCalledWith(
+    room.roomId,
+    'm.room.power_levels',
+    expect.objectContaining({ users: expect.objectContaining({ [userId]: level }) }),
+    ''
+  );
+};
 
 const typeSearch = (renderer: ReactTestRenderer, value: string) => {
   act(() => {
@@ -351,8 +450,7 @@ const pressKeyInSearch = async (
   const preventDefault = vi.fn();
   await act(async () => {
     getSearchInput(renderer).props.onKeyDown({ key, preventDefault, ...extra });
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
   });
   return preventDefault;
 };
@@ -362,8 +460,7 @@ const clickRowInvite = async (renderer: ReactTestRenderer, needle: string) => {
   expect(row, `expected row containing ${needle}`).toBeDefined();
   await act(async () => {
     getRowActionButton(row!).props.onClick?.();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
   });
 };
 
@@ -437,7 +534,7 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
       getStateEvent,
       sendStateEvent,
     };
-    const room = makeRoom(mx);
+    const room = makeRoom(mx as unknown as MockMatrixClient);
 
     // Fire two grants concurrently before /sync updates room.state.powerLevels.
     const first = grantRoomModeratorRights(
@@ -473,22 +570,47 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
 });
 
 describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
-  it('uses desktop dialog framing by default and PhoneModal + PhoneViewportCenter framing on mobile', () => {
+  it('frames the dialog for desktop, tablet and phone, and follows the visual viewport at every width', () => {
+    const centerClass = (renderer: ReactTestRenderer) =>
+      String(renderer.root.findByProps({ 'data-overlay-center': true }).props.className);
+
     const desktop = renderPrompt({ screenSize: ScreenSize.Desktop });
     expect(getDialog(desktop.renderer).props['aria-modal']).toBe('true');
     expect(getDialog(desktop.renderer).props.className).toContain('InviteDialog');
     expect(getDialog(desktop.renderer).props.className).not.toContain('PhoneModal');
-    expect(desktop.renderer.root.findByProps({ 'data-overlay-center': true }).props.className).toBe(
-      'SafeOverlayCenter'
-    );
+    expect(centerClass(desktop.renderer).split(' ')).toEqual([
+      'SafeOverlayCenter',
+      'InviteViewportCenter',
+    ]);
+
+    // A phone held sideways is as wide as a tablet and still needs the keyboard's viewport.
+    const tablet = renderPrompt({ screenSize: ScreenSize.Tablet });
+    expect(getDialog(tablet.renderer).props.className).not.toContain('PhoneModal');
+    expect(centerClass(tablet.renderer).split(' ')).toEqual([
+      'SafeOverlayCenter',
+      'InviteViewportCenter',
+    ]);
 
     const mobile = renderPrompt({ screenSize: ScreenSize.Mobile });
     expect(getDialog(mobile.renderer).props.className).toContain('PhoneModal');
-    const mobileCenterClass = mobile.renderer.root.findByProps({
-      'data-overlay-center': true,
-    }).props.className;
-    expect(mobileCenterClass).toContain('PhoneOverlayCenter');
-    expect(mobileCenterClass).toContain('PhoneViewportCenter');
+    expect(centerClass(mobile.renderer).split(' ')).toEqual([
+      'PhoneOverlayCenter',
+      'InviteViewportCenter',
+    ]);
+  });
+
+  it('keeps the search, the rows and the footer in one body below the title, so a short viewport can scroll them together', () => {
+    const { renderer } = renderPrompt();
+    const body = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'InviteBody'
+    );
+    const sections = body.children
+      .filter((child): child is ReactTestInstance => typeof child !== 'string')
+      .map((child) => child.props.className);
+    expect(sections).toEqual(['InviteControls', 'InviteListArea', 'InviteFooter']);
+    expect(
+      body.findAll((node) => node.props.id === 'invite-user-prompt-title', { deep: true })
+    ).toHaveLength(0);
   });
 
   it('shows isolated room title, Done button, and live member/invited counts without double-counting or resurrection', async () => {
@@ -635,7 +757,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       '@mindroom_coder:example.org',
       undefined
     );
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
 
     // Also verify button click on another listed agent while checkbox is OFF skips grant.
     typeSearch(renderer, '@mindroom_helper:example.org');
@@ -645,7 +767,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       '@mindroom_helper:example.org',
       undefined
     );
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it('finds a matching agent under Agents tab even when 10 higher-ranked people match the query', () => {
@@ -744,7 +866,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await clickRowInvite(renderer, '@external:other.org');
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@external:other.org', undefined);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it('immediately invites a typed eligible MXID on Enter, clears search, and keeps focus in search input', async () => {
@@ -893,26 +1015,17 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
   it('handles invite note lifecycle: clears after success, does not send when collapsed, Retry preserves original note, and never erases a newer draft', async () => {
     const { renderer, mx, room } = renderPrompt();
-    const getNoteToggle = () =>
-      renderer.root.find(
-        (node) => node.type === 'button' && node.props['aria-expanded'] !== undefined
-      );
-    const getNoteInput = () =>
-      renderer.root.find(
-        (node) => node.type === 'input' && node.props.placeholder === 'Add a note to your invite...'
-      );
-
-    expect(getNoteToggle().props['aria-expanded']).toBe(false);
-    expect(extractText(getNoteToggle())).toBe('+ Add invite note');
+    expect(getNoteToggle(renderer).props['aria-expanded']).toBe(false);
+    expect(extractText(getNoteToggle(renderer))).toBe('+ Add invite note');
 
     // Expand note, type reason, invite Maya -> sends trimmed note and clears input afterward.
     act(() => {
-      getNoteToggle().props.onClick();
+      getNoteToggle(renderer).props.onClick();
     });
-    expect(getNoteToggle().props['aria-expanded']).toBe(true);
-    expect(extractText(getNoteToggle())).toBe('− Hide invite note');
+    expect(getNoteToggle(renderer).props['aria-expanded']).toBe(true);
+    expect(extractText(getNoteToggle(renderer))).toBe('− Hide invite note');
     act(() => {
-      getNoteInput().props.onChange({ target: { value: '  Welcome aboard!  ' } });
+      getNoteInput(renderer).props.onChange({ target: { value: '  Welcome aboard!  ' } });
     });
 
     await clickRowInvite(renderer, 'Maya Chen');
@@ -922,7 +1035,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       '@maya:example.org',
       'Welcome aboard!'
     );
-    expect(getNoteInput().props.value).toBe('');
+    expect(getNoteInput(renderer).props.value).toBe('');
 
     // Second invite with empty note sends undefined.
     await clickRowInvite(renderer, 'Liam Park');
@@ -930,12 +1043,12 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     // Type a note, collapse the note field -> hidden note is NOT sent.
     act(() => {
-      getNoteInput().props.onChange({ target: { value: 'Hidden secret note' } });
+      getNoteInput(renderer).props.onChange({ target: { value: 'Hidden secret note' } });
     });
     act(() => {
-      getNoteToggle().props.onClick();
+      getNoteToggle(renderer).props.onClick();
     });
-    expect(getNoteToggle().props['aria-expanded']).toBe(false);
+    expect(getNoteToggle(renderer).props['aria-expanded']).toBe(false);
     typeSearch(renderer, '@alice:example.org');
     await pressKeyInSearch(renderer, 'Enter');
     expect(mx.invite).toHaveBeenNthCalledWith(3, room.roomId, '@alice:example.org', undefined);
@@ -943,10 +1056,10 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     // Expand note again, fail invite to @bob:example.org with original note, then edit note;
     // Retry must send @bob's original note, not the edited draft.
     act(() => {
-      getNoteToggle().props.onClick();
+      getNoteToggle(renderer).props.onClick();
     });
     act(() => {
-      getNoteInput().props.onChange({ target: { value: 'Note for Bob' } });
+      getNoteInput(renderer).props.onChange({ target: { value: 'Note for Bob' } });
     });
     vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Failed once'));
     typeSearch(renderer, '@bob:example.org');
@@ -954,11 +1067,11 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(mx.invite).toHaveBeenNthCalledWith(4, room.roomId, '@bob:example.org', 'Note for Bob');
 
     act(() => {
-      getNoteInput().props.onChange({ target: { value: 'Different draft for Carol' } });
+      getNoteInput(renderer).props.onChange({ target: { value: 'Different draft for Carol' } });
     });
     await clickRowInvite(renderer, '@bob:example.org');
     expect(mx.invite).toHaveBeenNthCalledWith(5, room.roomId, '@bob:example.org', 'Note for Bob');
-    expect(getNoteInput().props.value).toBe('Different draft for Carol');
+    expect(getNoteInput(renderer).props.value).toBe('Different draft for Carol');
 
     // Start an invite with current draft, edit draft while invite is in flight -> newer draft is preserved.
     let resolveCarol!: () => void;
@@ -968,14 +1081,13 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     typeSearch(renderer, '@carol:example.org');
     await pressKeyInSearch(renderer, 'Enter');
     act(() => {
-      getNoteInput().props.onChange({ target: { value: 'Newer draft while in flight' } });
+      getNoteInput(renderer).props.onChange({ target: { value: 'Newer draft while in flight' } });
     });
     await act(async () => {
       resolveCarol();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
     });
-    expect(getNoteInput().props.value).toBe('Newer draft while in flight');
+    expect(getNoteInput(renderer).props.value).toBe('Newer draft while in flight');
   });
 
   it('defaults moderator rights ON for MindRoom agents when none holds moderator power, and invites before granting', async () => {
@@ -985,8 +1097,12 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       calls.push('invite');
       return {} as never;
     });
-    vi.mocked(mx.setPowerLevel).mockImplementation(async () => {
-      calls.push('setPowerLevel');
+    vi.mocked(mx.getStateEvent).mockImplementation(async () => {
+      calls.push('readPowerLevels');
+      return structuredClone(room.state.powerLevels) as never;
+    });
+    vi.mocked(mx.sendStateEvent).mockImplementation(async () => {
+      calls.push('writePowerLevels');
       return {} as never;
     });
 
@@ -996,12 +1112,12 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await clickRowInvite(renderer, 'Helper');
 
-    expect(calls).toEqual(['invite', 'setPowerLevel']);
+    expect(calls).toEqual(['invite', 'readPowerLevels', 'writePowerLevels']);
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
   });
 
-  it('never calls setPowerLevel for humans, owner account, foreign-server agents, or agents already at moderator power', async () => {
+  it('never writes power levels for humans, owner account, foreign-server agents, or agents already at moderator power', async () => {
     const { renderer, mx } = renderPrompt({
       powerLevels: {
         users: { '@me:example.org': 100, '@mindroom_already:example.org': 50 },
@@ -1023,7 +1139,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     }
 
     expect(mx.invite).toHaveBeenCalledTimes(4);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it('defaults moderator rights OFF when a MindRoom agent in the room already holds moderator power', async () => {
@@ -1044,10 +1160,10 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
 
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
-  it('skips setPowerLevel when the user unchecks the moderator checkbox', async () => {
+  it('skips the grant when the user unchecks the moderator checkbox', async () => {
     const { renderer, mx, room } = renderPrompt();
     const checkbox = findModeratorCheckbox(renderer);
     expect(checkbox?.props.checked).toBe(true);
@@ -1059,7 +1175,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
 
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it('uses the room router state power level when higher than 50', async () => {
@@ -1074,7 +1190,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
     await clickRowInvite(renderer, 'Helper');
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 75);
   });
 
   it.each([
@@ -1103,23 +1219,83 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     },
     { label: 'v9 room', options: { roomVersion: '9' } },
     { label: 'unknown non-numeric room version', options: { roomVersion: 'org.example.unstable' } },
-  ])('hides the moderator checkbox and skips member loading for $label', ({ options }) => {
-    const { renderer, room } = renderPrompt({ membersLoaded: false, ...options });
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
-    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
-    expect(room.getMembers).not.toHaveBeenCalled();
+  ])(
+    'hides the moderator checkbox and still loads the member list for $label',
+    async ({ options }) => {
+      let resolveLoad: (loaded: boolean) => void = () => undefined;
+      const { renderer, room } = renderPrompt({
+        membersLoaded: false,
+        loadMembersIfNeeded: () =>
+          new Promise<boolean>((resolve) => {
+            resolveLoad = resolve;
+          }),
+        ...options,
+      });
+      expect(findModeratorCheckbox(renderer)).toBeUndefined();
+      expect(room.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+      // Maya has posted nothing lately, so the lazy-loaded room does not know her yet.
+      expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+
+      // The member list arrives without a membership event of its own.
+      room.state.members.push({ userId: '@maya:example.org', membership: 'join' });
+      room.state.membersLoaded = true;
+      await act(async () => {
+        resolveLoad(true);
+        await settle();
+      });
+
+      expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
+      expect(getRowByText(renderer, 'Liam Park')).toBeDefined();
+      typeSearch(renderer, '@maya:example.org');
+      expect(extractText(getDialog(renderer))).toContain('Already in this room');
+      expect(findModeratorCheckbox(renderer)).toBeUndefined();
+      expect(room.getMembers).not.toHaveBeenCalled();
+    }
+  );
+
+  it('drops members who arrive with the lazy-loaded list before the search limits its results', async () => {
+    const people: ServerUserDirectoryUser[] = [
+      { userId: '@alpha:example.org', displayName: 'Alpha' },
+      ...Array.from({ length: 8 }, (_, index) => ({
+        userId: `@alpha_${index}:example.org`,
+        displayName: `Alpha Person ${index}`,
+      })),
+    ];
+    let resolveLoad: (loaded: boolean) => void = () => undefined;
+    const { renderer, room } = renderPrompt({
+      cache: readyCache(people),
+      membersLoaded: false,
+      loadMembersIfNeeded: () =>
+        new Promise<boolean>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    });
+
+    typeSearch(renderer, 'alpha');
+    expect(getRows(renderer)).toHaveLength(8);
+    expect(getRowByText(renderer, '@alpha:example.org')).toBeDefined();
+
+    room.state.members.push({ userId: '@alpha:example.org', membership: 'join' });
+    room.state.membersLoaded = true;
+    await act(async () => {
+      resolveLoad(true);
+      await settle();
+    });
+
+    expect(getRowByText(renderer, '@alpha:example.org')).toBeUndefined();
+    expect(getRows(renderer)).toHaveLength(8);
   });
 
   it('keeps the invite (Invited button) and shows a non-blocking error when granting moderator rights fails', async () => {
     const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
     focusInput.mockClear();
 
     typeSearch(renderer, '@mindroom_helper:example.org');
     await pressKeyInSearch(renderer, 'Enter');
 
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
     expect(getSearchInput(renderer).props.value).toBe('');
     expect(focusInput).toHaveBeenCalled();
     expect(textContentByRole(renderer, 'status')).toBe('');
@@ -1152,7 +1328,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     room.state.membersLoaded = true;
     await act(async () => {
       resolveLoad(true);
-      await Promise.resolve();
+      await settle();
     });
     expect(room.getMembers).toHaveBeenCalledTimes(1);
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
@@ -1174,12 +1350,12 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
 
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
   });
 
   it('derives the default from live state once a previous grant syncs and that agent leaves', async () => {
     const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.setPowerLevel).mockImplementationOnce(async () => {
+    vi.mocked(mx.sendStateEvent).mockImplementationOnce(async () => {
       room.state.members = [{ userId: '@mindroom_helper:example.org', membership: 'invite' }];
       room.state.powerLevels = {
         ...room.state.powerLevels,
@@ -1228,15 +1404,13 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await act(async () => {
       finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
     });
 
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
   });
 
-  it('re-reads live power levels before writing and skips setPowerLevel if target was already promoted', async () => {
+  it('re-reads live power levels before writing and writes nothing if target was already promoted', async () => {
     const { renderer, mx, room } = renderPrompt();
     vi.mocked(mx.invite).mockImplementationOnce(async () => {
       room.state.powerLevels = {
@@ -1249,7 +1423,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
 
     expect(mx.invite).toHaveBeenCalledTimes(1);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 
   it('allows a room v12 creator with no explicit user power entry to grant moderator rights', async () => {
@@ -1266,7 +1440,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
     await clickRowInvite(renderer, 'Helper');
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
   });
 
   it('names Admin (100) in the checkbox label and help when the grant level is 100', () => {
@@ -1311,7 +1485,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       return {} as never;
     });
     await clickRowInvite(rising.renderer, 'Helper');
-    expect(rising.mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(rising.mx.sendStateEvent).not.toHaveBeenCalled();
     expect(textContentByRole(rising.renderer, 'alert')).toContain(
       'This room now requires Moderator (100) rights.'
     );
@@ -1328,7 +1502,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       .mockImplementationOnce(
         () => new Promise((resolve) => (finishSecond = () => resolve({} as never)))
       );
-    vi.mocked(mx.setPowerLevel)
+    vi.mocked(mx.sendStateEvent)
       .mockRejectedValueOnce(new Error('Forbidden 1'))
       .mockRejectedValueOnce(new Error('Forbidden 2'));
 
@@ -1343,11 +1517,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await act(async () => {
       finishFirst();
       finishSecond();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
     });
 
     expect(store.get(detachedGrantErrorAtom).map((item) => item.message)).toEqual([
@@ -1369,7 +1539,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
 
     expect(mx.invite).toHaveBeenCalledTimes(1);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
     expect(textContentByRole(renderer, 'alert')).toContain('Team 75');
   });
 
@@ -1393,12 +1563,10 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     };
     await act(async () => {
       finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await settle();
     });
 
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
     const notices = store.get(detachedGrantErrorAtom);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.message).toContain('@mindroom_helper:example.org');
@@ -1417,7 +1585,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await clickRowInvite(renderer, 'Helper');
 
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
     expect(textContentByRole(renderer, 'alert')).toContain("You don't have permission to do this.");
   });
 
@@ -1425,7 +1593,360 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     const { renderer, mx, room } = renderPrompt({ roomVersion: '10' });
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
     await clickRowInvite(renderer, 'Helper');
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    expectGrant(mx, room, '@mindroom_helper:example.org', 50);
+  });
+
+  it('gives an invite note to the invite it was written for only, also while that invite is pending', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    writeNote(renderer, '  For Maya only  ');
+
+    const finishMaya = holdNextInvite(mx);
+    await clickRowInvite(renderer, 'Maya Chen');
+    // The note left with Maya's invite at once.
+    expect(getNoteInput(renderer).props.value).toBe('');
+
+    await clickRowInvite(renderer, 'Liam Park');
+    await finishMaya();
+
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+    expect(mx.invite).toHaveBeenNthCalledWith(1, room.roomId, '@maya:example.org', 'For Maya only');
+    expect(mx.invite).toHaveBeenNthCalledWith(2, room.roomId, '@liam:example.org', undefined);
+    expect(getNoteInput(renderer).props.value).toBe('');
+  });
+
+  it('gives the note to the first of two invites started before the next render', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    writeNote(renderer, 'For Maya only');
+
+    await act(async () => {
+      getRowActionButton(getRowByText(renderer, 'Maya Chen')!).props.onClick();
+      getRowActionButton(getRowByText(renderer, 'Liam Park')!).props.onClick();
+      await settle();
+    });
+
+    expect(mx.invite).toHaveBeenNthCalledWith(1, room.roomId, '@maya:example.org', 'For Maya only');
+    expect(mx.invite).toHaveBeenNthCalledWith(2, room.roomId, '@liam:example.org', undefined);
+  });
+
+  it('keeps a failed invite’s note for its retry and never passes it on to the next person', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    writeNote(renderer, 'For Maya only');
+
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Retry');
+    expect(getNoteInput(renderer).props.value).toBe('');
+
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Invited');
+    await clickRowInvite(renderer, 'Liam Park');
+
+    expect(mx.invite).toHaveBeenCalledTimes(3);
+    expect(mx.invite).toHaveBeenNthCalledWith(1, room.roomId, '@maya:example.org', 'For Maya only');
+    expect(mx.invite).toHaveBeenNthCalledWith(2, room.roomId, '@maya:example.org', 'For Maya only');
+    expect(mx.invite).toHaveBeenNthCalledWith(3, room.roomId, '@liam:example.org', undefined);
+  });
+
+  it('leaves a draft typed while an invite is pending alone, on success and on a retry', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    writeNote(renderer, 'For Maya');
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
+    await clickRowInvite(renderer, 'Maya Chen');
+
+    writeNote(renderer, 'Draft for Liam');
+    const finishRetry = holdNextInvite(mx);
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(getNoteInput(renderer).props.value).toBe('Draft for Liam');
+    writeNote(renderer, 'Draft for Liam, longer');
+    await finishRetry();
+
+    expect(mx.invite).toHaveBeenNthCalledWith(2, room.roomId, '@maya:example.org', 'For Maya');
+    expect(getNoteInput(renderer).props.value).toBe('Draft for Liam, longer');
+  });
+
+  it('counts nothing and offers the invite again when /sync delivers the invite and its decline before the invite call returns', async () => {
+    const { renderer, mx, room } = renderPrompt({ joinedCount: 2, invitedCount: 0 });
+    const finishInvite = holdNextInvite(mx);
+    await clickRowInvite(renderer, 'Maya Chen');
+
+    room.state.invitedCount = 1;
+    emitMembership(mx, room, '@maya:example.org', 'invite');
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+    room.state.invitedCount = 0;
+    emitMembership(mx, room, '@maya:example.org', 'leave');
+    expect(getSubtitle(renderer)).toBe('2 Members');
+
+    await finishInvite();
+
+    // No phantom invite in the header, and Maya is not held back as already invited.
+    expect(getSubtitle(renderer)).toBe('2 Members');
+    const mayaRow = getRowByText(renderer, 'Maya Chen')!;
+    expect(extractText(getRowActionButton(mayaRow))).toBe('Invite');
+    expect(getRowActionButton(mayaRow).props['aria-disabled']).toBe(false);
+
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+
+    typeSearch(renderer, '@liam:example.org');
+    typeSearch(renderer, '');
+    emitMembership(mx, room, '@maya:example.org', 'leave');
+    typeSearch(renderer, '@maya:example.org');
+    expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+  });
+
+  it('offers the invite again once an invitee declines after the invite call returned', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    await clickRowInvite(renderer, 'Maya Chen');
+    emitMembership(mx, room, '@maya:example.org', 'invite');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Invited');
+
+    emitMembership(mx, room, '@maya:example.org', 'leave');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Invite');
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+  });
+
+  it('never counts an invite twice when the room summary arrives before the invite call returns', async () => {
+    const { renderer, mx, room } = renderPrompt({ joinedCount: 2, invitedCount: 0 });
+    const finishInvite = holdNextInvite(mx);
+    await clickRowInvite(renderer, 'Maya Chen');
+
+    act(() => {
+      room.state.invitedCount = 1;
+      room.emit('Room.Summary', {});
+    });
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+
+    await finishInvite();
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+
+    // The member event has not arrived yet: a second invite stays blocked.
+    typeSearch(renderer, '@maya:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Already invited');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+  });
+
+  it('never counts an invite twice when the room summary arrives after the invite call returned', async () => {
+    const { renderer, mx, room } = renderPrompt({ joinedCount: 2, invitedCount: 0 });
+    await clickRowInvite(renderer, 'Maya Chen');
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+
+    act(() => {
+      room.state.invitedCount = 1;
+      room.emit('Room.Summary', {});
+    });
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+
+    emitMembership(mx, room, '@maya:example.org', 'invite');
+    expect(getSubtitle(renderer)).toBe('2 Members · 1 Invited');
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a user invited here from the search before it limits its results to eight', async () => {
+    const people: ServerUserDirectoryUser[] = [
+      { userId: '@alpha:example.org', displayName: 'Alpha' },
+      ...Array.from({ length: 8 }, (_, index) => ({
+        userId: `@alpha_${index}:example.org`,
+        displayName: `Alpha Person ${index}`,
+      })),
+    ];
+    const { renderer } = renderPrompt({ cache: readyCache(people) });
+
+    typeSearch(renderer, 'alpha');
+    expect(getRows(renderer)).toHaveLength(8);
+    expect(getRowByText(renderer, '@alpha:example.org')).toBeDefined();
+
+    // Invited from the directory, and not in the synced room state yet.
+    typeSearch(renderer, '');
+    await clickRowInvite(renderer, '@alpha:example.org');
+
+    typeSearch(renderer, 'alpha');
+    expect(getRowByText(renderer, '@alpha:example.org')).toBeUndefined();
+    const shown = getRows(renderer).map(extractText);
+    expect(shown).toHaveLength(8);
+    for (let index = 0; index < 8; index += 1) {
+      expect(shown.some((text) => text.includes(`Alpha Person ${index}`))).toBe(true);
+    }
+  });
+
+  it('wraps an unlisted Matrix ID whole instead of truncating it, also on its Retry row', async () => {
+    const longId = `@${'someone.with.a.very.long.localpart'.repeat(2)}:matrix.example.org`;
+    const { renderer, mx } = renderPrompt();
+    const nameOf = (row: ReactTestInstance) =>
+      row
+        .find((node) => node.type === 'div' && node.props.className === 'InviteNameLine')
+        .find((node) => node.type === 'span' && typeof node.props.title === 'string');
+
+    const listedName = nameOf(getRowByText(renderer, 'Maya Chen')!);
+    const truncating = String(listedName.props.className)
+      .split(' ')
+      .filter((name) => name.length > 0);
+    expect(truncating).not.toContain('InviteNameWrap');
+
+    typeSearch(renderer, longId);
+    const unlistedName = nameOf(getRowByText(renderer, 'External Matrix ID')!);
+    expect(extractText(unlistedName)).toBe(longId);
+    const wrapping = String(unlistedName.props.className).split(' ');
+    expect(wrapping).toContain('InviteNameWrap');
+    // The listed name carries folds' truncating class; the unlisted one must not.
+    const truncateOnly = truncating.filter((name) => !wrapping.includes(name));
+    expect(truncateOnly.length).toBeGreaterThan(0);
+
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
+    await pressKeyInSearch(renderer, 'Enter');
+    const retryRow = getRowByText(renderer, longId)!;
+    expect(extractText(getRowActionButton(retryRow))).toBe('Retry');
+    expect(String(nameOf(retryRow).props.className).split(' ')).toContain('InviteNameWrap');
+  });
+
+  it('isolates the room name once in Arabic, whose catalog isolates the placeholder itself', async () => {
+    const template = arAdditions.sharedUi.inviteUserPrompt.inviteToRoom;
+    expect(template).toContain('\u2068{{room}}\u2069');
+    i18next.addResourceBundle('ar', 'translation', arAdditions, true, true);
+    await act(async () => {
+      await i18next.changeLanguage('ar');
+    });
+    try {
+      const { renderer } = renderPrompt({ name: 'Design Review' });
+      const heading = extractText(renderer.root.findByProps({ id: 'invite-user-prompt-title' }));
+      expect(heading).toBe(template.replace('{{room}}', 'Design Review'));
+      expect(heading.split('\u2068')).toHaveLength(2);
+      expect(heading.split('\u2069')).toHaveLength(2);
+    } finally {
+      await act(async () => {
+        await i18next.changeLanguage('en');
+      });
+      i18next.removeResourceBundle('ar', 'translation');
+    }
+  });
+
+  it('follows a rename of the room in the heading while the sheet is open', () => {
+    const { renderer, room } = renderPrompt({ name: 'Design Review' });
+    const heading = () =>
+      extractText(renderer.root.findByProps({ id: 'invite-user-prompt-title' }));
+    expect(heading()).toBe('Invite to \u2068Design Review\u2069');
+
+    act(() => {
+      room.name = 'Design Critique';
+      room.emit('Room.name', room);
+    });
+    expect(heading()).toBe('Invite to \u2068Design Critique\u2069');
+  });
+
+  it('says the inline hint in a status region, and asks for a valid ID on Enter only when the text is no search with matches', async () => {
+    const { renderer, mx } = renderPrompt({
+      members: [{ userId: '@joined:example.org', membership: 'join' }],
+    });
+    const hintRegion = () =>
+      renderer.root.find((node) => node.type === 'div' && node.props.className === 'InviteListArea')
+        .children[0] as ReactTestInstance;
+    expect(hintRegion().props.role).toBe('status');
+    expect(extractText(hintRegion())).toBe('');
+
+    typeSearch(renderer, '@joined:example.org');
+    expect(extractText(hintRegion())).toBe('Already in this room');
+
+    // Plain text that finds people is a search: Enter says nothing.
+    typeSearch(renderer, 'maya');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+    const preventDefault = await pressKeyInSearch(renderer, 'Enter');
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(extractText(hintRegion())).toBe('');
+
+    // An unfinished ID is a mistake, also while it lists matches.
+    typeSearch(renderer, '@maya');
+    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(extractText(hintRegion())).toBe('Please enter a valid User ID.');
+
+    typeSearch(renderer, 'qqqqzzzz');
+    expect(extractText(hintRegion())).toBe('');
+    expect(getRows(renderer)).toHaveLength(0);
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(extractText(hintRegion())).toBe('Please enter a valid User ID.');
+    expect(mx.invite).not.toHaveBeenCalled();
+  });
+
+  it('announces every invite that finishes, two at once included, and keeps them when a grant fails', async () => {
+    const { renderer, mx } = renderPrompt();
+    const announcementRegion = () =>
+      renderer.root.find(
+        (node) => node.type === 'div' && node.props.className === 'InviteVisuallyHidden'
+      );
+    const lines = () => announcementRegion().findAllByType('p').map(extractText);
+    expect(announcementRegion().props.role).toBe('status');
+    expect(announcementRegion().props['aria-atomic']).toBe('false');
+
+    let finishMaya: () => void = () => undefined;
+    let finishLiam: () => void = () => undefined;
+    vi.mocked(mx.invite)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishMaya = () => resolve({} as never)))
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (finishLiam = () => resolve({} as never)))
+      );
+    await clickRowInvite(renderer, 'Maya Chen');
+    await clickRowInvite(renderer, 'Liam Park');
+    expect(lines()).toEqual([]);
+
+    await act(async () => {
+      finishMaya();
+      finishLiam();
+      await settle();
+    });
+    expect(lines()).toEqual(['Invited @maya:example.org.', 'Invited @liam:example.org.']);
+
+    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Forbidden'));
+    await clickRowInvite(renderer, 'Helper');
+    expect(textContentByRole(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
+    expect(lines()).toEqual(['Invited @maya:example.org.', 'Invited @liam:example.org.']);
+
+    await clickRowInvite(renderer, 'Coder');
+    expect(lines()).toEqual([
+      'Invited @maya:example.org.',
+      'Invited @liam:example.org.',
+      'Invited @mindroom_coder:example.org.',
+    ]);
+  });
+
+  it('pins rows invited with Enter newest first, in a named list, and keeps that order across filters', async () => {
+    const { renderer, mx } = renderPrompt();
+    vi.mocked(mx.invite).mockRejectedValue(new Error('Network down'));
+    const pinnedIds = () =>
+      getRows(renderer)
+        .slice(0, 3)
+        .map((row) => extractText(row).match(/@\w+:other\.org/)?.[0]);
+
+    for (const userId of ['@first:other.org', '@second:other.org', '@third:other.org']) {
+      typeSearch(renderer, userId);
+      await pressKeyInSearch(renderer, 'Enter');
+    }
+    expect(pinnedIds()).toEqual(['@third:other.org', '@second:other.org', '@first:other.org']);
+
+    const lists = renderer.root.findAll(
+      (node) => node.type === 'ul' && node.props.className === 'InviteList'
+    );
+    expect(lists[0]!.props['aria-label']).toBe('Invite');
+    expect(lists[0]!.findAllByType('li')).toHaveLength(3);
+    // The sections below take their names from their headings.
+    lists.slice(1).forEach((list) => {
+      expect(list.props['aria-label']).toBeUndefined();
+      expect(list.props['aria-labelledby']).toEqual(expect.any(String));
+    });
+
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
+    expect(pinnedIds()).toEqual(['@third:other.org', '@second:other.org', '@first:other.org']);
+
+    act(() => {
+      getFilterButton(renderer, 'All').props.onClick();
+    });
+    expect(pinnedIds()).toEqual(['@third:other.org', '@second:other.org', '@first:other.org']);
   });
 
   it('renders multiple queued detached grant failure notices and dismisses them individually', () => {

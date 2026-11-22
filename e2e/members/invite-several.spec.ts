@@ -55,7 +55,10 @@ const inviteTwoInOneDialog = async (page: Page, name: string) => {
     await field.fill(userId);
     // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
     await field.press('Enter');
-    await expect(dialog.getByRole('status')).toContainText(userId, { timeout: 15_000 });
+    // The sheet has a second status region, for hints about the typed ID.
+    await expect(dialog.getByRole('status').filter({ hasText: userId })).toHaveCount(1, {
+      timeout: 15_000,
+    });
   };
   await invite(first.userId);
   // Still open, with an empty field that has the focus for the next person.

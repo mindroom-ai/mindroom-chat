@@ -54,6 +54,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
+import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { getMxIdLocalPart, isUserId } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
@@ -112,9 +113,28 @@ type Attempts = {
   byUser: Record<string, Attempt>;
 };
 
+/**
+ * One call of `client.invite` from the moment it starts, so room updates that arrive before its
+ * response still count: `/sync` can deliver the invite (and the invitee's answer) first.
+ */
+type Submission = {
+  membershipSeen: boolean;
+  summarySeen: boolean;
+};
+
+type Announcement = {
+  id: number;
+  text: string;
+};
+
 const TITLE_ID = 'invite-user-prompt-title';
+/** First strong isolate and pop directional isolate: text between them keeps its own direction. */
+const FSI = '\u2068';
+const PDI = '\u2069';
 const ROW_ACTION_ATTRIBUTE = 'data-invite-row-action';
 const BROWSE_DIRECTORY_LIMIT = 100;
+// Far more than can finish in one render; older lines have been read out by then.
+const ANNOUNCEMENT_LIMIT = 20;
 const FILTERS: readonly InviteFilter[] = ['all', 'people', 'agents'];
 
 const FILTER_LABEL_KEY: Record<
@@ -170,10 +190,13 @@ const mergeAttemptsIntoRows = (
   );
   [...attempts]
     .sort((a, b) => a.index - b.index)
-    .forEach((attempt) => {
+    .forEach((attempt, order) => {
       const listedUser = knownUsers?.get(attempt.user.userId);
       const row: InviteRow = listedUser ? { ...attempt, user: listedUser, listed: true } : attempt;
-      rows.splice(Math.min(attempt.index, rows.length), 0, row);
+      // Never before an attempt that sorts earlier: rows pinned by Enter have negative indices,
+      // and two attempts can share one.
+      const position = Math.min(Math.max(attempt.index, order), rows.length);
+      rows.splice(position, 0, row);
     });
   return rows;
 };
@@ -204,6 +227,15 @@ const isReflectedMembership = (membership: string | undefined): boolean =>
   membership === KnownMembership.Invite ||
   membership === KnownMembership.Join ||
   membership === KnownMembership.Ban;
+
+const withUser = (users: ReadonlySet<string>, userId: string): ReadonlySet<string> =>
+  users.has(userId) ? users : new Set(users).add(userId);
+
+const withoutAttempt = (
+  byUser: Readonly<Record<string, Attempt>>,
+  userId: string
+): Record<string, Attempt> =>
+  Object.fromEntries(Object.entries(byUser).filter(([attemptId]) => attemptId !== userId));
 
 function InviteDirectoryRow({
   row,
@@ -266,7 +298,14 @@ function InviteDirectoryRow({
       </Avatar>
       <div className={css.Identity}>
         <div className={css.NameLine}>
-          <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
+          <Text
+            as="span"
+            size="T300"
+            truncate={listed}
+            className={listed ? undefined : css.NameWrap}
+            title={name}
+            {...ownDirectionLine}
+          >
             {name}
           </Text>
           {isAgent && (
@@ -326,18 +365,20 @@ function RowList({
   rows,
   viewerId,
   authenticatedMedia,
+  ariaLabel,
   ariaLabelledBy,
   onInvite,
 }: {
   rows: readonly InviteRow[];
   viewerId: string;
   authenticatedMedia: boolean;
+  ariaLabel?: string;
   ariaLabelledBy?: string;
   onInvite: (row: InviteRow, index: number) => void;
 }) {
   if (rows.length === 0) return null;
   return (
-    <ul className={css.List} aria-labelledby={ariaLabelledBy}>
+    <ul className={css.List} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy}>
       {rows.map((row, index) => (
         <InviteDirectoryRow
           key={row.user.userId}
@@ -377,31 +418,46 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(new Set<string>());
+  const submissionsRef = useRef(new Map<string, Submission>());
+  // The note as last typed, read when an invite starts: two invites started before the next
+  // render must not both take it.
+  const noteRef = useRef('');
+  const pinOrderRef = useRef(0);
+  const announcementIdRef = useRef(0);
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<InviteFilter>('all');
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const [grantOverride, setGrantOverride] = useState<boolean>();
-  const [announcement, setAnnouncement] = useState('');
+  const [announcements, setAnnouncements] = useState<readonly Announcement[]>([]);
   const [enterHint, setEnterHint] = useState<string>();
+  // Invited here and not yet in the synced room state: kept out of the lists, so nobody is invited
+  // twice before /sync.
   const [pendingSyncInvited, setPendingSyncInvited] = useState<ReadonlySet<string>>(
     () => new Set()
   );
+  // Of those, the ones the room's invited count cannot hold yet: each adds one to the header.
+  const [optimisticInvited, setOptimisticInvited] = useState<ReadonlySet<string>>(() => new Set());
   const [rosterVersion, bumpRoster] = useForceUpdate();
+  // With lazy-loaded members the room knows only the members whose events it has seen; without
+  // the full list a joined member would be offered an invite.
+  const memberLoads = useLoadedRoomMembers(client, [room.roomId]);
 
   const trimmedQuery = query.trim();
   const viewKey = `${filter}|${trimmedQuery}`;
   const [attempts, setAttempts] = useState<Attempts>({ viewKey, byUser: {} });
 
-  // Filter before ranking, limiting, and server-fallback threshold so 8 people never crowd out agents.
-  const searchPredicate = useMemo(
-    () =>
-      filter === 'all'
-        ? undefined
-        : (user: ServerUserDirectoryUser) => matchesFilter(user.userId, filter, me),
-    [filter, me]
-  );
+  // Filter before ranking, limiting, and server-fallback threshold so 8 people never crowd out
+  // agents and 8 just-invited users never hide a ninth match. A new predicate on every roster
+  // change makes the search drop members who joined or arrived with the member list before it
+  // limits, too.
+  const searchPredicate = useMemo(() => {
+    void rosterVersion;
+    void memberLoads;
+    return (user: ServerUserDirectoryUser) =>
+      !pendingSyncInvited.has(user.userId) && matchesFilter(user.userId, filter, me);
+  }, [filter, me, pendingSyncInvited, rosterVersion, memberLoads]);
   const { suggestions, isFetching } = useInviteUserSearch(room, trimmedQuery, searchPredicate);
 
   // Room-level moderator grant offer for MindRoom agents (always visible when offered so consent
@@ -412,33 +468,48 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const showGrantCheckbox = canOfferRoomGrant;
   const membersLoaded = room.membersLoaded();
 
-  const memberLoads = useLoadedRoomMembers(client, canOfferRoomGrant ? [room.roomId] : []);
   useEffect(() => {
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
       if ((event?.getRoomId() ?? member?.roomId) !== room.roomId) return;
       const memberId = member?.userId ?? event?.getStateKey?.();
-      setPendingSyncInvited((current) => {
+      // The room state speaks for this user from here on, also when the invite's own response
+      // is still on its way.
+      const submission = memberId ? submissionsRef.current.get(memberId) : undefined;
+      if (submission) submission.membershipSeen = true;
+      const settle = (current: ReadonlySet<string>): ReadonlySet<string> => {
         if (current.size === 0) return current;
-        let changed = false;
         const next = new Set(current);
-        if (memberId && next.delete(memberId)) changed = true;
+        if (memberId) next.delete(memberId);
         current.forEach((userId) => {
-          if (isReflectedMembership(room.getMember(userId)?.membership) && next.delete(userId)) {
-            changed = true;
-          }
+          if (isReflectedMembership(room.getMember(userId)?.membership)) next.delete(userId);
         });
-        return changed ? next : current;
-      });
+        return next.size === current.size ? current : next;
+      };
+      setPendingSyncInvited(settle);
+      setOptimisticInvited(settle);
+      if (memberId && !isReflectedMembership(room.getMember(memberId)?.membership)) {
+        // The invitee declined or was removed: the row offers the invite again.
+        setAttempts((current) =>
+          current.byUser[memberId]?.state.status === 'invited'
+            ? { ...current, byUser: withoutAttempt(current.byUser, memberId) }
+            : current
+        );
+      }
       bumpRoster();
     };
     const onSummary = () => {
+      // The room's own invited count is current again; a pending invite on top would count twice.
+      submissionsRef.current.forEach((submission) => {
+        submission.summarySeen = true;
+      });
+      setOptimisticInvited((current) => (current.size === 0 ? current : new Set()));
       bumpRoster();
     };
     client.on(RoomMemberEvent.Membership, onMembership);
-    room.on?.(RoomEvent.Summary, onSummary);
+    room.on(RoomEvent.Summary, onSummary);
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
-      room.removeListener?.(RoomEvent.Summary, onSummary);
+      room.removeListener(RoomEvent.Summary, onSummary);
     };
   }, [client, room, bumpRoster]);
 
@@ -459,19 +530,20 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const isInvitable = useCallback(
     (userId: string): boolean => {
       void rosterVersion;
+      void memberLoads;
       return (
         !pendingSyncInvited.has(userId) &&
         filterInviteUserCandidates([{ userId }], room, me).length > 0
       );
     },
-    [pendingSyncInvited, room, me, rosterVersion]
+    [pendingSyncInvited, room, me, rosterVersion, memberLoads]
   );
 
   // Live header counts: reflect pending session invites until authoritative room state syncs.
   const { joinedCount, displayInvitedCount } = useMemo(() => {
     void rosterVersion;
     let unreflectedPending = 0;
-    pendingSyncInvited.forEach((userId) => {
+    optimisticInvited.forEach((userId) => {
       if (!isReflectedMembership(room.getMember(userId)?.membership)) {
         unreflectedPending += 1;
       }
@@ -480,12 +552,18 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       joinedCount: room.getJoinedMemberCount(),
       displayInvitedCount: room.getInvitedMemberCount() + unreflectedPending,
     };
-  }, [room, rosterVersion, pendingSyncInvited]);
+  }, [room, rosterVersion, optimisticInvited]);
 
-  const roomName = room.name?.trim();
-  // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading.
+  const roomName = useRoomName(room).trim();
+  // Isolate roomName so an RTL room name never flips an LTR "Invite to ..." heading. A
+  // right-to-left catalog isolates every placeholder itself (localeAdditions.test.ts), and one
+  // pair of isolates is enough.
+  const isolatedRoomName = `${FSI}${roomName}${PDI}`;
   const title = roomName
-    ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: `\u2068${roomName}\u2069` })
+    ? t('sharedUi.inviteUserPrompt.inviteToRoom', { room: isolatedRoomName }).replace(
+        `${FSI}${isolatedRoomName}${PDI}`,
+        isolatedRoomName
+      )
     : t('sharedUi.inviteUserPrompt.invite');
   const membersLabel = t('featureUi.room.membersDrawer.memberCount', { count: joinedCount });
   const subtitle =
@@ -531,10 +609,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
   const eligibleLocalUsers = useMemo(() => {
     void rosterVersion;
+    void memberLoads;
     return filterInviteUserCandidates(allLocalUsers, room, me).filter(
       (user) => !pendingSyncInvited.has(user.userId)
     );
-  }, [allLocalUsers, room, me, rosterVersion, pendingSyncInvited]);
+  }, [allLocalUsers, room, me, rosterVersion, memberLoads, pendingSyncInvited]);
 
   // Memoize sorting separately from note/attempt edits so typing never re-sorts a large directory.
   const sortedBrowse = useMemo(() => {
@@ -566,6 +645,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   let directRows: InviteRow[] = [];
   let directoryRows: InviteRow[] = [];
   let flatRows: InviteRow[] = [];
+  let searchMatchCount = 0;
 
   if (showSections) {
     // Deduplicate all attempted MXIDs across every section before spending the 100-row budget.
@@ -603,9 +683,11 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       .map((user) => ({ user, listed: true, section: 'directory' }));
     flatRows = mergeAttemptsIntoRows(filteredBrowse, allAttempts, knownUsersMap);
   } else {
-    const filteredSuggestions: Candidate[] = suggestions
-      .filter((user) => !pendingSyncInvited.has(user.userId))
-      .map((user) => ({ user, listed: true, section: 'search' }));
+    const filteredSuggestions: Candidate[] = suggestions.map((user) => ({
+      user,
+      listed: true,
+      section: 'search',
+    }));
     const typedEligible =
       isUserId(trimmedQuery) &&
       isInvitable(trimmedQuery) &&
@@ -619,6 +701,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const searchCandidates: Candidate[] = typedCandidate
       ? [typedCandidate, ...filteredSuggestions]
       : filteredSuggestions;
+    searchMatchCount = searchCandidates.length;
     flatRows = mergeAttemptsIntoRows(searchCandidates, allAttempts, knownUsersMap);
   }
 
@@ -640,6 +723,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
   }
   const activeHint = nonInvitableHint ?? enterHint;
+  const hasSearchMatches = searchMatchCount > 0;
 
   const totalVisibleRows = showSections
     ? pinnedRows.length + directRows.length + directoryRows.length
@@ -655,6 +739,19 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         byUser: { ...current.byUser, [userId]: { ...attempt, state } },
       };
     });
+  };
+
+  const updateNote = (value: string) => {
+    noteRef.current = value;
+    setNote(value);
+  };
+
+  // Every finished invite gets a line of its own in the live region, so two that finish together
+  // are both read out and nothing else clears them.
+  const announce = (text: string) => {
+    announcementIdRef.current += 1;
+    const entry: Announcement = { id: announcementIdRef.current, text };
+    setAnnouncements((current) => [...current, entry].slice(-ANNOUNCEMENT_LIMIT));
   };
 
   const inviteUser = async (
@@ -674,10 +771,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       return;
     }
 
-    const isRetry = existingState?.status === 'failed';
-    const submittedNote = !isRetry && noteOpen ? note : '';
-    const reason = isRetry ? existingAttempt?.reason : submittedNote.trim() || undefined;
-    const shouldClearNote = !isRetry && reason !== undefined;
+    // A new invite takes the note with it at once, so the next person invited never gets it, also
+    // when this invite is still pending or fails. A retry sends the note its attempt took and
+    // leaves the draft alone.
+    let reason: string | undefined;
+    if (existingState?.status === 'failed') {
+      reason = existingAttempt?.reason;
+    } else if (noteOpen) {
+      reason = noteRef.current.trim() || undefined;
+      if (reason !== undefined) updateNote('');
+    }
 
     const targetOffer = grantModerator
       ? evaluateModeratorGrant(room, targetId, me, levels, creators)
@@ -685,10 +788,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
+    const submission: Submission = { membershipSeen: false, summarySeen: false };
+    submissionsRef.current.set(targetId, submission);
     setEnterHint(undefined);
 
     if (options?.clearQuery) {
       const nextViewKey = `${filter}|`;
+      // Below every index a carried-over row has, and below the last pinned one: the newest
+      // pinned row leads, and no two share a place.
+      pinOrderRef.current -= 1;
+      const pinnedIndex = pinOrderRef.current;
       setQuery('');
       setAttempts((current) => ({
         viewKey: nextViewKey,
@@ -697,7 +806,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
           [targetId]: {
             ...candidate,
             section: 'search',
-            index: 0,
+            index: pinnedIndex,
             reason,
             state: { status: 'inviting' },
           },
@@ -732,17 +841,18 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         return;
       }
 
-      if (alive()) {
-        if (!isReflectedMembership(room.getMember(targetId)?.membership)) {
-          setPendingSyncInvited((current) => {
-            if (current.has(targetId)) return current;
-            const next = new Set(current);
-            next.add(targetId);
-            return next;
-          });
-        }
-        if (shouldClearNote) {
-          setNote((current) => (current === submittedNote ? '' : current));
+      // Only an invite the room state has not answered yet is tracked here. Once a membership
+      // event for the invitee arrived (the invite, or already their answer to it), the room state
+      // is the truth, and tracking a decline as pending would count it and block a new invite.
+      if (
+        alive() &&
+        !submission.membershipSeen &&
+        !isReflectedMembership(room.getMember(targetId)?.membership)
+      ) {
+        setPendingSyncInvited((current) => withUser(current, targetId));
+        // A room summary since the invite started may hold this invite in its count already.
+        if (!submission.summarySeen) {
+          setOptimisticInvited((current) => withUser(current, targetId));
         }
       }
 
@@ -752,7 +862,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         if (failure) {
           const message = formatGrantFailure(failure, targetId, grantCeiling, tags, t);
           if (alive()) {
-            setAnnouncement('');
             updateAttemptState(targetId, { status: 'grantFailed', message });
           } else if (client.clientRunning !== false) {
             store.set(detachedGrantErrorAtom, (current) => [
@@ -765,10 +874,21 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       }
 
       if (alive()) {
-        updateAttemptState(targetId, { status: 'invited' });
-        setAnnouncement(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
+        const answered =
+          submission.membershipSeen && !isReflectedMembership(room.getMember(targetId)?.membership);
+        if (answered) {
+          // Invited and already declined or removed: the row offers the invite again.
+          setAttempts((current) => ({
+            ...current,
+            byUser: withoutAttempt(current.byUser, targetId),
+          }));
+        } else {
+          updateAttemptState(targetId, { status: 'invited' });
+        }
+        announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
       }
     } finally {
+      submissionsRef.current.delete(targetId);
       inFlightRef.current.delete(targetId);
     }
   };
@@ -811,7 +931,8 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             : { user: { userId: trimmedQuery }, listed: false, section: 'search' };
           void inviteUser(candidate, 0, { clearQuery: true });
         }
-      } else if (trimmedQuery.length > 0) {
+      } else if (trimmedQuery.startsWith('@') || (trimmedQuery.length > 0 && !hasSearchMatches)) {
+        // Plain text that lists matches is a search, not a mistyped ID.
         event.preventDefault();
         setEnterHint(t('featureUi.createChat.pleaseEnterAValidUserId'));
       }
@@ -834,11 +955,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter
-        className={
-          phone
-            ? classNames(modalCss.PhoneOverlayCenter, css.PhoneViewportCenter)
-            : modalCss.SafeOverlayCenter
-        }
+        className={classNames(
+          phone ? modalCss.PhoneOverlayCenter : modalCss.SafeOverlayCenter,
+          css.ViewportCenter
+        )}
       >
         <FocusTrap focusTrapOptions={dialogTrapOptions(inputRef, requestClose)}>
           <Dialog
@@ -869,204 +989,213 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
               </Button>
             </Header>
 
-            <div className={css.Controls}>
-              <Input
-                ref={inputRef}
-                className={css.SearchField}
-                type="search"
-                size="400"
-                variant="Background"
-                radii="400"
-                value={query}
-                onChange={handleQueryChange}
-                onKeyDown={handleInputKeyDown}
-                before={<Icon size="200" src={Icons.Search} />}
-                after={
-                  query ? (
-                    <IconButton
+            <div className={css.Body}>
+              <div className={css.Controls}>
+                <Input
+                  ref={inputRef}
+                  className={css.SearchField}
+                  type="search"
+                  size="400"
+                  variant="Background"
+                  radii="400"
+                  value={query}
+                  onChange={handleQueryChange}
+                  onKeyDown={handleInputKeyDown}
+                  before={<Icon size="200" src={Icons.Search} />}
+                  after={
+                    query ? (
+                      <IconButton
+                        type="button"
+                        size="300"
+                        radii="300"
+                        aria-label={t('mindroomUi.message-search.searchInput.clear')}
+                        onClick={handleClearSearch}
+                      >
+                        <Icon size="100" src={Icons.Cross} />
+                      </IconButton>
+                    ) : undefined
+                  }
+                  placeholder={t('sharedUi.inviteUserPrompt.searchPlaceholder')}
+                  aria-label={t('sharedUi.inviteUserPrompt.searchPlaceholder')}
+                  autoFocus
+                  autoComplete="off"
+                  spellCheck={false}
+                  data-1p-ignore
+                  data-lpignore="true"
+                  data-form-type="other"
+                />
+                <div
+                  role="group"
+                  aria-label={t('sharedUi.inviteUserPrompt.filterLabel')}
+                  className={css.FilterRow}
+                >
+                  {FILTERS.map((entry) => (
+                    <Chip
+                      key={entry}
                       type="button"
-                      size="300"
-                      radii="300"
-                      aria-label={t('mindroomUi.message-search.searchInput.clear')}
-                      onClick={handleClearSearch}
+                      className={css.FilterChip}
+                      variant={entry === filter ? 'Primary' : 'SurfaceVariant'}
+                      radii="Pill"
+                      aria-pressed={entry === filter}
+                      onClick={() => setFilter(entry)}
                     >
-                      <Icon size="100" src={Icons.Cross} />
-                    </IconButton>
-                  ) : undefined
-                }
-                placeholder={t('sharedUi.inviteUserPrompt.searchPlaceholder')}
-                aria-label={t('sharedUi.inviteUserPrompt.searchPlaceholder')}
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                data-1p-ignore
-                data-lpignore="true"
-                data-form-type="other"
-              />
-              <div
-                role="group"
-                aria-label={t('sharedUi.inviteUserPrompt.filterLabel')}
-                className={css.FilterRow}
-              >
-                {FILTERS.map((entry) => (
-                  <Chip
-                    key={entry}
-                    type="button"
-                    className={css.FilterChip}
-                    variant={entry === filter ? 'Primary' : 'SurfaceVariant'}
-                    radii="Pill"
-                    aria-pressed={entry === filter}
-                    onClick={() => setFilter(entry)}
-                  >
-                    <Text size="T200">{t(FILTER_LABEL_KEY[entry])}</Text>
-                  </Chip>
-                ))}
+                      <Text size="T200">{t(FILTER_LABEL_KEY[entry])}</Text>
+                    </Chip>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Arrow keys move focus between row actions and back up into the search field. */}
-            {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-            <div ref={listRef} className={css.ListArea} onKeyDown={handleListKeyDown}>
-              {activeHint && (
-                <Text as="p" size="T200" priority="300" className={css.InlineHint}>
-                  {activeHint}
-                </Text>
-              )}
+              {/* Arrow keys move focus between row actions and back up into the search field. */}
+              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+              <div ref={listRef} className={css.ListArea} onKeyDown={handleListKeyDown}>
+                {/* Always there, so a screen reader hears a hint that appears in it. */}
+                <div role="status">
+                  {activeHint && (
+                    <Text as="p" size="T200" priority="300" className={css.InlineHint}>
+                      {activeHint}
+                    </Text>
+                  )}
+                </div>
 
-              {showSections ? (
-                <>
+                {showSections ? (
+                  <>
+                    <RowList
+                      rows={pinnedRows}
+                      viewerId={me}
+                      authenticatedMedia={authenticatedMedia}
+                      ariaLabel={t('sharedUi.inviteUserPrompt.invite')}
+                      onInvite={handleRowInvite}
+                    />
+                    {directRows.length > 0 && (
+                      <>
+                        <Text
+                          as="h3"
+                          id={directHeadingId}
+                          size="L400"
+                          priority="300"
+                          className={css.SectionHeader}
+                        >
+                          {t('sharedUi.inviteUserPrompt.recentAndDirect')}
+                        </Text>
+                        <RowList
+                          rows={directRows}
+                          viewerId={me}
+                          authenticatedMedia={authenticatedMedia}
+                          ariaLabelledBy={directHeadingId}
+                          onInvite={handleRowInvite}
+                        />
+                      </>
+                    )}
+                    {directoryRows.length > 0 && (
+                      <>
+                        <Text
+                          as="h3"
+                          id={directoryHeadingId}
+                          size="L400"
+                          priority="300"
+                          className={css.SectionHeader}
+                        >
+                          {t('sharedUi.inviteUserPrompt.directory')}
+                        </Text>
+                        <RowList
+                          rows={directoryRows}
+                          viewerId={me}
+                          authenticatedMedia={authenticatedMedia}
+                          ariaLabelledBy={directoryHeadingId}
+                          onInvite={handleRowInvite}
+                        />
+                      </>
+                    )}
+                  </>
+                ) : (
                   <RowList
-                    rows={pinnedRows}
+                    rows={flatRows}
                     viewerId={me}
                     authenticatedMedia={authenticatedMedia}
                     onInvite={handleRowInvite}
                   />
-                  {directRows.length > 0 && (
-                    <>
-                      <Text
-                        as="h3"
-                        id={directHeadingId}
-                        size="L400"
-                        priority="300"
-                        className={css.SectionHeader}
-                      >
-                        {t('sharedUi.inviteUserPrompt.recentAndDirect')}
-                      </Text>
-                      <RowList
-                        rows={directRows}
-                        viewerId={me}
-                        authenticatedMedia={authenticatedMedia}
-                        ariaLabelledBy={directHeadingId}
-                        onInvite={handleRowInvite}
-                      />
-                    </>
-                  )}
-                  {directoryRows.length > 0 && (
-                    <>
-                      <Text
-                        as="h3"
-                        id={directoryHeadingId}
-                        size="L400"
-                        priority="300"
-                        className={css.SectionHeader}
-                      >
-                        {t('sharedUi.inviteUserPrompt.directory')}
-                      </Text>
-                      <RowList
-                        rows={directoryRows}
-                        viewerId={me}
-                        authenticatedMedia={authenticatedMedia}
-                        ariaLabelledBy={directoryHeadingId}
-                        onInvite={handleRowInvite}
-                      />
-                    </>
-                  )}
-                </>
-              ) : (
-                <RowList
-                  rows={flatRows}
-                  viewerId={me}
-                  authenticatedMedia={authenticatedMedia}
-                  onInvite={handleRowInvite}
-                />
-              )}
-
-              {(isDirectoryLoading || (isSearching && isFetching)) && (
-                <div className={css.FetchingRow}>
-                  <Spinner variant="Secondary" size="100" />
-                  {totalVisibleRows === 0 && (
-                    <Text as="span" size="T200" priority="300">
-                      {t('sharedUi.inviteUserAutocomplete.searching')}
-                    </Text>
-                  )}
-                </div>
-              )}
-
-              {!isDirectoryLoading &&
-                !(isSearching && isFetching) &&
-                totalVisibleRows === 0 &&
-                !activeHint && (
-                  <Text as="p" size="T200" priority="300" className={css.EmptyState}>
-                    {isSearching
-                      ? t('sharedUi.inviteUserPrompt.noMatches')
-                      : t('sharedUi.inviteUserPrompt.emptyDirectory')}
-                  </Text>
                 )}
-            </div>
 
-            <div className={css.Footer}>
-              <button
-                type="button"
-                className={css.NoteToggle}
-                aria-expanded={noteOpen}
-                aria-controls={noteOpen ? noteInputId : undefined}
-                onClick={() => setNoteOpen((open) => !open)}
-              >
-                <Text as="span" size="T200">
-                  {noteOpen
-                    ? t('sharedUi.inviteUserPrompt.hideNote')
-                    : t('sharedUi.inviteUserPrompt.addNote')}
-                </Text>
-              </button>
-              {noteOpen && (
-                <Input
-                  id={noteInputId}
-                  size="400"
-                  variant="Background"
-                  radii="300"
-                  value={note}
-                  onChange={(evt: ChangeEvent<HTMLInputElement>) => setNote(evt.target.value)}
-                  placeholder={t('sharedUi.inviteUserPrompt.notePlaceholder')}
-                  aria-label={t('sharedUi.inviteUserPrompt.notePlaceholder')}
-                  autoComplete="off"
-                />
-              )}
-              {showGrantCheckbox && (
-                <div className={css.ModeratorRow}>
-                  <label className={css.ModeratorLabel}>
-                    <Checkbox
-                      variant="Primary"
-                      size="200"
-                      checked={grantModerator}
-                      aria-describedby={moderatorHelpId}
-                      // folds leaves onChange out of its Checkbox type; the click toggles the choice.
-                      readOnly
-                      onClick={() => setGrantOverride(!grantModerator)}
-                    />
-                    <Text as="span" size="T300">
-                      {t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })}
+                {(isDirectoryLoading || (isSearching && isFetching)) && (
+                  <div className={css.FetchingRow}>
+                    <Spinner variant="Secondary" size="100" />
+                    {totalVisibleRows === 0 && (
+                      <Text as="span" size="T200" priority="300">
+                        {t('sharedUi.inviteUserAutocomplete.searching')}
+                      </Text>
+                    )}
+                  </div>
+                )}
+
+                {!isDirectoryLoading &&
+                  !(isSearching && isFetching) &&
+                  totalVisibleRows === 0 &&
+                  !activeHint && (
+                    <Text as="p" size="T200" priority="300" className={css.EmptyState}>
+                      {isSearching
+                        ? t('sharedUi.inviteUserPrompt.noMatches')
+                        : t('sharedUi.inviteUserPrompt.emptyDirectory')}
                     </Text>
-                  </label>
-                  <Text id={moderatorHelpId} size="T200" priority="300">
-                    {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
+                  )}
+              </div>
+
+              <div className={css.Footer}>
+                <button
+                  type="button"
+                  className={css.NoteToggle}
+                  aria-expanded={noteOpen}
+                  aria-controls={noteOpen ? noteInputId : undefined}
+                  onClick={() => setNoteOpen((open) => !open)}
+                >
+                  <Text as="span" size="T200">
+                    {noteOpen
+                      ? t('sharedUi.inviteUserPrompt.hideNote')
+                      : t('sharedUi.inviteUserPrompt.addNote')}
                   </Text>
-                </div>
-              )}
+                </button>
+                {noteOpen && (
+                  <Input
+                    id={noteInputId}
+                    size="400"
+                    variant="Background"
+                    radii="300"
+                    value={note}
+                    onChange={(evt: ChangeEvent<HTMLInputElement>) => updateNote(evt.target.value)}
+                    placeholder={t('sharedUi.inviteUserPrompt.notePlaceholder')}
+                    aria-label={t('sharedUi.inviteUserPrompt.notePlaceholder')}
+                    autoComplete="off"
+                  />
+                )}
+                {showGrantCheckbox && (
+                  <div className={css.ModeratorRow}>
+                    <label className={css.ModeratorLabel}>
+                      <Checkbox
+                        variant="Primary"
+                        size="200"
+                        checked={grantModerator}
+                        aria-describedby={moderatorHelpId}
+                        // folds leaves onChange out of its Checkbox type; the click toggles the choice.
+                        readOnly
+                        onClick={() => setGrantOverride(!grantModerator)}
+                      />
+                      <Text as="span" size="T300">
+                        {t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })}
+                      </Text>
+                    </label>
+                    <Text id={moderatorHelpId} size="T200" priority="300">
+                      {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
+                    </Text>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <p role="status" className={css.VisuallyHidden}>
-              {announcement}
-            </p>
+            {/* Not atomic: each line is read as it is added, the earlier ones are not repeated. */}
+            <div role="status" aria-atomic="false" className={css.VisuallyHidden}>
+              {announcements.map((entry) => (
+                <p key={entry.id}>{entry.text}</p>
+              ))}
+            </div>
           </Dialog>
         </FocusTrap>
       </OverlayCenter>

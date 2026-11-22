@@ -12,7 +12,9 @@ import {
 // The Instant Directory Sheet inside InviteUserPrompt: opens directly onto browsable directory
 // rows without a floating listbox, filters between People and Agents, wraps 60-character Matrix
 // IDs onto multiple lines with zero sideways overflow, mirrors cleanly in RTL, and stays bounded
-// inside Safari's visual viewport when the virtual keyboard shrinks the screen.
+// inside Safari's visual viewport when the virtual keyboard shrinks the screen: on a phone held
+// upright and on one held sideways, which is as wide as a tablet. Where that leaves too little
+// height to keep the search and the footer in place around the rows, they scroll together.
 // Checked with classic scrollbars in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set INVITE_MENU_SHOTS=<directory> to save screenshots.
 const SHOTS = process.env.INVITE_MENU_SHOTS;
@@ -20,9 +22,16 @@ const PASSWORD = 'invite-autocomplete-menu-spec-password';
 /** Every suggested account's Matrix ID holds it, so one search lists them all. */
 const QUERY = 'team';
 const PHONE = { width: 386, height: 720 };
+const LANDSCAPE_PHONE = { width: 844, height: 390 };
 const DESKTOP = { width: 1180, height: 760 };
-const KEYBOARD_HEIGHT = 380;
+/** What the keyboard leaves of an upright phone with the note open, and of one held sideways. */
+const SHORT_PORTRAIT_HEIGHT = 280;
+const SHORT_LANDSCAPE_HEIGHT = 240;
+/** How far Safari pans the visual viewport down the page in the sideways check. */
+const LANDSCAPE_OFFSET_TOP = 60;
 const LONG_ID_LENGTH = 60;
+/** In no directory, so its row has the ID for a name. */
+const UNLISTED_ID = `@${'visiting.researcher.'.repeat(3)}guest:another-homeserver.example.org`;
 const WRAPPING_NAME =
   'Alexandria Catherine Montgomery-Wellington of the Northern Research Collaborative';
 const PEOPLE = [
@@ -204,6 +213,22 @@ const checkRows = async (dialog: Locator, seeded: Seed) => {
   expect(helperBox.x + helperBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
 };
 
+// An ID no directory lists is its row's only name: it wraps whole on a phone, like a listed ID.
+const checkUnlistedId = async (dialog: Locator) => {
+  await dialog.getByRole('searchbox').fill(UNLISTED_ID);
+  const row = dialog.locator('li').filter({ hasText: 'External Matrix ID' });
+  await expect(row).toHaveCount(1);
+  const name = row.getByText(UNLISTED_ID, { exact: true });
+  await expect(name).toBeVisible();
+  expect(await lines(name)).toBeGreaterThan(1);
+  expect(await sidewaysOverflow(name)).toBeLessThanOrEqual(0);
+  expect(await sidewaysOverflow(row)).toBeLessThanOrEqual(0);
+  const dialogBox = await box(dialog);
+  const rowBox = await box(row);
+  expect(rowBox.x).toBeGreaterThanOrEqual(dialogBox.x);
+  expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
+};
+
 const checkMirrored = async (dialog: Locator, rightToLeft: boolean) => {
   const row = rowByName(dialog, 'Alice Adams');
   const avatar = await box(row.locator(':scope > :first-child'));
@@ -217,46 +242,185 @@ const checkMirrored = async (dialog: Locator, rightToLeft: boolean) => {
   return avatar.x - rowBox.x;
 };
 
-const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
-  await page.setViewportSize(PHONE);
-  const dialog = await openInvite(page, seeded);
-  await expect(dialog.locator('li')).toHaveCount(8, { timeout: 30_000 });
-
-  await page.evaluate((visible) => {
-    window.__setKeyboardViewport?.(visible, 0, 'resize');
-  }, KEYBOARD_HEIGHT);
-  await expect
-    .poll(() =>
-      page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
-    )
-    .toBe(`${KEYBOARD_HEIGHT}px`);
-
-  // Dialog and footer note toggle stay inside the shrunk visual viewport above the keyboard.
-  const dialogBox = await box(dialog);
-  expect(dialogBox.y + dialogBox.height).toBeLessThanOrEqual(KEYBOARD_HEIGHT + 1);
-
-  const noteToggle = dialog.getByRole('button', { name: /\+ Add invite note/ });
-  const noteBox = await box(noteToggle);
-  expect(noteBox.y).toBeGreaterThanOrEqual(0);
-  expect(noteBox.y + noteBox.height).toBeLessThanOrEqual(KEYBOARD_HEIGHT + 1);
-
-  // The directory list scrolls so the last row remains reachable above the footer.
-  const lastRow = dialog.locator('li').last();
-  await lastRow.scrollIntoViewIfNeeded();
-  const lastRowBox = await box(lastRow);
-  expect(lastRowBox.y + lastRowBox.height).toBeLessThanOrEqual(noteBox.y + 1);
-
-  await page.evaluate((fullHeight) => {
-    window.__setKeyboardViewport?.(fullHeight, 0, 'resize');
-  }, PHONE.height);
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(dialog).toBeHidden();
-};
-
 const shoot = async (page: Page, name: string) => {
   if (!SHOTS) return;
   await page.mouse.move(1, 1);
   await page.screenshot({ path: `${SHOTS}/${name}.png`, scale: 'css' });
+};
+
+/** Shrinks the visual viewport to `height` at `offsetTop`, as a keyboard does; undefined ends it. */
+const setKeyboardViewport = async (
+  page: Page,
+  height: number | undefined,
+  offsetTop = 0
+): Promise<void> => {
+  const fullHeight = page.viewportSize()?.height ?? PHONE.height;
+  await page.evaluate(
+    ([visible, top]) => {
+      window.__setKeyboardViewport?.(visible, top, 'resize');
+    },
+    [height ?? fullHeight, offsetTop] as const
+  );
+  const appHeight = () =>
+    page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'));
+  await expect.poll(appHeight).toBe(height === undefined ? '' : `${height}px`);
+};
+
+type Viewport = { top: number; height: number };
+
+const expectInside = (bounds: Box, viewport: Viewport) => {
+  expect(bounds.y).toBeGreaterThanOrEqual(viewport.top - 1);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.top + viewport.height + 1);
+};
+
+/**
+ * Scrolled to, the element lies inside the visual viewport and nothing lies over its middle. Only
+ * a scroll the user could make counts: a script can also scroll a box that hides its overflow.
+ */
+const expectReachable = async (locator: Locator, viewport: Viewport) => {
+  await locator.scrollIntoViewIfNeeded();
+  expectInside(await box(locator), viewport);
+  const reached = await locator.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    let scrolledHiddenOverflow = false;
+    for (
+      let ancestor = element.parentElement;
+      ancestor && ancestor !== document.body;
+      ancestor = ancestor.parentElement
+    ) {
+      if (ancestor.scrollTop !== 0 && !/auto|scroll/.test(getComputedStyle(ancestor).overflowY)) {
+        scrolledHiddenOverflow = true;
+      }
+    }
+    return {
+      uncovered: top !== null && (element.contains(top) || top.contains(element)),
+      scrolledHiddenOverflow,
+    };
+  });
+  expect(reached).toEqual({ uncovered: true, scrolledHiddenOverflow: false });
+};
+
+/** What scrolls together with the rows: on a tall viewport nothing, on a short one all but the title. */
+const scrollsWithRows = (dialog: Locator) =>
+  dialog
+    .locator('li')
+    .first()
+    .evaluate((row) => {
+      let scroller = row.parentElement;
+      while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+        scroller = scroller.parentElement;
+      }
+      return {
+        search: Boolean(scroller?.querySelector('input[type="search"]')),
+        footer: Boolean(scroller?.querySelector('button[aria-expanded]')),
+        title: Boolean(scroller?.querySelector('h2')),
+      };
+    });
+
+const sheetParts = (dialog: Locator) => ({
+  done: dialog.getByRole('button', { name: 'Done', exact: true }),
+  search: dialog.getByRole('searchbox'),
+  rows: dialog.locator('li'),
+  note: dialog.getByPlaceholder('Add a note to your invite...'),
+  noteToggle: dialog.locator('button[aria-expanded]'),
+  moderator: dialog.getByText(/^Give invited agents .+ rights$/),
+});
+
+const checkEveryPartReachable = async (dialog: Locator, viewport: Viewport) => {
+  const parts = sheetParts(dialog);
+  expectInside(await box(dialog), viewport);
+  // The title bar stays in place; everything below it scrolls as one.
+  expect(await scrollsWithRows(dialog)).toEqual({ search: true, footer: true, title: false });
+  expectInside(await box(parts.done), viewport);
+  await expectReachable(parts.rows.first().getByRole('button'), viewport);
+  await expectReachable(parts.rows.last().getByRole('button'), viewport);
+  await expectReachable(parts.note, viewport);
+  await expectReachable(parts.moderator, viewport);
+  await expectReachable(parts.noteToggle, viewport);
+  await expectReachable(parts.search, viewport);
+  expectInside(await box(dialog), viewport);
+};
+
+// A phone held upright: the sheet fills the screen, and with the keyboard up only the visual
+// viewport is left of it.
+const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
+  await page.setViewportSize(PHONE);
+  const dialog = await openInvite(page, seeded);
+  const parts = sheetParts(dialog);
+  await expect(parts.rows).toHaveCount(8, { timeout: 30_000 });
+
+  // Tall enough: the search and the footer stay in place and only the rows scroll.
+  expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
+  expectInside(await box(parts.noteToggle), { top: 0, height: PHONE.height });
+
+  await parts.noteToggle.click();
+  await expect(parts.moderator).toBeVisible();
+  await parts.note.focus();
+  await setKeyboardViewport(page, SHORT_PORTRAIT_HEIGHT);
+
+  const viewport = { top: 0, height: SHORT_PORTRAIT_HEIGHT };
+  // The focused note field is where the user types, above the keyboard.
+  await expect(parts.note).toBeFocused();
+  await expectReachable(parts.note, viewport);
+  await checkEveryPartReachable(dialog, viewport);
+  await shoot(page, 'phone-keyboard-short');
+
+  await setKeyboardViewport(page, undefined);
+  expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
+  await parts.done.click();
+  await expect(dialog).toBeHidden();
+};
+
+// A phone held sideways is as wide as a tablet, so the sheet is a centered dialog there; it still
+// has to follow the visual viewport, also where Safari pans it down the page.
+const checkLandscapePhoneViewport = async (page: Page, seeded: Seed) => {
+  await page.setViewportSize(LANDSCAPE_PHONE);
+  const dialog = await openInvite(page, seeded);
+  const parts = sheetParts(dialog);
+  await expect(parts.rows).toHaveCount(8, { timeout: 30_000 });
+  await parts.noteToggle.click();
+  await expect(parts.moderator).toBeVisible();
+
+  // Without a keyboard the screen is already short.
+  await checkEveryPartReachable(dialog, { top: 0, height: LANDSCAPE_PHONE.height });
+
+  await parts.search.focus();
+  await setKeyboardViewport(page, SHORT_LANDSCAPE_HEIGHT);
+  await checkEveryPartReachable(dialog, { top: 0, height: SHORT_LANDSCAPE_HEIGHT });
+  await shoot(page, 'landscape-keyboard-short');
+
+  await parts.search.focus();
+  await setKeyboardViewport(page, SHORT_LANDSCAPE_HEIGHT, LANDSCAPE_OFFSET_TOP);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue('--app-viewport-offset-top')
+      )
+    )
+    .toBe(`${LANDSCAPE_OFFSET_TOP}px`);
+  await checkEveryPartReachable(dialog, {
+    top: LANDSCAPE_OFFSET_TOP,
+    height: SHORT_LANDSCAPE_HEIGHT,
+  });
+
+  await setKeyboardViewport(page, undefined);
+  await parts.done.click();
+  await expect(dialog).toBeHidden();
+};
+
+// No keyboard, so --app-height is unset: the dialog is as tall as its rows need, centered, and
+// its footer stays in place.
+const checkDesktopFraming = async (page: Page, dialog: Locator) => {
+  expect(
+    await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
+  ).toBe('');
+  const bounds = await box(dialog);
+  expect(bounds.height).toBeGreaterThan(300);
+  expect(bounds.height).toBeLessThanOrEqual(640 + 1);
+  expect(Math.abs(bounds.y + bounds.height / 2 - DESKTOP.height / 2)).toBeLessThan(2);
+  expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
+  expectInside(await box(sheetParts(dialog).noteToggle), { top: 0, height: DESKTOP.height });
 };
 
 const exercise = async (page: Page, engine: string) => {
@@ -278,18 +442,22 @@ const exercise = async (page: Page, engine: string) => {
     await search(dialog);
     await checkRows(dialog, seeded);
     await shoot(page, `${engine}-${theme}-phone`);
+    await checkUnlistedId(dialog);
+    await shoot(page, `${engine}-${theme}-phone-unlisted`);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(dialog).toBeHidden();
 
     await page.setViewportSize(DESKTOP);
     dialog = await openInvite(page, seeded);
     await search(dialog);
+    await checkDesktopFraming(page, dialog);
     await shoot(page, `${engine}-${theme}-desktop`);
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
     await expect(dialog).toBeHidden();
   }
 
   await checkPhoneKeyboardViewport(page, seeded);
+  await checkLandscapePhoneViewport(page, seeded);
 
   await page.setViewportSize(PHONE);
   const inset: number[] = [];

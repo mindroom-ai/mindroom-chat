@@ -1,14 +1,24 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
+const sheetViewport = createContainer();
+// Too short to pin the title, the search, the filters and the footer around a scrolling list: a
+// phone with its keyboard up, or one held sideways.
+const shortViewport = `${sheetViewport} (max-height: ${toRem(480)})`;
+
 // On mobile Safari the fixed Overlay spans the layout viewport while the keyboard shrinks the
-// visual viewport; follow --app-height and --app-viewport-offset-top so header and footer stay
-// visible above the keyboard.
-export const PhoneViewportCenter = style({
+// visual viewport; the box follows --app-height and --app-viewport-offset-top
+// (useMobileKeyboardViewportFix sets them only while a software keyboard does that) at every
+// width, since a phone held sideways is as wide as a tablet. It always has a height of its own, so
+// it can be the size container the sheet's short layout asks, without the dialog's height
+// collapsing.
+export const ViewportCenter = style({
   selectors: {
     '&&': {
       height: 'var(--app-height, 100%)',
       marginBlockStart: 'var(--app-viewport-offset-top, 0px)',
+      containerName: sheetViewport,
+      containerType: 'size',
     },
   },
 });
@@ -16,9 +26,11 @@ export const PhoneViewportCenter = style({
 export const Dialog = style({
   width: '100%',
   maxWidth: toRem(520),
-  maxHeight: `min(${toRem(640)}, calc(100dvh - ${toRem(48)}))`,
+  maxHeight: `min(${toRem(640)}, calc(var(--app-height, 100dvh) - ${toRem(48)}))`,
   display: 'flex',
   flexDirection: 'column',
+  // A short viewport has no room for a margin above and below; a phone's sheet fills it anyway.
+  '@container': { [shortViewport]: { maxHeight: '100%' } },
 });
 
 export const TitleBar = style({
@@ -64,6 +76,19 @@ export const FilterChip = style({
   '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
 });
 
+// Everything below the title. On a tall viewport the search, the filters and the footer stay in
+// place and only the rows scroll; on a short one they scroll together, so the search field, every
+// row, the note and the moderator checkbox can all be reached.
+export const Body = style({
+  flexGrow: 1,
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  '@container': {
+    [shortViewport]: { overflowY: 'auto', overscrollBehavior: 'contain' },
+  },
+});
+
 export const ListArea = style({
   flexGrow: 1,
   minHeight: 0,
@@ -71,6 +96,9 @@ export const ListArea = style({
   overscrollBehavior: 'contain',
   paddingInline: config.space.S200,
   paddingBlockEnd: config.space.S200,
+  '@container': {
+    [shortViewport]: { flexShrink: 0, overflowY: 'visible' },
+  },
 });
 
 export const SectionHeader = style({
@@ -129,6 +157,12 @@ export const NameLine = style({
 
 export const AgentBadge = style({
   flexShrink: 0,
+});
+
+// An ID that no directory lists is the row's only name, so it wraps whole instead of truncating.
+export const NameWrap = style({
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
 });
 
 export const Subtitle = style({
