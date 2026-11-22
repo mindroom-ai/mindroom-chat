@@ -23,16 +23,11 @@ const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   const cache = rooms.get(memory) ?? new Map<string, Geometry>();
   rooms.set(memory, cache);
-  const geometry = cache.get(roomId) ?? {
-    heights: new Map(),
-    fresh: new Set(),
-    visible: [],
-    gap: 0,
-  };
+  const kept = cache.get(roomId) ?? { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
   cache.delete(roomId);
-  cache.set(roomId, geometry);
-  if (cache.size > 8) cache.delete(cache.keys().next().value!);
-  return geometry;
+  cache.set(roomId, kept);
+  if (cache.size > 8) cache.delete(cache.keys().next().value);
+  return kept;
 };
 
 type Options = {
@@ -59,7 +54,6 @@ export function useCompactBlocks(options: Options) {
       reachable: undefined as string | undefined,
       placed: false,
       end: false,
-      endSlot: undefined as number | undefined,
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as ((advance?: boolean) => boolean) | undefined,
       wake: undefined as (() => void) | undefined,
@@ -83,9 +77,8 @@ export function useCompactBlocks(options: Options) {
   const extentComplete = missing < 0 || small;
   const slotsOf = (ids: string[]) => ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
   const median = (slots: number[]) => slots[Math.floor(slots.length / 2)];
-  // The blocks that hold `ids`, each buffered on its own: blocks side by side on screen can be
-  // far apart in the order while those between are unmeasured. After an order change, the median
-  // one: a card that jumped is left out.
+  // The blocks that hold `ids`, each buffered alone: unmeasured blocks take no space, so two in
+  // view can be far apart. After an order change, the median one: a card that jumped is left out.
   const band = (ids: string[]): number[] => {
     const slots = [...new Set(slotsOf(ids))];
     const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
@@ -112,24 +105,23 @@ export function useCompactBlocks(options: Options) {
     (backSlot === undefined ? !arriving && extentComplete : known(backSlot) && ranged);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = known(targetSlot);
-  // The reader's band stays mounted beside the destination's: the place Back goes to, the
-  // target's block, or the list's end.
+  // The reader's blocks stay mounted beside the destination's: the place Back goes to, the
+  // target's block, or for End the blocks that fill the last screen, by the heights there are.
   const reader = band(geometry.visible);
-  const goal = back && survivors.length ? band(survivors) : [];
-  const near = (slot: number, slots: (number | undefined)[]) =>
-    slots.some((at) => at !== undefined && Math.abs(slot - at) <= BUFFER_BLOCKS);
+  const wanted = [...reader, ...(back && survivors.length ? band(survivors) : [])];
+  if (targetReady) wanted.push(targetSlot!);
+  const screen = state.end ? scrollRef.current?.clientHeight ?? 0 : 0;
+  for (let slot = blocks.length - 1, room = screen; slot >= 0 && room > 0; slot -= 1) {
+    wanted.push(slot);
+    for (const id of blocks[slot]!) room -= (heights.get(id) ?? 0) + gap;
+  }
+  const near = (slot: number) => wanted.some((at) => Math.abs(slot - at) <= BUFFER_BLOCKS);
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
     missing >= 0 || reader[0]! > 0
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
-  // End's destination is the last screen: the blocks that fill it, by the heights there are.
-  let endSlot = state.end ? blocks.length : undefined;
-  for (let room = scrollRef.current?.clientHeight ?? 0; endSlot && room > 0; ) {
-    endSlot -= 1;
-    for (const id of blocks[endSlot]!) room -= (heights.get(id) ?? 0) + gap;
-  }
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
   const retained = new Set([focused, protectedId, state.gesture?.id]);
   const projectedIds: string[] = [];
@@ -138,13 +130,7 @@ export function useCompactBlocks(options: Options) {
     const group: CompactBlockRow[] = [];
     for (let slot = start; slot < end; slot += 1) {
       // A band's cards mount with or without a height: only cards outside wait for the probe.
-      const inBand =
-        small ||
-        slot === probe ||
-        near(slot, reader) ||
-        near(slot, goal) ||
-        near(slot, [targetReady ? targetSlot : undefined]) ||
-        (endSlot !== undefined && slot >= endSlot - BUFFER_BLOCKS);
+      const inBand = small || slot === probe || near(slot);
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
         if (inBand || retained.has(id)) {
@@ -230,7 +216,6 @@ export function useCompactBlocks(options: Options) {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;
     mounted.current = liveIds;
-    state.endSlot = endSlot;
     if (records && !indexPending)
       for (const id of heights.keys())
         if (!records.has(id) && !index.has(id)) {
@@ -292,8 +277,7 @@ export function useCompactBlocks(options: Options) {
     state.onWrite = () => {
       if (layout()) state.wake?.();
     };
-    // Discovery parks while the list cannot measure; the ResizeObserver wakes it with a size.
-    // A frame advances discovery; a scroll renders only for what it changed in view.
+    // Discovery parks while the list cannot measure. A frame advances it; a scroll does not.
     state.measure = (advance) => {
       const now = layout();
       return now !== undefined && (now || (!!advance && pending));
@@ -302,16 +286,14 @@ export function useCompactBlocks(options: Options) {
     else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
   });
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
-  // heights that a width or font change left stale are not the list's end. It renders until
-  // the measured heights ask for no more blocks. Not for an extent still being discovered:
+  // heights that a width or font change left stale are not the list's end. The second render
+  // counts with the heights the first measured. Not while the extent is still discovered:
   // there a render grows it, and End goes to the end there is.
   const prepareEnd = useMemo(
     () => () => {
       state.end = true;
-      for (let from = -1; from !== state.endSlot; ) {
-        from = state.endSlot ?? -1;
-        flushSync(render);
-      }
+      flushSync(render);
+      flushSync(render);
     },
     [state]
   );

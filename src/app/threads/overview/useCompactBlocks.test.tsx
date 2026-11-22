@@ -299,7 +299,7 @@ it('keeps the window bounded when a scroll shows two distant runs of cards side 
     view.dispatchEvent(new Event('scroll'));
   });
   tick(12);
-  const most = Math.max(...onIds.mock.calls.map(([live]: [string[]]) => live.length));
+  const most = Math.max(...onIds.mock.calls.map((call) => (call[0] as string[]).length));
   expect(most).toBeLessThanOrEqual(72);
 });
 
