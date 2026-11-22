@@ -5,6 +5,17 @@ import { getMainWindow, showMainWindow } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
 import { guardSession, setBlockedUrlRecorder } from './security';
 
+// Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
+const disabledFeatures = app.commandLine
+  .getSwitchValue('disable-features')
+  .split(',')
+  .map((f) => f.trim())
+  .filter(Boolean);
+if (!disabledFeatures.includes('UseAncestorRenderFrameForWorker')) {
+  disabledFeatures.push('UseAncestorRenderFrameForWorker');
+}
+app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
+
 registerBundleScheme();
 
 const unpackaged = !app.isPackaged;
@@ -49,7 +60,12 @@ void app.whenReady().then(() => {
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
-  installMediaAuth(session.defaultSession, appWindows);
+  const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
+  app.on('web-contents-created', (_e, wc) => {
+    const forget = () => forgetMedia(wc.id);
+    wc.once('destroyed', forget);
+    wc.on('render-process-gone', forget);
+  });
   showMainWindow();
 });
 

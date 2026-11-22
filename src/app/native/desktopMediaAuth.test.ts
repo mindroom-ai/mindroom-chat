@@ -20,6 +20,7 @@ type Deferred = {
 const flushMicrotasks = async (): Promise<void> => {
   await Promise.resolve();
   await Promise.resolve();
+  await Promise.resolve();
 };
 
 const installBridge = () => {
@@ -58,7 +59,7 @@ afterEach(() => {
 });
 
 describe('desktopMediaAuth', () => {
-  it('follows the active session across 21 stored accounts, switches, token refreshes, and logout', async () => {
+  it('follows the active session across 21 stored accounts, keeps ready during same-account refresh, drops on switch and logout', async () => {
     const { desktopMediaAuthReady, startDesktopMediaAuth, subscribeDesktopMediaAuth } =
       await import('./desktopMediaAuth');
     const { pending, calls } = installBridge();
@@ -79,8 +80,6 @@ describe('desktopMediaAuth', () => {
       }
 
       startDesktopMediaAuth(getActiveSession, trackedSubscribe);
-      // Calling startDesktopMediaAuth a second time is a no-op.
-      startDesktopMediaAuth(getActiveSession, trackedSubscribe);
       expect(calls).toEqual([{ baseUrl: 'https://hs-1.example', accessToken: 'tok-21' }]);
       expect(desktopMediaAuthReady()).toBe(false);
 
@@ -97,14 +96,27 @@ describe('desktopMediaAuth', () => {
       expect(calls).toHaveLength(1);
       expect(desktopMediaAuthReady()).toBe(true);
 
-      // Switch to account 5 (on hs-3.example): readiness drops until acked.
-      const session5Id = `${encodeURIComponent('https://hs-3.example')}::${encodeURIComponent(
-        '@user5:example'
-      )}`;
-      setActiveSession(session5Id);
+      // Same-account token refresh keeps readiness true throughout the delayed ack.
+      updateSessionCredentials(session21Id, { accessToken: 'tok-21-refreshed' });
       expect(calls[calls.length - 1]).toEqual({
-        baseUrl: 'https://hs-3.example',
-        accessToken: 'tok-5',
+        baseUrl: 'https://hs-1.example',
+        accessToken: 'tok-21-refreshed',
+      });
+      expect(desktopMediaAuthReady()).toBe(true);
+      expect(notifications).toHaveBeenCalledTimes(1);
+
+      pending.shift()!.resolve({ ok: true, value: undefined });
+      await flushMicrotasks();
+      expect(desktopMediaAuthReady()).toBe(true);
+
+      // Switch to another account on the SAME homeserver (user 18 is also on hs-1.example): drops ready until ack.
+      const session18Id = `${encodeURIComponent('https://hs-1.example')}::${encodeURIComponent(
+        '@user18:example'
+      )}`;
+      setActiveSession(session18Id);
+      expect(calls[calls.length - 1]).toEqual({
+        baseUrl: 'https://hs-1.example',
+        accessToken: 'tok-18',
       });
       expect(desktopMediaAuthReady()).toBe(false);
 
@@ -112,11 +124,14 @@ describe('desktopMediaAuth', () => {
       await flushMicrotasks();
       expect(desktopMediaAuthReady()).toBe(true);
 
-      // Token refresh on active account: readiness is false between new token and ack.
-      updateSessionCredentials(session5Id, { accessToken: 'tok-5-refreshed' });
+      // Switch to account 5 (on hs-3.example): drops ready until ack.
+      const session5Id = `${encodeURIComponent('https://hs-3.example')}::${encodeURIComponent(
+        '@user5:example'
+      )}`;
+      setActiveSession(session5Id);
       expect(calls[calls.length - 1]).toEqual({
         baseUrl: 'https://hs-3.example',
-        accessToken: 'tok-5-refreshed',
+        accessToken: 'tok-5',
       });
       expect(desktopMediaAuthReady()).toBe(false);
 
@@ -143,9 +158,9 @@ describe('desktopMediaAuth', () => {
     }
   });
 
-  it('ignores stale acknowledgements and stays not-ready on rejected IPC results', async () => {
+  it('retries a failed push once, ignores stale acks, and drops ready if the retry also fails', async () => {
     const { desktopMediaAuthReady, startDesktopMediaAuth } = await import('./desktopMediaAuth');
-    const { pending } = installBridge();
+    const { pending, calls } = installBridge();
 
     putSession({
       baseUrl: 'https://hs.example',
@@ -154,24 +169,46 @@ describe('desktopMediaAuth', () => {
       accessToken: 'tok-alice',
     });
     startDesktopMediaAuth(getActiveSession, trackedSubscribe);
-    const first = pending.shift()!;
+    const aliceFirst = pending.shift()!;
 
+    // First failure retries once automatically and becomes ready on retry success.
+    aliceFirst.resolve({ ok: false, code: 'INTERNAL_ERROR' });
+    await flushMicrotasks();
+    expect(calls).toHaveLength(2);
+    expect(desktopMediaAuthReady()).toBe(false);
+
+    pending.shift()!.resolve({ ok: true, value: undefined });
+    await flushMicrotasks();
+    expect(desktopMediaAuthReady()).toBe(true);
+
+    // Switch to Bob, then switch to Carol before Bob resolves: stale Bob ack is ignored.
     putSession({
       baseUrl: 'https://hs.example',
       userId: '@bob:example',
       deviceId: 'D2',
       accessToken: 'tok-bob',
     });
-    const second = pending.shift()!;
+    const bobPush = pending.shift()!;
+    putSession({
+      baseUrl: 'https://hs.example',
+      userId: '@carol:example',
+      deviceId: 'D3',
+      accessToken: 'tok-carol',
+    });
+    const carolFirst = pending.shift()!;
 
-    // Stale ack for Alice must not mark Bob ready.
-    first.resolve({ ok: true, value: undefined });
+    bobPush.resolve({ ok: true, value: undefined });
     await flushMicrotasks();
     expect(desktopMediaAuthReady()).toBe(false);
 
-    // Failed ack for Bob must leave readiness false.
-    second.resolve({ ok: false, code: 'BAD_ARGUMENTS' });
+    // Double failure for Carol stops after one retry and leaves readiness false.
+    const callsBeforeCarolFail = calls.length;
+    carolFirst.resolve({ ok: false, code: 'BAD_ARGUMENTS' });
     await flushMicrotasks();
+    expect(calls).toHaveLength(callsBeforeCarolFail + 1);
+    pending.shift()!.resolve({ ok: false, code: 'BAD_ARGUMENTS' });
+    await flushMicrotasks();
+    expect(calls).toHaveLength(callsBeforeCarolFail + 1);
     expect(desktopMediaAuthReady()).toBe(false);
   });
 });

@@ -8,9 +8,8 @@ export type MediaRequest = {
   id: number;
   url: string;
   method: string;
-  hasAuthorization: boolean;
+  authorization: string | undefined;
   fromMainFrameOf: number | undefined;
-  authorization?: string;
 };
 
 const HTTP_URLS = { urls: ['http://*/*', 'https://*/*'] };
@@ -25,7 +24,7 @@ export const createMediaAuth = () => {
       else sessions.delete(windowId);
     },
     authorize(req: MediaRequest): string | undefined {
-      if (redirectedIds.has(req.id) || req.hasAuthorization || req.method !== 'GET')
+      if (redirectedIds.has(req.id) || req.authorization !== undefined || req.method !== 'GET')
         return undefined;
       const s = req.fromMainFrameOf === undefined ? undefined : sessions.get(req.fromMainFrameOf);
       if (!s || !validMediaRequest(req.url, s.baseUrl)) return undefined;
@@ -37,11 +36,8 @@ export const createMediaAuth = () => {
       redirectedIds.add(id);
     },
     ownedHeaderToRemove(req: MediaRequest): boolean {
-      const added =
-        redirectedIds.has(req.id) && req.hasAuthorization ? owned.get(req.id) : undefined;
-      return (
-        added !== undefined && (req.authorization === undefined || req.authorization === added)
-      );
+      const added = redirectedIds.has(req.id) ? owned.get(req.id) : undefined;
+      return added !== undefined && req.authorization === added;
     },
     done(id: number): void {
       redirectedIds.delete(id);
@@ -50,60 +46,67 @@ export const createMediaAuth = () => {
   };
 };
 
-const parseSession = (args: unknown[]): MediaSession | null | undefined => {
-  if (args.length > 1) return undefined;
-  if (args[0] === undefined || args[0] === null) return null;
-  if (typeof args[0] !== 'object' || Array.isArray(args[0])) return undefined;
+type ParsedSession = { valid: true; session: MediaSession | null } | { valid: false };
+
+const parseSession = (args: unknown[]): ParsedSession => {
+  if (args.length > 1) return { valid: false };
+  if (args[0] === undefined || args[0] === null) return { valid: true, session: null };
+  if (typeof args[0] !== 'object' || Array.isArray(args[0])) return { valid: false };
   const { baseUrl, accessToken } = args[0] as Record<string, unknown>;
-  if (typeof baseUrl !== 'string' || typeof accessToken !== 'string') return undefined;
+  if (typeof baseUrl !== 'string' || typeof accessToken !== 'string') return { valid: false };
   if (!accessToken.trim() || /[\r\n]/.test(accessToken) || !isAllowedHomeserverBaseUrl(baseUrl))
-    return undefined;
+    return { valid: false };
   const { username, password } = new URL(baseUrl);
-  return username || password ? undefined : { baseUrl, accessToken };
+  return username || password
+    ? { valid: false }
+    : { valid: true, session: { baseUrl, accessToken } };
 };
 
 export const installMediaAuth = (
   ses: Electron.Session,
   owners: () => readonly Electron.WebContents[]
-): void => {
+): ((windowId: number) => void) => {
   const auth = createMediaAuth();
-  const watched = new WeakSet<Electron.WebContents>();
-  handle('desktop:set-media-session', owners, parseSession, async (next, sender) => {
-    if (!watched.has(sender)) {
-      watched.add(sender);
-      const forget = () => auth.set(sender.id, undefined);
-      sender.once('destroyed', forget);
-      sender.on('render-process-gone', forget);
+  handle('desktop:set-media-session', owners, parseSession, async (parsed, sender) => {
+    if (!parsed.valid) {
+      auth.set(sender.id, undefined);
+      return { ok: false, code: 'BAD_ARGUMENTS' };
     }
-    auth.set(sender.id, next ?? undefined);
+    auth.set(sender.id, parsed.session ?? undefined);
     return { ok: true, value: undefined };
   });
   ses.webRequest.onBeforeSendHeaders(HTTP_URLS, (d, cb) => {
-    const h = d.requestHeaders;
-    const authKey = Object.keys(h).find((k) => k.toLowerCase() === 'authorization');
-    const f = d.resourceType === 'subFrame' ? null : d.frame;
-    const owner =
-      f && f.origin === APP_ORIGIN && isAllowedAppPage(f.url)
-        ? owners().find((w) => !w.isDestroyed() && w.id === d.webContentsId && f === w.mainFrame)
-        : undefined;
-    const req: MediaRequest = {
-      id: d.id,
-      url: d.url,
-      method: d.method,
-      hasAuthorization: authKey !== undefined,
-      fromMainFrameOf: owner?.id,
-      authorization: authKey !== undefined ? h[authKey] : undefined,
-    };
-    if (auth.ownedHeaderToRemove(req)) {
-      const next = { ...h };
-      if (authKey !== undefined) delete next[authKey];
-      cb({ requestHeaders: next });
-      return;
+    let res: Electron.BeforeSendResponse = {};
+    try {
+      const h = d.requestHeaders;
+      const authKey = Object.keys(h).find((k) => k.toLowerCase() === 'authorization');
+      const f = d.resourceType === 'subFrame' ? null : d.frame;
+      const owner =
+        f && f.origin === APP_ORIGIN && isAllowedAppPage(f.url)
+          ? owners().find((w) => !w.isDestroyed() && w.id === d.webContentsId && f === w.mainFrame)
+          : undefined;
+      const req: MediaRequest = {
+        id: d.id,
+        url: d.url,
+        method: d.method,
+        authorization: authKey !== undefined ? h[authKey] : undefined,
+        fromMainFrameOf: owner?.id,
+      };
+      if (auth.ownedHeaderToRemove(req)) {
+        const next = { ...h };
+        if (authKey !== undefined) delete next[authKey];
+        res = { requestHeaders: next };
+      } else {
+        const header = auth.authorize(req);
+        if (header) res = { requestHeaders: { ...h, Authorization: header } };
+      }
+    } catch {
+      res = {};
     }
-    const header = auth.authorize(req);
-    cb(header ? { requestHeaders: { ...h, Authorization: header } } : {});
+    cb(res);
   });
   ses.webRequest.onBeforeRedirect(HTTP_URLS, (d) => auth.redirected(d.id));
   ses.webRequest.onCompleted(HTTP_URLS, (d) => auth.done(d.id));
   ses.webRequest.onErrorOccurred(HTTP_URLS, (d) => auth.done(d.id));
+  return (windowId) => auth.set(windowId, undefined);
 };

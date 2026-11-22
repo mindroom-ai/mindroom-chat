@@ -24,6 +24,7 @@ export type DesktopSession = {
   userData: string;
   violations: string[];
   expectViolations: (run: () => Promise<void>) => Promise<string[]>;
+  watchPage: (extraPage: Page) => Promise<void>;
   close: () => Promise<void>;
 };
 
@@ -94,38 +95,42 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
     else violations.push(detail);
   };
 
-  let domListenerReady = false;
-  const cdp = await page.context().newCDPSession(page);
-  cdp.on('Audits.issueAdded', ({ issue }: { issue?: CspAuditIssue }) => {
-    if (domListenerReady || issue?.code !== 'ContentSecurityPolicyIssue') return;
-    const d = issue.details?.contentSecurityPolicyIssueDetails;
-    if (!d || d.isReportOnly) return;
-    const src = d.sourceCodeLocation?.url ?? '';
-    if (
-      src.includes('canvas-frame.html') ||
-      src.includes('pdf-frame.html') ||
-      src === 'about:srcdoc'
-    )
-      return;
-    record(`${d.violatedDirective ?? 'unknown'}: ${d.blockedURL || 'inline'}`);
-  });
-  await cdp.send('Audits.enable');
+  const watchPage = async (target: Page): Promise<void> => {
+    let domListenerReady = false;
+    const cdp = await target.context().newCDPSession(target);
+    cdp.on('Audits.issueAdded', ({ issue }: { issue?: CspAuditIssue }) => {
+      if (domListenerReady || issue?.code !== 'ContentSecurityPolicyIssue') return;
+      const d = issue.details?.contentSecurityPolicyIssueDetails;
+      if (!d || d.isReportOnly) return;
+      const src = d.sourceCodeLocation?.url ?? '';
+      if (
+        src.includes('canvas-frame.html') ||
+        src.includes('pdf-frame.html') ||
+        src === 'about:srcdoc'
+      )
+        return;
+      record(`${d.violatedDirective ?? 'unknown'}: ${d.blockedURL || 'inline'}`);
+    });
+    await cdp.send('Audits.enable');
 
-  await page.exposeBinding('__mindroomCspViolation', ({ frame }, detail: string) => {
-    // One collector at a time: CDP until the page hook is confirmed, then only the hook.
-    if (domListenerReady && frame === page.mainFrame()) record(detail);
-  });
-  await page.addInitScript(installViolationHook);
-  await page.evaluate(installViolationHook).catch(() => undefined);
-  // Hand over to the page listener only once it is in place; until then CDP auditing keeps watching.
-  const hooked = await page
-    .evaluate(() => (window as { __mindroomCspHooked?: boolean }).__mindroomCspHooked === true)
-    .catch(() => false);
-  if (hooked) {
-    domListenerReady = true;
-    await cdp.send('Audits.disable').catch(() => undefined);
-    await cdp.detach().catch(() => undefined);
-  }
+    await target.exposeBinding('__mindroomCspViolation', ({ frame }, detail: string) => {
+      // One collector at a time: CDP until the page hook is confirmed, then only the hook.
+      if (domListenerReady && frame === target.mainFrame()) record(detail);
+    });
+    await target.addInitScript(installViolationHook);
+    await target.evaluate(installViolationHook).catch(() => undefined);
+    // Hand over to the page listener only once it is in place; until then CDP auditing keeps watching.
+    const hooked = await target
+      .evaluate(() => (window as { __mindroomCspHooked?: boolean }).__mindroomCspHooked === true)
+      .catch(() => false);
+    if (hooked) {
+      domListenerReady = true;
+      await cdp.send('Audits.disable').catch(() => undefined);
+      await cdp.detach().catch(() => undefined);
+    }
+  };
+
+  await watchPage(page);
 
   await page.waitForLoadState('domcontentloaded');
 
@@ -160,7 +165,15 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
     }
   };
 
-  const session: DesktopSession = { app, page, userData, violations, expectViolations, close };
+  const session: DesktopSession = {
+    app,
+    page,
+    userData,
+    violations,
+    expectViolations,
+    watchPage,
+    close,
+  };
   launchedSessions.push(session);
   return session;
 };

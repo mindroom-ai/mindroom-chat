@@ -313,6 +313,51 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
     );
     expect(subReq.authorization).toBeUndefined();
 
+    // 6b. dedicated blob: worker GET arrives without Authorization while the page's own GET still gets it
+    await page.evaluate(
+      (url) =>
+        new Promise<void>((resolve, reject) => {
+          const blob = new Blob(
+            [
+              `fetch(${JSON.stringify(
+                url
+              )}).then((r) => postMessage(r.ok ? 'ok' : 'bad'), (e) => postMessage(String(e)));`,
+            ],
+            { type: 'text/javascript' }
+          );
+          const blobUrl = URL.createObjectURL(blob);
+          const worker = new Worker(blobUrl);
+          worker.onmessage = (event) => {
+            worker.terminate();
+            URL.revokeObjectURL(blobUrl);
+            if (event.data === 'ok') resolve();
+            else reject(new Error(`worker fetch failed: ${String(event.data)}`));
+          };
+          worker.onerror = (err) => {
+            worker.terminate();
+            URL.revokeObjectURL(blobUrl);
+            reject(new Error(`worker error: ${err.message}`));
+          };
+        }),
+      `${server.url}/_matrix/client/v1/media/download/a/worker.txt`
+    );
+    const workerReq = await server.waitForRequest(
+      (r) => r.url.includes('/worker.txt'),
+      'worker.txt'
+    );
+    expect(workerReq.authorization).toBeUndefined();
+
+    const pageAfterWorker = await page.evaluate(async (url) => {
+      const res = await fetch(url);
+      return res.ok;
+    }, `${server.url}/_matrix/client/v1/media/download/a/page-after-worker.txt`);
+    expect(pageAfterWorker).toBe(true);
+    const pageAfterWorkerReq = await server.waitForRequest(
+      (r) => r.url.includes('/page-after-worker.txt'),
+      'page-after-worker.txt'
+    );
+    expect(pageAfterWorkerReq.authorization).toBe('Bearer tok-a');
+
     // 7. opaque sandboxed frame arrives without Authorization
     await page.evaluate((src) => {
       const iframe = document.createElement('iframe');
@@ -383,6 +428,7 @@ test('never attaches a token on redirects across two signed-in windows or same-o
       await win.loadURL('capacitor://localhost/');
     }, PRELOAD_PATH);
     const page2 = await win2Promise;
+    await desktop.watchPage(page2);
     await page2.waitForLoadState('domcontentloaded');
 
     const resA = await page.evaluate(

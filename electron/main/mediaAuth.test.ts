@@ -15,7 +15,7 @@ const makeReq = (overrides: Partial<MediaRequest> = {}): MediaRequest => ({
   id: 1,
   url: 'https://hs.example/_matrix/client/v1/media/download/hs.example/abc',
   method: 'GET',
-  hasAuthorization: false,
+  authorization: undefined,
   fromMainFrameOf: 10,
   ...overrides,
 });
@@ -97,7 +97,6 @@ describe('createMediaAuth', () => {
     const syncReq = makeReq({
       id: 1,
       url: 'https://hs.example/_matrix/client/v3/sync',
-      hasAuthorization: true,
       authorization: 'Bearer sdk-tok',
     });
     expect(auth.authorize(syncReq)).toBeUndefined();
@@ -106,7 +105,6 @@ describe('createMediaAuth', () => {
 
     const explicitMediaReq = makeReq({
       id: 2,
-      hasAuthorization: true,
       authorization: 'Bearer account-b-explicit',
     });
     expect(auth.authorize(explicitMediaReq)).toBeUndefined();
@@ -184,7 +182,7 @@ describe('createMediaAuth', () => {
     ).toBeUndefined();
   });
 
-  it('removes only its own header on a redirected hop and forgets ids on done', () => {
+  it('removes only its own exact header on a redirected hop and forgets ids on done', () => {
     const auth = createMediaAuth();
     auth.set(10, { baseUrl: 'https://a.example', accessToken: 'tok-a' });
 
@@ -203,7 +201,6 @@ describe('createMediaAuth', () => {
         makeReq({
           id: 9,
           url: 'https://cdn.example/file',
-          hasAuthorization: true,
           authorization: 'Bearer tok-a',
         })
       )
@@ -213,8 +210,16 @@ describe('createMediaAuth', () => {
         makeReq({
           id: 9,
           url: 'https://cdn.example/file',
-          hasAuthorization: true,
           authorization: 'Bearer different-caller-token',
+        })
+      )
+    ).toBe(false);
+    expect(
+      auth.ownedHeaderToRemove(
+        makeReq({
+          id: 9,
+          url: 'https://cdn.example/file',
+          authorization: undefined,
         })
       )
     ).toBe(false);
@@ -225,7 +230,6 @@ describe('createMediaAuth', () => {
         makeReq({
           id: 9,
           url: 'https://cdn.example/file',
-          hasAuthorization: true,
           authorization: 'Bearer tok-a',
         })
       )
@@ -258,15 +262,17 @@ describe('installMediaAuth', () => {
     ipcMainMock.handle.mockReset();
   });
 
-  it('validates desktop:set-media-session arguments, injects and strips headers, and forgets on window exit', async () => {
-    const listeners = new Map<string, (...args: unknown[]) => void>();
+  it('validates IPC, clears previous session on rejected push from owner, leaves it on forbidden sender, handles throwing frame getters, and forgets on cleanup', async () => {
     const mainFrame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
     const owner = {
       id: 42,
       mainFrame,
       isDestroyed: () => false,
-      once: (event: string, fn: (...args: unknown[]) => void) => listeners.set(event, fn),
-      on: (event: string, fn: (...args: unknown[]) => void) => listeners.set(event, fn),
+    } as unknown as Electron.WebContents;
+    const forbiddenSender = {
+      id: 99,
+      mainFrame: { url: 'https://evil.example/', origin: 'https://evil.example' },
+      isDestroyed: () => false,
     } as unknown as Electron.WebContents;
 
     let beforeSend!: (
@@ -294,7 +300,7 @@ describe('installMediaAuth', () => {
       },
     } as unknown as Electron.Session;
 
-    installMediaAuth(fakeSession, () => [owner]);
+    const forget = installMediaAuth(fakeSession, () => [owner]);
 
     const ipcCall = ipcMainMock.handle.mock.calls.find(
       (call) => call[0] === 'desktop:set-media-session'
@@ -305,6 +311,31 @@ describe('installMediaAuth', () => {
       ...args: unknown[]
     ) => Promise<{ ok: boolean; code?: string }>;
     const validEvent = { sender: owner, senderFrame: mainFrame };
+
+    const sendReq = (
+      id: number,
+      url = 'http://127.0.0.1:8008/_matrix/client/v1/media/download/hs/1',
+      requestHeaders: Record<string, string> = { Accept: 'image/*' }
+    ): Electron.BeforeSendResponse => {
+      let response: Electron.BeforeSendResponse = {};
+      beforeSend(
+        {
+          id,
+          url,
+          method: 'GET',
+          webContentsId: 42,
+          frame: mainFrame as unknown as Electron.WebFrameMain,
+          resourceType: 'image',
+          referrer: '',
+          timestamp: 0,
+          requestHeaders,
+        },
+        (res) => {
+          response = res;
+        }
+      );
+      return response;
+    };
 
     // Bad arguments return BAD_ARGUMENTS.
     expect(
@@ -325,71 +356,64 @@ describe('installMediaAuth', () => {
     ).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
     expect(await handler(validEvent, 'bad')).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
 
-    // Valid local HTTP homeserver succeeds.
+    // Valid local HTTP homeserver succeeds and injects header.
     expect(
       await handler(validEvent, { baseUrl: 'http://127.0.0.1:8008', accessToken: 'tok-local' })
     ).toEqual({ ok: true, value: undefined });
-
-    // Injects header on first-hop GET from owner main frame.
-    let response: Electron.BeforeSendResponse = {};
-    beforeSend(
-      {
-        id: 100,
-        url: 'http://127.0.0.1:8008/_matrix/client/v1/media/download/hs/1',
-        method: 'GET',
-        webContentsId: 42,
-        frame: mainFrame as unknown as Electron.WebFrameMain,
-        resourceType: 'image',
-        referrer: '',
-        timestamp: 0,
-        requestHeaders: { Accept: 'image/*' },
-      },
-      (res) => {
-        response = res;
-      }
-    );
-    expect(response.requestHeaders?.Authorization).toBe('Bearer tok-local');
+    expect(sendReq(100).requestHeaders?.Authorization).toBe('Bearer tok-local');
 
     // Strips owned header on redirect hop.
     beforeRedirect({ id: 100 });
-    beforeSend(
-      {
-        id: 100,
-        url: 'https://evil.example/steal',
-        method: 'GET',
-        webContentsId: 42,
-        frame: mainFrame as unknown as Electron.WebFrameMain,
-        resourceType: 'image',
-        referrer: '',
-        timestamp: 0,
-        requestHeaders: { authorization: 'Bearer tok-local', Accept: 'image/*' },
-      },
-      (res) => {
-        response = res;
-      }
-    );
-    expect(response.requestHeaders).toEqual({ Accept: 'image/*' });
+    expect(
+      sendReq(100, 'https://evil.example/steal', {
+        authorization: 'Bearer tok-local',
+        Accept: 'image/*',
+      }).requestHeaders
+    ).toEqual({ Accept: 'image/*' });
     completed({ id: 100 });
     errored({ id: 100 });
 
-    // Forgets session when renderer dies.
-    listeners.get('render-process-gone')?.();
+    // Forbidden sender push is rejected and does NOT disturb owner's active session.
+    expect(
+      await handler(
+        { sender: forbiddenSender, senderFrame: forbiddenSender.mainFrame },
+        { baseUrl: 'http://remote.example', accessToken: 'bad' }
+      )
+    ).toEqual({ ok: false, code: 'FORBIDDEN' });
+    expect(sendReq(101).requestHeaders?.Authorization).toBe('Bearer tok-local');
+
+    // A rejected replacement push from the owner clears the owner's previous session.
+    expect(
+      await handler(validEvent, { baseUrl: 'http://remote.example', accessToken: 'tok-b' })
+    ).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(sendReq(102).requestHeaders).toBeUndefined();
+
+    // Restore, then verify throwing frame getter still invokes callback with {}.
+    expect(
+      await handler(validEvent, { baseUrl: 'http://127.0.0.1:8008', accessToken: 'tok-local' })
+    ).toEqual({ ok: true, value: undefined });
+    const cb = vi.fn();
     beforeSend(
       {
-        id: 101,
+        id: 103,
         url: 'http://127.0.0.1:8008/_matrix/client/v1/media/download/hs/1',
         method: 'GET',
         webContentsId: 42,
-        frame: mainFrame as unknown as Electron.WebFrameMain,
+        get frame(): Electron.WebFrameMain {
+          throw new Error('frame disposed');
+        },
         resourceType: 'image',
         referrer: '',
         timestamp: 0,
         requestHeaders: {},
       },
-      (res) => {
-        response = res;
-      }
+      cb
     );
-    expect(response.requestHeaders).toBeUndefined();
+    expect(cb).toHaveBeenCalledOnce();
+    expect(cb).toHaveBeenCalledWith({});
+
+    // Forgetting the window clears its session.
+    forget(42);
+    expect(sendReq(104).requestHeaders).toBeUndefined();
   });
 });
