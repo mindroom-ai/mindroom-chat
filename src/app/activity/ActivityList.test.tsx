@@ -195,7 +195,8 @@ const renderList = (
   result: ActivityRowsResult,
   bootstrapped = true,
   config: ClientConfig = {},
-  variant: 'page' | 'sheet' = 'page'
+  variant: 'page' | 'sheet' = 'page',
+  initialPath = '/home/'
 ) => {
   const store = createStore();
   store.set(activityRowsAtom, result);
@@ -204,7 +205,7 @@ const renderList = (
     <Provider store={store}>
       <ClientConfigProvider value={config}>
         <ScreenSizeProvider value={ScreenSize.Desktop}>
-          <MemoryRouter initialEntries={['/home/']}>
+          <MemoryRouter initialEntries={[initialPath]}>
             <ActivityList variant={variant} />
             <CurrentPath />
           </MemoryRouter>
@@ -753,10 +754,8 @@ describe('ActivityList', () => {
       expect(loaders.get('!r39:x')).toHaveBeenCalledTimes(1);
       expect(loaders.get('!r40:x')).not.toHaveBeenCalled();
 
-      const sentinel = document.querySelector<HTMLElement>('[data-activity-sentinel]');
-      expect(sentinel).toBeTruthy();
-      expect(sentinel?.getAttribute('aria-hidden')).toBe('true');
-      expect(list.contains(sentinel)).toBe(false);
+      const showMore = screen.getByRole('button', { name: 'Show more' });
+      expect(list.contains(showMore)).toBe(false);
 
       const intersect = () => {
         const current = instances.at(-1)!;
@@ -780,7 +779,7 @@ describe('ActivityList', () => {
       intersect();
       expect(within(list).getAllByRole('listitem')).toHaveLength(95);
       expect(screen.getByText('Thread r94')).toBeTruthy();
-      expect(document.querySelector('[data-activity-sentinel]')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
       expect(loaders.get('!r94:x')).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
@@ -845,5 +844,202 @@ describe('ActivityList', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('never caps waiting rows or invites when new waiting rows arrive', () => {
+    const inviteRow = (id: string): ActivityRow => {
+      const roomId = `!inv-${id}:x`;
+      mocks.rooms.set(roomId, {
+        roomId,
+        name: `Invite ${id}`,
+        getCanonicalAlias: () => null,
+        membersLoaded: () => true,
+        getJoinedMembers: () => [],
+      });
+      return {
+        type: 'invite',
+        key: `invite:${roomId}`,
+        kind: 'invite',
+        roomId,
+        unread: true,
+        ts: NOW - 60_000,
+      };
+    };
+
+    const approvals = Array.from({ length: 39 }, (_, index) =>
+      threadRow(
+        `ap${index}`,
+        'approval',
+        { pendingApproval: approvalRecord },
+        { actorIds: ['@mindroom_router:x'], title: `Approval ${index}` }
+      )
+    );
+    const invites = [inviteRow('1'), inviteRow('2'), inviteRow('3')];
+    const store = renderList({ rows: [...approvals, ...invites], hiddenAutomations: 0 });
+    expect(screen.getByText('3 invites')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+
+    const newerApproval = threadRow(
+      'ap-new',
+      'approval',
+      { pendingApproval: approvalRecord },
+      { actorIds: ['@mindroom_router:x'], title: 'Approval new' }
+    );
+    act(() =>
+      store.set(activityRowsAtom, {
+        rows: [newerApproval, ...approvals, ...invites],
+        hiddenAutomations: 0,
+      })
+    );
+    expect(screen.getByText('Approval new')).toBeTruthy();
+    expect(screen.getByText('Approval 38')).toBeTruthy();
+    expect(screen.getByText('3 invites')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+
+    cleanup();
+    const questions = Array.from({ length: 40 }, (_, index) =>
+      threadRow(
+        `q${index}`,
+        'question',
+        { pendingQuestion: question },
+        { actorIds: ['@mindroom_mind:x'], title: `Question ${index}` }
+      )
+    );
+    const singleInvite = inviteRow('solo');
+    const qStore = renderList({ rows: [...questions, singleInvite], hiddenAutomations: 0 });
+    expect(screen.getByText('Invite solo')).toBeTruthy();
+    const newerQuestion = threadRow(
+      'q-new',
+      'question',
+      { pendingQuestion: question },
+      { actorIds: ['@mindroom_mind:x'], title: 'Question new' }
+    );
+    act(() =>
+      qStore.set(activityRowsAtom, {
+        rows: [newerQuestion, ...questions, singleInvite],
+        hiddenAutomations: 0,
+      })
+    );
+    expect(screen.getByText('Question new')).toBeTruthy();
+    expect(screen.getByText('Question 39')).toBeTruthy();
+    expect(screen.getByText('Invite solo')).toBeTruthy();
+  });
+
+  it('never loads the 41st room on the first render after switching tabs', () => {
+    const loaders = new Map<string, ReturnType<typeof vi.fn>>();
+    const makeRow = (key: string, kind: 'reply' | 'mention') => {
+      const row = threadRow(
+        key,
+        kind,
+        kind === 'mention' ? { mentionedMe: true, mentionedBy: '@maya:x' } : { newCount: 1 },
+        { actorIds: ['@mindroom_code:x'], title: `Thread ${key}` }
+      );
+      const roomId = `!${key}:x`;
+      const loadMembersIfNeeded = vi.fn(async () => undefined);
+      loaders.set(roomId, loadMembersIfNeeded);
+      mocks.rooms.set(roomId, {
+        ...mocks.rooms.get(roomId)!,
+        membersLoaded: () => false,
+        loadMembersIfNeeded,
+      });
+      return row;
+    };
+
+    const replies = Array.from({ length: 90 }, (_, i) => makeRow(`rep${i}`, 'reply'));
+    const mentions = Array.from({ length: 60 }, (_, i) => makeRow(`men${i}`, 'mention'));
+    renderList({ rows: [...replies, ...mentions], hiddenAutomations: 0 });
+
+    // Switch to Replies and grow to 80 rows.
+    fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(80);
+
+    // Switch to Mentions: first render uses 40, so the 41st mention room never starts loading.
+    fireEvent.click(screen.getByRole('tab', { name: /Mentions/ }));
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(40);
+    expect(loaders.get('!men0:x')).toHaveBeenCalledTimes(1);
+    expect(loaders.get('!men39:x')).toHaveBeenCalledTimes(1);
+    expect(loaders.get('!men40:x')).not.toHaveBeenCalled();
+  });
+
+  it('appends a page via keyboard focus or click on Show more without an IntersectionObserver', () => {
+    class SilentIntersectionObserver {
+      observe = vi.fn();
+
+      unobserve = vi.fn();
+
+      disconnect = vi.fn();
+    }
+    vi.stubGlobal('IntersectionObserver', SilentIntersectionObserver);
+
+    try {
+      const rows = Array.from({ length: 95 }, (_, index) =>
+        threadRow(`k${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+      );
+      renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
+
+      const list = screen.getByRole('list');
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+
+      // Tabbing onto Show more appends a page and moves focus to the first new row.
+      const showMore = screen.getByRole('button', { name: 'Show more' });
+      fireEvent.focus(showMore);
+      expect(within(list).getAllByRole('listitem')).toHaveLength(80);
+      const firstNewRow = screen.getByText('Thread k40').closest('button');
+      expect(document.activeElement).toBe(firstNewRow);
+
+      // Clicking Show more with a pointer appends only one page (focus + click does not double-append).
+      const showMoreAgain = screen.getByRole('button', { name: 'Show more' });
+      fireEvent.pointerDown(showMoreAgain);
+      fireEvent.focus(showMoreAgain);
+      fireEvent.click(showMoreAgain);
+      expect(within(list).getAllByRole('listitem')).toHaveLength(95);
+      expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the current or focused row mounted when live rows prepend at the boundary', () => {
+    const rows = Array.from({ length: 50 }, (_, index) =>
+      threadRow(`b${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+    );
+    const store = renderList(
+      { rows, hiddenAutomations: 0 },
+      true,
+      {},
+      'page',
+      '/activity/!b39:x?threadId=$b39-root'
+    );
+
+    const row39Button = screen.getByText('Thread b39').closest('button')!;
+    expect(row39Button.getAttribute('aria-current')).toBe('page');
+    row39Button.focus();
+    expect(document.activeElement).toBe(row39Button);
+
+    const incoming = threadRow(
+      'b-new',
+      'reply',
+      { newCount: 1 },
+      { actorIds: ['@mindroom_code:x'], title: 'Thread b-new' }
+    );
+    act(() => store.set(activityRowsAtom, { rows: [incoming, ...rows], hiddenAutomations: 0 }));
+
+    expect(screen.getByText('Thread b-new')).toBeTruthy();
+    expect(screen.getByText('Thread b39').closest('button')).toBe(row39Button);
+    expect(row39Button.getAttribute('aria-current')).toBe('page');
+    expect(document.activeElement).toBe(row39Button);
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(41);
+
+    // Also verify a non-current row holding focus is retained on prepend.
+    cleanup();
+    const store2 = renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
+    const focusedBtn = screen.getByText('Thread b39').closest('button')!;
+    focusedBtn.focus();
+    expect(document.activeElement).toBe(focusedBtn);
+    act(() => store2.set(activityRowsAtom, { rows: [incoming, ...rows], hiddenAutomations: 0 }));
+    expect(screen.getByText('Thread b39').closest('button')).toBe(focusedBtn);
+    expect(document.activeElement).toBe(focusedBtn);
+    expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(41);
   });
 });
