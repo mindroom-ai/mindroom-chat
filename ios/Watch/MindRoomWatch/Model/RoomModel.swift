@@ -170,15 +170,7 @@ final class RoomModel: ObservableObject {
             publish()
             return
         }
-        if let state = await roomState() {
-            resolved = ThreadTags.resolvedRoots(state: state)
-            let nextTrusted = TrustedAccounts.inRoom(state: state)
-            if nextTrusted != trustedAccounts {
-                trustedAccounts = nextTrusted
-                snapshots = [:]
-                snapshotReads = [:]
-            }
-        }
+        await refreshRoomState()
         // Resolved threads do not count: read a few more pages while they fill the first one.
         for _ in 0..<3 {
             let open = threads.items().filter { !resolved.contains($0.rootEvent.eventId) }.count
@@ -277,6 +269,21 @@ final class RoomModel: ObservableObject {
             return ThreadRow(id: id, rootId: rootId, title: title, line: String(localized: "Sent"), state: state,
                              ts: Int(item.timestamp), rootTs: Int(item.timestamp), voiceFile: voiceFile)
         }
+    }
+
+    /// Refreshes room state: trust fails closed and invalidates cached snapshots on error; resolved tags
+    /// keep their last value offline.
+    @discardableResult
+    func refreshRoomState() async -> Set<String> {
+        let state = await roomState()
+        if let state { resolved = ThreadTags.resolvedRoots(state: state) }
+        let nextTrusted = state.map(TrustedAccounts.inRoom) ?? []
+        if nextTrusted != trustedAccounts {
+            trustedAccounts = nextTrusted
+            snapshots = [:]
+            snapshotReads = [:]
+        }
+        return trustedAccounts
     }
 
     /// The room's state events: one request per refresh (state events are not encrypted); nil when it could

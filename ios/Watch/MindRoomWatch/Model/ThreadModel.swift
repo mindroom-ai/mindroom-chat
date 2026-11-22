@@ -22,14 +22,15 @@ final class ThreadModel: ObservableObject {
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
-    private let trustedAccounts: @MainActor () -> Set<String>
+    private let refreshTrust: @MainActor () async -> Set<String>
+    private var trustedAccounts: Set<String> = []
 
     init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?,
-         trustedAccounts: @escaping @MainActor () -> Set<String> = { [] }) {
+         refreshTrust: @escaping @MainActor () async -> Set<String> = { [] }) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
-        self.trustedAccounts = trustedAccounts
+        self.refreshTrust = refreshTrust
         snapshot = initial
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
@@ -37,6 +38,7 @@ final class ThreadModel: ObservableObject {
     }
 
     func start() async {
+        trustedAccounts = await refreshTrust()
         if timeline == nil {
             do {
                 let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
@@ -54,7 +56,9 @@ final class ThreadModel: ObservableObject {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
-                self?.update()
+                guard let self, !Task.isCancelled else { break }
+                self.trustedAccounts = await self.refreshTrust()
+                self.update()
             }
         }
     }
@@ -100,7 +104,7 @@ final class ThreadModel: ObservableObject {
         guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
               let root = jsons.first.flatMap(parse) else { return }
         let next = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date(),
-                                        trustedAccounts: trustedAccounts())
+                                        trustedAccounts: trustedAccounts)
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)

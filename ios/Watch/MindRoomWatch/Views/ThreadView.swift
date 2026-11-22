@@ -16,7 +16,7 @@ struct ThreadView: View {
         self.rootId = rootId
         _model = StateObject(wrappedValue: ThreadModel(room: roomModel.room, rootId: rootId, userId: roomModel.userId,
                                                        initial: roomModel.snapshot(of: rootId),
-                                                       trustedAccounts: { [weak roomModel] in roomModel?.trustedAccounts ?? [] }))
+                                                       refreshTrust: { [weak roomModel] in await roomModel?.refreshRoomState() ?? [] }))
     }
 
     var body: some View {
