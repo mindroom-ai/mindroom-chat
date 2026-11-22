@@ -38,7 +38,13 @@ export const callPanelRequestAtom = atom<{ roomId: string } | undefined>(undefin
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
 /** The start running in this tab, if any; a second start would race it for the one call. */
-const callStartingAtom = atom<object | undefined>(undefined);
+export type CallStart = { roomId: string; originRoomId?: string };
+
+export const callStartingAtom = atom<CallStart | undefined>(undefined);
+
+/** Whether a call for this room (its own, or an agent call started there) is starting in this tab. */
+export const isCallStartingIn = (starting: CallStart | undefined, roomId: string): boolean =>
+  !!starting && (starting.roomId === roomId || starting.originRoomId === roomId);
 
 /**
  * Why the newest start of a room's call in this tab did not start it: `busy` while another tab
@@ -268,6 +274,38 @@ export type StartCallOptions = {
  */
 export type StartCallResult = 'started' | 'busy' | 'failed';
 
+/** How long a start waits for room members before giving up as failed. */
+export const MEMBERS_LOAD_TIMEOUT_MS = 10_000;
+
+/** How long a start waits for the call engine chunk before giving up as failed. */
+export const ENGINE_LOAD_TIMEOUT_MS = 15_000;
+
+const TIMED_OUT = Symbol('timedOut');
+
+const settleWithin = <T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(TIMED_OUT), ms);
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+
+/** Loads room members within `MEMBERS_LOAD_TIMEOUT_MS`, throwing on timeout or failure. */
+export const loadMembersWithin = async (room: Room): Promise<void> => {
+  // While the SDK's members request hangs, a retry waits on the same in-flight request
+  // (`room.membersPromise`) and fails again after the bound until it settles.
+  if ((await settleWithin(room.loadMembersIfNeeded(), MEMBERS_LOAD_TIMEOUT_MS)) === TIMED_OUT) {
+    throw new Error('Room member load timed out');
+  }
+};
+
 /** The newest event's server time in a room's loaded live timeline. */
 const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
@@ -339,9 +377,14 @@ export const useCallActions = (mx: MatrixClient) => {
           return giveUp('failed');
         }
       }
-      await room.loadMembersIfNeeded().catch(() => undefined);
-      const engine = await loading;
-      if (!engine || !mx.clientRunning) return giveUp('failed');
+      try {
+        await loadMembersWithin(room);
+      } catch {
+        return giveUp('failed');
+      }
+      // A retry reuses the in-flight import() until it settles.
+      const engine = await settleWithin(loading, ENGINE_LOAD_TIMEOUT_MS);
+      if (!engine || engine === TIMED_OUT || !mx.clientRunning) return giveUp('failed');
       // A room the person left meanwhile (the call's, or the conversation an agent call is about)
       // gets no call: its leave already passed, and only a leave from here on ends the call with
       // its room (`CallWindowHost`).
@@ -377,7 +420,10 @@ export const useCallActions = (mx: MatrixClient) => {
   const startCall = useCallback(
     async (options: StartCallOptions): Promise<StartCallResult> => {
       if (store.get(activeCallAtom) || store.get(callStartingAtom)) return 'busy';
-      const start = {};
+      const start: CallStart = {
+        roomId: options.room.roomId,
+        originRoomId: options.origin?.roomId,
+      };
       store.set(callStartingAtom, start);
       let made: Awaited<ReturnType<typeof makeCall>>;
       try {

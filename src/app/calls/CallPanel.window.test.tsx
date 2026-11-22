@@ -13,6 +13,7 @@ import type { IconTooltipProps } from '../ui/IconTooltip';
 import {
   activeCallAtom,
   callPanelRoomAtom,
+  callStartingAtom,
   callStartProblemAtom,
   callViewStateAtom,
   type ActiveCall,
@@ -696,6 +697,39 @@ describe('the prescreen as the call view moves', () => {
     act(() => store.set(callPanelRoomAtom, room.roomId));
     renderPanel();
     expect(busy()).toBeNull();
+  });
+
+  it('shows connecting instead of an enabled Join while this room has a pending start', () => {
+    calls.members = [{ userId: '@ana:panel.test' }];
+    store.set(callStartingAtom, { roomId: room.roomId });
+    store.set(callStartProblemAtom, { roomId: room.roomId, result: 'busy' });
+    renderPanel();
+
+    const connecting = button('Connecting…');
+    expect(connecting).not.toBeNull();
+    expect((connecting as HTMLButtonElement).disabled).toBe(true);
+    expect(button('Join')).toBeNull();
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+  });
+
+  it('also shows connecting while an agent call started from this room is pending', () => {
+    store.set(callStartingAtom, { roomId: callRoom.roomId, originRoomId: room.roomId });
+    renderPanel();
+
+    const connecting = button('Connecting…');
+    expect(connecting).not.toBeNull();
+    expect((connecting as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+  });
+
+  it('shows connecting to another call when another room has a pending start', () => {
+    store.set(callStartingAtom, { roomId: callRoom.roomId });
+    renderPanel();
+
+    expect(screen.queryByText('Connecting to another call…')).not.toBeNull();
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
+    expect(button('Join')).toBeNull();
+    expect(button('Connecting…')).toBeNull();
   });
 });
 

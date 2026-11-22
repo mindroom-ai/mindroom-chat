@@ -472,6 +472,7 @@
         "close": "Tutup tampilan panggilan",
         "participants": "Orang dalam panggilan",
         "connecting": "Menghubungkan…",
+        "connectingAnotherCall": "Menghubungkan ke panggilan lain…",
         "reconnecting": "Menghubungkan ulang…",
         "ended": "Panggilan berakhir.",
         "waitingFor": "Menunggu {{name}}…",

@@ -517,6 +517,7 @@
         "close": "إغلاق عرض المكالمة",
         "participants": "الأشخاص في المكالمة",
         "connecting": "جارٍ الاتصال…",
+        "connectingAnotherCall": "جارٍ الاتصال بمكالمة أخرى…",
         "reconnecting": "جارٍ إعادة الاتصال…",
         "ended": "انتهت المكالمة.",
         "waitingFor": "في انتظار ⁨{{name}}⁩…",

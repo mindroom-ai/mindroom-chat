@@ -481,6 +481,7 @@
         "close": "Close call view",
         "participants": "People in the call",
         "connecting": "Connecting…",
+        "connectingAnotherCall": "Connecting to another call…",
         "reconnecting": "Reconnecting…",
         "ended": "The call ended.",
         "waitingFor": "Waiting for {{name}}…",

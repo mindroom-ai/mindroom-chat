@@ -481,6 +481,7 @@
         "close": "Arama görünümünü kapat",
         "participants": "Aramadaki kişiler",
         "connecting": "Bağlanıyor…",
+        "connectingAnotherCall": "Başka bir aramaya bağlanıyor…",
         "reconnecting": "Yeniden bağlanıyor…",
         "ended": "Arama sona erdi.",
         "waitingFor": "{{name}} bekleniyor…",

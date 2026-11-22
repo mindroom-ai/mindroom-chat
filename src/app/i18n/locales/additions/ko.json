@@ -472,6 +472,7 @@
         "close": "통화 보기 닫기",
         "participants": "통화 참여자",
         "connecting": "연결 중…",
+        "connectingAnotherCall": "다른 통화에 연결 중…",
         "reconnecting": "다시 연결하는 중…",
         "ended": "통화가 종료되었습니다.",
         "waitingFor": "{{name}} 님을 기다리는 중…",

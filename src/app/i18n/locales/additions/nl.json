@@ -481,6 +481,7 @@
         "close": "Oproepweergave sluiten",
         "participants": "Mensen in de oproep",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbinden met een andere oproep…",
         "reconnecting": "Opnieuw verbinden…",
         "ended": "De oproep is beëindigd.",
         "waitingFor": "Wachten op {{name}}…",

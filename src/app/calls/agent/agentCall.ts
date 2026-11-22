@@ -15,6 +15,7 @@ import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/background
 import { setRoomArchived } from '../../matrix/state/archivedRooms';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { isJoined } from '../../matrix/state/roomList';
+import { loadMembersWithin } from '../callStore';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
@@ -184,7 +185,7 @@ export const prepareAgentCallRoom = async (
   origin: MindroomAgentCallOrigin
 ): Promise<void> => {
   // Members are lazy-loaded; inviting an agent that is already joined would fail.
-  await room.loadMembersIfNeeded();
+  await loadMembersWithin(room);
   const membership = room.getMember(agentUserId)?.membership;
   if (membership !== Membership.Join && membership !== Membership.Invite) {
     await inviteAgent(mx, room.roomId, agentUserId);
