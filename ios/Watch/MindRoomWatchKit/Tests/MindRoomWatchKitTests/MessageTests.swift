@@ -144,4 +144,25 @@ final class VoiceEchoTests: XCTestCase {
         ])
         XCTAssertNil(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: editedFallback))
     }
+
+    func testEchoFlagsRequireStrictJSONBooleans() throws {
+        func decode(_ raw: String) throws -> JSON {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? JSON)
+        }
+        // JSON number 1 bridges to Bool in Swift, but must not satisfy com.mindroom.visible_router_voice_echo === true.
+        let numericVisible = try decode(#"""
+        {"type": "m.room.message", "event_id": "$e", "origin_server_ts": 1, "sender": "@mindroom_code:x",
+         "content": {"msgtype": "m.text", "body": "🎤 Hi", "com.mindroom.visible_router_voice_echo": 1, "com.mindroom.voice_source_event_id": "$voice"}}
+        """#)
+        XCTAssertNil(VoiceEcho.transcript(numericVisible, latestEdit: nil))
+
+        // JSON number 1 must not trigger com.mindroom.voice_raw_audio_fallback === true.
+        let numericFallback = try decode(#"""
+        {"type": "m.room.message", "event_id": "$e", "origin_server_ts": 1, "sender": "@mindroom_code:x",
+         "content": {"msgtype": "m.text", "body": "🎤 Hi", "com.mindroom.visible_router_voice_echo": true, "com.mindroom.voice_source_event_id": "$voice", "com.mindroom.voice_raw_audio_fallback": 1}}
+        """#)
+        let result = try XCTUnwrap(VoiceEcho.transcript(numericFallback, latestEdit: nil))
+        XCTAssertEqual(result.voiceEventId, "$voice")
+        XCTAssertEqual(result.text, "🎤 Hi")
+    }
 }

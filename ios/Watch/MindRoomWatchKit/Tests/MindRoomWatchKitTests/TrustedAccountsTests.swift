@@ -142,4 +142,58 @@ final class TrustedAccountsTests: XCTestCase {
         let open = powerLevels(["users_default": 0, "state_default": 0])
         XCTAssertEqual(TrustedAccounts.inRoom(state: [binding(["user_id": router]), open, roster(), member(agent)]), [])
     }
+
+    private func decodeState(_ rawJSON: String) throws -> [JSON] {
+        let object = try JSONSerialization.jsonObject(with: Data(rawJSON.utf8))
+        return try XCTUnwrap(object as? [JSON])
+    }
+
+    func testDecodedWireJSONAllowsNumericZeroAndOnePowerLevelsAndRejectsJSONBooleans() throws {
+        // Real /state JSON decoded through JSONSerialization turns 0 and 1 into __NSCFNumber, which
+        // bridges to Bool in Swift even though it is not a CFBoolean.
+        let withZeroDefault = try decodeState(#"""
+        [
+          {"type": "m.room.create", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"room_version": "12"}},
+          {"type": "m.room.power_levels", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"users_default": 0, "state_default": 50}},
+          {"type": "io.mindroom.router", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"user_id": "@mindroom_router:example.org"}},
+          {"type": "io.mindroom.accounts", "state_key": "@mindroom_router:example.org", "sender": "@mindroom_router:example.org", "content": {"accounts": ["@mindroom_helper:example.org"]}},
+          {"type": "m.room.member", "state_key": "@mindroom_helper:example.org", "sender": "@mindroom_helper:example.org", "content": {"membership": "join"}}
+        ]
+        """#)
+        XCTAssertEqual(TrustedAccounts.inRoom(state: withZeroDefault), [router, agent])
+
+        let withOneDefault = try decodeState(#"""
+        [
+          {"type": "m.room.power_levels", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"users_default": 1, "events": {"io.mindroom.router": 50}, "users": {"@mindroom_router:example.org": 50}}},
+          {"type": "io.mindroom.router", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"user_id": "@mindroom_router:example.org"}}
+        ]
+        """#)
+        XCTAssertEqual(TrustedAccounts.inRoom(state: withOneDefault), [router])
+
+        let withOneEventAndUser = try decodeState(#"""
+        [
+          {"type": "m.room.power_levels", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"users_default": 0, "events": {"io.mindroom.router": 1}, "users": {"@mindroom_router:example.org": 1}}},
+          {"type": "io.mindroom.router", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"user_id": "@mindroom_router:example.org"}}
+        ]
+        """#)
+        XCTAssertEqual(TrustedAccounts.inRoom(state: withOneEventAndUser), [router])
+
+        // True JSON booleans (CFBoolean) must still be rejected.
+        let booleanLevels = [
+            #"{"users_default": false, "users": {"@mindroom_router:example.org": 50}}"#,
+            #"{"users_default": true, "users": {"@mindroom_router:example.org": 50}}"#,
+            #"{"state_default": true, "users": {"@mindroom_router:example.org": 50}}"#,
+            #"{"users_default": 0, "events": {"io.mindroom.router": true}, "users": {"@mindroom_router:example.org": 50}}"#,
+            #"{"users_default": 0, "users": {"@mindroom_router:example.org": true}}"#,
+        ]
+        for levels in booleanLevels {
+            let state = try decodeState(#"""
+            [
+              {"type": "m.room.power_levels", "state_key": "", "sender": "@mindroom_router:example.org", "content": \#(levels)},
+              {"type": "io.mindroom.router", "state_key": "", "sender": "@mindroom_router:example.org", "content": {"user_id": "@mindroom_router:example.org"}}
+            ]
+            """#)
+            XCTAssertEqual(TrustedAccounts.inRoom(state: state), [], "Expected rejection for \(levels)")
+        }
+    }
 }
