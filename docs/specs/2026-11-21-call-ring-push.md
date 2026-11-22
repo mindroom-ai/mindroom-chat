@@ -12,7 +12,7 @@ Read at: mindroom-chat main `d52d94960`, mindroom-tuwunel main `0a178f68f`, Sygn
 
 0. Ordinary push must work first (section 7, step 0). The callee in the incident had no pusher at all.
 1. The SDK sends one ring event (`org.matrix.msc4075.rtc.notification`, `notification_type: "ring"`), as today. In an encrypted room our SDK patch adds one cleartext field that says "this is a ring".
-2. Tuwunel matches it with a new default push rule, checks that it points at the sender's live call membership, and sends the push with the tweak `sound: "ring"`.
+2. Tuwunel matches it with a new default push rule and sends the push with the tweak `sound: "ring"`.
 3. The gateway (Sygnal plus one subclass file) turns that into an APNs alert with the text for "Incoming call from X", `sound: "ring.wav"`, and an expiry at the end of the ring.
 4. The iOS app bundles `ring.wav`. A tap opens the room; the existing call UI shows whether the call is still live.
 
@@ -43,7 +43,7 @@ The server shows only that no ring from the caller landed. It does not show whet
    - Deadline and queue isolation: each ring gets its own scheduler queue (`call-ring:<id>`) so an expired ring cannot reject unrelated queued sends or a redial's ring, and retries stop at its `lifetime` (30 s, rejected at expiry), not 60 s (`isPastRetryWindow`). No second retry loop.
    - The `notify` choice no longer depends on `m.direct` alone: `ring` when the room is direct **or** has two or three joined members; else `notification`. This matches the server rule (section 4).
 
-One ring per call holds by construction: the SDK sends once per join, retries reuse the transaction ID, and the homeserver accepts one audible ring per call membership.
+One ring per call comes from the client: the SDK sends once per join and retries reuse the transaction ID. The homeserver does not deduplicate rings.
 
 ### Tests
 
@@ -82,41 +82,43 @@ Two new server-default **override** rules, inserted just before `.m.rule.is_user
 ```json
 { "rule_id": ".io.mindroom.rule.rtc.ring", "default": true, "enabled": true,
   "conditions": [
-    { "kind": "event_match", "key": "type", "pattern": "org.matrix.msc4075.rtc.notification" },
+    { "kind": "event_property_is", "key": "type", "value": "org.matrix.msc4075.rtc.notification" },
     { "kind": "event_property_is", "key": "content.notification_type", "value": "ring" },
     { "kind": "room_member_count", "is": "<=3" } ],
   "actions": ["notify", { "set_tweak": "sound", "value": "ring" }] }
 
 { "rule_id": ".io.mindroom.rule.rtc.ring_encrypted", "default": true, "enabled": true,
   "conditions": [
-    { "kind": "event_match", "key": "type", "pattern": "m.room.encrypted" },
+    { "kind": "event_property_is", "key": "type", "value": "m.room.encrypted" },
     { "kind": "event_property_is",
       "key": "content.io\\.mindroom\\.rtc\\.notification.notification_type", "value": "ring" },
     { "kind": "room_member_count", "is": "<=3" } ],
   "actions": ["notify", { "set_tweak": "sound", "value": "ring" }] }
 ```
 
-- Both match `notification_type: "ring"` at the rule, so a group `notification` never gets the ring tweak and keeps today's behaviour.
+- Both match the event type and `notification_type: "ring"` exactly (`event_property_is`, no globs, case-sensitive), so a group `notification` never gets the ring tweak and keeps today's behaviour.
 - Two or three joined members, independent of `m.direct`: a direct chat, or two people and an agent.
 - Our own rule IDs: the conditions differ from MSC4075's rules (member count, `notification_type`, no mention conditions). In a room this small everyone else is the target.
 - Mute and ignore keep their precedence: user override rules sit before server defaults, and `append_pdu` drops ignored senders before any rule runs. Both are tested.
 
-### Validation: a ring must point at the sender's live call membership
+### When a ring rule wins
 
-The sound tweak is not authorization, so the rules alone are not enough. `Service::get_actions` already normalizes some events before evaluation (`MindroomPushEvaluation::Normalize`, `pusher/mod.rs:551-556`); it runs at append (`append.rs:171`) and again at dispatch (`send.rs:48`). A new step there treats an event as a ring only if all of these hold:
+`Service::get_actions` evaluates the rules in order, as Ruma does, with one addition. A ring rule that matches wins only if all of these hold:
 
-1. its cleartext `m.relates_to` is an `m.reference` to an event E in the same room;
-2. E is an `org.matrix.msc3401.call.member` state event sent by the ring's sender, with non-empty content, and is still the current state for its state key;
-3. no other ring event was already accepted for E (in-memory map E to ring event ID, entries dropped after 2 minutes; the same ring passes again at dispatch).
+1. its actions still notify and hold exactly one sound tweak, `"ring"` (a user may have changed them);
+2. the room's joined count is known and at most 3 (a failed count lookup would otherwise read as 0 and pass the rule's own `<=3` condition);
+3. no enabled room-kind rule mutes the room (matrix-js-sdk writes a muted room that way; an override mute already wins by order).
 
-Otherwise the event is evaluated without its ring marker (the hint, or `notification_type`), so it gets exactly what it would get today. This ties "may ring" to "is in the call now", gives at most one audible ring per call membership, and makes a late ring for an ended call silent.
+Otherwise the ring rules are skipped and the unchanged event goes on to the later rules, so it gets exactly what it would get today.
+
+The server does not check that a call exists. It does not look at the ring's `m.reference` or at the sender's call membership, and it keeps no record of rings it let through. Any member who can send the event can therefore ring the others in a room of up to three, and can do it again. The recipient's remedies are the usual ones: mute the room, ignore the sender, or disable the two rules.
 
 ### Migration: merge on read, persist with the next write
 
-- New `src/service/pusher/ring_rules.rs`: `server_default(user_id)` (Ruma's defaults plus the two rules; Ruma is pinned from `matrix-construct/ruma`, so the rules live in the fork) and `merged(stored)`, which applies `update_with_server_default` when a ring rule is missing.
+- New `src/service/pusher/ring_rules.rs`: `server_default(user_id)` (Ruma's defaults plus the two rules; Ruma is pinned from `matrix-construct/ruma`, so the rules live in the fork) and `merged(stored)`, which inserts a ring rule the stored ruleset lacks and changes nothing else.
 - `merged` is used on every read of stored rules: `pusher::Service::ruleset()` (evaluation), both `GET /pushrules` routes, and `load_push_rules` (`api/client/push/mod.rs:37-42`), which the single-rule routes use. A user can then disable a ring rule before any full GET without a 404.
 - No new write on GET. The merged set is saved only as part of a rule write, which is already read-modify-write, so a concurrent mute cannot be overwritten.
-- `update_with_server_default` keeps a user's `enabled` and `actions`.
+- The two full GET routes already repair legacy rulesets with `update_with_server_default`, which drops stored default rules Ruma does not know. The repair keeps a stored ring rule with the user's `enabled` and `actions`, and still stores no missing one.
 - Upstream: not now. The hint rule is MindRoom-only; MSC4075's own rules belong in Ruma once the MSC settles.
 
 ## 5. Push gateway
@@ -193,11 +195,11 @@ class MindroomApnsPushkin(ApnsPushkin):
 
 | # | Repo | Contents | Est. LOC (code + tests) |
 |---|---|---|---|
-| 1 | mindroom-tuwunel | `pusher/ring_rules.rs` (rules, `merged`), the validation step in `get_actions`, callers of `server_default`, the read paths; tests in `pusher/tests.rs`, `api/client/push/tests.rs`, `main/tests/pusher_notify.rs` | 220 + 320 |
+| 1 | mindroom-tuwunel | `pusher/ring_rules.rs` (rules, `merged`), the check in `get_actions` that lets a ring rule win, callers of `server_default`, the read paths; tests in `pusher/tests.rs`, `api/client/push/tests.rs`, `main/tests/pusher_notify.rs` | 220 + 320 |
 | 2 | mindroom-chat | Ring trace, retry deadline, `notify` choice, the fix the trace points to, hint in `patches/matrix-js-sdk+45.1.0.patch`, `ring.wav` + script + `project.pbxproj`, 17 strings, tap, iOS hide-stops-ringtone and room mute; unit tests and the extended `calls.spec.ts` | 220 + 300 |
 | 3 | dotfiles | `mindroom_pushkin.py`, its tests, `sygnal.nix`, the source offer in `caddy.nix` | 110 + 130 |
 
-Tuwunel tests: clear ring and encrypted ring with a live membership give `sound: ring`; no reference, a reference to another user's membership, to a left or replaced membership, or to another room gives today's actions; a second ring for the same membership is not audible; four members do not ring; a group `notification` is unchanged; room mute and ignore win; a stored old ruleset is merged for evaluation and GET; a ring rule can be disabled before any GET; a GET does not write.
+Tuwunel tests: clear ring and encrypted ring give `sound: ring` in rooms of two and three; four members, an unknown joined count, a case variant of the event type, and ring rules whose actions were emptied or carry a second sound give today's actions; a group `notification` is unchanged; room mute (override and room-kind) and ignore win; a stored old ruleset is merged for evaluation and GET; a ring rule can be disabled before any GET and stays disabled through the legacy repair; a GET stores no missing ring rule.
 
 Pushkin tests: clear ring, hint ring, video, group `notification`, `m.call.invite`, wrong wire type, bad or far-future timestamp, no tweak (all unchanged where they should be); expired before the first try and before a retry (nothing sent); `time_to_live`.
 
@@ -213,6 +215,6 @@ Pushkin tests: clear ring, hint ring, video, group `notification`, `m.call.invit
 
 1. Caller-side cause: unknown until the trace on a real phone. The size of that fix is unknown too.
 2. Ringing rooms of three, in the client's `notify` choice and in the rules (75%): three people in a room also ring each other. It is a product call.
-3. The one-ring-per-membership map is in memory and lost on restart (80%): after a restart a repeated ring for the same membership could sound once more.
+3. The server does not check that a ring belongs to a call (decided, to keep the fork change small): a member of a room of up to three can ring the others without one, and repeatedly. Mute, ignore and disabling the rules are the remedies.
 4. AGPL: the source offer on the push domain and an AGPL file in dotfiles (75%, not legal advice).
 5. Whether iOS stops the APNs sound when the app is opened (unknown; the design does not depend on it, the phone check shows it).
