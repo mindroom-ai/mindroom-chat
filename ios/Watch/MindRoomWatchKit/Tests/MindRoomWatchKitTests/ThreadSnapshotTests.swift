@@ -269,7 +269,7 @@ final class ThreadSnapshotTests: XCTestCase {
                                                      audio: first.audio, tools: 0, run: .none))
         XCTAssertEqual(source(first)?["url"] as? String, "mxc://x/take")
         XCTAssertEqual(second, ThreadSnapshot.Message(eventId: "$answer", sender: agent, isOwn: false, text: "For when?",
-                                                      audio: nil, tools: 1, run: .none))
+                                                      audio: nil, tools: 1, run: .none, toolNames: ["tables"]))
         XCTAssertEqual(waiting.eventId, snapshot.pendingApproval?.eventId)
         // Once decided, the other person's card is part of what happened.
         let decided = ThreadSnapshot.build(root: root, related: [answer, annas, approved], ownUserId: me, now: now)
@@ -836,5 +836,71 @@ final class ThreadSnapshotTests: XCTestCase {
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [voice, unnamed, echo("$echo", 4, of: "$voice", "🎤 Its words")],
                                             ownUserId: me, now: now, trustedAccounts: [agent])
         XCTAssertEqual(ids(snapshot), ["$root", "$voice", "$echo"])
+    }
+
+    func testWorkFoldDetailsForV2MarkdownFinishedVsStreamingAndNoPreProse() {
+        let finishedBody = "Looking up flights.\n🔧 `flights_search` [1]\nFound **2 options**."
+        let finished = event("$r1", 10_000, inThread(["msgtype": "m.text", "body": finishedBody]))
+        let finSnap = ThreadSnapshot.build(root: voiceRoot, related: [finished], ownUserId: me, now: now)
+        XCTAssertEqual(finSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertEqual(finSnap.reply?.tools, 1)
+        XCTAssertEqual(finSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(finSnap.reply?.answerText, "Found 2 options.")
+        XCTAssertNil(finSnap.reply?.durationSeconds)
+
+        // Streaming reply keeps workText nil and renders full answerText.
+        let streaming = event("$r2", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "streaming",
+        ]))
+        let streamSnap = ThreadSnapshot.build(root: voiceRoot, related: [streaming], ownUserId: me, now: now)
+        XCTAssertEqual(streamSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(streamSnap.reply?.workText)
+        XCTAssertEqual(streamSnap.reply?.answerText, "Looking up flights.\nFound 2 options.")
+
+        // No prose before tool call: workText stays nil even when finished.
+        let noPre = event("$r3", 10_000, inThread(["msgtype": "m.text", "body": "🔧 `flights_search` [1]\nFound 2 options."]))
+        let noPreSnap = ThreadSnapshot.build(root: voiceRoot, related: [noPre], ownUserId: me, now: now)
+        XCTAssertEqual(noPreSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(noPreSnap.reply?.workText)
+        XCTAssertEqual(noPreSnap.reply?.answerText, "Found 2 options.")
+    }
+
+    func testV3ToolTraceExtractsToolNamesBodyLineSplitAndDuration() {
+        let initial = event("$reply", 1_700_000_000_000, inThread([
+            "msgtype": "m.text",
+            "body": "Working…",
+            "io.mindroom.stream_status": "streaming",
+        ]))
+        let finalEdit = event("$replyEdit", 1_700_000_014_500, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": "Inspecting calendar.\n\nBooked your meeting for 3 PM.",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [
+                        ["type": "tool_call_completed", "tool_name": "calendar_list", "body_line": 1] as JSON,
+                        ["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 2] as JSON,
+                    ],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, finalEdit], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.tools, 2)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_list", "calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Inspecting calendar.")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked your meeting for 3 PM.")
+        XCTAssertEqual(snapshot.reply?.durationSeconds, 14)
+
+        // Sub-second edit produces nil durationSeconds.
+        let fastEdit = event("$fastEdit", 1_700_000_000_400, [
+            "m.new_content": ["msgtype": "m.text", "body": "Done."] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON,
+        ])
+        let fastSnap = ThreadSnapshot.build(root: voiceRoot, related: [initial, fastEdit], ownUserId: me, now: now)
+        XCTAssertNil(fastSnap.reply?.durationSeconds)
     }
 }

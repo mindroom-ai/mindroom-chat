@@ -3,7 +3,7 @@ import Foundation
 /// An agent reply's Markdown as plain text for the watch, with MindRoom's tool-call lines counted.
 public enum PlainText {
     /// MindRoom writes each tool call as a line "🔧 `tool_name` [n]", with a trailing ⏳ while it runs.
-    private static let toolLine = try! NSRegularExpression(pattern: #"^🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$"#)
+    private static let toolLine = try! NSRegularExpression(pattern: #"^🔧[^\S\n]*`([^`\n]+)`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$"#)
 
     public static func of(markdown: String) -> String { withToolCount(markdown).text }
 
@@ -25,7 +25,15 @@ public enum PlainText {
     }
 
     public static func withToolCount(_ markdown: String) -> (text: String, tools: Int) {
-        var tools = 0
+        let details = withToolDetails(markdown)
+        return (details.text, details.toolNames.count)
+    }
+
+    /// Extracts plain text, ordered v2 tool names, and an optional work/answer split around the last v2 tool line.
+    /// `workText` is populated only when non-empty prose exists both before and after the last tool line.
+    public static func withToolDetails(_ markdown: String) -> (text: String, toolNames: [String], workText: String?, answerText: String) {
+        var toolNames: [String] = []
+        var lastToolIndex: Int?
         var fence: String?
         var lines: [String] = []
         for line in markdown.components(separatedBy: .newlines) {
@@ -38,16 +46,29 @@ public enum PlainText {
                 fence = String(trimmed.prefix { $0 == trimmed.first })
                 continue
             }
-            if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
-                tools += 1
+            if let match = toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+               let nameRange = Range(match.range(at: 1), in: line) {
+                toolNames.append(String(line[nameRange]))
+                lastToolIndex = lines.count
                 continue
             }
             lines.append(prose(line))
         }
-        let text = lines.joined(separator: "\n")
+        let text = normalize(lines[...])
+        if let splitIndex = lastToolIndex {
+            let before = normalize(lines[..<splitIndex])
+            let after = normalize(lines[splitIndex...])
+            if !before.isEmpty && !after.isEmpty {
+                return (text, toolNames, before, after)
+            }
+        }
+        return (text, toolNames, nil, text)
+    }
+
+    private static func normalize(_ lines: ArraySlice<String>) -> String {
+        lines.joined(separator: "\n")
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (text, tools)
     }
 
     private static func prose(_ line: String) -> String {

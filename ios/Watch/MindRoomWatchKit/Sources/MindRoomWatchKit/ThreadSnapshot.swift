@@ -13,6 +13,36 @@ public struct ThreadSnapshot: Equatable, Sendable {
         public let audio: String?
         public let tools: Int
         public let run: RunState
+        public let toolNames: [String]
+        public let durationSeconds: Int?
+        public let workText: String?
+        public let answerText: String
+
+        public init(
+            eventId: String,
+            sender: String,
+            isOwn: Bool,
+            text: String,
+            audio: String?,
+            tools: Int,
+            run: RunState,
+            toolNames: [String] = [],
+            durationSeconds: Int? = nil,
+            workText: String? = nil,
+            answerText: String? = nil
+        ) {
+            self.eventId = eventId
+            self.sender = sender
+            self.isOwn = isOwn
+            self.text = text
+            self.audio = audio
+            self.tools = tools
+            self.run = run
+            self.toolNames = toolNames
+            self.durationSeconds = durationSeconds
+            self.workText = workText
+            self.answerText = answerText ?? text
+        }
 
         /// Audio with no words to show: there is only the sound.
         public var isVoiceOnly: Bool { audio != nil && text.isEmpty }
@@ -150,16 +180,51 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
             let sender = event["sender"] as? String ?? ""
-            let content = effectiveContent(event, latestEdit: edit(event))
-            var plain = PlainText.withToolCount(content["body"] as? String ?? "")
+            let isOwn = sender == ownUserId
+            let latestEdit = edit(event)
+            let content = effectiveContent(event, latestEdit: latestEdit)
+            let body = content["body"] as? String ?? ""
+            let run = RunState.of(event, latestEdit: latestEdit)
+            let audio = isAudio(event)
+            if audio {
+                let spoken = transcripts[id] ?? AudioCaption.of(content) ?? ""
+                return Message(eventId: id, sender: sender, isOwn: isOwn, text: spoken,
+                               audio: mediaSource(content) ?? mediaSource(event.content),
+                               tools: 0, run: run, toolNames: [], durationSeconds: nil,
+                               workText: nil, answerText: spoken)
+            }
+            let details = PlainText.withToolDetails(body)
+            var toolNames = details.toolNames
+            var splitWork = details.workText
+            var splitAnswer = details.answerText
             // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
             // those lines whoever sent them, and a count shows no call and trusts no one.
-            if MindRoomAgent.hasAgentName(sender) { plain.tools += toolCallsOutOfText(content) }
-            let audio = isAudio(event)
-            if audio { plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0) }
-            return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
-                           audio: audio ? mediaSource(content) ?? mediaSource(event.content) : nil,
-                           tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
+            if MindRoomAgent.hasAgentName(sender) {
+                let trace = toolTraceOutOfText(content)
+                toolNames.append(contentsOf: trace.names)
+                if splitWork == nil, let maxBodyLine = trace.maxBodyLine {
+                    let rawLines = body.components(separatedBy: .newlines)
+                    if maxBodyLine > 0 && maxBodyLine < rawLines.count {
+                        let before = PlainText.of(markdown: rawLines[..<maxBodyLine].joined(separator: "\n"))
+                        let after = PlainText.of(markdown: rawLines[maxBodyLine...].joined(separator: "\n"))
+                        if !before.isEmpty && !after.isEmpty {
+                            splitWork = before
+                            splitAnswer = after
+                        }
+                    }
+                }
+            }
+            let workText = run == .streaming ? nil : splitWork
+            let answerText = workText != nil ? splitAnswer : details.text
+            var durationSeconds: Int?
+            if !isOwn, MindRoomAgent.hasAgentName(sender), let latestEdit {
+                let secs = (latestEdit.timestamp - event.timestamp) / 1000
+                if secs >= 1 { durationSeconds = secs }
+            }
+            return Message(eventId: id, sender: sender, isOwn: isOwn, text: details.text,
+                           audio: nil, tools: toolNames.count, run: run,
+                           toolNames: toolNames, durationSeconds: durationSeconds,
+                           workText: workText, answerText: answerText)
         }
         let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
         let cards = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: .distantPast) }
@@ -203,14 +268,22 @@ public struct ThreadSnapshot: Equatable, Sendable {
 /// "🔧 `tool_name` [n]" of each call, and with the number of lines before it on the call instead (`body_line`
 /// in a tool trace of version 3, as the web client's `toolPositions.ts` reads it). A call without that number
 /// had no line. A version-2 trace has every line in the text, where `PlainText` counts them.
-func toolCallsOutOfText(_ content: JSON) -> Int {
+func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?) {
     guard let trace = content["io.mindroom.tool_trace"] as? JSON, trace["version"] as? Int == 3,
-          let calls = trace["events"] as? [Any] else { return 0 }
-    return calls.filter { call in
-        guard let call = call as? JSON, let name = call["tool_name"] as? String, !name.isEmpty,
-              let line = call["body_line"] as? Int else { return false }
-        return line >= 0
-    }.count
+          let calls = trace["events"] as? [Any] else { return ([], nil) }
+    var names: [String] = []
+    var maxLine: Int?
+    for case let call as JSON in calls {
+        guard let name = call["tool_name"] as? String, !name.isEmpty,
+              let line = call["body_line"] as? Int, line >= 0 else { continue }
+        names.append(name)
+        maxLine = max(maxLine ?? line, line)
+    }
+    return (names, maxLine)
+}
+
+func toolCallsOutOfText(_ content: JSON) -> Int {
+    toolTraceOutOfText(content).names.count
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an
