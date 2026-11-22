@@ -752,6 +752,11 @@
         "threadSummaryModel": {
           "label": "Model judul",
           "description": "Model yang menulis judul utas otomatis di ruang ini."
+        },
+        "agentInstructions": {
+          "label": "Instruksi agen",
+          "description": "Instruksi tambahan yang diikuti setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan.",
+          "placeholder": "Contoh: Buat jawaban singkat dan balas dalam bahasa Belanda"
         }
       }
     },

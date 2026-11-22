@@ -765,6 +765,11 @@
         "threadSummaryModel": {
           "label": "Titelmodell",
           "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
+        },
+        "agentInstructions": {
+          "label": "Anweisungen für Agents",
+          "description": "Zusätzliche Anweisungen, denen jeder Agent beim Antworten in diesem Raum folgt. Moderatoren können sie bearbeiten; sie verleihen Agents keine zusätzlichen Berechtigungen.",
+          "placeholder": "Zum Beispiel: Antworten kurz halten und auf Niederländisch antworten"
         }
       }
     },

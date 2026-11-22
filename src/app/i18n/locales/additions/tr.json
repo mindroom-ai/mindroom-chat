@@ -765,6 +765,11 @@
         "threadSummaryModel": {
           "label": "Başlık modeli",
           "description": "Bu odanın otomatik konu başlıklarını yazan model."
+        },
+        "agentInstructions": {
+          "label": "Ajan yönergeleri",
+          "description": "Bu odada yanıt verirken her ajanın izlediği ek yönergeler. Moderatörler bunları düzenleyebilir; ajanlara fazladan izin vermez.",
+          "placeholder": "Örneğin: Yanıtları kısa tutun ve Felemenkçe yanıtlayın"
         }
       }
     },

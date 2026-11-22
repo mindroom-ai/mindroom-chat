@@ -765,6 +765,11 @@
         "threadSummaryModel": {
           "label": "Title model",
           "description": "Model that writes this room's automatic thread titles."
+        },
+        "agentInstructions": {
+          "label": "Agent instructions",
+          "description": "Extra instructions every agent follows when answering in this room. Moderators can edit them; they grant agents no extra permissions.",
+          "placeholder": "For example: Keep answers short and reply in Dutch"
         }
       }
     },

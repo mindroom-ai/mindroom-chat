@@ -752,6 +752,11 @@
         "threadSummaryModel": {
           "label": "标题模型",
           "description": "为此房间生成自动话题标题的模型。"
+        },
+        "agentInstructions": {
+          "label": "智能体说明",
+          "description": "每个智能体在此房间回复时遵循的额外说明。版主可以编辑它们；它们不会授予智能体任何额外权限。",
+          "placeholder": "例如：保持回答简短并用荷兰语回复"
         }
       }
     },

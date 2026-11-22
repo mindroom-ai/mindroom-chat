@@ -778,6 +778,11 @@
         "threadSummaryModel": {
           "label": "Modèle de titre",
           "description": "Modèle chargé d’écrire les titres automatiques des fils de ce salon."
+        },
+        "agentInstructions": {
+          "label": "Instructions pour les agents",
+          "description": "Instructions supplémentaires que suit chaque agent lorsqu’il répond dans ce salon. Les modérateurs peuvent les modifier ; elles n’accordent aucune autorisation supplémentaire aux agents.",
+          "placeholder": "Par exemple : répondez brièvement et en néerlandais"
         }
       }
     },

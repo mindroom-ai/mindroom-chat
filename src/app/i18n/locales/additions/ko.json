@@ -752,6 +752,11 @@
         "threadSummaryModel": {
           "label": "제목 모델",
           "description": "이 방의 자동 스레드 제목을 작성하는 모델입니다."
+        },
+        "agentInstructions": {
+          "label": "에이전트 지침",
+          "description": "이 방에서 응답할 때 모든 에이전트가 따르는 추가 지침입니다. 관리자가 편집할 수 있으며, 에이전트에게 추가 권한을 부여하지는 않습니다.",
+          "placeholder": "예: 답변은 짧게 하고 네덜란드어로 답장하세요"
         }
       }
     },

@@ -778,6 +778,11 @@
         "threadSummaryModel": {
           "label": "Modelo de títulos",
           "description": "Modelo que genera los títulos automáticos de los hilos de esta sala."
+        },
+        "agentInstructions": {
+          "label": "Instrucciones para los agentes",
+          "description": "Instrucciones adicionales que sigue cada agente al responder en esta sala. Los moderadores pueden editarlas; no conceden permisos adicionales a los agentes.",
+          "placeholder": "Por ejemplo: mantén las respuestas breves y responde en neerlandés"
         }
       }
     },

@@ -752,6 +752,11 @@
         "threadSummaryModel": {
           "label": "標題模型",
           "description": "為此房間產生自動討論串標題的模型。"
+        },
+        "agentInstructions": {
+          "label": "代理指示",
+          "description": "每個代理在此聊天室回覆時遵循的額外指示。版主可以編輯它們；它們不會授予代理任何額外權限。",
+          "placeholder": "例如：保持回答簡短並用荷蘭語回覆"
         }
       }
     },

@@ -765,6 +765,11 @@
         "threadSummaryModel": {
           "label": "Titelmodel",
           "description": "Model dat de automatische threadtitels in deze ruimte schrijft."
+        },
+        "agentInstructions": {
+          "label": "Agentinstructies",
+          "description": "Extra instructies die elke agent volgt bij het antwoorden in deze kamer. Moderators kunnen ze bewerken; ze geven agents geen extra rechten.",
+          "placeholder": "Bijvoorbeeld: houd antwoorden kort en antwoord in het Nederlands"
         }
       }
     },

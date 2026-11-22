@@ -9,10 +9,16 @@ import { ROOM_SETTING_SECTIONS, type RoomTextSettingDefinition } from './roomSet
 import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const DEFINITION = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings).find(
-  (definition): definition is RoomTextSettingDefinition => definition.kind === 'text'
-);
+const ALL_SETTINGS = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);
 const KEY = 'thread_summary_instructions';
+const DEFINITION = ALL_SETTINGS.find(
+  (definition): definition is RoomTextSettingDefinition =>
+    definition.kind === 'text' && definition.key === KEY
+);
+const AGENT_INSTRUCTIONS_DEFINITION = ALL_SETTINGS.find(
+  (definition): definition is RoomTextSettingDefinition =>
+    definition.kind === 'text' && definition.key === 'agent_instructions'
+);
 const LABEL = 'Thread title rules';
 const FAILED = "Couldn't save the setting. Try again.";
 
@@ -470,5 +476,58 @@ describe('RoomTextSettingTile', () => {
     await sent.resolve();
 
     expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe('RoomTextSettingTile (agent_instructions)', () => {
+  const renderAgentInstructions = () =>
+    render(<RoomTextSettingTile room={ROOM} definition={AGENT_INSTRUCTIONS_DEFINITION!} />);
+  const instructionsField = () =>
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Agent instructions' });
+
+  it('renders Agent instructions, saves { value } trimmed, and clears to {}', async () => {
+    setLive({});
+    renderAgentInstructions();
+
+    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'agent_instructions']);
+    expect(instructionsField().value).toBe('');
+    expect(instructionsField().maxLength).toBe(2000);
+    expect(instructionsField().placeholder).toBe(
+      'For example: Keep answers short and reply in Dutch'
+    );
+    const ids = instructionsField().getAttribute('aria-describedby')!.split(' ');
+    expect(ids.length).toBeGreaterThan(0);
+    ids.forEach((id) => expect(document.getElementById(id), id).not.toBeNull());
+    const described = ids.map((id) => document.getElementById(id)!.textContent).join(' ');
+    expect(described).toContain(
+      'Extra instructions every agent follows when answering in this room.'
+    );
+    expect(described).toContain('0 / 2000');
+    expect(clearButton()).toBeNull();
+    expect(saveButton().disabled).toBe(true);
+
+    fireEvent.change(instructionsField(), {
+      target: { value: '  Keep answers short\nReply in Dutch  ' },
+    });
+    await act(async () => clickSave());
+
+    expect(client.sendStateEvent).toHaveBeenCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      { value: 'Keep answers short\nReply in Dutch' },
+      'agent_instructions'
+    );
+    expect(instructionsField().value).toBe('Keep answers short\nReply in Dutch');
+    expect(clearButton()).not.toBeNull();
+
+    await act(async () => fireEvent.click(clearButton()!));
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      {},
+      'agent_instructions'
+    );
+    expect(instructionsField().value).toBe('');
+    expect(clearButton()).toBeNull();
   });
 });
