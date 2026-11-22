@@ -1,4 +1,4 @@
-import { ReactNode, useId } from 'react';
+import { ReactNode } from 'react';
 import { Box, Text } from 'folds';
 import { SettingsCard } from './SettingsCard';
 
@@ -10,11 +10,12 @@ type SettingsSectionProps = {
 
 /** A titled card of setting tiles, the unit every settings page is built from. */
 export function SettingsSection({ title, children }: SettingsSectionProps) {
-  const headingId = useId();
   return (
-    <Box as="section" aria-labelledby={title ? headingId : undefined} direction="Column" gap="100">
+    <Box direction="Column" gap="100">
       {title && (
-        <Text as="h3" id={headingId} size="L400" data-settings-heading="">
+        // A heading to jump to, on a card without a name: a named one would be a landmark, and a
+        // settings page has a card per group.
+        <Text as="h3" size="L400" data-settings-heading="">
           {title}
         </Text>
       )}
