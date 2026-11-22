@@ -630,13 +630,14 @@ export function CompactRoomView({
   // with that request does; the one the list mounted with had that mount. A replaced entry (a
   // thread beside the list closing) or a step back or forward leaves the list where it is.
   const focusShown =
-    blocks.placeReady &&
-    (!address || blocks.targetReady) &&
+    (address ? blocks.targetReady : blocks.placeReady) &&
     !!focusRequest &&
     modelByRootId.has(focusRequest.eventId);
   useLayoutEffect(() => {
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     if (!focusRequest || !focusShown) return;
+    // The newer address has the list: a Back that still waits is not placed after it.
+    if (address) blocks.progress.placed = true;
     const place = pushed && viewRef.current && compactFocusPlace(focusRequest, viewRef.current);
     if (place && placing.current !== requestKey) {
       placing.current = requestKey;

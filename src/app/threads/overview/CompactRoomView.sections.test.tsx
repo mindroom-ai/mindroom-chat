@@ -993,6 +993,21 @@ describe('a focus request on the mounted Compact room', () => {
     expect(scrollTop).toBe(250);
   });
 
+  it('places a newer address while a Back still waits for a card the index has not brought', () => {
+    memory.clear();
+    memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$late', offset: 83 }] });
+    const { rerender } = render(at(undefined, cards, true));
+    expect(scrollTop).toBe(0);
+    // A pin's link is followed while the index is still read: its card is here already.
+    const b = { eventId: '$card8', entryKey: 'newer', pushed: true };
+    rerender(at(b, cards, true));
+    expect(topOf('$card8')).toBe(160);
+    // The Back's card arrives after all: the list stays with the address.
+    const top = scrollTop;
+    rerender(at(b, [...cards, '$late']));
+    expect(scrollTop).toBe(top);
+  });
+
   it('keeps the place the list was left at for a card in view', () => {
     const left = { scrollTop: 100, anchors: [{ key: '$card2', offset: 100 }] };
     memory.clear();
