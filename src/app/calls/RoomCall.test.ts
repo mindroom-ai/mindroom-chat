@@ -1913,6 +1913,36 @@ describe('RoomCall rejoin after background disconnect', () => {
     }
   });
 
+  it('counts nothing against the call when an input or device change of the dropped room settles late', async () => {
+    const { call } = setup();
+    await call.join();
+    const firstMedia = onlyMediaRoom();
+    const camera = pending();
+    firstMedia.localParticipant.setCameraEnabled.mockImplementationOnce(() => camera.promise);
+    const speaker = pending<boolean>();
+    firstMedia.switchActiveDevice.mockImplementationOnce(() => speaker.promise);
+    const toggling = call.setCamera(true);
+    const switching = call.setDevice('audiooutput', 'speaker-2');
+
+    setVisibility('hidden');
+    firstMedia.emit('Disconnected');
+    await settle();
+    camera.reject(new Error('room closed'));
+    speaker.reject(new Error('room closed'));
+    await Promise.all([toggling, switching]);
+
+    expect(call.getState()).toMatchObject({
+      phase: 'reconnecting',
+      camera: true,
+      problem: undefined,
+    });
+    setVisibility('visible');
+    await settle();
+    const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+    expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    expect(call.getState()).toMatchObject({ phase: 'connected', camera: true, problem: undefined });
+  });
+
   it('keeps the camera closed when the page hides during the microphone restore, until it shows again', async () => {
     vi.useFakeTimers();
     try {
@@ -2024,8 +2054,9 @@ describe('RoomCall rejoin after background disconnect', () => {
       setVisibility('hidden');
       onlyMediaRoom().emit('Disconnected');
       setVisibility('visible');
-      await vi.advanceTimersByTimeAsync(9_000);
-      expect(withdrawOwnMemberships).toHaveBeenCalledTimes(1);
+      // The leave was confirmed: nothing is withdrawn again, the listing only has to follow.
+      await vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS - 1_000);
+      expect(withdrawOwnMemberships).not.toHaveBeenCalled();
       expect(call.getState().phase).toBe('reconnecting');
 
       await vi.advanceTimersByTimeAsync(1_000);
@@ -2033,6 +2064,29 @@ describe('RoomCall rejoin after background disconnect', () => {
       expect(session.join).toHaveBeenCalledTimes(1);
       expect(mediaRooms()).toHaveLength(1);
       expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejoins once the session drops the old membership, also later than the leftover wait of a first join', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+      session.memberships = [membership(ME, DEVICE)];
+
+      setVisibility('hidden');
+      onlyMediaRoom().emit('Disconnected');
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(session.join).toHaveBeenCalledTimes(1);
+
+      session.setMemberships([]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(withdrawOwnMemberships).not.toHaveBeenCalled();
+      expect(session.join).toHaveBeenCalledTimes(2);
+      expect(call.getState().phase).toBe('connected');
     } finally {
       vi.useRealTimers();
     }
@@ -2233,6 +2287,26 @@ describe('RoomCall rejoin after background disconnect', () => {
     expect(mediaRooms()).toHaveLength(1);
     expect(session.join).toHaveBeenCalledTimes(1);
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails immediately on a drop long after the page came back from the background', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+
+      setVisibility('hidden');
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(61_000);
+      onlyMediaRoom().emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+      expect(session.join).toHaveBeenCalledTimes(1);
+      expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps failing immediately when Disconnected happens while the page stayed visible', async () => {
