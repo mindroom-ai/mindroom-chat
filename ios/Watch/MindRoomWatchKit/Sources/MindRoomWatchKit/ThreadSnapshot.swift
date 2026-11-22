@@ -43,15 +43,19 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let voiceFile: String?
     /// The whole thread in order: the root and every reply, without folded voice echoes, relays and titles,
     /// and each approval card that was decided or is the one waiting for this person (`pendingApproval`).
-    public private(set) var entries: [Entry]
+    public private(set) var entries: [Entry] = []
     /// The newest reply from anyone else, not a relay.
     public let reply: Message?
-    public private(set) var approvals: [ApprovalCard]
+    public private(set) var approvals: [ApprovalCard] = []
     /// The newest card from an agent that waits for this person's decision.
     public private(set) var pendingApproval: ApprovalCard?
     public let openQuestion: Question?
     /// Milliseconds since the epoch of the newest message or its newest edit: a reply streams on in edits.
     public let latestTs: Int
+    /// Every message and card in order, each card as its edits say it with no deadline applied, and the cards
+    /// this person may decide: `at(_:)` tells `entries`, `approvals` and `pendingApproval` from them.
+    private let all: [Entry]
+    private let decidable: Set<String>
 
     /// Where the thread opens: at what waits for the person, else at the newest answer.
     public var focusId: String? {
@@ -158,10 +162,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
                            tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
         }
         let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
-        let approvals = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: now) }
-        let pendingApproval = approvals.last {
-            $0.status == .pending && isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId)
-        }
+        let cards = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: .distantPast) }
+        let decidable = cards.filter { isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId) }
         // As the web client: only the newest agent reply asks (not an internal relay of a message), until
         // the person writes or reacts, for 7 days, and only when it answers this person.
         var openQuestion: Question?
@@ -183,19 +185,17 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let stale = Double(askedAt) / 1000 < now.timeIntervalSince1970 - 7 * 24 * 3600
             if !wroteSince && !reacted && !askedSomeoneElse && !stale { openQuestion = question }
         }
-        let entries = ([root] + conversation).compactMap { event -> Entry? in
-            if let card = approvals.first(where: { $0.eventId == event.eventId }) {
-                return card.status != .pending || card.eventId == pendingApproval?.eventId ? .approval(card) : nil
-            }
+        let all = ([root] + conversation).compactMap { event -> Entry? in
+            if let card = cards.first(where: { $0.eventId == event.eventId }) { return .approval(card) }
             return isMessage(event) ? .message(message(event)) : nil
         }
         let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title,
-            heading: summary ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
+            heading: summary ?? (all.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
             voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
-            entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
-            latestTs: latestTs)
+            reply: reply, openQuestion: openQuestion, latestTs: latestTs,
+            all: all, decidable: Set(decidable.map(\.eventId))).at(now)
     }
 }
 
@@ -241,18 +241,23 @@ extension ThreadSnapshot {
 }
 
 extension ThreadSnapshot {
-    /// The snapshot as it reads at `now`, with nothing read again: a card whose deadline passed since is expired,
-    /// and no expired card waits for the person. A thread that opens from a snapshot read before asks this, and
-    /// Approve and Deny before they send: the network may not answer.
+    /// The snapshot as `build` makes it at `now`, with nothing read again: a card past its deadline is expired,
+    /// the newest card still pending that this person may decide is the one that waits, and the entries have
+    /// each decided card and that one. `build` ends with this; a thread that opens from a snapshot read before
+    /// asks it, and Approve and Deny before they send: the network may not answer.
     public func at(_ now: Date) -> ThreadSnapshot {
-        let current = { (card: ApprovalCard) in card.applying(edits: [], now: now) }
         var snapshot = self
-        snapshot.approvals = approvals.map(current)
-        snapshot.entries = entries.map { entry in
-            if case let .approval(card) = entry { return .approval(current(card)) }
-            return entry
+        let cards = all.compactMap { entry -> ApprovalCard? in
+            guard case let .approval(card) = entry else { return nil }
+            return card.applying(edits: [], now: now)
         }
-        if let pendingApproval, current(pendingApproval).status != .pending { snapshot.pendingApproval = nil }
+        let pending = cards.last { $0.status == .pending && decidable.contains($0.eventId) }
+        snapshot.approvals = cards
+        snapshot.pendingApproval = pending
+        snapshot.entries = all.compactMap { entry -> Entry? in
+            guard case .approval = entry, let card = cards.first(where: { $0.eventId == entry.id }) else { return entry }
+            return card.status != .pending || card.eventId == pending?.eventId ? .approval(card) : nil
+        }
         return snapshot
     }
 }

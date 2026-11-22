@@ -54,10 +54,11 @@ public struct ResolvedRoots: Equatable, Sendable {
 
     public init(_ roots: Set<String>) { self.roots = roots }
 
-    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago, or
-    /// came before `expire()` or `resolve(_:)`.
+    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago or
+    /// after `now` (the clock was set back, so how old it is cannot be told), or came before `expire()` or
+    /// `resolve(_:)`.
     public func isDue(now: Date) -> Bool {
-        reading == nil && (readAt.map { now.timeIntervalSince($0) >= Self.lifetime } ?? true)
+        reading == nil && (readAt.map { !(0..<Self.lifetime).contains(now.timeIntervalSince($0)) } ?? true)
     }
 
     public mutating func beginRead(now: Date) {
