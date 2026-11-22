@@ -1853,6 +1853,56 @@ describe('RoomCall rejoin after background disconnect', () => {
     expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
   });
 
+  it('fails without a second join when the old membership manager reports an error, then a finished leave', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const firstLeave = pending<boolean>();
+    session.leave.mockImplementationOnce(() => {
+      session.joined = false;
+      return firstLeave.promise;
+    });
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    setVisibility('visible');
+    await settle();
+    expect(call.getState().phase).toBe('reconnecting');
+
+    // The SDK reports the manager's error first and then resolves the leave with `true`.
+    session.emit(MatrixRTCSessionEvent.MembershipManagerError, new Error('leave event refused'));
+    firstLeave.resolve(true);
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.join).toHaveBeenCalledTimes(1);
+    expect(mediaRooms()).toHaveLength(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails without a second join while the session still lists the old membership', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+      session.memberships = [membership(ME, DEVICE)];
+
+      setVisibility('hidden');
+      onlyMediaRoom().emit('Disconnected');
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(withdrawOwnMemberships).toHaveBeenCalledTimes(1);
+      expect(call.getState().phase).toBe('reconnecting');
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+      expect(session.join).toHaveBeenCalledTimes(1);
+      expect(mediaRooms()).toHaveLength(1);
+      expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ignores late events from the retired room after rejoining', async () => {
     const { call, session } = setup();
     await call.join();

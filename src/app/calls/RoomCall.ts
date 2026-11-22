@@ -703,9 +703,7 @@ export class RoomCall {
     });
   }
 
-  private onMembershipError = () => {
-    if (this.ownMembership) this.fail('connection');
-  };
+  private onMembershipError = () => this.fail('connection');
 
   /** Left, or given up: a join still on its way stops at its next step. */
   private get stopped(): boolean {
@@ -726,15 +724,15 @@ export class RoomCall {
    * Withdraws the membership this device still has in the call from an earlier page (a reload,
    * or a tab that crashed) and waits until the session no longer lists it. Joining over it would
    * send the same membership again (the SDK keeps its creation time), which nobody sees as a
-   * join, so no media keys would be exchanged.
+   * join, so no media keys would be exchanged. Resolves with whether it is gone.
    */
-  private async withdrawLeftover(deviceId: string): Promise<void> {
+  private async withdrawLeftover(deviceId: string): Promise<boolean> {
     const userId = this.mx.getSafeUserId();
     const listed = () =>
       this.session.memberships.some(
         (membership) => membership.userId === userId && membership.deviceId === deviceId
       );
-    if (!listed()) return;
+    if (!listed()) return true;
     await withdrawOwnMemberships(this.mx, [this.room]);
     await new Promise<void>((resolve) => {
       let timer = 0;
@@ -751,6 +749,7 @@ export class RoomCall {
       this.session.on(MatrixRTCSessionEvent.MembershipsChanged, check);
       check();
     });
+    return !listed();
   }
 
   /** A grant for the call service: the one asked for while preparing, or a new one. */
@@ -786,7 +785,9 @@ export class RoomCall {
   private async connectCall(deviceId: string, rejoin: boolean): Promise<void> {
     const { mx, room } = this;
     const failJoin = (problem: CallProblem) => this.fail(rejoin ? 'connection' : problem);
-    await this.withdrawLeftover(deviceId);
+    const withdrawn = await this.withdrawLeftover(deviceId);
+    // The first join goes on over a leftover that stays listed; a rejoin never does.
+    if (rejoin && !withdrawn) this.fail('connection');
     if (this.stopped) return;
 
     // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
