@@ -34,8 +34,10 @@ const emit = (name: string, data: Record<string, boolean | number>, warn = false
   recordDeepTraceEvent(name, data, { flush: true });
 };
 
-const refId = (content: Record<string, unknown>): string | undefined => {
-  const rel = content['m.relates_to'] as { rel_type?: unknown; event_id?: unknown } | undefined;
+type WithRelatesTo = { 'm.relates_to'?: { rel_type?: unknown; event_id?: unknown } };
+
+const refId = (content: WithRelatesTo): string | undefined => {
+  const rel = content['m.relates_to'];
   return rel?.rel_type === RelationType.Reference && typeof rel.event_id === 'string'
     ? rel.event_id
     : undefined;
@@ -128,9 +130,7 @@ export const startCallRingTrace = ({
     emit(`calls.ring.local_echo.${status}`, data, failed);
   };
 
-  const onDidSend = (
-    result: { event_id?: string; notification_type?: string } & Record<string, unknown>
-  ) => {
+  const onDidSend = (result: WithRelatesTo & { event_id?: string; notification_type?: string }) => {
     if (stopped || !ownEventId || refId(result) !== ownEventId) return;
     sawRing = true;
     clearTimeout(timer);
