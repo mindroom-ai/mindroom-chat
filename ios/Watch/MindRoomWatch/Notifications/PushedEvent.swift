@@ -21,11 +21,11 @@ enum PushedEvent {
         if session.client == nil { await session.restore() }
         guard let client = session.client, let userId = try? client.userId(),
               let room = try? client.getRoom(roomId: roomId) else { return nil }
-        // The room's trust is read beside the events, or the read under way is waited for: the thread's screen
-        // folds voice echoes with it, and what the push is must be the same there and here. When it cannot be
-        // read, the trust the app last read stands, or none (nothing is hidden).
-        let trust = RoomTrust.of(roomId)
-        let trustRead = Task { await trust.refreshOrJoin { await roomState(client, roomId: roomId) } }
+        // The room's state is read beside the events when that is due, or the read under way is waited for: the
+        // thread's screen folds voice echoes with the same trust, and what the push is must be the same there
+        // and here. When it cannot be read, the trust the app last read stands, or none (nothing is hidden).
+        let trust = RoomTrust.of(roomId, cached: ResolvedCache.get(userId: userId, roomId: roomId))
+        let trustRead = Task { await trust.refresh { await roomState(client, roomId: roomId) } }
         var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: pushedId)
         // A room's newer keys reach the watch only through sync, which runs while the app is in front: when
         // the event does not decrypt, sync for a few seconds and read it again.

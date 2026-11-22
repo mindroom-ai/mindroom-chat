@@ -32,15 +32,16 @@ final class ThreadModel: ObservableObject {
     private var events: ThreadEvents?
 
     /// `initial` and `events`: the thread as the threads list last read it, and what that kept of its events.
-    /// `refreshTrust` asks the room to read its trust again and does not wait for it (`RoomModel.refreshTrust`).
-    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?, events: ThreadEvents?,
+    /// `refreshTrust` asks the room to read its state when that is due, and does not wait for it
+    /// (`RoomModel.readStateIfDue`).
+    init(room: Room, rootId: String, userId: String, trust: RoomTrust, initial: ThreadSnapshot?, events: ThreadEvents?,
          refreshTrust: @escaping @MainActor () -> Void) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
+        self.trust = trust
         self.events = events
         self.refreshTrust = refreshTrust
-        trust = RoomTrust.of(room.id())
         snapshot = initial
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
