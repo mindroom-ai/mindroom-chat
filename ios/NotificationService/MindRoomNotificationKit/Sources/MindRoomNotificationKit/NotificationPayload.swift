@@ -9,6 +9,7 @@ public struct NotificationPayload: Equatable, Sendable {
     public let senderDisplayName: String?
     public let roomName: String?
     public let isRing: Bool
+    public let isGatewayFormatted: Bool
 
     public init(
         roomId: String? = nil,
@@ -17,7 +18,8 @@ public struct NotificationPayload: Equatable, Sendable {
         sender: String? = nil,
         senderDisplayName: String? = nil,
         roomName: String? = nil,
-        isRing: Bool = false
+        isRing: Bool = false,
+        isGatewayFormatted: Bool = false
     ) {
         self.roomId = Self.trimmedNonEmpty(roomId)
         self.eventId = Self.trimmedNonEmpty(eventId)
@@ -26,6 +28,7 @@ public struct NotificationPayload: Equatable, Sendable {
         self.senderDisplayName = Self.trimmedNonEmpty(senderDisplayName)
         self.roomName = Self.trimmedNonEmpty(roomName)
         self.isRing = isRing
+        self.isGatewayFormatted = isGatewayFormatted
     }
 
     public init(userInfo: [AnyHashable: Any]) {
@@ -40,6 +43,7 @@ public struct NotificationPayload: Equatable, Sendable {
         } else {
             self.isRing = false
         }
+        self.isGatewayFormatted = Self.boolFlag(userInfo["mindroom_plain"])
     }
 
     public func effectiveSenderDisplayName(fallbackTitle: String) -> String {
@@ -60,6 +64,22 @@ public struct NotificationPayload: Equatable, Sendable {
             return roomName
         }
         return Self.trimmedNonEmpty(fallbackSubtitle)
+    }
+
+    private static func boolFlag(_ raw: Any?) -> Bool {
+        if let number = raw as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return number.boolValue
+            }
+            return number.intValue == 1 && number.doubleValue == 1.0
+        }
+        if let boolValue = raw as? Bool {
+            return boolValue
+        }
+        if let intValue = raw as? Int {
+            return intValue == 1
+        }
+        return false
     }
 
     private static func stringValue(_ raw: Any?) -> String? {

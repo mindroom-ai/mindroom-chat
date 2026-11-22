@@ -72,9 +72,10 @@ public enum NotificationMarkdown {
                 if isClosingFence(line, char: fence.char, minLength: fence.length) {
                     activeFence = nil
                 } else {
-                    let cleaned = normalizeWhitespace(line)
-                    if !cleaned.isEmpty {
-                        outputLines.append(cleaned)
+                    // Preserve leading indentation and literal spacing inside fenced code blocks.
+                    let codeLine = trimTrailingHorizontalWhitespace(line)
+                    if !codeLine.trimmingCharacters(in: CharacterSet(charactersIn: " \t")).isEmpty {
+                        outputLines.append(codeLine)
                     }
                 }
                 continue
@@ -102,21 +103,20 @@ public enum NotificationMarkdown {
             }
             current = replace(atxHeadingRegex, in: current, with: "")
             current = replace(unorderedBulletRegex, in: current, with: "• ")
-            current = stripInlineMarkdown(current)
-            current = normalizeWhitespace(current)
+            current = stripInlineMarkdownAndNormalize(current)
 
-            if !current.isEmpty {
+            if !current.trimmingCharacters(in: CharacterSet(charactersIn: " \t")).isEmpty {
                 outputLines.append(current)
             }
         }
 
         return outputLines
             .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: .newlines)
     }
 
     private static func stripMatrixReplyFallback(_ text: String) -> String {
-        guard text.hasPrefix("> <@") else { return text }
+        guard text.hasPrefix("> <@") || text.hasPrefix("> * <@") else { return text }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         var index = 1
         while index < lines.count {
@@ -197,27 +197,80 @@ public enum NotificationMarkdown {
         let cells = inner
             .split(separator: "|", omittingEmptySubsequences: false)
             .map { cell -> String in
-                normalizeWhitespace(stripInlineMarkdown(String(cell)))
+                stripInlineMarkdownAndNormalize(String(cell))
             }
-            .filter { !$0.isEmpty }
+            .filter { !$0.trimmingCharacters(in: CharacterSet(charactersIn: " \t")).isEmpty }
         return cells.joined(separator: " · ")
     }
 
-    private static func stripInlineMarkdown(_ line: String) -> String {
-        var result = line
+    private static func stripInlineMarkdownAndNormalize(_ line: String) -> String {
+        let sentinelPrefix = uniqueSentinelPrefix(notIn: line)
+        var placeholders: [(token: String, value: String)] = []
+        var result = extractInlineCodeSpans(
+            in: line,
+            sentinelPrefix: sentinelPrefix,
+            placeholders: &placeholders
+        )
+
         result = replace(imageRegex, in: result, with: "$1")
         result = replace(linkRegex, in: result, with: "$1")
         result = replace(boldItalicRegex, in: result, with: "$1")
         result = replace(boldRegex, in: result, with: "$1")
         result = replace(italicRegex, in: result, with: "$1")
         result = replace(strikethroughRegex, in: result, with: "$1")
-        result = replace(inlineCodeRegex, in: result, with: "$1")
+        result = normalizeWhitespace(result)
+
+        for entry in placeholders.reversed() {
+            result = result.replacingOccurrences(of: entry.token, with: entry.value)
+        }
         return result
+    }
+
+    private static func extractInlineCodeSpans(
+        in line: String,
+        sentinelPrefix: String,
+        placeholders: inout [(token: String, value: String)]
+    ) -> String {
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        let matches = inlineCodeRegex.matches(in: line, range: range)
+        guard !matches.isEmpty else { return line }
+
+        var output = ""
+        var cursor = line.startIndex
+        for match in matches {
+            guard let fullRange = Range(match.range, in: line),
+                  let contentRange = Range(match.range(at: 1), in: line) else {
+                continue
+            }
+            output.append(contentsOf: line[cursor..<fullRange.lowerBound])
+            let token = "\(sentinelPrefix)\(placeholders.count)\u{E001}"
+            placeholders.append((token: token, value: String(line[contentRange])))
+            output.append(token)
+            cursor = fullRange.upperBound
+        }
+        output.append(contentsOf: line[cursor..<line.endIndex])
+        return output
+    }
+
+    private static func uniqueSentinelPrefix(notIn text: String) -> String {
+        var candidate = "\u{E000}MRCODE"
+        while text.contains(candidate) {
+            candidate.append("X")
+        }
+        return candidate
     }
 
     private static func normalizeWhitespace(_ line: String) -> String {
         replace(horizontalWhitespaceRegex, in: line, with: " ")
             .trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
+    }
+
+    private static func trimTrailingHorizontalWhitespace(_ line: String) -> String {
+        var result = line
+        while let last = result.last, last == " " || last == "\t" {
+            result.removeLast()
+        }
+        return result
     }
 
     private static func matches(_ regex: NSRegularExpression, in string: String) -> Bool {

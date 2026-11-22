@@ -62,12 +62,15 @@ describe('appStoreVersionProblems', () => {
   });
 
   it('rejects build configurations that disagree', () => {
-    const [debug, ...rest] = project('4.12.6', '33').split('CURRENT_PROJECT_VERSION = 33;');
-    const mixed = [
-      debug,
-      'CURRENT_PROJECT_VERSION = 34;',
-      rest.join('CURRENT_PROJECT_VERSION = 33;'),
-    ].join('');
+    const base = project('4.12.6', '33');
+    const appEntitlementsIndex = base.indexOf('CODE_SIGN_ENTITLEMENTS = App/App.entitlements;');
+    expect(appEntitlementsIndex).toBeGreaterThan(-1);
+    const versionNeedle = 'CURRENT_PROJECT_VERSION = 33;';
+    const versionIndex = base.indexOf(versionNeedle, appEntitlementsIndex);
+    expect(versionIndex).toBeGreaterThan(appEntitlementsIndex);
+    const mixed = `${base.slice(0, versionIndex)}CURRENT_PROJECT_VERSION = 34;${base.slice(
+      versionIndex + versionNeedle.length
+    )}`;
     expect(problems({ projectText: mixed })).toEqual([
       expect.stringContaining('CURRENT_PROJECT_VERSION of target App must have one value'),
     ]);

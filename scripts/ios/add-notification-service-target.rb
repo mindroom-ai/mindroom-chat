@@ -4,20 +4,41 @@
 # iOS slice of App, and an "Embed Foundation Extensions" phase in App. Run once with the xcodeproj
 # gem (the version CocoaPods brings); the result is committed. The extension reads its sources from
 # the synchronized folder ios/NotificationService/MindRoomNotificationService, so new files need no
-# second run. A project that has the target already is left as it is.
+# second run. A project that has the target already is left as it is (except ensuring the embed
+# phase stays before post-build script phases to avoid an Xcode build cycle).
 require 'xcodeproj'
 
 repo = File.expand_path('../..', __dir__)
 project_path = File.join(repo, 'ios/App/App.xcodeproj')
 project = Xcodeproj::Project.open(project_path)
 
-if project.targets.any? { |target| target.name == 'MindRoomNotificationService' }
-  puts 'MindRoomNotificationService is already in the project'
-  exit 0
-end
-
 app = project.targets.find { |target| target.name == 'App' }
 raise 'App target not found' unless app
+
+def position_embed_phase_after_resources(app, embed_phase)
+  resources_index = app.build_phases.index(app.resources_build_phase)
+  return false unless resources_index
+
+  current_index = app.build_phases.index(embed_phase)
+  desired_index = resources_index + 1
+  return false if current_index == desired_index
+
+  app.build_phases.delete(embed_phase)
+  resources_index = app.build_phases.index(app.resources_build_phase)
+  app.build_phases.insert(resources_index + 1, embed_phase)
+  true
+end
+
+if project.targets.any? { |target| target.name == 'MindRoomNotificationService' }
+  embed_extensions = app.copy_files_build_phases.find { |phase| phase.name == 'Embed Foundation Extensions' }
+  if embed_extensions && position_embed_phase_after_resources(app, embed_extensions)
+    project.save
+    puts 'Repositioned Embed Foundation Extensions before script phases'
+  else
+    puts 'MindRoomNotificationService is already in the project'
+  end
+  exit 0
+end
 
 app_group = project.main_group.children.find { |child| child.isa == 'PBXGroup' && child.path == 'App' }
 raise 'App group not found' unless app_group
@@ -123,6 +144,9 @@ embed_extensions.symbol_dst_subfolder_spec = :plug_ins
 embedded = embed_extensions.add_file_reference(service.product_reference)
 embedded.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 embedded.platform_filter = 'ios'
+
+# Place before post-build script phases (e.g. "Add the updater's Info.plist keys") to prevent an Xcode cycle.
+position_embed_phase_after_resources(app, embed_extensions)
 
 project.save
 puts 'Added MindRoomNotificationService'

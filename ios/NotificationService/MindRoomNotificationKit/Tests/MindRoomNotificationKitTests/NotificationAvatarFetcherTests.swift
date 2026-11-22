@@ -113,12 +113,13 @@ final class NotificationAvatarFetcherTests: XCTestCase {
     }
 
     func testRejectsOversizedOrInvalidImageBytesAndNon200() async {
-        var oversized = Self.samplePNG
-        oversized.append(Data(repeating: 0x00, count: NotificationAvatarStore.maxAvatarBytes))
+        var oversizedBuffer = Self.samplePNG
+        oversizedBuffer.append(Data(repeating: 0x00, count: NotificationAvatarStore.maxAvatarBytes))
+        let oversizedData = oversizedBuffer
 
         let oversizedFetcher = NotificationAvatarFetcher(transport: { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (oversized, response)
+            return (oversizedData, response)
         })
         let oversizedResult = await oversizedFetcher.downloadThumbnail(
             homeserverUrl: "https://matrix.mindroom.chat",

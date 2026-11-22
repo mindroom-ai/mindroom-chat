@@ -12,6 +12,14 @@ final class NotificationMarkdownTests: XCTestCase {
         """
         XCTAssertEqual(NotificationMarkdown.strip(reply), "Here is my answer.")
 
+        let emoteReply = """
+        > * <@alice:mindroom.chat> waves hello
+        > across the room
+
+        Hello back!
+        """
+        XCTAssertEqual(NotificationMarkdown.strip(emoteReply), "Hello back!")
+
         // Regular blockquote not starting with `> <@` is kept (with `> ` stripped).
         let quote = """
         > A normal quote
@@ -61,7 +69,7 @@ final class NotificationMarkdownTests: XCTestCase {
         """
         XCTAssertEqual(
             NotificationMarkdown.strip(input),
-            "Here is code:\n# not a heading\nlet x = **not bold**\n- not a bullet\ndef __init__(self):\nreturn x**2"
+            "Here is code:\n# not a heading\nlet x = **not bold**\n- not a bullet\ndef __init__(self):\n    return x**2"
         )
     }
 
@@ -110,6 +118,10 @@ final class NotificationMarkdownTests: XCTestCase {
         XCTAssertEqual(
             NotificationMarkdown.strip("Remove ~~old~~ and use `new_fn()`"),
             "Remove old and use new_fn()"
+        )
+        XCTAssertEqual(
+            NotificationMarkdown.strip("Run   `a   **b**   c`   now and **`x  y`**"),
+            "Run a   **b**   c now and x  y"
         )
     }
 

@@ -64,6 +64,7 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
   it('implements Markdown stripping, ring bypass, Communication Notifications, and thread-safe expiration in NotificationService.swift', () => {
     expect(serviceSource).toContain('UNNotificationServiceExtension');
     expect(serviceSource).toContain('payload.isRing');
+    expect(serviceSource).toContain('!payload.isGatewayFormatted');
     expect(serviceSource).toContain('NotificationMarkdown.strip');
     expect(serviceSource).toContain('INSendMessageIntent');
     expect(serviceSource).toContain('interaction.direction = .incoming');

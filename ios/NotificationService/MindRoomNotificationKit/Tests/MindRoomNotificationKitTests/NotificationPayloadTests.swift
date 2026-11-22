@@ -1,3 +1,4 @@
+import Foundation
 import MindRoomNotificationKit
 import XCTest
 
@@ -19,6 +20,21 @@ final class NotificationPayloadTests: XCTestCase {
         XCTAssertEqual(payload.senderDisplayName, "DevAgent")
         XCTAssertEqual(payload.roomName, "Engineering")
         XCTAssertFalse(payload.isRing)
+        XCTAssertFalse(payload.isGatewayFormatted)
+    }
+
+    func testParsesGatewayFormattedFlag() {
+        XCTAssertTrue(NotificationPayload(userInfo: ["mindroom_plain": 1]).isGatewayFormatted)
+        XCTAssertTrue(NotificationPayload(userInfo: ["mindroom_plain": true]).isGatewayFormatted)
+        XCTAssertTrue(NotificationPayload(userInfo: ["mindroom_plain": NSNumber(value: 1)]).isGatewayFormatted)
+        XCTAssertTrue(NotificationPayload(userInfo: ["mindroom_plain": NSNumber(value: true)]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": NSNumber(value: false)]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": NSNumber(value: 0)]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": 0]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": false]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": 2]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: ["mindroom_plain": "1"]).isGatewayFormatted)
+        XCTAssertFalse(NotificationPayload(userInfo: [:]).isGatewayFormatted)
     }
 
     func testDetectsRingPayload() {

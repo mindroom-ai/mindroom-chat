@@ -24,9 +24,11 @@ class NotificationService: UNNotificationServiceExtension {
             return
         }
 
-        let strippedBody = NotificationMarkdown.strip(mutableContent.body)
-        if !strippedBody.isEmpty {
-            mutableContent.body = strippedBody
+        if !payload.isGatewayFormatted {
+            let strippedBody = NotificationMarkdown.strip(mutableContent.body)
+            if !strippedBody.isEmpty {
+                mutableContent.body = strippedBody
+            }
         }
 
         if mutableContent.threadIdentifier.isEmpty, let roomId = payload.roomId, !roomId.isEmpty {
