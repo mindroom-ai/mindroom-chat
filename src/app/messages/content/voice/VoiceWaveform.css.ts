@@ -40,9 +40,12 @@ export const WaveformDimmed = style({
   opacity: config.opacity.P500,
 });
 
+// The recording bar's buttons and label keep their size, so on a narrow phone its waveform gives
+// up width below the usual minimum and shows fewer bars.
 export const WaveformCompact = style({
   overflow: 'hidden',
   position: 'relative',
+  minWidth: 0,
 });
 
 export const Svg = style({

@@ -25,6 +25,12 @@ export const Capsule = style([
   { color: color.SurfaceVariant.OnContainer },
 ]);
 
+// The waveform takes the squeeze, not the side buttons: WebKit shrinks a button below its icon,
+// which turned them into tall slivers with shrunken icons beside a long label.
+export const Control = style({
+  flexShrink: 0,
+});
+
 // Digits of equal width keep the elapsed time from jittering as it counts up.
 export const Timer = style({
   fontVariantNumeric: 'tabular-nums',
