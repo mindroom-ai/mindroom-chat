@@ -123,11 +123,7 @@ const samePlace = (now: DOMRect, was: DOMRect): boolean =>
   Math.abs(now.left - was.left) < 0.5 && Math.abs(now.top - was.top) < 0.5;
 
 /** Plays the change from `before` to the list as it is now; returns what it started. */
-const play = (
-  list: HTMLElement,
-  before: Before,
-  offWindow?: ReadonlySet<string>
-): Animation[] => {
+const play = (list: HTMLElement, before: Before, offWindow?: ReadonlySet<string>): Animation[] => {
   const all = rowsOf(list);
   // The change made the list too long.
   if (all.length > MOST_ROWS_IN_MOTION) return [];
