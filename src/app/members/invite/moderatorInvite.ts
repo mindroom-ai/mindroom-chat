@@ -48,17 +48,13 @@ export const moderatorGrantLevel = (powerLevels: IPowerLevels): number =>
 export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction): string =>
   tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
 
-export const getPowerLevelsEvent = (
-  room: Pick<Room, 'getLiveTimeline'>
-): MatrixEvent | undefined =>
+export const getPowerLevelsEvent = (room: Pick<Room, 'getLiveTimeline'>): MatrixEvent | undefined =>
   room
     .getLiveTimeline()
     .getState(EventTimeline.FORWARDS)
     ?.getStateEvents(StateEvent.RoomPowerLevels, '') ?? undefined;
 
-export const getRawPowerLevels = (
-  room: Pick<Room, 'getLiveTimeline'>
-): Record<string, unknown> => {
+export const getRawPowerLevels = (room: Pick<Room, 'getLiveTimeline'>): Record<string, unknown> => {
   const content = getPowerLevelsEvent(room)?.getContent();
   return content && typeof content === 'object' ? content : {};
 };

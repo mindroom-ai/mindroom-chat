@@ -115,7 +115,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [grantOverride, setGrantOverride] = useState<{ target: string; checked: boolean }>();
 
   const trimmedTarget = userId.trim();
-  const offerModerator = canOfferModeratorGrant(room, trimmedTarget, me, levels, creators, rawLevels);
+  const offerModerator = canOfferModeratorGrant(
+    room,
+    trimmedTarget,
+    me,
+    levels,
+    creators,
+    rawLevels
+  );
   const grantLevel = moderatorGrantLevel(levels);
   const roleName = grantRoleName(tags, grantLevel, t);
   const membersLoaded = typeof room.membersLoaded === 'function' ? room.membersLoaded() : false;

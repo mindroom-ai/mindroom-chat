@@ -49,10 +49,7 @@ type InvitedState = {
   moderator?: ModeratorState;
 };
 
-type InviteState =
-  | { status: 'inviting' }
-  | InvitedState
-  | { status: 'failed'; error: unknown };
+type InviteState = { status: 'inviting' } | InvitedState | { status: 'failed'; error: unknown };
 
 /** Someone the section offers: a directory match, or a typed user ID the directory does not list. */
 type Candidate = { user: ServerUserDirectoryUser; listed: boolean };
@@ -439,7 +436,10 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   const [, refreshMembers] = useForceUpdate();
   const onMemberState = useCallback(
     (event: MatrixEvent) => {
-      if (event.getRoomId() === room.roomId && matchesEnum(event.getType(), StateEvent.RoomMember)) {
+      if (
+        event.getRoomId() === room.roomId &&
+        matchesEnum(event.getType(), StateEvent.RoomMember)
+      ) {
         refreshMembers();
       }
     },
