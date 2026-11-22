@@ -301,6 +301,15 @@ it('keeps the window bounded when a scroll shows two distant runs of cards side 
   expect(most).toBeLessThanOrEqual(72);
 });
 
+it('settles on a list without cards', () => {
+  const onIds = vi.fn();
+  render(<List memory={new Map()} shown={{ cards: [] }} onIds={onIds} />);
+  tick(3);
+  const renders = onIds.mock.calls.length;
+  tick(6);
+  expect(onIds.mock.calls.length).toBe(renders);
+});
+
 it('lets a scroll take over a pending restore without wheel input', () => {
   const id = '$row38';
   const memory: ScrollAnchorMemory = new Map([

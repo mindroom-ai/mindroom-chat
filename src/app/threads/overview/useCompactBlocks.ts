@@ -80,7 +80,7 @@ export function useCompactBlocks(options: Options) {
   const band = (ids: string[]): number[] => {
     const slots = [...new Set(slotsOf(ids))];
     const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
-    return same ? slots : [median(slots) ?? 0];
+    return same && slots.length ? slots : [median(slots) ?? 0];
   };
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>
@@ -105,8 +105,8 @@ export function useCompactBlocks(options: Options) {
   const targetReady = known(targetSlot);
   // The reader's band stays mounted beside the destination's: the place Back goes to, the
   // target's block, or the list's end.
-  const reader = geometry.visible.length ? band(geometry.visible) : [0];
-  const goal = back ? band(survivors) : [];
+  const reader = band(geometry.visible);
+  const goal = back && survivors.length ? band(survivors) : [];
   const near = (slot: number, slots: (number | undefined)[]) =>
     slots.some((at) => at !== undefined && Math.abs(slot - at) <= BUFFER_BLOCKS);
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
