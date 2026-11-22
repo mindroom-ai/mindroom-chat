@@ -4,6 +4,7 @@ import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MOUSE_REST_HOLD_MS,
+  SCROLL_SETTLE_MS,
   useCompactScrollFallback,
   usePointerOverCards,
 } from './useCompactScrollFallback';
