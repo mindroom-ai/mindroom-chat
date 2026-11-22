@@ -443,12 +443,14 @@ describe('RoomViewHeader schedule actions', () => {
   });
 
   it('targets the visible composer synchronously without toggling Compact, resumes edits, and blocks busy or voice drafts', () => {
-    const onFocusComposer = vi.fn();
-    const store = renderAndOpenSchedules({ onFocusComposer });
-
+    let draftAtFocusTime: string[] | undefined;
     const roomDraftAtom = roomIdToMsgDraftAtomFamily(
       getRoomInputDraftKey('@me:example.org', '!room:example.org', undefined)
     );
+    const onFocusComposer = vi.fn(() => {
+      draftAtFocusTime = store.get(roomDraftAtom).map((node) => SlateNode.string(node));
+    });
+    const store = renderAndOpenSchedules({ onFocusComposer });
 
     // Live voice recording blocks editing without modifying drafts.
     store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
@@ -497,6 +499,7 @@ describe('RoomViewHeader schedule actions', () => {
     expect(navigateRoomThread).not.toHaveBeenCalled();
     expect(setViewMode).not.toHaveBeenCalled();
     expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
+    expect(draftAtFocusTime).toEqual([]);
 
     // Resuming an in-progress edit of the SAME task preserves typed text and focuses composer synchronously.
     store.set(roomDraftAtom, [createParagraphElement('!edit_schedule edit-1 tomorrow at 9am')]);

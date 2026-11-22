@@ -38,7 +38,8 @@ export function useHasJoinedMindroomAgent(
   mx: MatrixClient,
   room: Room,
   powerLevels: IPowerLevels,
-  roomCreators: ReadonlySet<string>
+  roomCreators: ReadonlySet<string>,
+  enabled = true
 ): boolean {
   const routerBindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
   const routerBinding =
@@ -66,7 +67,9 @@ export function useHasJoinedMindroomAgent(
 
   const [membershipRevision, setMembershipRevision] = useState(0);
   useEffect(() => {
-    if (typeof mx.on !== 'function' || typeof mx.removeListener !== 'function') return undefined;
+    if (!enabled || typeof mx.on !== 'function' || typeof mx.removeListener !== 'function') {
+      return undefined;
+    }
     let disposed = false;
     const refresh = () => {
       if (!disposed) setMembershipRevision((rev) => rev + 1);
@@ -80,18 +83,16 @@ export function useHasJoinedMindroomAgent(
     };
     mx.on(RoomMemberEvent.Membership, onMember);
     mx.on(RoomStateEvent.Members, onStateMembers);
-    if (typeof room.loadMembersIfNeeded === 'function') {
-      room.loadMembersIfNeeded().then(refresh, () => undefined);
-    }
     return () => {
       disposed = true;
       mx.removeListener(RoomMemberEvent.Membership, onMember);
       mx.removeListener(RoomStateEvent.Members, onStateMembers);
     };
-  }, [mx, room]);
+  }, [enabled, mx, room]);
 
   const viewerUserId = mx.getSafeUserId();
   return useMemo(() => {
+    if (!enabled) return false;
     void membershipRevision;
     const joinedMembers =
       typeof room.getJoinedMembers === 'function' ? room.getJoinedMembers() : [];
@@ -107,7 +108,7 @@ export function useHasJoinedMindroomAgent(
         isMindroomAgentUserIdForViewer(member.userId, viewerUserId) ||
         trustedAccountIds.has(member.userId)
     );
-  }, [boundRouterId, membershipRevision, room, rosterAccountIds, viewerUserId]);
+  }, [boundRouterId, enabled, membershipRevision, room, rosterAccountIds, viewerUserId]);
 }
 
 /**

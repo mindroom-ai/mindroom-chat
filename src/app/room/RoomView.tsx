@@ -69,7 +69,7 @@ const COLUMN_STYLE: CSSProperties = {
 
 export type RoomViewProps = Omit<
   RoomViewHeaderProps,
-  'threadId' | 'threadFilterState' | 'scheduleCancelState'
+  'threadId' | 'threadFilterState' | 'scheduleCancelState' | 'hasJoinedMindroomAgent'
 > & {
   room: Room;
   eventId?: string;
@@ -366,6 +366,7 @@ export function RoomView({
                 composerShown &&
                 (openThreadId ? !forkAt && !threadState.threadNotFound && !behindPanel : !hidden)
               }
+              hasJoinedMindroomAgent={hasJoinedAgent}
               scheduleCancelState={scheduleCancelState}
               {...headerProps}
             />
@@ -419,6 +420,7 @@ export function RoomView({
                     threadId={openThreadId}
                     threadFilterState={threadState.threadFilterState}
                     canEditSchedule={false}
+                    hasJoinedMindroomAgent={hasJoinedAgent}
                     scheduleCancelState={scheduleCancelState}
                     {...headerProps}
                   />
@@ -461,6 +463,7 @@ export function RoomView({
                             threadFilterState={threadState.threadFilterState}
                             onFocusComposer={focusScheduleComposer}
                             canEditSchedule={composerShown && !forkAt && !behindPanel}
+                            hasJoinedMindroomAgent={hasJoinedAgent}
                             scheduleCancelState={scheduleCancelState}
                             {...headerProps}
                           />

@@ -1013,6 +1013,57 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     }
   });
 
+  it('shows blocked Edit and failed Copy ID notices even while Cancellation sent is active, and keeps Cancel focused when toggled off', async () => {
+    const task = makeTask({ taskId: 'status-split-1', description: 'Status split task' });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+      onEditTask: () => 'draft-busy',
+    });
+    try {
+      const cancelBtn = findButtonByAriaLabel(host, 'Cancel')!;
+      // Toggling the Cancel icon off returns focus to the Cancel button.
+      await click(cancelBtn);
+      expect(findButtonByText(host, 'Keep')).toBeDefined();
+      await click(cancelBtn);
+      expect(findButtonByText(host, 'Keep')).toBeUndefined();
+      expect(document.activeElement).toBe(cancelBtn);
+
+      // Confirm cancellation so Cancellation sent is active in its own persistent status region.
+      await click(cancelBtn);
+      await click(findButtonByText(host, 'Cancel task')!);
+      const cancelStatus = host.querySelector(
+        '[data-schedule-cancel-status][role="status"][aria-live="polite"]'
+      );
+      const actionStatus = host.querySelector(
+        '[data-schedule-action-status][role="status"][aria-live="polite"]'
+      );
+      expect(cancelStatus?.textContent).toBe('Cancellation sent');
+      expect(cancelStatus?.className).toBe('cancel-sent-bar');
+      expect(actionStatus?.textContent).toBe('');
+
+      // Blocked Edit still surfaces and announces in the action status region without being masked.
+      await click(findButtonByAriaLabel(host, 'Edit')!);
+      expect(cancelStatus?.textContent).toBe('Cancellation sent');
+      expect(actionStatus?.className).toBe('notice-bar');
+      expect(actionStatus?.textContent).toBe(
+        'Clear your current draft before editing this schedule.'
+      );
+
+      // Failed Copy ID also surfaces without being masked by Cancellation sent.
+      mocks.copyToClipboard.mockResolvedValueOnce(false);
+      await click(findButtonByText(host, 'Copy ID')!);
+      expect(cancelStatus?.textContent).toBe('Cancellation sent');
+      expect(actionStatus?.className).toBe('notice-bar');
+      expect(actionStatus?.textContent).toBe('Could not copy. Select the Task ID in Details.');
+    } finally {
+      unmount();
+    }
+  });
+
   it('omits Edit and Cancel buttons when callbacks are not passed', () => {
     const task = makeTask({ taskId: 'read-only', description: 'Read-only task' });
     const { host, unmount } = mountDialog({

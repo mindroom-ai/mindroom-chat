@@ -40,8 +40,15 @@ const copyWithSelection = (text: string): boolean => {
   input.setAttribute('aria-hidden', 'true');
   input.readOnly = true;
   input.value = text;
-  // eslint-disable-next-line no-restricted-syntax -- off screen; either edge hides it
-  Object.assign(input.style, { position: 'fixed', top: '0', left: '-9999px', opacity: '0' });
+  Object.assign(input.style, {
+    position: 'fixed',
+    top: '0',
+    insetInlineStart: '0',
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
   mountTarget.appendChild(input);
   try {
     input.focus({ preventScroll: true });

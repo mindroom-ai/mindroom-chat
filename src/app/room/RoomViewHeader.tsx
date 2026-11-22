@@ -114,6 +114,8 @@ export type RoomViewHeaderProps = {
   onFocusComposer?: (targetThreadId?: string) => void;
   /** False when the active view has no eligible composer to receive an edit command. */
   canEditSchedule?: boolean;
+  /** Precomputed joined recognized MindRoom agent flag lifted from RoomView to avoid duplicate listeners. */
+  hasJoinedMindroomAgent?: boolean;
   /** Shared per-room schedule cancel state, lifted by RoomView across layout switches. */
   scheduleCancelState?: ScheduleCancelState;
   computerAvailable?: boolean;
@@ -237,6 +239,7 @@ export function RoomViewHeader({
   threadFilterState,
   onFocusComposer,
   canEditSchedule = true,
+  hasJoinedMindroomAgent,
   scheduleCancelState,
   computerAvailable,
   computerOpen,
@@ -274,7 +277,14 @@ export function RoomViewHeader({
   const roomCreators = useRoomCreators(room);
   const powerLevels = usePowerLevelsContext();
   const permissions = useRoomPermissions(roomCreators, powerLevels);
-  const hasJoinedAgent = useHasJoinedMindroomAgent(mx, room, powerLevels, roomCreators);
+  const localHasJoinedAgent = useHasJoinedMindroomAgent(
+    mx,
+    room,
+    powerLevels,
+    roomCreators,
+    hasJoinedMindroomAgent === undefined
+  );
+  const hasJoinedAgent = hasJoinedMindroomAgent ?? localHasJoinedAgent;
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
@@ -464,13 +474,13 @@ export function RoomViewHeader({
     if (offerState === 'busy') {
       return 'draft-busy';
     }
-    if (offerState === 'empty') {
-      store.set(draftAtom, offer);
-    }
     const opener = schedules?.opener;
     flushSync(() => setSchedules(undefined));
     if (onFocusComposer) onFocusComposer(targetThreadId);
     else restoreFocusAfterDismiss(opener);
+    if (offerState === 'empty') {
+      store.set(draftAtom, offer);
+    }
     return 'prefilled';
   };
 

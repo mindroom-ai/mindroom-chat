@@ -271,12 +271,10 @@ function ScheduleAccordionItem({
     setEditBusy(result === 'draft-busy');
   };
 
-  const actionStatus = cancelSent
-    ? { text: t('roomSchedules.cancellationSent'), className: css.CancelSentBar }
-    : editBusy
-    ? { text: t('roomSchedules.editDraftBusy'), className: css.NoticeBar }
+  const actionNotice = editBusy
+    ? t('roomSchedules.editDraftBusy')
     : copyFailed
-    ? { text: t('roomSchedules.copyFailed'), className: css.NoticeBar }
+    ? t('roomSchedules.copyFailed')
     : undefined;
 
   const handleKeepCancel = () => {
@@ -487,6 +485,7 @@ function ScheduleAccordionItem({
                       setConfirmingCancel(false);
                       focusInsideConfirmRef.current = false;
                       onClearCancelError();
+                      cancelButtonRef.current?.focus();
                     } else {
                       setConfirmingCancel(true);
                     }
@@ -558,10 +557,19 @@ function ScheduleAccordionItem({
           <div
             role="status"
             aria-live="polite"
-            data-schedule-action-status=""
-            className={actionStatus ? actionStatus.className : css.SrOnly}
+            data-schedule-cancel-status=""
+            className={cancelSent ? css.CancelSentBar : css.SrOnly}
           >
-            {actionStatus ? <Text size="T200">{actionStatus.text}</Text> : ''}
+            {cancelSent ? <Text size="T200">{t('roomSchedules.cancellationSent')}</Text> : ''}
+          </div>
+
+          <div
+            role="status"
+            aria-live="polite"
+            data-schedule-action-status=""
+            className={actionNotice ? css.NoticeBar : css.SrOnly}
+          >
+            {actionNotice ? <Text size="T200">{actionNotice}</Text> : ''}
           </div>
 
           {detailsOpen && (
