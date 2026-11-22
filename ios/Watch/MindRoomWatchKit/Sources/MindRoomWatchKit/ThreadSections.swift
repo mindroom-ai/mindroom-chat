@@ -42,18 +42,16 @@ public func groupThreadRows<Item>(_ items: [Item], state: (Item) -> ThreadRowSta
     }
 }
 
-/// Compact human-readable duration labels for finished agent work folds (e.g. `14s`, `2m 5s`, `1h 3m`).
+/// Compact locale-aware duration labels for finished agent work folds (e.g. `14s`, `2m 5s`, `1h 3m`).
 public enum DurationLabel {
-    public static func format(seconds: Int) -> String {
-        guard seconds > 0 else { return "0s" }
-        if seconds < 60 { return "\(seconds)s" }
-        if seconds < 3600 {
-            let minutes = seconds / 60
-            let rem = seconds % 60
-            return rem == 0 ? "\(minutes)m" : "\(minutes)m \(rem)s"
+    public static func format(seconds: Int, locale: Locale = .current) -> String {
+        let clamped = max(0, seconds)
+        if clamped == 0 {
+            return Duration.seconds(0).formatted(.units(allowed: [.seconds], width: .narrow, zeroValueUnits: .show(length: 1)).locale(locale))
         }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
+        let allowed: Set<Duration.UnitsFormatStyle.Unit> =
+            clamped < 60 ? [.seconds] : clamped < 3600 ? [.minutes, .seconds] : [.hours, .minutes]
+        let rounded = clamped >= 3600 ? (clamped / 60) * 60 : clamped
+        return Duration.seconds(rounded).formatted(.units(allowed: allowed, width: .narrow).locale(locale))
     }
 }

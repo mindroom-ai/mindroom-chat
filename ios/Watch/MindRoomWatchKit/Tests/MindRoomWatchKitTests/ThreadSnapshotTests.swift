@@ -973,6 +973,23 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.reply?.answerText, "Booked for 3 PM.")
     }
 
+    func testV3BodyLineSplitsStrictlyOnLFIncludingCRLF() {
+        // Swift treats "\r\n" as one Character, so splitting on LF byte 0x0A is required to match web's split('\n').
+        let body = "Step A\r\nStep B\nBooked.\nAt 3 PM."
+        let reply = event("$r", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Step A\nStep B")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked.\nAt 3 PM.")
+    }
+
     func testDurationSecondsHandlesExtremeAndNonPositiveTimestampsWithoutOverflow() {
         let cases: [(Int, Int)] = [
             (Int.min, Int.max),

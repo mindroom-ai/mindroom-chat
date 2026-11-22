@@ -208,7 +208,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
                 var splitWork = details.workText
                 var splitAnswer = details.answerText
                 if splitWork == nil, let maxBodyLine = trace.maxBodyLine {
-                    let rawLines = body.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+                    // Match web's `body.split('\n')` by splitting strictly on UTF-8 LF (0x0A), so both
+                    // Unicode line separators (U+2028) and CRLF (`\r\n`, one Swift Character) stay aligned.
+                    let rawLines = body.utf8.split(separator: 0x0A, omittingEmptySubsequences: false).map { slice -> String in
+                        let trimmed = slice.last == 0x0D ? slice.dropLast() : slice
+                        return String(decoding: trimmed, as: UTF8.self)
+                    }
                     if maxBodyLine > 0 && maxBodyLine < rawLines.count {
                         let before = PlainText.of(markdown: rawLines[..<maxBodyLine].joined(separator: "\n"))
                         let after = PlainText.of(markdown: rawLines[maxBodyLine...].joined(separator: "\n"))

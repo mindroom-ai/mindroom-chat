@@ -52,8 +52,10 @@ struct RecordingView: View {
                 )
             } else {
                 liveBadge
+                    .opacity(recorder.isRecording ? 1 : 0)
+                    .accessibilityHidden(!recorder.isRecording)
                 Spacer(minLength: 2)
-                MirroredWaveform(levels: recorder.levels.suffix(10))
+                MirroredWaveform(levels: recorder.levels.suffix(9))
                     .frame(height: 38)
                 Text(Duration.seconds(recorder.elapsed), format: .time(pattern: .minuteSecond))
                     .font(.system(size: 28, weight: .semibold).monospacedDigit())
@@ -97,8 +99,11 @@ struct RecordingView: View {
             guard await Recorder.requestPermission() else { denied = true; return }
             start()
         }
-        .onAppear {
-            guard !reduceMotion else { return }
+        .onChange(of: recorder.isRecording, initial: true) { _, active in
+            guard active, !reduceMotion else {
+                pulsing = false
+                return
+            }
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 pulsing = true
             }

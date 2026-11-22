@@ -23,26 +23,22 @@ struct ApprovalCardView: View {
             if !card.arguments.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(card.arguments, id: \.key) { argument in
-                        ViewThatFits(in: .horizontal) {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text(argument.key)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                Spacer(minLength: 4)
-                                Text(argument.value)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.90))
-                                    .lineLimit(1)
-                            }
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(argument.key)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(argument.value)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.90))
-                                    .fixedSize(horizontal: false, vertical: true)
+                        if argument.key.contains(where: \.isNewline) || argument.value.contains(where: \.isNewline) {
+                            stackedArgumentRow(argument)
+                        } else {
+                            ViewThatFits(in: .horizontal) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(argument.key)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 4)
+                                    Text(argument.value)
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.90))
+                                        .lineLimit(1)
+                                }
+                                stackedArgumentRow(argument)
                             }
                         }
                     }
@@ -106,6 +102,18 @@ struct ApprovalCardView: View {
                 cornerRadius: 14
             )
         )
+    }
+
+    private func stackedArgumentRow(_ argument: ApprovalCard.Argument) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(argument.key)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(argument.value)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.90))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var styledTitle: AttributedString {

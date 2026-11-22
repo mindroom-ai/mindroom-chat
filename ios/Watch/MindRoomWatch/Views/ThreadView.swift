@@ -23,76 +23,80 @@ struct ThreadView: View {
     }
 
     var body: some View {
-        ScrollViewReader { scroll in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let snapshot = model.snapshot {
-                        if let heading = snapshot.heading {
-                            Text(heading)
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(WatchTheme.tealBright.opacity(0.92))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(WatchTheme.teal.opacity(0.12))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .strokeBorder(WatchTheme.tealBright.opacity(0.22), lineWidth: 0.75)
-                                        )
-                                )
-                        }
-                        ForEach(snapshot.entries) { entry in
-                            switch entry {
-                            case let .message(message): messageView(message, in: snapshot)
-                            case let .approval(card): approvalView(card)
+        VStack(spacing: 0) {
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let snapshot = model.snapshot {
+                            if let heading = snapshot.heading {
+                                Text(heading)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(WatchTheme.tealBright.opacity(0.92))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(WatchTheme.teal.opacity(0.12))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .strokeBorder(WatchTheme.tealBright.opacity(0.22), lineWidth: 0.75)
+                                            )
+                                    )
                             }
+                            ForEach(snapshot.entries) { entry in
+                                switch entry {
+                                case let .message(message): messageView(message, in: snapshot)
+                                case let .approval(card): approvalView(card)
+                                }
+                            }
+                            if snapshot.reply == nil {
+                                Text("Sent")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 4)
+                            }
+                        } else {
+                            ProgressView()
+                                .tint(WatchTheme.tealBright)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 16)
                         }
-                        if snapshot.reply == nil {
-                            Text("Sent")
+                        if let error = model.error {
+                            Text(error)
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(WatchTheme.coral)
                                 .padding(.horizontal, 4)
                         }
-                    } else {
-                        ProgressView()
-                            .tint(WatchTheme.tealBright)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.top, 16)
-                    }
-                    if let error = model.error {
-                        Text(error)
-                            .font(.footnote)
-                            .foregroundStyle(WatchTheme.coral)
-                            .padding(.horizontal, 4)
-                    }
-                    ForEach(model.failedReplies, id: \.self) { transactionId in
-                        HStack {
-                            Text("Not sent").font(.footnote).foregroundStyle(WatchTheme.coral)
-                            Spacer()
-                            Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
-                                .fixedSize()
-                        }
-                        .padding(8)
-                        .background(
-                            GlassCardBackground(
-                                tint: WatchTheme.coral.opacity(0.12),
-                                border: WatchTheme.coral.opacity(0.32),
-                                cornerRadius: 12
+                        ForEach(model.failedReplies, id: \.self) { transactionId in
+                            HStack {
+                                Text("Not sent").font(.footnote).foregroundStyle(WatchTheme.coral)
+                                Spacer()
+                                Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
+                                    .fixedSize()
+                            }
+                            .padding(8)
+                            .background(
+                                GlassCardBackground(
+                                    tint: WatchTheme.coral.opacity(0.12),
+                                    border: WatchTheme.coral.opacity(0.32),
+                                    cornerRadius: 12
+                                )
                             )
-                        )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 6)
+                }
+                .clipped()
+                // Opens there, and goes there again when something new waits or is answered.
+                .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
+                    if let focus {
+                        let anchor: UnitPoint = focus == model.snapshot?.pendingApproval?.eventId ? .bottom : .top
+                        scroll.scrollTo(focus, anchor: anchor)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 6)
             }
-            .safeAreaInset(edge: .bottom, spacing: 2) {
-                bottomActionBar
-            }
-            // Opens there, and goes there again when something new waits or is answered.
-            .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
-                if let focus { scroll.scrollTo(focus, anchor: .top) }
-            }
+            bottomActionBar
         }
         .containerBackground(for: .navigation) {
             WatchTheme.threadBackground
@@ -165,16 +169,17 @@ struct ThreadView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 4)
+        .padding(.horizontal, 12)
+        .padding(.top, 5)
         .padding(.bottom, 2)
         .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0), Color.black.opacity(0.88), Color.black],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .bottom)
+            Color.black.opacity(0.92)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 0.5)
+                }
+                .ignoresSafeArea(edges: .bottom)
         )
     }
 
@@ -236,7 +241,7 @@ struct ThreadView: View {
 
     private func agentMessageCard(_ message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> some View {
         let senderName = roomModel.name(message.sender)
-        let showsWorkFold = message.tools > 0 || message.workText != nil
+        let showsWorkFold = !message.toolNames.isEmpty || message.workText != nil
         let displayText = message.answerText.isEmpty ? message.text : message.answerText
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
@@ -246,6 +251,12 @@ struct ThreadView: View {
                     .foregroundStyle(WatchTheme.tealBright)
                     .lineLimit(1)
                 Spacer(minLength: 2)
+                if !showsWorkFold && message.tools > 0 {
+                    Text(message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
                 if message.run == .streaming {
                     ProgressView()
                         .controlSize(.mini)

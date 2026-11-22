@@ -55,16 +55,19 @@ final class ThreadSectionsTests: XCTestCase {
     }
 
     func testDurationLabelFormatting() {
-        XCTAssertEqual(DurationLabel.format(seconds: -5), "0s")
-        XCTAssertEqual(DurationLabel.format(seconds: 0), "0s")
-        XCTAssertEqual(DurationLabel.format(seconds: 1), "1s")
-        XCTAssertEqual(DurationLabel.format(seconds: 14), "14s")
-        XCTAssertEqual(DurationLabel.format(seconds: 59), "59s")
-        XCTAssertEqual(DurationLabel.format(seconds: 60), "1m")
-        XCTAssertEqual(DurationLabel.format(seconds: 65), "1m 5s")
-        XCTAssertEqual(DurationLabel.format(seconds: 133), "2m 13s")
-        XCTAssertEqual(DurationLabel.format(seconds: 3600), "1h")
-        XCTAssertEqual(DurationLabel.format(seconds: 3660), "1h 1m")
-        XCTAssertEqual(DurationLabel.format(seconds: 7384), "2h 3m")
+        let en = Locale(identifier: "en_US")
+        XCTAssertEqual(DurationLabel.format(seconds: -5, locale: en), "0s")
+        XCTAssertEqual(DurationLabel.format(seconds: 0, locale: en), "0s")
+        XCTAssertEqual(DurationLabel.format(seconds: 1, locale: en), "1s")
+        XCTAssertEqual(DurationLabel.format(seconds: 14, locale: en), "14s")
+        XCTAssertEqual(DurationLabel.format(seconds: 59, locale: en), "59s")
+        XCTAssertEqual(DurationLabel.format(seconds: 60, locale: en), "1m")
+        XCTAssertEqual(DurationLabel.format(seconds: 65, locale: en), "1m 5s")
+        XCTAssertEqual(DurationLabel.format(seconds: 133, locale: en), "2m 13s")
+        XCTAssertEqual(DurationLabel.format(seconds: 3600, locale: en), "1h")
+        XCTAssertEqual(DurationLabel.format(seconds: 3660, locale: en), "1h 1m")
+        XCTAssertEqual(DurationLabel.format(seconds: 7384, locale: en), "2h 3m")
+        // Non-English locale produces localized units (e.g. German uses "Std." or "Min." / "Sek." or "s").
+        XCTAssertFalse(DurationLabel.format(seconds: 3660, locale: Locale(identifier: "ja_JP")).contains("h"))
     }
 }
