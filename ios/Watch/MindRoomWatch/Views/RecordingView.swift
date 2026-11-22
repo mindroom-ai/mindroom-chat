@@ -14,42 +14,46 @@ struct RecordingView: View {
     var body: some View {
         VStack(spacing: 5) {
             if denied {
-                VStack(spacing: 8) {
-                    Image(systemName: "mic.slash.fill")
-                        .font(.title3)
-                        .foregroundStyle(WatchTheme.coral)
-                    Text("MindRoom may not use the microphone. Allow it in Settings on the watch: Privacy & Security, Microphone.")
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.9))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity)
-                .background(
-                    GlassCardBackground(
-                        tint: WatchTheme.coral.opacity(0.12),
-                        border: WatchTheme.coral.opacity(0.32),
-                        cornerRadius: 14
+                ScrollView {
+                    VStack(spacing: 8) {
+                        Image(systemName: "mic.slash.fill")
+                            .font(.title3)
+                            .foregroundStyle(WatchTheme.coral)
+                        Text("MindRoom may not use the microphone. Allow it in Settings on the watch: Privacy & Security, Microphone.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        GlassCardBackground(
+                            tint: WatchTheme.coral.opacity(0.12),
+                            border: WatchTheme.coral.opacity(0.32),
+                            cornerRadius: 14
+                        )
                     )
-                )
+                }
             } else if failed {
-                VStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.title3)
-                        .foregroundStyle(WatchTheme.amber)
-                    Button("Retry") { start() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(WatchTheme.teal)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity)
-                .background(
-                    GlassCardBackground(
-                        tint: WatchTheme.amber.opacity(0.12),
-                        border: WatchTheme.amber.opacity(0.34),
-                        cornerRadius: 14
+                ScrollView {
+                    VStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title3)
+                            .foregroundStyle(WatchTheme.amber)
+                        Button("Retry") { start() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(WatchTheme.teal)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        GlassCardBackground(
+                            tint: WatchTheme.amber.opacity(0.12),
+                            border: WatchTheme.amber.opacity(0.34),
+                            cornerRadius: 14
+                        )
                     )
-                )
+                }
             } else {
                 liveBadge
                     .opacity(recorder.isRecording ? 1 : 0)

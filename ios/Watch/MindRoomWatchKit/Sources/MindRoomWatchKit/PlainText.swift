@@ -65,6 +65,47 @@ public enum PlainText {
         return (text, toolNames, nil, text)
     }
 
+    /// Splits a raw Markdown body at an LF-indexed line boundary (`body_line` in a v3 tool trace) in a single
+    /// fence-aware pass. Returns `nil` if the boundary is out of range, lands inside an open code fence, or has
+    /// no non-empty prose on either side.
+    public static func splitFinishedWork(markdown: String, atLFLine splitLine: Int) -> (workText: String, answerText: String)? {
+        let rawLines = markdown.utf8.split(separator: 0x0A, omittingEmptySubsequences: false).map { slice -> String in
+            let trimmed = slice.last == 0x0D ? slice.dropLast() : slice
+            return String(decoding: trimmed, as: UTF8.self)
+        }
+        guard splitLine > 0 && splitLine < rawLines.count else { return nil }
+        var fence: String?
+        var beforeLines: [String] = []
+        var afterLines: [String] = []
+        for (index, line) in rawLines.enumerated() {
+            if index == splitLine && fence != nil { return nil }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let formatted: String?
+            if let open = fence {
+                if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) {
+                    fence = nil
+                    formatted = nil
+                } else {
+                    formatted = line
+                }
+            } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
+                fence = String(trimmed.prefix { $0 == trimmed.first })
+                formatted = nil
+            } else if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
+                formatted = nil
+            } else {
+                formatted = prose(line)
+            }
+            if let formatted {
+                if index < splitLine { beforeLines.append(formatted) } else { afterLines.append(formatted) }
+            }
+        }
+        let before = normalize(beforeLines[...])
+        let after = normalize(afterLines[...])
+        guard !before.isEmpty && !after.isEmpty else { return nil }
+        return (before, after)
+    }
+
     private static func normalize(_ lines: ArraySlice<String>) -> String {
         lines.joined(separator: "\n")
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)

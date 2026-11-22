@@ -840,7 +840,11 @@ final class ThreadSnapshotTests: XCTestCase {
 
     func testWorkFoldDetailsForV2MarkdownFinishedVsStreamingAndNoPreProse() {
         let finishedBody = "Looking up flights.\n🔧 `flights_search` [1]\nFound **2 options**."
-        let finished = event("$r1", 10_000, inThread(["msgtype": "m.text", "body": finishedBody]))
+        let finished = event("$r1", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "completed",
+        ]))
         let finSnap = ThreadSnapshot.build(root: voiceRoot, related: [finished], ownUserId: me, now: now)
         XCTAssertEqual(finSnap.reply?.toolNames, ["flights_search"])
         XCTAssertEqual(finSnap.reply?.tools, 1)
@@ -860,7 +864,11 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(streamSnap.reply?.answerText, "Looking up flights.\nFound 2 options.")
 
         // No prose before tool call: workText stays nil even when finished.
-        let noPre = event("$r3", 10_000, inThread(["msgtype": "m.text", "body": "🔧 `flights_search` [1]\nFound 2 options."]))
+        let noPre = event("$r3", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "🔧 `flights_search` [1]\nFound 2 options.",
+            "io.mindroom.stream_status": "completed",
+        ]))
         let noPreSnap = ThreadSnapshot.build(root: voiceRoot, related: [noPre], ownUserId: me, now: now)
         XCTAssertEqual(noPreSnap.reply?.toolNames, ["flights_search"])
         XCTAssertNil(noPreSnap.reply?.workText)
@@ -962,6 +970,7 @@ final class ThreadSnapshotTests: XCTestCase {
         let reply = event("$r", 10_000, inThread([
             "msgtype": "m.text",
             "body": body,
+            "io.mindroom.stream_status": "completed",
             "io.mindroom.tool_trace": [
                 "version": 3,
                 "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 1] as JSON],
@@ -969,7 +978,7 @@ final class ThreadSnapshotTests: XCTestCase {
         ]))
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
         XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
-        XCTAssertEqual(snapshot.reply?.workText, "Checking\ncalendar.")
+        XCTAssertEqual(snapshot.reply?.workText, "Checking\u{2028}calendar.")
         XCTAssertEqual(snapshot.reply?.answerText, "Booked for 3 PM.")
     }
 
@@ -979,6 +988,7 @@ final class ThreadSnapshotTests: XCTestCase {
         let reply = event("$r", 10_000, inThread([
             "msgtype": "m.text",
             "body": body,
+            "io.mindroom.stream_status": "completed",
             "io.mindroom.tool_trace": [
                 "version": 3,
                 "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 2] as JSON],
@@ -988,6 +998,50 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
         XCTAssertEqual(snapshot.reply?.workText, "Step A\nStep B")
         XCTAssertEqual(snapshot.reply?.answerText, "Booked.\nAt 3 PM.")
+    }
+
+    func testPausedStoppedAndFencedV3RepliesKeepFullTextUnfolded() {
+        let body = "Checking staging first.\nWaiting for approval."
+        let makeReply = { (status: String) -> ThreadSnapshot.Message? in
+            let initial = event("$r", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…", "io.mindroom.stream_status": "streaming"]))
+            let edit = event("$e", 1_700_000_012_000, [
+                "m.new_content": [
+                    "msgtype": "m.text",
+                    "body": body,
+                    "io.mindroom.stream_status": status,
+                    "io.mindroom.tool_trace": [
+                        "version": 3,
+                        "events": [["type": "tool_call_started", "tool_name": "check_health", "body_line": 1] as JSON],
+                    ] as JSON,
+                ] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            return ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: self.now).reply
+        }
+        // Approval-pending and cancelled runs must keep full prose visible and audible, and omit elapsed duration.
+        for status in ["approval_pending", "cancelled", "error"] {
+            let reply = makeReply(status)
+            XCTAssertEqual(reply?.toolNames, ["check_health"], "status=\(status)")
+            XCTAssertNil(reply?.workText, "status=\(status)")
+            XCTAssertEqual(reply?.answerText, reply?.text, "status=\(status)")
+            XCTAssertNil(reply?.durationSeconds, "status=\(status)")
+        }
+
+        // A body_line inside an open code fence must not split or strip literal fenced lines.
+        let fencedBody = "Example:\n```\n🔧 `demo` [1]\n```\nDone."
+        let fencedReply = event("$rf", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": fencedBody,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "shell", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let fencedSnap = ThreadSnapshot.build(root: voiceRoot, related: [fencedReply], ownUserId: me, now: now)
+        XCTAssertEqual(fencedSnap.reply?.toolNames, ["shell"])
+        XCTAssertNil(fencedSnap.reply?.workText)
+        XCTAssertEqual(fencedSnap.reply?.answerText, "Example:\n🔧 `demo` [1]\nDone.")
     }
 
     func testDurationSecondsHandlesExtremeAndNonPositiveTimestampsWithoutOverflow() {

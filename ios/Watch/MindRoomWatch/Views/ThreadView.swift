@@ -136,12 +136,13 @@ struct ThreadView: View {
                 Image(systemName: "checkmark")
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 36, height: 36)
                     .background(
                         Circle()
                             .fill(Color.white.opacity(0.16))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.75))
                     )
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Done"))
@@ -153,7 +154,7 @@ struct ThreadView: View {
                 Label("Reply", systemImage: "mic.fill")
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(WatchTheme.tealInk)
-                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .frame(maxWidth: .infinity, minHeight: 36)
                     .background(
                         Capsule().fill(
                             LinearGradient(
@@ -163,6 +164,7 @@ struct ThreadView: View {
                             )
                         )
                     )
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
         }
@@ -379,14 +381,15 @@ private struct WorkFoldView: View {
                     if !message.toolNames.isEmpty {
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(Array(message.toolNames.enumerated()), id: \.offset) { _, tool in
-                                HStack(spacing: 4) {
+                                HStack(alignment: .top, spacing: 4) {
                                     Image(systemName: "wrench.fill")
                                         .font(.system(size: 8))
                                         .foregroundStyle(WatchTheme.tealBright.opacity(0.85))
+                                        .padding(.top, 3)
                                     Text(tool)
                                         .font(.system(.caption2, design: .monospaced))
                                         .foregroundStyle(.white.opacity(0.85))
-                                        .lineLimit(1)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                         }

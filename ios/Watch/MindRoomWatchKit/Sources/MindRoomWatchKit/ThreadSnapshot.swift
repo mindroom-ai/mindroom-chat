@@ -205,29 +205,21 @@ public struct ThreadSnapshot: Equatable, Sendable {
             var durationSeconds: Int?
             if trustedAgent {
                 toolNames = details.toolNames + trace.names
-                var splitWork = details.workText
-                var splitAnswer = details.answerText
-                if splitWork == nil, let maxBodyLine = trace.maxBodyLine {
-                    // Match web's `body.split('\n')` by splitting strictly on UTF-8 LF (0x0A), so both
-                    // Unicode line separators (U+2028) and CRLF (`\r\n`, one Swift Character) stay aligned.
-                    let rawLines = body.utf8.split(separator: 0x0A, omittingEmptySubsequences: false).map { slice -> String in
-                        let trimmed = slice.last == 0x0D ? slice.dropLast() : slice
-                        return String(decoding: trimmed, as: UTF8.self)
+                let isFinished = run == .finished
+                if isFinished {
+                    var splitWork = details.workText
+                    var splitAnswer = details.answerText
+                    if splitWork == nil, let maxBodyLine = trace.maxBodyLine,
+                       let split = PlainText.splitFinishedWork(markdown: body, atLFLine: maxBodyLine) {
+                        splitWork = split.workText
+                        splitAnswer = split.answerText
                     }
-                    if maxBodyLine > 0 && maxBodyLine < rawLines.count {
-                        let before = PlainText.of(markdown: rawLines[..<maxBodyLine].joined(separator: "\n"))
-                        let after = PlainText.of(markdown: rawLines[maxBodyLine...].joined(separator: "\n"))
-                        if !before.isEmpty && !after.isEmpty {
-                            splitWork = before
-                            splitAnswer = after
-                        }
+                    workText = splitWork
+                    answerText = workText != nil ? splitAnswer : details.text
+                    if let latestEdit, event.timestamp > 0, latestEdit.timestamp > 0 {
+                        let (delta, overflow) = latestEdit.timestamp.subtractingReportingOverflow(event.timestamp)
+                        if !overflow && delta >= 1000 { durationSeconds = delta / 1000 }
                     }
-                }
-                workText = run == .streaming ? nil : splitWork
-                answerText = workText != nil ? splitAnswer : details.text
-                if let latestEdit, event.timestamp > 0, latestEdit.timestamp > 0 {
-                    let (delta, overflow) = latestEdit.timestamp.subtractingReportingOverflow(event.timestamp)
-                    if !overflow && delta >= 1000 { durationSeconds = delta / 1000 }
                 }
             }
             return Message(eventId: id, sender: sender, isOwn: isOwn, text: details.text,

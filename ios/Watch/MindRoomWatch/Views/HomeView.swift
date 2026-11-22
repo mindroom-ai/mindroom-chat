@@ -239,7 +239,14 @@ private struct RoomHome: View {
                 }
             }
         }
-        .onChange(of: model.rows) { _, rows in openSent(rows) }
+        .onChange(of: model.rows) { oldRows, newRows in
+            openSent(newRows)
+            let oldUrgent = oldRows.filter { $0.state == .needsYou || $0.state == .failed }.count
+            let newUrgent = newRows.filter { $0.state == .needsYou || $0.state == .failed }.count
+            if newUrgent > oldUrgent {
+                collapsed.remove(.needsYou)
+            }
+        }
         .onChange(of: path) { _, _ in following = nil }
         .task(id: following) {
             // Offline the message waits in the queue: stay on the room, where its row says so.
