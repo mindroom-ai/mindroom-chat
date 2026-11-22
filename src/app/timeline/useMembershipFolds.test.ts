@@ -1,5 +1,5 @@
-import { createElement } from 'react';
 // @vitest-environment jsdom
+import { createElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
@@ -47,6 +47,7 @@ describe('useMembershipFolds', () => {
     events: MatrixEvent[];
     windowEvents?: MatrixEvent[];
     pinnedIds?: ReadonlySet<string>;
+    rowRepaintRevision?: number;
   }) => {
     let latest!: ReturnType<typeof useMembershipFolds>;
     function Probe({
@@ -54,11 +55,13 @@ describe('useMembershipFolds', () => {
       events,
       windowEvents,
       pinnedIds = new Set<string>(),
+      rowRepaintRevision,
     }: {
       enabled?: boolean;
       events: MatrixEvent[];
       windowEvents?: MatrixEvent[];
       pinnedIds?: ReadonlySet<string>;
+      rowRepaintRevision?: number;
     }) {
       latest = useMembershipFolds({
         enabled,
@@ -66,6 +69,7 @@ describe('useMembershipFolds', () => {
         windowEvents: windowEvents ?? events,
         isSkipped: () => false,
         pinnedIds,
+        rowRepaintRevision,
       });
       return null;
     }
@@ -79,6 +83,7 @@ describe('useMembershipFolds', () => {
         events: MatrixEvent[];
         windowEvents?: MatrixEvent[];
         pinnedIds?: ReadonlySet<string>;
+        rowRepaintRevision?: number;
       }) => {
         act(() => {
           renderer!.update(createElement(Probe, next));
@@ -129,6 +134,64 @@ describe('useMembershipFolds', () => {
     const events = [joinEvent('$m1', '@a:x'), joinEvent('$m2', '@b:x'), joinEvent('$m3', '@c:x')];
     const hook = mountHook({ enabled: false, events });
     expect(hook.current().view).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
+  });
+
+  it('unfolds a targeted fold when a jump pins one of its events while leaving other folds folded', () => {
+    const events = [
+      joinEvent('$m1', '@a:x'),
+      joinEvent('$m2', '@b:x'),
+      joinEvent('$m3', '@c:x'),
+      msgEvent('$mid'),
+      joinEvent('$m4', '@d:x'),
+      joinEvent('$m5', '@e:x'),
+      joinEvent('$m6', '@f:x'),
+    ];
+    const hook = mountHook({ events });
+    expect([...hook.current().view.breaks.keys()]).toEqual(['$m1', '$m4']);
+
+    // Jumping to $m2 pins it and unfolds only the first run.
+    hook.rerender({ events, pinnedIds: new Set(['$m2']) });
+    expect([...hook.current().view.breaks.keys()]).toEqual(['$m4']);
+    expect(hook.current().view.hiddenIds.has('$m2')).toBe(false);
+    expect(hook.current().view.hiddenIds.has('$m3')).toBe(false);
+    expect(hook.current().view.hiddenIds.has('$m5')).toBe(true);
+  });
+
+  it('recomputes folds when rowRepaintRevision bumps after an event decrypts in place', async () => {
+    // Initially encrypted event sits between two joins, splitting the run below threshold.
+    const encrypted = new MatrixEvent({
+      event_id: '$enc',
+      room_id: '!room:example.org',
+      sender: '@sam:example.org',
+      type: 'm.room.encrypted',
+      origin_server_ts: 1_700_000_000_000,
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'abc' },
+    });
+    const events = [
+      joinEvent('$m1', '@a:x'),
+      joinEvent('$m2', '@b:x'),
+      encrypted,
+      joinEvent('$m3', '@c:x'),
+    ];
+    const hook = mountHook({ events, rowRepaintRevision: 0 });
+    expect(hook.current().view.breaks.size).toBe(0);
+
+    // Decryption mutates the MatrixEvent in place into a rowless reaction without changing array identity.
+    await encrypted.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: {
+          type: 'm.reaction',
+          content: {
+            'm.relates_to': { rel_type: 'm.annotation', event_id: '$other', key: '+' },
+          },
+        },
+      }),
+    } as any);
+    expect(encrypted.getType()).toBe('m.reaction');
+
+    hook.rerender({ events, rowRepaintRevision: 1 });
+    expect([...hook.current().view.breaks.keys()]).toEqual(['$m1']);
+    expect([...hook.current().view.hiddenIds].sort()).toEqual(['$m2', '$m3']);
   });
 });
 
@@ -240,6 +303,63 @@ describe('useMembershipFoldRowMeasurements', () => {
     ]);
   });
 
+  it('restores a previously zeroed row when it leaves the window, the fold opens off-window, and the window widens back', () => {
+    const extendedEvents = [
+      msgEvent('$before'),
+      joinEvent('$m1', '@a:x'),
+      joinEvent('$m2', '@b:x'),
+      joinEvent('$m3', '@c:x'),
+      joinEvent('$m4', '@d:x'),
+      msgEvent('$after'),
+    ];
+    const extendedFold = planMembershipFolds(extendedEvents, {
+      isSkipped: () => false,
+      pinnedIds: new Set(),
+    })[0]!;
+    const { resizeItem, render } = setup(['$m1', '$m3']);
+
+    // 1. Fold starts open (measured normal), then closes: $m2, $m3, $m4 are zeroed.
+    const allIds = new Set(extendedEvents.map((event) => event.getId()!));
+    render(
+      extendedEvents,
+      viewMembershipFolds([extendedFold], () => false, allIds)
+    );
+    expect(resizeItem.mock.calls).toEqual([
+      [2, 0],
+      [3, 0],
+      [4, 0],
+    ]);
+
+    // 2. Window slides forward past $m1 and $m2 (window now starts at $m3).
+    resizeItem.mockClear();
+    const tailWindow = extendedEvents.slice(3);
+    const tailIds = new Set(tailWindow.map((event) => event.getId()!));
+    render(
+      tailWindow,
+      viewMembershipFolds([extendedFold], () => false, tailIds)
+    );
+    // $m3 was previously hidden and now becomes the break row -> restored to estimate(0) = 50.
+    expect(resizeItem.mock.calls).toEqual([[0, 50]]);
+
+    // 3. User opens the fold while $m2 is outside the window.
+    resizeItem.mockClear();
+    render(
+      tailWindow,
+      viewMembershipFolds([extendedFold], () => true, tailIds)
+    );
+    // $m4 (index 1 in tailWindow) was hidden -> restored to estimate(1) = 51; $m3 is mounted.
+    expect(resizeItem.mock.calls).toEqual([[1, 51]]);
+
+    // 4. Window widens back to include $m1 and $m2 while the fold is open.
+    resizeItem.mockClear();
+    render(
+      extendedEvents,
+      viewMembershipFolds([extendedFold], () => true, allIds)
+    );
+    // $m2 was zeroed in step 1 and left the window before step 3; re-entering must restore estimate(2) = 52!
+    expect(resizeItem.mock.calls).toEqual([[2, 52]]);
+  });
+
   it('updates measurements when the window shifts across a folded run', () => {
     const { resizeItem, render } = setup([]);
     // Window starts mid-run at $m2, so $m2 is the break row and $m3 is hidden.
@@ -255,8 +375,8 @@ describe('useMembershipFoldRowMeasurements', () => {
     ]);
 
     resizeItem.mockClear();
-    // Window widens to include $m1: $m1 becomes the break row (was hidden -> estimate 51),
-    // and $m2 and $m3 become hidden (resize to 0).
+    // Window widens to include $m1: $m1 becomes the break row (estimate 51),
+    // and $m2 becomes hidden (resize to 0); $m3 was already hidden.
     const fullIds = new Set(fullEvents.map((event) => event.getId()!));
     render(
       fullEvents,
@@ -265,7 +385,6 @@ describe('useMembershipFoldRowMeasurements', () => {
     expect(resizeItem.mock.calls).toEqual([
       [1, 51],
       [2, 0],
-      [3, 0],
     ]);
   });
 });

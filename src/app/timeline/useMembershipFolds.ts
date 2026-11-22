@@ -19,6 +19,8 @@ type UseMembershipFoldsOptions = {
   isSkipped: (event: MatrixEvent) => boolean;
   /** Event IDs that must remain visible (route or jump targets). */
   pinnedIds: ReadonlySet<string>;
+  /** Bumps when an event mutates in place (e.g. decryption) so folds recompute. */
+  rowRepaintRevision?: number;
 };
 
 /**
@@ -31,14 +33,15 @@ export const useMembershipFolds = ({
   windowEvents,
   isSkipped,
   pinnedIds,
+  rowRepaintRevision,
 }: UseMembershipFoldsOptions): {
   view: MembershipFoldView;
   toggle: (fold: MembershipFold) => void;
 } => {
-  const folds = useMemo(
-    () => (enabled ? planMembershipFolds(events, { isSkipped, pinnedIds }) : []),
-    [enabled, events, isSkipped, pinnedIds]
-  );
+  const folds = useMemo(() => {
+    void rowRepaintRevision;
+    return enabled ? planMembershipFolds(events, { isSkipped, pinnedIds }) : [];
+  }, [enabled, events, isSkipped, pinnedIds, rowRepaintRevision]);
 
   const visibleIds = useMemo(() => {
     if (folds.length === 0) return undefined;
@@ -78,10 +81,12 @@ export const useMembershipFolds = ({
   return { view, toggle };
 };
 
+type AppliedRowState = 'hidden' | 'break-closed' | 'break-open';
+
 /**
- * Syncs virtualizer item measurements for folded membership rows: hidden rows resize to 0 px,
- * newly unhidden rows take their estimate so they can mount, and disconnected break rows whose
- * state changed take their estimate again instead of keeping stale measured heights.
+ * Syncs virtualizer item measurements for folded membership rows, tracking the fold state
+ * actually applied per row ID in the current virtualizer so rows that leave and re-enter the
+ * window still restore their non-zero estimate when opened or unfolded.
  */
 export const useMembershipFoldRowMeasurements = (
   virtualizer: Virtualizer<HTMLDivElement, Element>,
@@ -89,29 +94,45 @@ export const useMembershipFoldRowMeasurements = (
   view: MembershipFoldView,
   estimate: (index: number) => number
 ) => {
-  const previousHidden = useRef<ReadonlySet<string>>(new Set());
-  const previousBreaks = useRef<MembershipFoldView['breaks']>(new Map());
+  const virtualizerRef = useRef(virtualizer);
+  const appliedRef = useRef<Map<string, AppliedRowState>>(new Map());
 
   useLayoutEffect(() => {
-    const beforeHidden = previousHidden.current;
-    const beforeBreaks = previousBreaks.current;
-    previousHidden.current = view.hiddenIds;
-    previousBreaks.current = view.breaks;
+    if (virtualizerRef.current !== virtualizer) {
+      virtualizerRef.current = virtualizer;
+      appliedRef.current = new Map();
+    }
+    const applied = appliedRef.current;
 
     windowEvents.forEach((event, index) => {
       const id = event.getId();
       if (!id) return;
+
+      let desired: AppliedRowState | 'normal';
       if (view.hiddenIds.has(id)) {
+        desired = 'hidden';
+      } else {
+        const breakEntry = view.breaks.get(id);
+        desired = breakEntry ? (breakEntry.open ? 'break-open' : 'break-closed') : 'normal';
+      }
+
+      const prev = applied.get(id) ?? 'normal';
+      if (desired === prev) return;
+
+      if (desired === 'hidden') {
         virtualizer.resizeItem(index, 0);
+        applied.set(id, 'hidden');
         return;
       }
-      if (beforeHidden.has(id)) {
+
+      if (prev === 'hidden' || !virtualizer.elementsCache.get(id)?.isConnected) {
         virtualizer.resizeItem(index, estimate(index));
-        return;
       }
-      const breakChanged = view.breaks.get(id)?.open !== beforeBreaks.get(id)?.open;
-      if (breakChanged && !virtualizer.elementsCache.get(id)?.isConnected) {
-        virtualizer.resizeItem(index, estimate(index));
+
+      if (desired === 'normal') {
+        applied.delete(id);
+      } else {
+        applied.set(id, desired);
       }
     });
   }, [virtualizer, windowEvents, view, estimate]);

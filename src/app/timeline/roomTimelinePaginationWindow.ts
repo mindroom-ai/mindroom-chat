@@ -206,7 +206,11 @@ export const useRoomRowRemoval = ({
   useLiveEventRemove(room, handleRemove);
 };
 
-type RoomRowFoldPrice = (key: string | number | bigint, index: number) => number;
+type RoomRowFoldPrice = (
+  key: string | number | bigint,
+  index: number,
+  nextWindowStart?: number
+) => number;
 
 /**
  * The paginator of the room's window. Rows mounted above the reader put their height into the
@@ -262,7 +266,7 @@ export const useRoomWindowPaginator = ({
         for (let index = next.start; index < Math.min(current.start, next.end); index += 1) {
           const key = roomRowsRef.current[index]?.getId() ?? index;
           // Priced by its place in the window still mounted, which the estimate reads.
-          foldPx += roomFoldPriceRef.current(key, index - current.start);
+          foldPx += roomFoldPriceRef.current(key, index - current.start, next.start);
         }
         pendingRoomFoldPxRef.current += foldPx;
         roomFoldWindowRef.current = current;

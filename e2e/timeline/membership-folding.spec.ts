@@ -135,7 +135,6 @@ const verifyMembershipFolding = async (
     await expect(breaks).toHaveCount(1);
     const pill = breaks.getByRole('button');
     await expect(pill).toHaveAttribute('aria-expanded', 'false');
-    await expect(pill).toHaveAttribute('title', EXPECTED_COLLAPSED);
     await expect(pill).toContainText(EXPECTED_COLLAPSED);
 
     // Individual folded membership rows are hidden while collapsed.
@@ -144,7 +143,7 @@ const verifyMembershipFolding = async (
     await expect(leftRow).toHaveCount(0);
     await expect(bannedRow).toHaveCount(0);
 
-    // The pill stays within the viewport width on narrow screens.
+    // The pill fits inside the viewport width and wraps without clipping text on narrow screens.
     const viewportWidth = options.viewport?.width ?? 1280;
     const pillBox = await pill.boundingBox();
     expect(pillBox).not.toBeNull();
@@ -152,6 +151,7 @@ const verifyMembershipFolding = async (
       expect(pillBox.x).toBeGreaterThanOrEqual(0);
       expect(pillBox.x + pillBox.width).toBeLessThanOrEqual(viewportWidth);
     }
+    expect(await pill.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
     await pill.scrollIntoViewIfNeeded();
     await shot(page, `${form}-collapsed`);
@@ -159,7 +159,6 @@ const verifyMembershipFolding = async (
     // Clicking the pill expands all verbatim membership rows below it while keeping focus.
     await pill.click();
     await expect(pill).toHaveAttribute('aria-expanded', 'true');
-    await expect(pill).toHaveAttribute('title', EXPECTED_EXPANDED);
     await expect(pill).toContainText(EXPECTED_EXPANDED);
     await expect(pill).toBeFocused();
     await expect(leftRow).toBeVisible();

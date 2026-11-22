@@ -145,13 +145,18 @@ const getMemberEventKind = (
   return 'broken';
 };
 
-/** Classifies an `m.room.member` event by its Matrix membership transition. */
-export const getMemberEventKindForEvent = (event: MatrixEvent): MemberEventKind => {
+const readMemberEventTransition = (event: MatrixEvent) => {
   const current = readMemberContent(event.getContent());
   const previous = readMemberContent(event.getPrevContent());
   const senderId = event.getSender();
   const targetId = event.getStateKey() ?? undefined;
   const selfChange = !!senderId && senderId === targetId;
+  return { current, previous, senderId, targetId, selfChange };
+};
+
+/** Classifies an `m.room.member` event by its Matrix membership transition. */
+export const getMemberEventKindForEvent = (event: MatrixEvent): MemberEventKind => {
+  const { current, previous, selfChange } = readMemberEventTransition(event);
   return getMemberEventKind(current, previous, selfChange);
 };
 
@@ -180,11 +185,7 @@ type MemberEventFacts = {
 
 /** Reads who did what to whom from a member event; the sentence is chosen by `kind`. */
 const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts => {
-  const current = readMemberContent(event.getContent());
-  const previous = readMemberContent(event.getPrevContent());
-  const senderId = event.getSender();
-  const targetId = event.getStateKey() ?? undefined;
-  const selfChange = !!senderId && senderId === targetId;
+  const { current, previous, senderId, targetId, selfChange } = readMemberEventTransition(event);
 
   // A name the events carry shows as the room shows names now, with the user ID where another
   // member reads the same; without one, the member as the room knows them.

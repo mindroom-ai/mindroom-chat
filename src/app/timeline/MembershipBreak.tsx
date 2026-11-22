@@ -56,15 +56,9 @@ export function MembershipBreak({ summary, open, onToggle }: MembershipBreakProp
   }
 
   return (
-    <div className={css.TurnBreak} data-membership-break>
+    <div className={css.MembershipBreak} data-membership-break>
       <span className={css.Line} />
-      <button
-        type="button"
-        className={css.Pill}
-        aria-expanded={open}
-        title={label}
-        onClick={onToggle}
-      >
+      <button type="button" className={css.MembershipPill} aria-expanded={open} onClick={onToggle}>
         <span className={css.PillLabel}>{label}</span>
         <span className={css.Chevron} aria-hidden>
           {open ? '▴' : '▾'}

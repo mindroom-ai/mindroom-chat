@@ -158,6 +158,12 @@ type FoldOptions = {
   isQuietMarker?: (event: MatrixEvent) => boolean;
   /** Of the quiet marker rows, those that show beside others (`quietRunIndexes`). */
   joinsQuietRun?: (event: MatrixEvent) => boolean;
+  /**
+   * For a skipped row that renders a closed membership break pill, returns the absolute index of
+   * the fold's last event so the pill can carry the unread divider and a leading closed fold can
+   * seed the day reference without showing the hidden member row itself.
+   */
+  getClosedBreakAnchor?: (index: number) => { lastAbsoluteIndex?: number } | undefined;
 };
 
 /** The next row with output after `index`, or undefined past the loaded events. */
@@ -196,6 +202,7 @@ export const foldTimelineRowContexts = ({
   groupStartIndex,
   isQuietMarker: readsAsQuietMarker = () => false,
   joinsQuietRun = () => true,
+  getClosedBreakAnchor,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -306,6 +313,30 @@ export const foldTimelineRowContexts = ({
       }
       above = event;
       aboveHasRow = hasRow;
+    } else if (event?.getId()) {
+      const closedBreak = getClosedBreakAnchor?.(index);
+      if (closedBreak) {
+        if (!above) above = event;
+        aboveHasRow = false;
+        endQuietRun();
+        const unreadDivider =
+          closedBreak.lastAbsoluteIndex !== undefined &&
+          shouldRenderUnreadDividerAt({
+            readUptoAbsoluteIndex,
+            eventAbsoluteIndex: closedBreak.lastAbsoluteIndex,
+            prevRenderedEventAbsoluteIndex: lastRowAbsoluteIndex,
+          });
+        if (unreadDivider) {
+          contexts.set(index, {
+            collapse: false,
+            dayDivider: false,
+            unreadDivider: true,
+          });
+        }
+        if (closedBreak.lastAbsoluteIndex !== undefined) {
+          lastRowAbsoluteIndex = closedBreak.lastAbsoluteIndex;
+        }
+      }
     }
   }
   endQuietRun();

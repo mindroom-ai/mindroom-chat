@@ -6,11 +6,18 @@ import { color, config, toRem } from 'folds';
 
 export const TurnBreak = style({
   display: 'grid',
-  gridTemplateColumns: 'minmax(12px, 1fr) minmax(0, auto) minmax(12px, 1fr)',
+  gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
   alignItems: 'center',
   columnGap: config.space.S200,
   padding: `${config.space.S200} ${config.space.S400}`,
 });
+
+export const MembershipBreak = style([
+  TurnBreak,
+  {
+    gridTemplateColumns: 'minmax(12px, 1fr) minmax(0, auto) minmax(12px, 1fr)',
+  },
+]);
 
 export const Line = style({
   borderBlockStart: `1px dashed ${color.SurfaceVariant.ContainerLine}`,
@@ -21,7 +28,6 @@ export const Pill = style({
   alignItems: 'center',
   gap: config.space.S200,
   minHeight: toRem(26),
-  minWidth: 0,
   maxWidth: '100%',
   padding: `0 ${config.space.S300}`,
   borderRadius: config.radii.Pill,
@@ -45,11 +51,20 @@ export const Pill = style({
   },
 });
 
+export const MembershipPill = style([
+  Pill,
+  {
+    justifyContent: 'center',
+    minWidth: 0,
+    padding: `${toRem(3)} ${config.space.S300}`,
+    lineHeight: 1.35,
+    textAlign: 'center',
+    whiteSpace: 'normal',
+  },
+]);
+
 export const PillLabel = style({
   minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
 });
 
 export const Chevron = style({

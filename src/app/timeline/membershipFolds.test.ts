@@ -4,6 +4,7 @@ import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
   MIN_FOLDED_MEMBERSHIP_EVENTS,
   planMembershipFolds,
+  resolveMembershipFoldAnchorIndex,
   viewMembershipFolds,
 } from './membershipFolds';
 
@@ -243,7 +244,7 @@ describe('planMembershipFolds', () => {
     expect(folds[0]?.hiddenIds).toEqual(['$m1', '$m2', '$m3']);
   });
 
-  it('excludes redacted membership events when shown, breaking the run', () => {
+  it('skips redacted membership events when hidden and folds them without a bucket when shown', () => {
     const events = [
       joinEvent('$m1', '@a:x'),
       joinEvent('$m2', '@b:x'),
@@ -252,15 +253,29 @@ describe('planMembershipFolds', () => {
       joinEvent('$m4', '@e:x'),
     ];
 
-    // When showHiddenEvents is true, redacted events are not skipped and break the run.
-    expect(planMembershipFolds(events, defaultRules)).toEqual([]);
+    // When showHiddenEvents is true, visible redacted members join the run and count in total only.
+    const visibleRedacted = planMembershipFolds(events, defaultRules);
+    expect(visibleRedacted).toHaveLength(1);
+    expect(visibleRedacted[0]?.hiddenIds).toEqual(['$m1', '$m2', '$red', '$m3', '$m4']);
+    expect(visibleRedacted[0]?.summary).toEqual({
+      total: 5,
+      joined: 4,
+      left: 0,
+      invited: 0,
+      requested: 0,
+      kicked: 0,
+      banned: 0,
+      unbanned: 0,
+      profileChanges: 0,
+    });
 
-    // When showHiddenEvents is false, redacted events are skipped and do not break the run.
+    // When showHiddenEvents is false, redacted events are skipped and do not break or inflate the run.
     const skippedRedacted = planMembershipFolds(events, {
       isSkipped: (event) => event.isRedacted(),
       pinnedIds: new Set(),
     });
     expect(skippedRedacted.map((fold) => fold.hiddenIds)).toEqual([['$m1', '$m2', '$m3', '$m4']]);
+    expect(skippedRedacted[0]?.summary.total).toBe(4);
   });
 
   it('keeps a run unfolded when any of its events is in pinnedIds', () => {
@@ -314,5 +329,29 @@ describe('viewMembershipFolds', () => {
     const view = viewMembershipFolds([fold], () => false, new Set(['$msg']));
     expect([...view.breaks.keys()]).toEqual(['$m1']);
     expect([...view.hiddenIds].sort()).toEqual(['$m2', '$m3', '$m4']);
+  });
+
+  it('resolves an unread anchor inside a closed fold to the fold break row index', () => {
+    const timeline = [
+      messageEvent('$msg0'),
+      joinEvent('$m1', '@a:x'),
+      joinEvent('$m2', '@b:x'),
+      joinEvent('$m3', '@c:x'),
+      joinEvent('$m4', '@d:x'),
+      messageEvent('$msg1'),
+    ];
+    const closed = viewMembershipFolds([fold], () => false);
+    expect(resolveMembershipFoldAnchorIndex(timeline, 3, closed)).toBe(1);
+    expect(resolveMembershipFoldAnchorIndex(timeline, 1, closed)).toBe(1);
+    expect(resolveMembershipFoldAnchorIndex(timeline, 5, closed)).toBe(5);
+    expect(resolveMembershipFoldAnchorIndex(timeline, undefined, closed)).toBeUndefined();
+
+    // When the window starts mid-fold, the anchor resolves to the window break row.
+    const partial = viewMembershipFolds([fold], () => false, new Set(['$m2', '$m3', '$m4']));
+    expect(resolveMembershipFoldAnchorIndex(timeline, 4, partial)).toBe(2);
+
+    // When the fold is open, the anchor stays on the exact member row.
+    const open = viewMembershipFolds([fold], () => true);
+    expect(resolveMembershipFoldAnchorIndex(timeline, 3, open)).toBe(3);
   });
 });

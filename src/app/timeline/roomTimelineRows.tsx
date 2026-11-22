@@ -205,18 +205,48 @@ export const timelineRowSizing = ({
   /** The room's folded membership runs, read through a ref so paginator folds price accurately. */
   membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
 }) => {
-  const estimateSize = (index?: number): number => {
+  const estimateSize = (index?: number, nextWindowStart?: number): number => {
     if (!threadId) {
       const rows = roomRowsRef.current;
       const position = index === undefined ? undefined : activeRangeRef.current.start + index;
       const event = position === undefined ? undefined : rows[position];
       const eventId = event?.getId() ?? '';
       const membershipView = eventId ? membershipFoldsRef?.current : undefined;
-      if (membershipView?.hiddenIds.has(eventId)) return 0;
-      const membershipBreak = membershipView?.breaks.get(eventId);
-      // Offset by ROOM_ROW_UNMEASURED_PX so a 42 px break row still records in virtual-core's
-      // itemSizeCache and lets the opening room automatic fill reveal the timeline.
-      if (membershipBreak?.open === false) return TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
+      let membershipBreak: { fold: MembershipFold; open: boolean } | undefined;
+      if (membershipView) {
+        if (nextWindowStart !== undefined) {
+          const entry = membershipView.foldByEventId.get(eventId);
+          if (entry) {
+            const foldIds = new Set(entry.fold.hiddenIds);
+            let destBreakId: string | undefined;
+            for (
+              let rowIndex = Math.max(nextWindowStart, 0);
+              rowIndex < rows.length;
+              rowIndex += 1
+            ) {
+              const candidateId = rows[rowIndex]?.getId();
+              if (candidateId && foldIds.has(candidateId)) {
+                destBreakId = candidateId;
+                break;
+              }
+            }
+            if (!entry.open) {
+              return eventId === destBreakId ? TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX : 0;
+            }
+            if (eventId === destBreakId) {
+              membershipBreak = entry;
+            }
+          }
+        } else {
+          if (membershipView.hiddenIds.has(eventId)) return 0;
+          membershipBreak = membershipView.breaks.get(eventId);
+          // Offset by ROOM_ROW_UNMEASURED_PX so a 42 px break row still records in virtual-core's
+          // itemSizeCache and lets the opening room automatic fill reveal the timeline.
+          if (membershipBreak?.open === false) {
+            return TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
+          }
+        }
+      }
       let normal: number;
       if (compactLayout) {
         normal = ROOM_ROW_ESTIMATE_PX.compact;
@@ -433,6 +463,32 @@ export const renderTimelineTiles = ({
       })
     );
   };
+  const getClosedBreakAnchor =
+    !threadId && membershipFolds && membershipFolds.view.breaks.size > 0
+      ? (index: number) => {
+          const event = getRowEvent(index);
+          const id = event?.getId();
+          if (!id) return undefined;
+          const breakEntry = membershipFolds.view.breaks.get(id);
+          if (!breakEntry || breakEntry.open) return undefined;
+          const lastHiddenId = breakEntry.fold.hiddenIds.at(-1);
+          let lastAbsoluteIndex = roomRowEntries[windowStart + index]?.absoluteIndex;
+          if (lastHiddenId) {
+            for (
+              let entryIndex = Math.max(windowStart + index, 0);
+              entryIndex < roomRowEntries.length;
+              entryIndex += 1
+            ) {
+              const entry = roomRowEntries[entryIndex];
+              if (entry?.event.getId() === lastHiddenId) {
+                lastAbsoluteIndex = entry.absoluteIndex;
+                break;
+              }
+            }
+          }
+          return { lastAbsoluteIndex };
+        }
+      : undefined;
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),
     getEvent: getRowEvent,
@@ -447,6 +503,7 @@ export const renderTimelineTiles = ({
     joinsQuietRun: joinsQuietMarkerRun
       ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
       : undefined,
+    getClosedBreakAnchor,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
@@ -481,9 +538,15 @@ export const renderTimelineTiles = ({
         onToggle={() => membershipFolds?.toggle(membershipBreak.fold)}
       />
     ) : undefined;
+    const isClosedBreak = turnBreak?.open === false || membershipBreak?.open === false;
+    const closedUnreadDivider =
+      membershipBreak?.open === false && context?.unreadDivider ? (
+        <UnreadDivider separatorRef={unreadMarkerRef} />
+      ) : null;
     let content: ReactNode = null;
+    // A closed break renders only its break (and optional unread divider), not its hidden row.
     // A quiet marker folded into the run's first row, which shows it, renders nothing.
-    if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
+    if (!isClosedBreak && context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
       const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
         const marker = getRowEvent(index);
         const eventId = marker?.getId();
@@ -539,6 +602,7 @@ export const renderTimelineTiles = ({
         style={{ top: item.start + ledgerPxAtRender }}
       >
         <div data-room-row-index={threadId ? undefined : item.index}>
+          {closedUnreadDivider}
           {breakNode}
           {content}
         </div>

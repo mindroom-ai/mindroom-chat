@@ -60,7 +60,7 @@ export type TimelineScrollLedgerControllerOptions = {
    * latest end) sees new rows arrive.
    */
   anchorRoomRows?: () => boolean;
-  estimateSize: (index?: number) => number;
+  estimateSize: (index?: number, nextWindowStart?: number) => number;
   getItemKey: (index: number) => VirtualItemKey;
   getScrollElement: () => HTMLDivElement | null;
   itemCount: number;
@@ -71,7 +71,9 @@ export type TimelineScrollLedgerControllerOptions = {
    * update), so the fold waits for the render that mounts them.
    */
   roomFoldHeld?: boolean;
-  roomFoldPriceRef: MutableRefObject<(key: VirtualItemKey, index: number) => number>;
+  roomFoldPriceRef: MutableRefObject<
+    (key: VirtualItemKey, index: number, nextWindowStart?: number) => number
+  >;
   roomId: string;
   /**
    * Changes when the room's rows are replaced rather than added to: the ledger starts over, as
@@ -249,8 +251,8 @@ export const useTimelineScrollLedgerController = ({
   const ledgerFoldSizeCacheRef = useRef<Map<VirtualItemKey, number>>();
 
   const priceThreadRowForLedger = useCallback(
-    (key: VirtualItemKey, index: number): number =>
-      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index),
+    (key: VirtualItemKey, index: number, nextWindowStart?: number): number =>
+      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index, nextWindowStart),
     [estimateSize]
   );
   // Thread prepend planning is pure. Its mutations are applied only after

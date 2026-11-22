@@ -198,6 +198,7 @@ import {
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
 import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
+import { resolveMembershipFoldAnchorIndex } from './membershipFolds';
 import { useMembershipFoldRowMeasurements, useMembershipFolds } from './useMembershipFolds';
 import {
   isTimelineRowHidden,
@@ -1079,6 +1080,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     windowEvents: roomWindowRows,
     isSkipped: isHiddenBeforeFolding,
     pinnedIds: membershipPinnedIds,
+    rowRepaintRevision: feature.rowRepaintRevision,
   });
   const membershipFoldsRef = useLatestRef(membershipFolds.view);
 
@@ -1422,7 +1424,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadTimelineTick: session.snapshot.timelineRevision,
     timelineAtLiveEnd,
     unreadInfo,
-    unreadScrollAnchorIndex: windowState.unreadScrollAnchorIndex,
+    unreadScrollAnchorIndex: threadId
+      ? windowState.unreadScrollAnchorIndex
+      : resolveMembershipFoldAnchorIndex(
+          roomRows,
+          windowState.unreadScrollAnchorIndex,
+          membershipFolds.view
+        ),
   });
   // After the pins above: a thread opening at its newest reply shows its rows once they rest there
   // (a local echo root, a thread still being created, has no open to wait for).

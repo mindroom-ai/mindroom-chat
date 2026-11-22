@@ -11,8 +11,10 @@ import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 vi.mock('./TurnBreak.css', () => ({
   TurnBreak: 'TurnBreak',
+  MembershipBreak: 'MembershipBreak',
   Line: 'Line',
   Pill: 'Pill',
+  MembershipPill: 'MembershipPill',
   PillLabel: 'PillLabel',
   Chevron: 'Chevron',
   Dots: 'Dots',

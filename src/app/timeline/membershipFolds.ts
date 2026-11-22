@@ -38,11 +38,14 @@ export type MembershipFoldView = {
   hiddenIds: ReadonlySet<string>;
   /** Each fold's break pill, keyed by the row ID that draws it. */
   breaks: ReadonlyMap<string, { fold: MembershipFold; open: boolean }>;
+  /** Every folded event ID mapped to its owning fold and open state. */
+  foldByEventId: ReadonlyMap<string, { fold: MembershipFold; open: boolean }>;
 };
 
 export const EMPTY_MEMBERSHIP_FOLD_VIEW: MembershipFoldView = {
   hiddenIds: new Set(),
   breaks: new Map(),
+  foldByEventId: new Map(),
 };
 
 type SummaryBucketKey = Exclude<keyof MembershipFoldSummary, 'total'>;
@@ -75,7 +78,7 @@ const bucketForMemberKind = (kind: MemberEventKind): SummaryBucketKey | undefine
 };
 
 export const isFoldableMembershipEvent = (event: MatrixEvent): boolean =>
-  event.getType() === 'm.room.member' && event.getStateKey() !== undefined && !event.isRedacted();
+  event.getType() === 'm.room.member' && event.getStateKey() !== undefined;
 
 export const summarizeMembershipRun = (events: readonly MatrixEvent[]): MembershipFoldSummary => {
   const buckets: Record<SummaryBucketKey, Set<string>> = {
@@ -90,6 +93,7 @@ export const summarizeMembershipRun = (events: readonly MatrixEvent[]): Membersh
   };
 
   for (const event of events) {
+    if (event.isRedacted()) continue;
     const bucket = bucketForMemberKind(getMemberEventKindForEvent(event));
     if (bucket) {
       buckets[bucket].add(event.getStateKey() ?? '');
@@ -169,21 +173,45 @@ export const viewMembershipFolds = (
   if (folds.length === 0) return EMPTY_MEMBERSHIP_FOLD_VIEW;
   const hiddenIds = new Set<string>();
   const breaks = new Map<string, { fold: MembershipFold; open: boolean }>();
+  const foldByEventId = new Map<string, { fold: MembershipFold; open: boolean }>();
 
   for (const fold of folds) {
     const open = isOpen(fold);
+    const entry = { fold, open };
     const breakRowId =
       (visibleIds ? fold.hiddenIds.find((id) => visibleIds.has(id)) : undefined) ??
       fold.hiddenIds[0];
-    if (!open) {
-      for (const id of fold.hiddenIds) {
-        if (id !== breakRowId) hiddenIds.add(id);
-      }
+    for (const id of fold.hiddenIds) {
+      foldByEventId.set(id, entry);
+      if (!open && id !== breakRowId) hiddenIds.add(id);
     }
     if (breakRowId) {
-      breaks.set(breakRowId, { fold, open });
+      breaks.set(breakRowId, entry);
     }
   }
 
-  return { hiddenIds, breaks };
+  return { hiddenIds, breaks, foldByEventId };
+};
+
+/**
+ * Resolves a room row index (such as the opening unread scroll anchor) so that if the target
+ * event is hidden inside a closed membership fold, scrolling lands on that fold's break row.
+ */
+export const resolveMembershipFoldAnchorIndex = (
+  events: readonly MatrixEvent[],
+  index: number | undefined,
+  view: MembershipFoldView
+): number | undefined => {
+  if (index === undefined) return undefined;
+  const eventId = events[index]?.getId();
+  if (!eventId || !view.hiddenIds.has(eventId)) return index;
+  const entry = view.foldByEventId.get(eventId);
+  if (!entry || entry.open) return index;
+  for (const [breakRowId, breakEntry] of view.breaks) {
+    if (breakEntry.fold === entry.fold) {
+      const breakIndex = events.findIndex((event) => event.getId() === breakRowId);
+      return breakIndex >= 0 ? breakIndex : index;
+    }
+  }
+  return index;
 };

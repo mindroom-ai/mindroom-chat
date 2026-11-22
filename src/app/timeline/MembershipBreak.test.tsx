@@ -10,8 +10,10 @@ import { MembershipBreak } from './MembershipBreak';
 
 vi.mock('./TurnBreak.css', () => ({
   TurnBreak: 'TurnBreak',
+  MembershipBreak: 'MembershipBreak',
   Line: 'Line',
   Pill: 'Pill',
+  MembershipPill: 'MembershipPill',
   PillLabel: 'PillLabel',
   Chevron: 'Chevron',
   Dots: 'Dots',
@@ -52,7 +54,8 @@ describe('MembershipBreak', () => {
   it('shows just the bucket label for a single-kind run with no duplicates', () => {
     const { button, label, chevron } = renderBreak(emptySummary({ total: 5, joined: 5 }), false);
     expect(label).toBe('5 joined');
-    expect(button.props.title).toBe('5 joined');
+    expect(button.props.className).toBe('MembershipPill');
+    expect(button.props.title).toBeUndefined();
     expect(button.props['aria-expanded']).toBe(false);
     expect(chevron.props['aria-hidden']).toBe(true);
     expect(chevron.children).toEqual(['▾']);
@@ -61,7 +64,6 @@ describe('MembershipBreak', () => {
   it('shows total and deduplicated details for multi-kind or deduplicated runs', () => {
     const multi = renderBreak(emptySummary({ total: 17, joined: 11, left: 1, banned: 1 }), false);
     expect(multi.label).toBe('17 room events · 11 joined, 1 left, 1 banned');
-    expect(multi.button.props.title).toBe('17 room events · 11 joined, 1 left, 1 banned');
 
     act(() => renderer?.unmount());
     const deduped = renderBreak(emptySummary({ total: 5, joined: 3 }), false);
@@ -71,7 +73,7 @@ describe('MembershipBreak', () => {
   it('falls back to total room events when no bucket is non-zero', () => {
     const { button, label } = renderBreak(emptySummary({ total: 4 }), false);
     expect(label).toBe('4 room events');
-    expect(button.props.title).toBe('4 room events');
+    expect(button.props.title).toBeUndefined();
   });
 
   it('offers to hide the events when expanded', () => {
@@ -80,7 +82,7 @@ describe('MembershipBreak', () => {
       true
     );
     expect(label).toBe('Hide 17 room events');
-    expect(button.props.title).toBe('Hide 17 room events');
+    expect(button.props.title).toBeUndefined();
     expect(button.props['aria-expanded']).toBe(true);
     expect(chevron.children).toEqual(['▴']);
   });
