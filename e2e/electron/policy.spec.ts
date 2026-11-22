@@ -721,12 +721,7 @@ test.describe('Electron script policy and canvas frame', () => {
               .first()
               .getByRole('alert')
               .first()
-          : page
-              .locator(outerSelector)
-              .first()
-              .locator('xpath=../..')
-              .getByRole('alert')
-              .first();
+          : page.locator(outerSelector).first().locator('xpath=../..').getByRole('alert').first();
 
       const markBeforeRemount = async (outerSelector: string): Promise<void> => {
         await page
@@ -767,6 +762,72 @@ test.describe('Electron script policy and canvas frame', () => {
         }
         await expect(alert).toContainText('(connect-src)', { timeout: 15_000 });
         await expect(alert).toContainText('(img-src)', { timeout: 15_000 });
+        // After a remount the inline canvas resizes via postMessage and timeline layout can shift
+        // the outer iframe while #inc looks stationary inside its own inner frame. Wait until the
+        // outer iframe rect is unchanged across two animation frames and #inc is under the click point.
+        await expect
+          .poll(
+            async () => {
+              const stableOuter = await outer.evaluate(
+                (el) =>
+                  new Promise<boolean>((resolve) => {
+                    const read = () => {
+                      const r = el.getBoundingClientRect();
+                      return [
+                        Math.round(r.left),
+                        Math.round(r.top),
+                        Math.round(r.width),
+                        Math.round(r.height),
+                      ] as const;
+                    };
+                    requestAnimationFrame(() => {
+                      const a = read();
+                      requestAnimationFrame(() => {
+                        const b = read();
+                        resolve(
+                          a[2] > 0 &&
+                            a[3] > 0 &&
+                            a[0] === b[0] &&
+                            a[1] === b[1] &&
+                            a[2] === b[2] &&
+                            a[3] === b[3]
+                        );
+                      });
+                    });
+                  })
+              );
+              if (!stableOuter) return false;
+              const incPoint = await inner.locator('#inc').evaluate((el) => {
+                const r = el.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const hit = document.elementFromPoint(cx, cy);
+                return r.width > 0 &&
+                  r.height > 0 &&
+                  (hit === el || (hit !== null && el.contains(hit)))
+                  ? { cx, cy }
+                  : null;
+              });
+              if (!incPoint) return false;
+              const innerOffset = await page
+                .frameLocator(outerSelector)
+                .first()
+                .locator('iframe')
+                .evaluate((el) => {
+                  const r = el.getBoundingClientRect();
+                  return { left: r.left, top: r.top };
+                });
+              return outer.evaluate(
+                (el, pt) => {
+                  const r = el.getBoundingClientRect();
+                  return document.elementFromPoint(r.left + pt.x, r.top + pt.y) === el;
+                },
+                { x: innerOffset.left + incPoint.cx, y: innerOffset.top + incPoint.cy }
+              );
+            },
+            { timeout: 15_000 }
+          )
+          .toBe(true);
         return inner;
       };
 
