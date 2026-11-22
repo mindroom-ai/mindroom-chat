@@ -194,6 +194,7 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
     const session = await launchDesktop();
     try {
       const { app, page } = session;
+      const homeserverLoginPosts = countLoginPosts(page);
       await listHomeservers(page, [HOMESERVER, otherHs.baseUrl]);
       await advertiseSso(page, HOMESERVER);
 
@@ -240,6 +241,8 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
       const otherCallback = `${redirectOther.href}&loginToken=${encodeURIComponent(tokenForHs)}`;
       expect((await fetch(otherCallback)).status).toBe(200);
       await expect.poll(() => otherHs.loginPosts.length).toBe(1);
+      // HOMESERVER's token was never exchanged at HOMESERVER.
+      expect(homeserverLoginPosts()).toBe(0);
       expect(page.url()).toContain('/login/');
     } finally {
       await session.close();

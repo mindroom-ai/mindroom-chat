@@ -76,10 +76,10 @@ void app.whenReady().then(() => {
     const win = getMainWindow();
     return win ? [win.webContents] : [];
   };
-  const appWindows = (): readonly Electron.WebContents[] =>
-    (isTest ? BrowserWindow.getAllWindows() : [getMainWindow()]).flatMap((w) =>
-      w && !w.isDestroyed() ? [w.webContents] : []
-    );
+  const appWindows = isTest
+    ? (): readonly Electron.WebContents[] =>
+        BrowserWindow.getAllWindows().flatMap((w) => (w.isDestroyed() ? [] : [w.webContents]))
+    : mainOwners;
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
