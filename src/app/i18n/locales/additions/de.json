@@ -1174,6 +1174,8 @@
         "defaultChoice": "Standard",
         "threadOnly": "Ein hier gewähltes Modell gilt nur für diesen Thread.",
         "roomOverrideThreadOnly": "Für diesen Raum mit !room_model festgelegt. Ein hier gewähltes Modell gilt nur für diesen Thread.",
+        "chooseNextThread": "Modell für den nächsten Thread auswählen",
+        "nextThreadOnly": "Diese Auswahl gilt nur für den nächsten Thread.",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",
