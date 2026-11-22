@@ -372,6 +372,15 @@ def main() -> int:
                 return f"long thread row {long_root} never appeared"
             if fp_ms > done_ms:
                 return f"first paint ({fp_ms}ms) did not precede hydration completion ({done_ms}ms)"
+            if fp_reqs > 2 or fp_bytes > 30_000:
+                return f"first paint exceeded budget (reqs={fp_reqs} > 2 or bytes={fp_bytes} > 30000)"
+            before_fp_http = [l for l in lines[:fp_idx] if "http " in l]
+            bad_state = [l for l in before_fp_http if "/state" in l]
+            bad_rels = [l for l in before_fp_http if "/relations/" in l]
+            if bad_state:
+                return f"/state request started before first paint: {bad_state[0]}"
+            if bad_rels:
+                return f"/relations request started before first paint: {bad_rels[0]}"
             return None
 
         scenario("long_thread", {"MINDROOM_WATCH_E2E_SCROLL_ROWS": "1"}, 25, check_long_thread, room_id=long_room)

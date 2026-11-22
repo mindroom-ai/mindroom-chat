@@ -6,12 +6,19 @@ import WatchKit
 
 private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "thread")
 
-/// One thread, live: seeded from the room list's snapshot, reading the newest bounded page on each poll
+/// One thread, live: seeded from the room list's snapshot, reading 30 replies on first open and 10 on each
+/// 5 s poll, replacing the covered window on poll (so redactions disappear) while keeping older loaded pages
 /// and paginating older replies on demand via "Load earlier".
 @MainActor
 final class ThreadModel: ObservableObject {
-    private static let pageSize: UInt32 = 30
+    private static let firstPageSize: UInt32 = 30
+    private static let pollPageSize: UInt32 = 10
+    private static let bridgeMaxPages = 3
     private static let approvalPageSize: UInt32 = 10
+    private static let encryptedCardScanPageSize: UInt32 = 50
+    private static let encryptedCardScanMaxPages = 3
+    private static let rootEditsPageSize: UInt32 = 5
+    private static let cardEditsPageSize: UInt32 = 10
     private static let reactionsPageSize: UInt32 = 50
 
     let room: Room
@@ -30,11 +37,18 @@ final class ThreadModel: ObservableObject {
     private let feed: TimelineFeed
     private var handle: TaskHandle?
     private var rootEvent: JSON?
+    private var rootEdits: [JSON] = []
     private var eventsById: [String: JSON] = [:]
+    private var extraCardsById: [String: JSON] = [:]
+    private var cardEditsByCardId: [String: [JSON]] = [:]
+    private var knownPendingCardIds: Set<String> = []
+    private var coldScannedEncrypted = false
     private var reactionsByQuestion: [String: [JSON]] = [:]
+    private var questionSources: [String: JSON] = [:]
     private var earlierToken: String?
+    private var hasFetchedOnce = false
     private var hasLoadedEarlier = false
-    private var cachedTitle: String?
+    private var cachedTitle: KnownTitle?
 
     init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?) {
         self.room = room
@@ -42,6 +56,9 @@ final class ThreadModel: ObservableObject {
         self.userId = userId
         snapshot = initial
         cachedTitle = initial?.knownTitle ?? ThreadTitleCache.get(userId: userId, roomId: room.id(), rootId: rootId)
+        if let initial {
+            knownPendingCardIds = Set(initial.approvals.filter { $0.status == .pending }.map(\.eventId))
+        }
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
         model = self
@@ -107,29 +124,12 @@ final class ThreadModel: ObservableObject {
         }
     }
 
-    private func merge(_ events: [JSON], preferIncoming: Bool) {
-        for event in events {
-            guard let id = event.eventId else { continue }
-            if let existing = eventsById[id] {
-                let existingEncrypted = existing["type"] as? String == "m.room.encrypted"
-                let incomingEncrypted = event["type"] as? String == "m.room.encrypted"
-                if preferIncoming {
-                    if !incomingEncrypted || existingEncrypted { eventsById[id] = event }
-                } else {
-                    let existingEditTs = existing.validBundledEdit?.timestamp ?? -1
-                    let incomingEditTs = event.validBundledEdit?.timestamp ?? -1
-                    if (existingEncrypted && !incomingEncrypted) || (!incomingEncrypted && incomingEditTs > existingEditTs) {
-                        eventsById[id] = event
-                    }
-                }
-            } else {
-                eventsById[id] = event
-            }
-        }
-    }
-
     private func allRelated() -> [JSON] {
-        Array(eventsById.values) + reactionsByQuestion.values.flatMap { $0 }
+        Array(eventsById.values)
+            + Array(extraCardsById.values)
+            + rootEdits
+            + cardEditsByCardId.values.flatMap { $0 }
+            + reactionsByQuestion.values.flatMap { $0 }
     }
 
     private func fetch() async {
@@ -137,41 +137,170 @@ final class ThreadModel: ObservableObject {
             rootEvent = parsed
         }
         guard let root = rootEvent else { return }
+        // Read root's m.replace edits so an edited root never reverts to its unedited cache copy.
+        if let editsPage = try? await room.relationsJsonPage(
+            eventId: rootId, relType: "m.replace", eventType: nil,
+            forward: false, limit: Self.rootEditsPageSize, from: nil
+        ) {
+            rootEdits = editsPage.events.compactMap(parse)
+        }
+
+        let limit = hasFetchedOnce ? Self.pollPageSize : Self.firstPageSize
         guard let page = try? await room.relationsJsonPage(
             eventId: rootId, relType: "m.thread", eventType: nil,
-            forward: false, limit: Self.pageSize, from: nil
+            forward: false, limit: limit, from: nil
         ) else { return }
-        merge(page.events.compactMap(parse), preferIncoming: true)
+        hasFetchedOnce = true
+
+        let previousIds = Set(eventsById.keys)
+        var incoming = page.events.compactMap(parse)
+        var bridgeCursor = page.nextBatch
+
+        // If user loaded earlier history and the newest page does not overlap it, bridge up to 3 pages
+        // before dropping disconnected older history.
+        if hasLoadedEarlier, !previousIds.isEmpty, bridgeCursor != nil {
+            var overlapped = incoming.contains { $0.eventId.map { previousIds.contains($0) } ?? false }
+            var bridged = 0
+            while !overlapped, let token = bridgeCursor, bridged < Self.bridgeMaxPages {
+                bridged += 1
+                guard let extra = try? await room.relationsJsonPage(
+                    eventId: rootId, relType: "m.thread", eventType: nil,
+                    forward: false, limit: Self.firstPageSize, from: token
+                ) else { break }
+                let parsedExtra = extra.events.compactMap(parse)
+                incoming.append(contentsOf: parsedExtra)
+                bridgeCursor = extra.nextBatch
+                overlapped = parsedExtra.contains { $0.eventId.map { previousIds.contains($0) } ?? false }
+            }
+            if !overlapped, bridgeCursor != nil {
+                eventsById.removeAll()
+                hasLoadedEarlier = false
+                earlierToken = bridgeCursor
+                canLoadEarlier = earlierToken != nil
+            }
+        }
+
+        // Replace the window covered by `incoming` so redacted replies disappear while preserving older loaded pages.
+        let incomingIds = Set(incoming.compactMap(\.eventId))
+        if bridgeCursor == nil {
+            eventsById.removeAll()
+        } else if let oldestTs = incoming.map(\.timestamp).min() {
+            eventsById = eventsById.filter { id, event in
+                event.timestamp < oldestTs || incomingIds.contains(id)
+            }
+        }
+        MatrixEvents.merge(incoming, into: &eventsById, preferIncoming: true, excluding: rootId)
+
         if !hasLoadedEarlier {
-            earlierToken = page.nextBatch
+            earlierToken = bridgeCursor
             canLoadEarlier = earlierToken != nil
         }
 
-        // Pending approval cards outside the newest window (unencrypted rooms only).
-        if earlierToken != nil, room.encryptionState() != .encrypted,
-           let approvalPage = try? await room.relationsJsonPage(
-               eventId: rootId, relType: "m.thread", eventType: ApprovalCard.eventType,
-               forward: false, limit: Self.approvalPageSize, from: nil
-           ) {
-            merge(approvalPage.events.compactMap(parse), preferIncoming: true)
+        // Refresh older pending approval cards independently of `earlierToken`.
+        let isEncrypted = room.encryptionState() == .encrypted
+        if !isEncrypted {
+            if let approvalPage = try? await room.relationsJsonPage(
+                eventId: rootId, relType: "m.thread", eventType: ApprovalCard.eventType,
+                forward: false, limit: Self.approvalPageSize, from: nil
+            ) {
+                var refreshed: [String: JSON] = [:]
+                MatrixEvents.merge(approvalPage.events.compactMap(parse), into: &refreshed, preferIncoming: true, excluding: rootId)
+                extraCardsById = refreshed
+            }
+        } else if !coldScannedEncrypted, let startToken = earlierToken {
+            var scanCursor: String? = startToken
+            var scanComplete = true
+            for _ in 0..<Self.encryptedCardScanMaxPages {
+                guard let token = scanCursor else { break }
+                do {
+                    let scanPage = try await room.relationsJsonPage(
+                        eventId: rootId, relType: "m.thread", eventType: nil,
+                        forward: false, limit: Self.encryptedCardScanPageSize, from: token
+                    )
+                    let cards = scanPage.events.compactMap(parse).filter { ApprovalCard.parse($0) != nil }
+                    if !cards.isEmpty {
+                        MatrixEvents.merge(cards, into: &extraCardsById, preferIncoming: true, excluding: rootId)
+                        for card in cards {
+                            if let id = card.eventId { knownPendingCardIds.insert(id) }
+                        }
+                        break
+                    }
+                    scanCursor = scanPage.nextBatch
+                } catch {
+                    scanComplete = false
+                    break
+                }
+            }
+            if scanComplete { coldScannedEncrypted = true }
+        }
+
+        // Re-read each known pending card by id (+ its m.replace edits) until decided.
+        for cardId in knownPendingCardIds {
+            if eventsById[cardId] == nil,
+               let cardJson = try? await room.loadOrFetchEventJson(eventId: cardId),
+               let parsedCard = parse(cardJson) {
+                extraCardsById[cardId] = parsedCard
+            }
+            if let editsPage = try? await room.relationsJsonPage(
+                eventId: cardId, relType: "m.replace", eventType: nil,
+                forward: false, limit: Self.cardEditsPageSize, from: nil
+            ) {
+                cardEditsByCardId[cardId] = editsPage.events.compactMap(parse)
+            }
         }
 
         var next = ThreadSnapshot.build(
             root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
         )
 
-        if let question = next.openQuestion,
-           let reactionsPage = try? await room.relationsJsonPage(
-               eventId: question.eventId, relType: "m.annotation", eventType: nil,
-               forward: false, limit: Self.reactionsPageSize, from: nil
-           ) {
-            reactionsByQuestion[question.eventId] = reactionsPage.events.compactMap(parse)
-            next = ThreadSnapshot.build(
-                root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
-            )
+        // Fetch missing question source_event_id by id before offering the question.
+        var questionSource: JSON?
+        if let sourceId = next.missingQuestionSourceId {
+            if questionSources[sourceId] == nil,
+               let sourceJson = try? await room.loadOrFetchEventJson(eventId: sourceId),
+               let parsedSource = parse(sourceJson) {
+                questionSources[sourceId] = parsedSource
+            }
+            questionSource = questionSources[sourceId]
+            if questionSource != nil {
+                next = ThreadSnapshot.build(
+                    root: root, related: allRelated(), ownUserId: userId, now: Date(),
+                    cachedTitle: cachedTitle, questionSource: questionSource
+                )
+            }
         }
 
-        if let known = next.knownTitle {
+        // Re-read the viewer's reactions for the current question candidate on EVERY poll so a withdrawn reaction
+        // brings the question back.
+        if let qId = next.questionCandidateId ?? next.openQuestion?.eventId {
+            if let reactionsPage = try? await room.relationsJsonPage(
+                eventId: qId, relType: "m.annotation", eventType: nil,
+                forward: false, limit: Self.reactionsPageSize, from: nil
+            ) {
+                reactionsByQuestion = [qId: reactionsPage.events.compactMap(parse)]
+                next = ThreadSnapshot.build(
+                    root: root, related: allRelated(), ownUserId: userId, now: Date(),
+                    cachedTitle: cachedTitle, questionSource: questionSource
+                )
+            }
+        } else {
+            reactionsByQuestion.removeAll()
+        }
+
+        // Update tracked pending approval card ids.
+        for card in next.approvals {
+            if card.status == .pending {
+                knownPendingCardIds.insert(card.eventId)
+            } else {
+                knownPendingCardIds.remove(card.eventId)
+                cardEditsByCardId.removeValue(forKey: card.eventId)
+            }
+        }
+
+        if next.cachedTitleWasRedacted {
+            cachedTitle = nil
+            ThreadTitleCache.remove(userId: userId, roomId: room.id(), rootId: rootId)
+        } else if let known = next.knownTitle {
             cachedTitle = known
             ThreadTitleCache.set(known, userId: userId, roomId: room.id(), rootId: rootId)
         }
@@ -196,9 +325,9 @@ final class ThreadModel: ObservableObject {
         defer { loadingEarlier = false }
         guard let page = try? await room.relationsJsonPage(
             eventId: rootId, relType: "m.thread", eventType: nil,
-            forward: false, limit: Self.pageSize, from: token
+            forward: false, limit: Self.firstPageSize, from: token
         ) else { return }
-        merge(page.events.compactMap(parse), preferIncoming: false)
+        MatrixEvents.merge(page.events.compactMap(parse), into: &eventsById, preferIncoming: false, excluding: rootId)
         hasLoadedEarlier = true
         earlierToken = page.nextBatch
         canLoadEarlier = earlierToken != nil
@@ -206,7 +335,10 @@ final class ThreadModel: ObservableObject {
         let next = ThreadSnapshot.build(
             root: root, related: allRelated(), ownUserId: userId, now: Date(), cachedTitle: cachedTitle
         )
-        if let known = next.knownTitle {
+        if next.cachedTitleWasRedacted {
+            cachedTitle = nil
+            ThreadTitleCache.remove(userId: userId, roomId: room.id(), rootId: rootId)
+        } else if let known = next.knownTitle {
             cachedTitle = known
             ThreadTitleCache.set(known, userId: userId, roomId: room.id(), rootId: rootId)
         }
