@@ -1,25 +1,38 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopBridge, DesktopShellEvent } from '../src/app/lib/desktopBridge';
 
+const isEditable = (path: EventTarget[], from: number): boolean => {
+  for (let i = from; i < path.length; i += 1) {
+    const node = path[i];
+    if (node instanceof HTMLElement) return node.isContentEditable;
+  }
+  return false;
+};
+
 const externalUrlForClick = (event: MouseEvent): string | undefined => {
   if (!event.isTrusted || (event.type === 'click' ? event.button !== 0 : event.button !== 1)) {
     return undefined;
   }
-  const el =
-    event.target instanceof Element
-      ? event.target
-      : event.target instanceof Node
-      ? event.target.parentElement
-      : null;
-  const hit = el?.closest('a[href], button[data-open-external]');
+  const path = event.composedPath();
+  const idx = path.findIndex(
+    (node) => node instanceof Element && node.matches('a[href], button[data-open-external]')
+  );
+  if (idx < 0 || isEditable(path, idx)) return undefined;
+  const hit = path[idx] as Element;
   if (hit instanceof HTMLButtonElement) {
     return event.type === 'click' && !hit.disabled
       ? hit.getAttribute('data-open-external') || undefined
       : undefined;
   }
-  if (!(hit instanceof HTMLAnchorElement)) return undefined;
+  const rawHref =
+    hit instanceof HTMLAnchorElement
+      ? hit.href
+      : hit instanceof SVGAElement
+      ? hit.href.baseVal
+      : undefined;
+  if (!rawHref) return undefined;
   try {
-    const parsed = new URL(hit.href);
+    const parsed = new URL(rawHref, window.location.href);
     return parsed.origin !== window.location.origin ? parsed.href : undefined;
   } catch {
     return undefined;

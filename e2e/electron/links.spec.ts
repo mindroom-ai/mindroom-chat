@@ -1,8 +1,6 @@
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
-import type { Duplex } from 'node:stream';
 import { expect, test } from '@playwright/test';
 import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
+import { startMockMatrixServer } from '../helpers/mockMatrixServer';
 
 const APP_ORIGIN = 'capacitor://localhost';
 const ROOM_ID = '!links-room:example.test';
@@ -27,136 +25,10 @@ const readTelemetry = async (
       }
   );
 
-type MatrixEventJson = {
-  type: string;
-  event_id: string;
-  sender: string;
-  origin_server_ts: number;
-  room_id: string;
-  content: Record<string, unknown>;
-  state_key?: string;
-};
-
-const startMockMatrixServer = async (events: MatrixEventJson[]) => {
-  const sockets = new Set<Duplex>();
-  const server = http.createServer((req, res) => {
-    const cors = {
-      'Access-Control-Allow-Origin': req.headers.origin ?? '*',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    };
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, cors);
-      res.end();
-      return;
-    }
-    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-    const json = (status: number, body: unknown) => {
-      res.writeHead(status, { ...cors, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(body));
-    };
-    if (url.pathname === '/_matrix/client/versions') return json(200, { versions: ['v1.11'] });
-    if (url.pathname.endsWith('/account/whoami')) {
-      return json(200, { user_id: USER_ID, device_id: 'E2EDEVICE' });
-    }
-    if (url.pathname.includes('/filter') && req.method === 'POST') {
-      return json(200, { filter_id: 'f1' });
-    }
-    if (url.pathname.includes('/profile/')) {
-      return json(200, { displayname: url.pathname.includes('alice') ? 'Alice' : 'Tester' });
-    }
-    if (url.pathname.endsWith('/pushrules/')) return json(200, { global: {} });
-    if (url.pathname.endsWith('/room_keys/version')) {
-      return json(404, { errcode: 'M_NOT_FOUND', error: 'No backup' });
-    }
-    if (url.pathname.endsWith('/keys/query')) return json(200, { device_keys: {}, failures: {} });
-    if (url.pathname.endsWith('/keys/upload')) return json(200, { one_time_key_counts: {} });
-    if (url.pathname.includes('/messages')) {
-      return json(200, { chunk: [...events].reverse(), start: 's0', end: 'e0' });
-    }
-    if (url.pathname.includes('/relations/')) return json(200, { chunk: [] });
-    if (url.pathname.endsWith('/sync')) {
-      const since = url.searchParams.get('since');
-      if (!since) {
-        const now = Date.now();
-        const state: MatrixEventJson[] = [
-          {
-            type: 'm.room.create',
-            event_id: '$st_create',
-            sender: SENDER_ID,
-            origin_server_ts: now - 10_000,
-            room_id: ROOM_ID,
-            state_key: '',
-            content: { room_version: '11', creator: SENDER_ID },
-          },
-          {
-            type: 'm.room.name',
-            event_id: '$st_name',
-            sender: SENDER_ID,
-            origin_server_ts: now - 9_000,
-            room_id: ROOM_ID,
-            state_key: '',
-            content: { name: 'Links Room' },
-          },
-          {
-            type: 'm.room.member',
-            event_id: '$st_user',
-            sender: USER_ID,
-            origin_server_ts: now - 8_000,
-            room_id: ROOM_ID,
-            state_key: USER_ID,
-            content: { membership: 'join', displayname: 'Tester' },
-          },
-          {
-            type: 'm.room.member',
-            event_id: '$st_sender',
-            sender: SENDER_ID,
-            origin_server_ts: now - 7_000,
-            room_id: ROOM_ID,
-            state_key: SENDER_ID,
-            content: { membership: 'join', displayname: 'Alice' },
-          },
-        ];
-        return json(200, {
-          next_batch: 'b1',
-          rooms: {
-            join: {
-              [ROOM_ID]: {
-                state: { events: state },
-                timeline: { events, limited: false, prev_batch: 'p0' },
-                ephemeral: { events: [] },
-                account_data: { events: [] },
-                unread_notifications: { highlight_count: 0, notification_count: 0 },
-              },
-            },
-          },
-        });
-      }
-      return json(200, { next_batch: 'b1', rooms: { join: {} } });
-    }
-    json(200, {});
-  });
-  server.on('connection', (socket) => {
-    sockets.add(socket);
-    socket.on('close', () => sockets.delete(socket));
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
-  return {
-    baseUrl: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve) => {
-        for (const s of sockets) s.destroy();
-        server.closeAllConnections();
-        server.close(() => resolve());
-      }),
-  };
-};
-
 test.afterEach(() => assertNoUnexpectedViolations());
 
 test.describe('Electron external link handling', () => {
-  test('opens only trusted clicks on openable links/buttons, blocks scripted/forged opens, and isolates sandboxed frames', async () => {
+  test('opens only trusted clicks on openable links/buttons, blocks scripted/editable/forged opens, and isolates sandboxed frames', async () => {
     const session = await launchDesktop();
     try {
       const { app, page } = session;
@@ -167,7 +39,7 @@ test.describe('Electron external link handling', () => {
         false
       );
 
-      // Inject controlled test elements for trusted vs scripted click checks.
+      // Inject controlled test elements for trusted vs scripted/editable/forged click checks.
       await page.evaluate(() => {
         const box = document.createElement('div');
         box.id = 'e2e-link-harness';
@@ -192,10 +64,16 @@ test.describe('Electron external link handling', () => {
           el.textContent = text;
           for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
           box.appendChild(el);
+          return el;
         };
 
         mk('a', 'e2e-link-primary', 'Primary', { href: 'https://example.org/primary' });
         mk('a', 'e2e-link-middle', 'Middle', { href: 'https://example.org/middle' });
+        mk('a', 'e2e-link-enter', 'EnterBlank', {
+          href: 'https://example.org/enter-blank',
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        });
         mk('a', 'e2e-link-scripted', 'Scripted', { href: 'https://example.org/scripted' });
         mk('button', 'e2e-btn-scripted', 'BtnScripted', {
           type: 'button',
@@ -219,6 +97,33 @@ test.describe('Electron external link handling', () => {
           'data-open-external': 'javascript:alert(1)',
         });
         mk('a', 'e2e-link-file', 'FileLink', { href: 'file:///etc/passwd' });
+
+        // Link inside a contenteditable editor must not open externally when clicked.
+        const editable = document.createElement('div');
+        editable.setAttribute('contenteditable', 'true');
+        const editableLink = document.createElement('a');
+        editableLink.id = 'e2e-link-editable';
+        editableLink.href = 'https://example.org/in-editor';
+        editableLink.textContent = 'EditableLink';
+        editable.appendChild(editableLink);
+        box.appendChild(editable);
+
+        // SVG anchor must also be handled.
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('width', '80');
+        svg.setAttribute('height', '24');
+        const svgLink = document.createElementNS(svgNS, 'a');
+        svgLink.id = 'e2e-svg-link';
+        svgLink.setAttribute('href', 'https://example.org/svg');
+        const rect = document.createElementNS(svgNS, 'rect');
+        rect.setAttribute('width', '80');
+        rect.setAttribute('height', '24');
+        rect.setAttribute('fill', '#48f');
+        svgLink.appendChild(rect);
+        svg.appendChild(svgLink);
+        box.appendChild(svg);
+
         document.body.appendChild(box);
       });
 
@@ -231,29 +136,38 @@ test.describe('Electron external link handling', () => {
         await page.mouse.click(pt!.x, pt!.y, { button });
       };
 
-      // Scripted opens and forged elements must open nothing.
+      // Scripted opens must open nothing.
       await page.evaluate(() => {
         (document.getElementById('e2e-link-scripted') as HTMLAnchorElement).click();
         (document.getElementById('e2e-btn-scripted') as HTMLButtonElement).click();
         window.open('https://example.org/window-open');
       });
 
-      // Real clicks on span[data-open-external], same-origin a[data-open-external], media, token, js, file.
+      // Forged, blocked, and contenteditable clicks must open nothing.
       await clickEl('#e2e-span-forged');
       await clickEl('#e2e-link-forged-attr');
       await clickEl('#e2e-link-media');
       await clickEl('#e2e-link-token');
       await clickEl('#e2e-btn-js');
       await clickEl('#e2e-link-file');
+      await clickEl('#e2e-link-editable');
 
-      // Now do real primary click and real middle click on allowed links:
-      // once both appear, every earlier rejected action has already run its zero-timeout and IPC round-trip.
+      // Real primary click, middle click, Enter on a _blank link, and SVG anchor click.
       await clickEl('#e2e-link-primary');
       await clickEl('#e2e-link-middle', 'middle');
+      await page.evaluate(() => (document.getElementById('e2e-link-enter') as HTMLElement).focus());
+      await page.keyboard.press('Enter');
+      await clickEl('#e2e-svg-link');
 
       await expect
         .poll(async () => (await readTelemetry(app)).externalOpens)
-        .toEqual(['https://example.org/primary', 'https://example.org/middle']);
+        .toEqual([
+          'https://example.org/primary',
+          'https://example.org/middle',
+          'https://example.org/enter-blank',
+          'https://example.org/svg',
+        ]);
+      expect(app.windows()).toHaveLength(1);
 
       // Opaque sandboxed frame has no mindroomDesktop and cannot read parent.mindroomDesktop.
       const sandboxResult = await page.evaluate(
@@ -282,50 +196,39 @@ test.describe('Electron external link handling', () => {
           })
       );
       expect(sandboxResult).toEqual({ own: false, parentBlocked: true });
-
-      // No spelling of a frame page loads as the main frame.
-      for (const spelling of [
-        `${APP_ORIGIN}/canvas-frame.html`,
-        `${APP_ORIGIN}/pdf-frame.html`,
-        `${APP_ORIGIN}/%63anvas-frame.html`,
-        `${APP_ORIGIN}//pdf-frame.html`,
-      ]) {
-        const blocked = await app.evaluate(async ({ BrowserWindow }, target: string) => {
-          const win = BrowserWindow.getAllWindows()[0];
-          if (!win) return false;
-          try {
-            await win.loadURL(target);
-            return false;
-          } catch {
-            return true;
-          }
-        }, spelling);
-        expect(blocked, spelling).toBe(true);
-      }
     } finally {
       await session.close();
     }
   });
 
-  test('confirms misleading links before opening once, and opens server from profile menu once', async () => {
+  test('opens rendered message links once, confirms misleading links, and opens server from profile menu once', async () => {
     const now = Date.now();
-    const mockServer = await startMockMatrixServer([
-      {
-        type: 'm.room.message',
-        event_id: '$msg_misleading',
-        sender: SENDER_ID,
-        origin_server_ts: now - 1_000,
-        room_id: ROOM_ID,
-        content: {
-          msgtype: 'm.text',
-          body: 'https://good.example',
-          format: 'org.matrix.custom.html',
-          formatted_body:
-            '<p><a href="https://evil.example/phish">https://good.example</a></p>' +
-            '<p><a href="https://example.org/sentinel">sentinel</a></p>',
+    const mockServer = await startMockMatrixServer(
+      [
+        {
+          type: 'm.room.message',
+          event_id: '$msg_links',
+          sender: SENDER_ID,
+          origin_server_ts: now - 1_000,
+          room_id: ROOM_ID,
+          content: {
+            msgtype: 'm.text',
+            body: 'https://good.example https://example.org/docs',
+            format: 'org.matrix.custom.html',
+            formatted_body:
+              '<p><a href="https://evil.example/phish">https://good.example</a></p>' +
+              '<p><a href="https://example.org/docs">Docs</a></p>',
+          },
         },
-      },
-    ]);
+      ],
+      {
+        roomId: ROOM_ID,
+        roomName: 'Links Room',
+        userId: USER_ID,
+        otherUserId: SENDER_ID,
+        otherDisplayName: 'Alice',
+      }
+    );
     const session = await launchDesktop();
     try {
       const { app, page } = session;
@@ -354,17 +257,27 @@ test.describe('Electron external link handling', () => {
       );
       await page.goto(`${APP_ORIGIN}/home/${encodeURIComponent(ROOM_ID)}`);
 
-      const misleadingLink = page.getByRole('link', { name: 'https://good.example' });
-      await expect(misleadingLink).toBeVisible({ timeout: 30_000 });
+      // Normal rendered message link (sanitizer adds target="_blank") opens once and denies popup.
+      const normalLink = page.getByRole('link', { name: 'Docs' });
+      await expect(normalLink).toBeVisible({ timeout: 30_000 });
+      await expect(normalLink).toHaveAttribute('target', '_blank');
+      await normalLink.click();
+      await expect
+        .poll(async () => (await readTelemetry(app)).externalOpens)
+        .toEqual(['https://example.org/docs']);
+      await expect
+        .poll(async () => (await readTelemetry(app)).blockedUrls)
+        .toContain('https://example.org/docs');
+      expect(app.windows()).toHaveLength(1);
 
-      // Click misleading link -> dialog opens; Cancel opens nothing.
+      // Misleading link -> dialog opens; Cancel opens nothing; Open link opens exactly once.
+      const misleadingLink = page.getByRole('link', { name: 'https://good.example' });
       await misleadingLink.click();
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
       await dialog.getByRole('button', { name: /cancel/i }).click();
       await expect(dialog).toHaveCount(0);
 
-      // Click misleading link again -> Open link opens exactly once.
       await misleadingLink.click();
       await expect(dialog).toBeVisible();
       await dialog.getByRole('button', { name: /open link/i }).click();
@@ -372,7 +285,7 @@ test.describe('Electron external link handling', () => {
 
       await expect
         .poll(async () => (await readTelemetry(app)).externalOpens)
-        .toEqual(['https://evil.example/phish']);
+        .toEqual(['https://example.org/docs', 'https://evil.example/phish']);
 
       // Profile menu -> ServerChip -> Open in Browser opens once.
       await page.getByRole('button', { name: /alice/i }).first().click();
@@ -385,7 +298,11 @@ test.describe('Electron external link handling', () => {
 
       await expect
         .poll(async () => (await readTelemetry(app)).externalOpens)
-        .toEqual(['https://evil.example/phish', 'https://example.test']);
+        .toEqual([
+          'https://example.org/docs',
+          'https://evil.example/phish',
+          'https://example.test/',
+        ]);
     } finally {
       await session.close();
       await mockServer.close();

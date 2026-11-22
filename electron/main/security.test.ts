@@ -327,8 +327,20 @@ describe('isOpenable', () => {
       'mailto:',
       'https://example.org/page?access_token=syt_secret',
       'https://example.org/page?a=1&ACCESS_TOKEN=syt_secret',
+      'https://example.org/page?%61ccess_token=syt_secret',
       'https://example.org/page#access_token=syt_secret',
+      'https://example.org/page#%61ccess_token=syt_secret',
+      'https://example.org/#/route?access_token=syt_secret',
+      'https://example.org/#/route?%61ccess_token=syt_secret',
+      'https://example.org/#/route?a=1&%41CCESS_TOKEN=syt_secret',
       'mailto:alice@example.org?access_token=syt_secret',
+      'mailto:alice@example.org?attach=/etc/passwd',
+      'mailto:alice@example.org?ATTACH=/etc/passwd',
+      'mailto:alice@example.org?attachment=/etc/passwd',
+      'mailto:alice@example.org?%61ttach=/etc/passwd',
+      'https://user:pass@example.org/',
+      'https://user@example.org/',
+      'https://:pass@example.org/',
       'https://hs.example/_matrix/client/v1/media/download/hs.example/abc',
       'https://hs.example/_matrix/client/v1/media/thumbnail/hs.example/abc?width=64',
       'https://hs.example/_matrix/media/v3/download/hs.example/abc',
@@ -336,6 +348,10 @@ describe('isOpenable', () => {
       'https://hs.example/sub/_matrix/client/v1/media/download/hs.example/abc',
       'https://hs.example/%5fmatrix/client/v1/media/download/hs.example/abc',
       'https://hs.example/_matrix/client/v1/media%2fdownload/hs.example/abc',
+      'https://hs.example/_matrix/client/unstable/org.matrix.msc3916/media/download/hs.example/abc',
+      'https://hs.example/_matrix/federation/v1/media/download/abc',
+      'https://hs.example/_matrix/federation/v1/media/thumbnail/abc',
+      'https://hs.example/_matrix//media/v3/download/hs.example/abc',
       'https://example.org/a\nb',
       'not-a-url',
     ]) {
@@ -394,11 +410,18 @@ describe('external open and sign-in IPC channels', () => {
       ok: false,
       code: 'BAD_ARGUMENTS',
     });
-    expect(await openExternal(event, 'https://example.org/ok')).toEqual({
+    expect(await openExternal(event)).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(await openExternal(event, 'https://a.example', 'https://b.example')).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
+    expect(await openExternal(event, 123)).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(await openExternal(event, null)).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(await openExternal(event, 'https://EXAMPLE.ORG')).toEqual({
       ok: true,
       value: undefined,
     });
-    expect(opened).toEqual(['https://example.org/ok']);
+    expect(opened).toEqual(['https://example.org/']);
 
     const startSignIn = ipcHandlers.get('desktop:start-sign-in')!;
     const openSignIn = ipcHandlers.get('desktop:open-sign-in')!;
@@ -435,6 +458,6 @@ describe('external open and sign-in IPC channels', () => {
       code: 'BAD_ARGUMENTS',
     });
     expect(await openSignIn(event, goodSignInUrl)).toEqual({ ok: true, value: undefined });
-    expect(opened).toEqual(['https://example.org/ok', goodSignInUrl]);
+    expect(opened).toEqual(['https://example.org/', goodSignInUrl]);
   });
 });
