@@ -75,7 +75,9 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   /** The card the address asks to show, when it asks for one. */
   focusRequest?: CompactFocusRequest;
+  /** The thread index is still being read: cards a saved place names may yet arrive. */
   indexPending?: boolean;
+  /** Changes with the sort and filters: a key's pending focus does not outlive it. */
   focusScope?: string;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
@@ -762,6 +764,7 @@ export function CompactRoomView({
       className={css.View}
       data-compact-room-view="true"
       data-page-slide-clip=""
+      // For e2e: the cards the list has, which is more than it mounts.
       data-compact-card-count={ids.length}
       data-cards-pending={!blocks.extentComplete || undefined}
       tabIndex={-1}
