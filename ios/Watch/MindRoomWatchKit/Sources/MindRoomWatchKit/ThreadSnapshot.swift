@@ -230,6 +230,28 @@ func mediaSource(_ content: JSON) -> String? {
     return String(decoding: data, as: UTF8.self)
 }
 
+/// A thread's events as a snapshot is built from them: its root, and every event related to it.
+public typealias ThreadEvents = (root: JSON, related: [JSON])
+
+extension ThreadSnapshot {
+    /// What to keep of a thread's events to build it again when the room's trust changes. Nothing when no
+    /// message is marked as a voice echo: no trust changes such a thread. Else the events without the edits
+    /// `build` does not read: those a newer edit by the same sender replaced (a streamed reply has one for
+    /// each step, with all of the text so far) and those that cannot be read. A card's edits all stay.
+    public static func kept(_ events: ThreadEvents) -> ThreadEvents? {
+        guard events.related.contains(where: { jsonBool($0.content[VoiceEcho.flag]) == true }) else { return nil }
+        let isCard = { (event: JSON) in event["type"] as? String == ApprovalCard.eventType }
+        let key = { (edit: JSON) in "\(edit.replacedEventId ?? "") \(edit["sender"] as? String ?? "")" }
+        var newest: [String: JSON] = [:]
+        for edit in events.related where !isCard(edit) && edit.replacedEventId != nil && edit.newContent != nil {
+            if (newest[key(edit)]?.timestamp ?? -1) < edit.timestamp { newest[key(edit)] = edit }
+        }
+        return (events.root, events.related.filter { event in
+            isCard(event) || event.replacedEventId == nil || newest[key(event)]?.eventId == event.eventId
+        })
+    }
+}
+
 /// What a pushed event lets the person do from its notification: the thread screen's own rules.
 public enum PushedState: Equatable, Sendable {
     case approval(ApprovalCard, actionable: Bool)

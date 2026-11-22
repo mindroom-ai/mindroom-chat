@@ -89,7 +89,7 @@ public enum AudioCaption {
 /// A voice message's transcript echo: posted directly or edited from the legacy transcribing placeholder.
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
-    private static let flag = "com.mindroom.visible_router_voice_echo"
+    static let flag = "com.mindroom.visible_router_voice_echo"
 
     /// As the web client's `planVoiceTranscripts`: the first version and the one shown carry the flag, and the
     /// one shown is not the raw-audio fallback, holds all of the text (no preview of a long text) and names
