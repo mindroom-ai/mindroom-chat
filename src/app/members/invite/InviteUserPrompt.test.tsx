@@ -139,9 +139,9 @@ const makeMx = (getRoom: () => Room | null): MockMatrixClient => ({
   })),
   invite: vi.fn(async () => undefined) as unknown as MockMatrixClient['invite'],
   setPowerLevel: vi.fn(async () => undefined) as unknown as MockMatrixClient['setPowerLevel'],
-  getRoom: vi.fn(getRoom) as unknown as MockMatrixClient['getRoom'],
-  on: vi.fn() as unknown as MockMatrixClient['on'],
-  removeListener: vi.fn() as unknown as MockMatrixClient['removeListener'],
+  getRoom: vi.fn(getRoom),
+  on: vi.fn(),
+  removeListener: vi.fn(),
 });
 
 const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
@@ -190,9 +190,10 @@ const createNodeMock = (element: React.ReactElement) => {
 
 const renderPrompt = (options: RoomOptions = {}) => {
   const store = createStore();
-  let room: ReturnType<typeof makeRoom> | undefined;
-  const mx = makeMx(() => (room as unknown as Room) ?? null);
-  room = makeRoom(mx, options);
+  const roomRef: { current: Room | null } = { current: null };
+  const mx = makeMx(() => roomRef.current);
+  const room = makeRoom(mx, options);
+  roomRef.current = room as unknown as Room;
   store.set(userDirectoryCacheAtom, readyCache());
 
   let renderer: ReactTestRenderer;
