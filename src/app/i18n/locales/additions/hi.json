@@ -97,7 +97,12 @@
       "invited": "{{user}} को आमंत्रित किया गया।",
       "giveModeratorRights": "मध्यस्थ अधिकार दें",
       "giveModeratorRightsHelp": "एजेंट को वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने देता है।",
-      "moderatorFailed": "मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}"
+      "moderatorFailed": "मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}",
+      "giveRoleRights": "{{role}} अधिकार दें",
+      "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
+      "roleFailed": "{{role}} अधिकार नहीं दिए जा सके: {{error}}",
+      "moderatorFailedDetached": "{{user}} को आमंत्रित किया गया, लेकिन मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}",
+      "roleFailedDetached": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -606,7 +611,12 @@
         "noMatchingMembers": "कोई मेल खाते सदस्य नहीं",
         "makeModerator": "मध्यस्थ बनाएं",
         "makeModeratorUser": "{{user}} को मध्यस्थ बनाएं",
-        "madeModerator": "{{user}} को मध्यस्थ अधिकार दिए गए।"
+        "madeModerator": "{{user}} को मध्यस्थ अधिकार दिए गए।",
+        "makeRole": "{{role}} बनाएं",
+        "makeRoleUser": "{{user}} को {{role}} बनाएं",
+        "makingModerator": "{{user}} को मध्यस्थ अधिकार दिए जा रहे हैं...",
+        "makingRole": "{{user}} को {{role}} अधिकार दिए जा रहे हैं...",
+        "madeRole": "{{user}} को {{role}} अधिकार दिए गए।"
       }
     },
     "accountMenu": {

@@ -97,7 +97,12 @@
       "invited": "{{user}} wurde eingeladen.",
       "giveModeratorRights": "Moderatorrechte erteilen",
       "giveModeratorRightsHelp": "Ermöglicht dem Agenten, Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
-      "moderatorFailed": "Moderatorrechte konnten nicht erteilt werden: {{error}}"
+      "moderatorFailed": "Moderatorrechte konnten nicht erteilt werden: {{error}}",
+      "giveRoleRights": "{{role}}-Rechte erteilen",
+      "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "roleFailed": "{{role}}-Rechte konnten nicht erteilt werden: {{error}}",
+      "moderatorFailedDetached": "{{user}} wurde eingeladen, aber Moderatorrechte konnten nicht erteilt werden: {{error}}",
+      "roleFailedDetached": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Schließen",
@@ -606,7 +611,12 @@
         "noMatchingMembers": "Keine passenden Mitglieder",
         "makeModerator": "Zum Moderator machen",
         "makeModeratorUser": "{{user}} zum Moderator machen",
-        "madeModerator": "{{user}} hat Moderatorrechte erhalten."
+        "madeModerator": "{{user}} hat Moderatorrechte erhalten.",
+        "makeRole": "Zu {{role}} machen",
+        "makeRoleUser": "{{user}} zu {{role}} machen",
+        "makingModerator": "Moderatorrechte werden an {{user}} erteilt...",
+        "makingRole": "{{role}}-Rechte werden an {{user}} erteilt...",
+        "madeRole": "{{user}} hat {{role}}-Rechte erhalten."
       }
     },
     "accountMenu": {

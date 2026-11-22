@@ -100,7 +100,12 @@
       "invited": "Se invitó a {{user}}.",
       "giveModeratorRights": "Dar permisos de moderador",
       "giveModeratorRightsHelp": "Permite al agente plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
-      "moderatorFailed": "No se pudieron dar permisos de moderador: {{error}}"
+      "moderatorFailed": "No se pudieron dar permisos de moderador: {{error}}",
+      "giveRoleRights": "Dar permisos de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
+      "roleFailed": "No se pudieron dar permisos de {{role}}: {{error}}",
+      "moderatorFailedDetached": "Se invitó a {{user}}, pero no se pudieron dar permisos de moderador: {{error}}",
+      "roleFailedDetached": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -619,7 +624,12 @@
         "noMatchingMembers": "Ningún miembro coincide",
         "makeModerator": "Hacer moderador",
         "makeModeratorUser": "Hacer moderador a {{user}}",
-        "madeModerator": "Se dieron permisos de moderador a {{user}}."
+        "madeModerator": "Se dieron permisos de moderador a {{user}}.",
+        "makeRole": "Hacer {{role}}",
+        "makeRoleUser": "Hacer {{role}} a {{user}}",
+        "makingModerator": "Dando permisos de moderador a {{user}}...",
+        "makingRole": "Dando permisos de {{role}} a {{user}}...",
+        "madeRole": "Se dieron permisos de {{role}} a {{user}}."
       }
     },
     "accountMenu": {

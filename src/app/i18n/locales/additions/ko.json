@@ -94,7 +94,12 @@
       "invited": "{{user}} 님을 초대했습니다.",
       "giveModeratorRights": "중재자 권한 부여",
       "giveModeratorRightsHelp": "에이전트가 음성 기록을 접고 일정과 방 설정을 관리할 수 있게 합니다.",
-      "moderatorFailed": "중재자 권한을 부여할 수 없습니다: {{error}}"
+      "moderatorFailed": "중재자 권한을 부여할 수 없습니다: {{error}}",
+      "giveRoleRights": "{{role}} 권한 부여",
+      "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
+      "roleFailed": "{{role}} 권한을 부여할 수 없습니다: {{error}}",
+      "moderatorFailedDetached": "{{user}} 님을 초대했지만 중재자 권한을 부여할 수 없습니다: {{error}}",
+      "roleFailedDetached": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "닫기",
@@ -593,7 +598,12 @@
         "noMatchingMembers": "일치하는 멤버 없음",
         "makeModerator": "중재자로 지정",
         "makeModeratorUser": "{{user}} 님을 중재자로 지정",
-        "madeModerator": "{{user}} 님에게 중재자 권한을 부여했습니다."
+        "madeModerator": "{{user}} 님에게 중재자 권한을 부여했습니다.",
+        "makeRole": "{{role}}(으)로 지정",
+        "makeRoleUser": "{{user}} 님을 {{role}}(으)로 지정",
+        "makingModerator": "{{user}} 님에게 중재자 권한을 부여하는 중...",
+        "makingRole": "{{user}} 님에게 {{role}} 권한을 부여하는 중...",
+        "madeRole": "{{user}} 님에게 {{role}} 권한을 부여했습니다."
       }
     },
     "accountMenu": {

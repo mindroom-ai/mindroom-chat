@@ -97,7 +97,12 @@
       "invited": "{{user}} is uitgenodigd.",
       "giveModeratorRights": "Moderatorrechten geven",
       "giveModeratorRightsHelp": "Laat de agent spraaktranscripties inklappen en schema's en ruimte-instellingen beheren.",
-      "moderatorFailed": "Kan geen moderatorrechten geven: {{error}}"
+      "moderatorFailed": "Kan geen moderatorrechten geven: {{error}}",
+      "giveRoleRights": "{{role}}-rechten geven",
+      "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
+      "roleFailed": "Kan geen {{role}}-rechten geven: {{error}}",
+      "moderatorFailedDetached": "{{user}} is uitgenodigd, maar kan geen moderatorrechten geven: {{error}}",
+      "roleFailedDetached": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",
@@ -606,7 +611,12 @@
         "noMatchingMembers": "Geen overeenkomende leden",
         "makeModerator": "Moderator maken",
         "makeModeratorUser": "{{user}} moderator maken",
-        "madeModerator": "Moderatorrechten gegeven aan {{user}}."
+        "madeModerator": "Moderatorrechten gegeven aan {{user}}.",
+        "makeRole": "{{role}} maken",
+        "makeRoleUser": "{{user}} {{role}} maken",
+        "makingModerator": "Moderatorrechten geven aan {{user}}...",
+        "makingRole": "{{role}}-rechten geven aan {{user}}...",
+        "madeRole": "{{role}}-rechten gegeven aan {{user}}."
       }
     },
     "accountMenu": {

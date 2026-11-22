@@ -100,7 +100,12 @@
       "invited": "{{user}} foi convidado.",
       "giveModeratorRights": "Conceder permissões de moderador",
       "giveModeratorRightsHelp": "Permite que o agente recolha transcrições de voz e gerencie agendamentos e configurações da sala.",
-      "moderatorFailed": "Não foi possível conceder permissões de moderador: {{error}}"
+      "moderatorFailed": "Não foi possível conceder permissões de moderador: {{error}}",
+      "giveRoleRights": "Conceder permissões de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
+      "roleFailed": "Não foi possível conceder permissões de {{role}}: {{error}}",
+      "moderatorFailedDetached": "{{user}} foi convidado, mas não foi possível conceder permissões de moderador: {{error}}",
+      "roleFailedDetached": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Fechar",
@@ -619,7 +624,12 @@
         "noMatchingMembers": "Nenhum membro corresponde",
         "makeModerator": "Tornar moderador",
         "makeModeratorUser": "Tornar {{user}} moderador",
-        "madeModerator": "Permissões de moderador concedidas a {{user}}."
+        "madeModerator": "Permissões de moderador concedidas a {{user}}.",
+        "makeRole": "Tornar {{role}}",
+        "makeRoleUser": "Tornar {{user}} {{role}}",
+        "makingModerator": "Concedendo permissões de moderador a {{user}}...",
+        "makingRole": "Concedendo permissões de {{role}} a {{user}}...",
+        "madeRole": "Permissões de {{role}} concedidas a {{user}}."
       }
     },
     "accountMenu": {

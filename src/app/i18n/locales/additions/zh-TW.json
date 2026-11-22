@@ -94,7 +94,12 @@
       "invited": "已邀請 {{user}}。",
       "giveModeratorRights": "授予版主權限",
       "giveModeratorRightsHelp": "讓代理摺疊語音轉錄，並管理排程與聊天室設定。",
-      "moderatorFailed": "無法授予版主權限：{{error}}"
+      "moderatorFailed": "無法授予版主權限：{{error}}",
+      "giveRoleRights": "授予{{role}}權限",
+      "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
+      "roleFailed": "無法授予{{role}}權限：{{error}}",
+      "moderatorFailedDetached": "已邀請 {{user}}，但無法授予版主權限：{{error}}",
+      "roleFailedDetached": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -593,7 +598,12 @@
         "noMatchingMembers": "沒有符合的成員",
         "makeModerator": "設為版主",
         "makeModeratorUser": "將 {{user}} 設為版主",
-        "madeModerator": "已授予 {{user}} 版主權限。"
+        "madeModerator": "已授予 {{user}} 版主權限。",
+        "makeRole": "設為{{role}}",
+        "makeRoleUser": "將 {{user}} 設為{{role}}",
+        "makingModerator": "正在授予 {{user}} 版主權限...",
+        "makingRole": "正在授予 {{user}} {{role}}權限...",
+        "madeRole": "已授予 {{user}} {{role}}權限。"
       }
     },
     "accountMenu": {

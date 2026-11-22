@@ -97,7 +97,12 @@
       "invited": "Invited {{user}}.",
       "giveModeratorRights": "Give moderator rights",
       "giveModeratorRightsHelp": "Lets the agent fold voice transcripts and manage schedules and room settings.",
-      "moderatorFailed": "Could not give moderator rights: {{error}}"
+      "moderatorFailed": "Could not give moderator rights: {{error}}",
+      "giveRoleRights": "Give {{role}} rights",
+      "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
+      "roleFailed": "Could not give {{role}} rights: {{error}}",
+      "moderatorFailedDetached": "Invited {{user}}, but could not give moderator rights: {{error}}",
+      "roleFailedDetached": "Invited {{user}}, but could not give {{role}} rights: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -606,7 +611,12 @@
         "noMatchingMembers": "No matching members",
         "makeModerator": "Make moderator",
         "makeModeratorUser": "Make {{user}} moderator",
-        "madeModerator": "Gave moderator rights to {{user}}."
+        "madeModerator": "Gave moderator rights to {{user}}.",
+        "makeRole": "Make {{role}}",
+        "makeRoleUser": "Make {{user}} {{role}}",
+        "makingModerator": "Giving moderator rights to {{user}}...",
+        "makingRole": "Giving {{role}} rights to {{user}}...",
+        "madeRole": "Gave {{role}} rights to {{user}}."
       }
     },
     "accountMenu": {

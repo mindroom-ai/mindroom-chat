@@ -100,7 +100,12 @@
       "invited": "{{user}} a été invité.",
       "giveModeratorRights": "Donner les droits de modérateur",
       "giveModeratorRightsHelp": "Permet à l'agent de replier les transcriptions vocales et de gérer les tâches planifiées et les paramètres du salon.",
-      "moderatorFailed": "Impossible de donner les droits de modérateur : {{error}}"
+      "moderatorFailed": "Impossible de donner les droits de modérateur : {{error}}",
+      "giveRoleRights": "Donner les droits {{role}}",
+      "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
+      "roleFailed": "Impossible de donner les droits {{role}} : {{error}}",
+      "moderatorFailedDetached": "{{user}} a été invité, mais impossible de donner les droits de modérateur : {{error}}",
+      "roleFailedDetached": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Fermer",
@@ -619,7 +624,12 @@
         "noMatchingMembers": "Aucun membre correspondant",
         "makeModerator": "Nommer modérateur",
         "makeModeratorUser": "Nommer {{user}} modérateur",
-        "madeModerator": "Droits de modérateur accordés à {{user}}."
+        "madeModerator": "Droits de modérateur accordés à {{user}}.",
+        "makeRole": "Nommer {{role}}",
+        "makeRoleUser": "Nommer {{user}} {{role}}",
+        "makingModerator": "Attribution des droits de modérateur à {{user}}...",
+        "makingRole": "Attribution des droits {{role}} à {{user}}...",
+        "madeRole": "Droits {{role}} accordés à {{user}}."
       }
     },
     "accountMenu": {

@@ -94,7 +94,12 @@
       "invited": "{{user}} を招待しました。",
       "giveModeratorRights": "モデレータ権限を付与",
       "giveModeratorRightsHelp": "エージェントが音声の文字起こしを折りたたみ、スケジュールやルーム設定を管理できるようになります。",
-      "moderatorFailed": "モデレータ権限を付与できませんでした: {{error}}"
+      "moderatorFailed": "モデレータ権限を付与できませんでした: {{error}}",
+      "giveRoleRights": "{{role}} 権限を付与",
+      "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
+      "roleFailed": "{{role}} 権限を付与できませんでした: {{error}}",
+      "moderatorFailedDetached": "{{user}} を招待しましたが、モデレータ権限を付与できませんでした: {{error}}",
+      "roleFailedDetached": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "閉じる",
@@ -593,7 +598,12 @@
         "noMatchingMembers": "一致するメンバーはいません",
         "makeModerator": "モデレータにする",
         "makeModeratorUser": "{{user}} をモデレータにする",
-        "madeModerator": "{{user}} にモデレータ権限を付与しました。"
+        "madeModerator": "{{user}} にモデレータ権限を付与しました。",
+        "makeRole": "{{role}} にする",
+        "makeRoleUser": "{{user}} を {{role}} にする",
+        "makingModerator": "{{user}} にモデレータ権限を付与しています...",
+        "makingRole": "{{user}} に {{role}} 権限を付与しています...",
+        "madeRole": "{{user}} に {{role}} 権限を付与しました。"
       }
     },
     "accountMenu": {

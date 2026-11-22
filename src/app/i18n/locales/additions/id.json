@@ -94,7 +94,12 @@
       "invited": "{{user}} telah diundang.",
       "giveModeratorRights": "Berikan hak moderator",
       "giveModeratorRightsHelp": "Memungkinkan agen melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
-      "moderatorFailed": "Tidak dapat memberikan hak moderator: {{error}}"
+      "moderatorFailed": "Tidak dapat memberikan hak moderator: {{error}}",
+      "giveRoleRights": "Berikan hak {{role}}",
+      "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
+      "roleFailed": "Tidak dapat memberikan hak {{role}}: {{error}}",
+      "moderatorFailedDetached": "{{user}} telah diundang, tetapi tidak dapat memberikan hak moderator: {{error}}",
+      "roleFailedDetached": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -593,7 +598,12 @@
         "noMatchingMembers": "Tidak ada anggota yang cocok",
         "makeModerator": "Jadikan moderator",
         "makeModeratorUser": "Jadikan {{user}} moderator",
-        "madeModerator": "Hak moderator diberikan kepada {{user}}."
+        "madeModerator": "Hak moderator diberikan kepada {{user}}.",
+        "makeRole": "Jadikan {{role}}",
+        "makeRoleUser": "Jadikan {{user}} {{role}}",
+        "makingModerator": "Memberikan hak moderator kepada {{user}}...",
+        "makingRole": "Memberikan hak {{role}} kepada {{user}}...",
+        "madeRole": "Hak {{role}} diberikan kepada {{user}}."
       }
     },
     "accountMenu": {

@@ -109,7 +109,12 @@
       "invited": "تمت دعوة ⁨{{user}}⁩.",
       "giveModeratorRights": "منح صلاحيات المراقب",
       "giveModeratorRightsHelp": "يتيح للوكيل طي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
-      "moderatorFailed": "تعذر منح صلاحيات المراقب: ⁨{{error}}⁩"
+      "moderatorFailed": "تعذر منح صلاحيات المراقب: ⁨{{error}}⁩",
+      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
+      "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
+      "roleFailed": "تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
+      "moderatorFailedDetached": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات المراقب: ⁨{{error}}⁩",
+      "roleFailedDetached": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -658,7 +663,12 @@
         "noMatchingMembers": "لا يوجد أعضاء مطابقون",
         "makeModerator": "تعيين كمراقب",
         "makeModeratorUser": "تعيين ⁨{{user}}⁩ كمراقب",
-        "madeModerator": "تم منح صلاحيات المراقب إلى ⁨{{user}}⁩."
+        "madeModerator": "تم منح صلاحيات المراقب إلى ⁨{{user}}⁩.",
+        "makeRole": "تعيين كـ⁨{{role}}⁩",
+        "makeRoleUser": "تعيين ⁨{{user}}⁩ كـ⁨{{role}}⁩",
+        "makingModerator": "جارٍ منح صلاحيات المراقب إلى ⁨{{user}}⁩...",
+        "makingRole": "جارٍ منح صلاحيات ⁨{{role}}⁩ إلى ⁨{{user}}⁩...",
+        "madeRole": "تم منح صلاحيات ⁨{{role}}⁩ إلى ⁨{{user}}⁩."
       }
     },
     "accountMenu": {

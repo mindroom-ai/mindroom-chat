@@ -97,7 +97,12 @@
       "invited": "{{user}} davet edildi.",
       "giveModeratorRights": "Moderatör yetkisi ver",
       "giveModeratorRightsHelp": "Ajanın sesli mesaj dökümlerini daraltmasına ve zamanlamalar ile oda ayarlarını yönetmesine olanak tanır.",
-      "moderatorFailed": "Moderatör yetkisi verilemedi: {{error}}"
+      "moderatorFailed": "Moderatör yetkisi verilemedi: {{error}}",
+      "giveRoleRights": "{{role}} yetkisi ver",
+      "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
+      "roleFailed": "{{role}} yetkisi verilemedi: {{error}}",
+      "moderatorFailedDetached": "{{user}} davet edildi, ancak moderatör yetkisi verilemedi: {{error}}",
+      "roleFailedDetached": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Kapat",
@@ -606,7 +611,12 @@
         "noMatchingMembers": "Eşleşen üye yok",
         "makeModerator": "Moderatör yap",
         "makeModeratorUser": "{{user}} kişisini moderatör yap",
-        "madeModerator": "{{user}} kişisine moderatör yetkisi verildi."
+        "madeModerator": "{{user}} kişisine moderatör yetkisi verildi.",
+        "makeRole": "{{role}} yap",
+        "makeRoleUser": "{{user}} kişisini {{role}} yap",
+        "makingModerator": "{{user}} kişisine moderatör yetkisi veriliyor...",
+        "makingRole": "{{user}} kişisine {{role}} yetkisi veriliyor...",
+        "madeRole": "{{user}} kişisine {{role}} yetkisi verildi."
       }
     },
     "accountMenu": {
