@@ -305,14 +305,18 @@ function ScheduleAccordionItem({
     if (task.model) subtitleItems.push({ key: 'model', node: <bdi>{task.model}</bdi> });
   }
 
+  const clearCopyFailed = () => {
+    if (taskIdInputRef.current && document.activeElement === taskIdInputRef.current) {
+      detailsButtonRef.current?.focus();
+    }
+    setCopyFailed(false);
+  };
+
   const handleCopyId = async () => {
     const ok = await copyToClipboard(task.taskId);
     if (!mountedRef.current) return;
     if (ok) {
-      if (taskIdInputRef.current && document.activeElement === taskIdInputRef.current) {
-        detailsButtonRef.current?.focus();
-      }
-      setCopyFailed(false);
+      clearCopyFailed();
       setCopied(true);
       window.clearTimeout(copyTimerRef.current);
       copyTimerRef.current = window.setTimeout(() => {
@@ -329,7 +333,7 @@ function ScheduleAccordionItem({
   const handleEditClick = () => {
     if (!onEditTask || !commandSafe) return;
     const result = onEditTask(task);
-    if (result === 'draft-busy') setCopyFailed(false);
+    if (result === 'draft-busy') clearCopyFailed();
     setEditBusy(result === 'draft-busy');
   };
 

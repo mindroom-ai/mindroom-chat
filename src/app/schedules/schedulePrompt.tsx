@@ -45,7 +45,8 @@ const splitFenceSegments = (prompt: string): PromptSegment[] => {
     const runLen = ticksEnd - cursor;
 
     if (!inFence) {
-      if (runLen >= 3) {
+      // CommonMark §4.5: a backtick fence opener's info string cannot contain backticks.
+      if (runLen >= 3 && !prompt.slice(ticksEnd, lineContentEnd).includes('`')) {
         if (pos > textStart) {
           segments.push({ kind: 'text', text: prompt.slice(textStart, pos), offset: textStart });
         }

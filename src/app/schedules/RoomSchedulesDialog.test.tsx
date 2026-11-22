@@ -1423,6 +1423,30 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     } finally {
       mount5.unmount();
     }
+
+    // Case 6: blocked Edit clicked on Safari while focus is on the read-only Task ID input -> moves focus to Details button instead of body.
+    mocks.copyToClipboard.mockResolvedValueOnce(false);
+    const mount6 = mountDialog({
+      ...base,
+      tasks: [makeTask({ taskId: 'busy-edit-copy' })],
+      onEditTask: vi.fn(() => 'draft-busy' as const),
+    });
+    try {
+      await click(findButtonByText(mount6.host, 'Copy ID')!);
+      const taskIdInput = mount6.host.querySelector<HTMLInputElement>('input[readonly]')!;
+      act(() => {
+        taskIdInput.focus();
+      });
+      expect(document.activeElement).toBe(taskIdInput);
+
+      // Simulate Safari click (does not move focus onto the clicked button).
+      const editBtn = findButtonByAriaLabel(mount6.host, 'Edit')!;
+      await click(editBtn);
+      expect(mount6.host.querySelector('input[readonly]')).toBeNull();
+      expect(document.activeElement).toBe(findButtonByText(mount6.host, 'Hide details'));
+    } finally {
+      mount6.unmount();
+    }
   });
 });
 

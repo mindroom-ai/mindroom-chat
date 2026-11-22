@@ -196,4 +196,17 @@ describe('renderSchedulePrompt', () => {
       cleanup();
     }
   });
+
+  it('does not treat a same-line triple-backtick span as a fenced block opener', () => {
+    const prompt = '```status```\n```sh\necho `date`\n```\nRun `check`';
+    const { host, cleanup } = renderPrompt(prompt);
+    try {
+      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
+        'check',
+      ]);
+      expect(host.textContent).toBe('```status```\n```sh\necho `date`\n```\nRun check');
+    } finally {
+      cleanup();
+    }
+  });
 });
