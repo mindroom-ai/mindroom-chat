@@ -1190,6 +1190,8 @@
         "defaultChoice": "Default",
         "threadOnly": "Choosing a model here applies to this thread only.",
         "roomOverrideThreadOnly": "Set for this room with !room_model. Choosing a model here applies to this thread only.",
+        "chooseNextThread": "Choose model for the next thread",
+        "nextThreadOnly": "This pick applies to the next thread only.",
         "levels": {
           "off": "Off",
           "minimal": "Minimal",

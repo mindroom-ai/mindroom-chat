@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%1$@ içinde %2$@ %3$@";
 "IMAGE_FROM_USER" = "%1$@ bir resim gönderdi: %2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@, %3$@ içinde bir resim gönderdi: %2$@";
-"VOICE_CALL_FROM_USER" = "%1$@ kişisinden sesli arama";
-"VIDEO_CALL_FROM_USER" = "%1$@ kişisinden görüntülü arama";
+"VOICE_CALL_FROM_USER" = "%1$@ kişisinden gelen arama";
+"VIDEO_CALL_FROM_USER" = "%1$@ kişisinden gelen görüntülü arama";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ sizi %2$@ odasına davet etti";
 "USER_INVITE_TO_CHAT" = "%1$@ sizi bir sohbete davet etti";
 "QUICK_CAPTURE" = "Hızlı Yakalama";

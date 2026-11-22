@@ -86,6 +86,7 @@ struct HomeView: View {
         // The room was left or replaced: choose another.
         DefaultRoom.set(nil, userId: userId)
         path = []
+        model?.trust.persist = nil
         model = nil
     }
 
@@ -100,7 +101,9 @@ struct HomeView: View {
 
     private func open(_ roomId: String) {
         guard model?.room.id() != roomId, let room = try? client.getRoom(roomId: roomId) else { return }
-        let model = RoomModel(room: room, userId: userId, client: client)
+        let model = RoomModel(room: room, userId: userId, client: client, persistsResolved: true)
+        // The model it replaces may still be reading its room's state: only the newest writes `ResolvedCache`.
+        self.model?.trust.persist = nil
         self.model = model
         Task { await model.start() }
     }
@@ -133,6 +136,19 @@ private struct RoomHome: View {
     @State private var following: String?
 
     var body: some View {
+        #if DEBUG
+        // The simulator run's screenshot shows the rows, which start below the mic.
+        ScrollViewReader { scroll in
+            list.onChange(of: model.rows) { _, rows in
+                if E2EHooks.scrollToRows, let first = rows.first { scroll.scrollTo(first.id, anchor: .top) }
+            }
+        }
+        #else
+        list
+        #endif
+    }
+
+    private var list: some View {
         List {
             Section {
                 // The room's name switches rooms.
@@ -208,6 +224,7 @@ private struct RoomHome: View {
         // list each time the room comes on screen, and every 30 s while it stays.
         .task(id: "\(scenePhase == .active) \(model.room.id())") {
             guard scenePhase == .active else { return }
+            model.foregrounded()
             while !Task.isCancelled {
                 model.scheduleRefresh()
                 try? await Task.sleep(for: .seconds(30))

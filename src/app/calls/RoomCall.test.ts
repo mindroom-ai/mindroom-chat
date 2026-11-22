@@ -248,6 +248,9 @@ const setup = ({
   const room = {
     roomId: ROOM_ID,
     hasEncryptionStateEvent: () => encrypted,
+    getJoinedMemberCount: () => 2,
+    on: vi.fn(),
+    off: vi.fn(),
   } as unknown as Room;
   // The device lock `startCall` took before making the call.
   const releaseDeviceLock = vi.fn();

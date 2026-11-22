@@ -1221,6 +1221,8 @@
         "defaultChoice": "Predefinito",
         "threadOnly": "Il modello scelto qui vale solo per questo thread.",
         "roomOverrideThreadOnly": "Impostato per questa stanza con !room_model. Il modello scelto qui vale solo per questo thread.",
+        "chooseNextThread": "Scegli il modello per il prossimo thread",
+        "nextThreadOnly": "Questa scelta vale solo per il prossimo thread.",
         "levels": {
           "off": "Disattivato",
           "minimal": "Minimo",

@@ -64,6 +64,7 @@ export function VoiceRecordingCapsule({
             variant="SurfaceVariant"
             size="300"
             radii="300"
+            className={css.Control}
             onClick={onDiscard}
             disabled={phase === 'sending'}
             aria-label={t('mindroomUi.voice.discardRecording')}
@@ -99,6 +100,7 @@ export function VoiceRecordingCapsule({
             variant="SurfaceVariant"
             size="300"
             radii="300"
+            className={css.Control}
             onClick={paused ? onResume : onPause}
             disabled={pauseDisabled}
             aria-label={

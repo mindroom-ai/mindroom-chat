@@ -158,7 +158,10 @@ Capacitor native project templates
   Copyright 2015-2021 the original authors, Apache License 2.0; their
   headers are kept. The Android launcher icons and launch screens are not
   the template's: scripts/generate-android-icons.sh draws them from the
-  MindRoom logo.
+  MindRoom logo. The iOS launch screen's M is drawn by
+  scripts/generate-ios-icons.sh from scripts/branding/mindroom-logo-mark.svgz,
+  a copy of assets/logo/logo-mark.svgz from mindroom-ai/mindroom (Apache
+  License 2.0).
 
 Sign-in marks
   public/res/svg/sso-apple-white.svg and public/res/svg/sso-github.svg are
@@ -213,7 +216,8 @@ Modified dependencies
     src/models/relations.ts, src/models/room-receipts.ts,
     src/models/room-state.ts, src/models/room.ts, src/models/thread.ts,
     src/rust-crypto/PerSessionKeyBackupDownloader.ts,
-    src/rust-crypto/backup.ts, src/rust-crypto/rust-crypto.ts,
+    src/rust-crypto/RoomEncryptor.ts, src/rust-crypto/backup.ts,
+    src/rust-crypto/rust-crypto.ts,
     src/store/indexeddb-backend.ts, src/store/indexeddb-local-backend.ts,
     src/store/indexeddb.ts, src/sync.ts, src/thread-utils.ts,
     and the compiled files built from them:

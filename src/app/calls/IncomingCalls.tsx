@@ -6,6 +6,7 @@ import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { isRoomMuted } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMemberListSettled } from '../matrix/hooks/useMemberListSettled';
 import { getSenderName } from '../matrix/room';
@@ -17,6 +18,7 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
+import { isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar } from './CallTile';
@@ -60,33 +62,74 @@ export const useRingLine = (
 
 const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
 
+const isRingCallLive = (
+  mx: ReturnType<typeof useMatrixClient>,
+  room: Room | null | undefined,
+  expiresAt: number
+): boolean => {
+  if (!room || Date.now() >= expiresAt) return false;
+  const members = activeMemberships(mx.matrixRTC.getRoomSession(room));
+  const myUserId = mx.getSafeUserId();
+  return members.length > 0 && !members.some((member) => member.userId === myUserId);
+};
+
 /**
  * While a ring shows: the ringtone (when notification sounds are on) and, when the window is in
  * the background and `notify` is set, a system notification (when desktop notifications are on
  * and allowed) that brings the window and the ring forward. Both stop with the ring.
  */
 function RingAlerts({
+  room,
   ring,
   line,
   notify,
+  muted,
   onOpen,
 }: {
+  room: Room;
   ring: IncomingRing;
   line: string;
   notify: boolean;
+  muted: boolean;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
+  const [hiddenOnIOS, setHiddenOnIOS] = useState(
+    () => isNativeIOS() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  );
   const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
   latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
 
-  useEffect(() => (sound ? startRingtone() : undefined), [sound, ring.eventId]);
+  useEffect(() => {
+    if (!isNativeIOS() || typeof document === 'undefined') return undefined;
+    const syncVisibility = () => setHiddenOnIOS(document.visibilityState === 'hidden');
+    syncVisibility();
+    document.addEventListener('visibilitychange', syncVisibility);
+    return () => document.removeEventListener('visibilitychange', syncVisibility);
+  }, []);
+
+  const startedRingId = useRef<string>();
+
+  useEffect(() => {
+    if (hiddenOnIOS || !sound || muted || Date.now() >= ring.expiresAt) return undefined;
+    const isReplay = startedRingId.current === ring.eventId;
+    if (isReplay && !isRingCallLive(mx, room, ring.expiresAt)) return undefined;
+    startedRingId.current = ring.eventId;
+    return startRingtone();
+  }, [sound, muted, hiddenOnIOS, mx, room, ring.eventId, ring.expiresAt]);
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
-    if (!notify || !desktop || SystemNotification?.permission !== 'granted' || windowHasFocus()) {
+    if (
+      muted ||
+      !notify ||
+      !desktop ||
+      SystemNotification?.permission !== 'granted' ||
+      windowHasFocus()
+    ) {
       return undefined;
     }
     const note = new SystemNotification(latest.current.title, {
@@ -103,13 +146,16 @@ function RingAlerts({
       latest.current.onOpen();
     };
     return () => note.close();
-  }, [notify, desktop, ring.eventId, ring.roomId]);
+  }, [muted, notify, desktop, ring.eventId, ring.roomId]);
 
   return null;
 }
 
 export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const direct = useAtomValue(mDirectAtom).has(room.roomId);
+  const muted = !direct && isRoomMuted(mx.pushRules, room.roomId);
   const { caller, line } = useRingLine(room, ring);
   // A system notification cannot change its text once shown, so a ring's waits for the member
   // list, as a message's does, and names the caller the way the ring card does once the list is
@@ -123,7 +169,14 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
       aria-describedby={`incoming-call-${ring.eventId}`}
       data-incoming-call={room.roomId}
     >
-      <RingAlerts ring={ring} line={line(caller)} notify={membersSettled} onOpen={onOpen} />
+      <RingAlerts
+        room={room}
+        ring={ring}
+        line={line(caller)}
+        notify={membersSettled}
+        muted={muted}
+        onOpen={onOpen}
+      />
       <Box alignItems="Center" gap="300">
         <CallMemberAvatar room={room} userId={ring.sender} size="400" />
         <Box direction="Column" style={{ minWidth: 0 }}>
@@ -195,11 +248,8 @@ export function IncomingCalls() {
   useEffect(() => {
     if (!ring) return undefined;
     const room = mx.getRoom(ring.roomId);
-    const myUserId = mx.getSafeUserId();
     const check = () => {
-      const members = room ? activeMemberships(mx.matrixRTC.getRoomSession(room)) : [];
-      const answered = members.some((member) => member.userId === myUserId);
-      if (members.length === 0 || answered || Date.now() >= ring.expiresAt) setRing(undefined);
+      if (!isRingCallLive(mx, room, ring.expiresAt)) setRing(undefined);
     };
     const timer = window.setInterval(check, 1000);
     return () => window.clearInterval(timer);

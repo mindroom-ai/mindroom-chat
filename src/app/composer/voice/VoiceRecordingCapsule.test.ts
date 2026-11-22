@@ -38,6 +38,7 @@ vi.mock('folds', () => {
 
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
+  Control: 'Control',
   HiddenStatus: 'HiddenStatus',
   Timer: 'Timer',
 }));

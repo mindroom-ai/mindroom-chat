@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%2$@ 在 %1$@ %3$@";
 "IMAGE_FROM_USER" = "%1$@ 发送了一张图片：%2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@ 在 %3$@ 发送了一张图片：%2$@";
-"VOICE_CALL_FROM_USER" = "来自 %1$@ 的语音通话";
-"VIDEO_CALL_FROM_USER" = "来自 %1$@ 的视频通话";
+"VOICE_CALL_FROM_USER" = "来自 %1$@ 的来电";
+"VIDEO_CALL_FROM_USER" = "来自 %1$@ 的视频来电";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ 邀请你加入 %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ 邀请你聊天";
 "QUICK_CAPTURE" = "快速捕捉";

@@ -292,6 +292,10 @@ const liveElement = (selector: string): Element | null =>
   document.querySelector(`${selector}:not([data-page-slide-copy], [data-page-slide-copy] *)`);
 
 const SAFE_EVENT_PATTERNS = [
+  /^calls\.ring\.join\.(none|ring|notification)$/,
+  /^calls\.ring\.local_echo\.(encrypting|queued|sending|sent|not_sent|cancelled|unknown)$/,
+  /^calls\.ring\.sent\.(ring|notification)$/,
+  /^calls\.ring\.(membership_echo|missing_echo)$/,
   /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,

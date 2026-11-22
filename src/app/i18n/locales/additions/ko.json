@@ -1159,6 +1159,8 @@
         "defaultChoice": "기본값",
         "threadOnly": "여기서 고른 모델은 이 스레드에만 적용됩니다.",
         "roomOverrideThreadOnly": "이 방에는 !room_model로 설정되어 있습니다. 여기서 고른 모델은 이 스레드에만 적용됩니다.",
+        "chooseNextThread": "다음 스레드의 모델 선택",
+        "nextThreadOnly": "이 선택은 다음 스레드에만 적용됩니다.",
         "levels": {
           "off": "끄기",
           "minimal": "최소",

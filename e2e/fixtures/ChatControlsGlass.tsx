@@ -55,6 +55,19 @@ export function ChatControlsGlass() {
               onDiscard={() => setAction('Recording discarded')}
             />
           </div>
+          <div data-testid="recovered-recording">
+            <VoiceRecordingCapsule
+              phase="idle"
+              elapsedMs={42000}
+              waveform={[0.1, 0.3, 0.6, 0.4, 0.8, 0.5, 0.2, 0.7, 0.9, 0.3]}
+              canPause
+              hasPendingSend
+              recovered
+              onPause={() => undefined}
+              onResume={() => undefined}
+              onDiscard={() => setAction('Recording discarded')}
+            />
+          </div>
           <div data-testid="disclosure">
             <CollapsibleMessage forceOverflowing>
               <Text as="p">A longer message can be expanded without leaving the conversation.</Text>

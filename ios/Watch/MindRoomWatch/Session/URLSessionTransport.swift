@@ -33,9 +33,15 @@ final class URLSessionTransport: HttpTransport, @unchecked Sendable {
         if !request.body.isEmpty { urlRequest.httpBody = request.body }
         // The SDK gives up on a request that takes too long, which cancels it here; this is for one it forgot.
         urlRequest.timeoutInterval = 300
+        #if DEBUG
+        E2EHooks.trace("http \(request.method) \(url.path)")
+        #endif
         do {
             let (body, response) = try await session.data(for: urlRequest)
             guard let response = response as? HTTPURLResponse else { return .failure(message: "not an HTTP response") }
+            #if DEBUG
+            E2EHooks.trace("http done \(url.path) \(body.count)")
+            #endif
             var headers: [String: String] = [:]
             for (name, value) in response.allHeaderFields {
                 if let name = name as? String, let value = value as? String { headers[name] = value }
