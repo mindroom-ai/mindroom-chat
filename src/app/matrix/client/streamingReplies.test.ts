@@ -1012,14 +1012,23 @@ describe('streaming replies on thread cards', () => {
       const now = Date.now();
       const s = await hintMidStream(now);
       await vi.advanceTimersByTimeAsync(3 * MINUTE);
-      await s.f.deliver([s.streaming(now + 3 * MINUTE, '$b-later')]);
+      const later = s.streaming(now + 3 * MINUTE, '$b-later');
+      await arrive(s, { newest: later, live: [[later]] });
       // Past the first edit's five minutes, within the second's.
       await vi.advanceTimersByTimeAsync(3 * MINUTE);
+      expect(s.workflow()).toBe('working');
+
+      // Ten seconds short of the second edit's five minutes, a reaction: the SDK fetches the
+      // reply for it, with the streaming edit the server bundles, and that renews nothing.
+      await vi.advanceTimersByTimeAsync(2 * MINUTE - 10_000);
+      await s.f.deliver([stopReaction(now + 5 * MINUTE)]);
+      expect(s.f.replyRequests()).toBe(3);
       expect(s.workflow()).toBe('working');
       const updates = vi.fn();
       s.thread.on(ThreadEvent.Update, updates);
 
-      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS - 3 * MINUTE + 1_000);
+      // Ten seconds past them.
+      await vi.advanceTimersByTimeAsync(20_000);
       expect(updates).toHaveBeenCalled();
       expect(hinted(s)).toBe(false);
       expect(s.workflow()).toBe('needsYou');
