@@ -1261,6 +1261,29 @@ describe('ActivityList', () => {
     expect(listItems()).toHaveLength(40);
   });
 
+  it('hands the focus of a row to Show more when an update windows it out while the index loads', () => {
+    // The observer stays silent.
+    standInForIntersectionObserver();
+    const rows = replies('y', 50);
+    const store = renderList({ rows, hiddenAutomations: 0 }, false);
+    screen.getByText('Thread y39').closest('button')!.focus();
+
+    act(() =>
+      store.set(activityRowsAtom, {
+        rows: [...replies('z', 1), ...rows],
+        hiddenAutomations: 0,
+        loading: true,
+      })
+    );
+    expect(listItems()).toHaveLength(40);
+    const showMore = screen.getByRole('button', { name: 'Show more' });
+    expect(document.activeElement).toBe(showMore);
+
+    // From there the reader gets the row back.
+    fireEvent.click(showMore);
+    expect(document.activeElement).toBe(screen.getByText('Thread y39').closest('button'));
+  });
+
   it('hands the focus of Show more to the last row when a live update takes it away', () => {
     // The observer stays silent.
     standInForIntersectionObserver();
