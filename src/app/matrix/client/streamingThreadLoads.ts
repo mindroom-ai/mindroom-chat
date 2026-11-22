@@ -265,6 +265,7 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
         ACTIVE_STREAM_STATUSES.has(readStreamStatus(content) ?? ''));
     const starts =
       !!reply &&
+      !reply.isRedacted() &&
       newest === edit &&
       edit.getType() === reply.getType() &&
       streams &&

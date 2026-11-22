@@ -699,6 +699,16 @@ describe('streaming replies on thread cards', () => {
       },
     ],
     [
+      // A redaction that keeps the relation (MSC3389) still tells the SDK the reply's thread.
+      'an edit of a reply the server serves redacted',
+      (s, now) => {
+        const relation = { rel_type: 'm.thread', event_id: rootId };
+        const redacted = { ...s.placeholder, content: { 'm.relates_to': relation } };
+        redacted.unsigned = { redacted_because: message('$redaction', now, {}) };
+        return { served: redacted, live: [[s.streaming(now - 1_000)]] };
+      },
+    ],
+    [
       'an edit of another type than the reply',
       (s, now) => ({ live: [[{ ...s.streaming(now - 1_000), type: 'm.room.notice' }]] }),
     ],
