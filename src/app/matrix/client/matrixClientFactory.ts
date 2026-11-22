@@ -1,12 +1,14 @@
 import {
   calculateRetryBackoff,
   createClient,
+  EventType,
   MatrixScheduler,
   type ICreateClientOpts,
   type ISendEventResponse,
   type MatrixEvent,
 } from 'matrix-js-sdk';
 import { traceDeepDiagnosticFetch } from '../../diagnostics/deepTrace';
+import { matchesEnum } from '../../lib/matchesEnum';
 import { bindHomeserverReachability, createHomeserverReachability } from './homeserverReachability';
 import { bindSyncStallWatch, createSyncStallWatch } from './syncStall';
 import { getCloudflareAccessToken } from '../../native/cloudflareAccess';
@@ -71,11 +73,38 @@ export const createMatrixFetchFn =
   };
 
 const MESSAGE_RETRY_WINDOW_MS = 60_000;
+const DEFAULT_RING_RETRY_WINDOW_MS = 30_000;
 const queuedAt = new WeakMap<MatrixEvent, number>();
+
+const ringRetryBounds = (
+  event: MatrixEvent,
+  startedAt: number
+): { startMs: number; windowMs: number } => {
+  if (!matchesEnum(event.getType(), EventType.RTCNotification)) {
+    return { startMs: startedAt, windowMs: MESSAGE_RETRY_WINDOW_MS };
+  }
+  const content = event.getContent();
+  if (content.notification_type !== 'ring') {
+    return { startMs: startedAt, windowMs: MESSAGE_RETRY_WINDOW_MS };
+  }
+  const lifetime = content.lifetime;
+  const windowMs =
+    typeof lifetime === 'number' && Number.isFinite(lifetime) && lifetime > 0
+      ? Math.min(lifetime, MESSAGE_RETRY_WINDOW_MS)
+      : DEFAULT_RING_RETRY_WINDOW_MS;
+  const senderTs = content.sender_ts;
+  const startMs =
+    typeof senderTs === 'number' && Number.isFinite(senderTs)
+      ? Math.min(senderTs, startedAt)
+      : startedAt;
+  return { startMs, windowMs };
+};
 
 const isPastRetryWindow = (event: MatrixEvent | null, delayMs = 0): boolean => {
   const startedAt = event ? queuedAt.get(event) : undefined;
-  return startedAt !== undefined && Date.now() + delayMs - startedAt > MESSAGE_RETRY_WINDOW_MS;
+  if (startedAt === undefined || !event) return false;
+  const { startMs, windowMs } = ringRetryBounds(event, startedAt);
+  return Date.now() + delayMs - startMs > windowMs;
 };
 
 const retryMessageSend: MatrixScheduler['retryAlgorithm'] = (event, attempts, err) => {

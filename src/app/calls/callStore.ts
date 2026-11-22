@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { KnownMembership, RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
+import type { CallNotifyInputs } from './callRingTrace';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
 import { takeDeviceCallLock } from './callResume';
@@ -252,6 +253,7 @@ export type StartCallOptions = {
   microphone?: boolean;
   devices?: CallDevices;
   notify?: 'ring' | 'notification';
+  notifyInputs?: CallNotifyInputs;
   /**
    * Runs once nothing else stands in the call's way (no other call here or in another tab), right
    * before the call is made, such as writing an agent call room's origin. A start that gives up
@@ -306,6 +308,7 @@ export const useCallActions = (mx: MatrixClient) => {
       microphone,
       devices,
       notify,
+      notifyInputs,
       prepare,
       ...meta
     }: StartCallOptions): Promise<RoomCall | Exclude<StartCallResult, 'started'>> => {
@@ -353,6 +356,7 @@ export const useCallActions = (mx: MatrixClient) => {
         microphone,
         devices,
         notify,
+        notifyInputs,
         releaseDeviceLock,
         grant,
       });

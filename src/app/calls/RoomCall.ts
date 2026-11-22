@@ -26,6 +26,7 @@ import {
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
 import { withdrawOwnMemberships } from './callResume';
+import { startCallRingTrace, type CallNotifyInputs } from './callRingTrace';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -100,8 +101,10 @@ export type RoomCallOptions = {
   video?: boolean;
   microphone?: boolean;
   devices?: CallDevices;
-  /** Ring the other people (`ring`, direct chats) or notify them (`notification`). */
+  /** Ring the other people (`ring`, direct chats or small rooms) or notify them (`notification`). */
   notify?: 'ring' | 'notification';
+  /** Inputs that produced `notify`, recorded in the join's ring trace. */
+  notifyInputs?: CallNotifyInputs;
   /**
    * Lets go of the lock that tells this device's other tabs it is in a call (`takeDeviceCallLock`,
    * taken before the call starts). The call runs it once it has left.
@@ -199,6 +202,7 @@ export class RoomCall {
 
   /** The identity this call joined the session with; its own keys come back with it. */
   private ownMembership?: OwnMembership;
+  private stopRingTrace?: () => void;
 
   /** This device's current media key in the call, as the session made it. */
   private ownKey?: { key: Uint8Array; index: number };
@@ -658,6 +662,15 @@ export class RoomCall {
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
+      this.stopRingTrace?.();
+      this.stopRingTrace = startCallRingTrace({
+        room,
+        session: this.session,
+        ownMembership: this.ownMembership,
+        encrypted: this.encrypted,
+        notify: this.options.notify,
+        notifyInputs: this.options.notifyInputs,
+      });
       this.session.join(
         this.ownMembership,
         [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
@@ -812,6 +825,8 @@ export class RoomCall {
   }
 
   private async teardown() {
+    this.stopRingTrace?.();
+    this.stopRingTrace = undefined;
     this.session.off(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.off(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);

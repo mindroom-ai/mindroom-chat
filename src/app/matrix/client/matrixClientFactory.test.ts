@@ -2,7 +2,9 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import {
   EventStatus,
+  EventType,
   MatrixEvent,
+  RelationType,
   MsgType,
   PendingEventOrdering,
   Room,
@@ -361,6 +363,59 @@ describe('createMatrixClient message sends', () => {
     expect(await outcome).toMatchObject({ errcode: 'M_FORBIDDEN' });
     expect(event.status).toBe(EventStatus.NOT_SENT);
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds ring retries to the ring lifetime (30 s) instead of 60 s', async () => {
+    const { mx, room, fetchFn } = setup(['slow', 'slow', 'slow', 'slow']);
+    const txnId = 'txn-ring';
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      txnId
+    );
+    const outcome = sending.catch((error: Error) => error);
+    const event = room.getEventForTxnId(txnId)!;
+
+    // Attempts start at 0, 12 and 26 s; a fourth would start at 44 s, past the 30 s ring lifetime.
+    await vi.advanceTimersByTimeAsync(36_000 - 1);
+    expect(event.status).toBe(EventStatus.SENDING);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+  });
+
+  it('keeps the 60 s retry window for non-ring RTC notifications', async () => {
+    const { mx, room, fetchFn } = setup(['slow', 'slow', 'slow', 'slow', 'slow']);
+    const txnId = 'txn-group-note';
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'notification',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      txnId
+    );
+    const outcome = sending.catch((error: Error) => error);
+    const event = room.getEventForTxnId(txnId)!;
+
+    // Attempts start at 0, 12, 26 and 44 s (same 60 s window as ordinary messages).
+    await vi.advanceTimersByTimeAsync(54_000);
+
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
   });
 });
 
