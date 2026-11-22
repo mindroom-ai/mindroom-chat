@@ -24,8 +24,9 @@ const resolveMentionedRoom = (client: MatrixClient, mentionId: string): string |
  * The click handler for mention pills, which carry the mentioned ID in `data-mention-id` (with an
  * optional event in `data-mention-event-id` and routing servers in `data-mention-via`): a user
  * opens their profile in `roomId`; a joined room opens directly (at the event when given, or on
- * its lobby for a space without an event); and an unjoined room ID or alias navigates to its room
- * route with `viaServers` intact so `RoomRoute` can resolve the alias and show the join preview.
+ * its lobby for a space without an event); and an unjoined or non-joined room navigates to its
+ * room route (using the known room ID when the client already has it, else the mentioned ID or
+ * alias) with `viaServers` intact so `RoomRoute` can resolve the alias and show the join preview.
  */
 export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLElement> => {
   const client = useMatrixClient();
@@ -61,8 +62,9 @@ export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLEl
         return;
       }
 
+      const targetRoom = knownRoom?.roomId ?? mention.id;
       navigatePath(
-        withSearchParam(getHomeRoomPath(mention.id, mention.eventId), {
+        withSearchParam(getHomeRoomPath(targetRoom, mention.eventId), {
           viaServers: mention.viaServers?.length ? mention.viaServers.join(',') : undefined,
         })
       );

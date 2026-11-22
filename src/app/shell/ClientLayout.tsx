@@ -9,7 +9,7 @@ import { resolveSessionRestorePath } from '../routes/sessionRouteRestore';
 import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
-  resolveCanonicalizedPathname,
+  resolveCanonicalizedRoute,
 } from '../navigation/clientRouteRestore';
 import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
@@ -99,7 +99,7 @@ export function ClientLayout({
   useEffect(() => {
     if (!sessionId || !hasAlias) return undefined;
     let cancelled = false;
-    resolveCanonicalizedPathname(mx, pathname)
+    resolveCanonicalizedRoute(mx, pathname, search)
       .then((resolved) => {
         if (cancelled) return;
         setResolvedAliasPath(pathname);
@@ -107,8 +107,11 @@ export function ClientLayout({
         // redirect into its thread, or a step back to the entry the page load started on.
         if (router && router.state.location.key !== key) return;
         // The same visit under the room's own address: what the entry says of it stays.
-        if (resolved !== pathname) {
-          void navigate(`${resolved}${search}${hash}`, { replace: true, state });
+        if (resolved.pathname !== pathname || resolved.search !== search) {
+          void navigate(`${resolved.pathname}${resolved.search}${hash}`, {
+            replace: true,
+            state,
+          });
         }
       })
       .catch(() => {

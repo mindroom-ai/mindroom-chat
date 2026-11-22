@@ -17,10 +17,10 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
-// Clicking an unjoined room alias mention link in a message opens the room's join preview page
-// in-app instead of silently doing nothing. On a phone viewport, Back returns to the source room,
-// and tapping Join from the preview enters the room and displays its timeline.
-// Set UNJOINED_LINK_SHOTS=<directory> to save screenshots for visual verification.
+// Clicking an unjoined room alias or room-ID+event mention link in a message opens the room's
+// join preview page in-app (preserving viaServers and eventId) instead of silently doing nothing.
+// On a phone viewport, Back returns to the source room, and tapping Join from the preview enters
+// the room and displays its timeline. Set UNJOINED_LINK_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'unjoined-room-mention-link-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.UNJOINED_LINK_SHOTS;
@@ -35,6 +35,7 @@ const PHONE: BrowserContextOptions = {
 const SOURCE_ROOM = 'Harbor desk';
 const TARGET_ROOM = 'Field notes';
 const TARGET_TOPIC = 'Weekly trail logs and weather readings from the ridge station.';
+const TARGET_OLDER_MESSAGE = 'Earlier ridge check: visibility clear across the valley.';
 const TARGET_MESSAGE = 'North ridge barometer steady at 1014 hPa.';
 
 test.use({
@@ -71,6 +72,11 @@ const seed = async (label: string) => {
     })
   ).room_id;
 
+  const olderEventId = await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
+    msgtype: 'm.text',
+    body: TARGET_OLDER_MESSAGE,
+  });
+
   await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
     msgtype: 'm.text',
     body: TARGET_MESSAGE,
@@ -87,7 +93,15 @@ const seed = async (label: string) => {
     formatted_body: `Check <a href="https://matrix.to/#/${alias}">${alias}</a> for the latest ridge readings.`,
   });
 
-  return { username, sourceRoomId, targetRoomId, alias };
+  const eventHref = `https://matrix.to/#/${targetRoomId}/${olderEventId}?via=${server}`;
+  await sendRoomMessage(HOMESERVER, reader.accessToken, sourceRoomId, {
+    msgtype: 'm.text',
+    body: `See the earlier ridge reading: ${eventHref}`,
+    format: 'org.matrix.custom.html',
+    formatted_body: `See <a href="${eventHref}">the earlier ridge reading</a> for context.`,
+  });
+
+  return { username, sourceRoomId, targetRoomId, olderEventId, alias, server };
 };
 
 const messageRow = (page: Page, text: string) =>
@@ -104,7 +118,7 @@ test.beforeEach(async () => {
 test.describe('desktop', () => {
   test.use(DESKTOP);
 
-  test('clicking an unjoined room alias link in a message opens the join preview page', async ({
+  test('clicking unjoined alias and room-ID event links opens join preview with viaServers and joins at the linked event', async ({
     page,
   }, testInfo) => {
     const seeded = await seed('desktop');
@@ -117,6 +131,7 @@ test.describe('desktop', () => {
     const sourceRoomEntry = page.getByText(SOURCE_ROOM, { exact: true }).first();
     await expect(sourceRoomEntry).toBeVisible({ timeout: 60_000 });
     await sourceRoomEntry.click();
+
     const row = messageRow(page, 'latest ridge readings');
     await expect(row).toBeVisible({ timeout: 60_000 });
 
@@ -126,12 +141,41 @@ test.describe('desktop', () => {
 
     await mentionLink.click();
 
-    const joinButton = page.getByRole('button', { name: 'Join', exact: true });
+    const main = page.getByRole('main');
+    const joinButton = main.getByRole('button', { name: 'Join', exact: true });
     await expect(joinButton).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText(TARGET_ROOM, { exact: true })).toBeVisible();
-    await expect(page.getByText(TARGET_TOPIC, { exact: true })).toBeVisible();
+    await expect(main.getByText(TARGET_ROOM, { exact: true })).toBeVisible();
+    await expect(main.getByText(TARGET_TOPIC, { exact: true })).toBeVisible();
     expect(page.context().pages()).toHaveLength(1);
     await saveShot(page, testInfo, 'preview-desktop.png');
+
+    // Return to the source room and open an unjoined room-ID + event link carrying ?via=.
+    await sourceRoomEntry.click();
+    const eventRow = messageRow(page, 'the earlier ridge reading');
+    await expect(eventRow).toBeVisible({ timeout: 30_000 });
+    const eventLink = eventRow.locator(
+      `a[data-mention-id="${seeded.targetRoomId}"][data-mention-event-id="${seeded.olderEventId}"]`
+    );
+    await expect(eventLink).toBeVisible();
+    await eventLink.click();
+
+    await expect(joinButton).toBeVisible({ timeout: 60_000 });
+    await expect(main.getByText(TARGET_ROOM, { exact: true })).toBeVisible();
+    await expect(main.getByText(TARGET_TOPIC, { exact: true })).toBeVisible();
+    const previewUrl = new URL(page.url());
+    expect(decodeURIComponent(previewUrl.pathname)).toContain(seeded.targetRoomId);
+    expect(decodeURIComponent(previewUrl.pathname)).toContain(seeded.olderEventId);
+    expect(previewUrl.searchParams.get('viaServers')).toBe(seeded.server);
+
+    // Joining opens the target room and renders the linked older event alongside the newer message.
+    await joinButton.click();
+    await expect(main.locator(`[data-message-id="${seeded.olderEventId}"]`)).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(main.getByText(TARGET_OLDER_MESSAGE, { exact: true })).toBeVisible();
+    await expect(main.getByText(TARGET_MESSAGE, { exact: true })).toBeVisible();
+    expect(decodeURIComponent(new URL(page.url()).pathname)).toContain(seeded.targetRoomId);
+    expect(page.context().pages()).toHaveLength(1);
   });
 });
 
@@ -151,6 +195,7 @@ test.describe('phone', () => {
     const sourceRoomEntry = page.getByText(SOURCE_ROOM, { exact: true }).first();
     await expect(sourceRoomEntry).toBeVisible({ timeout: 60_000 });
     await sourceRoomEntry.tap();
+
     const row = messageRow(page, 'latest ridge readings');
     await expect(row).toBeVisible({ timeout: 60_000 });
 
@@ -181,7 +226,7 @@ test.describe('phone', () => {
     await expect(joinButton).toBeVisible({ timeout: 60_000 });
     await joinButton.tap();
 
-    await expect(page.getByText(TARGET_MESSAGE, { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(main.getByText(TARGET_MESSAGE, { exact: true })).toBeVisible({ timeout: 60_000 });
     expect(page.context().pages()).toHaveLength(1);
   });
 });

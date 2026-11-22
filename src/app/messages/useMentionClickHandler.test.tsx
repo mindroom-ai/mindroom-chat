@@ -166,6 +166,25 @@ describe('useMentionClickHandler', () => {
     }
   });
 
+  it('ignores data-mention-via and calls navigateRoom for a joined room', () => {
+    const room = makeRoom({
+      roomId: '!dockyard:example.org',
+      canonicalAlias: '#dockyard:example.org',
+    });
+    const client = makeClient([room]);
+
+    const { event } = renderAndClick(client, {
+      mentionId: '!dockyard:example.org',
+      eventId: '$entry-2',
+      via: 'example.org,relay.example.org',
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mocks.navigateRoom).toHaveBeenCalledWith('!dockyard:example.org', '$entry-2');
+    expect(mocks.navigatePath).not.toHaveBeenCalled();
+    expect(mocks.navigateSpace).not.toHaveBeenCalled();
+  });
+
   it('opens a joined space on its lobby without an event, or via navigateRoom with an event', () => {
     const space = makeRoom({
       roomId: '!harbor-space:example.org',
@@ -241,10 +260,16 @@ describe('useMentionClickHandler', () => {
     );
   });
 
-  it('routes known non-joined rooms (invite or leave) through navigatePath with mention.id and viaServers', () => {
+  it('routes known non-joined rooms (invite or leave) through navigatePath using knownRoom.roomId and preserving viaServers', () => {
     const invitedRoom = makeRoom({
       roomId: '!invited-desk:remote.example.org',
       canonicalAlias: '#invited-desk:remote.example.org',
+      membership: KnownMembership.Invite,
+    });
+    const staleAltInvitedRoom = makeRoom({
+      roomId: '!stale-invite:example.org',
+      canonicalAlias: null,
+      altAliases: ['#stale-alt:example.org'],
       membership: KnownMembership.Invite,
     });
     const leftRoom = makeRoom({
@@ -252,7 +277,7 @@ describe('useMentionClickHandler', () => {
       canonicalAlias: '#left-desk:remote.example.org',
       membership: KnownMembership.Leave,
     });
-    const client = makeClient([invitedRoom, leftRoom]);
+    const client = makeClient([invitedRoom, staleAltInvitedRoom, leftRoom]);
 
     const inviteClick = renderAndClick(client, {
       mentionId: '#invited-desk:remote.example.org',
@@ -260,8 +285,22 @@ describe('useMentionClickHandler', () => {
     });
     expect(inviteClick.event.defaultPrevented).toBe(true);
     expect(mocks.navigatePath).toHaveBeenCalledWith(
-      withSearchParam(getHomeRoomPath('#invited-desk:remote.example.org'), {
+      withSearchParam(getHomeRoomPath('!invited-desk:remote.example.org'), {
         viaServers: 'remote.example.org',
+      })
+    );
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
+
+    mocks.navigatePath.mockReset();
+    const staleAltClick = renderAndClick(client, {
+      mentionId: '#stale-alt:example.org',
+      eventId: '$invite-note',
+      via: 'example.org',
+    });
+    expect(staleAltClick.event.defaultPrevented).toBe(true);
+    expect(mocks.navigatePath).toHaveBeenCalledWith(
+      withSearchParam(getHomeRoomPath('!stale-invite:example.org', '$invite-note'), {
+        viaServers: 'example.org',
       })
     );
     expect(mocks.navigateRoom).not.toHaveBeenCalled();
