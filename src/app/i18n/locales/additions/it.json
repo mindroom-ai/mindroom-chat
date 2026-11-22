@@ -739,6 +739,9 @@
         "save": "Salva",
         "saved": "Salvato",
         "clear": "Cancella",
+        "saveSetting": "Salva {{setting}}",
+        "savedSetting": "Salvato: {{setting}}",
+        "clearSetting": "Cancella {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",
         "saveFailed": "Impossibile salvare l’impostazione. Riprova.",
@@ -781,7 +784,7 @@
         },
         "agentInstructions": {
           "label": "Istruzioni per gli agenti",
-          "description": "Istruzioni aggiuntive che ogni agente segue quando risponde in questa stanza. I moderatori possono modificarle; non concedono autorizzazioni aggiuntive agli agenti.",
+          "description": "Istruzioni aggiuntive fornite a ogni agente che risponde in questa stanza. I moderatori possono modificarle; non concedono autorizzazioni aggiuntive agli agenti. Tutti nella stanza possono leggerle e lo stato della stanza non è crittografato end-to-end, quindi non inserire segreti qui.",
           "placeholder": "Per esempio: mantieni le risposte brevi e rispondi in olandese"
         }
       }

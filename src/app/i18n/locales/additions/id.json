@@ -713,6 +713,9 @@
         "save": "Simpan",
         "saved": "Tersimpan",
         "clear": "Hapus",
+        "saveSetting": "Simpan {{setting}}",
+        "savedSetting": "Tersimpan: {{setting}}",
+        "clearSetting": "Hapus {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
         "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
@@ -755,7 +758,7 @@
         },
         "agentInstructions": {
           "label": "Instruksi agen",
-          "description": "Instruksi tambahan yang diikuti setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan.",
+          "description": "Instruksi tambahan yang diberikan kepada setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan. Semua orang di ruang ini dapat membacanya, dan status ruang tidak terenkripsi ujung ke ujung, jadi jangan masukkan rahasia di sini.",
           "placeholder": "Contoh: Buat jawaban singkat dan balas dalam bahasa Belanda"
         }
       }

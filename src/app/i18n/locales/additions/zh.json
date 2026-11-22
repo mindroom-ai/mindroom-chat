@@ -713,6 +713,9 @@
         "save": "保存",
         "saved": "已保存",
         "clear": "清除",
+        "saveSetting": "保存{{setting}}",
+        "savedSetting": "已保存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
         "saveFailed": "无法保存该设置，请重试。",
@@ -755,7 +758,7 @@
         },
         "agentInstructions": {
           "label": "智能体说明",
-          "description": "每个智能体在此房间回复时遵循的额外说明。版主可以编辑它们；它们不会授予智能体任何额外权限。",
+          "description": "提供给在此房间回复的每个智能体的额外说明。版主可以编辑它们；它们不会授予智能体任何额外权限。房间里的每个人都能读取它们，且房间状态不经过端到端加密，因此请勿在此放置机密信息。",
           "placeholder": "例如：保持回答简短并用荷兰语回复"
         }
       }

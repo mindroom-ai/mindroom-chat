@@ -74,6 +74,7 @@ vi.mock('folds', () => {
     'maxLength',
     'rows',
     'aria-describedby',
+    'aria-label',
     'onClick',
     'onChange',
     'onSubmit',
@@ -146,11 +147,12 @@ const mount = () => {
 const refresh = () => rerender(tile());
 
 const field = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: LABEL });
-// Save, or Saved for a moment after a write.
-const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: /^Saved?$/ });
-const clearButton = () => screen.queryByRole('button', { name: 'Clear' });
+// Save, or Saved for a moment after a write, scoped to the setting's label.
+const saveButton = (label = LABEL) =>
+  screen.getByRole<HTMLButtonElement>('button', { name: new RegExp(`^Saved? ${label}$`) });
+const clearButton = (label = LABEL) => screen.queryByRole('button', { name: `Clear ${label}` });
 const type = (value: string) => fireEvent.change(field(), { target: { value } });
-const clickSave = () => fireEvent.click(saveButton());
+const clickSave = (label = LABEL) => fireEvent.click(saveButton(label));
 const sentContent = (call: number) => client.sendStateEvent.mock.calls[call]?.[2];
 
 beforeEach(() => {
@@ -384,6 +386,7 @@ describe('RoomTextSettingTile', () => {
       type('Use at most 4 words');
       await act(async () => clickSave());
       expect(saveButton().textContent).toBe('Saved');
+      expect(saveButton().getAttribute('aria-label')).toBe(`Saved ${LABEL}`);
       expect(saveButton().disabled).toBe(true);
       expect(screen.getByRole('status').textContent).toBe('Saved');
 
@@ -395,6 +398,7 @@ describe('RoomTextSettingTile', () => {
         vi.advanceTimersByTime(1);
       });
       expect(saveButton().textContent).toBe('Save');
+      expect(saveButton().getAttribute('aria-label')).toBe(`Save ${LABEL}`);
       expect(screen.getByRole('status').textContent).toBe('');
 
       // Clear confirms the same way, and typing ends it early.
@@ -499,17 +503,20 @@ describe('RoomTextSettingTile (agent_instructions)', () => {
     expect(ids.length).toBeGreaterThan(0);
     ids.forEach((id) => expect(document.getElementById(id), id).not.toBeNull());
     const described = ids.map((id) => document.getElementById(id)!.textContent).join(' ');
-    expect(described).toContain(
-      'Extra instructions every agent follows when answering in this room.'
-    );
+    expect(described).toContain('Extra instructions given to every agent answering in this room.');
+    expect(described).toContain('not end-to-end encrypted, so do not put secrets here.');
     expect(described).toContain('0 / 2000');
-    expect(clearButton()).toBeNull();
-    expect(saveButton().disabled).toBe(true);
+    const instructionsLabel = 'Agent instructions';
+    expect(clearButton(instructionsLabel)).toBeNull();
+    expect(saveButton(instructionsLabel).disabled).toBe(true);
+    expect(saveButton(instructionsLabel).getAttribute('aria-label')).toBe(
+      'Save Agent instructions'
+    );
 
     fireEvent.change(instructionsField(), {
       target: { value: '  Keep answers short\nReply in Dutch  ' },
     });
-    await act(async () => clickSave());
+    await act(async () => clickSave(instructionsLabel));
 
     expect(client.sendStateEvent).toHaveBeenCalledWith(
       ROOM.roomId,
@@ -518,9 +525,14 @@ describe('RoomTextSettingTile (agent_instructions)', () => {
       'agent_instructions'
     );
     expect(instructionsField().value).toBe('Keep answers short\nReply in Dutch');
-    expect(clearButton()).not.toBeNull();
+    expect(saveButton(instructionsLabel).getAttribute('aria-label')).toBe(
+      'Saved Agent instructions'
+    );
+    expect(clearButton(instructionsLabel)?.getAttribute('aria-label')).toBe(
+      'Clear Agent instructions'
+    );
 
-    await act(async () => fireEvent.click(clearButton()!));
+    await act(async () => fireEvent.click(clearButton(instructionsLabel)!));
     expect(client.sendStateEvent).toHaveBeenLastCalledWith(
       ROOM.roomId,
       ROOM_SETTINGS_EVENT,
@@ -528,6 +540,6 @@ describe('RoomTextSettingTile (agent_instructions)', () => {
       'agent_instructions'
     );
     expect(instructionsField().value).toBe('');
-    expect(clearButton()).toBeNull();
+    expect(clearButton(instructionsLabel)).toBeNull();
   });
 });

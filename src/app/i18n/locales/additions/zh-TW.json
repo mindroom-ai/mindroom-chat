@@ -713,6 +713,9 @@
         "save": "儲存",
         "saved": "已儲存",
         "clear": "清除",
+        "saveSetting": "儲存{{setting}}",
+        "savedSetting": "已儲存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
         "saveFailed": "無法儲存設定，請再試一次。",
@@ -755,7 +758,7 @@
         },
         "agentInstructions": {
           "label": "代理指示",
-          "description": "每個代理在此聊天室回覆時遵循的額外指示。版主可以編輯它們；它們不會授予代理任何額外權限。",
+          "description": "提供給在此聊天室回覆的每個代理的額外指示。版主可以編輯它們；它們不會授予代理任何額外權限。聊天室裡的每個人都能讀取它們，且聊天室狀態不經過端對端加密，因此請勿在此放置機密資訊。",
           "placeholder": "例如：保持回答簡短並用荷蘭語回覆"
         }
       }
