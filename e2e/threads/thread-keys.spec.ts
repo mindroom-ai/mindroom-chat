@@ -314,5 +314,24 @@ test('a thread left far down a long list hands the focus to its card', async ({ 
   await page.keyboard.press('Alt+ArrowLeft');
   await expect(banner(page)).toHaveCount(0);
   await expect(card(page, deep)).toBeFocused();
+
+  // With the thread open beside a scrolled-away list, Alt+ArrowLeft reveals its card in view.
+  await page.setViewportSize({ width: 1600, height: 800 });
+  await expect(page.locator(COMPACT_VIEW)).toHaveAttribute('data-compact-card-count', '30', {
+    timeout: 30_000,
+  });
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
+    .click();
+  await page.locator(COMPACT_VIEW).evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(card(page, deep)).not.toBeInViewport();
+  await page.getByTestId('thread-column').getByRole('textbox').last().click();
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect(card(page, deep)).toBeFocused();
   await expect(card(page, deep)).toBeInViewport();
 });
