@@ -81,9 +81,9 @@ export type CompactRoomViewProps = {
   sectionsNow?: number;
   /**
    * Set when the active workflow tab filters the list to one bucket (`needsYou`, `working`,
-   * `later`, `done` — not `all` or Simple mode). That section stays open with a plain
-   * non-collapsible header without changing its stored fold, so switching to Done still shows
-   * Done threads immediately.
+   * `later`, `done` — not `all`; Simple mode projects `tab` away in `useRoomViewThreadState`,
+   * so it is unset there). That section stays open with a plain non-collapsible header without
+   * changing its stored fold, so switching to Done still shows Done threads immediately.
    */
   singleBucketTab?: ThreadWorkflowBucket;
 };
@@ -364,16 +364,21 @@ export function CompactRoomView({
   const { roomId } = room;
   const shownRef = useRef<{
     roomId: string;
+    singleBucketTab: ThreadWorkflowBucket | undefined;
     sections: CompactThreadSection[] | undefined;
     rows: string[];
   }>();
   const heldSections = useMemo(() => {
     const shown = shownRef.current;
-    // Sections start live when entering from flat or from another room.
-    return orderHeld && threadSections && shown?.roomId === roomId && shown.sections
+    // Sections start live when entering from flat, from another room, or from another bucket tab.
+    return orderHeld &&
+      threadSections &&
+      shown?.roomId === roomId &&
+      shown.singleBucketTab === singleBucketTab &&
+      shown.sections
       ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
       : threadSections;
-  }, [orderHeld, roomId, threadSections]);
+  }, [orderHeld, roomId, singleBucketTab, threadSections]);
   // Under a single-bucket workflow tab (such as Done), that section stays open without
   // changing its stored fold, so switching to Done still shows Done threads immediately.
   const folded = useMemo(
@@ -407,8 +412,8 @@ export function CompactRoomView({
     return flat!.rootIds;
   }, [holdFlat, listedRows, roomId]);
   useLayoutEffect(() => {
-    shownRef.current = { roomId, sections: heldSections, rows: shownRows };
-  }, [heldSections, roomId, shownRows]);
+    shownRef.current = { roomId, singleBucketTab, sections: heldSections, rows: shownRows };
+  }, [heldSections, roomId, shownRows, singleBucketTab]);
   useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.

@@ -454,6 +454,27 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#needsYou 2', '$b1', '$b2']);
     });
 
+    it('starts live for the new bucket tab when switching singleBucketTab under the pointer', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['working', 'done'] })
+      );
+      state.sections = [{ id: 'working', rootIds: ['$a'] }];
+      const { rerender } = render(view(['$a']));
+      expect(rows()).toEqual(['#working 1']);
+
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+
+      state.sections = [{ id: 'done', rootIds: ['$a'] }];
+      rerender(view(['$a'], true, room, 'done'));
+
+      expect(rows()).toEqual(['#done 1', '$a']);
+      expect(document.querySelector('[data-compact-section="done"] button')).toBeNull();
+    });
+
     it('shows a new thread under its own header, which comes with it', () => {
       state.sections = [{ id: 'needsYou', rootIds: ['$a'] }];
       const { rerender } = render(view(['$a']));

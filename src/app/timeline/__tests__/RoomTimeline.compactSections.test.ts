@@ -43,7 +43,7 @@ const renderCompact = async (
   });
   if (!renderer) throw new Error('the room timeline did not render');
   const bar = () => renderer!.root.findByType(roomThreadOverviewType).props;
-  const cards = () => renderer!.root.findAllByType(compactPlaceholderType)[0]?.props;
+  const cards = () => renderer!.root.findByType(compactPlaceholderType).props;
   return { renderer, bar, cards };
 };
 
@@ -59,7 +59,7 @@ describe('RoomTimeline Compact sections wiring', () => {
 
     expect(bar().threadSections).toBe(true);
     expect(bar().onToggleThreadSections).toBe(onToggleThreadSections);
-    expect(typeof cards()?.sectionsNow).toBe('number');
+    expect(typeof cards().sectionsNow).toBe('number');
     act(() => renderer.unmount());
   });
 
@@ -72,7 +72,7 @@ describe('RoomTimeline Compact sections wiring', () => {
 
     expect(bar().threadSections).toBe(false);
     expect(bar().onToggleThreadSections).toBeUndefined();
-    expect(cards()?.sectionsNow).toBeUndefined();
+    expect(cards().sectionsNow).toBeUndefined();
     act(() => renderer.unmount());
   });
 
@@ -84,7 +84,7 @@ describe('RoomTimeline Compact sections wiring', () => {
         selectThreadWorkflowTab(createDefaultThreadFilterState(), tab)
       );
 
-      expect(cards()?.singleBucketTab).toBe(tab);
+      expect(cards().singleBucketTab).toBe(tab);
       act(() => renderer.unmount());
     }
   );
@@ -94,14 +94,14 @@ describe('RoomTimeline Compact sections wiring', () => {
       { threadSections: true, onToggleThreadSections: vi.fn() },
       selectThreadWorkflowTab(createDefaultThreadFilterState(), 'all')
     );
-    expect(allView.cards()?.singleBucketTab).toBeUndefined();
+    expect(allView.cards().singleBucketTab).toBeUndefined();
     act(() => allView.renderer.unmount());
 
     const untabbedView = await renderCompact(
       { threadSections: true, onToggleThreadSections: vi.fn() },
       createDefaultThreadFilterState()
     );
-    expect(untabbedView.cards()?.singleBucketTab).toBeUndefined();
+    expect(untabbedView.cards().singleBucketTab).toBeUndefined();
     act(() => untabbedView.renderer.unmount());
   });
 
@@ -112,14 +112,14 @@ describe('RoomTimeline Compact sections wiring', () => {
       { threadSections: false, onToggleThreadSections: vi.fn() },
       doneFilter
     );
-    expect(sectionsOff.cards()?.singleBucketTab).toBeUndefined();
+    expect(sectionsOff.cards().singleBucketTab).toBeUndefined();
     act(() => sectionsOff.renderer.unmount());
 
     const agentless = await renderCompact(
       { hasMindroomAgents: false, threadSections: true, onToggleThreadSections: vi.fn() },
       doneFilter
     );
-    expect(agentless.cards()?.singleBucketTab).toBeUndefined();
+    expect(agentless.cards().singleBucketTab).toBeUndefined();
     act(() => agentless.renderer.unmount());
   });
 });
