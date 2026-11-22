@@ -224,6 +224,22 @@ it('retains a saved card when the partial index clamps the restore', () => {
   expect(view.querySelector('[data-scroll-anchor="$row6"]')).not.toBeNull();
 });
 
+it('does not offer the saved place while the small pending index would clamp it', () => {
+  const memory: ScrollAnchorMemory = new Map([
+    ['!room', { scrollTop: 1, anchors: [{ key: '$row10', offset: 160 }] }],
+  ]);
+  const extent = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1030);
+  const { container, rerender } = render(
+    <List memory={memory} shown={{ cards: ids.slice(0, 11) }} indexPending />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  expect(view.dataset.ready).toBe('false');
+
+  extent.mockReturnValue(2020);
+  rerender(<List memory={memory} shown={{ cards: ids.slice(0, 21) }} indexPending />);
+  expect(view.dataset.ready).toBe('true');
+});
+
 it('lets a wheel take over a clamped pending restore', () => {
   const id = '$row38';
   const memory: ScrollAnchorMemory = new Map([

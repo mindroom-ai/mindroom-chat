@@ -52,6 +52,7 @@ export function useCompactBlocks(options: Options) {
       saved: memory.get(roomId),
       checked: false,
       placed: false,
+      rangeReady: false,
       occupied: [] as string[],
       gesture: undefined as { id: string; pointer?: number } | undefined,
     }),
@@ -87,7 +88,15 @@ export function useCompactBlocks(options: Options) {
     indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
   const canPlace =
     !awaitingAnchors && (backSlot === undefined ? extentComplete : prefixReady(backSlot));
-  const placeReady = !back || ((small || state.checked) && canPlace);
+  // The small-list fast path skips prefix discovery, but a partial list can end too early.
+  const waitingForRange =
+    back &&
+    small &&
+    indexPending &&
+    savedKeys.length === 1 &&
+    geometry.order !== order &&
+    !state.rangeReady;
+  const placeReady = !back || ((small || state.checked) && canPlace && !waitingForRange);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const visible = geometry.visible.filter((id) => index.has(id));
@@ -184,6 +193,11 @@ export function useCompactBlocks(options: Options) {
         if (id !== undefined) {
           if (heights.get(id) !== height) changed = true;
           heights.set(id, height);
+          if (waitingForRange && id === savedKeys[0]) {
+            const destination = view.scrollTop + y - top - saved!.anchors[0]!.offset;
+            state.rangeReady = destination <= view.scrollHeight - view.clientHeight + 1;
+            changed ||= state.rangeReady;
+          }
           if (settle && placeReady && !state.placed) {
             const pending = indexPending && saved?.anchors.length ? saved.anchors : undefined;
             const anchor = pending?.find(({ key }) => key === id);
@@ -210,7 +224,7 @@ export function useCompactBlocks(options: Options) {
       return changed || start !== first || end !== last;
     };
     const measured = layout();
-    if (back && canPlace && !placeReady) render();
+    if (back && canPlace && !placeReady && (!waitingForRange || state.rangeReady)) render();
     state.checked = true;
     const update = () => layout(true);
     let frame = 0;
@@ -233,7 +247,7 @@ export function useCompactBlocks(options: Options) {
     };
     document.fonts?.addEventListener('loadingdone', fontsChanged);
     const track = (event: Event) => {
-      if (event.type === 'wheel') state.placed = true;
+      if (event.type === 'wheel' && placeReady) state.placed = true;
       const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
       if (event.type === 'pointerdown' || event.type === 'dragstart') {
         const node = event.target;
