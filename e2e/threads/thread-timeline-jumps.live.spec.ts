@@ -20,7 +20,6 @@ import {
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
-  inviteToRoom,
   joinRoom,
   seedRoomOverviewState,
 } from '../helpers/matrix';
@@ -171,8 +170,8 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   const roomId = await createPrivateRoom(DISPOSABLE_HOMESERVER, reader.accessToken, {
     name: `Timeline Jumps ${tag}`,
     topic: 'Realistic agent thread timeline jump investigation',
+    invite: [agent.userId],
   });
-  await inviteToRoom(DISPOSABLE_HOMESERVER, reader.accessToken, roomId, agent.userId);
   await joinRoom(DISPOSABLE_HOMESERVER, agent.accessToken, roomId);
 
   const imgSized = await uploadPng(agent.accessToken, 800, 520, 40);
