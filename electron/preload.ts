@@ -37,13 +37,6 @@ const onExternalClick = (event: MouseEvent): void => {
 window.addEventListener('click', onExternalClick, true);
 window.addEventListener('auxclick', onExternalClick, true);
 
-const takeAppUrl = async (): Promise<string | undefined> => {
-  const res = (await ipcRenderer.invoke('desktop:take-app-url')) as DesktopResult<
-    string | undefined
-  >;
-  return res.ok ? res.value : undefined;
-};
-
 const bridge = {
   onShellEvent: (listener: (event: DesktopShellEvent) => void): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, payload: DesktopShellEvent): void => {
@@ -58,21 +51,21 @@ const bridge = {
   startSignIn: (request) => ipcRenderer.invoke('desktop:start-sign-in', request),
   openSignIn: (url) => ipcRenderer.invoke('desktop:open-sign-in', url),
   appUrl: {
-    getLaunchUrl: async () => {
-      const url = await takeAppUrl();
-      return url ? { url } : undefined;
-    },
-    addListener: (eventName, listener) => {
-      if (eventName !== 'appUrlOpen') return Promise.resolve({ remove: () => undefined });
-      const handle = (): void => {
-        void takeAppUrl().then((url) => {
-          if (url) listener({ url });
-        });
+    // A sign-in return never comes this way: main holds it until the listener below takes it.
+    getLaunchUrl: () => Promise.resolve(undefined),
+    addListener: (_eventName, listener) => {
+      const take = (): void => {
+        ipcRenderer
+          .invoke('desktop:take-app-url')
+          .then((res: DesktopResult<string | undefined>) => {
+            if (res.ok && res.value) listener({ url: res.value });
+          })
+          .catch(() => undefined);
       };
-      ipcRenderer.on('desktop:app-url', handle);
-      return Promise.resolve({
-        remove: () => ipcRenderer.removeListener('desktop:app-url', handle),
-      });
+      // Subscribe first, then take once: a return that came while no page listened waits in main.
+      ipcRenderer.on('desktop:app-url', take);
+      take();
+      return Promise.resolve({ remove: () => ipcRenderer.removeListener('desktop:app-url', take) });
     },
   },
 } satisfies DesktopBridge;

@@ -16,7 +16,7 @@ import {
   guardWebContents,
   isOpenable,
   openableHref,
-  registerExternalOpenHandlers,
+  registerExternalOpenHandler,
 } from './security';
 
 const createFakeWebContents = (
@@ -405,8 +405,8 @@ describe('isOpenable', () => {
   });
 });
 
-describe('external open and sign-in IPC channels', () => {
-  it('validates sender, openable URLs, and pending sign-in URLs', async () => {
+describe('external open IPC channel', () => {
+  it('validates sender and openable URLs', async () => {
     ipcHandlers.clear();
     const opened: string[] = [];
     const mainFrame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
@@ -414,34 +414,12 @@ describe('external open and sign-in IPC channels', () => {
       isDestroyed: () => false,
       mainFrame,
     } as unknown as Electron.WebContents;
-    let pending: { homeserver: string; redirectUrl: string } | undefined;
-    let undelivered: string | undefined =
-      'mindroom://auth/login/hs.example/?ssoNonce=n1&loginToken=tok';
-    const authCallback = {
-      start: vi.fn(async (req: { homeserver: string; callback: string }) => {
-        if (!req.homeserver.startsWith('https://')) throw new RangeError('bad');
-        pending = {
-          homeserver: req.homeserver,
-          redirectUrl: `http://127.0.0.1:41234/auth/rand${req.callback}`,
-        };
-        return pending;
-      }),
-      pending: () => pending,
-      takeUndelivered: () => {
-        const next = undelivered;
-        undelivered = undefined;
-        return next;
-      },
-      close: vi.fn(),
-    };
-    registerExternalOpenHandlers({
-      externalOwners: () => [owner],
-      signInOwners: () => [owner],
-      authCallback,
-      openUrl: async (url) => {
+    registerExternalOpenHandler(
+      () => [owner],
+      async (url) => {
         opened.push(url);
-      },
-    });
+      }
+    );
 
     const event = { sender: owner, senderFrame: mainFrame };
     const badEvent = {
@@ -474,55 +452,5 @@ describe('external open and sign-in IPC channels', () => {
       value: undefined,
     });
     expect(opened).toEqual(['https://example.org/']);
-
-    const startSignIn = ipcHandlers.get('desktop:start-sign-in')!;
-    const openSignIn = ipcHandlers.get('desktop:open-sign-in')!;
-    expect(
-      await openSignIn(event, 'https://hs.example/_matrix/client/v3/login/sso/redirect')
-    ).toEqual({
-      ok: false,
-      code: 'BAD_ARGUMENTS',
-    });
-    expect(
-      await startSignIn(event, {
-        homeserver: 'http://evil.example',
-        callback: '/login/a/?ssoNonce=1',
-      })
-    ).toEqual({
-      ok: false,
-      code: 'BAD_ARGUMENTS',
-    });
-    const started = await startSignIn(event, {
-      homeserver: 'https://hs.example',
-      callback: '/login/hs.example/?ssoNonce=n1',
-    });
-    expect(started).toEqual({
-      ok: true,
-      value: 'http://127.0.0.1:41234/auth/rand/login/hs.example/?ssoNonce=n1',
-    });
-    const goodSignInUrl = `https://hs.example/_matrix/client/v3/login/sso/redirect/apple?redirectUrl=${encodeURIComponent(
-      'http://127.0.0.1:41234/auth/rand/login/hs.example/?ssoNonce=n1'
-    )}`;
-    expect(
-      await openSignIn(event, 'https://evil.example/_matrix/client/v3/login/sso/redirect')
-    ).toEqual({
-      ok: false,
-      code: 'BAD_ARGUMENTS',
-    });
-    expect(await openSignIn(event, `${goodSignInUrl}&access_token=syt_leak`)).toEqual({
-      ok: false,
-      code: 'BAD_ARGUMENTS',
-    });
-    expect(await openSignIn(event, goodSignInUrl)).toEqual({ ok: true, value: undefined });
-    expect(opened).toEqual(['https://example.org/', goodSignInUrl]);
-
-    const takeAppUrl = ipcHandlers.get('desktop:take-app-url')!;
-    expect(await takeAppUrl(badEvent)).toEqual({ ok: false, code: 'FORBIDDEN' });
-    expect(await takeAppUrl(event, 'extra')).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
-    expect(await takeAppUrl(event)).toEqual({
-      ok: true,
-      value: 'mindroom://auth/login/hs.example/?ssoNonce=n1&loginToken=tok',
-    });
-    expect(await takeAppUrl(event)).toEqual({ ok: true, value: undefined });
   });
 });

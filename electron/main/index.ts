@@ -1,10 +1,10 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog, session, shell } from 'electron';
-import { createAuthCallback } from './authCallback';
-import { APP_ORIGIN, isAllowedAppPage, registerBundleScheme, serveBundle } from './bundleProtocol';
+import { createAuthCallback, registerSignInHandlers } from './authCallback';
+import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
-import { guardSession, registerExternalOpenHandlers, setBlockedUrlRecorder } from './security';
+import { guardSession, registerExternalOpenHandler, setBlockedUrlRecorder } from './security';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
 app.commandLine.appendSwitch(
@@ -46,23 +46,19 @@ const focusMainWindow = (): void => {
   app.focus({ steal: true });
 };
 
+// Carries no URL: the page takes the return itself, once, through `desktop:take-app-url`.
 const notifyAppUrl = (): void => {
-  const win = getMainWindow();
-  if (!win || win.isDestroyed()) return;
   try {
-    const frame = win.webContents.mainFrame;
-    if (frame.origin === APP_ORIGIN && isAllowedAppPage(frame.url)) {
-      win.webContents.send('desktop:app-url');
-    }
+    getMainWindow()?.webContents.send('desktop:app-url');
   } catch {
-    // Window or main frame was disposed.
+    // The window was disposed: its next page takes the return when it loads.
   }
 };
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 
-const authCallback = createAuthCallback(() => notifyAppUrl(), focusMainWindow);
+const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
 
 app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
@@ -84,7 +80,7 @@ void app.whenReady().then(() => {
   }
   const mainOwners = (): readonly Electron.WebContents[] => {
     const win = getMainWindow();
-    return win && !win.isDestroyed() ? [win.webContents] : [];
+    return win ? [win.webContents] : [];
   };
   const appWindows = (): readonly Electron.WebContents[] =>
     (isTest ? BrowserWindow.getAllWindows() : [getMainWindow()]).flatMap((w) =>
@@ -95,22 +91,21 @@ void app.whenReady().then(() => {
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
-  registerExternalOpenHandlers({
-    externalOwners: appWindows,
-    signInOwners: mainOwners,
-    authCallback,
-    openUrl: async (url) => {
-      if (telemetry) telemetry.externalOpens.push(url);
-      else await shell.openExternal(url);
-    },
-  });
+  const openUrl = async (url: string): Promise<void> => {
+    if (telemetry) telemetry.externalOpens.push(url);
+    else await shell.openExternal(url);
+  };
+  registerExternalOpenHandler(appWindows, openUrl);
+  registerSignInHandlers(mainOwners, authCallback, openUrl);
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);
     wc.once('destroyed', forget);
     wc.on('render-process-gone', forget);
-    wc.on('did-finish-load', () => {
-      if (wc === getMainWindow()?.webContents && authCallback.hasUndelivered()) notifyAppUrl();
+    // A sign-in starts only after a click or key press that main itself saw in the main window.
+    wc.on('input-event', (_event, { type }) => {
+      const gesture = type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown';
+      if (gesture && wc === getMainWindow()?.webContents) authCallback.noteGesture();
     });
   });
   showMainWindow();

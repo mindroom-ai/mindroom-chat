@@ -3,7 +3,7 @@ import path from 'node:path';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 import { DISPOSABLE_HOMESERVER as HOMESERVER } from '../helpers/disposableAccounts';
 import { assertNoUnexpectedViolations, launchDesktop } from '../helpers/electronApp';
 import { loginPath, PROVIDER, registerSsoAccount, waitForShell } from '../helpers/ssoHomeserver';
@@ -55,12 +55,15 @@ const startSsoFromPage = async (
   app: Awaited<ReturnType<typeof launchDesktop>>['app'],
   page: Page,
   homeserver: string,
-  previousCount: number
+  previousCount: number,
+  press: 'click' | 'Enter' = 'click'
 ): Promise<URL> => {
   await page.goto(`${APP_ORIGIN}/login/${encodeURIComponent(homeserver)}`);
   const button = page.getByRole('button', { name: new RegExp(PROVIDER.name, 'i') });
   await expect(button).toBeVisible({ timeout: 30_000 });
-  await button.click();
+  // A real click or key press: main starts a sign-in only after a gesture it saw itself.
+  if (press === 'click') await button.click();
+  else await button.press(press);
   await expect.poll(async () => (await readExternalOpens(app)).length).toBe(previousCount + 1);
   const opens = await readExternalOpens(app);
   const signInUrl = new URL(opens[previousCount]!);
@@ -69,6 +72,36 @@ const startSsoFromPage = async (
   const redirectUrl = signInUrl.searchParams.get('redirectUrl');
   expect(redirectUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/auth\/[0-9a-f]+\/login\//);
   return new URL(redirectUrl!);
+};
+
+/** Holds the app's matching requests until `release()`; `seen` resolves at the first one. */
+const holdRequests = async (page: Page, matches: (request: Request) => boolean) => {
+  let release = (): void => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let markSeen = (): void => undefined;
+  const seen = new Promise<void>((resolve) => {
+    markSeen = resolve;
+  });
+  await page.route(`${APP_ORIGIN}/**`, async (route) => {
+    if (matches(route.request())) {
+      markSeen();
+      await released;
+    }
+    await route.fallback();
+  });
+  return { seen, release };
+};
+
+/** Counts the page's token exchanges with the homeserver. */
+const countLoginPosts = (page: Page): (() => number) => {
+  let count = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url() === `${HOMESERVER}/_matrix/client/v3/login`)
+      count += 1;
+  });
+  return () => count;
 };
 
 const startOtherHomeserver = async () => {
@@ -173,7 +206,7 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
       expect(page.url()).toContain(loginPath());
 
       // 2. Return after 30 minutes -> main expires pending sign-in and rejects with 404.
-      const redirect2 = await startSsoFromPage(app, page, HOMESERVER, 1);
+      const redirect2 = await startSsoFromPage(app, page, HOMESERVER, 1, 'Enter');
       await app.evaluate(() => {
         const realNow = Date.now;
         Object.assign(globalThis, { __realDateNow: realNow });
@@ -211,6 +244,90 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
     } finally {
       await session.close();
       await otherHs.close();
+    }
+  });
+
+  test('exchanges a return that arrives while the page reloads exactly once', async () => {
+    const mintToken = await registerSsoAccount(`electron_sso_reload_${Date.now()}`);
+    const session = await launchDesktop();
+    try {
+      const { app, page } = session;
+      await listHomeservers(page, [HOMESERVER]);
+      await advertiseSso(page, HOMESERVER);
+      const loginPosts = countLoginPosts(page);
+
+      const redirect = await startSsoFromPage(app, page, HOMESERVER, 0);
+      const token = await mintToken();
+
+      // The reloaded page has the bridge, but its scripts are held back: nothing listens yet
+      // when the return arrives, so main keeps it.
+      const hold = await holdRequests(page, (request) => request.resourceType() === 'script');
+      await page.reload({ waitUntil: 'commit' });
+      await hold.seen;
+      const res = await fetch(`${redirect.href}&loginToken=${encodeURIComponent(token)}`);
+      expect(res.status).toBe(200);
+      expect(loginPosts()).toBe(0);
+
+      hold.release();
+      await waitForShell(page);
+      expect(loginPosts()).toBe(1);
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('a sign-in started after another returned, before the page took it, leaves nothing to take', async () => {
+    const mintToken = await registerSsoAccount(`electron_sso_replaced_${Date.now()}`);
+    const session = await launchDesktop();
+    try {
+      const { app, page } = session;
+      await listHomeservers(page, [HOMESERVER]);
+      await advertiseSso(page, HOMESERVER);
+      const loginPosts = countLoginPosts(page);
+
+      // A: opened in the browser. Then the page reloads and its scripts are held back, so the
+      // new page has the bridge but nothing listens yet when A returns.
+      const redirectA = await startSsoFromPage(app, page, HOMESERVER, 0);
+      const callbackA = `${redirectA.href}&loginToken=${encodeURIComponent(await mintToken())}`;
+      const hold = await holdRequests(page, (request) => request.resourceType() === 'script');
+      await page.reload({ waitUntil: 'commit' });
+      await hold.seen;
+      expect((await fetch(callbackA)).status).toBe(200);
+
+      // B: refused without a gesture that main saw, started after a real click.
+      const startB = () =>
+        page.evaluate(
+          (homeserver) =>
+            window.mindroomDesktop!.startSignIn({
+              homeserver,
+              callback: '/login/placeholder/?ssoNonce=e2e-second',
+            }),
+          HOMESERVER
+        );
+      expect(await startB()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+      await page.mouse.click(20, 20);
+      expect((await startB()).ok).toBe(true);
+
+      // A's return is gone: a listener that subscribes now hears nothing, and neither does the app.
+      const taken = await page.evaluate(
+        () =>
+          new Promise<string | null>((resolve) => {
+            void window.mindroomDesktop!.appUrl.addListener('appUrlOpen', (event) =>
+              resolve(event.url ?? null)
+            );
+            setTimeout(() => resolve(null), 500);
+          })
+      );
+      expect(taken).toBeNull();
+      hold.release();
+      await expect(page.getByRole('button', { name: new RegExp(PROVIDER.name, 'i') })).toBeVisible({
+        timeout: 30_000,
+      });
+      expect((await fetch(callbackA)).status).toBe(404);
+      expect(page.url()).toContain(loginPath());
+      expect(loginPosts()).toBe(0);
+    } finally {
+      await session.close();
     }
   });
 

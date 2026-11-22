@@ -1,6 +1,24 @@
 import http from 'node:http';
+import net from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAuthCallback, isReturn, isSignInUrl, type PendingSignIn } from './authCallback';
+
+const ipcHandlers = new Map<string, (...args: unknown[]) => Promise<unknown>>();
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: vi.fn((channel: string, handler: (...args: unknown[]) => Promise<unknown>) => {
+      ipcHandlers.set(channel, handler);
+    }),
+  },
+}));
+
+import {
+  createAuthCallback,
+  isSignInUrl,
+  registerSignInHandlers,
+  returnToken,
+  type PendingSignIn,
+} from './authCallback';
+import { APP_ORIGIN } from './bundleProtocol';
 
 const rawRequest = (
   port: number,
@@ -29,6 +47,25 @@ const rawRequest = (
     );
     req.on('error', reject);
     req.end();
+  });
+
+/** A request written by hand, so it can carry the `Host` header more than once. */
+const statusWithHosts = (port: number, path: string, hosts: string[]): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const socket = net.connect(port, '127.0.0.1', () => {
+      const lines = [
+        `GET ${path} HTTP/1.1`,
+        ...hosts.map((h) => `Host: ${h}`),
+        'Connection: close',
+      ];
+      socket.write(`${lines.join('\r\n')}\r\n\r\n`);
+    });
+    let text = '';
+    socket.on('data', (chunk: Buffer) => {
+      text += chunk.toString('utf8');
+    });
+    socket.on('end', () => resolve(Number(text.split(' ')[1])));
+    socket.on('error', reject);
   });
 
 const PENDING: PendingSignIn = {
@@ -109,109 +146,46 @@ describe('isSignInUrl', () => {
   });
 });
 
-describe('isReturn', () => {
-  const validPath =
-    '/auth/deadbeef/login/matrix.example.org/?ssoNonce=nonce123&addAccount=1&loginToken=tok_ok';
+describe('returnToken', () => {
+  const HOST = '127.0.0.1:43210';
+  const PATH = '/auth/deadbeef/login/matrix.example.org/';
+  const QUERY = 'ssoNonce=nonce123&addAccount=1';
+  const get = (url: string, host = HOST, method = 'GET') =>
+    returnToken({ method, host, url }, PENDING);
 
-  it('accepts a GET with exact Host, path, stored query params, and one loginToken', () => {
-    expect(isReturn({ method: 'GET', host: '127.0.0.1:43210', url: validPath }, PENDING)).toBe(
-      true
-    );
-    // Stored params in another order still match.
-    expect(
-      isReturn(
-        {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/deadbeef/login/matrix.example.org/?loginToken=tok_ok&addAccount=1&ssoNonce=nonce123',
-        },
-        PENDING
-      )
-    ).toBe(true);
+  it('yields the one loginToken of a GET with the exact Host, path and stored query', () => {
+    expect(get(`${PATH}?${QUERY}&loginToken=tok_ok`)).toBe('tok_ok');
+    // Stored parameters in another order still match; the token comes back decoded.
+    expect(get(`${PATH}?loginToken=tok%2B1&addAccount=1&ssoNonce=nonce123`)).toBe('tok+1');
   });
 
-  it('refuses wrong method, Host, path, altered/missing/extra/duplicate params, and missing or duplicate loginToken', () => {
-    const cases: Array<{ label: string; req: { method: string; host: string; url: string } }> = [
-      { label: 'POST', req: { method: 'POST', host: '127.0.0.1:43210', url: validPath } },
-      { label: 'HEAD', req: { method: 'HEAD', host: '127.0.0.1:43210', url: validPath } },
-      { label: 'wrong host', req: { method: 'GET', host: 'localhost:43210', url: validPath } },
-      { label: 'wrong port', req: { method: 'GET', host: '127.0.0.1:9999', url: validPath } },
-      {
-        label: 'wrong path',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/other/login/matrix.example.org/?ssoNonce=nonce123&addAccount=1&loginToken=tok_ok',
-        },
-      },
-      {
-        label: 'dot segment path',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/x/../deadbeef/login/matrix.example.org/?ssoNonce=nonce123&addAccount=1&loginToken=tok_ok',
-        },
-      },
-      {
-        label: 'changed stored param',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/deadbeef/login/matrix.example.org/?ssoNonce=wrong&addAccount=1&loginToken=tok_ok',
-        },
-      },
-      {
-        label: 'missing stored param',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/deadbeef/login/matrix.example.org/?ssoNonce=nonce123&loginToken=tok_ok',
-        },
-      },
-      {
-        label: 'added param',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: `${validPath}&extra=1`,
-        },
-      },
-      {
-        label: 'duplicate stored param',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: `${validPath}&ssoNonce=nonce123`,
-        },
-      },
-      {
-        label: 'two loginTokens',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: `${validPath}&loginToken=tok_second`,
-        },
-      },
-      {
-        label: 'no loginToken',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/deadbeef/login/matrix.example.org/?ssoNonce=nonce123&addAccount=1',
-        },
-      },
-      {
-        label: 'empty loginToken',
-        req: {
-          method: 'GET',
-          host: '127.0.0.1:43210',
-          url: '/auth/deadbeef/login/matrix.example.org/?ssoNonce=nonce123&addAccount=1&loginToken=',
-        },
-      },
-    ];
-    for (const { label, req } of cases) {
-      expect(isReturn(req, PENDING), label).toBe(false);
-    }
+  it.each([
+    ['POST', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, HOST, 'POST')],
+    ['HEAD', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, HOST, 'HEAD')],
+    ['another host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, 'localhost:43210')],
+    ['another port', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, '127.0.0.1:9999')],
+    ['no Host', () => get(`${PATH}?${QUERY}&loginToken=tok_ok`, '')],
+    ['another path', () => get(`/auth/other/login/matrix.example.org/?${QUERY}&loginToken=tok_ok`)],
+    [
+      'a dot segment',
+      () => get(`/auth/x/../deadbeef/login/matrix.example.org/?${QUERY}&loginToken=t`),
+    ],
+    ['a doubled slash', () => get(`/${PATH}?${QUERY}&loginToken=tok_ok`)],
+    ['an absolute URL', () => get(`http://${HOST}${PATH}?${QUERY}&loginToken=tok_ok`)],
+    [
+      'a changed stored parameter',
+      () => get(`${PATH}?ssoNonce=wrong&addAccount=1&loginToken=tok_ok`),
+    ],
+    ['a missing stored parameter', () => get(`${PATH}?ssoNonce=nonce123&loginToken=tok_ok`)],
+    ['an added parameter', () => get(`${PATH}?${QUERY}&loginToken=tok_ok&extra=1`)],
+    ['a stored parameter twice', () => get(`${PATH}?${QUERY}&loginToken=tok_ok&ssoNonce=nonce123`)],
+    ['two loginTokens', () => get(`${PATH}?${QUERY}&loginToken=tok_ok&loginToken=tok_second`)],
+    ['no loginToken', () => get(`${PATH}?${QUERY}`)],
+    ['no query', () => get(PATH)],
+    ['an empty loginToken', () => get(`${PATH}?${QUERY}&loginToken=`)],
+    ['a blank loginToken', () => get(`${PATH}?${QUERY}&loginToken=%20`)],
+  ])('refuses %s', (_label, run) => {
+    expect(run()).toBeUndefined();
   });
 });
 
@@ -219,238 +193,293 @@ describe('createAuthCallback', () => {
   const closers: Array<() => void> = [];
   afterEach(() => {
     while (closers.length > 0) closers.pop()?.();
+    vi.restoreAllMocks();
   });
 
-  const make = () => {
-    const delivered: string[] = [];
-    const focus = vi.fn();
-    const cb = createAuthCallback((url) => delivered.push(url), focus);
+  const make = (focus: () => void = () => undefined) => {
+    const notify = vi.fn();
+    const focused = vi.fn(focus);
+    const cb = createAuthCallback(notify, focused);
     closers.push(() => cb.close());
-    return { cb, delivered, focus };
+    return { cb, notify, focus: focused };
+  };
+
+  /** A start after a gesture, with the sign-in URL the page would open and a way to return. */
+  const begin = async (cb: ReturnType<typeof make>['cb'], name: string) => {
+    cb.noteGesture();
+    const pending = await cb.start({
+      homeserver: `https://${name}.example`,
+      callback: `/login/${name}.example/?ssoNonce=${name}`,
+    });
+    if (!pending) throw new Error('start was refused');
+    const redirect = new URL(pending.redirectUrl);
+    return {
+      redirect,
+      signInUrl: `https://${name}.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${encodeURIComponent(
+        pending.redirectUrl
+      )}`,
+      appUrl: `mindroom://auth/login/${name}.example/?ssoNonce=${name}&loginToken=tok_${name}`,
+      sendReturn: async () =>
+        (
+          await rawRequest(Number(redirect.port), {
+            host: redirect.host,
+            path: `${redirect.pathname}${redirect.search}&loginToken=tok_${name}`,
+          })
+        ).status,
+    };
   };
 
   it('refuses a non-local HTTP homeserver, a fragment, two nonces, or a loginToken in callback', async () => {
     const { cb } = make();
-    await expect(
-      cb.start({ homeserver: 'http://matrix.example.org', callback: '/login/a/?ssoNonce=n1' })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://user:pass@matrix.example.org',
-        callback: '/login/a/?ssoNonce=n1',
-      })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: '/login/a/?ssoNonce=n1#frag',
-      })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: '/login/a/?ssoNonce=n1&ssoNonce=n2',
-      })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: '/login/a/?ssoNonce=n1&loginToken=tok',
-      })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: 'login/a/?ssoNonce=n1',
-      })
-    ).rejects.toThrow();
-    await expect(
-      cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: '/login/a/',
-      })
-    ).rejects.toThrow();
-    for (const badPath of [
-      '/../evil?ssoNonce=n1',
-      '/./login?ssoNonce=n1',
-      '/login/../../evil?ssoNonce=n1',
-      '/%2e%2e/evil?ssoNonce=n1',
-      '/%2E/evil?ssoNonce=n1',
-      '/..%2fevil?ssoNonce=n1',
+    const hs = 'https://matrix.example.org';
+    for (const request of [
+      { homeserver: 'http://matrix.example.org', callback: '/login/a/?ssoNonce=n1' },
+      { homeserver: 'https://user:pass@matrix.example.org', callback: '/login/a/?ssoNonce=n1' },
+      { homeserver: hs, callback: '/login/a/?ssoNonce=n1#frag' },
+      { homeserver: hs, callback: '/login/a/?ssoNonce=n1&ssoNonce=n2' },
+      { homeserver: hs, callback: '/login/a/?ssoNonce=n1&loginToken=tok' },
+      { homeserver: hs, callback: 'login/a/?ssoNonce=n1' },
+      { homeserver: hs, callback: '//evil.example/?ssoNonce=n1' },
+      { homeserver: hs, callback: '/login/a/' },
+      { homeserver: hs, callback: '/../evil?ssoNonce=n1' },
+      { homeserver: hs, callback: '/./login?ssoNonce=n1' },
+      { homeserver: hs, callback: '/login/../../evil?ssoNonce=n1' },
+      { homeserver: hs, callback: '/%2e%2e/evil?ssoNonce=n1' },
+      { homeserver: hs, callback: '/%2E/evil?ssoNonce=n1' },
+      { homeserver: hs, callback: '/..%2fevil?ssoNonce=n1' },
     ]) {
-      await expect(
-        cb.start({ homeserver: 'https://matrix.example.org', callback: badPath }),
-        badPath
-      ).rejects.toThrow();
+      cb.noteGesture();
+      await expect(cb.start(request), request.callback).rejects.toThrow(RangeError);
     }
-    expect(cb.pending()).toBeUndefined();
   });
 
-  it('delivers a valid return once and focuses, even after wrong requests', async () => {
-    const { cb, delivered, focus } = make();
-    const started = await cb.start({
-      homeserver: 'http://127.0.0.1:28008',
-      callback: '/login/http%3A%2F%2F127.0.0.1%3A28008/?ssoNonce=abc',
-    });
-    const redirect = new URL(started.redirectUrl);
-    const port = Number(redirect.port);
-    expect(redirect.hostname).toBe('127.0.0.1');
-    expect(port).toBeGreaterThan(0);
+  it('starts only after a gesture of the last 10 seconds, and uses it up', async () => {
+    const { cb } = make();
+    const request = { homeserver: 'https://a.example', callback: '/login/a.example/?ssoNonce=a' };
+    expect(await cb.start(request)).toBeUndefined();
 
-    // Wrong requests first: 404 and pending sign-in stays intact.
-    const wrong1 = await rawRequest(port, { path: '/wrong' });
-    expect(wrong1.status).toBe(404);
-    const wrong2 = await rawRequest(port, {
-      method: 'POST',
-      host: redirect.host,
-      path: `${redirect.pathname}${redirect.search}&loginToken=tok1`,
-    });
-    expect(wrong2.status).toBe(404);
-    const wrong3 = await rawRequest(port, {
-      host: `localhost:${port}`,
-      path: `${redirect.pathname}${redirect.search}&loginToken=tok1`,
-    });
-    expect(wrong3.status).toBe(404);
-    expect(delivered).toEqual([]);
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    cb.noteGesture();
+    clock.mockReturnValue(now + 10_001);
+    expect(await cb.start(request)).toBeUndefined();
+
+    cb.noteGesture();
+    clock.mockReturnValue(now + 20_000);
+    const first = await cb.start(request);
+    expect(first?.redirectUrl).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/auth\/[0-9a-f]{32}\/login\/a\.example\/\?ssoNonce=a$/
+    );
+    // The gesture is spent: a second start is refused and leaves the first attempt as it was.
+    expect(await cb.start(request)).toBeUndefined();
+    expect(
+      cb.open(
+        `https://a.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${encodeURIComponent(
+          first?.redirectUrl ?? ''
+        )}`
+      )
+    ).toBe(true);
+  });
+
+  it('opens once per attempt, only its own openable sign-in URL', async () => {
+    const { cb } = make();
+    expect(cb.open('https://a.example/_matrix/client/v3/login/sso/redirect')).toBe(false);
+    const a = await begin(cb, 'a');
+    // Refused URLs leave the attempt waiting for its own.
+    expect(cb.open('https://example.org/')).toBe(false);
+    expect(cb.open(a.signInUrl.replace('a.example', 'b.example'))).toBe(false);
+    expect(cb.open(`${a.signInUrl}&access_token=syt_placeholder`)).toBe(false);
+    expect(cb.open(`${a.signInUrl}&action=login`)).toBe(true);
+    expect(cb.open(a.signInUrl)).toBe(false);
+    expect(await a.sendReturn()).toBe(200);
+    expect(cb.open(a.signInUrl)).toBe(false);
+  });
+
+  it('takes one valid return, only once opened, after any wrong requests, and hands it over once', async () => {
+    const { cb, notify, focus } = make();
+    const a = await begin(cb, 'a');
+    const port = Number(a.redirect.port);
+    const path = `${a.redirect.pathname}${a.redirect.search}&loginToken=tok_a`;
+
+    // Started but not opened: the browser cannot have the URL yet.
+    expect(await a.sendReturn()).toBe(404);
+    expect(cb.open(a.signInUrl)).toBe(true);
+
+    expect((await rawRequest(port, { path: '/wrong' })).status).toBe(404);
+    expect((await rawRequest(port, { method: 'POST', host: a.redirect.host, path })).status).toBe(
+      404
+    );
+    expect((await rawRequest(port, { host: `localhost:${port}`, path })).status).toBe(404);
+    // The Host header twice, even with the right value both times.
+    expect(await statusWithHosts(port, path, [a.redirect.host, a.redirect.host])).toBe(404);
+    expect(await statusWithHosts(port, path, ['evil.example', a.redirect.host])).toBe(404);
+    expect(notify).not.toHaveBeenCalled();
     expect(focus).not.toHaveBeenCalled();
-    expect(cb.pending()).toEqual(started);
+    expect(cb.take()).toBeUndefined();
 
-    // Valid return after the wrong requests succeeds once.
-    const ok = await rawRequest(port, {
-      host: redirect.host,
-      path: `${redirect.pathname}${redirect.search}&loginToken=tok%2B1`,
-    });
+    const ok = await rawRequest(port, { host: a.redirect.host, path });
     expect(ok.status).toBe(200);
     expect(ok.headers['cache-control']).toBe('no-store');
-    expect(delivered).toEqual([
-      'mindroom://auth/login/http%3A%2F%2F127.0.0.1%3A28008/?ssoNonce=abc&loginToken=tok%2B1',
-    ]);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith();
     expect(focus).toHaveBeenCalledTimes(1);
-    expect(cb.pending()).toBeUndefined();
-    expect(cb.takeUndelivered()).toBe(
-      'mindroom://auth/login/http%3A%2F%2F127.0.0.1%3A28008/?ssoNonce=abc&loginToken=tok%2B1'
-    );
-    expect(cb.takeUndelivered()).toBeUndefined();
 
-    // Replaying the same valid return gets 404 and delivers nothing.
-    const replay = await rawRequest(port, {
-      host: redirect.host,
-      path: `${redirect.pathname}${redirect.search}&loginToken=tok%2B1`,
-    });
-    expect(replay.status).toBe(404);
-    expect(delivered).toHaveLength(1);
-    expect(focus).toHaveBeenCalledTimes(1);
+    // The same return again changes nothing; the first take gets the URL, the second nothing.
+    expect(await a.sendReturn()).toBe(404);
+    expect(cb.take()).toBe(a.appUrl);
+    expect(cb.take()).toBeUndefined();
+    expect(await a.sendReturn()).toBe(404);
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 
-  it('reuses the port on a second start and forgets the first sign-in', async () => {
-    const { cb, delivered, focus } = make();
-    const first = await cb.start({
-      homeserver: 'https://hs1.example',
-      callback: '/login/hs1.example/?ssoNonce=first',
+  it('still notifies when the window cannot be focused', async () => {
+    const { cb, notify } = make(() => {
+      throw new Error('window is gone');
     });
-    const second = await cb.start({
-      homeserver: 'https://hs2.example',
-      callback: '/login/hs2.example/?ssoNonce=second',
-    });
-    const firstUrl = new URL(first.redirectUrl);
-    const secondUrl = new URL(second.redirectUrl);
-    expect(secondUrl.port).toBe(firstUrl.port);
-    expect(secondUrl.pathname).not.toBe(firstUrl.pathname);
-
-    const port = Number(secondUrl.port);
-    const stale = await rawRequest(port, {
-      host: firstUrl.host,
-      path: `${firstUrl.pathname}${firstUrl.search}&loginToken=old`,
-    });
-    expect(stale.status).toBe(404);
-    expect(delivered).toEqual([]);
-
-    const fresh = await rawRequest(port, {
-      host: secondUrl.host,
-      path: `${secondUrl.pathname}${secondUrl.search}&loginToken=new`,
-    });
-    expect(fresh.status).toBe(200);
-    expect(delivered).toEqual([
-      'mindroom://auth/login/hs2.example/?ssoNonce=second&loginToken=new',
-    ]);
-    expect(focus).toHaveBeenCalledTimes(1);
+    const a = await begin(cb, 'a');
+    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await a.sendReturn()).toBe(200);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(cb.take()).toBe(a.appUrl);
   });
 
-  it('expires the pending sign-in after 30 minutes', async () => {
-    const { cb, delivered } = make();
-    const baseNow = Date.now();
-    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(baseNow);
-    try {
-      const started = await cb.start({
-        homeserver: 'https://matrix.example.org',
-        callback: '/login/matrix.example.org/?ssoNonce=expiring',
-      });
-      const redirect = new URL(started.redirectUrl);
-      const port = Number(redirect.port);
-      expect(cb.pending()).toEqual(started);
-
-      nowSpy.mockReturnValue(baseNow + 30 * 60 * 1000);
-      expect(cb.pending()).toBeUndefined();
-
-      const late = await rawRequest(port, {
-        host: redirect.host,
-        path: `${redirect.pathname}${redirect.search}&loginToken=late`,
-      });
-      expect(late.status).toBe(404);
-      expect(delivered).toEqual([]);
-    } finally {
-      nowSpy.mockRestore();
-    }
-  });
-
-  it('replaces an untaken undelivered URL on a newer return and clears it on close', async () => {
+  it('replaces an earlier attempt in any state on a new start, its untaken return included', async () => {
     const { cb } = make();
-    const first = await cb.start({
-      homeserver: 'https://hs1.example',
-      callback: '/login/hs1.example/?ssoNonce=n1',
-    });
-    const u1 = new URL(first.redirectUrl);
-    expect(
-      (
-        await rawRequest(Number(u1.port), {
-          host: u1.host,
-          path: `${u1.pathname}${u1.search}&loginToken=t1`,
-        })
-      ).status
-    ).toBe(200);
+    // A returned but was not taken; then B starts.
+    const a = await begin(cb, 'a');
+    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await a.sendReturn()).toBe(200);
+    const b = await begin(cb, 'b');
+    expect(cb.take()).toBeUndefined();
+    expect(b.redirect.port).toBe(a.redirect.port);
+    expect(b.redirect.pathname).not.toBe(a.redirect.pathname);
 
-    const second = await cb.start({
-      homeserver: 'https://hs2.example',
-      callback: '/login/hs2.example/?ssoNonce=n2',
-    });
-    const u2 = new URL(second.redirectUrl);
-    expect(
-      (
-        await rawRequest(Number(u2.port), {
-          host: u2.host,
-          path: `${u2.pathname}${u2.search}&loginToken=t2`,
-        })
-      ).status
-    ).toBe(200);
-    expect(cb.takeUndelivered()).toBe(
-      'mindroom://auth/login/hs2.example/?ssoNonce=n2&loginToken=t2'
-    );
-    expect(cb.takeUndelivered()).toBeUndefined();
+    // B is open in the browser; then C starts: B's return and B's sign-in URL are dead.
+    expect(cb.open(b.signInUrl)).toBe(true);
+    const c = await begin(cb, 'c');
+    expect(await b.sendReturn()).toBe(404);
+    expect(cb.open(b.signInUrl)).toBe(false);
+    expect(cb.open(a.signInUrl)).toBe(false);
 
-    const third = await cb.start({
-      homeserver: 'https://hs3.example',
-      callback: '/login/hs3.example/?ssoNonce=n3',
-    });
-    const u3 = new URL(third.redirectUrl);
-    expect(
-      (
-        await rawRequest(Number(u3.port), {
-          host: u3.host,
-          path: `${u3.pathname}${u3.search}&loginToken=t3`,
-        })
-      ).status
-    ).toBe(200);
+    expect(cb.open(c.signInUrl)).toBe(true);
+    expect(await a.sendReturn()).toBe(404);
+    expect(await c.sendReturn()).toBe(200);
+    expect(cb.take()).toBe(c.appUrl);
+  });
+
+  it('ends an attempt in any state 30 minutes after its start, an untaken return included', async () => {
+    const { cb } = make();
+    const HALF_HOUR = 30 * 60 * 1000;
+    let now = Date.now();
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+
+    const a = await begin(cb, 'a');
+    now += HALF_HOUR;
+    expect(cb.open(a.signInUrl)).toBe(false);
+
+    const b = await begin(cb, 'b');
+    now += HALF_HOUR - 1;
+    expect(cb.open(b.signInUrl)).toBe(true);
+    now += 1;
+    expect(await b.sendReturn()).toBe(404);
+
+    const c = await begin(cb, 'c');
+    expect(cb.open(c.signInUrl)).toBe(true);
+    now += HALF_HOUR - 1;
+    expect(await c.sendReturn()).toBe(200);
+    now += 1;
+    expect(cb.take()).toBeUndefined();
+  });
+
+  it('forgets everything and refuses a start once closed', async () => {
+    const { cb } = make();
+    const a = await begin(cb, 'a');
+    expect(cb.open(a.signInUrl)).toBe(true);
+    expect(await a.sendReturn()).toBe(200);
     cb.close();
-    expect(cb.takeUndelivered()).toBeUndefined();
+    expect(cb.take()).toBeUndefined();
+    cb.noteGesture();
+    await expect(
+      cb.start({ homeserver: 'https://a.example', callback: '/login/a.example/?ssoNonce=a' })
+    ).rejects.toThrow();
+  });
+});
+
+describe('sign-in IPC channels', () => {
+  it('check the sender and the arguments, and pass through the one attempt', async () => {
+    ipcHandlers.clear();
+    const opened: string[] = [];
+    const mainFrame = { url: `${APP_ORIGIN}/login`, origin: APP_ORIGIN };
+    const owner = { isDestroyed: () => false, mainFrame } as unknown as Electron.WebContents;
+    const cb = createAuthCallback(
+      () => undefined,
+      () => undefined
+    );
+    registerSignInHandlers(
+      () => [owner],
+      cb,
+      async (url) => {
+        opened.push(url);
+      }
+    );
+    const event = { sender: owner, senderFrame: mainFrame };
+    const frameEvent = {
+      sender: owner,
+      senderFrame: { url: `${APP_ORIGIN}/canvas-frame.html`, origin: APP_ORIGIN },
+    };
+    const start = ipcHandlers.get('desktop:start-sign-in')!;
+    const open = ipcHandlers.get('desktop:open-sign-in')!;
+    const take = ipcHandlers.get('desktop:take-app-url')!;
+    const request = {
+      homeserver: 'https://hs.example',
+      callback: '/login/hs.example/?ssoNonce=n1',
+    };
+    const forbidden = { ok: false, code: 'FORBIDDEN' };
+    const badArguments = { ok: false, code: 'BAD_ARGUMENTS' };
+    try {
+      cb.noteGesture();
+      expect(await start(frameEvent, request)).toEqual(forbidden);
+      expect(await open(frameEvent, 'https://hs.example/')).toEqual(forbidden);
+      expect(await take(frameEvent)).toEqual(forbidden);
+
+      expect(await start(event)).toEqual(badArguments);
+      expect(await start(event, request, request)).toEqual(badArguments);
+      expect(await start(event, { ...request, homeserver: 'http://hs.example' })).toEqual(
+        badArguments
+      );
+      expect(await open(event)).toEqual(badArguments);
+      expect(await open(event, 123)).toEqual(badArguments);
+      expect(await take(event, 'extra')).toEqual(badArguments);
+
+      const started = (await start(event, request)) as { ok: true; value: string };
+      expect(started.ok).toBe(true);
+      // No gesture since: the page cannot start another one by itself.
+      expect(await start(event, request)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+
+      const signInUrl = `https://hs.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${encodeURIComponent(
+        started.value
+      )}`;
+      expect(await open(event, 'https://example.org/')).toEqual(badArguments);
+      expect(await open(event, `${signInUrl}&access_token=syt_placeholder`)).toEqual(badArguments);
+      expect(opened).toEqual([]);
+      expect(await open(event, signInUrl)).toEqual({ ok: true, value: undefined });
+      expect(await open(event, signInUrl)).toEqual(badArguments);
+      expect(opened).toEqual([signInUrl]);
+
+      expect(await take(event)).toEqual({ ok: true, value: undefined });
+      const redirect = new URL(started.value);
+      const sent = await rawRequest(Number(redirect.port), {
+        host: redirect.host,
+        path: `${redirect.pathname}${redirect.search}&loginToken=tok_1`,
+      });
+      expect(sent.status).toBe(200);
+      expect(await take(event)).toEqual({
+        ok: true,
+        value: 'mindroom://auth/login/hs.example/?ssoNonce=n1&loginToken=tok_1',
+      });
+      expect(await take(event)).toEqual({ ok: true, value: undefined });
+    } finally {
+      cb.close();
+    }
   });
 });
