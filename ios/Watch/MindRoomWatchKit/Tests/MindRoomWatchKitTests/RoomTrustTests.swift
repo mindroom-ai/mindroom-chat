@@ -89,6 +89,20 @@ final class RoomTrustTests: XCTestCase {
         XCTAssertEqual(reads, 3)
     }
 
+    func testAClockSetBackDoesNotHoldUpARead() async {
+        let trust = RoomTrust()
+        let start = Date(timeIntervalSince1970: 1_000)
+        var reads = 0
+        let read: @MainActor () async -> [JSON]? = { reads += 1; return nil }
+        await trust.refresh(now: start, read)
+        // The threads list reads on each refresh, also when the watch's clock went back since the last read.
+        await trust.refresh(now: start.addingTimeInterval(-60), read)
+        XCTAssertEqual(reads, 2)
+        // And an open thread does not wait until the clock is where it was.
+        await trust.refresh(ifOlderThan: 30, now: start.addingTimeInterval(-120), read)
+        XCTAssertEqual(reads, 3)
+    }
+
     func testARoomHasOneTrust() {
         XCTAssertTrue(RoomTrust.of("!a:x") === RoomTrust.of("!a:x"))
         XCTAssertFalse(RoomTrust.of("!a:x") === RoomTrust.of("!b:x"))

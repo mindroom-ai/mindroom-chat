@@ -682,4 +682,34 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(ids(untrusted), ["$root", "$q", "$annas", "$echo"])
         XCTAssertEqual(untrusted.pushed(eventId: "$q"), .message)
     }
+
+    func testARedactedVoiceMessageTakesNoTranscriptEvenWithAnEditOfItLeft() {
+        // An edit sent before the redaction can still be read, with the audio and the voice mark.
+        let left = event("$rootEdit", 2, sender: me, [
+            "m.new_content": ["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/take", "org.matrix.msc3245.voice": [:] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$root"] as JSON,
+        ])
+        // A redaction leaves a message no content; the server also marks the event.
+        var marked = event("$root", 1, sender: me, [:])
+        marked["unsigned"] = ["redacted_because": ["type": "m.room.redaction"] as JSON] as JSON
+        for redacted in [marked, event("$root", 1, sender: me, [:])] {
+            let snapshot = ThreadSnapshot.build(root: redacted, related: [left, echo("$echo", 3, of: "$root", "🎤 Deleted words")],
+                                                ownUserId: me, now: now, trustedAccounts: [agent])
+            XCTAssertEqual(snapshot.title, "Voice message")
+            XCTAssertEqual(ids(snapshot), ["$root", "$echo"])
+        }
+    }
+
+    func testAVoiceMessageWhoseShownVersionNamesNoKindTakesNoTranscript() {
+        // As the web client: the version shown is audio by its own `msgtype`, not by the first version's.
+        let voice = event("$voice", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/v",
+                                                             "org.matrix.msc3245.voice": [:] as JSON]))
+        let unnamed = event("$voiceEdit", 3, sender: me, [
+            "m.new_content": ["body": "voice.m4a", "url": "mxc://x/v", "org.matrix.msc3245.voice": [:] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$voice"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [voice, unnamed, echo("$echo", 4, of: "$voice", "🎤 Its words")],
+                                            ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(ids(snapshot), ["$root", "$voice", "$echo"])
+    }
 }

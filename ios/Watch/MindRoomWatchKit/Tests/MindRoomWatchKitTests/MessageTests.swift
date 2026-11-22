@@ -188,4 +188,25 @@ final class VoiceEchoTests: XCTestCase {
         XCTAssertNil(VoiceEcho.transcript(message(preview, id: "$echo"), latestEdit: nil))
         XCTAssertNil(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: edit(of: "$echo", preview)))
     }
+
+    func testAnEditsOwnMetadataCountsWhereItsNewContentNamesNone() throws {
+        let flag = "com.mindroom.visible_router_voice_echo", source = "com.mindroom.voice_source_event_id"
+        let fallback = "com.mindroom.voice_raw_audio_fallback"
+        let named: JSON = ["msgtype": "m.text", "body": "🎤 Hello", flag: true, source: "$voice"]
+        let original = message(named, id: "$echo")
+        // An edit with MindRoom metadata beside its `m.new_content`, where the web client's
+        // `getLatestMessageContent` reads what the new content leaves out.
+        let transcript = { (newContent: JSON, beside: JSON) -> (voiceEventId: String, text: String?)? in
+            var wrapper = edit(of: "$echo", newContent)
+            wrapper["content"] = (wrapper["content"] as? JSON ?? [:]).merging(beside) { $1 }
+            return VoiceEcho.transcript(original, latestEdit: wrapper)
+        }
+        XCTAssertNil(transcript(named, [fallback: true]))
+        XCTAssertEqual(transcript(named.filter { $0.key != source }, [source: "$other"])?.voiceEventId, "$other")
+        XCTAssertEqual(transcript(named.filter { $0.key != flag }, [flag: true])?.voiceEventId, "$voice")
+        // What the new content says itself wins.
+        XCTAssertEqual(transcript(named, [source: "$other"])?.voiceEventId, "$voice")
+        XCTAssertEqual(transcript(named.merging([fallback: false]) { $1 }, [fallback: true])?.text, "🎤 Hello")
+        XCTAssertNil(transcript(named.merging([flag: false]) { $1 }, [flag: true]))
+    }
 }
