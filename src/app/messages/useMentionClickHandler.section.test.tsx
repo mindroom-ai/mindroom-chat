@@ -29,6 +29,9 @@ const INVITED_ROOM_ID = '!invited-desk:remote.example.org';
 // invited to.
 const LEFT_PARENT_ID = '!old-fleet:remote.example.org';
 const INVITED_SUBSPACE_ID = '!dock-crew:remote.example.org';
+// A room the client does not hold, listed by a space the account left.
+const LEFT_SPACE_ID = '!parent:parent.example';
+const LEFT_SPACE_ROOM_ID = '!child:child.example';
 
 const makeRoom = (
   roomId: string,
@@ -52,16 +55,25 @@ const rooms = [
   }),
   makeRoom(LEFT_PARENT_ID, { membership: KnownMembership.Leave, isSpace: true }),
   makeRoom(INVITED_SUBSPACE_ID, { membership: KnownMembership.Invite, isSpace: true }),
+  makeRoom(LEFT_SPACE_ID, { membership: KnownMembership.Leave, isSpace: true }),
 ];
 const client = {
   getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
   getRooms: () => rooms,
 } as unknown as MatrixClient;
 
-function Message({ mentionId, via }: { mentionId: string; via?: string }) {
+type Mention = { mentionId: string; eventId?: string; via?: string };
+
+function Message({ mentionId, eventId, via }: Mention) {
   const onClick = useMentionClickHandler(SOURCE_ROOM_ID);
   return (
-    <a href="#placeholder" data-mention-id={mentionId} data-mention-via={via} onClick={onClick}>
+    <a
+      href="#placeholder"
+      data-mention-id={mentionId}
+      data-mention-event-id={eventId}
+      data-mention-via={via}
+      onClick={onClick}
+    >
       mention
     </a>
   );
@@ -83,7 +95,7 @@ describe('a room link clicked in a message, for a room that is not joined', () =
   });
 
   /** Clicks the link on the page at `from` and gives the address the app went to. */
-  const clickFrom = (from: string, mention: { mentionId: string; via?: string }): string => {
+  const clickFrom = (from: string, mention: Mention): string => {
     const store = createStore();
     // The space lists the source room, the child room and the invited room as its rooms.
     store.set(roomToParentsAtom, {
@@ -93,6 +105,7 @@ describe('a room link clicked in a message, for a room that is not joined', () =
           (roomId) => [roomId, new Set([SPACE_ID])] as const
         ),
         [INVITED_SUBSPACE_ID, new Set([LEFT_PARENT_ID])],
+        [LEFT_SPACE_ROOM_ID, new Set([LEFT_SPACE_ID])],
       ]),
       chatRooms: new Set<string>(),
     });
@@ -169,6 +182,34 @@ describe('a room link clicked in a message, for a room that is not joined', () =
       );
     }
   );
+
+  it.each([
+    ['a room', 'Home', '/home/!harbor-desk%3Aexample.org', undefined],
+    ['a room', 'a space', '/!ops-space%3Aexample.org/!harbor-desk%3Aexample.org', undefined],
+    ['an event', 'Home', '/home/!harbor-desk%3Aexample.org', '$evt'],
+    ['an event', 'a space', '/!ops-space%3Aexample.org/!harbor-desk%3Aexample.org', '$evt'],
+  ])(
+    'opens %s on Home from %s, not below the space the account left that lists the room',
+    (_target, _section, from, eventId) => {
+      expect(
+        clickFrom(from, { mentionId: LEFT_SPACE_ROOM_ID, eventId, via: 'child.example' })
+      ).toBe(
+        eventId
+          ? '/home/!child%3Achild.example/%24evt?viaServers=child.example'
+          : '/home/!child%3Achild.example?viaServers=child.example'
+      );
+    }
+  );
+
+  it('opens an event of an invited space on Home, not below the space the account left', () => {
+    expect(
+      clickFrom('/home/!harbor-desk%3Aexample.org', {
+        mentionId: INVITED_SUBSPACE_ID,
+        eventId: '$evt',
+        via: 'remote.example.org',
+      })
+    ).toBe('/home/!dock-crew%3Aremote.example.org/%24evt?viaServers=remote.example.org');
+  });
 
   it('names an invited room by its room ID, not by an alias that may be stale', () => {
     expect(

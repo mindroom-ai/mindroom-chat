@@ -20,6 +20,8 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { allRoomsAtom } from '../matrix/state/roomList';
+import { roomToParentsAtom } from '../matrix/state/roomToParents';
+import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { RoomRoute } from '../room/RoomRoute';
 import { SpaceRouteProvider } from '../sidebar/space/Space';
 import { ClientLayout } from './ClientLayout';
@@ -329,11 +331,26 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
     }
   };
 
-  const renderWithRoomRoute = async (initialEntry: string, beside?: React.ReactElement) => {
+  /**
+   * The room and space routes at `initialEntry`. `beside` renders next to the layout, `roomPage`
+   * is the page of a joined room, and `prepare` fills the store before the first render.
+   */
+  const renderWithRoomRoute = async (
+    initialEntry: string,
+    beside?: React.ReactElement,
+    {
+      roomPage = <div data-joined-room />,
+      prepare,
+    }: {
+      roomPage?: React.ReactElement;
+      prepare?: (store: ReturnType<typeof createStore>) => void;
+    } = {}
+  ) => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     const store = createStore();
+    prepare?.(store);
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
@@ -344,14 +361,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
                 {beside}
                 <ClientLayout nav={null}>
                   <Routes>
-                    <Route
-                      path={HOME_ROOM_PATH}
-                      element={
-                        <RoomRoute>
-                          <div data-joined-room />
-                        </RoomRoute>
-                      }
-                    />
+                    <Route path={HOME_ROOM_PATH} element={<RoomRoute>{roomPage}</RoomRoute>} />
                     <Route
                       path={SPACE_PATH}
                       element={
@@ -360,14 +370,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
                         </SpaceRouteProvider>
                       }
                     >
-                      <Route
-                        path={SPACE_ROOM_PATH}
-                        element={
-                          <RoomRoute>
-                            <div data-joined-room />
-                          </RoomRoute>
-                        }
-                      />
+                      <Route path={SPACE_ROOM_PATH} element={<RoomRoute>{roomPage}</RoomRoute>} />
                     </Route>
                   </Routes>
                 </ClientLayout>
@@ -608,5 +611,106 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
       act(() => renderer.unmount());
       queryClient.clear();
     });
+  });
+
+  describe('a link in a message to a room listed by a space the account left', () => {
+    const CHILD_ID = '!child:child.example';
+    const LEFT_SPACE_ID = '!parent:parent.example';
+    // The client keeps the space the account left, and with it the rooms the space lists.
+    const leftSpace = {
+      roomId: LEFT_SPACE_ID,
+      name: 'Old fleet',
+      getMyMembership: () => KnownMembership.Leave,
+      getCanonicalAlias: () => null,
+      getAltAliases: () => [],
+      isSpaceRoom: () => true,
+      getMember: () => null,
+    } as unknown as Room;
+
+    function MessageLink({ eventId }: { eventId?: string }) {
+      const onClick = useMentionClickHandler(defaultRoom.roomId);
+      return (
+        <a
+          href="#placeholder"
+          data-mention-id={CHILD_ID}
+          data-mention-event-id={eventId}
+          data-mention-via="child.example"
+          onClick={onClick}
+        >
+          Field notes
+        </a>
+      );
+    }
+
+    it.each([
+      ['the room', undefined, '/home/!child%3Achild.example'],
+      ['an event in it', '$evt', '/home/!child%3Achild.example/%24evt'],
+    ])(
+      "shows and joins the room for %s through the room's servers, never the left space",
+      async (_target, eventId, pathname) => {
+        signIn();
+        mockClientState.rooms = [defaultRoom, leftSpace];
+        mockClientState.getRoomSummary.mockImplementation(async (roomId: string) => ({
+          room_id: roomId,
+          name: roomId === CHILD_ID ? 'Field notes' : 'Old fleet',
+          join_rule: JoinRule.Public,
+          num_joined_members: 4,
+          ...(roomId === LEFT_SPACE_ID ? { room_type: 'm.space' } : {}),
+        }));
+        mockClientState.joinRoom.mockImplementation(async (roomId: string) => ({ roomId }));
+        let location: Location | undefined;
+        const Probe = () => {
+          location = useLocation();
+          return null;
+        };
+
+        const { renderer, queryClient } = await renderWithRoomRoute(
+          '/home/!room%3Aexample.org',
+          <Probe />,
+          {
+            roomPage: <MessageLink eventId={eventId} />,
+            prepare: (store) =>
+              store.set(roomToParentsAtom, {
+                type: 'INITIALIZE',
+                roomToParents: new Map([[CHILD_ID, new Set([LEFT_SPACE_ID])]]),
+                chatRooms: new Set<string>(),
+              }),
+          }
+        );
+
+        const link = renderer.root.findByType('a');
+        const attributes = link.props as Record<string, string | undefined>;
+        await act(async () => {
+          (link.props.onClick as (event: unknown) => void)({
+            currentTarget: {
+              getAttribute: (name: string) => attributes[name] ?? null,
+              getBoundingClientRect: () => ({}),
+            },
+            preventDefault: () => undefined,
+          });
+          await flush();
+        });
+
+        expect(location?.pathname).toBe(pathname);
+        expect(location?.search).toBe('?viaServers=child.example');
+        expect(mockClientState.getRoomSummary.mock.calls).toEqual([[CHILD_ID, ['child.example']]]);
+
+        const joinButton = renderer.root
+          .findAllByType('button')
+          .find((button) => textOf(button) === 'Join');
+        expect(joinButton).toBeDefined();
+        await act(async () => {
+          (joinButton?.props.onClick as () => void)?.();
+          await flush();
+        });
+
+        expect(mockClientState.joinRoom.mock.calls).toEqual([
+          [CHILD_ID, { viaServers: ['child.example'] }],
+        ]);
+
+        act(() => renderer.unmount());
+        queryClient.clear();
+      }
+    );
   });
 });

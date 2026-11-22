@@ -465,6 +465,89 @@ describe('useRoomNavigate', () => {
     });
   });
 
+  describe('a space above the room that the account is not in', () => {
+    // The client keeps a space the account left, with the rooms it lists. Its own page is its
+    // join page, so no room opens below it.
+    const roomId = '!child:child.example';
+    const leftSpace = '!parent:parent.example';
+    const joinedSpace = '!crew:crew.example';
+    const outerSpace = '!fleet:fleet.example';
+    const hold = (spaceId: string, membership: string) => {
+      mocks.spaces.add(spaceId);
+      mocks.memberships.set(spaceId, membership);
+    };
+
+    it.each(['leave', 'invite', 'ban', 'knock'])(
+      'opens a room on Home when the only space above it has the membership %s',
+      (membership) => {
+        hold(leftSpace, membership);
+        mocks.roomToParents.set(roomId, new Set([leftSpace]));
+        const { getSnapshot, renderer } = renderHookHarness();
+
+        expect(getSnapshot().roomPath(roomId)).toBe(getHomeRoomPath(roomId));
+        expect(getSnapshot().roomPath(roomId, '$evt')).toBe(getHomeRoomPath(roomId, '$evt'));
+        renderer.unmount();
+      }
+    );
+
+    it('opens a room in the joined space above it whose own parent the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId, '$evt')).toBe(
+        getSpaceRoomPath(joinedSpace, roomId, '$evt')
+      );
+      renderer.unmount();
+    });
+
+    it('opens a room in the highest joined space below a space the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(outerSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([outerSpace]));
+      mocks.roomToParents.set(outerSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(outerSpace, roomId));
+      renderer.unmount();
+    });
+
+    it('prefers a joined space to a left one that also lists the room', () => {
+      hold(leftSpace, 'leave');
+      hold(joinedSpace, 'join');
+      mocks.roomToParents.set(roomId, new Set([leftSpace, joinedSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(joinedSpace, roomId));
+      renderer.unmount();
+    });
+
+    it('opens no other room below the left space whose join page the route shows', () => {
+      hold(leftSpace, 'leave');
+      mocks.selectedSpace = leftSpace;
+      mocks.roomToParents.set(roomId, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getHomeRoomPath(roomId));
+      renderer.unmount();
+    });
+
+    it('moves the room the route names below a left space to Home', () => {
+      hold(leftSpace, 'leave');
+      mocks.selectedSpace = leftSpace;
+      mocks.routeRoom = roomId;
+      mocks.roomToParents.set(roomId, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId, '$evt')).toBe(getHomeRoomPath(roomId, '$evt'));
+      renderer.unmount();
+    });
+  });
+
   describe('the room the route shows', () => {
     // A space's room open at its Home address, where a link to the room opens it. Another section
     // is another page, so the room keeps the address it was opened at: its thread, an event in it
