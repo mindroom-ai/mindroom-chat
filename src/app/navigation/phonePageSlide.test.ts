@@ -15,6 +15,7 @@ import {
   clearPhoneSwipePreviews,
   createThreadBackSwipeScene,
   createThreadForwardSwipeScene,
+  isInteractivePhoneSlideClaimed,
   movePhoneNavDrawer,
   setActivePhoneSwipeContext,
   slidePhonePage,
@@ -1110,7 +1111,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     const { stage } = makeStage('Room Overview');
     const origWidth = window.innerWidth;
     try {
-      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
 
       // Session mismatch -> backdrop fallback.
       const wrongSession = createThreadBackSwipeScene({
@@ -1122,7 +1123,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       wrongSession!.cleanup(false);
 
       // Re-capture and check room mismatch -> backdrop fallback.
-      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
       const wrongRoom = createThreadBackSwipeScene({
         key: { sessionId: SESSION, roomId: '!other:example.org', threadId: THREAD },
         fromLocationKey: 'k1',
@@ -1132,7 +1133,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       wrongRoom!.cleanup(false);
 
       // Re-capture and resize viewport -> backdrop fallback.
-      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
       Object.defineProperty(window, 'innerWidth', { value: origWidth + 50, configurable: true });
       const resized = createThreadBackSwipeScene({
         key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
@@ -1143,7 +1144,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       resized!.cleanup(false);
 
       // Re-capture and explicitly clear -> backdrop fallback.
-      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
       clearPhoneSwipePreviews();
       const cleared = createThreadBackSwipeScene({
         key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
@@ -1160,7 +1161,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
   it('commits back swipe, captures departing thread preview, and suppresses async popstate double-slide', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Room Overview');
-    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
     page.textContent = 'Active Thread Content';
     showThread(true);
 
@@ -1539,5 +1540,105 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     } finally {
       getContextSpy.mockRestore();
     }
+  });
+
+  it('never caches or matches a wildcard roomPreview without threadId', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Room Overview');
+
+    // Direct capture without threadId must not cache a wildcard entry.
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM });
+    const noThreadMatch = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+      fromLocationKey: 'k-t1',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+    noThreadMatch!.cleanup(false);
+
+    // slidePhonePage (1 -> 2) where destination threadId is unknown must not cache a wildcard entry.
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+    slidePhonePage(() => {
+      showThread(true);
+      page.textContent = 'Unknown Thread';
+    });
+    pageMock.frame();
+    await pageMock.finish();
+
+    const unknownDest = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-2' },
+      fromLocationKey: 'k-t2',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+    unknownDest!.cleanup(false);
+
+    // Capturing roomPreview for T1 must never match T2.
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
+    const t2Miss = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-2' },
+      fromLocationKey: 'k-t2',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+    t2Miss!.cleanup(false);
+  });
+
+  it('removes [contenteditable] draft media before document.adoptNode runs', () => {
+    const { stage, page } = makeStage('Room');
+    const editor = document.createElement('div');
+    editor.setAttribute('contenteditable', 'true');
+    editor.innerHTML = '<p>secret</p><img src="https://example.org/draft-image.png" />';
+    page.append(editor);
+
+    let imgCountAtAdopt = -1;
+    let editableHtmlAtAdopt = 'unset';
+    const origAdopt = document.adoptNode.bind(document);
+    const adoptSpy = vi.spyOn(document, 'adoptNode').mockImplementation((node) => {
+      if (node instanceof Element) {
+        imgCountAtAdopt = node.querySelectorAll('img').length;
+        editableHtmlAtAdopt = node.querySelector('[contenteditable="true"]')?.innerHTML ?? '';
+      }
+      return origAdopt(node);
+    });
+
+    try {
+      const { copy: snap } = captureStageSnapshot(stage);
+      expect(adoptSpy).toHaveBeenCalledTimes(1);
+      expect(imgCountAtAdopt).toBe(0);
+      expect(editableHtmlAtAdopt).toBe('');
+      expect(snap.querySelector('img')).toBeNull();
+      expect(snap.querySelector('[contenteditable="true"]')?.innerHTML).toBe('');
+      // Live composer draft remains untouched.
+      expect(editor.querySelectorAll('img')).toHaveLength(1);
+      expect(editor.textContent).toBe('secret');
+    } finally {
+      adoptSpy.mockRestore();
+    }
+  });
+
+  it('reports isInteractivePhoneSlideClaimed and stops touchstart propagation on the hold shield', () => {
+    const { stage } = makeStage('Room');
+    const release = claimInteractivePhoneSlide({
+      fromLocationKey: 'k-thread',
+      holdElement: document.createElement('div'),
+    });
+    expect(isInteractivePhoneSlideClaimed()).toBe(true);
+
+    const windowTouchStart = vi.fn();
+    window.addEventListener('touchstart', windowTouchStart);
+    try {
+      const shield = stage.querySelector<HTMLElement>('[data-swipe-hold-shield]');
+      expect(shield).not.toBeNull();
+      shield!.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+      expect(windowTouchStart).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('touchstart', windowTouchStart);
+      release();
+    }
+    expect(isInteractivePhoneSlideClaimed()).toBe(false);
   });
 });

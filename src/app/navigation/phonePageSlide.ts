@@ -8,6 +8,7 @@ import {
   animateSwipeElements,
   type InteractiveSwipeScene,
   resolveLogicalDirectionSign,
+  setInteractivePhoneSlideClaimed,
 } from './interactiveSwipe';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import './phonePageSlide.css';
@@ -76,7 +77,10 @@ export type PhoneSwipePreviewKey = {
 
 export type ActivePhoneSwipeContext = PhoneSwipePreviewKey;
 
-type StoredPreviewKey = PhoneSwipePreviewKey & {
+type StoredPreviewKey = {
+  sessionId: string;
+  roomId: string;
+  threadId: string;
   width: number;
   height: number;
 };
@@ -203,6 +207,9 @@ export const captureStageSnapshot = (
     return shell;
   };
   const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
+    if (element.matches(CONTENTEDITABLE)) {
+      return still.importNode(element, false);
+    }
     if (element.matches(CLIP)) {
       const view = element.getBoundingClientRect();
       const { top, bottom } = clip ?? buffered;
@@ -240,6 +247,11 @@ export const captureStageSnapshot = (
   };
   const copy = clone(stage) as HTMLElement;
   copy.querySelectorAll(SKIP_CLONE).forEach((element) => element.remove());
+  // Clear editable draft subtrees inside the detached document before adoption so no draft
+  // media (e.g. <img src>) is ever adopted into the live document.
+  copy.querySelectorAll<HTMLElement>(CONTENTEDITABLE).forEach((field) => {
+    field.textContent = '';
+  });
   document.adoptNode(copy);
   drawn.forEach(([canvas, from]) =>
     canvas.getContext('2d')?.drawImage(from, 0, 0, canvas.width, canvas.height)
@@ -278,9 +290,6 @@ export const captureStageSnapshot = (
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  copy.querySelectorAll<HTMLElement>(CONTENTEDITABLE).forEach((field) => {
-    field.textContent = '';
-  });
   return { copy, scrolled: scrolled.filter(([element]) => copy.contains(element)) };
 };
 
@@ -306,6 +315,8 @@ export const clearActivePhoneSwipeContext = (context: ActivePhoneSwipeContext): 
 
 export const getCurrentPhoneLocationKey = (): string | undefined => currentPhoneLocationKey;
 
+export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
+
 const syncPreviewResizeListener = (): void => {
   if (typeof window === 'undefined') return;
   const hasPreview = roomPreview !== undefined || threadPreview !== undefined;
@@ -324,14 +335,13 @@ const storePhoneSwipePreview = (
   snapshot: StageSnapshot
 ): StoredPreview | undefined => {
   if (typeof window === 'undefined') return undefined;
-  if (!key.sessionId || !key.roomId) return undefined;
-  if (kind === 'thread' && !key.threadId) return undefined;
+  if (!key.sessionId || !key.roomId || !key.threadId) return undefined;
   const stored: StoredPreview = {
     snapshot,
     key: {
       sessionId: key.sessionId,
       roomId: key.roomId,
-      ...(key.threadId ? { threadId: key.threadId } : {}),
+      threadId: key.threadId,
       width: window.innerWidth,
       height: window.innerHeight,
     },
@@ -348,8 +358,7 @@ const capturePhoneSwipePreviewEntry = (
   options?: { horizontalShiftPx?: number }
 ): StoredPreview | undefined => {
   if (typeof document === 'undefined' || typeof window === 'undefined') return undefined;
-  if (!key.sessionId || !key.roomId) return undefined;
-  if (kind === 'thread' && !key.threadId) return undefined;
+  if (!key.sessionId || !key.roomId || !key.threadId) return undefined;
   const stage = document.querySelector(`[${PHONE_STAGE}]`);
   if (!stage) return undefined;
   try {
@@ -396,10 +405,7 @@ const getMatchingPreview = (
     syncPreviewResizeListener();
     return undefined;
   }
-  if (kind === 'thread' && entry.key.threadId !== key.threadId) {
-    return undefined;
-  }
-  if (kind === 'room' && entry.key.threadId !== undefined && entry.key.threadId !== key.threadId) {
+  if (!key.threadId || entry.key.threadId !== key.threadId) {
     return undefined;
   }
   if (entry.snapshot.copy.isConnected) return undefined;
@@ -493,6 +499,13 @@ export const claimInteractivePhoneSlide = ({
     const topBarHeight = getTopBarHeight(stage);
     if (topBarHeight > 0) shield.style.insetBlockStart = `${topBarHeight}px`;
     shield.style.pointerEvents = 'auto';
+    const stopTouch = (event: Event) => {
+      event.stopPropagation();
+    };
+    shield.addEventListener('touchstart', stopTouch, { passive: true });
+    shield.addEventListener('touchmove', stopTouch, { passive: true });
+    shield.addEventListener('touchend', stopTouch, { passive: true });
+    shield.addEventListener('touchcancel', stopTouch, { passive: true });
     stage.append(shield);
   }
 
@@ -522,7 +535,10 @@ export const claimInteractivePhoneSlide = ({
       holdElement.removeAttribute(SWIPE_PREVIEW);
       clearInlineTranslate(holdElement);
     }
-    if (interactiveHandoff === handoff) interactiveHandoff = undefined;
+    if (interactiveHandoff === handoff) {
+      interactiveHandoff = undefined;
+      setInteractivePhoneSlideClaimed(false);
+    }
     if (active === handoffSlide) {
       playing = false;
       active = undefined;
@@ -551,6 +567,7 @@ export const claimInteractivePhoneSlide = ({
   playing = true;
   active = handoffSlide;
   interactiveHandoff = handoff;
+  setInteractivePhoneSlideClaimed(true);
 
   timer = window.setTimeout(release, timeoutMs);
   page?.addEventListener('visibilitychange', onVisibilityChange);
@@ -1013,17 +1030,17 @@ export const slidePhonePage = (change: Change): void => {
     if (snapshot && departingContext) {
       if (from === 1 && to === 2) {
         const enteredContext = activeSwipeContext;
-        const sameRoom =
-          !enteredContext ||
-          (enteredContext.sessionId === departingContext.sessionId &&
-            enteredContext.roomId === departingContext.roomId);
-        if (sameRoom) {
+        if (
+          enteredContext?.threadId &&
+          enteredContext.sessionId === departingContext.sessionId &&
+          enteredContext.roomId === departingContext.roomId
+        ) {
           storePhoneSwipePreview(
             'room',
             {
               sessionId: departingContext.sessionId,
               roomId: departingContext.roomId,
-              ...(enteredContext?.threadId ? { threadId: enteredContext.threadId } : {}),
+              threadId: enteredContext.threadId,
             },
             snapshot
           );

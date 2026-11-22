@@ -107,6 +107,12 @@ let settleCounter = 0;
 let activeGesture: ActiveGesture | null = null;
 let activeSettle: ActiveSettle | null = null;
 let clearPendingClickSuppressor: (() => void) | null = null;
+let interactivePhoneSlideClaimed = false;
+
+/** Marks whether an interactive phone slide handoff is awaiting async route commit. */
+export const setInteractivePhoneSlideClaimed = (claimed: boolean): void => {
+  interactivePhoneSlideClaimed = claimed;
+};
 
 let attachedEdgeWindow: Window | null = null;
 let attachedInterruptWindow: Window | null = null;
@@ -258,16 +264,14 @@ const resolveAxisGeometry = (
 ): { isPhysicalLeftEdge: boolean; axisSign: 1 | -1 } => {
   const isPhysicalLeftEdge = (edge === 'start') === (dirSign === 1);
   const inwardSign: 1 | -1 = isPhysicalLeftEdge ? 1 : -1;
-  const axisSign: 1 | -1 = direction === 'inward' ? inwardSign : ((-inwardSign) as 1 | -1);
+  const axisSign: 1 | -1 = direction === 'inward' ? inwardSign : (-inwardSign as 1 | -1);
   return { isPhysicalLeftEdge, axisSign };
 };
 
 const isInEdgeBand = (x: number, isPhysicalLeftEdge: boolean): boolean => {
   if (isPhysicalLeftEdge) return x <= EDGE_START_MAX_X;
   const viewportWidth =
-    typeof window !== 'undefined' && typeof window.innerWidth === 'number'
-      ? window.innerWidth
-      : 0;
+    typeof window !== 'undefined' && typeof window.innerWidth === 'number' ? window.innerWidth : 0;
   return x >= viewportWidth - EDGE_START_MAX_X;
 };
 
@@ -370,10 +374,8 @@ const startGesture = (
   axisSign: 1 | -1,
   dirSign: 1 | -1
 ) => {
-  const discreteMinPx =
-    entry.zone === 'edge' ? EDGE_DISCRETE_MIN_PX : PANEL_DISCRETE_MIN_PX;
-  const overlayScope =
-    entry.zone === 'element' ? entry.elementRef?.current : entry.within?.current;
+  const discreteMinPx = entry.zone === 'edge' ? EDGE_DISCRETE_MIN_PX : PANEL_DISCRETE_MIN_PX;
+  const overlayScope = entry.zone === 'element' ? entry.elementRef?.current : entry.within?.current;
 
   activeGesture = {
     entry,
@@ -582,7 +584,7 @@ const handleWindowTouchStart = (event: TouchEventWithFlag) => {
     // arrived (e.g. its touched DOM node was removed mid-drag); clean up and arbitrate normally.
     abortActiveGesture();
   }
-  if (activeSettle) return;
+  if (activeSettle || interactivePhoneSlideClaimed) return;
   if (event[HANDLED_EVENT_FLAG] || event.touches.length !== 1) return;
 
   const touch = event.touches[0];
@@ -686,10 +688,7 @@ const syncGlobalListeners = () => {
   }
 
   const hasAny = edgeEntries.size > 0 || elementEntries.size > 0;
-  if (
-    attachedInterruptWindow &&
-    (!hasAny || attachedInterruptWindow !== currentWindow)
-  ) {
+  if (attachedInterruptWindow && (!hasAny || attachedInterruptWindow !== currentWindow)) {
     attachedInterruptWindow.removeEventListener('resize', handleWindowResize);
     attachedInterruptWindow = null;
   }
@@ -698,10 +697,7 @@ const syncGlobalListeners = () => {
     attachedInterruptWindow = currentWindow;
   }
 
-  if (
-    attachedInterruptDocument &&
-    (!hasAny || attachedInterruptDocument !== currentDocument)
-  ) {
+  if (attachedInterruptDocument && (!hasAny || attachedInterruptDocument !== currentDocument)) {
     attachedInterruptDocument.removeEventListener('visibilitychange', handleVisibilityChange);
     attachedInterruptDocument = null;
   }

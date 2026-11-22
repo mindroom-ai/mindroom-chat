@@ -11,6 +11,7 @@ import {
   SWIPE_PRIORITY,
   useInteractiveSwipe,
 } from './interactiveSwipe';
+import { claimInteractivePhoneSlide, PHONE_STAGE } from './phonePageSlide';
 
 type Point = { clientX: number; clientY: number; identifier?: number };
 
@@ -346,7 +347,11 @@ describe('interactiveSwipe', () => {
         onCommit,
         begin,
       });
-      return <button data-testid="card" type="button">Card</button>;
+      return (
+        <button data-testid="card" type="button">
+          Card
+        </button>
+      );
     }
 
     it('does not invoke begin() on vertical scroll and yields cleanly', () => {
@@ -895,14 +900,11 @@ describe('interactiveSwipe', () => {
         180
       );
 
-      expect(animate).toHaveBeenCalledWith(
-        [{ translate: '100px 0' }, { translate: '390px 0' }],
-        {
-          duration: 180,
-          easing: 'cubic-bezier(0.2, 0, 0, 1)',
-          fill: 'forwards',
-        }
-      );
+      expect(animate).toHaveBeenCalledWith([{ translate: '100px 0' }, { translate: '390px 0' }], {
+        duration: 180,
+        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+        fill: 'forwards',
+      });
       expect(el.style.translate).toBe('390px 0');
       expect(cancel).toHaveBeenCalledOnce();
     });
@@ -939,5 +941,70 @@ describe('interactiveSwipe', () => {
       expect(animate).not.toHaveBeenCalled();
       expect(el.style.opacity).toBe('0');
     });
+  });
+
+  it('blocks a second edge swipe (including discrete fallback) while interactive phone slide handoff is claimed', async () => {
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    document.body.append(stage);
+
+    const onCommit = vi.fn();
+    function Harness() {
+      useInteractiveSwipe({
+        zone: 'edge',
+        edge: 'start',
+        direction: 'inward',
+        priority: SWIPE_PRIORITY.PAGE,
+        enabled: true,
+        onCommit,
+        // Simulates begin() returning null while playing/claimed.
+        begin: () => null,
+      });
+      return null;
+    }
+
+    render(<Harness />);
+    const release = claimInteractivePhoneSlide({
+      fromLocationKey: 'k-thread',
+      holdElement: document.createElement('div'),
+    });
+
+    try {
+      // Swipe dispatched directly on window while handoff awaits popstate must not commit.
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 8, clientY: 120 }], 100));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 160, clientY: 120 }], 130));
+        window.dispatchEvent(
+          createTouchEvent('touchend', [], 160, [{ clientX: 160, clientY: 120 }])
+        );
+      });
+      await flushMicrotasks();
+      expect(onCommit).not.toHaveBeenCalled();
+
+      // Swipe dispatched on the hold shield must also not commit.
+      const shield = stage.querySelector<HTMLElement>('[data-swipe-hold-shield]');
+      expect(shield).not.toBeNull();
+      act(() => {
+        shield!.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 8, clientY: 120 }], 200));
+        shield!.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 160, clientY: 120 }], 230));
+        shield!.dispatchEvent(
+          createTouchEvent('touchend', [], 260, [{ clientX: 160, clientY: 120 }])
+        );
+      });
+      await flushMicrotasks();
+      expect(onCommit).not.toHaveBeenCalled();
+    } finally {
+      release();
+    }
+
+    // Once handoff releases, edge swipes work normally again.
+    act(() => {
+      window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 8, clientY: 120 }], 300));
+      window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 160, clientY: 120 }], 330));
+      window.dispatchEvent(createTouchEvent('touchend', [], 360, [{ clientX: 160, clientY: 120 }]));
+    });
+    await flushMicrotasks();
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    stage.remove();
   });
 });
