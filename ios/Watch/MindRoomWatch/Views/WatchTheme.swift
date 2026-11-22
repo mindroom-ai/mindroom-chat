@@ -123,12 +123,12 @@ struct StatusPill: View {
             Text(text)
                 .font(.caption2.weight(.bold))
                 .lineLimit(1)
+                .minimumScaleFactor(0.82)
         }
         .foregroundStyle(foreground)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(Capsule().fill(background))
-        .fixedSize()
     }
 }
 

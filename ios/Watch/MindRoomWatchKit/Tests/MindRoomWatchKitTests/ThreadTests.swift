@@ -274,6 +274,17 @@ final class PlainTextTests: XCTestCase {
         XCTAssertEqual(noAfter.markers.map(\.name), ["calendar"])
         XCTAssertNil(noAfter.workText)
         XCTAssertEqual(noAfter.answerText, "Checking calendar...")
+
+        // Divider-only tail or prefix is not substantive prose.
+        let dividerTail = PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]\n---")
+        XCTAssertNil(dividerTail.workText)
+        let dividerPrefix = PlainText.withToolDetails("***\n🔧 `calendar` [1]\nBooked for 10:00.")
+        XCTAssertNil(dividerPrefix.workText)
+
+        // Fenced "---" inside code block remains substantive.
+        let fencedDivider = PlainText.withToolDetails("Checking config.\n🔧 `read_file` [1]\n```\n---\n```")
+        XCTAssertEqual(fencedDivider.workText, "Checking config.")
+        XCTAssertEqual(fencedDivider.answerText, "---")
     }
 }
 

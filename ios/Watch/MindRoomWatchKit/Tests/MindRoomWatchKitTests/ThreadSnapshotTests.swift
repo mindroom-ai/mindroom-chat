@@ -1106,22 +1106,23 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(outOfOrderSnap.reply?.workText)
         XCTAssertEqual(outOfOrderSnap.reply?.answerText, outOfOrderSnap.reply?.text)
 
-        // ai_run.status=completed combined with string or record-form active/stopped stream_status must NOT fold or show duration.
-        let conflictingValues: [Any] = [
-            "streaming",
-            "cancelled",
-            "approval_pending",
-            ["state": "streaming"] as JSON,
-            ["status": "cancelled"] as JSON,
+        // ai_run.status=completed combined with string or record-form active/stopped/paused stream_status
+        // must keep RunState, Home rowState, and WorkFoldView aligned and never fold or show duration.
+        let conflictingCases: [(value: Any, expectedRun: RunState, expectedRunningRow: Bool)] = [
+            ("streaming", .streaming, true),
+            ("cancelled", .stopped, false),
+            ("approval_pending", .none, false),
+            (["state": "streaming"] as JSON, .streaming, true),
+            (["status": "cancelled"] as JSON, .stopped, false),
         ]
-        for conflicting in conflictingValues {
+        for testCase in conflictingCases {
             let initial = event("$rc", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
             let edit = event("$rce", 1_700_000_012_000, [
                 "m.new_content": [
                     "msgtype": "m.text",
                     "body": body,
                     "io.mindroom.ai_run": ["version": 1, "status": "completed"] as JSON,
-                    "io.mindroom.stream_status": conflicting,
+                    "io.mindroom.stream_status": testCase.value,
                     "io.mindroom.tool_trace": [
                         "version": 3,
                         "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
@@ -1130,9 +1131,11 @@ final class ThreadSnapshotTests: XCTestCase {
                 "m.relates_to": ["rel_type": "m.replace", "event_id": "$rc"] as JSON,
             ])
             let snap = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
-            XCTAssertNil(snap.reply?.workText, "conflicting=\(conflicting)")
-            XCTAssertEqual(snap.reply?.answerText, snap.reply?.text, "conflicting=\(conflicting)")
-            XCTAssertNil(snap.reply?.durationSeconds, "conflicting=\(conflicting)")
+            XCTAssertEqual(snap.reply?.run, testCase.expectedRun, "conflicting=\(testCase.value)")
+            XCTAssertEqual(snap.rowState == .running, testCase.expectedRunningRow, "conflicting=\(testCase.value)")
+            XCTAssertNil(snap.reply?.workText, "conflicting=\(testCase.value)")
+            XCTAssertEqual(snap.reply?.answerText, snap.reply?.text, "conflicting=\(testCase.value)")
+            XCTAssertNil(snap.reply?.durationSeconds, "conflicting=\(testCase.value)")
         }
 
         // Valid success aliases ("complete", "done") and wrapper-level stream_status fold cleanly.
@@ -1151,7 +1154,7 @@ final class ThreadSnapshotTests: XCTestCase {
             XCTAssertEqual(snap.reply?.answerText, "Waiting for approval.", "alias=\(alias)")
         }
 
-        // Wrapper-level live stream_status on the edit prevents folding even when ai_run says completed.
+        // Wrapper-level live stream_status on the edit keeps RunState streaming and prevents folding even when ai_run says completed.
         let wrapInitial = event("$rw", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
         let wrapEdit = event("$rwe", 1_700_000_012_000, [
             "io.mindroom.stream_status": ["state": "streaming"] as JSON,
@@ -1167,6 +1170,8 @@ final class ThreadSnapshotTests: XCTestCase {
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$rw"] as JSON,
         ])
         let wrapSnap = ThreadSnapshot.build(root: voiceRoot, related: [wrapInitial, wrapEdit], ownUserId: me, now: now)
+        XCTAssertEqual(wrapSnap.reply?.run, .streaming)
+        XCTAssertEqual(wrapSnap.rowState, .running)
         XCTAssertNil(wrapSnap.reply?.workText)
         XCTAssertNil(wrapSnap.reply?.durationSeconds)
 
@@ -1254,5 +1259,119 @@ final class ThreadSnapshotTests: XCTestCase {
             let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
             XCTAssertNil(snapshot.reply?.durationSeconds, "Expected nil for (\(startTs), \(editTs))")
         }
+    }
+
+    func testV2RejectsDuplicateAndOutOfOrderMarkerIndices() {
+        let trace: JSON = [
+            "version": 2,
+            "events": [
+                ["type": "tool_call_completed", "tool_name": "flights_search"] as JSON,
+                ["type": "tool_call_completed", "tool_name": "calendar_list"] as JSON,
+            ],
+        ]
+        // Answer prose sits between a real [1] marker and a quoted/repeated [1] marker: must not double-list or hide the answer.
+        let duplicate = event("$dup", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\nFound 2 flights for Tuesday.\n🔧 `flights_search` [1]\nNote above.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": trace,
+        ]))
+        let dupSnap = ThreadSnapshot.build(root: voiceRoot, related: [duplicate], ownUserId: me, now: now)
+        XCTAssertEqual(dupSnap.reply?.toolNames, [String]())
+        XCTAssertNil(dupSnap.reply?.workText)
+        XCTAssertEqual(dupSnap.reply?.answerText, "Looking up flights.\nFound 2 flights for Tuesday.\nNote above.")
+
+        // Out-of-order [2] then [1] must also be rejected.
+        let reversed = event("$rev", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Step 1.\n🔧 `calendar_list` [2]\nReal answer.\n🔧 `flights_search` [1]\nFooter.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": trace,
+        ]))
+        let revSnap = ThreadSnapshot.build(root: voiceRoot, related: [reversed], ownUserId: me, now: now)
+        XCTAssertEqual(revSnap.reply?.toolNames, [String]())
+        XCTAssertNil(revSnap.reply?.workText)
+        XCTAssertEqual(revSnap.reply?.answerText, "Step 1.\nReal answer.\nFooter.")
+    }
+
+    func testFractionalToolTraceVersionsAndBodyLinesAreRejected() throws {
+        func decode(_ raw: String) throws -> JSON {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? JSON)
+        }
+        let v2Fractional = try decode(#"""
+        {"type":"m.room.message","event_id":"$v2f","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\n🔧 `search` [1]\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":2.5,"events":[{"type":"tool_call_completed","tool_name":"search"}]}}}
+        """#)
+        let v2Snap = ThreadSnapshot.build(root: voiceRoot, related: [v2Fractional], ownUserId: me, now: now)
+        XCTAssertEqual(v2Snap.reply?.toolNames, [String]())
+        XCTAssertNil(v2Snap.reply?.workText)
+
+        let v3Fractional = try decode(#"""
+        {"type":"m.room.message","event_id":"$v3f","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":3.5,"events":[{"type":"tool_call_completed","tool_name":"search","body_line":1}]}}}
+        """#)
+        let v3Snap = ThreadSnapshot.build(root: voiceRoot, related: [v3Fractional], ownUserId: me, now: now)
+        XCTAssertEqual(v3Snap.reply?.tools, 0)
+        XCTAssertEqual(v3Snap.reply?.toolNames, [String]())
+        XCTAssertNil(v3Snap.reply?.workText)
+
+        let fractionalBodyLine = try decode(#"""
+        {"type":"m.room.message","event_id":"$blf","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":3,"events":[{"type":"tool_call_completed","tool_name":"search","body_line":1.5}]}}}
+        """#)
+        let blSnap = ThreadSnapshot.build(root: voiceRoot, related: [fractionalBodyLine], ownUserId: me, now: now)
+        XCTAssertEqual(blSnap.reply?.tools, 0)
+        XCTAssertNil(blSnap.reply?.workText)
+    }
+
+    func testThematicBreakOnlyTailDoesNotFoldWork() {
+        let v2Trace: JSON = [
+            "version": 2,
+            "events": [["type": "tool_call_completed", "tool_name": "flights_search"] as JSON],
+        ]
+        for divider in ["---", "***", "___", "- - -", "> ---"] {
+            let v2Reply = event("$d2", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": "Looking up flights.\n🔧 `flights_search` [1]\n\(divider)",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": v2Trace,
+            ]))
+            let v2Snap = ThreadSnapshot.build(root: voiceRoot, related: [v2Reply], ownUserId: me, now: now)
+            XCTAssertNil(v2Snap.reply?.workText, "v2 divider=\(divider)")
+            XCTAssertEqual(v2Snap.reply?.answerText, v2Snap.reply?.text, "v2 divider=\(divider)")
+
+            let v3Reply = event("$d3", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": "Looking up flights.\n\(divider)",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "flights_search", "body_line": 1] as JSON],
+                ] as JSON,
+            ]))
+            let v3Snap = ThreadSnapshot.build(root: voiceRoot, related: [v3Reply], ownUserId: me, now: now)
+            XCTAssertNil(v3Snap.reply?.workText, "v3 divider=\(divider)")
+            XCTAssertEqual(v3Snap.reply?.answerText, v3Snap.reply?.text, "v3 divider=\(divider)")
+        }
+
+        // A divider followed by real prose still splits cleanly.
+        let withAnswer = event("$da", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n---\nFound 2 flights.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let withAnswerSnap = ThreadSnapshot.build(root: voiceRoot, related: [withAnswer], ownUserId: me, now: now)
+        XCTAssertEqual(withAnswerSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(withAnswerSnap.reply?.answerText, "---\nFound 2 flights.")
     }
 }

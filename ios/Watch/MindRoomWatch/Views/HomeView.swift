@@ -491,13 +491,24 @@ struct ThreadRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .center, spacing: 4) {
-                Text(row.title)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                chip
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 4) {
+                    Text(row.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .frame(minWidth: 64, idealWidth: 64, maxWidth: .infinity, alignment: .leading)
+                    chip
+                        .fixedSize(horizontal: true, vertical: true)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    chip
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text(row.line)
                 .font(.footnote)

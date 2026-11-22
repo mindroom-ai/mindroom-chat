@@ -11,6 +11,9 @@ public enum PlainText {
     /// MindRoom writes each tool call as a line "🔧 `tool_name` [n]", with a trailing ⏳ while it runs.
     private static let toolLine = try! NSRegularExpression(pattern: #"^🔧[^\S\n]*`([^`\n]+)`[^\S\n]*\[(\d+)\](?:[^\S\n]*⏳)?[^\S\n]*$"#)
 
+    /// CommonMark thematic break (`---`, `***`, `___`, optionally spaced): visual divider, not substantive prose.
+    private static let thematicBreak = try! NSRegularExpression(pattern: #"^ {0,3}(?:(?:-[ \t]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})$"#)
+
     public static func of(markdown: String) -> String { withToolCount(markdown).text }
 
     /// A Matrix user id in text: `@localpart:server`, without trailing punctuation.
@@ -41,11 +44,15 @@ public enum PlainText {
         var markers: [ToolMarker] = []
         var lastToolIndex: Int?
         var fence: String?
-        var lines: [String] = []
+        var lines: [(text: String, substantive: Bool)] = []
         for line in markdown.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if let open = fence {
-                if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) { fence = nil } else { lines.append(line) }
+                if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) {
+                    fence = nil
+                } else {
+                    lines.append((line, hasSubstantiveText(line)))
+                }
                 continue
             }
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
@@ -60,14 +67,20 @@ public enum PlainText {
                 lastToolIndex = lines.count
                 continue
             }
-            lines.append(prose(line))
+            if isThematicBreak(line) {
+                lines.append((line, false))
+            } else {
+                let formatted = prose(line)
+                lines.append((formatted, !isThematicBreak(formatted) && hasSubstantiveText(formatted)))
+            }
         }
-        let text = normalize(lines[...])
+        let allText = lines.map(\.text)
+        let text = normalize(allText[...])
         if let splitIndex = lastToolIndex {
-            let before = normalize(lines[..<splitIndex])
-            let after = normalize(lines[splitIndex...])
-            if hasSubstantiveText(before) && hasSubstantiveText(after) {
-                return (text, markers, before, after)
+            let beforeSlice = lines[..<splitIndex]
+            let afterSlice = lines[splitIndex...]
+            if beforeSlice.contains(where: \.substantive) && afterSlice.contains(where: \.substantive) {
+                return (text, markers, normalize(allText[..<splitIndex]), normalize(allText[splitIndex...]))
             }
         }
         return (text, markers, nil, text)
@@ -84,37 +97,44 @@ public enum PlainText {
         }
         guard splitLine > 0 && splitLine < rawLines.count else { return nil }
         var fence: String?
-        var beforeLines: [String] = []
-        var afterLines: [String] = []
+        var beforeLines: [(text: String, substantive: Bool)] = []
+        var afterLines: [(text: String, substantive: Bool)] = []
         for (index, rawLine) in rawLines.enumerated() {
             if index == splitLine && fence != nil { return nil }
             for line in rawLine.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                let formatted: String?
+                let formatted: (text: String, substantive: Bool)?
                 if let open = fence {
                     if trimmed.hasPrefix(open) && trimmed.allSatisfy({ $0 == open.first }) {
                         fence = nil
                         formatted = nil
                     } else {
-                        formatted = line
+                        formatted = (line, hasSubstantiveText(line))
                     }
                 } else if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                     fence = String(trimmed.prefix { $0 == trimmed.first })
                     formatted = nil
                 } else if toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil {
                     formatted = nil
+                } else if isThematicBreak(line) {
+                    formatted = (line, false)
                 } else {
-                    formatted = prose(line)
+                    let rendered = prose(line)
+                    formatted = (rendered, !isThematicBreak(rendered) && hasSubstantiveText(rendered))
                 }
                 if let formatted {
                     if index < splitLine { beforeLines.append(formatted) } else { afterLines.append(formatted) }
                 }
             }
         }
-        let before = normalize(beforeLines[...])
-        let after = normalize(afterLines[...])
-        guard hasSubstantiveText(before) && hasSubstantiveText(after) else { return nil }
+        guard beforeLines.contains(where: \.substantive) && afterLines.contains(where: \.substantive) else { return nil }
+        let before = normalize(beforeLines.map(\.text)[...])
+        let after = normalize(afterLines.map(\.text)[...])
         return (before, after)
+    }
+
+    private static func isThematicBreak(_ line: String) -> Bool {
+        thematicBreak.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
     }
 
     /// True when `text` has visible content beyond whitespace, pending hourglass markers (`⏳`), and zero-width characters

@@ -206,7 +206,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
             if trustedAgent {
                 let verifiedV2 = !details.markers.isEmpty && v2MarkersMatchTrace(details.markers, in: content)
                 toolNames = (verifiedV2 ? details.markers.map(\.name) : []) + trace.names
-                let isFinished = isFinishedWork(content: content, editWrapper: latestEdit?.content, run: run)
+                let isFinished = isFinishedWork(content: content, run: run)
                 if isFinished {
                     var splitWork = verifiedV2 ? details.workText : nil
                     var splitAnswer = verifiedV2 ? details.answerText : details.text
@@ -266,45 +266,28 @@ public struct ThreadSnapshot: Equatable, Sendable {
     }
 }
 
-/// Verifies that every parsed v2 inline tool marker (`🔧 \`name\` [n]`) matches its 1-based entry in
-/// `io.mindroom.tool_trace` (version 2), so literal Markdown examples of the marker syntax are never folded.
+/// Verifies that every parsed v2 inline tool marker (`🔧 \`name\` [n]`) has a strictly increasing, unique 1-based
+/// index matching its entry in `io.mindroom.tool_trace` (version 2), so literal or quoted markers are never folded.
 func v2MarkersMatchTrace(_ markers: [PlainText.ToolMarker], in content: JSON) -> Bool {
-    guard let trace = content["io.mindroom.tool_trace"] as? JSON,
-          (trace["version"] as? NSNumber).map({ CFGetTypeID($0) != CFBooleanGetTypeID() && $0.intValue == 2 }) == true,
+    guard !markers.isEmpty,
+          let trace = content["io.mindroom.tool_trace"] as? JSON,
+          jsonExactInt(trace["version"]) == 2,
           let calls = trace["events"] as? [Any] else { return false }
-    return markers.allSatisfy { marker in
-        guard marker.index >= 1, marker.index <= calls.count,
+    var previousIndex = 0
+    for marker in markers {
+        guard marker.index > previousIndex,
+              marker.index <= calls.count,
               let call = calls[marker.index - 1] as? JSON,
-              let name = call["tool_name"] as? String else { return false }
-        return name == marker.name
+              let name = call["tool_name"] as? String,
+              name == marker.name else { return false }
+        previousIndex = marker.index
     }
-}
-
-/// Reads `io.mindroom.stream_status` in string or `{status | state}` record form from `content` or its edit wrapper,
-/// matching the web client's `aiRun.ts` `readStreamStatus`.
-func readStreamStatus(content: JSON, editWrapper: JSON?) -> (present: Bool, normalized: String?) {
-    let key = "io.mindroom.stream_status"
-    let raw = content[key] ?? editWrapper?[key]
-    guard let raw else { return (false, nil) }
-    if let string = raw as? String, !string.isEmpty {
-        return (true, string.lowercased())
-    }
-    if let record = raw as? JSON {
-        if let status = record["status"] as? String, !status.isEmpty { return (true, status.lowercased()) }
-        if let state = record["state"] as? String, !state.isEmpty { return (true, state.lowercased()) }
-    }
-    return (true, nil)
+    return true
 }
 
 /// True only when the reply is a finished, non-truncated run whose work may be folded and timed.
-func isFinishedWork(content: JSON, editWrapper: JSON?, run: RunState) -> Bool {
+func isFinishedWork(content: JSON, run: RunState) -> Bool {
     if content["io.mindroom.long_text"] is JSON { return false }
-    if run == .stopped { return false }
-    let stream = readStreamStatus(content: content, editWrapper: editWrapper)
-    if stream.present {
-        guard let value = stream.normalized else { return false }
-        return value == "completed" || value == "complete" || value == "done"
-    }
     return run == .finished
 }
 
@@ -314,7 +297,7 @@ func isFinishedWork(content: JSON, editWrapper: JSON?, run: RunState) -> Bool {
 /// had no line. A version-2 trace has every line in the text, where `PlainText` counts them.
 func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?) {
     guard let trace = content["io.mindroom.tool_trace"] as? JSON,
-          (trace["version"] as? NSNumber).map({ CFGetTypeID($0) != CFBooleanGetTypeID() && $0.intValue == 3 }) == true,
+          jsonExactInt(trace["version"]) == 3,
           let calls = trace["events"] as? [Any] else { return ([], nil) }
     var names: [String] = []
     var maxLine: Int?
@@ -322,8 +305,7 @@ func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?)
     for case let call as JSON in calls {
         guard let name = call["tool_name"] as? String, !name.isEmpty else { continue }
         guard let rawLine = call["body_line"] else { continue }
-        guard let number = rawLine as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
-              let line = rawLine as? Int, line >= 0 else {
+        guard let line = jsonExactInt(rawLine), line >= 0 else {
             canSplit = false
             continue
         }
