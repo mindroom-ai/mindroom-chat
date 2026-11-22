@@ -52,7 +52,7 @@ export function RoomChoiceSettingTile({
   const known = definition.choices.some((choice) => choice.value === value);
 
   return (
-    <Box direction="Column" gap="200">
+    <Box direction="Column" gap="200" data-room-setting={definition.key}>
       <SettingTile
         title={label}
         description={t(definition.description)}
