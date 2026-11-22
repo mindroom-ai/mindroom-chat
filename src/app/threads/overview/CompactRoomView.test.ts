@@ -663,7 +663,6 @@ describe('CompactRoomView', () => {
         maxScrollTop = value;
       },
       getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
-      hasAttribute: () => false,
       querySelectorAll: () => [],
       addEventListener: () => {},
       removeEventListener: () => {},

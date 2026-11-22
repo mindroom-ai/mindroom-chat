@@ -175,10 +175,11 @@ export const useCompactScrollOwner = ({
   useLayoutEffect(() => {
     const view = viewRef.current;
     if (!view) return undefined;
+    const keeps = !browserAnchorsScroll();
     const onScroll = () => {
       if (state.placing && view.scrollTop !== state.placing.scrollTop) stopPlacing(state);
       // The reader's own scrolling moves the cards; the next commit compares from there.
-      if (!browserAnchorsScroll()) state.record = cardsInView(view, state.rows);
+      if (keeps) state.record = cardsInView(view, state.rows);
     };
     view.addEventListener('scroll', onScroll, { passive: true });
     return () => {
