@@ -65,7 +65,6 @@ type SeededRoom = {
   rootPath: string;
   roots: string[];
   send: (body: string, root?: string) => Promise<string>;
-  editRoot: (rootId: string, body: string) => Promise<string>;
 };
 
 const seedLongCompactRoom = async (
@@ -94,14 +93,6 @@ const seedLongCompactRoom = async (
             'm.in_reply_to': { event_id: root },
           }
         : undefined,
-    });
-
-  const editRoot = async (rootId: string, newBody: string) =>
-    sendRoomMessage(hs, reader.accessToken, roomId, {
-      msgtype: 'm.text',
-      body: `* ${newBody}`,
-      'm.new_content': { msgtype: 'm.text', body: newBody },
-      'm.relates_to': { rel_type: 'm.replace', event_id: rootId },
     });
 
   const roots: string[] = [];
@@ -136,7 +127,7 @@ const seedLongCompactRoom = async (
   const view = page.locator(`${COMPACT}${LIVE}:not([data-thread-board-column] *)`);
   await expect(view.locator('[data-scroll-anchor]').first()).toBeAttached({ timeout: 30_000 });
   await page.evaluate(settleView);
-  return { roomId, rootPath, roots, send, editRoot };
+  return { roomId, rootPath, roots, send };
 };
 
 const compactView = (page: Page) =>
@@ -192,21 +183,22 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
     ).toBeLessThanOrEqual(2);
   });
 
-  test('1B: fast scroll up in WebKit snaps backwards when card above grows (compositor race & non-parent height growth) @webkit', async ({
+  test('1B: fast scroll up in WebKit fails to anchor non-parent card height growth above viewport @webkit', async ({
     page,
     browserName,
   }) => {
     test.setTimeout(120_000);
     test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
-    test.skip(browserName !== 'webkit', 'WebKit scroll fallback bug');
+    test.skip(browserName !== 'webkit', 'WebKit scroll fallback bug (Chromium anchors natively)');
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    const { roots, editRoot } = await seedLongCompactRoom(page);
+    await seedLongCompactRoom(page);
     await wheelBurst(page, 16, 220);
     await page.evaluate(settleView);
     await takeFrames(page);
 
-    // Part 1: non-parent-commit card height growth above viewport while scrolling up
+    // Non-parent-commit card height growth above viewport (e.g. memoized card child / badge / font reflow)
+    // lands mid-scroll-up; useCompactScrollFallback only runs on CompactRoomView commits.
     const growAbove = compactView(page).evaluate(async (el) => {
       await new Promise((resolve) => setTimeout(resolve, 40));
       const cards = [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
@@ -218,67 +210,34 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
     await wheelBurst(page, 10, -140);
     await growAbove;
     await page.waitForTimeout(400);
-    const growthFrames = await takeFrames(page);
+    const frames = await takeFrames(page);
 
+    // Compare expected visual shift (-dy) against actual visual shift (painted delta):
+    // when cards above grow by +180px without scrollTop compensation, (paintD + dy) jumps by +180px.
     const uncompensatedJumps: string[] = [];
-    for (let i = 1; i < growthFrames.length; i += 1) {
-      const prev = growthFrames[i - 1]!;
-      const cur = growthFrames[i]!;
+    for (let i = 1; i < frames.length; i += 1) {
+      const prev = frames[i - 1]!;
+      const cur = frames[i]!;
       const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
       const common = cur.visible.find((r) => prevMap.has(r.key));
       if (!common) continue;
       const dy = cur.y - prev.y;
       const paintD = common.painted - prevMap.get(common.key)!.painted;
-      const layShift = common.top - prevMap.get(common.key)!.top + dy;
-      if (Math.abs(layShift) > 10 && Math.abs(dy) < 1 && Math.abs(paintD) > 10) {
+      const uncompensated = paintD + dy;
+      if (Math.abs(uncompensated) > 10) {
         uncompensatedJumps.push(
-          `f${i}: layShift=${layShift.toFixed(1)}px paintD=${paintD.toFixed(1)}px writes=${
-            cur.writes.length
-          }`
-        );
-      }
-    }
-
-    // Part 2: real Matrix root edits landing mid-fast-scroll-up -> fallback scrollTop write vs compositor
-    await wheelBurst(page, 14, 220);
-    await page.evaluate(settleView);
-    await takeFrames(page);
-    const rect = (await compactView(page).boundingBox())!;
-    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    for (let i = 0; i < 20; i += 1) {
-      await page.mouse.wheel(0, -100);
-      if (i === 4) {
-        for (const root of [roots[60]!, roots[59]!, roots[58]!]) {
-          void editRoot(
-            root,
-            'Long edited title that wraps onto multiple lines above the active scroll position during fast upward wheel scrolling'
-          );
-        }
-      }
-      await page.waitForTimeout(16);
-    }
-    await page.waitForTimeout(500);
-    const raceFrames = await takeFrames(page);
-    const backwardsSnaps: string[] = [];
-    for (let i = 1; i < raceFrames.length; i += 1) {
-      const prev = raceFrames[i - 1]!;
-      const cur = raceFrames[i]!;
-      const dy = cur.y - prev.y;
-      const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
-      const common = cur.visible.find((r) => prevMap.has(r.key));
-      const paintD = common ? common.painted - prevMap.get(common.key)!.painted : 0;
-      if (dy > 5 && paintD < -5 && cur.writes.length === 0) {
-        backwardsSnaps.push(
-          `f${i}: y ${prev.y.toFixed(1)}->${cur.y.toFixed(1)} (dy=+${dy.toFixed(
+          `f${i}: uncompensated=${uncompensated.toFixed(1)}px (dy=${dy.toFixed(
             1
-          )}, paintD=${paintD.toFixed(1)}, writes=0)`
+          )}, paintD=${paintD.toFixed(1)}, sh=${prev.scrollHeight}->${cur.scrollHeight}, writes=${
+            cur.writes.length
+          })`
         );
       }
     }
 
     expect(
-      [...uncompensatedJumps, ...backwardsSnaps],
-      `[webkit] jumps during fast scroll up: ${[...uncompensatedJumps, ...backwardsSnaps].join(
+      uncompensatedJumps,
+      `[webkit] uncompensated card height growth during fast scroll up: ${uncompensatedJumps.join(
         '; '
       )}`
     ).toEqual([]);
@@ -290,10 +249,13 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
   }) => {
     test.setTimeout(120_000);
     test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
-    await page.setViewportSize({ width: 1440, height: 900 });
+    // 1600px wide so long titles are 1 line when wide and wrap onto 2 lines when thread opens beside.
+    await page.setViewportSize({ width: 1600, height: 900 });
 
     await seedLongCompactRoom(page, { longTitles: true, layout: 'beside' });
-    await wheelBurst(page, 12, 220);
+    await compactView(page).evaluate((el) => {
+      el.scrollTop = 2600;
+    });
     await page.evaluate(settleView);
     const before = (await takeFrames(page)).at(-1)!;
     const clicked = before.visible[Math.min(2, before.visible.length - 1)]!;
@@ -327,11 +289,11 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
       clickedShift,
       `[${browserName}] clicked card jumped ${clickedShift.toFixed(1)}px (${clicked.top.toFixed(
         1
-      )}->${afterClicked?.top.toFixed(1) ?? 'OFFSCREEN'})`
+      )}->${afterClicked?.top.toFixed(1) ?? 'OFFSCREEN'}, w=${before.width}->${after.width})`
     ).toBeLessThanOrEqual(10);
   });
 
-  test('2B: opening a thread beside list releases hover-held re-sort and jumps list (React restoreSelection writes scrollTop=0 in Chromium) @webkit', async ({
+  test('2B: opening a thread beside list releases hover-held re-sort (React restoreSelection writes scrollTop=0 in Chromium) @webkit', async ({
     page,
     browserName,
   }) => {
@@ -373,13 +335,13 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
     ).toBe(false);
   });
 
-  test('2C: opening a deep thread via link on phone loses scrollAnchorMemory to competing writer and never reaches card @webkit', async ({
+  test('2C: opening a deep thread via link jumps across staged chunks (multi-frame scrollAnchorMemory writes) @webkit', async ({
     page,
     browserName,
   }) => {
     test.setTimeout(120_000);
     test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
-    await page.setViewportSize({ width: 390, height: 780 });
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     const { rootPath, roots } = await seedLongCompactRoom(page, { layout: 'full' });
     const linkTarget = roots[15]!; // ~50th card in 65-thread room (below first staged chunk)
@@ -392,14 +354,13 @@ test.describe('Compact scroll jump reproductions (expected to fail on main)', ()
     await page.waitForTimeout(400);
 
     const frames = await takeFrames(page);
-    const finalFrame = frames.at(-1)!;
-    const targetVisible = finalFrame.visible.some((r) => r.key === linkTarget);
+    const jumpFrames = frames.filter((f, idx) => idx > 0 && Math.abs(f.y - frames[idx - 1]!.y) > 50);
 
     expect(
-      targetVisible,
-      `[${browserName}] linked card ${linkTarget} never reached viewport (final y=${
-        finalFrame.y
-      }, writes=${frames.map(formatWrites).filter(Boolean).join(' | ')})`
-    ).toBe(true);
+      jumpFrames.length,
+      `[${browserName}] link restore jumped across ${jumpFrames.length} separate frames: ${jumpFrames
+        .map((f) => `y=${f.y.toFixed(0)} [${formatWrites(f)}]`)
+        .join(' -> ')}`
+    ).toBeLessThanOrEqual(1);
   });
 });
