@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -32,7 +32,6 @@ import * as css from './ActivityList.css';
 const TABS: ActivityTab[] = ['all', 'mentions', 'replies', 'needsYou'];
 const PAGE_SIZE = 40;
 const SENTINEL_MARGIN = '400px 0px';
-const SENTINEL_STYLE = { blockSize: 1 } as const;
 
 const findScrollParent = (element: HTMLElement): HTMLElement | null => {
   for (let parent = element.parentElement; parent; parent = parent.parentElement) {
@@ -40,6 +39,12 @@ const findScrollParent = (element: HTMLElement): HTMLElement | null => {
     if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') return parent;
   }
   return null;
+};
+
+const focusedRowKey = (list: HTMLElement | null): string | null => {
+  const active = typeof document !== 'undefined' ? document.activeElement : null;
+  if (!list || !(active instanceof HTMLElement) || !list.contains(active)) return null;
+  return active.closest<HTMLElement>('[data-motion-row]')?.dataset.motionRow ?? null;
 };
 
 type ActivityListProps = {
@@ -97,10 +102,10 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  const [limit, setLimit] = useState(PAGE_SIZE);
-  useEffect(() => {
-    setLimit(PAGE_SIZE);
-  }, [tab, unreadOnly]);
+  // Keyed to the active filter so the first render after switching tabs or Unread uses PAGE_SIZE.
+  const filterKey = `${tab}:${unreadOnly}`;
+  const [windowState, setWindowState] = useState({ filterKey, limit: PAGE_SIZE });
+  const limit = windowState.filterKey === filterKey ? windowState.limit : PAGE_SIZE;
 
   const open = useCallback(
     (row: ActivityRow) => {
@@ -118,16 +123,16 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const gathered = invites.length >= INVITES_GATHERED_FROM;
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
 
-  // Render one page at a time and grow as the reader nears the end, keeping large windows cheap.
-  const visibleWaiting = waitingRows.slice(0, limit);
-  const showGathered = gathered && visibleWaiting.length < limit;
-  const restLimit = Math.max(0, limit - visibleWaiting.length - (showGathered ? 1 : 0));
-  const visibleRest = rest.slice(0, restLimit);
-  const visibleRows = [...visibleWaiting, ...visibleRest];
-  const hasMore =
-    visibleWaiting.length < waitingRows.length ||
-    (gathered && !showGathered) ||
-    visibleRest.length < rest.length;
+  const rowsRef = useRef<HTMLDivElement>(null);
+  // Waiting rows are never capped; ordinary rows are windowed, extending through the current or
+  // focused row so a live prepend never unmounts it.
+  const currentIndex = rest.findIndex(isCurrent);
+  const activeKey = focusedRowKey(rowsRef.current);
+  const focusedIndex = activeKey ? rest.findIndex((row) => row.key === activeKey) : -1;
+  const effectiveLimit = Math.max(limit, currentIndex + 1, focusedIndex + 1);
+  const visibleRest = rest.slice(0, effectiveLimit);
+  const visibleRows = [...waitingRows, ...visibleRest];
+  const hasMore = visibleRest.length < rest.length;
 
   // Senders are named from the member lists, which a room the user has not opened lacks.
   const namesVersion = useLoadedRoomMembers(
@@ -135,30 +140,49 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     visibleRows.map((row) => (row.type === 'thread' ? row.entry.roomId : row.roomId))
   );
 
+  const pendingFocusKeyRef = useRef<string | null>(null);
+  const pointerActivatingRef = useRef(false);
+  const appendPage = useCallback(
+    (focusFirstNew?: boolean) => {
+      if (focusFirstNew) {
+        pendingFocusKeyRef.current = rest[visibleRest.length]?.key ?? null;
+      }
+      setWindowState({ filterKey, limit: effectiveLimit + PAGE_SIZE });
+    },
+    [effectiveLimit, filterKey, rest, visibleRest.length]
+  );
+
+  useLayoutEffect(() => {
+    const key = pendingFocusKeyRef.current;
+    if (!key) return;
+    pendingFocusKeyRef.current = null;
+    const row = [
+      ...(rowsRef.current?.querySelectorAll<HTMLElement>('[data-motion-row]') ?? []),
+    ].find((element) => element.dataset.motionRow === key);
+    row?.querySelector<HTMLElement>('button')?.focus();
+  }, [visibleRest.length]);
+
   // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
   // The rows that wait come first, so their number tells when one moves under the day's divider
   // while the order stays.
-  const rowsRef = useRef<HTMLDivElement>(null);
   const listMotion = useListMotion(
     rowsRef,
-    `${visibleWaiting.length}|${showGathered}|${visibleRows.map((row) => row.key).join(',')}`
+    `${waiting.length}|${gathered}|${visibleRows.map((row) => row.key).join(',')}`
   );
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!hasMore || !sentinel || typeof IntersectionObserver === 'undefined') return undefined;
+    const target = moreRef.current;
+    if (!hasMore || !target || typeof IntersectionObserver === 'undefined') return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setLimit((count) => count + PAGE_SIZE);
-        }
+        if (entries.some((entry) => entry.isIntersecting)) appendPage();
       },
-      { root: findScrollParent(sentinel), rootMargin: SENTINEL_MARGIN }
+      { root: findScrollParent(target), rootMargin: SENTINEL_MARGIN }
     );
-    observer.observe(sentinel);
+    observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, limit]);
+  }, [appendPage, hasMore]);
   const openInvites = () => {
     void navigate(getActivityInvitesPath());
     onNavigate?.();
@@ -259,7 +283,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
         <>
           <div ref={rowsRef} role="list" className={css.Rows}>
             {listMotion}
-            {visibleWaiting.map((row) => (
+            {waitingRows.map((row) => (
               <div role="listitem" key={row.key} data-motion-row={row.key}>
                 <ActivityRowItem
                   row={row}
@@ -269,7 +293,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
                 />
               </div>
             ))}
-            {showGathered && (
+            {gathered && (
               <div role="listitem" data-motion-row="invites">
                 <ActivityInvitesRow invites={invites} onOpen={openInvites} />
               </div>
@@ -304,7 +328,33 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             })}
           </div>
           {hasMore && (
-            <div ref={sentinelRef} aria-hidden data-activity-sentinel style={SENTINEL_STYLE} />
+            <div ref={moreRef} className={css.ShowMore}>
+              <Button
+                size="300"
+                variant="Secondary"
+                fill="None"
+                radii="300"
+                onPointerDown={() => {
+                  pointerActivatingRef.current = true;
+                }}
+                onPointerCancel={() => {
+                  pointerActivatingRef.current = false;
+                }}
+                onBlur={() => {
+                  pointerActivatingRef.current = false;
+                }}
+                onFocus={() => {
+                  if (!pointerActivatingRef.current) appendPage(true);
+                }}
+                onClick={() => {
+                  const fromPointer = pointerActivatingRef.current;
+                  pointerActivatingRef.current = false;
+                  appendPage(!fromPointer);
+                }}
+              >
+                <Text size="B300">{t('threadsPage.showMore')}</Text>
+              </Button>
+            </div>
           )}
         </>
       )}
