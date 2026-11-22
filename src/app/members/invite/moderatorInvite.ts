@@ -253,35 +253,35 @@ const waitForPowerLevelSync = (
   room: Pick<Room, 'roomId' | 'getLiveTimeline'>,
   targetUserId: string,
   level: number,
-  eventId: string | undefined
-): Promise<void> => {
+  eventId: string | undefined,
+  onSettled: () => void
+): void => {
   if (powerEventReflectsGrant(getPowerLevelsEvent(room), targetUserId, level, eventId)) {
-    return Promise.resolve();
+    onSettled();
+    return;
   }
-  return new Promise<void>((resolve) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      client.removeListener(RoomStateEvent.Events, onStateEvent);
-      clearTimeout(timer);
-      resolve();
-    };
-    const onStateEvent = (event: MatrixEvent) => {
-      if (
-        event.getRoomId?.() === room.roomId &&
-        matchesEnum(event.getType?.(), StateEvent.RoomPowerLevels) &&
-        powerEventReflectsGrant(event, targetUserId, level, eventId)
-      ) {
-        finish();
-      }
-    };
-    const timer = setTimeout(finish, POWER_LEVEL_SYNC_TIMEOUT_MS);
-    client.on(RoomStateEvent.Events, onStateEvent);
-    if (powerEventReflectsGrant(getPowerLevelsEvent(room), targetUserId, level, eventId)) {
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    client.removeListener(RoomStateEvent.Events, onStateEvent);
+    clearTimeout(timer);
+    onSettled();
+  };
+  const onStateEvent = (event: MatrixEvent) => {
+    if (
+      event.getRoomId?.() === room.roomId &&
+      matchesEnum(event.getType?.(), StateEvent.RoomPowerLevels) &&
+      powerEventReflectsGrant(event, targetUserId, level, eventId)
+    ) {
       finish();
     }
-  });
+  };
+  const timer = setTimeout(finish, POWER_LEVEL_SYNC_TIMEOUT_MS);
+  client.on(RoomStateEvent.Events, onStateEvent);
+  if (powerEventReflectsGrant(getPowerLevelsEvent(room), targetUserId, level, eventId)) {
+    finish();
+  }
 };
 
 export type ModeratorGrantResult =
@@ -375,9 +375,7 @@ export const runRoomModeratorGrant = (
 
     // Hold the per-room lock until synced m.room.power_levels reflects this change (or timeout),
     // while returning the HTTP confirmation to the caller immediately.
-    void waitForPowerLevelSync(client, room, targetUserId, liveLevel, response?.event_id).finally(
-      finishAll
-    );
+    waitForPowerLevelSync(client, room, targetUserId, liveLevel, response?.event_id, finishAll);
     return { status: 'granted', level: liveLevel };
   });
 };
