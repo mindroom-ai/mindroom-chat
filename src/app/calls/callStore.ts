@@ -31,6 +31,9 @@ export const activeCallAtom = atom<ActiveCall | undefined>(undefined);
 /** The room whose call panel is open (the call's room, or an agent call's origin room). */
 export const callPanelRoomAtom = atom<string | undefined>(undefined);
 
+/** A return shortcut asks for the room panel even if it is already open, but folded. */
+export const callPanelRequestAtom = atom<{ roomId: string } | undefined>(undefined);
+
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
 /** The start running in this tab, if any; a second start would race it for the one call. */
@@ -146,6 +149,7 @@ export const dropActiveCall = (store: Store): void => {
 export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
+  store.set(callPanelRequestAtom, undefined);
   store.set(callViewStateAtom, new Map());
   store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);
@@ -187,15 +191,22 @@ export const useCallState = (call: RoomCall | undefined): CallState =>
 
 const LIVE_PHASES: ReadonlySet<CallPhase> = new Set(['connecting', 'connected', 'reconnecting']);
 
+export const isLiveCallPhase = (phase: CallPhase): boolean => LIVE_PHASES.has(phase);
+
 /**
  * Whether this device is in a call now: starting, connected or reconnecting (not one that failed
- * and waits to be closed). Re-renders only when that answer changes, not on every call update.
+ * and waits to be closed). Optionally scoped to the call's home room, so other rooms do not
+ * subscribe to call updates. Re-renders only when the answer changes, not on every call update.
  */
-export const useInCall = (): boolean => {
-  const call = useActiveCall()?.call;
+export const useInCall = (homeRoomId?: string): boolean => {
+  const active = useActiveCall();
+  const call =
+    active && (homeRoomId === undefined || homeRoomId === callHomeRoomId(active))
+      ? active.call
+      : undefined;
   return useSyncExternalStore(
     call?.subscribe ?? noSubscription,
-    () => !!call && LIVE_PHASES.has(call.getState().phase)
+    () => !!call && isLiveCallPhase(call.getState().phase)
   );
 };
 

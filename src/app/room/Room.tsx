@@ -75,7 +75,12 @@ import { isReturnToRoom } from '../routes/historyStack';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { useCallPanel, useInCall } from '../calls/callStore';
+import {
+  callPanelRequestAtom,
+  callPanelRoomAtom,
+  useCallPanel,
+  useInCall,
+} from '../calls/callStore';
 import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import {
@@ -564,10 +569,19 @@ function RoomContent() {
   // B as it shows, which a late SDK model of it loads for, as the open thread's does.
   const secondShown = shown?.id === 'thread' ? secondId : undefined;
   useInitializeOpenThread(room, secondShown);
-  // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
-  // ask for theirs, also while it shows: folded, it unfolds. So does a sub-agent job in the jobs
-  // bar for the Sub-agents panel, whose store the header's toggle sets too.
+  // The return shortcut, transcript and sub-agent jobs ask for their panels as the room's own
+  // buttons do, even if the panel is already open but folded.
   const store = useStore();
+  useEffect(() => {
+    const takeRequest = () => {
+      if (store.get(callPanelRequestAtom)?.roomId !== roomId) return;
+      store.set(callPanelRequestAtom, undefined);
+      if (store.get(callPanelRoomAtom) === roomId) request('call', () => undefined);
+    };
+    // Returning from another room sets the request before this room is shown.
+    takeRequest();
+    return store.sub(callPanelRequestAtom, takeRequest);
+  }, [request, roomId, store]);
   useEffect(
     () =>
       store.sub(transcriptPanelAtom, () => {

@@ -194,23 +194,31 @@ export const useCallViewFloats = (): boolean => {
  * Transcript hands its focus to the live transcript it opens in the window (`transcript`). `from`
  * is that button, which may stay a moment while the docked panel it was in moves out.
  */
-export type FocusHandOff = { to: 'window' | 'panel' | 'transcript'; from: Element | null };
+export type FocusHandOff = { from: Element | null } & (
+  | { to: 'window' | 'transcript' }
+  | { to: 'panel'; roomId: string }
+);
 export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
 
 /**
  * Takes the focus handed to `to` (nothing while undefined) with `focus`, once: when the place
  * mounts, or at once when it shows already; unless something else took the focus meanwhile.
  */
-export const useFocusHandOff = (to: FocusHandOff['to'] | undefined, focus: () => void): void => {
+export const useFocusHandOff = (
+  to: FocusHandOff['to'] | undefined,
+  focus: () => void,
+  roomId?: string
+): void => {
   const [handOff, setHandOff] = useAtom(focusHandOffAtom);
   const latestFocus = useLatestRef(focus);
   useEffect(() => {
-    if (!handOff || handOff.to !== to) return;
+    if (!handOff || handOff.to !== to || (handOff.to === 'panel' && handOff.roomId !== roomId))
+      return;
     setHandOff(undefined);
     const focused = document.activeElement;
     if (focused && focused !== document.body && focused !== handOff.from) return;
     latestFocus.current();
-  }, [handOff, latestFocus, setHandOff, to]);
+  }, [handOff, latestFocus, roomId, setHandOff, to]);
 };
 
 /** Whether the account's floating window is minimized to its bar. */

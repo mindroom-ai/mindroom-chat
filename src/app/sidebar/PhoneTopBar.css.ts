@@ -1,10 +1,45 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
 import { railWidth } from '../ui/sidebar/SidebarItem.css';
 
-/** The bar's height; the drawer starts right below it. */
+/** The top row's height; the drawer starts below it and the call shortcut, if present. */
 export const phoneTopBarHeight = toRem(52);
+const callButtonHeight = `max(44px, ${toRem(44)})`;
+const returnToCallRowHeight = `calc(${callButtonHeight} + ${config.space.S200})`;
+
+export const PhoneChrome = style({ flexShrink: 0 });
+export const phoneChromeHeight = createVar();
+
+// Safe-area insets are physical; both rows use the same padding in either direction.
+const safeAreaPadding = {
+  paddingLeft: `max(${config.space.S200}, env(safe-area-inset-left, 0px))`,
+  paddingRight: `max(${config.space.S200}, env(safe-area-inset-right, 0px))`,
+};
+
+export const ReturnToCallRow = style({
+  ...safeAreaPadding,
+  paddingBlockEnd: config.space.S200,
+  backgroundColor: color.Background.Container,
+});
+
+// Give the stage and the page slide's copy their own offset, shared by their drawer layers.
+const phoneLayout = ':is([data-phone-stage], [data-page-slide-copy])';
+globalStyle(`${phoneLayout}:has(> .${PhoneChrome})`, {
+  vars: { [phoneChromeHeight]: phoneTopBarHeight },
+});
+globalStyle(`${phoneLayout}:has(> .${PhoneChrome} > .${ReturnToCallRow})`, {
+  vars: { [phoneChromeHeight]: `calc(${phoneTopBarHeight} + ${returnToCallRowHeight})` },
+});
+
+export const ReturnToCallButton = style({
+  inlineSize: '100%',
+  blockSize: callButtonHeight,
+  minBlockSize: callButtonHeight,
+  selectors: {
+    '&[data-speaking]': { boxShadow: `inset 0 0 0 2px ${color.Success.Main}` },
+  },
+});
 
 // A phone's top bar: menu, search and account in one row on the rail's colour. No line rules it off:
 // the page below starts on its own surface colour, and the drawer, in the bar's colour, meets it.
@@ -16,7 +51,7 @@ export const PhoneTopBar = style([
     display: 'flex',
     alignItems: 'center',
     columnGap: config.space.S200,
-    paddingInline: config.space.S200,
+    ...safeAreaPadding,
     backgroundColor: color.Background.Container,
     color: color.Background.OnContainer,
   },
