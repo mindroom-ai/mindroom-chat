@@ -177,13 +177,30 @@ export const formatCompactExecutionTime = (
   );
 };
 
+const isRecognizedTimeZone = (value: string): boolean => {
+  const candidate = value.trim();
+  if (!candidate) return false;
+  if (/^(?:UTC|GMT)(?:[+-]\d{1,2}(?::?\d{2})?)?$/i.test(candidate)) return true;
+  if (!/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)+$/.test(candidate)) return false;
+  try {
+    dateTimeFormat('en-US', { timeZone: candidate });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** Concise cadence pill label for a recurring task; the full description stays in the subtitle. */
 export const formatShortCadence = (task: ParsedScheduledTask, t: TFunction): string => {
   const description = task.cronDescription?.trim();
   if (description) {
-    const withoutZone = description.replace(/\s*\([^)]*\)\s*$/, '').trim();
-    if (withoutZone && withoutZone.length <= SHORT_CADENCE_MAX_LENGTH) {
-      return withoutZone;
+    const trailingParen = description.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    const candidate =
+      trailingParen && isRecognizedTimeZone(trailingParen[2] ?? '')
+        ? (trailingParen[1] ?? '').trim()
+        : description;
+    if (candidate && candidate.length <= SHORT_CADENCE_MAX_LENGTH) {
+      return candidate;
     }
   }
   return t('roomSchedules.recurring');
