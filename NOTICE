@@ -213,7 +213,8 @@ Modified dependencies
     src/models/relations.ts, src/models/room-receipts.ts,
     src/models/room-state.ts, src/models/room.ts, src/models/thread.ts,
     src/rust-crypto/PerSessionKeyBackupDownloader.ts,
-    src/rust-crypto/backup.ts, src/rust-crypto/rust-crypto.ts,
+    src/rust-crypto/RoomEncryptor.ts, src/rust-crypto/backup.ts,
+    src/rust-crypto/rust-crypto.ts,
     src/store/indexeddb-backend.ts, src/store/indexeddb-local-backend.ts,
     src/store/indexeddb.ts, src/sync.ts, src/thread-utils.ts,
     and the compiled files built from them:
