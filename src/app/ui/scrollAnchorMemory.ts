@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useRef } from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 const SCROLL_ANCHOR_ATTRIBUTE = 'data-scroll-anchor';
 const SCROLL_ANCHOR_SELECTOR = `[${SCROLL_ANCHOR_ATTRIBUTE}]`;
@@ -21,7 +21,7 @@ export type ScrollAnchorMemory = Map<string, ScrollAnchorSnapshot>;
 const getAnchorKey = (row: Element): string | null => row.getAttribute(SCROLL_ANCHOR_ATTRIBUTE);
 
 // Rows render top to bottom, so the rows in view end at the first one below it.
-export const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
+const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
   const { top, bottom } = view.getBoundingClientRect();
   const anchors: ScrollAnchor[] = [];
   for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {
@@ -44,7 +44,7 @@ type RowPlacement = {
 // take the position most rows agree on, and on a tie the nearer one. Once a
 // write has placed rows, later steps keep those rows, or none if they no
 // longer agree; until then (no saved row rendered yet), each step votes.
-export const placeRows = (
+const placeRows = (
   view: HTMLElement,
   snapshot: ScrollAnchorSnapshot,
   placedRows: string[]
@@ -80,14 +80,14 @@ export const placeRows = (
   );
 };
 
-export const getRowKeys = (view: HTMLElement): string[] =>
+const getRowKeys = (view: HTMLElement): string[] =>
   Array.from(view.querySelectorAll(SCROLL_ANCHOR_SELECTOR), getAnchorKey).filter(
     (key): key is string => key !== null
   );
 
 // Rows rendering late or added and removed around the others keep the others'
 // order; a row sorting past them changes it.
-export const keepsRowOrder = (before: string[], after: string[]): boolean => {
+const keepsRowOrder = (before: string[], after: string[]): boolean => {
   const beforeKeys = new Set(before);
   const afterKeys = new Set(after);
   const kept = after.filter((key) => beforeKeys.has(key));
@@ -123,7 +123,8 @@ type ScrollAnchorMemoryOptions = {
  * the rows in view; the next mount scrolls so those rows sit where they were,
  * even if rows above them were added, removed, or reordered meanwhile.
  * Until the reader scrolls or the rows move apart or change order, it keeps
- * them there as late layout resizes the list.
+ * them there as late layout resizes the list. It returns a function that puts
+ * the mounted list at a place of its own in the same way.
  */
 export function useScrollAnchorMemory({
   memory,
@@ -131,8 +132,9 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-}: ScrollAnchorMemoryOptions): void {
+}: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
+  const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
   useLayoutEffect(() => {
     readyRef.current = ready;
@@ -197,7 +199,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, ready, scrollRef]);
+  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -209,4 +211,19 @@ export function useScrollAnchorMemory({
       }
     };
   }, [memory, memoryKey, scrollRef]);
+
+  return useCallback(
+    (place: ScrollAnchorSnapshot) => {
+      const lastAppliedScrollTop = scrollRef.current?.scrollTop ?? 0;
+      restoreRef.current = {
+        memoryKey,
+        snapshot: place,
+        placedRows: [],
+        rowOrder: [],
+        lastAppliedScrollTop,
+      };
+      setRestarts((count) => count + 1);
+    },
+    [memoryKey, scrollRef]
+  );
 }

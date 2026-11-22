@@ -44,6 +44,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
+import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
@@ -1912,6 +1913,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       eventId && focusEventInRoom
         ? { eventId, entryKey, pushed: entryPushed, returned: entryReturned }
         : undefined;
+    if (focusRequest) {
+      takeCompactFocusRequest(compactRoomScrollStateRef.current, room.roomId, focusRequest);
+    }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
         {filterBar}

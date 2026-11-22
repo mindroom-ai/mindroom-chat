@@ -32,21 +32,22 @@ const metRequests = new WeakMap<ScrollAnchorMemory, Set<string>>();
 const metKey = ({ eventId, entryKey }: CompactFocusRequest): string | undefined =>
   entryKey && entryKey !== 'default' ? `${entryKey} ${eventId}` : undefined;
 
-/** On mount an unmet link takes its card's place unless the saved place already shows it. */
-export const compactMountPlace = (
+/**
+ * A request is its history entry's once: it gives the card a place in the list's `memory`, unless
+ * the place saved there has the card in view, until the list has shown the card. Returning to
+ * that entry later (a back or forward step) keeps the place the reader left.
+ */
+export const takeCompactFocusRequest = (
   memory: ScrollAnchorMemory,
   roomId: string,
-  request?: CompactFocusRequest
-): ScrollAnchorSnapshot | undefined => {
-  const saved = memory.get(roomId);
-  const place =
-    request &&
-    !(request.returned && saved) &&
-    !metRequests.get(memory)?.has(metKey(request) ?? '') &&
-    !saved?.anchors.some((anchor) => anchor.key === request.eventId)
-      ? focusedPlace(request.eventId)
-      : saved;
-  return place && place.scrollTop > 0 ? place : undefined;
+  request: CompactFocusRequest
+): void => {
+  const key = metKey(request);
+  if ((request.returned && memory.has(roomId)) || (key && metRequests.get(memory)?.has(key)))
+    return;
+  if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
+    memory.set(roomId, focusedPlace(request.eventId));
+  }
 };
 
 /** Whether the list has still to show the card `request` asks for. */

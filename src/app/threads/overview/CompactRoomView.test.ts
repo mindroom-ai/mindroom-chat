@@ -648,7 +648,9 @@ describe('CompactRoomView', () => {
     expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Recent sidebar summary');
   });
 
-  // With no rows to measure, the overview restores the saved offset.
+  // The scroll memory's own rules live in scrollAnchorMemory.test.ts; these
+  // pin how the overview feeds it. With no rows to measure, it restores the
+  // saved offset.
   const createScrollElement = (initialMaxScrollTop = Number.POSITIVE_INFINITY) => {
     let maxScrollTop = initialMaxScrollTop;
     let scrollTop = 0;
