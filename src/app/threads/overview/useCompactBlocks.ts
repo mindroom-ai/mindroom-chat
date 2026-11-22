@@ -90,12 +90,15 @@ export function useCompactBlocks(options: Options) {
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
   const visible = geometry.visible.filter((id) => index.has(id));
+  const seed = band(visible);
   const [first, last] =
     back && backSlot !== undefined
       ? geometry.order === order
         ? band(savedKeys)
         : [backSlot, backSlot]
-      : band(geometry.order === order ? visible : visible.slice(0, 1));
+      : geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS
+      ? seed
+      : band(visible.slice(0, 1));
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
@@ -150,7 +153,7 @@ export function useCompactBlocks(options: Options) {
         heights.delete(id);
         fresh.delete(id);
       }
-    const layout = () => {
+    const layout = (settle = false) => {
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
@@ -172,6 +175,11 @@ export function useCompactBlocks(options: Options) {
         if (id !== undefined) {
           if (heights.get(id) !== height) changed = true;
           heights.set(id, height);
+          if (settle && placeReady && !state.placed) {
+            const pending = indexPending && saved?.anchors.length ? saved.anchors : undefined;
+            const anchor = pending?.find(({ key }) => key === id);
+            state.placed = !pending || (!!anchor && Math.abs(y - top - anchor.offset) <= 1);
+          }
         }
         if (y >= bottom || end <= top) continue;
         let edge = y;
@@ -191,12 +199,7 @@ export function useCompactBlocks(options: Options) {
     const measured = layout();
     if (back && canPlace && !placeReady) render();
     state.checked = true;
-    const update = () => {
-      const partialEnd =
-        back && indexPending && view.scrollTop >= view.scrollHeight - view.clientHeight;
-      state.placed ||= placeReady && liveIds.length > 0 && !partialEnd;
-      return layout();
-    };
+    const update = () => layout(true);
     let frame = 0;
     const schedule = () => {
       cancelAnimationFrame(frame);

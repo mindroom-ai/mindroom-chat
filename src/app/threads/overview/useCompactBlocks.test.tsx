@@ -207,8 +207,10 @@ it('retains a saved card when the partial index clamps the restore', () => {
     <List memory={memory} shown={{ cards: ids.slice(0, 11) }} indexPending />
   );
   const view = container.querySelector<HTMLElement>('[data-view]')!;
-  Object.defineProperty(view, 'scrollHeight', { value: 1030 });
+  Object.defineProperty(view, 'scrollHeight', { configurable: true, value: 1030 });
   view.scrollTop = 550;
+  // Insets can increase the native range before the anchor lands.
+  Object.defineProperty(view, 'scrollHeight', { value: 1080 });
   tick(1);
   rerender(
     <List
