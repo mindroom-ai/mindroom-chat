@@ -27,6 +27,7 @@ import {
   type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
+import { chooseCallNotify } from './callRings';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
@@ -469,14 +470,20 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const join = () => {
     setJoining(true);
     setLastStart(undefined);
+    const notifyInputs = {
+      peopleInCall: people.length,
+      direct,
+      joinedMembers: room.getJoinedMemberCount(),
+    };
     void startCall({
       room,
       kind: 'room',
       microphone,
       video: camera,
       devices,
-      // Starting a call rings the other person of a direct chat and notifies a group.
-      notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
+      // Starting a call rings a direct chat or small room and notifies larger groups.
+      notify: chooseCallNotify(notifyInputs),
+      notifyInputs,
     })
       .then((result) => {
         noteCallStart(store, mx, room.roomId, result);

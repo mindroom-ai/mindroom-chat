@@ -85,6 +85,76 @@ const callServiceIsUp = async (): Promise<boolean> => {
   }
 };
 
+type TimelineWireEvent = {
+  event_id: string;
+  type: string;
+  sender: string;
+  content: Record<string, unknown>;
+};
+
+/**
+ * Verifies on the homeserver that exactly one ring event follows the caller's live call
+ * membership, referencing it; in an encrypted room, verifies it is `m.room.encrypted` with only
+ * the allowlisted cleartext ring hint (`io.mindroom.rtc.notification`).
+ */
+const expectSingleRingAfterMembership = async (
+  roomId: string,
+  caller: Session,
+  encrypted: boolean,
+  recipientUserIds: string[]
+) => {
+  const { chunk } = await matrix<{ chunk: TimelineWireEvent[] }>(
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=f&limit=100`,
+    { token: caller.token }
+  );
+  const membershipIndex = chunk.findIndex(
+    (event) =>
+      event.type === 'org.matrix.msc3401.call.member' &&
+      event.sender === caller.userId &&
+      Object.keys(event.content).length > 0
+  );
+  expect(membershipIndex, 'caller call.member event must exist').toBeGreaterThanOrEqual(0);
+  const membershipEvent = chunk[membershipIndex]!;
+
+  const rings = chunk.slice(membershipIndex + 1).filter((event) => {
+    const rel = event.content['m.relates_to'] as
+      | { rel_type?: unknown; event_id?: unknown }
+      | undefined;
+    if (rel?.rel_type !== 'm.reference' || rel.event_id !== membershipEvent.event_id) return false;
+    return event.sender === caller.userId;
+  });
+  expect(rings, 'exactly one ring event must follow the caller membership').toHaveLength(1);
+  const ringEvent = rings[0]!;
+
+  if (!encrypted) {
+    expect(ringEvent.type).toBe('org.matrix.msc4075.rtc.notification');
+    expect(ringEvent.content.notification_type).toBe('ring');
+    expect(ringEvent.content.lifetime).toBe(30_000);
+    expect(ringEvent.content['m.call.intent']).toBe('audio');
+    return;
+  }
+
+  expect(ringEvent.type).toBe('m.room.encrypted');
+  const hint = ringEvent.content['io.mindroom.rtc.notification'] as
+    | Record<string, unknown>
+    | undefined;
+  expect(hint, 'encrypted ring must carry cleartext hint').toBeDefined();
+  expect(Object.keys(hint!).sort()).toEqual([
+    'lifetime',
+    'm.call.intent',
+    'notification_type',
+    'sender_ts',
+  ]);
+  expect(hint!.notification_type).toBe('ring');
+  expect(Number.isSafeInteger(hint!.sender_ts)).toBe(true);
+  expect(hint!.lifetime).toBe(30_000);
+  expect(hint!['m.call.intent']).toBe('audio');
+  const serializedHint = JSON.stringify(hint);
+  for (const userId of recipientUserIds) {
+    expect(serializedHint).not.toContain(userId);
+  }
+};
+
 /** A direct chat between two people, both with full power, as this client creates them. */
 const createDirectChat = async (owner: Session, guest: Session, encrypted: boolean) => {
   const { room_id: roomId } = await matrix<{ room_id: string }>('/createRoom', {
@@ -290,6 +360,7 @@ test.describe('calls', () => {
       const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
       await expect(ring).toBeVisible({ timeout: 60_000 });
       await expect(ring).toContainText('Alice Call is calling');
+      await expectSingleRingAfterMembership(roomId, alice, encrypted, [bob.userId]);
       // Bob's window is in the background: the ring also rings and shows a system notification.
       // It waits for Bob's client to load the room's member list, so Alice, a real member with a
       // name nobody else uses, is named without her user ID.
@@ -412,6 +483,53 @@ test.describe('calls', () => {
       });
     });
   }
+
+  test('an encrypted three-member room outside m.direct rings with the cleartext hint', async ({
+    browser,
+  }) => {
+    const suffix = `${RUN}3m`;
+    const alice = await register(`alice${suffix}`, 'Alice Trio');
+    const bob = await register(`bob${suffix}`, 'Bob Trio');
+    const carol = await register(`carol${suffix}`, 'Carol Trio');
+    const { room_id: roomId } = await matrix<{ room_id: string }>('/createRoom', {
+      token: alice.token,
+      body: {
+        name: 'Small Trio Room',
+        preset: 'trusted_private_chat',
+        invite: [bob.userId, carol.userId],
+        initial_state: [
+          {
+            type: 'm.room.encryption',
+            state_key: '',
+            content: { algorithm: 'm.megolm.v1.aes-sha2' },
+          },
+        ],
+      },
+    });
+    await matrix(`/join/${encodeURIComponent(roomId)}`, { token: bob.token, body: {} });
+    await matrix(`/join/${encodeURIComponent(roomId)}`, { token: carol.token, body: {} });
+
+    const alicePage = await signIn(browser, `alice${suffix}`);
+    const bobPage = await signIn(browser, `bob${suffix}`);
+    await openRoom(alicePage, roomId);
+    await bobPage.goto('/home/');
+
+    await alicePage.locator('[data-room-call-button]').click();
+    await expect(callPanel(alicePage)).toBeVisible();
+    await callPanel(alicePage).getByRole('button', { name: 'Join', exact: true }).click();
+    await expect(tileOf(alicePage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+
+    const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
+    await expect(ring).toBeVisible({ timeout: 60_000 });
+    await expect(ring).toContainText('Alice Trio is calling');
+    await expectSingleRingAfterMembership(roomId, alice, true, [bob.userId, carol.userId]);
+
+    await ring.getByRole('button', { name: 'Reject' }).click();
+    await expect(ring).toHaveCount(0);
+    await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
+  });
 
   test('a call whose panel could not load ends from the panel that says so', async ({
     browser,

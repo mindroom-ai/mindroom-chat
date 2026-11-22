@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%1$@에서 %2$@ %3$@";
 "IMAGE_FROM_USER" = "%1$@님이 이미지를 보냈습니다: %2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@님이 %3$@에서 이미지를 보냈습니다: %2$@";
-"VOICE_CALL_FROM_USER" = "%1$@님의 음성 통화";
-"VIDEO_CALL_FROM_USER" = "%1$@님의 영상 통화";
+"VOICE_CALL_FROM_USER" = "%1$@님의 수신 전화";
+"VIDEO_CALL_FROM_USER" = "%1$@님의 영상 통화 수신";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@님이 %2$@에 초대했습니다";
 "USER_INVITE_TO_CHAT" = "%1$@님이 채팅에 초대했습니다";
 "QUICK_CAPTURE" = "빠른 캡처";

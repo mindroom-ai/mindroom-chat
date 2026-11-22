@@ -274,6 +274,53 @@ describe('opt-in deep diagnostic trace', () => {
     expect(JSON.stringify(snapshot)).not.toContain('private');
   });
 
+  it('records call ring trace events with numeric and boolean fields only', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    recordDeepTraceEvent('calls.ring.join.ring', {
+      encrypted: true,
+      people_in_call: 0,
+      direct: false,
+      joined_members: 3,
+      room_id: '!secret:example.org',
+    });
+    recordDeepTraceEvent('calls.ring.membership_echo', {
+      has_event_id: true,
+      old_member_count: 0,
+      member_count: 1,
+    });
+    recordDeepTraceEvent('calls.ring.local_echo.not_sent', {
+      encrypted: false,
+      http_status: 500,
+      has_error: true,
+    });
+    recordDeepTraceEvent('calls.ring.sent.ring', { has_event_id: true });
+    recordDeepTraceEvent('calls.ring.missing_echo', {
+      has_membership_event_id: false,
+      member_count: 1,
+      timeout_ms: 3000,
+    });
+
+    const snapshot = await readDeepTraceSnapshot();
+    const names = snapshot.events.map((event) => event.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'calls.ring.join.ring',
+        'calls.ring.membership_echo',
+        'calls.ring.local_echo.not_sent',
+        'calls.ring.sent.ring',
+        'calls.ring.missing_echo',
+      ])
+    );
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        name: 'calls.ring.join.ring',
+        data: { encrypted: true, people_in_call: 0, direct: false, joined_members: 3 },
+      })
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('secret');
+  });
+
   it('keeps memory samples with their reason flag and numeric gauges', async () => {
     await setDeepTraceEnabled(true, storage);
     const unregister = registerMemoryGauge('room_live_events', () => 1_234);

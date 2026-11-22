@@ -40,8 +40,8 @@ import {
 // mode, and the one-line bar the window shows while minimized; and the call's controls.
 
 const USER = '@me:panel.test';
-const room = { roomId: '!standup:panel.test' } as Room;
-const callRoom = { roomId: '!agent-call:panel.test' } as Room;
+const room = { roomId: '!standup:panel.test', getJoinedMemberCount: () => 5 } as Room;
+const callRoom = { roomId: '!agent-call:panel.test', getJoinedMemberCount: () => 2 } as Room;
 
 const calls = vi.hoisted(() => ({
   active: undefined as ActiveCall | undefined,

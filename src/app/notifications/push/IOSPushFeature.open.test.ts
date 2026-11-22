@@ -158,4 +158,18 @@ describe('NativeIOSPushOpenFeature', () => {
     expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
     renderer.unmount();
   });
+
+  it('opens the room without an event ID when tapping a call ring push', async () => {
+    const renderer = await mount();
+    await tap({
+      aps: {},
+      room_id: '!joined:example',
+      event_id: '$ring-event',
+      mindroom_ring: { expires_at: Date.now() + 30_000 },
+    });
+
+    expect(state.navigateRoom).toHaveBeenCalledTimes(1);
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
+    renderer.unmount();
+  });
 });
