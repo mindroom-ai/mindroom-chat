@@ -111,6 +111,7 @@ type RoomOptions = {
   isSpace?: boolean;
   roomVersion?: string;
   powerLevels?: Record<string, unknown>;
+  powerLevelTags?: Record<string, unknown>;
   createContent?: Record<string, unknown>;
   createSender?: string;
   members?: { userId: string; membership: string }[];
@@ -192,6 +193,9 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
         getStateEvents: (eventType: string) => {
           if (eventType === 'm.room.power_levels') return makeStateEvent(state.powerLevels);
           if (eventType === 'm.room.create') return createEvent;
+          if (eventType === 'io.mindroom.power_level_tags' && options.powerLevelTags) {
+            return makeStateEvent(options.powerLevelTags);
+          }
           return undefined;
         },
       }),
@@ -536,7 +540,8 @@ describe('InviteUserPrompt', () => {
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
     expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
     expect(getInput(renderer).props.value).toBe('');
-    expect(textContent(renderer, 'status')).toContain('@mindroom_helper:example.org');
+    expect(textContent(renderer, 'status')).toBe('');
+    expect(textContent(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
     expect(textContent(renderer, 'alert')).toContain('Forbidden');
   });
 
@@ -715,7 +720,7 @@ describe('InviteUserPrompt', () => {
     expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
   });
 
-  it('names Admin in the checkbox label and help when the grant level is 100', () => {
+  it('names Admin (100) in the checkbox label and help when the grant level is 100', () => {
     const { renderer } = renderPrompt({
       powerLevels: {
         users: { '@me:example.org': 100 },
@@ -730,8 +735,46 @@ describe('InviteUserPrompt', () => {
       .findAll((node) => typeof node.children?.[0] === 'string')
       .map((node) => node.children.join(''))
       .join(' ');
-    expect(allText).toContain('Give Admin rights');
+    expect(allText).toContain('Give Admin (100) rights');
+    expect(allText).toContain('This room requires Admin (100) rights');
     expect(allText).not.toContain('Give Moderator rights');
+  });
+
+  it('shows the numeric level when a custom level-100 tag is named Moderator, including on requirement rise', async () => {
+    const { renderer } = renderPrompt({
+      powerLevelTags: { '100': { name: 'Moderator' } },
+      powerLevels: {
+        users: { '@me:example.org': 100 },
+        users_default: 0,
+        state_default: 50,
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
+      },
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    const allText = renderer.root
+      .findAll((node) => typeof node.children?.[0] === 'string')
+      .map((node) => node.children.join(''))
+      .join(' ');
+    expect(allText).toContain('Give Moderator (100) rights');
+    expect(allText).toContain('This room requires Moderator (100) rights');
+
+    const rising = renderPrompt({
+      powerLevelTags: { '100': { name: 'Moderator' } },
+    });
+    vi.mocked(rising.mx.invite).mockImplementationOnce(async () => {
+      rising.room.state.powerLevels = {
+        ...rising.room.state.powerLevels,
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
+      };
+      return {} as never;
+    });
+    typeUserId(rising.renderer, '@mindroom_helper:example.org');
+    await submitInvite(rising.renderer);
+    expect(rising.mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(textContent(rising.renderer, 'alert')).toContain(
+      'This room now requires Moderator (100) rights.'
+    );
   });
 
   it('keys the checkbox override to the trimmed target ID', () => {
