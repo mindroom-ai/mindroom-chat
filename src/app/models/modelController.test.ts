@@ -2284,7 +2284,7 @@ describe('ModelController main-room next-thread draft', () => {
     h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
 
     h.devices.set(router, new Map([['DEV_NEW', h.device(router, 'DEV_NEW', 'curve-new')]]));
-    h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
     await flush();
 
     h.response(
