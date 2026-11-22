@@ -306,6 +306,16 @@ describe('useCompactScrollAnchor', () => {
     expect(writes).toEqual([250, 300]);
   });
 
+  it("keeps the cards in place during a card's sideways swipe, which cancels its touch moves", () => {
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes, rerender } = list(ids, 150);
+    const card = view.querySelector('[data-scroll-anchor="$b"]')!;
+    card.addEventListener('touchmove', (event) => event.preventDefault());
+    card.dispatchEvent(new Event('touchmove', { bubbles: true, cancelable: true }));
+    rerender(['$d', ...ids], () => show(['$d', ...ids]));
+    expect(writes).toEqual([250]);
+  });
+
   it('anchors a card below the floating header, not one it hides', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e'];
     const { view, show, writes, rerender } = list(ids, 120);

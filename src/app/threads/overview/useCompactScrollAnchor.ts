@@ -192,8 +192,10 @@ export const useCompactScrollAnchor = (
     // carries it on (momentum). A scroll of the list's own starts none.
     const onScroll = (event: Event) => {
       const now = performance.now();
-      if (event.type !== 'scroll') scrolledAtRef.current = now;
-      else {
+      // A touch a card's swipe owns scrolls nothing: the swipe cancelled the move on its way here.
+      if (event.type !== 'scroll') {
+        if (!event.defaultPrevented) scrolledAtRef.current = now;
+      } else {
         if (now - scrolledAtRef.current < SCROLL_SETTLE_MS) scrolledAtRef.current = now;
         placedRef.current = false;
         cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
