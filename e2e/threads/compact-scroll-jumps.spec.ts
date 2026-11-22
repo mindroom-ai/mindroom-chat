@@ -383,7 +383,8 @@ test.describe('Compact scroll jump regressions', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
 
     const { roots, send } = await seedLongCompactRoom(page, { layout: 'beside' });
-    await wheelBurst(page, 24, 240);
+    // Mid-list: at its end, the list could not scroll on by the height of the card that leaves.
+    await wheelBurst(page, 12, 220);
     await page.evaluate(settleView);
     const before = (await takeFrames(page)).at(-1)!;
     const target = before.visible[Math.min(2, before.visible.length - 1)]!;

@@ -118,8 +118,8 @@ class BeforeCommit extends Component<{ read: () => void }> {
  * another script that scrolled since has placed the list.
  *
  * While the reader scrolls, WebKit scrolls on a thread of its own, and a write sets its scroll
- * back. What the list is owed then waits until the scrolling settles, unless the commit itself
- * scrolled the list.
+ * back: the list is left as it is then, unless the commit itself scrolled it. Nothing is made up
+ * for once the scrolling settles, when the reader may have passed the cards that changed.
  */
 export const useCompactScrollAnchor = (
   rows: readonly string[],
@@ -130,8 +130,8 @@ export const useCompactScrollAnchor = (
   // What the listeners need of the latest commit. This ref does not decide the rows' order.
   const latestRef = useRef({ rows, sectionOfRow });
   const cardsInViewRef = useRef<CardsInView>();
-  // The reader's scrolling: its settle timer, and what the list is owed once it settles.
-  const scrollingRef = useRef<{ timer?: ReturnType<typeof setTimeout>; owed: number }>({ owed: 0 });
+  // When the reader last scrolled (`performance.now()`).
+  const scrolledAtRef = useRef(-Infinity);
 
   const keepPlace = useCallback(
     (committed: boolean) => {
@@ -152,9 +152,8 @@ export const useCompactScrollAnchor = (
           }))
           .find(({ card }) => card);
         const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
-        const scrolling = scrollingRef.current;
-        if (stayed && scrolling.timer !== undefined) scrolling.owed += moved;
-        else if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
+        const scrolling = performance.now() - scrolledAtRef.current < SCROLL_SETTLE_MS;
+        if (Math.abs(moved) >= 0.5 && !(stayed && scrolling)) view.scrollTop += moved;
       }
       cardsInViewRef.current = cardsInView(view, order);
     },
@@ -174,18 +173,12 @@ export const useCompactScrollAnchor = (
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return undefined;
-    const scrolling = scrollingRef.current;
-    const settle = () => {
-      scrolling.timer = undefined;
-      if (scrolling.owed && view.scrollTop > 0) view.scrollTop += scrolling.owed;
-      scrolling.owed = 0;
-    };
     // A wheel or a finger starts the reader's scrolling and each scroll within the settle time
     // carries it on (momentum). A scroll of the list's own starts none.
     const onScroll = (event: Event) => {
-      if (event.type !== 'scroll' || scrolling.timer !== undefined) {
-        clearTimeout(scrolling.timer);
-        scrolling.timer = setTimeout(settle, SCROLL_SETTLE_MS);
+      const now = performance.now();
+      if (event.type !== 'scroll' || now - scrolledAtRef.current < SCROLL_SETTLE_MS) {
+        scrolledAtRef.current = now;
       }
       cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
@@ -198,8 +191,6 @@ export const useCompactScrollAnchor = (
     const events = ['scroll', 'wheel', 'touchmove'];
     events.forEach((type) => view.addEventListener(type, onScroll, { passive: true }));
     return () => {
-      clearTimeout(scrolling.timer);
-      Object.assign(scrolling, { timer: undefined, owed: 0 });
       observer?.disconnect();
       events.forEach((type) => view.removeEventListener(type, onScroll));
     };

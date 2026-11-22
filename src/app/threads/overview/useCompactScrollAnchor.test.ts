@@ -215,27 +215,28 @@ describe('useCompactScrollAnchor', () => {
   });
 
   it.each(['wheel', 'touchmove'])(
-    'scrolls by what a change during a %s scroll moved the cards once the scroll settles',
+    'leaves the list as a change during a %s scroll of the reader moves it',
     (input) => {
       vi.useFakeTimers();
       const ids = ['$c', '$b', '$a'];
       const { view, show, writes, rerender, scrollBy } = list(ids, 150);
       view.dispatchEvent(new Event(input));
       rerender(['$d', ...ids], () => show(['$d', ...ids]));
-      expect(writes).toEqual([]);
 
-      // The scroll goes on (momentum), and each of its events holds the write back.
+      // The scroll goes on (momentum): each of its events within the settle time carries it on.
       vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
       scrollBy(-20);
       view.dispatchEvent(new Event('scroll'));
       vi.advanceTimersByTime(SCROLL_SETTLE_MS - 1);
-      expect(writes).toEqual([]);
-      vi.advanceTimersByTime(1);
-      expect(writes).toEqual([230]);
-
-      // The list's own scroll is no scrolling of the reader's.
-      view.dispatchEvent(new Event('scroll'));
       rerender(['$e', '$d', ...ids], () => show(['$e', '$d', ...ids]));
+      expect(writes).toEqual([]);
+
+      // Settled, and nothing is made up for. The list's own scroll is no scrolling of the reader's.
+      vi.advanceTimersByTime(1);
+      rerender(['$f', '$e', '$d', ...ids], () => show(['$f', '$e', '$d', ...ids]));
+      expect(writes).toEqual([230]);
+      view.dispatchEvent(new Event('scroll'));
+      rerender(['$g', '$f', '$e', '$d', ...ids], () => show(['$g', '$f', '$e', '$d', ...ids]));
       expect(writes).toEqual([230, 330]);
     }
   );
