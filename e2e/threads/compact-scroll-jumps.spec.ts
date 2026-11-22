@@ -460,7 +460,10 @@ test.describe('Compact scroll jump regressions', () => {
     await page.waitForFunction(() => window.compactRecorder.last?.replySeen, undefined, {
       timeout: 20_000,
     });
-    await takeFrames(page);
+    // The reply is in, and the pointer still holds the order: its thread has not sorted first.
+    const beforeClick = (await takeFrames(page)).at(-1)!;
+    expect(beforeClick.held, `[${browserName}] the list is held before the click`).toBe(true);
+    expect(beforeClick.order[0]![0]).not.toBe(roots[4]);
 
     await targetCard.click();
     await expect(page).toHaveURL(/threadId=/);
