@@ -9,6 +9,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
+import * as scrollFallback from './useCompactScrollFallback';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -76,9 +77,9 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
-const view = (threadRootIds: string[], sections = true) => (
+const view = (threadRootIds: string[], sections = true, activeRoom = room) => (
   <CompactRoomView
-    room={room}
+    room={activeRoom}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
@@ -554,6 +555,89 @@ describe('the Compact room in sections', () => {
 
     expect(rows()).toEqual(['$streaming', '$job']);
     expect(state.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+});
+
+describe('Compact order when the view switches under the pointer', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const hold = () => {
+    const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+    act(() => {
+      fireEvent.pointerEnter(list);
+    });
+    return () =>
+      act(() => {
+        fireEvent.pointerLeave(list);
+        fireEvent.click(document.body);
+      });
+  };
+
+  it('starts a flat room in its live order and holds that order on the next update', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const { rerender } = render(view(['$a', '$b'], false));
+    hold();
+    rerender(view(['$b', '$a'], false));
+    expect(rows()).toEqual(['$a', '$b']);
+
+    const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+    const nextIds = ['$d', '$c'];
+    rerender(view(nextIds, false, nextRoom));
+    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
+    expect(rows()).toEqual(['$d', '$c']);
+    rerender(view(['$c', '$d'], false, nextRoom));
+    expect(rows()).toEqual(['$d', '$c']);
+  });
+
+  it('switches from Sections to flat using only the rows left after folding', () => {
+    state.sections = [
+      { id: 'working', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$done', '$b', '$a'];
+    const { rerender } = render(view(ids));
+    hold();
+    expect(rows()).toEqual(['#working 2', '$a', '$b', '#done 1']);
+
+    rerender(view(ids, false));
+    // The folded card is a newcomer, so it leads, while $a and $b keep their shown order.
+    expect(rows()).toEqual(['$done', '$a', '$b']);
+  });
+
+  it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$a', '$done'];
+    const { rerender } = render(view(ids, false));
+    const release = hold();
+    rerender(view(ids));
+    const sectionRows = fallback.mock.lastCall?.[0];
+    expect(sectionRows).toEqual(['section:needsYou', '$a', 'section:done']);
+
+    fallback.mockClear();
+    release();
+    expect(fallback.mock.lastCall?.[0]).toBe(sectionRows);
+  });
+
+  it('switches from flat to live Sections, then holds those sections on the next update', () => {
+    const ids = ['$a', '$b', '$c'];
+    const { rerender } = render(view(ids, false));
+    hold();
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$b', '$a'] },
+      { id: 'working', rootIds: ['$c'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 2', '$b', '$a', '#working 1', '$c']);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$c', '$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$b', '$a', '#working 0', '$c']);
   });
 });
 
