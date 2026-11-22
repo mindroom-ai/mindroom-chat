@@ -18,6 +18,24 @@ html[data-shell='desktop'][data-fullscreen] {
   --app-inset-top: 0px;
 }
 
+html[data-shell='desktop'] [data-titlebar-drag] {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--app-inset-top, 0px);
+  -webkit-app-region: drag;
+}
+
+html[data-shell='desktop'] #portalContainer {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-shell='desktop'] body > :not(#root),
+html[data-shell='desktop'] body > :not(#root) * {
+  -webkit-app-region: no-drag;
+}
+
 html {
   height: 100%;
   -webkit-text-size-adjust: 100%;

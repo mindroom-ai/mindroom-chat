@@ -52,6 +52,12 @@ matrix-rust-sdk (Apple Watch app)
   xxhash-rust (Boost Software License 1.0, permissive, no notice required in a
   binary; matrix-sdk-base needs it through growable-bloom-filter).
 
+Electron (Mac desktop shell)
+  electron 45.4.1, Copyright (c) Electron contributors and GitHub Inc.,
+  MIT License (https://github.com/electron/electron). Bundles Chromium and
+  Node.js; their third-party notices ship alongside the Electron runtime
+  (LICENSES.chromium.html and LICENSE in the Electron distribution).
+
 Sparkle (Mac app updater)
   Sparkle 2.10.1, Copyright (c) 2006-2013 Andy Matuschak and the other
   authors its license names, MIT License (https://github.com/sparkle-project/Sparkle).

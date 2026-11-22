@@ -368,6 +368,26 @@ describe('InlineCanvasFrame', () => {
     act(() => container.querySelector('button')!.click());
     expect(container.querySelector('iframe')).not.toBeNull();
   });
+  it('keeps the iframe mounted and counts no escape on web when srcDoc updates and loads again', () => {
+    const request = event();
+    render(request, true, false);
+    const first = frame();
+    expect(first.getAttribute('srcdoc')).not.toContain('img-src data: blob: https:');
+    act(() => {
+      first.dispatchEvent(new Event('load'));
+    });
+    render(request, true, true);
+    expect(frame()).toBe(first);
+    expect(first.getAttribute('srcdoc')).toContain('img-src data: blob: https:');
+    act(() => {
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+      first.dispatchEvent(new Event('load'));
+    });
+    expect(frame()).toBe(first);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
   it('shrinks a wide page to its column and never enlarges a narrow one', () => {
     expect(inlineCanvasScale(720, 1440)).toBe(0.5);
     expect(inlineCanvasScale(720, 390)).toBe(1);
@@ -675,5 +695,52 @@ describe('InlineCanvasFrame as a host', () => {
     expect(container.textContent).toContain('updated this page.');
     act(() => buttonNamed('Load update')!.click());
     expect(frame().srcdoc).toContain('Latest');
+  });
+
+  it('remounts and posts the updated document in the desktop shell when remoteAssets flips', () => {
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { onShellEvent: () => () => undefined },
+    });
+    try {
+      const request = event();
+      render(request, true, false);
+      const first = frame();
+      expect(first.getAttribute('src')).toBe('/canvas-frame.html');
+      const postFirst = vi.fn();
+      const winFirst = { postMessage: postFirst } as unknown as Window;
+      Object.defineProperty(first, 'contentWindow', { configurable: true, value: winFirst });
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: 'canvas-frame-ready',
+            source: winFirst,
+            origin: 'null',
+          })
+        );
+      });
+      expect(postFirst).toHaveBeenCalledTimes(1);
+      expect(String(postFirst.mock.calls[0]?.[0])).not.toContain('img-src data: blob: https:');
+
+      render(request, true, true);
+      const second = frame();
+      expect(second).not.toBe(first);
+      const postSecond = vi.fn();
+      const winSecond = { postMessage: postSecond } as unknown as Window;
+      Object.defineProperty(second, 'contentWindow', { configurable: true, value: winSecond });
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: 'canvas-frame-ready',
+            source: winSecond,
+            origin: 'null',
+          })
+        );
+      });
+      expect(postSecond).toHaveBeenCalledTimes(1);
+      expect(String(postSecond.mock.calls[0]?.[0])).toContain('img-src data: blob: https:');
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

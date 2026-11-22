@@ -1,0 +1,48 @@
+name: Desktop shell
+
+on:
+  pull_request:
+    paths:
+      - electron/**
+      - src/app/lib/desktopBridge.ts
+      - src/app/lib/nativeShell.ts
+      - src/app/native/**
+      - src/sw/swMediaAuth.ts
+      - src/app/messages/canvas/**
+      - src/app/canvas/**
+      - src/index.tsx
+      - src/index.css
+      - src/app/shell/App.tsx
+      - index.html
+      - public/*.html
+      - scripts/frame-headers.json
+      - package.json
+      - package-lock.json
+      - playwright.electron.config.ts
+      - e2e/helpers/electronApp.ts
+      - e2e/electron/**
+      - .github/workflows/desktop.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Electron shell e2e (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm ci
+      - name: Build desktop shell
+        run: npm run build:desktop
+      - name: Run offline desktop e2e
+        run: npm run e2e:desktop -- --grep-invert @homeserver

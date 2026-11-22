@@ -44,6 +44,8 @@ INDEX_HTML = (
     .replace('<base href="/" />', f'<base href="{BASE_HREF}" />')
     .replace('<script src="/runtime-config.js"></script>',
              f'<script src="{RUNTIME_SCRIPT_SRC}"></script>')
+    .replace('<script src="/viewport.js"></script>',
+             f'<script src="{BASE_HREF}viewport.js"></script>')
 ).encode("utf-8")
 
 

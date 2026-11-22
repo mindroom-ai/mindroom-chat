@@ -11,6 +11,7 @@ import {
   type CanvasSaved,
 } from '../messages/canvas/canvasDocument';
 import type { CanvasTheme } from '../messages/canvas/canvasTheme';
+import { useCanvasFrame } from '../messages/canvas/canvasFrame';
 import { useCanvasHost, type CanvasView } from '../messages/canvas/useCanvasHost';
 import { CanvasAnswerBar } from '../messages/canvas/CanvasAnswerBar';
 import { CanvasPageErrors } from '../messages/canvas/CanvasPageErrors';
@@ -90,6 +91,7 @@ export function CanvasPanel({
     onSaveState,
   });
   const { displayed, doc, frameKey, frameRef, escaped } = host;
+  const { generation, ...frameProps } = useCanvasFrame(doc, frameRef, host.handleLoad);
 
   // While an update waits behind Load update, the numbers describe that update, not the page shown.
   const versions = host.updateAvailable ? undefined : version;
@@ -237,15 +239,14 @@ export function CanvasPanel({
       )}
       {!displayed.status && !escaped && (
         <iframe
-          key={frameKey}
+          key={`${frameKey}:${generation}`}
           ref={frameRef}
           className={css.Frame}
           title={displayed.title}
           sandbox={CANVAS_WRAPPER_SANDBOX}
           allow={CANVAS_PERMISSIONS}
-          srcDoc={doc}
+          {...frameProps}
           referrerPolicy="no-referrer"
-          onLoad={host.handleLoad}
           // A raw page is a page in a browser: white, in the browser's color scheme.
           style={displayed.raw ? { background: '#fff', colorScheme: RAW_COLOR_SCHEME } : undefined}
         />

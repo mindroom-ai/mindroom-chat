@@ -100,7 +100,7 @@ main() {
     mapfile -t specs <"$resume/specs.txt"
   fi
   if [ ${#specs[@]} -eq 0 ]; then
-    mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | sort)
+    mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | grep -v '^e2e/electron/' | sort)
     # And the specs in the e2e/ of each plugin directory (E2E_PLUGIN_DIRS, relative to the
     # repository), by their path in the snapshot, whose e2e-plugins/ has a copy of the directory
     # (scripts/e2e-slot.sh --preview).
