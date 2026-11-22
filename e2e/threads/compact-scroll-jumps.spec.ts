@@ -1,6 +1,6 @@
-/* eslint-disable no-await-in-loop, no-console -- investigative probe v4: isolate reatt=2 vs reatt=63, mid-scroll edit, sections unread open. */
+/* eslint-disable no-await-in-loop -- replay user scroll and thread-open actions sequentially. */
 import { randomUUID } from 'node:crypto';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -23,7 +23,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 
-const password = 'compact-jumps-test-only';
+const password = 'compact-jumps-repro-only';
 
 const settleView = () =>
   new Promise<void>((resolve, reject) => {
@@ -50,62 +50,34 @@ const settleView = () =>
     requestAnimationFrame(tick);
   });
 
-const summary = (label: string, frames: ListFrame[]) => {
-  console.log(`[${label}] frames=${frames.length}`);
-  for (let i = 1; i < frames.length; i += 1) {
-    const p = frames[i - 1]!;
-    const c = frames[i]!;
-    const dy = c.y - p.y;
-    const pMap = new Map(p.visible.map((r) => [r.key, r]));
-    const first = c.visible.find((r) => pMap.has(r.key));
-    const topD = first ? first.top - pMap.get(first.key)!.top : Number.NaN;
-    const paintD = first ? first.painted - pMap.get(first.key)!.painted : Number.NaN;
-    const layShift = first ? topD + dy : Number.NaN;
-    const ord =
-      p.order.length !== c.order.length ||
-      p.order.some(([k, g], idx) => c.order[idx]?.[0] !== k || c.order[idx]?.[1] !== g);
-    if (
-      Math.abs(dy) >= 2 ||
-      Math.abs(topD) >= 2 ||
-      Math.abs(paintD) >= 2 ||
-      Math.abs(c.paddingTop - p.paddingTop) >= 1 ||
-      Math.abs(c.scrollHeight - p.scrollHeight) >= 2 ||
-      ord ||
-      c.writes.length > 0
-    ) {
-      console.log(
-        `  f${i} y:${p.y.toFixed(1)}->${c.y.toFixed(1)}(dy=${dy.toFixed(1)}) ` +
-          `pad:${p.paddingTop.toFixed(0)}->${c.paddingTop.toFixed(0)} ` +
-          `sh:${p.scrollHeight}->${c.scrollHeight} topD=${Number.isFinite(topD) ? topD.toFixed(1) : 'n/a'} ` +
-          `paintD=${Number.isFinite(paintD) ? paintD.toFixed(1) : 'n/a'} ` +
-          `layShift=${Number.isFinite(layShift) ? layShift.toFixed(1) : 'n/a'} ` +
-          `ord=${ord} held=${c.held} writes=${c.writes.length} reatt=${c.reattached.length}`
-      );
-      for (const w of c.writes) {
-        console.log(
-          `    WRITE ${w.method}(req=${w.requested ?? ''}) ${w.before.toFixed(1)}->${w.after.toFixed(1)} :: ${w.stack
-            .split('\n')
-            .slice(0, 3)
-            .join(' | ')}`
-        );
-      }
-    }
-  }
+const formatWrites = (frame: ListFrame) =>
+  frame.writes
+    .map(
+      (w) =>
+        `${w.method}(req=${w.requested ?? ''}) ${w.before.toFixed(1)}->${w.after.toFixed(1)} @ ${
+          w.stack.split('\n')[0] ?? ''
+        }`
+    )
+    .join('; ');
+
+type SeededRoom = {
+  roomId: string;
+  rootPath: string;
+  roots: string[];
+  send: (body: string, root?: string) => Promise<string>;
+  editRoot: (rootId: string, body: string) => Promise<string>;
 };
 
-test('isolate reatt=2 vs reatt=63, mid-scroll-up edit, and sections unread open @webkit', async ({
-  page,
-  browserName,
-}) => {
-  test.setTimeout(180_000);
-  test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
-  await page.setViewportSize({ width: 1440, height: 900 });
-
+const seedLongCompactRoom = async (
+  page: Page,
+  options: { threadCount?: number; longTitles?: boolean; layout?: 'beside' | 'full' } = {}
+): Promise<SeededRoom> => {
+  const { threadCount = 65, longTitles = false, layout = 'beside' } = options;
   const suffix = randomUUID().slice(0, 8);
-  const reader = await registerDisposableUser(`jmp4_${suffix}`, password);
-  const agent = await registerAgentAccount(hs, `jmp4agent_${suffix}`);
+  const reader = await registerDisposableUser(`repro_${suffix}`, password);
+  const agent = await registerAgentAccount(hs, `reproagent_${suffix}`);
   const roomId = await createRoom(hs, reader.accessToken, {
-    name: 'Isolation Probe Room',
+    name: 'Compact Jump Repro Room',
     invite: [agent.userId],
   });
   await joinRoom(hs, agent.accessToken, roomId);
@@ -133,8 +105,11 @@ test('isolate reatt=2 vs reatt=63, mid-scroll-up edit, and sections unread open 
     });
 
   const roots: string[] = [];
-  for (let i = 0; i < 65; i += 1) {
-    const root = await send(`Thread #${i} - Short`);
+  for (let i = 0; i < threadCount; i += 1) {
+    const extra = longTitles
+      ? ' - Long descriptive title that stays on one line when wide and wraps onto two or three lines when a thread column opens beside the list'
+      : '';
+    const root = await send(`Thread #${i}${extra}`);
     await send(`Reply #${i}`, root);
     roots.push(root);
   }
@@ -148,98 +123,283 @@ test('isolate reatt=2 vs reatt=63, mid-scroll-up edit, and sections unread open 
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.addInitScript((user) => {
-    localStorage.setItem('mindroom.threadColumn.layout', JSON.stringify('beside'));
-    localStorage.setItem(`compactRoomSections:${user}`, JSON.stringify({ on: false, folded: [] }));
-  }, reader.userId);
+  await page.addInitScript(
+    ({ user, threadLayout }) => {
+      localStorage.setItem('mindroom.threadColumn.layout', JSON.stringify(threadLayout));
+      localStorage.setItem(`compactRoomSections:${user}`, JSON.stringify({ on: false, folded: [] }));
+    },
+    { user: reader.userId, threadLayout: layout }
+  );
   await installListRecorder(page);
   await page.goto(rootPath);
 
-  const view = () => page.locator(`${COMPACT}${LIVE}:not([data-thread-board-column] *)`);
-  await expect(view().locator('[data-scroll-anchor]').first()).toBeAttached({ timeout: 30_000 });
+  const view = page.locator(`${COMPACT}${LIVE}:not([data-thread-board-column] *)`);
+  await expect(view.locator('[data-scroll-anchor]').first()).toBeAttached({ timeout: 30_000 });
   await page.evaluate(settleView);
-  console.log(`=== ISOLATE ENGINE=${browserName} ===`);
+  return { roomId, rootPath, roots, send, editRoot };
+};
 
-  const wheelTo = async (steps: number, dy: number) => {
-    const rect = (await view().boundingBox())!;
-    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    for (let i = 0; i < steps; i += 1) {
-      await page.mouse.wheel(0, dy);
-      await page.waitForTimeout(16);
-    }
-  };
+const compactView = (page: Page) =>
+  page.locator(`${COMPACT}${LIVE}:not([data-thread-board-column] *)`);
 
-  // --- CHECK 1: Re-sort a card ABOVE viewport (index 2 -> index 0, reatt=2, visible cards untouched!) ---
-  await wheelTo(12, 220);
-  await page.evaluate(settleView);
-  await page.mouse.move(8, 8);
-  await page.waitForTimeout(800);
-  const c1Before = (await takeFrames(page)).at(-1)!;
-  const aboveKey = c1Before.order[2]![0];
-  await send('Check 1 reply to index 2 (above viewport)', aboveKey);
-  await page.waitForTimeout(900);
-  const c1Frames = await takeFrames(page);
-  summary(`C1-resort-above-viewport-reatt2-${browserName}`, [c1Before, ...c1Frames]);
-
-  // --- CHECK 2: Re-sort a card BELOW viewport (index 63 -> index 0, reatt=63, visible cards re-inserted!) ---
-  const c2Before = (await takeFrames(page)).at(-1) ?? c1Before;
-  const belowKey = c2Before.order.at(-2)![0];
-  await send('Check 2 reply to index 63 (below viewport)', belowKey);
-  await page.waitForTimeout(900);
-  const c2Frames = await takeFrames(page);
-  summary(`C2-resort-below-viewport-reatt63-${browserName}`, [c2Before, ...c2Frames]);
-
-  // --- CHECK 3: Mid-fast-scroll-up edit of card above viewport (does scrollTop !== before.scrollTop skip fallback?) ---
-  await wheelTo(16, 220);
-  await page.evaluate(settleView);
-  await page.mouse.move(8, 8);
-  await page.waitForTimeout(800);
-  await takeFrames(page);
-  // Start fast wheel UP continuously, firing root edits DURING the wheel burst!
-  const rect = (await view().boundingBox())!;
+const wheelBurst = async (page: Page, steps: number, dy: number) => {
+  const rect = await compactView(page).boundingBox();
+  if (!rect) throw Error('Compact scroller not visible');
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
-  let editSent = false;
-  for (let i = 0; i < 24; i += 1) {
-    await page.mouse.wheel(0, -100);
-    if (i === 4 && !editSent) {
-      editSent = true;
-      void editRoot(
-        roots[60]!,
-        'Thread #60 - Very long edited title that wraps onto three or four lines when rendered inside the compact card above the active scroll position during fast upward wheel scrolling'
-      );
-      void editRoot(
-        roots[59]!,
-        'Thread #59 - Very long edited title that wraps onto three or four lines when rendered inside the compact card above the active scroll position during fast upward wheel scrolling'
-      );
-      void editRoot(
-        roots[58]!,
-        'Thread #58 - Very long edited title that wraps onto three or four lines when rendered inside the compact card above the active scroll position during fast upward wheel scrolling'
-      );
-    }
+  for (let i = 0; i < steps; i += 1) {
+    await page.mouse.wheel(0, dy);
     await page.waitForTimeout(16);
   }
-  await page.waitForTimeout(600);
-  const c3Frames = await takeFrames(page);
-  summary(`C3-mid-scroll-up-root-edit-${browserName}`, c3Frames);
+};
 
-  // --- CHECK 4: Sections mode ON + click an unread card to open thread beside ---
-  const sectionsBtn = page.locator(`[data-thread-sections]${LIVE}`).first();
-  if (!(await sectionsBtn.isVisible())) {
-    await page.locator('[data-thread-filter-bar-toggle]').first().click();
-    await page.waitForTimeout(300);
-  }
-  await sectionsBtn.click();
-  await page.waitForTimeout(500);
-  await wheelTo(10, 220);
-  await page.evaluate(settleView);
-  const c4Before = (await takeFrames(page)).at(-1)!;
-  const unreadCard = c4Before.visible.find((r) => !r.key.startsWith('header:'));
-  if (unreadCard) {
-    await view().locator(`[data-thread-root-id="${unreadCard.key}"]${LIVE}`).click();
+test.describe('Compact scroll jump reproductions (expected to fail on main)', () => {
+  test('1A: live re-sort from below viewport jumps scrolled-down list (WebKit resets to 0, Chromium shifts +90px) @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const { send } = await seedLongCompactRoom(page);
+    await wheelBurst(page, 12, 220);
+    await page.evaluate(settleView);
+    await page.mouse.move(8, 8);
+    await page.waitForTimeout(800); // > MOUSE_REST_HOLD_MS (700 ms)
+
+    const before = (await takeFrames(page)).at(-1)!;
+    const belowKey = before.order.at(-2)![0];
+    await send('Live reply re-sorting older thread to top while scrolled down', belowKey);
+    await page.waitForTimeout(900);
+    const frames = [before, ...(await takeFrames(page))];
+    const after = frames.at(-1)!;
+
+    const beforeMap = new Map(before.visible.map((r) => [r.key, r]));
+    const surviving = after.visible.find((r) => beforeMap.has(r.key));
+    const topShift = surviving ? Math.abs(surviving.top - beforeMap.get(surviving.key)!.top) : 9999;
+
+    expect(
+      after.y,
+      `[${browserName}] scrollTop jumped ${before.y}->${after.y} (reatt=${Math.max(
+        ...frames.map((f) => f.reattached.length)
+      )}, writes=${frames.map(formatWrites).filter(Boolean).join(' | ') || 'none'})`
+    ).toBeGreaterThan(before.y - 200);
+    expect(
+      topShift,
+      `[${browserName}] visible anchor jumped by ${topShift.toFixed(1)}px (y: ${before.y}->${
+        after.y
+      })`
+    ).toBeLessThanOrEqual(2);
+  });
+
+  test('1B: fast scroll up in WebKit snaps backwards when card above grows (compositor race & non-parent height growth) @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    test.skip(browserName !== 'webkit', 'WebKit scroll fallback bug');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const { roots, editRoot } = await seedLongCompactRoom(page);
+    await wheelBurst(page, 16, 220);
+    await page.evaluate(settleView);
+    await takeFrames(page);
+
+    // Part 1: non-parent-commit card height growth above viewport while scrolling up
+    const growAbove = compactView(page).evaluate(async (el) => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      const cards = [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
+      for (const idx of [2, 5, 8]) {
+        const card = cards[idx];
+        if (card) card.style.paddingBottom = '60px';
+      }
+    });
+    await wheelBurst(page, 10, -140);
+    await growAbove;
+    await page.waitForTimeout(400);
+    const growthFrames = await takeFrames(page);
+
+    const uncompensatedJumps: string[] = [];
+    for (let i = 1; i < growthFrames.length; i += 1) {
+      const prev = growthFrames[i - 1]!;
+      const cur = growthFrames[i]!;
+      const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
+      const common = cur.visible.find((r) => prevMap.has(r.key));
+      if (!common) continue;
+      const dy = cur.y - prev.y;
+      const paintD = common.painted - prevMap.get(common.key)!.painted;
+      const layShift = common.top - prevMap.get(common.key)!.top + dy;
+      if (Math.abs(layShift) > 10 && Math.abs(dy) < 1 && Math.abs(paintD) > 10) {
+        uncompensatedJumps.push(
+          `f${i}: layShift=${layShift.toFixed(1)}px paintD=${paintD.toFixed(1)}px writes=${
+            cur.writes.length
+          }`
+        );
+      }
+    }
+
+    // Part 2: real Matrix root edits landing mid-fast-scroll-up -> fallback scrollTop write vs compositor
+    await wheelBurst(page, 14, 220);
+    await page.evaluate(settleView);
+    await takeFrames(page);
+    const rect = (await compactView(page).boundingBox())!;
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    for (let i = 0; i < 20; i += 1) {
+      await page.mouse.wheel(0, -100);
+      if (i === 4) {
+        for (const root of [roots[60]!, roots[59]!, roots[58]!]) {
+          void editRoot(
+            root,
+            'Long edited title that wraps onto multiple lines above the active scroll position during fast upward wheel scrolling'
+          );
+        }
+      }
+      await page.waitForTimeout(16);
+    }
+    await page.waitForTimeout(500);
+    const raceFrames = await takeFrames(page);
+    const backwardsSnaps: string[] = [];
+    for (let i = 1; i < raceFrames.length; i += 1) {
+      const prev = raceFrames[i - 1]!;
+      const cur = raceFrames[i]!;
+      const dy = cur.y - prev.y;
+      const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
+      const common = cur.visible.find((r) => prevMap.has(r.key));
+      const paintD = common ? common.painted - prevMap.get(common.key)!.painted : 0;
+      if (dy > 5 && paintD < -5 && cur.writes.length === 0) {
+        backwardsSnaps.push(
+          `f${i}: y ${prev.y.toFixed(1)}->${cur.y.toFixed(1)} (dy=+${dy.toFixed(
+            1
+          )}, paintD=${paintD.toFixed(1)}, writes=0)`
+        );
+      }
+    }
+
+    expect(
+      [...uncompensatedJumps, ...backwardsSnaps],
+      `[webkit] jumps during fast scroll up: ${[...uncompensatedJumps, ...backwardsSnaps].join(
+        '; '
+      )}`
+    ).toEqual([]);
+  });
+
+  test('2A: opening a thread beside the Compact list jumps visible cards (inset bounce + under-header anchor) @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await seedLongCompactRoom(page, { longTitles: true, layout: 'beside' });
+    await wheelBurst(page, 12, 220);
+    await page.evaluate(settleView);
+    const before = (await takeFrames(page)).at(-1)!;
+    const clicked = before.visible[Math.min(2, before.visible.length - 1)]!;
+
+    await compactView(page).locator(`[data-thread-root-id="${clicked.key}"]${LIVE}`).click();
+    await expect(page).toHaveURL(/threadId=/);
+    await page.waitForTimeout(900);
+    const frames = [before, ...(await takeFrames(page))];
+    const after = frames.at(-1)!;
+
+    const padBounceJumps: string[] = [];
+    for (let i = 1; i < frames.length; i += 1) {
+      const prev = frames[i - 1]!;
+      const cur = frames[i]!;
+      const padD = cur.paddingTop - prev.paddingTop;
+      const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
+      const common = cur.visible.find((r) => prevMap.has(r.key));
+      const paintD = common ? common.painted - prevMap.get(common.key)!.painted : 0;
+      if (Math.abs(padD) >= 5 && Math.abs(paintD) >= 5) {
+        padBounceJumps.push(
+          `f${i}: pad ${prev.paddingTop}->${cur.paddingTop} paintD=${paintD.toFixed(1)}px`
+        );
+      }
+    }
+
+    const afterClicked = after.visible.find((r) => r.key === clicked.key);
+    const clickedShift = afterClicked ? Math.abs(afterClicked.top - clicked.top) : 9999;
+
+    expect(padBounceJumps, `[${browserName}] uncompensated header/filter inset jumps`).toEqual([]);
+    expect(
+      clickedShift,
+      `[${browserName}] clicked card jumped ${clickedShift.toFixed(1)}px (${clicked.top.toFixed(
+        1
+      )}->${afterClicked?.top.toFixed(1) ?? 'OFFSCREEN'})`
+    ).toBeLessThanOrEqual(10);
+  });
+
+  test('2B: opening a thread beside list releases hover-held re-sort and jumps list (React restoreSelection writes scrollTop=0 in Chromium) @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const { roots, send } = await seedLongCompactRoom(page, { layout: 'beside' });
+    await wheelBurst(page, 24, 240);
+    await page.evaluate(settleView);
+    const before = (await takeFrames(page)).at(-1)!;
+    const target = before.visible[Math.min(2, before.visible.length - 1)]!;
+    const targetCard = compactView(page).locator(`[data-thread-root-id="${target.key}"]${LIVE}`);
+
+    await targetCard.hover();
+    await send('Held live reply released when moving pointer to opened thread', roots[4]!);
+    await page.waitForTimeout(400);
+    await takeFrames(page);
+
+    await targetCard.click();
     await expect(page).toHaveURL(/threadId=/);
     await page.mouse.move(1250, 450);
-    await page.waitForTimeout(1200);
-    const c4Frames = await takeFrames(page);
-    summary(`C4-sections-open-unread-beside-${browserName}`, [c4Before, ...c4Frames]);
-  }
+    await page.waitForTimeout(900);
+    const frames = [before, ...(await takeFrames(page))];
+    const after = frames.at(-1)!;
+
+    expect(
+      after.y,
+      `[${browserName}] scrollTop jumped ${before.y}->${after.y} writes=${frames
+        .map(formatWrites)
+        .filter(Boolean)
+        .join(' | ')}`
+    ).toBeGreaterThan(before.y - 200);
+    expect(
+      frames.some((f) => f.reattached.length > 10),
+      `[${browserName}] moving to opened thread released a full DOM reorder (max reatt=${Math.max(
+        ...frames.map((f) => f.reattached.length)
+      )})`
+    ).toBe(false);
+  });
+
+  test('2C: opening a deep thread via link on phone loses scrollAnchorMemory to competing writer and never reaches card @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    await page.setViewportSize({ width: 390, height: 780 });
+
+    const { rootPath, roots } = await seedLongCompactRoom(page, { layout: 'full' });
+    const linkTarget = roots[15]!; // ~50th card in 65-thread room (below first staged chunk)
+    await takeFrames(page);
+    await page.goto(`${rootPath}/${encodeURIComponent(linkTarget)}?focusEvent=1`);
+    await expect(compactView(page).locator('[data-scroll-anchor]').first()).toBeAttached({
+      timeout: 30_000,
+    });
+    await page.evaluate(settleView);
+    await page.waitForTimeout(400);
+
+    const frames = await takeFrames(page);
+    const finalFrame = frames.at(-1)!;
+    const targetVisible = finalFrame.visible.some((r) => r.key === linkTarget);
+
+    expect(
+      targetVisible,
+      `[${browserName}] linked card ${linkTarget} never reached viewport (final y=${
+        finalFrame.y
+      }, writes=${frames.map(formatWrites).filter(Boolean).join(' | ')})`
+    ).toBe(true);
+  });
 });
