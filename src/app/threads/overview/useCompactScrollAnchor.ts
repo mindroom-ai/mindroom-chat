@@ -26,7 +26,10 @@ const ANCHOR_CANDIDATES = 8;
 /** The topmost cards in view below the floating header (cards carry `data-scroll-anchor`). */
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView => {
   const { top, bottom } = view.getBoundingClientRect();
-  const viewTop = top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
+  // What the reader sees of the view: the floating header and composer cover its ends.
+  const style = getComputedStyle(view);
+  const viewTop = top + (parseFloat(style.scrollPaddingTop) || 0);
+  const viewBottom = bottom - (parseFloat(style.scrollPaddingBottom) || 0);
   const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
   // The cards stack in one column: find the first one in view by halving, so a reader far down a
   // long list costs a few layout reads rather than one per card above the view.
@@ -43,7 +46,7 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView =
     const rootId = card?.getAttribute('data-scroll-anchor');
     const cardTop = card?.getBoundingClientRect().top ?? Infinity;
     // A card below the view is none the reader sees: with no card in view, nothing is kept.
-    if (cardTop >= bottom) break;
+    if (cardTop >= viewBottom) break;
     if (rootId) cards.push({ rootId, top: cardTop - top });
   }
   return { cards, scrollTop: view.scrollTop, order };

@@ -327,6 +327,18 @@ describe('useCompactScrollAnchor', () => {
     expect(writes).toEqual([]);
   });
 
+  it('keeps no card that the floating composer hides', () => {
+    const headers = Array.from({ length: 9 }, (_, index) => `#section-${index}`);
+    const ids = ['$a', '$b', ...headers, '$z'];
+    const { view, show, writes, rerender } = list(ids, 2 * CARD);
+    // The composer covers the last 120 px: the headers fill what shows, and $z starts under it.
+    vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingBottom: '120px' }));
+    view.dispatchEvent(new Event('scroll'));
+    const next = ['$a', '$b', ...headers, '$y', '$z'];
+    rerender(next, () => show(next));
+    expect(writes).toEqual([]);
+  });
+
   it('anchors a card below the floating header, not one it hides', () => {
     const ids = ['$a', '$b', '$c', '$d', '$e'];
     const { view, show, writes, rerender } = list(ids, 120);
