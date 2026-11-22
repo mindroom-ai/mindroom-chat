@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
       name: string;
       getCanonicalAlias: () => null;
       membersLoaded: () => boolean;
+      loadMembersIfNeeded?: () => Promise<void>;
       getJoinedMembers: () => { userId: string; name: string }[];
       // A thread row's room: the row reads the thread's root.
       getThread?: () => null;
@@ -190,7 +191,12 @@ function CurrentPath() {
   return <output aria-label="Current path">{`${pathname}${search}`}</output>;
 }
 
-const renderList = (result: ActivityRowsResult, bootstrapped = true, config: ClientConfig = {}) => {
+const renderList = (
+  result: ActivityRowsResult,
+  bootstrapped = true,
+  config: ClientConfig = {},
+  variant: 'page' | 'sheet' = 'page'
+) => {
   const store = createStore();
   store.set(activityRowsAtom, result);
   store.set(crossRoomThreadIndexAtom, { ...emptyCrossRoomThreadIndexSnapshot(), bootstrapped });
@@ -199,7 +205,7 @@ const renderList = (result: ActivityRowsResult, bootstrapped = true, config: Cli
       <ClientConfigProvider value={config}>
         <ScreenSizeProvider value={ScreenSize.Desktop}>
           <MemoryRouter initialEntries={['/home/']}>
-            <ActivityList variant="page" />
+            <ActivityList variant={variant} />
             <CurrentPath />
           </MemoryRouter>
         </ScreenSizeProvider>
@@ -683,5 +689,161 @@ describe('ActivityList', () => {
   it('says when nothing is left', () => {
     renderList({ rows: [], hiddenAutomations: 0 });
     expect(screen.getByText("You're all caught up")).toBeTruthy();
+  });
+
+  it('windows long lists behind a scroll sentinel while counting all rows and loading only rendered rooms', () => {
+    const instances: {
+      callback: IntersectionObserverCallback;
+      targets: Set<Element>;
+      disconnect: ReturnType<typeof vi.fn>;
+    }[] = [];
+    class FakeIntersectionObserver {
+      targets = new Set<Element>();
+
+      disconnect = vi.fn(() => this.targets.clear());
+
+      constructor(public callback: IntersectionObserverCallback) {
+        instances.push(this);
+      }
+
+      observe(target: Element) {
+        this.targets.add(target);
+      }
+
+      unobserve(target: Element) {
+        this.targets.delete(target);
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    try {
+      const loaders = new Map<string, ReturnType<typeof vi.fn>>();
+      const rows = Array.from({ length: 95 }, (_, index) => {
+        const key = `r${index}`;
+        const mention = index < 5;
+        const row = threadRow(
+          key,
+          mention ? 'mention' : 'reply',
+          mention ? { mentionedMe: true, mentionedBy: '@maya:x' } : { newCount: 1 },
+          { actorIds: ['@mindroom_code:x'], title: `Thread ${key}` }
+        );
+        const roomId = `!${key}:x`;
+        const loadMembersIfNeeded = vi.fn(async () => undefined);
+        loaders.set(roomId, loadMembersIfNeeded);
+        mocks.rooms.set(roomId, {
+          ...mocks.rooms.get(roomId)!,
+          membersLoaded: () => false,
+          loadMembersIfNeeded,
+        });
+        return row;
+      });
+
+      renderList({ rows, hiddenAutomations: 0 }, true, {}, 'sheet');
+
+      const list = screen.getByRole('list');
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+      expect(screen.getByText('Thread r0')).toBeTruthy();
+      expect(screen.queryByText('Thread r40')).toBeNull();
+      // Unread/tab counts still reflect every row, not just the mounted window.
+      expect(screen.getByRole('tab', { name: /All/ }).textContent).toContain('95');
+      expect(screen.getByRole('tab', { name: /Mentions/ }).textContent).toContain('5');
+      expect(screen.getByRole('tab', { name: /Replies/ }).textContent).toContain('90');
+      // Only rooms for the rendered 40 rows load members.
+      expect(loaders.get('!r0:x')).toHaveBeenCalledTimes(1);
+      expect(loaders.get('!r39:x')).toHaveBeenCalledTimes(1);
+      expect(loaders.get('!r40:x')).not.toHaveBeenCalled();
+
+      const sentinel = document.querySelector('[data-activity-sentinel]') as HTMLElement | null;
+      expect(sentinel).toBeTruthy();
+      expect(sentinel?.getAttribute('aria-hidden')).toBe('true');
+      expect(list.contains(sentinel)).toBe(false);
+
+      const intersect = () => {
+        const current = instances.at(-1)!;
+        const target = [...current.targets][0];
+        expect(target).toBeTruthy();
+        act(() => {
+          current.callback(
+            [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
+            current as unknown as IntersectionObserver
+          );
+        });
+      };
+
+      intersect();
+      expect(within(list).getAllByRole('listitem')).toHaveLength(80);
+      expect(screen.getByText('Thread r40')).toBeTruthy();
+      expect(screen.queryByText('Thread r80')).toBeNull();
+      expect(loaders.get('!r79:x')).toHaveBeenCalledTimes(1);
+      expect(loaders.get('!r80:x')).not.toHaveBeenCalled();
+
+      intersect();
+      expect(within(list).getAllByRole('listitem')).toHaveLength(95);
+      expect(screen.getByText('Thread r94')).toBeTruthy();
+      expect(document.querySelector('[data-activity-sentinel]')).toBeNull();
+      expect(loaders.get('!r94:x')).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('resets the page window when switching tabs or toggling Unread', () => {
+    const instances: {
+      callback: IntersectionObserverCallback;
+      targets: Set<Element>;
+    }[] = [];
+    class FakeIntersectionObserver {
+      targets = new Set<Element>();
+
+      disconnect = vi.fn(() => this.targets.clear());
+
+      constructor(public callback: IntersectionObserverCallback) {
+        instances.push(this);
+      }
+
+      observe(target: Element) {
+        this.targets.add(target);
+      }
+
+      unobserve(target: Element) {
+        this.targets.delete(target);
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+
+    try {
+      const rows = Array.from({ length: 95 }, (_, index) =>
+        threadRow(`p${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+      );
+      renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
+
+      const list = screen.getByRole('list');
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+
+      const intersect = () => {
+        const current = instances.at(-1)!;
+        const target = [...current.targets][0];
+        act(() => {
+          current.callback(
+            [{ target, isIntersecting: true } as unknown as IntersectionObserverEntry],
+            current as unknown as IntersectionObserver
+          );
+        });
+      };
+
+      intersect();
+      expect(within(list).getAllByRole('listitem')).toHaveLength(80);
+
+      fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+
+      intersect();
+      expect(within(list).getAllByRole('listitem')).toHaveLength(80);
+
+      fireEvent.click(screen.getByLabelText('Unread'));
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
