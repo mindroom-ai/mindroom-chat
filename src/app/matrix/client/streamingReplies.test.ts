@@ -737,6 +737,50 @@ describe('streaming replies on thread cards', () => {
     expect(s.workflow()).toBe('needsYou');
   });
 
+  it('ends Working by a finishing edit the server bundles, whoever reacts', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const ignored = '@ignored:example.org';
+    await s.f.deliverAccountData('m.ignored_user_list', { ignored_users: { [ignored]: {} } });
+    expect(s.workflow()).toBe('working');
+    s.serve(s.ending(now + 1));
+    await s.f.deliver([{ ...stopReaction(now + 2), sender: ignored }]);
+    expect(s.f.replyRequests()).toBe(2);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('shows Working again by the first streaming edit after a page brought a finishing one', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
+    await s.thread.initialize();
+    expect(s.workflow()).toBe('needsYou');
+
+    const again = s.streaming(now + 1, '$f-again');
+    await arrive(s, { newest: again, live: [[again]] });
+    expect(s.workflow()).toBe('working');
+  });
+
+  it('keeps no hint by an edit that says the reply streams and that its run completed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const s = await relaunchMidStream(now);
+      const done = s.streaming(now - 1_000);
+      const newContent = done.content['m.new_content'] as Record<string, unknown>;
+      newContent['io.mindroom.ai_run'] = { version: 1, status: 'completed' };
+      await arrive(s, { newest: done, live: [[done]] });
+      expect(s.workflow()).toBe('needsYou');
+      // No hint waits out its five minutes unseen.
+      const updates = vi.fn();
+      s.thread.on(ThreadEvent.Update, updates);
+      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
+      expect(updates).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stays in Needs you by an edit without a status after a page brought the finishing one', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);

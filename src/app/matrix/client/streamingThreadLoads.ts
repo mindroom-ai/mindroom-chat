@@ -251,16 +251,18 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const hint = replyId ? streamHints.get(replyId) : undefined;
     // Another relation, as a reaction, starts no hint; the reply fetched for it may end one.
     const tells = edit.isRelation(RelationType.Replace) || (!!hint && !!reply);
-    if (!room || !replyId || !tells || barred(room, edit.getSender())) return;
+    // By the hint's sender, or the edit's for a start: who else reacts does not matter.
+    const from = hint?.edit ?? edit;
+    if (!room || !replyId || !tells || barred(room, from.getSender())) return;
     const thread = hint?.thread ?? edit.getThread();
     if (!thread || (!hint && edit.getSender() !== reply?.getSender())) return;
     const bundled = reply && getSameSenderBundledEdit(reply.event);
     const finishing = reply && getFinishingEdit(reply);
-    const from = hint?.edit ?? edit;
     const known = revisionsOf(thread, from, [edit, bundled && new MatrixEvent(bundled), finishing]);
     if (finishedSince(known, from)) {
       dropHints((_hint, id) => id === replyId);
-      return;
+      // An edit newer than that finish may say that the reply streams again.
+      if (finishedSince(known, edit)) return;
     }
     const newest = known.reduce((a, b) => (isEventOrderedAfter(b, a) ? b : a), from);
     if (!reply || newest !== edit || edit.getType() !== reply.getType()) return;
