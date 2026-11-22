@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Schließen",
-      "invited": "{{user}} wurde eingeladen."
+      "invited": "{{user}} wurde eingeladen.",
+      "giveRoleRights": "{{role}}-Rechte erteilen",
+      "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
+      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Schließen",

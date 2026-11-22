@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
-      "invited": "{{user}} is uitgenodigd."
+      "invited": "{{user}} is uitgenodigd.",
+      "giveRoleRights": "{{role}}-rechten geven",
+      "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
+      "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
+      "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",

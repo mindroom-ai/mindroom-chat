@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
-      "invited": "{{user}} è stato invitato."
+      "invited": "{{user}} è stato invitato.",
+      "giveRoleRights": "Assegna i permessi di {{role}}",
+      "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
+      "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
+      "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",

@@ -60,6 +60,7 @@ import { roomSettingsAtom } from '../navigation/roomSettingsState';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
+import { detachedGrantErrorAtom } from '../members/invite/moderatorInvite';
 import { userDirectoryCacheAtom } from '../members/userDirectoryCache';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
 
@@ -114,6 +115,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
   toInitial(agentCallFailureAtom),
+  toInitial(detachedGrantErrorAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),
