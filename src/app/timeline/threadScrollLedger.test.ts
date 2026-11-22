@@ -61,7 +61,7 @@ describe('planThreadLedgerRender', () => {
   it('leaves rows that land below the reader, such as new replies and edits', () => {
     const previous = events('$root', '$a', '$reader');
     const next = events('$root', '$a', '$reader', '$edit', '$new');
-    const priceRow = vi.fn(() => 10);
+    const priceRow = vi.fn<(eventId: string) => number>(() => 10);
 
     expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 0 });
     expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$a']);
