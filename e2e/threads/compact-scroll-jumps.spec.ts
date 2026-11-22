@@ -242,26 +242,33 @@ test.describe('Compact scroll jump regressions', () => {
       await page.waitForTimeout(200); // let scroll settle
       const beforeGrow = (await takeFrames(page)).at(-1)!;
 
-      // Part 1: non-parent-commit card height growth above viewport (memoized child / badge / font)
-      await compactView(page).evaluate((el) => {
-        const cards = [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
-        for (const idx of [2, 5, 8]) {
-          const card = cards[idx];
-          if (card) card.style.paddingBottom = '60px';
-        }
-      });
+      // Cards above the view grow outside a CompactRoomView commit (a memoized child, a badge, a
+      // font). In a frame, after the recorder read it, as a card of the app grows: a change
+      // between frames would show the recorder a layout that is never painted.
+      await compactView(page).evaluate(
+        (el) =>
+          new Promise<void>((done) => {
+            requestAnimationFrame(() => {
+              const cards = [...el.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
+              for (const idx of [2, 5, 8]) {
+                const card = cards[idx];
+                if (card) card.style.paddingBottom = '60px';
+              }
+              done();
+            });
+          })
+      );
       await page.waitForTimeout(300);
-      const afterGrow = (await takeFrames(page)).at(-1)!;
-      const beforeGrowMap = new Map(beforeGrow.visible.map((r) => [r.key, r]));
-      const grownAnchor = afterGrow.visible.find((r) => beforeGrowMap.has(r.key));
-      const growShift = grownAnchor
-        ? Math.abs(grownAnchor.top - beforeGrowMap.get(grownAnchor.key)!.top)
-        : 9999;
+      const frames = await takeFrames(page);
+      const afterGrow = frames.at(-1)!;
+      expect(afterGrow.scrollHeight, 'the cards grew').toBeGreaterThan(beforeGrow.scrollHeight);
+      // In every frame since the growth, not only once the list rests.
+      const growShift = worstShift(beforeGrow, frames, beforeGrow.visible[0]!.key);
       expect(
         growShift,
         `[webkit/${form}] non-parent height growth shifted visible anchor by ${growShift.toFixed(
           1
-        )}px (y: ${beforeGrow.y}->${afterGrow.y})`
+        )}px in some frame (y: ${beforeGrow.y}->${afterGrow.y})`
       ).toBeLessThanOrEqual(2);
     });
 
