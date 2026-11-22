@@ -374,7 +374,7 @@ def main() -> int:
                 return f"first paint ({fp_ms}ms) did not precede hydration completion ({done_ms}ms)"
             return None
 
-        scenario("long_thread", {}, 25, check_long_thread, room_id=long_room)
+        scenario("long_thread", {"MINDROOM_WATCH_E2E_SCROLL_ROWS": "1"}, 25, check_long_thread, room_id=long_room)
 
     return 1 if any(problem for _, problem in results) else 0
 

@@ -133,6 +133,7 @@ private struct RoomHome: View {
     @State private var following: String?
 
     var body: some View {
+        ScrollViewReader { scroll in
         List {
             Section {
                 // The room's name switches rooms.
@@ -224,12 +225,16 @@ private struct RoomHome: View {
                row.rootTs >= E2EHooks.launchedAt, let rootId = row.rootId {
                 path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
             }
+            if E2EHooks.scrollToRows, let first = rows.first {
+                scroll.scrollTo(first.id, anchor: .top)
+            }
             if E2EHooks.resolveNewest, !E2EHooks.resolved, let rootId = rows.first(where: { $0.state != .queued })?.rootId {
                 E2EHooks.resolved = true
                 Task { await model.resolve(rootId); E2EHooks.log("resolved \(rootId)") }
             }
         }
         #endif
+        }
     }
 
     private var summary: String {

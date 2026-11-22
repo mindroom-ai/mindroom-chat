@@ -26,6 +26,7 @@ enum E2EHooks {
     /// Milliseconds since the epoch when the app started: the hooks act on what was sent after it.
     static let launchedAt = Int(Date().timeIntervalSince1970 * 1000) - 5_000
     static var resolveNewest: Bool { environment["MINDROOM_WATCH_E2E_RESOLVE"] == "newest" }
+    static var scrollToRows: Bool { environment["MINDROOM_WATCH_E2E_SCROLL_ROWS"] == "1" }
     static var resolved = false
     private static var sent = false
     private static var acted: Set<String> = []
