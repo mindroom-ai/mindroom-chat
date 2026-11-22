@@ -94,23 +94,6 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
-// The first rows in view, and how far below the view's top each starts. Rows render top to
-// bottom, so the first one in view is found by halving.
-const firstRowsInView = (view: HTMLElement): { row: Element; top: number }[] => {
-  const { top } = view.getBoundingClientRect();
-  const rows = [...view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)];
-  let low = 0;
-  let high = rows.length;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    if (rows[middle]!.getBoundingClientRect().bottom > top) high = middle;
-    else low = middle + 1;
-  }
-  return rows
-    .slice(low, low + 3)
-    .map((row) => ({ row, top: row.getBoundingClientRect().top - top }));
-};
-
 type RestoreState = {
   memoryKey: string;
   /** Cleared once the restore is done following late layout. */
@@ -120,8 +103,6 @@ type RestoreState = {
   /** Every row's key, in order, at the last write. */
   rowOrder: string[];
   lastAppliedScrollTop: number;
-  /** The first rows in view at the last write. */
-  rowsInView?: ReturnType<typeof firstRowsInView>;
 };
 
 type ScrollAnchorMemoryOptions = {
@@ -179,24 +160,10 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-    // The browser's scroll anchoring scrolls the list and leaves its rows where they show: the
-    // list changed above them. The restore goes on from that offset, and so does the place to
-    // fall back to. Any other scroll moves the rows.
-    const followAnchoring = () => {
-      const shown = state.rowsInView?.find(({ row }) => view.contains(row));
-      const scrolled = view.scrollTop - state.lastAppliedScrollTop;
-      if (!state.snapshot || !shown || scrolled === 0) return;
-      const top = shown.row.getBoundingClientRect().top - view.getBoundingClientRect().top;
-      if (Math.abs(top - shown.top) > 1) return;
-      state.lastAppliedScrollTop = view.scrollTop;
-      state.snapshot = { ...state.snapshot, scrollTop: state.snapshot.scrollTop + scrolled };
-    };
     const handleScroll = () => {
-      followAnchoring();
       if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
     };
     const restore = () => {
-      followAnchoring();
       const { snapshot } = state;
       if (!snapshot) return;
       const placement = placeRows(view, snapshot, state.placedRows);
@@ -220,7 +187,6 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
-      state.rowsInView = firstRowsInView(view);
     };
     restore();
     if (!state.snapshot) return undefined;

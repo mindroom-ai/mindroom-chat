@@ -28,14 +28,10 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
     },
   });
   view.getBoundingClientRect = () => toRect(0, viewportHeight);
-  // A row keeps its element while it stays in the list, as a keyed row does.
   const setRows = (nextKeys: string[]) => {
-    const kept = new Map(
-      Array.from(content.children, (row) => [row.getAttribute('data-scroll-anchor'), row])
-    );
     content.replaceChildren(
       ...nextKeys.map((key) => {
-        const row = kept.get(key) ?? document.createElement('div');
+        const row = document.createElement('div');
         row.setAttribute('data-scroll-anchor', key);
         row.getBoundingClientRect = () => toRect(rowTop(row) - scrollTop, ROW_HEIGHT);
         return row;
@@ -264,7 +260,7 @@ describe('useScrollAnchorMemory', () => {
     resize(layout.content);
     expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
 
-    scrollReaderTo(layout, 120);
+    layout.view.scrollTop = 120;
     layout.setRows(['new-row', ...keys]);
     resize();
     expect(layout.view.scrollTop).toBe(120);
@@ -299,114 +295,6 @@ describe('useScrollAnchorMemory', () => {
 
     expect(layout.view.scrollTop).toBe(300);
     expect(observers.size).toBe(0);
-  });
-
-  it('goes on when scroll anchoring scrolls the list, which keeps its rows where they show', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    const before = leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys.slice(3));
-    mount(memory, layout);
-    expect(layout.view.scrollTop).toBe(180);
-    // Three rows render above the view, and the browser scrolls by their height.
-    layout.setRows(keys);
-    layout.view.scrollTop = 300;
-    layout.view.dispatchEvent(new Event('scroll'));
-    expect(observers.size).toBe(1);
-
-    // The restore still follows: a row that joins above with nothing scrolling for it.
-    layout.setRows(['new-row', ...keys]);
-    resize(layout.content);
-    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-  });
-
-  it('goes on while the reader types elsewhere', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    const before = leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys);
-    mount(memory, layout);
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
-    layout.setRows(['new-row', ...keys]);
-    resize(layout.content);
-    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-  });
-
-  it('goes on when scroll anchoring scrolled the list and the resize comes before its scroll event', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    const before = leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys.slice(3));
-    mount(memory, layout);
-    layout.setRows(keys);
-    layout.view.scrollTop = 300;
-    resize(layout.content);
-    expect(observers.size).toBe(1);
-
-    layout.setRows(['new-row', ...keys]);
-    resize(layout.content);
-    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-  });
-
-  it('goes by the next row in view when the first one left the list', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    const before = leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys);
-    mount(memory, layout);
-    // The first row in view leaves as two join above: the browser scrolls by the difference.
-    layout.setRows(['new-row-1', 'new-row-2', ...keys.filter((key) => key !== 'row-7')]);
-    layout.view.scrollTop = 340;
-    layout.view.dispatchEvent(new Event('scroll'));
-    expect(observers.size).toBe(1);
-    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-  });
-
-  it('lets the offset it fell back to follow scroll anchoring', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    leaveAt(memory, rowKeys(20), 300);
-
-    const others = rowKeys(20).map((key) => `other-${key}`);
-    const layout = createLayout(others);
-    mount(memory, layout);
-    expect(layout.view.scrollTop).toBe(300);
-    // A row renders above the view, and the browser scrolls by its height.
-    layout.setRows(['new-row', ...others]);
-    layout.view.scrollTop = 340;
-    resize(layout.content);
-    expect(layout.view.scrollTop).toBe(340);
-    expect(observers.size).toBe(1);
-  });
-
-  it('ends at a scroll whose event is still to come when the list resizes', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys);
-    mount(memory, layout);
-    layout.view.scrollTop = 120;
-    resize(layout.content);
-    expect(layout.view.scrollTop).toBe(120);
-    expect(observers.size).toBe(0);
-  });
-
-  it('ends at a scroll no input came with (a screen reader, find in page), and stays there', () => {
-    const memory: ScrollAnchorMemory = new Map();
-    const keys = rowKeys(20);
-    leaveAt(memory, keys, 300);
-
-    const layout = createLayout(keys);
-    mount(memory, layout);
-    layout.view.scrollTop = 120;
-    layout.view.dispatchEvent(new Event('scroll'));
-    expect(observers.size).toBe(0);
-    layout.setRows(['new-row', ...keys]);
-    expect(layout.view.scrollTop).toBe(120);
   });
 
   it('stops following once the reader scrolls, even back to the same place', () => {
