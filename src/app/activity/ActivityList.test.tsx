@@ -962,42 +962,113 @@ describe('ActivityList', () => {
     expect(loaders.get('!men40:x')).not.toHaveBeenCalled();
   });
 
-  it('appends a page via keyboard focus or click on Show more without an IntersectionObserver', () => {
+  it('appends a page only on Show more activation, not focus, and keeps observer stable across renders', () => {
+    let created = 0;
     class SilentIntersectionObserver {
       observe = vi.fn();
 
       unobserve = vi.fn();
 
       disconnect = vi.fn();
+
+      constructor() {
+        created += 1;
+      }
     }
     vi.stubGlobal('IntersectionObserver', SilentIntersectionObserver);
 
     try {
-      const rows = Array.from({ length: 95 }, (_, index) =>
+      const rows = Array.from({ length: 130 }, (_, index) =>
         threadRow(`k${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
       );
-      renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
+      const store = renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
 
       const list = screen.getByRole('list');
       expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+      expect(created).toBe(1);
 
-      // Tabbing onto Show more appends a page and moves focus to the first new row.
+      // Re-rendering without growing the window does not rebuild the observer.
+      act(() => store.set(activityRowsAtom, { rows: [...rows], hiddenAutomations: 0 }));
+      expect(created).toBe(1);
+
+      // Focusing Show more alone (Tab or Shift+Tab from footer) does not paginate.
       const showMore = screen.getByRole('button', { name: 'Show more' });
+      showMore.focus();
       fireEvent.focus(showMore);
+      expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+
+      // Keyboard activation (detail: 0) appends one page and moves focus to the first new row.
+      fireEvent.click(showMore, { detail: 0 });
       expect(within(list).getAllByRole('listitem')).toHaveLength(80);
       const firstNewRow = screen.getByText('Thread k40').closest('button');
       expect(document.activeElement).toBe(firstNewRow);
 
-      // Clicking Show more with a pointer appends only one page (focus + click does not double-append).
+      // Pointer click (detail: 1) with >40 remaining rows appends exactly one page (80 -> 120).
       const showMoreAgain = screen.getByRole('button', { name: 'Show more' });
       fireEvent.pointerDown(showMoreAgain);
+      showMoreAgain.focus();
       fireEvent.focus(showMoreAgain);
-      fireEvent.click(showMoreAgain);
-      expect(within(list).getAllByRole('listitem')).toHaveLength(95);
+      fireEvent.click(showMoreAgain, { detail: 1 });
+      expect(within(list).getAllByRole('listitem')).toHaveLength(120);
+      expect(document.activeElement).toBe(showMoreAgain);
+      expect(screen.getByRole('button', { name: 'Show more' })).toBeTruthy();
+
+      fireEvent.click(showMoreAgain, { detail: 1 });
+      expect(within(list).getAllByRole('listitem')).toHaveLength(130);
       expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('does not bypass the 40-row window when the current thread is deep in the list', () => {
+    const loaders = new Map<string, ReturnType<typeof vi.fn>>();
+    const rows = Array.from({ length: 700 }, (_, index) => {
+      const key = `d${index}`;
+      const row = threadRow(key, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] });
+      const roomId = `!${key}:x`;
+      const loadMembersIfNeeded = vi.fn(async () => undefined);
+      loaders.set(roomId, loadMembersIfNeeded);
+      mocks.rooms.set(roomId, {
+        ...mocks.rooms.get(roomId)!,
+        membersLoaded: () => false,
+        loadMembersIfNeeded,
+      });
+      return row;
+    });
+
+    renderList(
+      { rows, hiddenAutomations: 0 },
+      true,
+      {},
+      'sheet',
+      '/home/!d699:x?threadId=$d699-root'
+    );
+
+    const list = screen.getByRole('list');
+    expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+    const loadedCount = [...loaders.values()].filter((fn) => fn.mock.calls.length > 0).length;
+    expect(loadedCount).toBeLessThanOrEqual(40);
+    expect(loaders.get('!d40:x')).not.toHaveBeenCalled();
+    expect(loaders.get('!d699:x')).not.toHaveBeenCalled();
+  });
+
+  it('does not restore an earlier tab limit when returning to it (A -> B -> A)', () => {
+    const rows = Array.from({ length: 90 }, (_, index) =>
+      threadRow(`aba${index}`, 'reply', { newCount: 1 }, { actorIds: ['@mindroom_code:x'] })
+    );
+    renderList({ rows, hiddenAutomations: 0 }, true, {}, 'page');
+
+    const list = screen.getByRole('list');
+    expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }));
+    expect(within(list).getAllByRole('listitem')).toHaveLength(80);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Replies/ }));
+    expect(within(list).getAllByRole('listitem')).toHaveLength(40);
+
+    fireEvent.click(screen.getByRole('tab', { name: /All/ }));
+    expect(within(list).getAllByRole('listitem')).toHaveLength(40);
   });
 
   it('keeps the current or focused row mounted when live rows prepend at the boundary', () => {
