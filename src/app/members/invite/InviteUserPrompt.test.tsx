@@ -109,6 +109,7 @@ const readyCache = (): UserDirectoryCacheState => ({
 
 type RoomOptions = {
   isSpace?: boolean;
+  roomVersion?: string;
   powerLevels?: Record<string, unknown>;
   createContent?: Record<string, unknown>;
   createSender?: string;
@@ -177,6 +178,11 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
     client: mx,
     state,
     isSpaceRoom: () => options.isSpace ?? false,
+    getVersion: () =>
+      options.roomVersion ??
+      (typeof options.createContent?.room_version === 'string'
+        ? options.createContent.room_version
+        : '12'),
     membersLoaded: () => state.membersLoaded,
     getMember: (userId: string) => state.members.find((member) => member.userId === userId) ?? null,
     getMembers: vi.fn(() => state.members),
@@ -960,6 +966,28 @@ describe('InviteUserPrompt', () => {
 
     expect(mx.setPowerLevel).not.toHaveBeenCalled();
     expect(textContent(renderer, 'alert')).toContain("You don't have permission to do this.");
+  });
+
+  it.each([
+    { label: 'v9 room', roomVersion: '9' },
+    { label: 'unknown non-numeric room version', roomVersion: 'org.example.unstable' },
+  ])(
+    'hides the moderator checkbox and skips member loading for a $label',
+    ({ roomVersion }) => {
+      const { renderer, room } = renderPrompt({ roomVersion, membersLoaded: false });
+      typeUserId(renderer, '@mindroom_helper:example.org');
+      expect(findModeratorCheckbox(renderer)).toBeUndefined();
+      expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
+      expect(room.getMembers).not.toHaveBeenCalled();
+    }
+  );
+
+  it('offers moderator rights in a v10 room', async () => {
+    const { renderer, mx, room } = renderPrompt({ roomVersion: '10' });
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+    await submitInvite(renderer);
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
   });
 
   it('renders and dismisses a detached grant failure notice', () => {
