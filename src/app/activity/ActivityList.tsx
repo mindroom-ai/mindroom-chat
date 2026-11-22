@@ -173,9 +173,13 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
   // The rows that wait come first, so their number tells when one moves under the day's divider
   // while the order stays.
+  const offWindow = hasMore
+    ? new Set(rest.slice(visibleRest.length).map((row) => row.key))
+    : undefined;
   const listMotion = useListMotion(
     rowsRef,
-    `${waiting.length}|${gathered}|${visibleRows.map((row) => row.key).join(',')}`
+    `${waiting.length}|${gathered}|${visibleRows.map((row) => row.key).join(',')}`,
+    offWindow
   );
 
   const moreRef = useRef<HTMLDivElement>(null);
