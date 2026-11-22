@@ -1488,6 +1488,28 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
     } finally {
       mount7.unmount();
     }
+
+    // Case 8: changing openThreadId moves a focused row across thread groups -> recovers focus to the same task's toggle.
+    const tA = makeTask({ taskId: 'task-a', description: 'Task A', threadId: '$t1' });
+    const tB = makeTask({ taskId: 'task-b', description: 'Task B', threadId: '$t2' });
+    const mount8 = mountDialog({ ...base, tasks: [tA, tB], openThreadId: '$t1' });
+    try {
+      const toggleB = [
+        ...mount8.host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]'),
+      ].find((btn) => btn.dataset.scheduleTaskId === 'task-b')!;
+      act(() => {
+        toggleB.focus();
+      });
+      expect(document.activeElement).toBe(toggleB);
+
+      mount8.rerender({ ...base, tasks: [tA, tB], openThreadId: '$t2' });
+      const newToggleB = [
+        ...mount8.host.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]'),
+      ].find((btn) => btn.dataset.scheduleTaskId === 'task-b')!;
+      expect(document.activeElement).toBe(newToggleB);
+    } finally {
+      mount8.unmount();
+    }
   });
 });
 

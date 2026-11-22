@@ -357,7 +357,11 @@ function ScheduleAccordionItem({
   };
 
   return (
-    <article className={css.Item} data-expanded={open ? 'true' : undefined}>
+    <article
+      className={css.Item}
+      data-expanded={open ? 'true' : undefined}
+      data-schedule-task-id={task.taskId}
+    >
       <div role="heading" aria-level={grouped ? 4 : 3} className={css.RowHeading}>
         <button
           ref={toggleButtonRef}
@@ -824,6 +828,7 @@ export const RoomSchedulesDialog = forwardRef<
     const dialogRef = useRef<HTMLDivElement | null>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const lastFocusedRef = useRef<HTMLElement | null>(null);
+    const lastFocusedTaskIdRef = useRef<string | null>(null);
     const lastCollapsedTaskIdRef = useRef<string | null>(null);
     const [now, setNow] = useState(Date.now);
     const [filter, setFilter] = useState<ScheduleFilter>('all');
@@ -901,14 +906,16 @@ export const RoomSchedulesDialog = forwardRef<
       if (!modal || !lastFocused || lastFocused.isConnected) return;
       const doc = modal.ownerDocument;
       if (doc.activeElement && doc.activeElement !== doc.body) return;
+      const preferredTaskId = collapsedId ?? lastFocusedTaskIdRef.current;
       lastFocusedRef.current = null;
-      const collapsedToggle = collapsedId
+      lastFocusedTaskIdRef.current = null;
+      const preferredToggle = preferredTaskId
         ? [...modal.querySelectorAll<HTMLButtonElement>('button[data-schedule-toggle]')].find(
-            (button) => button.dataset.scheduleTaskId === collapsedId
+            (button) => button.dataset.scheduleTaskId === preferredTaskId
           )
         : undefined;
       const fallbackToggle =
-        collapsedToggle ??
+        preferredToggle ??
         modal.querySelector<HTMLButtonElement>(
           '[data-expanded="true"] button[data-schedule-toggle]'
         ) ??
@@ -921,6 +928,7 @@ export const RoomSchedulesDialog = forwardRef<
       filteredTasks,
       hasCancelAction,
       hasEditAction,
+      openThreadId,
       pendingCancelIds,
       showFilterBar,
     ]);
@@ -979,12 +987,15 @@ export const RoomSchedulesDialog = forwardRef<
         onFocusCapture={(event: FocusEvent<HTMLDivElement>) => {
           if (event.target instanceof HTMLElement) {
             lastFocusedRef.current = event.target;
+            const taskEl = event.target.closest<HTMLElement>('[data-schedule-task-id]');
+            lastFocusedTaskIdRef.current = taskEl?.dataset.scheduleTaskId ?? null;
           }
         }}
         onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
           const next = event.relatedTarget;
           if (next instanceof Node && dialogRef.current && !dialogRef.current.contains(next)) {
             lastFocusedRef.current = null;
+            lastFocusedTaskIdRef.current = null;
           }
         }}
       >

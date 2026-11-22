@@ -163,7 +163,8 @@ const tokenizeInlineCode = (segment: string): PromptToken[] => {
           closeRunEnd += 1;
         }
         if (closeRunEnd - j > 1) {
-          break;
+          j = closeRunEnd;
+          continue;
         }
         if (j > i + 1) {
           closeIndex = j;

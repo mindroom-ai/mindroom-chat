@@ -244,4 +244,20 @@ describe('renderSchedulePrompt', () => {
       second.cleanup();
     }
   });
+
+  it('skips nonmatching multi-backtick runs inside a single-backtick code span', () => {
+    const { host, cleanup } = renderPrompt('Show `a``b` to @helper and run `done`.');
+    try {
+      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
+        'a``b',
+        'done',
+      ]);
+      expect([...host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)).toEqual([
+        '@helper',
+      ]);
+      expect(host.textContent).toBe('Show a``b to @helper and run done.');
+    } finally {
+      cleanup();
+    }
+  });
 });

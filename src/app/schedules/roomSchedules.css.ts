@@ -452,7 +452,8 @@ export const CancelBarActions = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S200,
+  rowGap: `max(${toRem(14)}, 14px)`,
+  columnGap: `max(${config.space.S300}, 12px)`,
 });
 
 export const CancelError = style({
@@ -558,18 +559,23 @@ export const CopiedStatus = style({
   lineHeight: 1.35,
 });
 
-export const CancelBarButton = style({
-  selectors: {
-    '&:focus-visible': {
-      outline: `2px solid ${color.Critical.OnContainer}`,
-      outlineOffset: toRem(2),
-    },
-    '&[aria-disabled="true"]': {
-      opacity: '1 !important',
-      cursor: 'progress',
+export const CancelBarButton = style([
+  {
+    minHeight: `max(${toRem(32)}, 32px)`,
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${color.Critical.OnContainer}`,
+        outlineOffset: toRem(2),
+      },
+      '&[aria-disabled="true"]': {
+        opacity: '1 !important',
+        cursor: 'progress',
+      },
     },
   },
-});
+  // 30-32 px padding box + 2 * 7 px = 44-46 px tall; 7 + 7 <= 14 px rowGap and 4 + 4 <= 12 px columnGap.
+  touchTarget('4px', '', { blockReach: '7px' }),
+]);
 
 export const Metadata = style({
   display: 'grid',
