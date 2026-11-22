@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useRef } from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { isDesktopApp } from '../../lib/nativeShell';
 
 export const CANVAS_FRAME_SRC = '/canvas-frame.html';
@@ -11,17 +11,19 @@ export const useCanvasFrame = (
   onLoad: () => void
 ): ({ srcDoc: string } | { src: string }) & { onLoad: () => void; generation: number } => {
   const desktop = isDesktopApp();
-  const docRef = useRef(doc);
-  const generationRef = useRef(0);
-  if (desktop && docRef.current !== doc) generationRef.current += 1;
-  docRef.current = doc;
+  const [state, setState] = useState({ doc, generation: 0 });
+  const generation = desktop ? (state.doc === doc ? state.generation : state.generation + 1) : 0;
+  if (desktop && state.doc !== doc) setState({ doc, generation });
 
   const onLoadRef = useRef(onLoad);
-  onLoadRef.current = onLoad;
   const writtenRef = useRef(new WeakSet<MessageEventSource>());
   const loadedRef = useRef(new WeakSet<HTMLIFrameElement>());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    onLoadRef.current = onLoad;
+  });
+
+  useLayoutEffect(() => {
     if (!desktop) return undefined;
     const onMessage = (event: MessageEvent) => {
       const win = frame.current?.contentWindow;
@@ -34,11 +36,11 @@ export const useCanvasFrame = (
       )
         return;
       writtenRef.current.add(win);
-      win.postMessage(docRef.current, '*');
+      win.postMessage(doc, '*');
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [desktop, frame]);
+  }, [desktop, doc, frame]);
 
   const counted = useCallback(() => {
     const el = frame.current;
@@ -51,6 +53,6 @@ export const useCanvasFrame = (
   }, [frame]);
 
   return desktop
-    ? { src: CANVAS_FRAME_SRC, onLoad: counted, generation: generationRef.current }
+    ? { src: CANVAS_FRAME_SRC, onLoad: counted, generation }
     : { srcDoc: doc, onLoad, generation: 0 };
 };

@@ -25,21 +25,35 @@ const AGENT_ID = '@mindroom_agent:localhost';
 const ROOM_ID = '!canvas:localhost';
 const ROOT_ID = '$root';
 
-const MINIMAL_PDF = `%PDF-1.1
-1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
-2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj
-3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]>>endobj
-xref
-0 4
-0000000000 65535 f 
-0000000009 00000 n 
-0000000054 00000 n 
-0000000105 00000 n 
-trailer<</Size 4/Root 1 0 R>>
-startxref
-167
-%%EOF
-`;
+/** Builds a valid one-page PDF with exact cross-reference offsets. */
+const buildOnePagePdf = (text: string): string => {
+  const stream = `BT /F1 16 Tf 56 720 Td (${text}) Tj ET`;
+  const objects = [
+    '',
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [4 0 R] /Count 1 >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, id) => {
+    if (id === 0) return 0;
+    const offset = pdf.length;
+    pdf += `${id} 0 obj\n${body}\nendobj\n`;
+    return offset;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  pdf += offsets
+    .slice(1)
+    .map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`)
+    .join('');
+  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return pdf;
+};
+
+const MINIMAL_PDF = buildOnePagePdf('MindRoom Electron PDF check');
 
 type MatrixEventJson = {
   type: string;
@@ -470,6 +484,7 @@ test.describe('Electron script policy and canvas frame', () => {
       const pdfResult = await page.evaluate(async (pdfText: string) => {
         const blobUrl = URL.createObjectURL(new Blob([pdfText], { type: 'application/pdf' }));
         const frame = document.createElement('iframe');
+        frame.id = 'e2e-pdf-frame';
         frame.style.cssText = 'width:320px;height:240px;';
         frame.src = `/pdf-frame.html#${encodeURIComponent(blobUrl)}`;
         document.body.append(frame);
@@ -495,10 +510,18 @@ test.describe('Electron script policy and canvas frame', () => {
             poll();
           }
         );
-        frame.remove();
-        URL.revokeObjectURL(blobUrl);
-        return info;
+        return { ...info, blobUrl };
       }, MINIMAL_PDF);
+      // Wait for Chromium's built-in PDF viewer extension frame to attach inside the <embed>.
+      await expect
+        .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')), {
+          timeout: 10_000,
+        })
+        .toBe(true);
+      await page.evaluate((blobUrl: string) => {
+        document.getElementById('e2e-pdf-frame')?.remove();
+        URL.revokeObjectURL(blobUrl);
+      }, pdfResult.blobUrl);
       await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
       expect(pdfViolations).toEqual([]);
       expect(pdfResult.src).toMatch(/^blob:capacitor:\/\/localhost\//);
@@ -787,6 +810,11 @@ test.describe('Electron script policy and canvas frame', () => {
         .locator('aside[aria-label*="Canvas"], aside[aria-label*="canvas"]')
         .first();
       await expect(panel).toBeVisible({ timeout: 20_000 });
+      // Wait for ResizablePanel's 220ms width-opening animation so clicks inside the nested
+      // opaque iframe do not land while the panel is shifting horizontally.
+      await panel.evaluate((el) =>
+        Promise.all((el.closest('[data-side]') ?? el).getAnimations().map((a) => a.finished))
+      );
       await assertCanvasWorks('aside iframe[title="Policy Canvas"]', 'v2-updated');
 
       mock.pushEvent({
@@ -946,6 +974,155 @@ test.describe('Electron script policy and canvas frame', () => {
       await session.close();
       await mock.close();
       fs.rmSync(tmpDist, { recursive: true, force: true });
+    }
+  });
+
+  test('remounts an already-mounted inline canvas and loads the remote asset when remoteAssets flips live', async () => {
+    const now = Date.now();
+    const mock = await startMockMatrixServer([
+      {
+        type: 'm.room.message',
+        event_id: ROOT_ID,
+        sender: USER_ID,
+        origin_server_ts: now - 5_000,
+        room_id: ROOM_ID,
+        content: { msgtype: 'm.text', body: 'Live remote flip thread' },
+      },
+      {
+        type: 'm.room.message',
+        event_id: '$liveRemote1',
+        sender: AGENT_ID,
+        origin_server_ts: now - 2_000,
+        room_id: ROOM_ID,
+        content: {
+          msgtype: 'm.notice',
+          body: 'Interactive panel: Live Remote Canvas.',
+          'm.relates_to': { rel_type: 'm.thread', event_id: ROOT_ID },
+          'io.mindroom.ui_action': {
+            version: 1,
+            action: 'show_canvas',
+            requester_id: USER_ID,
+            agent_user_id: AGENT_ID,
+            room_id: ROOM_ID,
+            thread_id: ROOT_ID,
+            inline: true,
+            canvas: {
+              title: 'Live Remote Canvas',
+              html: buildInteractiveCanvasHtml('live-remote', 'http://127.0.0.1:1/blocked'),
+              libraries: ['d3'],
+            },
+          },
+        },
+      },
+    ]);
+    const session = await launchDesktop();
+    let remoteAssetHits = 0;
+    try {
+      const { page } = session;
+      await page.context().route(REMOTE_ASSET_URL, (route) => {
+        remoteAssetHits += 1;
+        return route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL_PNG });
+      });
+      const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
+      await page.addLocatorHandler(setup, () =>
+        setup.getByRole('button', { name: 'Not now' }).click()
+      );
+      const tourDismiss = page.locator('[data-tour-offer-action="dismiss"]');
+      await page.addLocatorHandler(tourDismiss, () => tourDismiss.click());
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+      await page.evaluate(
+        ({ baseUrl, userId }: { baseUrl: string; userId: string }) => {
+          const sessionId = `${baseUrl}|${userId}`;
+          localStorage.setItem(
+            'mindroom_multi_account_store',
+            JSON.stringify({
+              version: 1,
+              activeSessionId: sessionId,
+              sessions: [
+                {
+                  sessionId,
+                  baseUrl,
+                  userId,
+                  deviceId: 'E2EDEVICE',
+                  accessToken: 'fake-token',
+                  lastUsedAt: Date.now(),
+                },
+              ],
+            })
+          );
+        },
+        { baseUrl: mock.baseUrl, userId: USER_ID }
+      );
+      await page.goto(
+        `${APP_ORIGIN}/home/${encodeURIComponent(ROOM_ID)}?threadId=${encodeURIComponent(ROOT_ID)}`
+      );
+      const outer = page.locator('iframe[title="Live Remote Canvas"]').first();
+      const inner = page
+        .frameLocator('iframe[title="Live Remote Canvas"]')
+        .first()
+        .frameLocator('iframe');
+      await expect(outer).toBeVisible({ timeout: 20_000 });
+      await expect(inner.locator('#remote')).toHaveText('off', { timeout: 15_000 });
+      await expect(inner.locator('#remote-asset')).toHaveText('blocked', { timeout: 15_000 });
+      expect(remoteAssetHits).toBe(0);
+
+      // Flip remoteAssets on the live mounted ClientConfigLoader (same canvas revision, no reload).
+      const flipped = await page.evaluate(() => {
+        const el = document.querySelector('iframe[title="Live Remote Canvas"]');
+        if (!el) return false;
+        (window as unknown as { __beforeFlipFrame?: Element }).__beforeFlipFrame = el;
+        const fiberKey = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+        if (!fiberKey) return false;
+        type Hook = {
+          memoizedState?: unknown;
+          queue?: { dispatch?: (v: unknown) => void };
+          next?: Hook;
+        };
+        type Fiber = { return?: Fiber | null; memoizedState?: Hook | null };
+        let cur = (el as unknown as Record<string, Fiber | undefined>)[fiberKey];
+        while (cur) {
+          let hook = cur.memoizedState;
+          while (hook) {
+            const val = hook.memoizedState as
+              | { status?: string; config?: { mindroom?: { canvas?: Record<string, unknown> } } }
+              | undefined;
+            if (val && val.status === 'ready' && val.config && hook.queue?.dispatch) {
+              hook.queue.dispatch({
+                status: 'ready',
+                config: {
+                  ...val.config,
+                  mindroom: {
+                    ...val.config.mindroom,
+                    canvas: { ...val.config.mindroom?.canvas, remoteAssets: true },
+                  },
+                },
+              });
+              return true;
+            }
+            hook = hook.next ?? undefined;
+          }
+          cur = cur.return ?? undefined;
+        }
+        return false;
+      });
+      expect(flipped).toBe(true);
+
+      // The replacement iframe mounts via generation and loads the previously blocked https: asset.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const nowEl = document.querySelector('iframe[title="Live Remote Canvas"]');
+            const prev = (window as unknown as { __beforeFlipFrame?: Element }).__beforeFlipFrame;
+            return nowEl !== null && nowEl !== prev;
+          })
+        )
+        .toBe(true);
+      await expect(inner.locator('#remote')).toHaveText('on', { timeout: 15_000 });
+      await expect(inner.locator('#remote-asset')).toHaveText('loaded:1', { timeout: 15_000 });
+      expect(remoteAssetHits).toBeGreaterThanOrEqual(1);
+    } finally {
+      await session.close();
+      await mock.close();
     }
   });
 });

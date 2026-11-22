@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useRef } from 'react';
+import { startTransition, Suspense, useLayoutEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -211,5 +211,97 @@ describe('useCanvasFrame', () => {
       second.dispatchEvent(new Event('load'));
     });
     expect(onLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps serving the committed doc when a transition to a new doc suspends', async () => {
+    setDesktop(true);
+    let release: (() => void) | undefined;
+    let suspended = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    function Blocker({ block }: { block: boolean }) {
+      if (block && !suspended) throw gate;
+      return null;
+    }
+    function Scene({ doc, block }: { doc: string; block: boolean }) {
+      const ref = useRef<HTMLIFrameElement>(null);
+      const { generation, ...frameProps } = useCanvasFrame(doc, ref, () => undefined);
+      return (
+        <>
+          <iframe key={generation} ref={ref} title="Canvas" {...frameProps} />
+          <Blocker block={block} />
+        </>
+      );
+    }
+
+    act(() => {
+      root.render(
+        <Suspense fallback={null}>
+          <Scene doc="<p>doc-A</p>" block={false} />
+        </Suspense>
+      );
+    });
+    const first = container.querySelector('iframe')!;
+    const firstWin = stubFrameWindow(first);
+
+    // Start a transition to doc-B that suspends before commit.
+    act(() => {
+      startTransition(() => {
+        root.render(
+          <Suspense fallback={null}>
+            <Scene doc="<p>doc-B</p>" block={true} />
+          </Suspense>
+        );
+      });
+    });
+    expect(container.querySelector('iframe')).toBe(first);
+
+    // A's still-mounted iframe sends ready while B is pending: it must receive doc-A, not doc-B.
+    sendReady(firstWin.win, 'null');
+    expect(firstWin.postMessage).toHaveBeenCalledTimes(1);
+    expect(firstWin.postMessage).toHaveBeenCalledWith('<p>doc-A</p>', '*');
+
+    // Once the transition resolves and commits, a new iframe mounts and gets doc-B.
+    suspended = true;
+    await act(async () => {
+      release?.();
+      await gate;
+    });
+    const second = container.querySelector('iframe')!;
+    expect(second).not.toBe(first);
+    const secondWin = stubFrameWindow(second);
+    sendReady(secondWin.win, 'null');
+    expect(secondWin.postMessage).toHaveBeenCalledTimes(1);
+    expect(secondWin.postMessage).toHaveBeenCalledWith('<p>doc-B</p>', '*');
+  });
+
+  it('installs the message listener in layout phase so an immediate ready after mount is answered', () => {
+    setDesktop(true);
+    let immediatePost: ReturnType<typeof vi.fn> | undefined;
+    function EarlyReady() {
+      const ref = useRef<HTMLIFrameElement>(null);
+      const { generation, ...frameProps } = useCanvasFrame('<p>fast</p>', ref, () => undefined);
+      useLayoutEffect(() => {
+        const el = ref.current!;
+        const { win, postMessage } = stubFrameWindow(el);
+        immediatePost = postMessage;
+        // Dispatch ready synchronously in layout phase, before passive useEffect runs.
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            source: win,
+            origin: 'null',
+            data: CANVAS_FRAME_READY,
+          })
+        );
+      }, []);
+      return <iframe key={generation} ref={ref} title="Canvas" {...frameProps} />;
+    }
+
+    act(() => {
+      root.render(<EarlyReady />);
+    });
+    expect(immediatePost).toHaveBeenCalledTimes(1);
+    expect(immediatePost).toHaveBeenCalledWith('<p>fast</p>', '*');
   });
 });
