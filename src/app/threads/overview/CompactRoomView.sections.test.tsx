@@ -4,12 +4,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
-import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
+import { type CompactFocusRequest, compactMountPlace } from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
-import * as scrollFallback from './useCompactScrollFallback';
+import * as scrollOwner from './compactScrollOwner';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -523,10 +523,10 @@ describe('the Compact room in sections', () => {
     const memory: ScrollAnchorMemory = new Map();
     // What a return to the entry finds: the place the reader left, unless its request is unmet.
     const placeOnReturn = (eventId: string) => {
-      const left = { scrollTop: 0, anchors: [] };
-      memory.set(ROOM_ID, left);
-      takeCompactFocusRequest(memory, ROOM_ID, { eventId, entryKey: 'entry' });
-      return memory.get(ROOM_ID) === left ? 'left' : 'focused';
+      memory.set(ROOM_ID, { scrollTop: 0, anchors: [] });
+      return compactMountPlace(memory, ROOM_ID, { eventId, entryKey: 'entry' })
+        ? 'focused'
+        : 'left';
     };
     const focusing = (eventId: string) => (
       <CompactRoomView
@@ -576,7 +576,7 @@ describe('Compact order when the view switches under the pointer', () => {
   };
 
   it('starts a flat room in its live order and holds that order on the next update', () => {
-    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const owner = vi.spyOn(scrollOwner, 'useCompactScrollOwner');
     const { rerender } = render(view(['$a', '$b'], false));
     hold();
     rerender(view(['$b', '$a'], false));
@@ -585,7 +585,7 @@ describe('Compact order when the view switches under the pointer', () => {
     const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
     const nextIds = ['$d', '$c'];
     rerender(view(nextIds, false, nextRoom));
-    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
+    expect(owner.mock.lastCall?.[0].rows).toBe(nextIds);
     expect(rows()).toEqual(['$d', '$c']);
     rerender(view(['$c', '$d'], false, nextRoom));
     expect(rows()).toEqual(['$d', '$c']);
@@ -607,7 +607,7 @@ describe('Compact order when the view switches under the pointer', () => {
   });
 
   it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
-    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const owner = vi.spyOn(scrollOwner, 'useCompactScrollOwner');
     state.sections = [
       { id: 'needsYou', rootIds: ['$a'] },
       { id: 'done', rootIds: ['$done'] },
@@ -616,12 +616,12 @@ describe('Compact order when the view switches under the pointer', () => {
     const { rerender } = render(view(ids, false));
     const release = hold();
     rerender(view(ids));
-    const sectionRows = fallback.mock.lastCall?.[0];
+    const sectionRows = owner.mock.lastCall?.[0].rows;
     expect(sectionRows).toEqual(['section:needsYou', '$a', 'section:done']);
 
-    fallback.mockClear();
+    owner.mockClear();
     release();
-    expect(fallback.mock.lastCall?.[0]).toBe(sectionRows);
+    expect(owner.mock.lastCall?.[0].rows).toBe(sectionRows);
   });
 
   it('switches from flat to live Sections, then holds those sections on the next update', () => {
@@ -676,20 +676,16 @@ describe('a focus request on the mounted Compact room', () => {
   });
 
   const memory: ScrollAnchorMemory = new Map();
-  const at = (focusRequest?: CompactFocusRequest) => {
-    // What the room does as it renders the address.
-    if (focusRequest) takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
-    return (
-      <CompactRoomView
-        room={room}
-        threadRootIds={cards}
-        threadRecordMap={new Map()}
-        onThreadClick={vi.fn()}
-        compactRoomScrollStateRef={{ current: memory }}
-        focusRequest={focusRequest}
-      />
-    );
-  };
+  const at = (focusRequest?: CompactFocusRequest) => (
+    <CompactRoomView
+      room={room}
+      threadRootIds={cards}
+      threadRecordMap={new Map()}
+      onThreadClick={vi.fn()}
+      compactRoomScrollStateRef={{ current: memory }}
+      focusRequest={focusRequest}
+    />
+  );
   const topOf = (key: string) =>
     document.querySelector(`[data-scroll-anchor="${key}"]`)!.getBoundingClientRect().top;
 
