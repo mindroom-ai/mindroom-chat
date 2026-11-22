@@ -454,7 +454,9 @@ export function RoomViewHeader({
     ) {
       return 'draft-busy';
     }
-    const targetThreadId = openThreadId;
+    // Target this header's own conversation composer: the room composer when shown beside a
+    // thread (`threadId === undefined`), or the thread composer in full-width thread view.
+    const targetThreadId = threadId;
     const prefix = `!edit_schedule ${task.taskId} `;
     const draftKey = getRoomInputDraftKey(myUserId, room.roomId, targetThreadId);
     const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);

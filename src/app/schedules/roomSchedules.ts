@@ -33,10 +33,42 @@ const OTHER_YEAR_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
   timeStyle: 'short',
 };
 
+const CALENDAR_PARTS_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+};
+
 const withTimeZone = (
   options: Intl.DateTimeFormatOptions,
   timeZone?: string
 ): Intl.DateTimeFormatOptions => (timeZone ? { ...options, timeZone } : options);
+
+const getCalendarParts = (
+  timestamp: number,
+  timeZone?: string
+): { year: string; month: string; day: string } => {
+  if (!timeZone) {
+    const date = new Date(timestamp);
+    return {
+      year: String(date.getFullYear()),
+      month: String(date.getMonth()),
+      day: String(date.getDate()),
+    };
+  }
+  const parts = dateTimeFormat('en-US', { ...CALENDAR_PARTS_OPTIONS, timeZone }).formatToParts(
+    timestamp
+  );
+  let year = '';
+  let month = '';
+  let day = '';
+  for (const part of parts) {
+    if (part.type === 'year') year = part.value;
+    else if (part.type === 'month') month = part.value;
+    else if (part.type === 'day') day = part.value;
+  }
+  return { year, month, day };
+};
 
 /** A task that will post to the existing thread, not create another one. */
 export const isScheduleInThread = (task: ParsedScheduledTask, threadId: string): boolean =>
@@ -107,14 +139,12 @@ export const formatRelativeCountdown = (
     return t('roomSchedules.inDays', { count: days });
   }
 
-  const execDate = new Date(executionTime);
-  const nowDate = new Date(now);
+  const execParts = getCalendarParts(executionTime, timeZone);
+  const nowParts = getCalendarParts(now, timeZone);
   return dateTimeFormat(
     locale,
     withTimeZone(
-      execDate.getFullYear() === nowDate.getFullYear()
-        ? SAME_YEAR_DATE_OPTIONS
-        : OTHER_YEAR_DATE_OPTIONS,
+      execParts.year === nowParts.year ? SAME_YEAR_DATE_OPTIONS : OTHER_YEAR_DATE_OPTIONS,
       timeZone
     )
   ).format(executionTime);
@@ -127,13 +157,10 @@ export const formatCompactExecutionTime = (
   locale?: string,
   timeZone?: string
 ): string => {
-  const execDate = new Date(executionTime);
-  const nowDate = new Date(now);
-  const sameYear = execDate.getFullYear() === nowDate.getFullYear();
-  const sameDay =
-    sameYear &&
-    execDate.getMonth() === nowDate.getMonth() &&
-    execDate.getDate() === nowDate.getDate();
+  const execParts = getCalendarParts(executionTime, timeZone);
+  const nowParts = getCalendarParts(now, timeZone);
+  const sameYear = execParts.year === nowParts.year;
+  const sameDay = sameYear && execParts.month === nowParts.month && execParts.day === nowParts.day;
 
   if (sameDay) {
     return dateTimeFormat(locale, withTimeZone(SAME_DAY_TIME_OPTIONS, timeZone)).format(

@@ -558,16 +558,49 @@ describe('RoomViewHeader schedule actions', () => {
     expect(result).toBe('draft-busy');
     store.set(composerReplyDraftAtom('!room:example.org', undefined), undefined);
 
-    // Inside an open thread, edit targets that open thread composer synchronously.
+    // In side-by-side layout (room header with openThreadId but no threadId), edit targets the
+    // room composer and is not blocked by an unrelated draft in the open thread column.
     const threadDraftAtom = roomIdToMsgDraftAtomFamily(
       getRoomInputDraftKey('@me:example.org', '!room:example.org', '$open-thread')
     );
+    store.set(roomDraftAtom, []);
+    store.set(threadDraftAtom, [createParagraphElement('unrelated thread draft')]);
     act(() => {
       renderer?.update(
         <Provider store={store}>
           <RoomViewHeader
             hasMindroomAgents
             openThreadId="$open-thread"
+            onFocusComposer={onFocusComposer}
+          />
+        </Provider>
+      );
+    });
+    act(() => {
+      overlayCapture.openTrigger?.();
+    });
+    act(() => {
+      result = overlayCapture.props!.onEditTask!(
+        task({ taskId: 'edit-beside', threadId: '$open-thread' })
+      );
+    });
+    expect(result).toBe('prefilled');
+    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
+      '!edit_schedule edit-beside ',
+    ]);
+    expect(store.get(threadDraftAtom).map((node) => SlateNode.string(node))).toEqual([
+      'unrelated thread draft',
+    ]);
+    expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
+
+    // Inside a full-width thread header (`threadId` set), edit targets the thread composer.
+    store.set(threadDraftAtom, []);
+    act(() => {
+      renderer?.update(
+        <Provider store={store}>
+          <RoomViewHeader
+            hasMindroomAgents
+            threadId="$open-thread"
             onFocusComposer={onFocusComposer}
           />
         </Provider>

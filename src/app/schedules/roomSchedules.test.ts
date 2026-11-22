@@ -189,6 +189,23 @@ describe('formatCompactExecutionTime', () => {
       formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Denver')
     ).toBe('Jul 15, 12:00 PM');
   });
+
+  it('compares calendar day in the supplied timeZone rather than the host time zone', () => {
+    const prevTz = process.env.TZ;
+    process.env.TZ = 'UTC';
+    try {
+      // 2026-01-16T06:00:00Z is Jan 15, 11:00 PM in America/Phoenix (UTC-7);
+      // 2026-01-16T08:00:00Z is Jan 16, 1:00 AM in America/Phoenix (next day in display zone, same UTC day).
+      const lateNightPhoenix = Date.UTC(2026, 0, 16, 6, 0, 0);
+      const nextMorningPhoenix = Date.UTC(2026, 0, 16, 8, 0, 0);
+      expect(
+        formatCompactExecutionTime(nextMorningPhoenix, lateNightPhoenix, 'en-US', 'America/Phoenix')
+      ).toBe('Jan 16, 1:00 AM');
+    } finally {
+      if (prevTz === undefined) delete process.env.TZ;
+      else process.env.TZ = prevTz;
+    }
+  });
 });
 
 describe('formatShortCadence', () => {

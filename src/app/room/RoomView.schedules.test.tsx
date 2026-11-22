@@ -26,11 +26,20 @@ const getJoinedMembersSpy = vi
     () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
   );
 
-const { capturedHeaderProps, threadRouteState, sendMessage } = vi.hoisted(() => ({
-  capturedHeaderProps: [] as RoomViewHeaderProps[],
-  threadRouteState: { effectiveThreadId: undefined as string | undefined },
-  sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-}));
+const { capturedHeaderProps, threadRouteState, threadLayoutState, sendMessage } = vi.hoisted(
+  () => {
+    const layoutState: { layout: 'full' | 'beside'; roomy: boolean } = {
+      layout: 'full',
+      roomy: false,
+    };
+    return {
+      capturedHeaderProps: [] as RoomViewHeaderProps[],
+      threadRouteState: { effectiveThreadId: undefined as string | undefined },
+      threadLayoutState: layoutState,
+      sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+    };
+  }
+);
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => Object.assign(mx, { sendMessage, makeTxnId: () => 'txn-room-1' }),
@@ -46,7 +55,11 @@ vi.mock('../event-store/engine/engineContext', () => ({
 }));
 vi.mock('./threadLayout', () => ({
   THREAD_COLUMN_WIDTH_KEY: 'thread-col-width',
-  useThreadLayout: () => ({ layout: 'full', roomy: false, setLayout: vi.fn() }),
+  useThreadLayout: () => ({
+    layout: threadLayoutState.layout,
+    roomy: threadLayoutState.roomy,
+    setLayout: vi.fn(),
+  }),
 }));
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
@@ -93,6 +106,8 @@ afterEach(() => {
   cleanup();
   capturedHeaderProps.length = 0;
   threadRouteState.effectiveThreadId = undefined;
+  threadLayoutState.layout = 'full';
+  threadLayoutState.roomy = false;
   sendMessage.mockReset();
   sendMessage.mockResolvedValue({ event_id: '$sent' });
   getDefaultStore().set(conversationCoveredAtom, false);
@@ -218,5 +233,74 @@ describe('RoomView schedule wiring', () => {
 
     expect(capturedHeaderProps.length).toBe(initialRenders);
     expect(getJoinedMembersSpy.mock.calls.length).toBe(initialScans);
+  });
+
+  it('caches eligibility across unrelated rerenders after enabling and enables on lazy-loaded profile edits', () => {
+    let members = [{ userId: '@alice:example.org' }, { userId: '@mindroom_router:example.org' }];
+    getJoinedMembersSpy.mockImplementation(() => members as never);
+    try {
+      const { rerender } = render(<RoomView room={room} hasMindroomAgents={false} />);
+      getJoinedMembersSpy.mockClear();
+
+      rerender(<RoomView room={room} hasMindroomAgents />);
+      const scansAfterEnable = getJoinedMembersSpy.mock.calls.length;
+      expect(scansAfterEnable).toBe(1);
+      expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(false);
+
+      // Subsequent unrelated rerenders reuse the memoized value without rescanning members.
+      for (let i = 0; i < 4; i += 1) {
+        rerender(<RoomView room={room} hasMindroomAgents joinRequestCount={i + 1} />);
+      }
+      expect(getJoinedMembersSpy.mock.calls.length).toBe(scansAfterEnable);
+
+      // Lazy-loaded agent whose first local event is a join->join profile update (`oldMembership`
+      // undefined, `prev_content.membership === 'join'`) must still flip eligibility to true.
+      members = [...members, { userId: '@mindroom_helper:example.org' }];
+      const profileEvent = new MatrixEvent({
+        type: 'm.room.member',
+        room_id: room.roomId,
+        state_key: '@mindroom_helper:example.org',
+        content: { membership: 'join', displayname: 'Helper Updated' },
+        unsigned: { prev_content: { membership: 'join', displayname: 'Helper' } },
+      });
+      act(() => {
+        mx.emit(
+          RoomMemberEvent.Membership,
+          profileEvent,
+          {
+            roomId: room.roomId,
+            userId: '@mindroom_helper:example.org',
+            membership: 'join',
+          } as never,
+          undefined
+        );
+      });
+      expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(true);
+    } finally {
+      getJoinedMembersSpy.mockImplementation(
+        () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
+      );
+    }
+  });
+
+  it('keeps canEditSchedule enabled on the room header in side-by-side layout even when the open thread is a fork draft', () => {
+    const prevResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      threadRouteState.effectiveThreadId = '$thread-1';
+      threadLayoutState.layout = 'beside';
+      threadLayoutState.roomy = true;
+      render(<RoomView room={room} threadId="$thread-1" forkAt="$event-1" hasMindroomAgents />);
+      const roomHeader = capturedHeaderProps.find((props) => props.threadId === undefined);
+      expect(roomHeader).toBeDefined();
+      expect(roomHeader?.openThreadId).toBe('$thread-1');
+      expect(roomHeader?.canEditSchedule).toBe(true);
+    } finally {
+      globalThis.ResizeObserver = prevResizeObserver;
+    }
   });
 });

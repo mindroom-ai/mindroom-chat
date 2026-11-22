@@ -109,11 +109,9 @@ export function useHasJoinedMindroomAgent(
   );
 
   // Derive synchronously when inputs change; membership events only commit when the boolean flips.
-  const [snapshot, setSnapshot] = useState<{ compute: () => boolean; value: boolean }>(() => ({
-    compute,
-    value: compute(),
-  }));
-  const currentValue = snapshot.compute === compute ? snapshot.value : compute();
+  const derivedValue = useMemo(() => compute(), [compute]);
+  const [override, setOverride] = useState<{ compute: () => boolean; value: boolean }>();
+  const currentValue = override?.compute === compute ? override.value : derivedValue;
   const currentValueRef = useRef(currentValue);
   useLayoutEffect(() => {
     currentValueRef.current = currentValue;
@@ -127,7 +125,7 @@ export function useHasJoinedMindroomAgent(
       const next = compute();
       if (next !== currentValueRef.current) {
         currentValueRef.current = next;
-        setSnapshot({ compute, value: next });
+        setOverride({ compute, value: next });
       }
     };
     const onMember = (
@@ -138,11 +136,12 @@ export function useHasJoinedMindroomAgent(
       const eventRoomId = event?.getRoomId?.() ?? member?.roomId;
       if (eventRoomId !== room.roomId) return;
       const nextMembership = member?.membership ?? event?.getContent?.()?.membership;
-      const prevMembership = oldMembership ?? event?.getPrevContent?.()?.membership;
+      // Only treat the SDK's own prior local membership as unchanged; an undefined oldMembership
+      // can mean a lazy-loaded member whose latest server event was a join->join profile edit.
       if (
-        prevMembership !== undefined &&
+        oldMembership !== undefined &&
         nextMembership !== undefined &&
-        prevMembership === nextMembership
+        oldMembership === nextMembership
       ) {
         return;
       }

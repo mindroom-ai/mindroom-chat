@@ -368,10 +368,7 @@ export function RoomView({
               openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
-              canEditSchedule={
-                composerShown &&
-                (openThreadId ? !forkAt && !threadState.threadNotFound && !behindPanel : !hidden)
-              }
+              canEditSchedule={composerShown && !hidden}
               hasJoinedMindroomAgent={hasJoinedAgent}
               scheduleCancelState={scheduleCancelState}
               {...headerProps}
