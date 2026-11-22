@@ -98,7 +98,10 @@ describe('Settings > General > Sidebar', () => {
 
   it('leaves out the switches of buttons the deployment or the account cannot show', () => {
     state.localMindroom = false;
-    const renderer = render({ sidebar: { showThreads: false, showExploreCommunity: false } });
+    const renderer = render({
+      sidebar: { showThreads: false, showExploreCommunity: false },
+      mindroom: { canvas: { enabled: false } },
+    });
     expect(titles(renderer)).toEqual(['Show Search in the sidebar']);
   });
 

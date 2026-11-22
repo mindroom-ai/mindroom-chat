@@ -10,10 +10,10 @@ const settings = JSON.parse(
 );
 
 describe('bundled iOS client config', () => {
-  it('enables canvases and libraries in iOS and keeps computers opt-in until deployment', () => {
+  it('turns canvases on, libraries only in iOS, keeps computers opt-in until deployment', () => {
     const base = JSON.parse(source);
     const ios = JSON.parse(iosClientConfig(source, settings));
-    expect(base.mindroom.canvas).toEqual({ enabled: false, libraries: false });
+    expect(base.mindroom.canvas).toEqual({ enabled: true, libraries: false });
     expect(base.mindroom.computers.apiUrl).toBe('');
     expect(ios.mindroom.canvas).toEqual({ enabled: true, libraries: true });
     expect(ios.mindroom.computers.apiUrl).toBe('');

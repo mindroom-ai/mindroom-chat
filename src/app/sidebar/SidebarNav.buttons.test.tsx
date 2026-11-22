@@ -182,7 +182,8 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(tabs).not.toContain('threads');
     expect(tabs).not.toContain('explore');
     expect(tabs).not.toContain('createSpace');
-    expect(renderedTabs({}).tabs).not.toContain('canvases');
+    const canvasesOff = renderedTabs({ mindroom: { canvas: { enabled: false } } });
+    expect(canvasesOff.tabs).not.toContain('canvases');
     expect(renderedTabs({ sidebar: { showMindRoom: false } }).tabs).not.toContain('localMindroom');
   });
 
