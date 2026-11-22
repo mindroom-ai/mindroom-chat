@@ -557,6 +557,35 @@ it('places a warm Back on the saved cards that survive while the index still loa
   expect(container.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
 });
 
+it('goes Back to a saved offset whose cards left once the cards down to its screen are measured', () => {
+  const memory: ScrollAnchorMemory = new Map();
+  const { container: before, unmount } = render(<List memory={memory} />);
+  tick(12);
+  const left = before.querySelector<HTMLElement>('[data-view]')!;
+  act(() => {
+    left.scrollTop = 30 * 199.25;
+    left.dispatchEvent(new Event('scroll'));
+  });
+  unmount();
+  memory.set('!room', { scrollTop: 30 * 199.25, anchors: [{ key: '$row999', offset: 0 }] });
+  const unseen = Array.from({ length: 36 }, (_, i) => `$row${200 + i}`);
+  // Unseen cards below the saved screen hold nothing: they are discovered on frames.
+  const below = render(<List memory={memory} shown={{ cards: [...ids, ...unseen] }} />);
+  const view = () => document.querySelector<HTMLElement>('[data-view]')!;
+  expect(view().dataset.ready).toBe('true');
+  expect(view().dataset.complete).toBe('false');
+  expect(view().querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
+  below.unmount();
+  // Unseen cards above it move the saved offset: Back waits for them, and for no card after.
+  render(<List memory={memory} shown={{ cards: [...unseen, ...ids, '$row300'] }} />);
+  expect(view().dataset.ready).toBe('false');
+  tick(1);
+  expect(view().dataset.ready).toBe('false');
+  tick(1);
+  expect(view().dataset.ready).toBe('true');
+  expect(view().dataset.complete).toBe('false');
+});
+
 it('does not render again when a mounted card resizes, and spaces it by its new height', () => {
   const onIds = vi.fn();
   const { container } = render(<List memory={new Map()} onIds={onIds} />);

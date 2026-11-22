@@ -1013,6 +1013,21 @@ describe('a focus request on the mounted Compact room', () => {
       expect(inView()).toEqual(['$card63', '$card64', '$card65']);
     });
 
+    it('does not wait for unseen cards below the saved place when its cards all left', () => {
+      leaveAt6000();
+      const rest = large.filter((id) => !['$card60', '$card61', '$card62'].includes(id));
+      render(at(undefined, [...rest, ...Array.from({ length: 72 }, (_, i) => `$below${i}`)]));
+      // Every card down to the saved screen is measured: the first commit is there.
+      expect(scrollTop).toBe(6000);
+      expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+      // The cards below are discovered on frames, under the reader.
+      expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
+      measure();
+      expect(document.querySelector('[data-cards-pending]')).toBeNull();
+      expect(scrollTop).toBe(6000);
+      expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+    });
+
     it('draws the cards at the top in the commit that reverses the order', () => {
       memory.clear();
       const { rerender } = render(at(undefined, large));

@@ -15,6 +15,7 @@ type Geometry = {
   fresh: Set<string>;
   visible: string[];
   gap: number;
+  page: number;
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
@@ -35,7 +36,7 @@ export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
   const { target, protectedId, records, indexPending } = options;
   const state = useMemo(() => {
-    const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
+    const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0, page: 0 };
     return {
       geometry: rooms.get(memory)?.get(roomId) ?? empty,
       saved: memory.get(roomId),
@@ -79,7 +80,8 @@ export function useCompactBlocks(options: Options) {
   // Back to the saved cards that are still shown. Warm ones were in view when the list was left
   // and place at once on their cached heights; cold ones wait for their prefix, and an address's
   // one card, while the index loads, for a native range that reaches it. With none shown, Back
-  // waits for cards the index may still bring, then for the whole extent.
+  // waits for cards the index may still bring, then for every card down to the saved screen: the
+  // offset is real then, and the cards below it are discovered on frames, under the reader.
   const back = !state.placed && !!saved?.scrollTop;
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
   const survivors = savedKeys.filter((id) => index.has(id));
@@ -87,10 +89,14 @@ export function useCompactBlocks(options: Options) {
   const warm = survivors.some((id) => geometry.visible.includes(id));
   const arriving = indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
   const ranged = !indexPending || savedKeys.length > 1 || state.reachable === order;
+  let prefix = 0;
+  for (const id of index.keys()) {
+    if (!heights.has(id) && drawn(id)) break;
+    prefix += (heights.get(id) ?? 0) + gap;
+  }
+  const covered = extentComplete || prefix >= (saved?.scrollTop ?? 0) + geometry.page;
   const placeReady =
-    !back ||
-    warm ||
-    (backSlot === undefined ? !arriving && extentComplete : known(backSlot) && ranged);
+    !back || warm || (backSlot === undefined ? !arriving && covered : known(backSlot) && ranged);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = known(targetSlot);
   // A new order, and a new mount, is drawn where the list is, or where Back puts it: the block
@@ -236,6 +242,7 @@ export function useCompactBlocks(options: Options) {
       if (changed) fresh.clear();
       geometry.metrics = metrics;
       geometry.gap = measuredGap;
+      geometry.page = view.clientHeight;
       const { top } = view.getBoundingClientRect();
       const bottom = top + view.clientHeight;
       const visible: string[] = [];
