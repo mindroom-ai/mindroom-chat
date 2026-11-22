@@ -39,7 +39,10 @@ const makeBridge = (): {
     return unsubscribe;
   });
   return {
-    bridge: { onShellEvent },
+    bridge: {
+      onShellEvent,
+      setMediaSession: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    },
     onShellEvent,
     unsubscribe,
     emit: (event) => listener?.(event),

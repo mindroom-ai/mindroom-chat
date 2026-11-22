@@ -49,6 +49,7 @@ import { installErrorCapture } from './app/bug-reports/error-reporting/errorRepo
 import { leavePage } from './boot/inviteFragment';
 import { markPageStartup } from './app/lib/startupTimeline';
 import { isDesktopApp, markDesktopShell } from './app/lib/nativeShell';
+import { startDesktopMediaAuth } from './app/native/desktopMediaAuth';
 
 markPageStartup('js.entry');
 
@@ -93,6 +94,7 @@ const startDiagnostics = (): void => {
 const prepareDocument = (): void => {
   runSafely('desktop shell', () => {
     markDesktopShell();
+    startDesktopMediaAuth();
     if (isDesktopApp() && typeof navigator !== 'undefined' && navigator.storage?.persist) {
       void navigator.storage.persist().catch(() => undefined);
     }

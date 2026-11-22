@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { isCapacitorApp, isDesktopApp } from '../../lib/nativeShell';
+import { desktopMediaAuthReady, subscribeDesktopMediaAuth } from '../../native/desktopMediaAuth';
 import type { SpecVersions } from '../cs-api';
 import { supportsAuthenticatedMedia } from '../mediaUrl';
 import { isServiceWorkerEnabled } from '../../config/runtimeConfig';
@@ -12,7 +13,7 @@ const hasServiceWorkerController = (): boolean =>
   typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
 
 const hasNativeMediaTransport = (): boolean => {
-  if (isDesktopApp()) return false;
+  if (isDesktopApp()) return desktopMediaAuthReady();
   const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
   if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
   try {
@@ -49,12 +50,15 @@ export const useMediaAuthentication = (): boolean => {
   const [transportSupported, setTransportSupported] = useState(readTransportSupport);
 
   useEffect(() => {
+    const refresh = () => setTransportSupported(readTransportSupport());
+    refresh();
+    const stopDesktop = subscribeDesktopMediaAuth(refresh);
     const serviceWorker = typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
-    if (!serviceWorker) return undefined;
-    const handleControllerChange = () => setTransportSupported(readTransportSupport());
-    handleControllerChange();
-    serviceWorker.addEventListener('controllerchange', handleControllerChange);
-    return () => serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    serviceWorker?.addEventListener('controllerchange', refresh);
+    return () => {
+      stopDesktop();
+      serviceWorker?.removeEventListener('controllerchange', refresh);
+    };
   }, []);
 
   return shouldUseMediaAuthentication(specVersions, transportSupported);

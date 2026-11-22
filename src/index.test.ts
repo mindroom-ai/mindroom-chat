@@ -288,6 +288,7 @@ describe('application bootstrap', () => {
         listeners.push(listener);
         return () => undefined;
       }),
+      setMediaSession: vi.fn(async () => ({ ok: true as const, value: undefined })),
     };
     const win = window as Window & { mindroomDesktop?: typeof bridge };
     win.mindroomDesktop = bridge;
@@ -299,6 +300,7 @@ describe('application bootstrap', () => {
       await import('./index');
       expect(document.documentElement.dataset.shell).toBe('desktop');
       expect(persist).toHaveBeenCalledOnce();
+      expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
       listeners[0]?.({ type: 'fullscreen', value: true });
       expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
     } finally {

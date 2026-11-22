@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { app, dialog, session } from 'electron';
+import { app, BrowserWindow, dialog, session } from 'electron';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { getMainWindow, showMainWindow } from './mainWindow';
+import { installMediaAuth } from './mediaAuth';
 import { guardSession, setBlockedUrlRecorder } from './security';
 
 registerBundleScheme();
@@ -39,11 +40,18 @@ void app.whenReady().then(() => {
     app.exit(1);
     return;
   }
+  const appWindows = (): readonly Electron.WebContents[] => {
+    if (isTest)
+      return BrowserWindow.getAllWindows().flatMap((w) => (w.isDestroyed() ? [] : [w.webContents]));
+    const main = getMainWindow();
+    return main ? [main.webContents] : [];
+  };
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
     telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
   );
+  installMediaAuth(session.defaultSession, appWindows);
   showMainWindow();
 });
 
