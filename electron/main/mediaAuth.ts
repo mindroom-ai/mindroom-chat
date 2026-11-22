@@ -120,7 +120,9 @@ export const installMediaAuth = (
             () => {
               clearsRunning -= 1;
               clearFailed = false;
-              if (latestPush.get(owner.id) === push) auth.set(owner.id, next ?? undefined);
+              if (latestPush.get(owner.id) === push && !owner.isDestroyed())
+                auth.set(owner.id, next ?? undefined);
+              else result = { ok: false, code: 'SUPERSEDED' };
               reply();
             },
             () => {

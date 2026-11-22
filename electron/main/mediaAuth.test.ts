@@ -372,21 +372,32 @@ describe('installMediaAuth', () => {
     await Promise.resolve();
     forget(owner.id);
     clears.shift()!();
-    await toBob;
+    expect(await toBob).toEqual({ ok: false, code: 'SUPERSEDED' });
     expect((await headerFor()).requestHeaders).toBeUndefined();
 
-    // A newer push wins over an older one whose clear finishes later.
-    expect(await push(validEvent, alice)).toEqual({ ok: true, value: undefined });
-    const toBobAgain = push(validEvent, bob);
-    await Promise.resolve();
-    const toCarol = push(validEvent, carol);
-    await Promise.resolve();
-    clears.shift()!();
-    await toBobAgain;
-    expect((await headerFor()).requestHeaders).toBeUndefined();
-    clears.shift()!();
-    await toCarol;
-    expect((await headerFor()).requestHeaders).toMatchObject({ Authorization: 'Bearer tok-c' });
+    // A newer push wins over an older one, whichever clear finishes first.
+    for (const olderFirst of [true, false]) {
+      forget(owner.id);
+      expect(await push(validEvent, alice)).toEqual({ ok: true, value: undefined });
+      const toBobAgain = push(validEvent, bob);
+      await Promise.resolve();
+      const toCarol = push(validEvent, carol);
+      await Promise.resolve();
+      const [bobClear, carolClear] = clears.splice(0, 2);
+      if (olderFirst) {
+        bobClear!();
+        expect(await toBobAgain).toEqual({ ok: false, code: 'SUPERSEDED' });
+        expect((await headerFor()).requestHeaders).toBeUndefined();
+        carolClear!();
+        await toCarol;
+      } else {
+        carolClear!();
+        await toCarol;
+        bobClear!();
+        expect(await toBobAgain).toEqual({ ok: false, code: 'SUPERSEDED' });
+      }
+      expect((await headerFor()).requestHeaders).toMatchObject({ Authorization: 'Bearer tok-c' });
+    }
   });
 
   it('clears the HTTP cache before answering a logout, a switch, and a rejected push, not a sign-in or a same-account refresh', async () => {
