@@ -9,19 +9,27 @@ import { describeError } from '../lib/describeError';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
+import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { getMxIdLocalPart, isUserId } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { ownDirectionLine } from '../ui/directional';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { getDisplayName } from './invite/InviteUserAutocomplete';
+import { canOfferModeratorGrant, moderatorGrantLevel } from './invite/moderatorInvite';
 import { useInviteUserSearch } from './useInviteUserSearch';
 import type { ServerUserDirectoryUser } from './userDirectoryCache';
 import { filterInviteUserCandidates } from './userDirectorySearch';
 import * as css from './MembersDrawer.css';
 
+type ModeratorState =
+  | { status: 'granting' }
+  | { status: 'granted' }
+  | { status: 'failed'; error: unknown };
+
 type InviteState =
   | { status: 'inviting' }
-  | { status: 'invited' }
+  | { status: 'invited'; moderator?: ModeratorState }
   | { status: 'failed'; error: unknown };
 
 /** Someone the section offers: a directory match, or a typed user ID the directory does not list. */
@@ -46,7 +54,13 @@ const carryOver = (
 ): Record<string, Attempt> =>
   Object.fromEntries(
     Object.values(byUser)
-      .filter((attempt) => attempt.state.status !== 'invited' && offered(attempt))
+      .filter(
+        (attempt) =>
+          (attempt.state.status !== 'invited' ||
+            attempt.state.moderator?.status === 'granting' ||
+            attempt.state.moderator?.status === 'failed') &&
+          offered(attempt)
+      )
       .sort((a, b) => a.index - b.index)
       .map((attempt, index) => [attempt.user.userId, { ...attempt, index }])
   );
@@ -90,7 +104,17 @@ const inviteRows = (
 const rowName = ({ user, listed }: Candidate): string =>
   listed ? getDisplayName(user) : user.userId;
 
-function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void }) {
+function InviteRowItem({
+  row,
+  canPromote,
+  onInvite,
+  onMakeModerator,
+}: {
+  row: InviteRow;
+  canPromote: boolean;
+  onInvite: () => void;
+  onMakeModerator: () => void;
+}) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
@@ -103,71 +127,126 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
   const failure = state?.status === 'failed' ? { error: state.error } : undefined;
   const inviting = state?.status === 'inviting';
   const invited = state?.status === 'invited';
+  const moderator = state?.status === 'invited' ? state.moderator : undefined;
+  const granting = moderator?.status === 'granting';
+  const granted = moderator?.status === 'granted';
+  const moderatorFailure = moderator?.status === 'failed' ? { error: moderator.error } : undefined;
+  const showModerator = invited && (canPromote || moderator !== undefined);
 
   return (
     <li className={css.InviteRow}>
-      {/* The name follows; the avatar only decorates the row. */}
-      <Avatar className={css.InviteAvatar} size="300" radii="Pill" aria-hidden>
-        <UserAvatar
-          alt=""
-          userId={user.userId}
-          src={avatarSrc}
-          renderFallback={() => (
-            <Text as="span" size="L400">
-              {nameInitials(listed ? name : getMxIdLocalPart(user.userId))}
+      <div className={css.InviteRowMain}>
+        {/* The name follows; the avatar only decorates the row. */}
+        <Avatar className={css.InviteAvatar} size="300" radii="Pill" aria-hidden>
+          <UserAvatar
+            alt=""
+            userId={user.userId}
+            src={avatarSrc}
+            renderFallback={() => (
+              <Text as="span" size="L400">
+                {nameInitials(listed ? name : getMxIdLocalPart(user.userId))}
+              </Text>
+            )}
+          />
+        </Avatar>
+        <span className={css.InviteIdentity}>
+          <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
+            {name}
+          </Text>
+          {/* A typed user ID is the name already. */}
+          {listed && (
+            <Text
+              as="span"
+              id={userIdLine}
+              size="T200"
+              priority="300"
+              truncate
+              {...ownDirectionLine}
+            >
+              {user.userId}
             </Text>
           )}
-        />
-      </Avatar>
-      <span className={css.InviteIdentity}>
-        <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
-          {name}
-        </Text>
-        {/* A typed user ID is the name already. */}
-        {listed && (
-          <Text as="span" id={userIdLine} size="T200" priority="300" truncate {...ownDirectionLine}>
-            {user.userId}
+          {/* The whole reason, on as many lines as it takes. */}
+          {failure && (
+            <Text
+              as="span"
+              size="T200"
+              role="alert"
+              style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
+            >
+              {describeError(t, failure.error)}
+              <ErrorDetail error={failure.error} />
+            </Text>
+          )}
+        </span>
+        {/* One button through every state, so it keeps the keyboard focus once pressed. */}
+        <Button
+          size="300"
+          variant={invited ? 'Success' : 'Primary'}
+          fill={invited ? 'None' : 'Soft'}
+          radii="300"
+          className={classNames(css.InviteButton, invited && css.InviteSent)}
+          aria-disabled={inviting || invited}
+          aria-label={
+            invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
+          }
+          // The user ID under the name tells apart two people of the same name.
+          aria-describedby={listed ? userIdLine : undefined}
+          onClick={inviting || invited ? undefined : onInvite}
+          before={
+            (inviting && <Spinner size="50" variant="Primary" />) || (
+              <Icon size="50" src={invited ? Icons.Check : Icons.Plus} />
+            )
+          }
+        >
+          <Text as="span" size="B300">
+            {invited
+              ? t('featureUi.room.membersDrawer.inviteSent')
+              : t('featureUi.room.membersDrawer.invite')}
           </Text>
-        )}
-        {/* The whole reason, on as many lines as it takes. */}
-        {failure && (
-          <Text
-            as="span"
-            size="T200"
-            role="alert"
-            style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
+        </Button>
+      </div>
+      {showModerator && (
+        <div className={css.InviteRowModerator}>
+          <Button
+            size="300"
+            variant={granted ? 'Success' : 'Secondary'}
+            fill={granted ? 'None' : 'Soft'}
+            radii="300"
+            className={classNames(css.InviteButton, granted && css.InviteSent)}
+            aria-disabled={granting || granted || !canPromote}
+            aria-label={
+              granted
+                ? undefined
+                : t('featureUi.room.membersDrawer.makeModeratorUser', { user: name })
+            }
+            aria-describedby={listed ? userIdLine : undefined}
+            onClick={granting || granted || !canPromote ? undefined : onMakeModerator}
+            before={
+              (granting && <Spinner size="50" variant="Secondary" />) || (
+                <Icon size="50" src={Icons.Shield} />
+              )
+            }
           >
-            {describeError(t, failure.error)}
-            <ErrorDetail error={failure.error} />
-          </Text>
-        )}
-      </span>
-      {/* One button through every state, so it keeps the keyboard focus once pressed. */}
-      <Button
-        size="300"
-        variant={invited ? 'Success' : 'Primary'}
-        fill={invited ? 'None' : 'Soft'}
-        radii="300"
-        className={classNames(css.InviteButton, invited && css.InviteSent)}
-        aria-disabled={inviting || invited}
-        aria-label={
-          invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
-        }
-        // The user ID under the name tells apart two people of the same name.
-        aria-describedby={listed ? userIdLine : undefined}
-        onClick={inviting || invited ? undefined : onInvite}
-        before={
-          (inviting && <Spinner size="50" variant="Primary" />) || (
-            <Icon size="50" src={invited ? Icons.Check : Icons.Plus} />
-          )
-        }
-      >
-        <Text as="span" size="B300">
-          {invited
-            ? t('featureUi.room.membersDrawer.inviteSent')
-            : t('featureUi.room.membersDrawer.invite')}
-        </Text>
-      </Button>
+            <Text as="span" size="B300">
+              {granted
+                ? t('sharedUi.powerLevels.moderator')
+                : t('featureUi.room.membersDrawer.makeModerator')}
+            </Text>
+          </Button>
+          {moderatorFailure && (
+            <Text
+              as="span"
+              size="T200"
+              role="alert"
+              style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
+            >
+              {describeError(t, moderatorFailure.error)}
+              <ErrorDetail error={moderatorFailure.error} />
+            </Text>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -175,11 +254,19 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
 type InviteListProps = {
   rows: InviteRow[];
   isFetching: boolean;
+  canPromote: (userId: string) => boolean;
   onInvite: (row: InviteRow, index: number) => void;
+  onMakeModerator: (row: InviteRow) => void;
 };
 
 /** The section itself: its title after a line, then the rows, or nothing when there are none. */
-function InviteList({ rows, isFetching, onInvite }: InviteListProps) {
+function InviteList({
+  rows,
+  isFetching,
+  canPromote,
+  onInvite,
+  onMakeModerator,
+}: InviteListProps) {
   const { t } = useTranslation();
   const headingId = useId();
   if (rows.length === 0 && !isFetching) return null;
@@ -197,7 +284,13 @@ function InviteList({ rows, isFetching, onInvite }: InviteListProps) {
       ) : (
         <ul className={css.InviteList}>
           {rows.map((row, index) => (
-            <InviteRowItem key={row.user.userId} row={row} onInvite={() => onInvite(row, index)} />
+            <InviteRowItem
+              key={row.user.userId}
+              row={row}
+              canPromote={canPromote(row.user.userId)}
+              onInvite={() => onInvite(row, index)}
+              onMakeModerator={() => onMakeModerator(row)}
+            />
           ))}
         </ul>
       )}
@@ -212,7 +305,14 @@ type InviteSearchProps = Omit<InviteListProps, 'rows' | 'isFetching'> & {
 };
 
 /** The directory's matches for a search, with the invitations placed for it. */
-function InviteSearch({ room, query, attempts, onInvite }: InviteSearchProps) {
+function InviteSearch({
+  room,
+  query,
+  attempts,
+  canPromote,
+  onInvite,
+  onMakeModerator,
+}: InviteSearchProps) {
   const client = useMatrixClient();
   const { suggestions, isFetching } = useInviteUserSearch(room, query);
   const typedUser = isUserId(query)
@@ -220,7 +320,15 @@ function InviteSearch({ room, query, attempts, onInvite }: InviteSearchProps) {
     : undefined;
   const typed = typedUser ? { user: typedUser, listed: false } : undefined;
   const rows = inviteRows(suggestions, typed, attempts);
-  return <InviteList rows={rows} isFetching={isFetching} onInvite={onInvite} />;
+  return (
+    <InviteList
+      rows={rows}
+      isFetching={isFetching}
+      canPromote={canPromote}
+      onInvite={onInvite}
+      onMakeModerator={onMakeModerator}
+    />
+  );
 }
 
 type MembersInviteSectionProps = {
@@ -240,6 +348,8 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
+  const levels = usePowerLevels(room);
+  const creators = useRoomCreators(room);
   const trimmed = query.trim();
   const [attempts, setAttempts] = useState<Attempts>({ query: trimmed, byUser: {} });
   const [announcement, setAnnouncement] = useState('');
@@ -288,7 +398,27 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
       if (alive()) setState(user.userId, { status: 'failed', error });
     }
   };
+  const canPromote = (userId: string) =>
+    canOfferModeratorGrant(room, userId, selfUserId, levels, creators);
+
+  const makeModerator = async ({ user, listed }: InviteRow) => {
+    setState(user.userId, { status: 'invited', moderator: { status: 'granting' } });
+    try {
+      await client.setPowerLevel(room.roomId, user.userId, moderatorGrantLevel(levels));
+      if (!alive()) return;
+      setState(user.userId, { status: 'invited', moderator: { status: 'granted' } });
+      setAnnouncement(
+        t('featureUi.room.membersDrawer.madeModerator', { user: rowName({ user, listed }) })
+      );
+    } catch (error) {
+      if (alive()) {
+        setState(user.userId, { status: 'invited', moderator: { status: 'failed', error } });
+      }
+    }
+  };
+
   const onInvite = (row: InviteRow, index: number) => void invite(row, index);
+  const onMakeModerator = (row: InviteRow) => void makeModerator(row);
 
   return (
     <>
@@ -296,10 +426,19 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
         <InviteList
           rows={inviteRows([], undefined, placed)}
           isFetching={false}
+          canPromote={canPromote}
           onInvite={onInvite}
+          onMakeModerator={onMakeModerator}
         />
       ) : (
-        <InviteSearch room={room} query={trimmed} attempts={placed} onInvite={onInvite} />
+        <InviteSearch
+          room={room}
+          query={trimmed}
+          attempts={placed}
+          canPromote={canPromote}
+          onInvite={onInvite}
+          onMakeModerator={onMakeModerator}
+        />
       )}
       {/* An invitation that went out is said aloud; a failure is an alert in its row. */}
       <p role="status" className={css.VisuallyHidden}>

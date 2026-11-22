@@ -229,7 +229,10 @@ export function ProfileCard({
           userId={userId}
           tag={tag}
           mine={mine}
-          editable={abilities.changePower && member?.membership === 'join'}
+          editable={
+            abilities.changePower &&
+            (member?.membership === 'join' || member?.membership === 'invite')
+          }
           onManagePowers={may.stateEvent(StateEvent.RoomPowerLevels, me) ? managePowers : undefined}
         />
       )}

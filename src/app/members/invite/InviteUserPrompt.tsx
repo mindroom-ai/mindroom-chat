@@ -4,6 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import {
   Box,
   Button,
+  Checkbox,
   Icon,
   Icons,
   Input,
@@ -19,7 +20,15 @@ import {
 import type { Room } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { InviteUserAutocomplete } from './InviteUserAutocomplete';
+import {
+  canOfferModeratorGrant,
+  hasModeratorMindroomAgent,
+  moderatorGrantLevel,
+} from './moderatorInvite';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
+import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { isUserId } from '../../matrix/matrix';
 import { stopPropagation } from '../../lib/keyboard';
@@ -76,14 +85,26 @@ const dialogTrapOptions = (
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
   const { t } = useTranslation();
   const reasonId = useId();
+  const moderatorHelpId = useId();
   const client = useMatrixClient();
   const alive = useAlive();
+  const levels = usePowerLevels(room);
+  const creators = useRoomCreators(room);
+  const members = useRoomMembers(client, room.roomId);
+  const me = client.getSafeUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string>();
   // The last person invited: the dialog stays open for the next one.
   const [invited, setInvited] = useState<string>();
+  const [grantModeratorOverride, setGrantModeratorOverride] = useState<boolean>();
+  const [grantedModeratorInSession, setGrantedModeratorInSession] = useState(false);
+
+  const offerModerator = canOfferModeratorGrant(room, userId.trim(), me, levels, creators);
+  const defaultModerator =
+    !grantedModeratorInSession && !hasModeratorMindroomAgent(members, me, levels, creators);
+  const grantModerator = grantModeratorOverride ?? defaultModerator;
 
   useEffect(() => {
     if (invited && !inviting) inputRef.current?.focus();
@@ -93,6 +114,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     setError(undefined);
     setInvited(undefined);
     setUserId(value);
+    if (!canOfferModeratorGrant(room, value.trim(), me, levels, creators)) {
+      setGrantModeratorOverride(undefined);
+    }
   };
 
   const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
@@ -105,17 +129,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
     const form = evt.target as InviteFormTarget;
     const reason = form.reasonInput?.value.trim() || undefined;
+    const levelToGrant =
+      offerModerator && grantModerator ? moderatorGrantLevel(levels) : undefined;
 
     setInviting(true);
     setError(undefined);
     setInvited(undefined);
     try {
       await client.invite(room.roomId, target, reason);
-      if (!alive()) return;
-      setUserId('');
-      if (form.reasonInput) form.reasonInput.value = '';
-      setInvited(target);
-      setInviting(false);
     } catch (inviteError) {
       if (!alive()) return;
       setError(
@@ -124,7 +145,30 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
           : String(inviteError)
       );
       setInviting(false);
+      return;
     }
+    if (!alive()) return;
+    setUserId('');
+    if (form.reasonInput) form.reasonInput.value = '';
+    setGrantModeratorOverride(undefined);
+    setInvited(target);
+
+    if (levelToGrant !== undefined) {
+      try {
+        await client.setPowerLevel(room.roomId, target, levelToGrant);
+        if (!alive()) return;
+        setGrantedModeratorInSession(true);
+      } catch (powerError) {
+        if (!alive()) return;
+        const detail =
+          powerError instanceof Error && powerError.message
+            ? powerError.message
+            : String(powerError);
+        setError(t('sharedUi.inviteUserPrompt.moderatorFailed', { error: detail }));
+      }
+    }
+    if (!alive()) return;
+    setInviting(false);
   };
 
   return (
@@ -174,6 +218,31 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                     readOnly={inviting}
                   />
                 </Box>
+                {offerModerator && (
+                  <Box direction="Column" gap="100">
+                    <Box
+                      as="label"
+                      alignItems="Center"
+                      gap="200"
+                      style={{ cursor: inviting ? 'default' : 'pointer' }}
+                    >
+                      <Checkbox
+                        variant="Primary"
+                        size="200"
+                        checked={grantModerator}
+                        disabled={inviting}
+                        aria-describedby={moderatorHelpId}
+                        // folds leaves onChange out of its Checkbox type; the click toggles the choice.
+                        readOnly
+                        onClick={() => setGrantModeratorOverride(!grantModerator)}
+                      />
+                      <Text size="T300">{t('sharedUi.inviteUserPrompt.giveModeratorRights')}</Text>
+                    </Box>
+                    <Text id={moderatorHelpId} size="T200" priority="300">
+                      {t('sharedUi.inviteUserPrompt.giveModeratorRightsHelp')}
+                    </Text>
+                  </Box>
+                )}
                 {error && (
                   <Text size="T300" style={{ color: color.Critical.Main }} role="alert">
                     {error}
