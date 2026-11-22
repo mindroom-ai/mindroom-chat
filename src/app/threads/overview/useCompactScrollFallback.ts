@@ -101,11 +101,19 @@ export const SCROLL_SETTLE_MS = 120;
  * `contentRef` for card height changes outside a parent commit, and defers `scrollTop` writes until
  * an active wheel or touch scroll settles so WebKit's scrolling thread is never fought mid-gesture.
  */
+const keepsOrder = (before: readonly string[], after: readonly string[]): boolean => {
+  const beforeSet = new Set(before);
+  const afterSet = new Set(after);
+  const kept = after.filter((id) => beforeSet.has(id));
+  return before.filter((id) => afterSet.has(id)).every((id, index) => id === kept[index]);
+};
+
 export const useCompactScrollFallback = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
   sectionOfRow?: SectionOfRow,
-  contentRef?: RefObject<HTMLElement>
+  contentRef?: RefObject<HTMLElement>,
+  pausedRef?: RefObject<boolean>
 ): void => {
   // The scroll and resize listeners need the latest committed rows and section lookup.
   const latestRowsRef = useRef(rows);
@@ -120,21 +128,30 @@ export const useCompactScrollFallback = (
   const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const paddingRef = useRef<{ pad: number; scrollTop: number }>();
 
-  const compensatePadding = useCallback((view: HTMLElement) => {
-    const pad = cssPx(view, 'paddingTop');
-    const prev = paddingRef.current;
-    if (prev && view.scrollTop > 0 && Math.abs(pad - prev.pad) >= 0.5) {
-      const moved = pad - prev.pad;
-      const clamped = view.scrollTop - prev.scrollTop;
-      if ((moved > 0 && clamped >= 0) || clamped === 0) view.scrollTop += moved;
-      else if (moved < 0 && clamped < 0 && clamped > moved) view.scrollTop += moved - clamped;
-    }
-    paddingRef.current = { pad, scrollTop: view.scrollTop };
-  }, []);
+  const compensatePadding = useCallback(
+    (view: HTMLElement) => {
+      const pad = cssPx(view, 'paddingTop');
+      const prev = paddingRef.current;
+      if (!pausedRef?.current && prev && view.scrollTop > 0 && Math.abs(pad - prev.pad) >= 0.5) {
+        const moved = pad - prev.pad;
+        const clamped = view.scrollTop - prev.scrollTop;
+        if ((moved > 0 && clamped >= 0) || clamped === 0) view.scrollTop += moved;
+        else if (moved < 0 && clamped < 0 && clamped > moved) view.scrollTop += moved - clamped;
+      }
+      paddingRef.current = { pad, scrollTop: view.scrollTop };
+    },
+    [pausedRef]
+  );
 
   const compensate = useCallback(
     (view: HTMLElement, nextRows: readonly string[], rowSection?: SectionOfRow) => {
       const before = cardsInViewRef.current;
+      if (pausedRef?.current && (!before || before.order === nextRows || keepsOrder(before.order, nextRows))) {
+        pendingDeltaRef.current = 0;
+        readerScrolledRef.current = false;
+        cardsInViewRef.current = cardsInView(view, nextRows);
+        return;
+      }
       const webkitReset =
         !!before &&
         view.scrollTop === 0 &&
@@ -166,7 +183,7 @@ export const useCompactScrollFallback = (
       readerScrolledRef.current = false;
       cardsInViewRef.current = cardsInView(view, nextRows);
     },
-    []
+    [pausedRef]
   );
 
   // Every commit: a card's thread that loads above the view changes its height without an order
@@ -205,7 +222,7 @@ export const useCompactScrollFallback = (
         scrollingRef.current = false;
         const delta = pendingDeltaRef.current;
         pendingDeltaRef.current = 0;
-        if (view.scrollTop > 0 && Math.abs(delta) >= 0.5) view.scrollTop += delta;
+        if (!pausedRef?.current && view.scrollTop > 0 && Math.abs(delta) >= 0.5) view.scrollTop += delta;
         cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
       }, SCROLL_SETTLE_MS);
     };
@@ -260,7 +277,7 @@ export const useCompactScrollFallback = (
       resizeObserver?.disconnect();
       listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
-  }, [compensate, compensatePadding, contentRef, viewRef]);
+  }, [compensate, compensatePadding, contentRef, pausedRef, viewRef]);
 };
 
 /**

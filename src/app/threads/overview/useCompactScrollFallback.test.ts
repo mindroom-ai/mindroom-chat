@@ -286,6 +286,21 @@ describe('useCompactScrollFallback', () => {
     expect(writes).toEqual([208, 186]);
   });
 
+    it('pauses compensation while pausedRef is true for a scroll restore', () => {
+    withoutScrollAnchoring();
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes } = list(ids, 150);
+    const paused = { current: true };
+    const { rerender } = renderHook(
+      ({ live }) => useCompactScrollFallback(live, { current: view }, undefined, undefined, paused),
+      { initialProps: { live: ids } }
+    );
+    show(['$d', ...ids]);
+    rerender({ live: ['$d', ...ids] });
+    expect(writes).toEqual([]);
+    expect(view.scrollTop).toBe(150);
+  });
+
     it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];

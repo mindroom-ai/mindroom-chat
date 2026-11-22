@@ -125,6 +125,7 @@ describe('useScrollAnchorMemory', () => {
     );
 
   const scrollReaderTo = (layout: Layout, scrollTop: number) => {
+    layout.view.dispatchEvent(new Event('wheel'));
     layout.view.scrollTop = scrollTop;
     layout.view.dispatchEvent(new Event('scroll'));
   };
@@ -260,7 +261,7 @@ describe('useScrollAnchorMemory', () => {
     resize(layout.content);
     expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
 
-    layout.view.scrollTop = 120;
+    scrollReaderTo(layout, 120);
     layout.setRows(['new-row', ...keys]);
     resize();
     expect(layout.view.scrollTop).toBe(120);
@@ -297,7 +298,49 @@ describe('useScrollAnchorMemory', () => {
     expect(observers.size).toBe(0);
   });
 
-  it('stops following once the reader scrolls, even back to the same place', () => {
+  it('keeps following when another writer changes scrollTop without reader input', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    const before = leaveAt(memory, keys, 300);
+
+    const layout = createLayout(keys.slice(0, 6));
+    mount(memory, layout);
+    // Another writer (e.g. native scroll anchoring) moves scrollTop before the target mounts.
+    layout.view.scrollTop = 120;
+    layout.view.dispatchEvent(new Event('scroll'));
+    layout.setRows(keys);
+    resize(layout.content);
+    expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
+    expect(observers.size).toBe(1);
+  });
+
+  it('stops following on touch, scroll keys and scrollbar thumb drag', () => {
+    const cases: [string, (view: HTMLElement) => void][] = [
+      ['touchstart', (view) => view.dispatchEvent(new Event('touchstart'))],
+      ['ArrowDown', (view) => view.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))],
+      [
+        'scrollbar thumb',
+        (view) => {
+          const bar = document.createElement('div');
+          bar.setAttribute('role', 'scrollbar');
+          view.append(bar);
+          bar.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+        },
+      ],
+    ];
+    for (const [, trigger] of cases) {
+      const memory: ScrollAnchorMemory = new Map();
+      const keys = rowKeys(20);
+      leaveAt(memory, keys, 300);
+      const layout = createLayout(keys);
+      mount(memory, layout);
+      trigger(layout.view);
+      expect(observers.size).toBe(0);
+      unmount();
+    }
+  });
+
+    it('stops following once the reader scrolls, even back to the same place', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);
     leaveAt(memory, keys, 300);
