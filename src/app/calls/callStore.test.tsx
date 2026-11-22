@@ -8,7 +8,9 @@ import {
   callStartProblemAtom,
   callViewStateAtom,
   forgetCallState,
+  MEMBERS_LOAD_TIMEOUT_MS,
   noteCallStart,
+  START_STEP_TIMEOUT_MS,
   useCallActions,
   useInCall,
   type ActiveCall,
@@ -595,6 +597,122 @@ describe('useCallActions startCall', () => {
       expect(onEnded).toHaveBeenCalledTimes(1);
     }
   );
+
+  describe('bounded start steps', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('starts without waiting forever when loading room members stalls', async () => {
+      vi.useFakeTimers();
+      const store = createStore();
+      const room = {
+        roomId: '!call:calls.test',
+        loadMembersIfNeeded: () => new Promise<void>(() => undefined),
+        getLiveTimeline: () => ({ getEvents: () => [] }),
+      } as unknown as Room;
+      const actions = actionsIn(store, runningClient());
+
+      let result: string | undefined;
+      const starting = actions.startCall({ room, kind: 'room' }).then((value) => {
+        result = value;
+      });
+      await vi.advanceTimersByTimeAsync(MEMBERS_LOAD_TIMEOUT_MS);
+      await Promise.resolve();
+
+      expect(result).toBe('started');
+      expect(store.get(activeCallAtom)?.call.room).toBe(room);
+      await starting;
+    });
+
+    it('gives up as failed, releases the lock, and undoes preparation when prepare stalls', async () => {
+      vi.useFakeTimers();
+      const locks = fakeWebLocks();
+      vi.stubGlobal('navigator', { locks });
+      const store = createStore();
+      const onEnded = vi.fn(async () => undefined);
+      let rejectPrepare!: (error: Error) => void;
+      const prepare = vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectPrepare = reject;
+          })
+      );
+      const actions = actionsIn(store, runningClient());
+
+      let result: string | undefined;
+      const starting = actions
+        .startCall({ room: loadedRoom(), kind: 'agent', prepare, onEnded })
+        .then((value) => {
+          result = value;
+        });
+      await vi.advanceTimersByTimeAsync(START_STEP_TIMEOUT_MS);
+      await Promise.resolve();
+
+      expect(result).toBe('failed');
+      expect(store.get(activeCallAtom)).toBeUndefined();
+      expect(onEnded).toHaveBeenCalledTimes(1);
+      // A late rejection after the timeout does not turn into an unhandled rejection.
+      rejectPrepare(new Error('late failure'));
+      await Promise.resolve();
+      await starting;
+      expect((await locks.query()).held).toEqual([]);
+
+      // A subsequent start is no longer blocked as busy.
+      vi.useRealTimers();
+      await expect(actions.startCall({ room: loadedRoom(), kind: 'room' })).resolves.toBe(
+        'started'
+      );
+      const call = store.get(activeCallAtom)?.call as unknown as { releaseDeviceLock?: () => void };
+      call.releaseDeviceLock?.();
+    });
+
+    it('gives up as failed and lets Join work again when loading the call engine stalls', async () => {
+      vi.useFakeTimers();
+      const locks = fakeWebLocks();
+      vi.stubGlobal('navigator', { locks });
+      vi.resetModules();
+      vi.doMock('./RoomCall', () => new Promise(() => undefined));
+      try {
+        const fresh = await import('./callStore');
+        const store = createStore();
+        const onEnded = vi.fn(async () => undefined);
+        const prepare = vi.fn(async () => undefined);
+        const actions = actionsIn(store, runningClient(), fresh.useCallActions);
+
+        let result: string | undefined;
+        const starting = actions
+          .startCall({ room: loadedRoom(), kind: 'agent', prepare, onEnded })
+          .then((value) => {
+            result = value;
+          });
+        await vi.advanceTimersByTimeAsync(START_STEP_TIMEOUT_MS);
+        await Promise.resolve();
+
+        expect(result).toBe('failed');
+        expect(store.get(fresh.activeCallAtom)).toBeUndefined();
+        expect(onEnded).toHaveBeenCalledTimes(1);
+        await starting;
+        expect((await locks.query()).held).toEqual([]);
+
+        vi.useRealTimers();
+        vi.resetModules();
+        vi.doMock('./RoomCall', () => ({ RoomCall: FakeRoomCall }));
+        const recovered = await import('./callStore');
+        const retryActions = actionsIn(store, runningClient(), recovered.useCallActions);
+        await expect(retryActions.startCall({ room: loadedRoom(), kind: 'room' })).resolves.toBe(
+          'started'
+        );
+        const call = store.get(recovered.activeCallAtom)?.call as unknown as {
+          releaseDeviceLock?: () => void;
+        };
+        call.releaseDeviceLock?.();
+      } finally {
+        vi.doMock('./RoomCall', () => ({ RoomCall: FakeRoomCall }));
+        vi.resetModules();
+      }
+    });
+  });
 });
 
 describe('noteCallStart', () => {

@@ -268,6 +268,29 @@ export type StartCallOptions = {
  */
 export type StartCallResult = 'started' | 'busy' | 'failed';
 
+/** How long a start waits for room members before proceeding without them. */
+export const MEMBERS_LOAD_TIMEOUT_MS = 3_000;
+
+/** How long a start waits for a required network step before giving up as failed. */
+export const START_STEP_TIMEOUT_MS = 15_000;
+
+const TIMED_OUT = Symbol('timedOut');
+
+const settleWithin = <T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(TIMED_OUT), ms);
+    void promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+
 /** The newest event's server time in a room's loaded live timeline. */
 const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
@@ -334,14 +357,19 @@ export const useCallActions = (mx: MatrixClient) => {
       if (prepare) {
         prepared = true;
         try {
-          await prepare();
+          if ((await settleWithin(prepare(), START_STEP_TIMEOUT_MS)) === TIMED_OUT) {
+            return giveUp('failed');
+          }
         } catch {
           return giveUp('failed');
         }
       }
-      await room.loadMembersIfNeeded().catch(() => undefined);
-      const engine = await loading;
-      if (!engine || !mx.clientRunning) return giveUp('failed');
+      await settleWithin(
+        room.loadMembersIfNeeded().catch(() => undefined),
+        MEMBERS_LOAD_TIMEOUT_MS
+      );
+      const engine = await settleWithin(loading, START_STEP_TIMEOUT_MS);
+      if (!engine || engine === TIMED_OUT || !mx.clientRunning) return giveUp('failed');
       // A room the person left meanwhile (the call's, or the conversation an agent call is about)
       // gets no call: its leave already passed, and only a leave from here on ends the call with
       // its room (`CallWindowHost`).
