@@ -191,10 +191,8 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
-      if (progress) {
-        progress.placed = true;
-        progress.onWrite?.();
-      }
+      if (progress) progress.placed = true;
+      progress?.onWrite?.();
     };
     restore();
     if (!state.snapshot) return undefined;

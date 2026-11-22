@@ -80,8 +80,7 @@ export function useCompactBlocks(options: Options) {
   // Back to the saved cards that are still shown. Warm ones were in view when the list was left
   // and place at once on their cached heights; cold ones wait for their prefix, and an address's
   // one card, while the index loads, for a native range that reaches it. With none shown, Back
-  // waits for cards the index may still bring, then for every card down to the saved screen: the
-  // offset is real then, and the cards below it are discovered on frames, under the reader.
+  // waits for cards the index may still bring, then for the cards down to the saved screen only.
   const back = !state.placed && !!saved?.scrollTop;
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
   const survivors = savedKeys.filter((id) => index.has(id));
@@ -241,9 +240,7 @@ export function useCompactBlocks(options: Options) {
       const metrics = `${width}|${style.fontFamily}|${style.fontSize}|${measuredGap}`;
       let changed = metrics !== geometry.metrics;
       if (changed) fresh.clear();
-      geometry.metrics = metrics;
-      geometry.gap = measuredGap;
-      geometry.page = view.clientHeight;
+      Object.assign(geometry, { metrics, gap: measuredGap, page: view.clientHeight });
       const { top } = view.getBoundingClientRect();
       const bottom = top + view.clientHeight;
       const visible: string[] = [];
