@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActiveSession, type StoredSession } from '../../matrix/session/sessions';
@@ -139,6 +139,9 @@ const pointerEvent = (
   return event;
 };
 
+/** The quick menu, which has no role: it is the pointer's alone. */
+const quickMenu = () => document.querySelector<HTMLElement>('[data-quick-account-menu]');
+
 const renderTab = (
   props: { inTopBar?: boolean } = {},
   sessions: StoredSession[] = [activeSession, bobSession, carolSession]
@@ -197,13 +200,15 @@ describe('SettingsTab hold-and-swipe account switch', () => {
         vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
       });
 
-      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+      // `aria-expanded` is AccountMenu's, the menu `aria-haspopup` names; no menu is open.
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(screen.queryByRole('menu')).toBeNull();
       expect(
         document.querySelector('[data-popout-position]')?.getAttribute('data-popout-position')
       ).toBe(expectedPosition);
 
-      const menu = screen.getByRole('menu', { name: 'Other accounts' });
-      const rows = within(menu).getAllByRole('menuitem');
+      const menu = quickMenu()!;
+      const rows = Array.from(menu.querySelectorAll('[data-quick-account-session-id]'));
       expect(rows.map((row) => row.getAttribute('data-quick-account-session-id'))).toEqual(
         expectedOrder
       );
@@ -229,6 +234,7 @@ describe('SettingsTab hold-and-swipe account switch', () => {
 
       expect(setActiveSession).toHaveBeenCalledWith('session-b');
       expect(navigate).toHaveBeenCalledWith('/home');
+      expect(quickMenu()).toBeNull();
       expect(screen.queryByRole('menu')).toBeNull();
       expect(trigger.getAttribute('aria-expanded')).toBe('false');
     }
@@ -259,6 +265,7 @@ describe('SettingsTab hold-and-swipe account switch', () => {
       vi.advanceTimersByTime(ACCOUNT_HOLD_MS + 100);
     });
 
+    expect(quickMenu()).toBeNull();
     expect(screen.queryByRole('menu')).toBeNull();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
@@ -271,10 +278,10 @@ describe('SettingsTab hold-and-swipe account switch', () => {
     act(() => {
       vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
     });
-    expect(screen.getByRole('menu', { name: 'Other accounts' })).toBeTruthy();
+    expect(quickMenu()).toBeTruthy();
 
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(quickMenu()).toBeNull();
 
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
     fireEvent.click(trigger, { detail: 1 });
@@ -294,10 +301,10 @@ describe('SettingsTab hold-and-swipe account switch', () => {
     act(() => {
       vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
     });
-    expect(screen.getByRole('menu', { name: 'Other accounts' })).toBeTruthy();
+    expect(quickMenu()).toBeTruthy();
 
     fireEvent.blur(window);
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(quickMenu()).toBeNull();
 
     // No press comes before this click: it is the lift of the pointer that held the quick menu.
     fireEvent.click(trigger, { detail: 1 });

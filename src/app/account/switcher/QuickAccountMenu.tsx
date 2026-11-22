@@ -26,6 +26,10 @@ type QuickAccountMenuProps = {
  * other signed-in accounts ordered closest-to-thumb (MRU first below the phone top bar, MRU at
  * the bottom beside the rail) without taking focus so a hold-and-swipe gesture switches cleanly
  * on pointer release.
+ *
+ * It is the pointer's alone: no menu role, no rows to focus and no keys of its own (the arrow
+ * keys stay the page's). The keyboard and assistive technology switch accounts in `AccountMenu`.
+ * `data-quick-account-menu` still tells the page a layer is open (`hasOpenOverlay`, `useSwipeAway`).
  */
 export function QuickAccountMenu({
   anchor,
@@ -78,11 +82,9 @@ export function QuickAccountMenu({
   const menu = (
     <Menu
       ref={menuRef}
-      role="menu"
-      aria-label={t('featureUi.accountMenu.otherAccounts')}
+      role="none"
       className={css.MenuSurface}
       data-quick-account-menu=""
-      data-below={below ? 'true' : undefined}
       style={{ maxBlockSize }}
     >
       <div className={css.Header}>
@@ -96,13 +98,8 @@ export function QuickAccountMenu({
           return (
             <div
               key={account.session.sessionId}
-              role="menuitem"
               data-quick-account-session-id={account.session.sessionId}
               data-highlighted={highlighted ? 'true' : undefined}
-              aria-label={t('accountsRail.switchAria', {
-                name: account.displayName,
-                userId: account.session.userId,
-              })}
               className={css.AccountRow}
             >
               <Avatar size="200" radii="Pill" aria-hidden="true" className={css.AvatarShrink}>

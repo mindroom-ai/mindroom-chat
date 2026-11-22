@@ -261,7 +261,8 @@ export function SettingsTab({
       below={inTopBar}
     />
   );
-  const menuExpanded = !!menuButton || !!holdSwitch.holdAnchor;
+  // Of `AccountMenu` alone, the menu `aria-haspopup` promises; the quick menu is the pointer's.
+  const menuExpanded = !!menuButton;
 
   // In the rail the active account carries the selection mark and its menu opens beside it; in
   // the top bar the menu opens below the avatar.

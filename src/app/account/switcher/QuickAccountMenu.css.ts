@@ -3,18 +3,13 @@ import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 
-const enterOffset = createVar();
 const arrowSlide = createVar();
 
+// Opacity alone: a menu that slid or grew in would move its rows under a pointer that is already
+// being tested against them.
 const menuEnter = keyframes({
-  from: {
-    opacity: 0,
-    transform: `translateY(${enterOffset}) scale(0.96)`,
-  },
-  to: {
-    opacity: 1,
-    transform: 'translateY(0) scale(1)',
-  },
+  from: { opacity: 0 },
+  to: { opacity: 1 },
 });
 
 export const MenuSurface = style({
@@ -27,17 +22,7 @@ export const MenuSurface = style({
   overflow: 'hidden',
   userSelect: 'none',
   WebkitUserSelect: 'none',
-  vars: {
-    [enterOffset]: toRem(4),
-  },
   animation: `${menuEnter} ${motion.duration.Fast} ${motion.easing.Decelerate}`,
-  selectors: {
-    '&[data-below="true"]': {
-      vars: {
-        [enterOffset]: toRem(-4),
-      },
-    },
-  },
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       animation: 'none',

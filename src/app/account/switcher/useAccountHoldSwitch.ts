@@ -162,6 +162,8 @@ type ActiveGesture = {
   hoveredSessionId: string | undefined;
   hasCapture: boolean;
   holdTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Ends a touch whose last finger lifted with a touchend alone, if no pointer event ends it. */
+  liftTimer?: ReturnType<typeof setTimeout>;
   scrollRafId: number | undefined;
   lastScrollFrameTime: number | undefined;
   removeListeners: () => void;
@@ -182,6 +184,8 @@ const teardownGesture = (gesture: ActiveGesture): void => {
     clearTimeout(gesture.holdTimer);
     gesture.holdTimer = undefined;
   }
+  clearTimeout(gesture.liftTimer);
+  gesture.liftTimer = undefined;
   stopEdgeScroll(gesture);
   gesture.removeListeners();
   gesture.removeTouchMove?.();
@@ -388,6 +392,9 @@ export function useAccountHoldSwitch({
       // when `enabled` is currently false).
       clearSuppressNextClick();
       if (event.button !== 0 || !enabledRef.current) return;
+      // Control with a mouse's primary button is the press of the context menu on a Mac, which a
+      // hold would keep from opening.
+      if (event.pointerType === 'mouse' && event.ctrlKey) return;
 
       const anchor = event.currentTarget;
       const { pointerId, clientX: startX, clientY: startY } = event;
@@ -539,7 +546,26 @@ export function useAccountHoldSwitch({
         close();
       };
 
-      window.addEventListener('pointerdown', onWindowPointerDown);
+      // A phone's web view can end a touch with a touchend or touchcancel alone, with no pointerup
+      // or pointercancel (iOS WebKit; `CompactCardSwipe` sees the same). The last finger up ends
+      // the gesture without a switch, after the pointer event of that lift where one does come.
+      const onWindowTouchEnd = (touchEvent: TouchEvent) => {
+        const current = gestureRef.current;
+        if (!current || touchEvent.touches.length > 0 || current.liftTimer !== undefined) return;
+        current.liftTimer = setTimeout(() => {
+          current.liftTimer = undefined;
+          if (gestureRef.current === current) finishGesture('lifted');
+        }, 0);
+      };
+
+      // In the capture phase: a second finger on a control that keeps its presses to itself (a
+      // sidebar row that can be dragged) still cancels.
+      window.addEventListener('pointerdown', onWindowPointerDown, true);
+      if (event.pointerType === 'touch') {
+        const early = { capture: true, passive: true };
+        window.addEventListener('touchend', onWindowTouchEnd, early);
+        window.addEventListener('touchcancel', onWindowTouchEnd, early);
+      }
       window.addEventListener('pointermove', onWindowPointerMove);
       window.addEventListener('pointerup', onWindowPointerUp);
       window.addEventListener('pointercancel', onWindowPointerCancel);
@@ -548,7 +574,9 @@ export function useAccountHoldSwitch({
       window.addEventListener('keydown', onWindowKeyDown, true);
 
       const removeListeners = () => {
-        window.removeEventListener('pointerdown', onWindowPointerDown);
+        window.removeEventListener('pointerdown', onWindowPointerDown, true);
+        window.removeEventListener('touchend', onWindowTouchEnd, true);
+        window.removeEventListener('touchcancel', onWindowTouchEnd, true);
         window.removeEventListener('pointermove', onWindowPointerMove);
         window.removeEventListener('pointerup', onWindowPointerUp);
         window.removeEventListener('pointercancel', onWindowPointerCancel);

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StoredSession } from '../../matrix/session/sessions';
 import type { AccountMenuAccount } from './AccountMenu';
@@ -87,6 +87,10 @@ afterEach(() => {
   }
 });
 
+const quickMenu = () => document.querySelector<HTMLElement>('[data-quick-account-menu]')!;
+const rowsOf = (menu: HTMLElement) =>
+  Array.from(menu.querySelectorAll<HTMLElement>('[data-quick-account-session-id]'));
+
 describe('QuickAccountMenu', () => {
   it('renders header and accounts MRU-first when placed below the phone top bar', () => {
     const { anchor } = anchorAt(6, 340);
@@ -97,12 +101,11 @@ describe('QuickAccountMenu', () => {
     expect(popout?.getAttribute('data-popout-align')).toBe('End');
     expect(popout?.getAttribute('data-popout-offset')).toBe('8');
 
-    const menu = screen.getByRole('menu', { name: 'Other accounts' });
+    // What `hasOpenOverlay` and `useSwipeAway` look for, to leave the drag to an account alone.
+    const menu = quickMenu();
     expect(within(menu).getByText('Other accounts')).toBeTruthy();
-    // What `useSwipeAway` looks for, to leave the drag to an account alone.
-    expect(document.querySelector('[data-quick-account-menu]')).toBe(menu);
 
-    const items = within(menu).getAllByRole('menuitem');
+    const items = rowsOf(menu);
     expect(items.map((el) => el.getAttribute('data-quick-account-session-id'))).toEqual([
       'bob',
       'carol',
@@ -119,7 +122,7 @@ describe('QuickAccountMenu', () => {
     expect(popout?.getAttribute('data-popout-align')).toBe('End');
     expect(popout?.getAttribute('data-popout-offset')).toBe('8');
 
-    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    const items = rowsOf(quickMenu());
     expect(items.map((el) => el.getAttribute('data-quick-account-session-id'))).toEqual([
       'dave',
       'carol',
@@ -133,7 +136,7 @@ describe('QuickAccountMenu', () => {
       <QuickAccountMenu anchor={anchor} others={[BOB, CAROL]} hoveredSessionId="carol" below />
     );
 
-    const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    const items = rowsOf(quickMenu());
     const bob = items[0]!;
     const carol = items[1]!;
 
@@ -141,6 +144,26 @@ describe('QuickAccountMenu', () => {
     expect(bob.getAttribute('aria-current')).toBeNull();
     expect(carol.getAttribute('data-highlighted')).toBe('true');
     expect(carol.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('is the pointer alone: no menu or row roles, and the arrow keys stay the page', () => {
+    const { anchor } = anchorAt(640, 12);
+    // The pressed avatar has focus as the menu opens.
+    anchor.focus();
+    render(<QuickAccountMenu anchor={anchor} others={[BOB, CAROL]} below={false} />);
+
+    expect(document.activeElement).toBe(anchor);
+    expect(quickMenu().getAttribute('role')).toBe('none');
+    expect(quickMenu().hasAttribute('aria-label')).toBe(false);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(rowsOf(quickMenu()).some((row) => row.hasAttribute('aria-label'))).toBe(false);
+
+    // A shared menu takes these from the page and its opener for its rows.
+    ['ArrowDown', 'ArrowUp', 'Home', 'End'].forEach((key) => {
+      expect(fireEvent.keyDown(document.body, { key })).toBe(true);
+      expect(fireEvent.keyDown(anchor, { key })).toBe(true);
+    });
   });
 
   it('scrolls the overflowing rail list to the bottom on open so the MRU row stays visible', () => {
@@ -173,7 +196,7 @@ describe('QuickAccountMenu', () => {
     const { anchor, box } = anchorAt(6, 580);
     render(<QuickAccountMenu anchor={anchor} others={[BOB, CAROL]} below />);
 
-    const menu = screen.getByRole('menu');
+    const menu = quickMenu();
     expect(menu.style.maxBlockSize).toMatch(/^min\(738px,/);
     expect(
       document.querySelector('[data-popout-position]')?.getAttribute('data-popout-anchor')

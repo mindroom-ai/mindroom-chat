@@ -50,6 +50,7 @@ const pointerEvent = (
     button?: number;
     /** The buttons still down, as a real mouse reports them; jsdom's default is none. */
     buttons?: number;
+    ctrlKey?: boolean;
     clientX?: number;
     clientY?: number;
   } = {}
@@ -59,6 +60,7 @@ const pointerEvent = (
     cancelable: true,
     button: init.button ?? 0,
     buttons: init.buttons ?? 0,
+    ctrlKey: init.ctrlKey ?? false,
     clientX: init.clientX ?? 0,
     clientY: init.clientY ?? 0,
   });
@@ -85,7 +87,7 @@ function Harness({ enabled = true, others = [BOB, CAROL], onSwitch, onClick }: H
       </button>
       {hold.holdAnchor &&
         createPortal(
-          <div ref={hold.menuRef} data-testid="quick-menu" role="menu">
+          <div ref={hold.menuRef} data-testid="quick-menu" role="none" data-quick-account-menu="">
             <div data-testid="quick-list" data-quick-account-list="">
               {others.map((account) => (
                 <div
@@ -997,6 +999,176 @@ describe('useAccountHoldSwitch', () => {
       expect(onSwitch).not.toHaveBeenCalled();
     }
   );
+
+  it('leaves a Control press of the primary mouse button to the context menu of a Mac', () => {
+    const onClick = vi.fn();
+    render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+    const leftListening = watchWindowListeners();
+
+    fireEvent(
+      trigger,
+      pointerEvent('pointerdown', { pointerId: 1, pointerType: 'mouse', buttons: 1, ctrlKey: true })
+    );
+    expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+    expect(leftListening()).toEqual([]);
+
+    const contextMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    trigger.dispatchEvent(contextMenu);
+    expect(contextMenu.defaultPrevented).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS + 100);
+    });
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+    // Control with a touch is no context menu press: the hold starts as always.
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 2, ctrlKey: true }));
+    expect(trigger.getAttribute('data-quick-switch-pressing')).toBe('true');
+  });
+
+  it.each(['pending', 'open'] as const)(
+    'cancels a %s hold on a second pointer that lands on a control keeping its presses to itself',
+    (state) => {
+      const onSwitch = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+      const trigger = screen.getByTestId('trigger');
+      // As a sidebar row that can be dragged does.
+      const row = document.createElement('button');
+      row.addEventListener('pointerdown', (event) => event.stopPropagation());
+      document.body.append(row);
+
+      try {
+        fireEvent(
+          trigger,
+          pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 })
+        );
+        if (state === 'open') {
+          act(() => {
+            vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+          });
+          expect(screen.getByTestId('quick-menu')).toBeTruthy();
+        }
+
+        fireEvent(row, pointerEvent('pointerdown', { pointerId: 2, isPrimary: false }));
+        expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+        expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+        act(() => {
+          vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+        });
+        expect(screen.queryByTestId('quick-menu')).toBeNull();
+        expect(onSwitch).not.toHaveBeenCalled();
+      } finally {
+        row.remove();
+      }
+    }
+  );
+
+  describe('a touch that ends with a touchend or touchcancel alone, with no pointer event', () => {
+    const touchEnd = (type: 'touchend' | 'touchcancel', fingersLeft = 0) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', { value: Array.from({ length: fingersLeft }) });
+      fireEvent(window, event);
+    };
+    const runPendingTimers = () =>
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+    const scrollIsLocked = () => {
+      const touchMove = new Event('touchmove', { bubbles: true, cancelable: true });
+      window.dispatchEvent(touchMove);
+      return touchMove.defaultPrevented;
+    };
+
+    it.each(['touchend', 'touchcancel'] as const)(
+      'closes the menu without switching and gives selection and scrolling back (%s)',
+      (type) => {
+        const onSwitch = vi.fn();
+        const onClick = vi.fn();
+        render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+        const trigger = screen.getByTestId('trigger');
+        const leftListening = watchWindowListeners();
+        holdOpen(trigger);
+        const { bobRow } = layoutTriggerAndMenu();
+        fireEvent(
+          window,
+          pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 })
+        );
+        expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+        expect(document.documentElement.style.getPropertyValue('user-select')).toBe('none');
+        expect(scrollIsLocked()).toBe(true);
+
+        // Another finger still down: the touch goes on.
+        touchEnd(type, 1);
+        runPendingTimers();
+        expect(screen.getByTestId('quick-menu')).toBeTruthy();
+
+        // The last finger lifts, and no pointerup or pointercancel follows.
+        touchEnd(type);
+        expect(screen.getByTestId('quick-menu')).toBeTruthy();
+        runPendingTimers();
+        expect(screen.queryByTestId('quick-menu')).toBeNull();
+        expect(onSwitch).not.toHaveBeenCalled();
+        expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+        expect(document.documentElement.style.getPropertyValue('-webkit-touch-callout')).toBe('');
+        expect(scrollIsLocked()).toBe(false);
+
+        // The click of that lift is swallowed like any other, for a short while only.
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).not.toHaveBeenCalled();
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(leftListening()).toEqual([]);
+        expect(vi.getTimerCount()).toBe(0);
+      }
+    );
+
+    it('leaves the lift to its pointerup where one comes, before or after the touchend', () => {
+      const onSwitch = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+      const trigger = screen.getByTestId('trigger');
+
+      // The touchend first: the pointerup still switches, and nothing is left to run.
+      holdOpen(trigger, 1);
+      layoutTriggerAndMenu();
+      touchEnd('touchend');
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+      expect(onSwitch).toHaveBeenCalledWith(BOB.session);
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(vi.getTimerCount()).toBe(0);
+
+      // The pointerup first, as browsers order them.
+      holdOpen(trigger, 2);
+      layoutTriggerAndMenu();
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 120, clientY: 365 }));
+      touchEnd('touchend');
+      runPendingTimers();
+      expect(onSwitch).toHaveBeenLastCalledWith(CAROL.session);
+      expect(onSwitch).toHaveBeenCalledTimes(2);
+    });
+
+    it('ends a pending hold too, and leaves its tap to open the account menu', () => {
+      const onClick = vi.fn();
+      render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+      touchEnd('touchend');
+      runPendingTimers();
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+      });
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+    });
+  });
 
   it('ignores non-primary mouse buttons and non-primary touch pointers as hold starters', () => {
     const onSwitch = vi.fn();
