@@ -33,7 +33,7 @@ const encrypt = async (event: MatrixEvent): Promise<Record<string, unknown>> => 
   const fn = (RoomEncryptor.prototype as unknown as { encryptEventInner: EncryptEventInner })
     .encryptEventInner;
   await fn.call(encryptor, { debug: vi.fn() }, event);
-  return event.getWireContent() as Record<string, unknown>;
+  return event.getWireContent();
 };
 
 describe('RoomEncryptor cleartext ring hint patch', () => {
