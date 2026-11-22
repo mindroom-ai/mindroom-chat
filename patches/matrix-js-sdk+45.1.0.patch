@@ -1498,7 +1498,7 @@ index 4a83727..1d8304f 100644
      /**
       * Add an event to the end of this room's live timelines. Will fire
 diff --git a/node_modules/matrix-js-sdk/lib/models/room.js b/node_modules/matrix-js-sdk/lib/models/room.js
-index 8e6370b..e313991 100644
+index 8e6370b..6f13c05 100644
 --- a/node_modules/matrix-js-sdk/lib/models/room.js
 +++ b/node_modules/matrix-js-sdk/lib/models/room.js
 @@ -36,7 +36,7 @@ import { BeaconEvent } from "./beacon.js";
@@ -1825,25 +1825,18 @@ index 8e6370b..e313991 100644
        if (event.getUnsigned().transaction_id) {
          const existingEvent = this.txnToEvent.get(event.getUnsigned().transaction_id);
          if (existingEvent) {
-@@ -2595,6 +2756,7 @@ export class Room extends ReadReceipt {
-         try {
-           const parentEvent = new MatrixEvent(await this.client.fetchRoomEvent(this.roomId, event.relationEventId));
-           neighbouringEvents.push(parentEvent);
-+          this.fetchedRelationParents.set(event, parentEvent);
-           if (parentEvent.threadRootId) {
-             threadRoots.add(parentEvent.threadRootId);
-             const unsigned = event.getUnsigned();
-@@ -2609,6 +2771,10 @@ export class Room extends ReadReceipt {
-         } catch (e) {
+@@ -2610,6 +2771,11 @@ export class Room extends ReadReceipt {
            logger.error("Failed to load parent event of unhandled relation", e);
          }
-+      } else if (!fromCache && event.isRelation()) {
-+        // MindRoom: a parent fetched for an earlier relation of the batch places this one too.
+       }
++      // MindRoom: the parent fetched to place this relation, or an earlier one of the batch to it.
++      if (neighbouringEvents.length > events.length && event.isRelation()) {
 +        const fetchedParent = neighbouringEvents.slice(events.length).find(parent => parent.getId() === event.relationEventId);
 +        if (fetchedParent) this.fetchedRelationParents.set(event, fetchedParent);
-       }
++      }
        if (shouldLiveInThread && !eventsByThread[threadId]) {
          eventsByThread[threadId] = [];
+       }
 diff --git a/node_modules/matrix-js-sdk/lib/models/room.js.map b/node_modules/matrix-js-sdk/lib/models/room.js.map
 index ee2b6cb..0e1cb21 100644
 --- a/node_modules/matrix-js-sdk/lib/models/room.js.map
@@ -4802,7 +4795,7 @@ index e3dc0b8..4a64135 100644
          }
  
 diff --git a/node_modules/matrix-js-sdk/src/models/room.ts b/node_modules/matrix-js-sdk/src/models/room.ts
-index afb47e7..a1474cd 100644
+index afb47e7..91ae4e2 100644
 --- a/node_modules/matrix-js-sdk/src/models/room.ts
 +++ b/node_modules/matrix-js-sdk/src/models/room.ts
 @@ -27,6 +27,7 @@ import { getHttpUriForMxc } from "../content-repo.ts";
@@ -5155,27 +5148,20 @@ index afb47e7..a1474cd 100644
  
              if (event.getUnsigned().transaction_id) {
                  const existingEvent = this.txnToEvent.get(event.getUnsigned().transaction_id!);
-@@ -3144,6 +3324,7 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
-                         await this.client.fetchRoomEvent(this.roomId, event.relationEventId!),
-                     );
-                     neighbouringEvents.push(parentEvent);
-+                    this.fetchedRelationParents.set(event, parentEvent);
-                     if (parentEvent.threadRootId) {
-                         threadRoots.add(parentEvent.threadRootId);
-                         const unsigned = event.getUnsigned();
-@@ -3159,6 +3340,12 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
-                 } catch (e) {
+@@ -3160,6 +3340,13 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
                      logger.error("Failed to load parent event of unhandled relation", e);
                  }
-+            } else if (!fromCache && event.isRelation()) {
-+                // MindRoom: a parent fetched for an earlier relation of the batch places this one too.
+             }
++            // MindRoom: the parent fetched to place this relation, or an earlier one of the batch to it.
++            if (neighbouringEvents.length > events.length && event.isRelation()) {
 +                const fetchedParent = neighbouringEvents
 +                    .slice(events.length)
 +                    .find((parent) => parent.getId() === event.relationEventId);
 +                if (fetchedParent) this.fetchedRelationParents.set(event, fetchedParent);
-             }
++            }
  
              if (shouldLiveInThread && !eventsByThread[threadId]) {
+                 eventsByThread[threadId] = [];
 diff --git a/node_modules/matrix-js-sdk/src/models/thread.ts b/node_modules/matrix-js-sdk/src/models/thread.ts
 index 3e9f798..004bf18 100644
 --- a/node_modules/matrix-js-sdk/src/models/thread.ts
