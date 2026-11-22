@@ -26,4 +26,22 @@ describe('scripts/serve.py', () => {
       }
     );
   }, 30_000);
+
+  // index.html loads /viewport.js as a classic script in <head>; under a base path every route,
+  // nested ones too, must ask for it below that path, or the viewport tweak never runs.
+  it('points the viewport script at the base path on nested routes', async () => {
+    const index = '<!doctype html><script src="/viewport.js"></script><title>app</title>';
+    await withServePy(
+      { 'index.html': index, 'viewport.js': 'void 0;' },
+      async (request) => {
+        const page = await request('/chat/home/!room:example.org/');
+        expect(page.status).toBe(200);
+        const body = await page.text();
+        expect(body).toContain('<script src="/chat/viewport.js"></script>');
+        expect(body).not.toContain('src="/viewport.js"');
+        expect((await request('/chat/viewport.js')).status).toBe(200);
+      },
+      { APP_BASE_PATH: '/chat' }
+    );
+  }, 30_000);
 });

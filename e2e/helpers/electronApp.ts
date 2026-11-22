@@ -109,16 +109,22 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
       return;
     record(`${d.violatedDirective ?? 'unknown'}: ${d.blockedURL || 'inline'}`);
   });
-  await cdp.send('Audits.enable').catch(() => undefined);
+  await cdp.send('Audits.enable');
 
   await page.exposeBinding('__mindroomCspViolation', ({ frame }, detail: string) => {
     if (frame === page.mainFrame()) record(detail);
   });
   await page.addInitScript(installViolationHook);
   await page.evaluate(installViolationHook).catch(() => undefined);
-  domListenerReady = true;
-  await cdp.send('Audits.disable').catch(() => undefined);
-  await cdp.detach().catch(() => undefined);
+  // Hand over to the page listener only once it is in place; until then CDP auditing keeps watching.
+  const hooked = await page
+    .evaluate(() => (window as { __mindroomCspHooked?: boolean }).__mindroomCspHooked === true)
+    .catch(() => false);
+  if (hooked) {
+    domListenerReady = true;
+    await cdp.send('Audits.disable').catch(() => undefined);
+    await cdp.detach().catch(() => undefined);
+  }
 
   await page.waitForLoadState('domcontentloaded');
 
