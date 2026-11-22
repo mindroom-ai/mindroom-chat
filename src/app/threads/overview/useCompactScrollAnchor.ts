@@ -24,8 +24,8 @@ type CardsInView = {
 const ANCHOR_CANDIDATES = 8;
 
 /** The topmost cards in view below the floating header (cards carry `data-scroll-anchor`). */
-const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
-  const { top } = view.getBoundingClientRect();
+const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView => {
+  const { top, bottom } = view.getBoundingClientRect();
   const viewTop = top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
   const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
   // The cards stack in one column: find the first one in view by halving, so a reader far down a
@@ -41,9 +41,12 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
   for (let index = low; index < elements.length && cards.length < ANCHOR_CANDIDATES; index += 1) {
     const card = elements[index];
     const rootId = card?.getAttribute('data-scroll-anchor');
-    if (card && rootId) cards.push({ rootId, top: card.getBoundingClientRect().top - top });
+    const cardTop = card?.getBoundingClientRect().top ?? Infinity;
+    // A card below the view is none the reader sees: with no card in view, nothing is kept.
+    if (cardTop >= bottom) break;
+    if (rootId) cards.push({ rootId, top: cardTop - top });
   }
-  return cards.length > 0 ? { cards, scrollTop: view.scrollTop, order } : undefined;
+  return { cards, scrollTop: view.scrollTop, order };
 };
 
 type OrderLink = { id: string; index: number; previous: OrderLink | undefined };

@@ -23,6 +23,8 @@ describe('useCompactScrollAnchor', () => {
   /** A list scrolled `scrollTop` down, with optional section headers in the order `ids`. */
   const list = (ids: string[], scrollTop: number) => {
     const view = document.createElement('div');
+    const content = document.createElement('div');
+    view.append(content);
     let offset = scrollTop;
     const writes: number[] = [];
     Object.defineProperty(view, 'scrollTop', {
@@ -37,7 +39,7 @@ describe('useCompactScrollAnchor', () => {
     view.getBoundingClientRect = () => ({ top: viewTop, bottom: viewTop + 400 } as DOMRect);
     const show = (shownIds: string[]) => {
       let rowTop = 0;
-      view.replaceChildren(
+      content.replaceChildren(
         ...shownIds.map((id) => {
           const row = document.createElement('div');
           const isHeader = sectionOfRow(id) !== undefined;
@@ -58,7 +60,9 @@ describe('useCompactScrollAnchor', () => {
       );
     };
     show(ids);
+    // The observer's callback, and the elements it watches.
     let resize: (() => void) | undefined;
+    const observed = new Set<Element>();
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -66,18 +70,19 @@ describe('useCompactScrollAnchor', () => {
           resize = callback;
         }
 
-        observe = () => undefined;
+        observe = (target: Element) => observed.add(target);
 
-        disconnect = () => undefined;
+        disconnect = () => observed.clear();
       }
     );
     const viewRef = { current: view };
+    const contentRef = { current: content };
     const foldingRef = { current: false };
     const List = ({ order, commit }: { order: string[]; commit?: () => void }) =>
       createElement(
         Fragment,
         null,
-        useCompactScrollAnchor(order, viewRef, sectionOfRow, undefined, foldingRef),
+        useCompactScrollAnchor(order, viewRef, sectionOfRow, contentRef, foldingRef),
         createElement(Commit, { run: commit })
       );
     const { rerender } = render(createElement(List, { order: ids }));
@@ -100,8 +105,11 @@ describe('useCompactScrollAnchor', () => {
       moveView: (by: number) => {
         viewTop += by;
       },
-      /** The list or one of its cards changed size outside a commit. */
-      resize: () => act(() => resize?.()),
+      /** The cards' container changed size outside a commit, as told to those that watch it. */
+      resize: () =>
+        act(() => {
+          if (observed.has(content)) resize?.();
+        }),
     };
   };
 
@@ -303,6 +311,20 @@ describe('useCompactScrollAnchor', () => {
     view.scrollTop = 300;
     resize();
     expect(writes).toEqual([250, 300]);
+  });
+
+  it('keeps no card that is below the view: with only headers in view, nothing is written', () => {
+    const headers = Array.from({ length: 13 }, (_, index) => `#section-${index}`);
+    const ids = ['$a', '$b', ...headers, '$z'];
+    // The two cards are above the view and the headers fill it: $z starts below its end.
+    const { show, writes, rerender, resize } = list(ids, 2 * CARD);
+    const next = ['$a', '$b', ...headers, '$y', '$z'];
+    rerender(next, () => show(next));
+    expect(writes).toEqual([]);
+
+    show([...next.slice(0, -1), '$x', '$z']);
+    resize();
+    expect(writes).toEqual([]);
   });
 
   it('anchors a card below the floating header, not one it hides', () => {
