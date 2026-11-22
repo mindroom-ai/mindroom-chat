@@ -263,6 +263,14 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   return { reader, agent, roomId, longThreadRootId };
 };
 
+type ScrollWriteRecord = {
+  api: 'scrollTop' | 'scrollTo' | 'scrollBy';
+  from: number;
+  to: number;
+  delta: number;
+  caller: string;
+};
+
 type JumpFrame = {
   t: number;
   frame: number;
@@ -280,6 +288,26 @@ type JumpFrame = {
   listHeight: number;
   threadCount: number;
   visibleCount: number;
+  anchorId?: string;
+  anchorTop?: number;
+  anchorDriftPx?: number;
+  writes?: ScrollWriteRecord[];
+};
+
+type ColdFrameSample = {
+  t: number;
+  frame: number;
+  threadCount: number;
+  visibleCount: number;
+  scrollTop: number;
+  listHeight: number;
+  marginTop: number;
+  bottomGapPx: number;
+  anchorId: string;
+  anchorTop: number;
+  anchorDriftPx: number;
+  median: number;
+  writes: ScrollWriteRecord[];
 };
 
 type ProbeReport = {
@@ -293,23 +321,41 @@ type ProbeReport = {
   maxReversalPx: number;
   maxUnexplainedPx: number;
   maxSpreadPx: number;
+  maxAnchorDriftPx: number;
   lostPlaceFrames: number;
   jumps: JumpFrame[];
+  coldFrames: ColdFrameSample[];
 };
 
 const installThreadJumpProbe = () => {
   type RowSnap = { top: number; h: number };
+  const cacheDbs = new Set<IDBDatabase>();
+  const origIdbTransaction = IDBDatabase.prototype.transaction;
+  IDBDatabase.prototype.transaction = function wrappedTransaction(
+    this: IDBDatabase,
+    storeNames: string | Iterable<string>,
+    mode?: IDBTransactionMode,
+    options?: IDBTransactionOptions
+  ) {
+    if (this.objectStoreNames.contains('events') && this.objectStoreNames.contains('meta')) {
+      cacheDbs.add(this);
+    }
+    return origIdbTransaction.call(this, storeNames, mode, options);
+  };
+
   const probe = {
     active: false,
     mode: 'open' as 'open' | 'scrollUp',
     stallMs: 0,
     writeDelta: 0,
+    frameWrites: [] as ScrollWriteRecord[],
     wheelPx: 0,
     wheelAheadPx: 0,
     lastWrite: { px: 0, at: 0 },
     takenBackAt: Number.NEGATIVE_INFINITY,
     scroller: null as HTMLElement | null,
     jumps: [] as JumpFrame[],
+    coldFrames: [] as ColdFrameSample[],
     visibleFrames: 0,
     scrolledPx: 0,
     threadCountStart: -1,
@@ -320,12 +366,37 @@ const installThreadJumpProbe = () => {
     maxReversalPx: 0,
     maxUnexplainedPx: 0,
     maxSpreadPx: 0,
+    maxAnchorDriftPx: 0,
     lostPlaceFrames: 0,
+    anchorId: '',
+    anchorBaseTop: Number.NaN,
+    prevThreadCount: -1,
+    prevListHeight: -1,
     prevRows: new Map<string, RowSnap>(),
     prevMounted: new Map<string, number>(),
     prevScrollTop: 0,
     prevBottomGap: Number.NaN,
     hasVisibleBaseline: false,
+    async clearCacheStore(): Promise<number> {
+      let cleared = 0;
+      for (const db of Array.from(cacheDbs)) {
+        try {
+          const stores = ['events', 'meta'].filter((name) => db.objectStoreNames.contains(name));
+          if (stores.length === 0) continue;
+          await new Promise<void>((resolve, reject) => {
+            const tx = origIdbTransaction.call(db, stores, 'readwrite');
+            stores.forEach((name) => tx.objectStore(name).clear());
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+          });
+          cleared += 1;
+        } catch {
+          // Closed connection from a previous view; skip.
+        }
+      }
+      return cleared;
+    },
     findScroller(): HTMLElement | null {
       const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
       if (!inner) return null;
@@ -342,12 +413,14 @@ const installThreadJumpProbe = () => {
       this.mode = mode;
       this.stallMs = stallMs;
       this.writeDelta = 0;
+      this.frameWrites = [];
       this.wheelPx = 0;
       this.wheelAheadPx = 0;
       this.lastWrite = { px: 0, at: 0 };
       this.takenBackAt = Number.NEGATIVE_INFINITY;
       this.scroller = this.findScroller();
       this.jumps = [];
+      this.coldFrames = [];
       this.visibleFrames = 0;
       this.scrolledPx = 0;
       this.threadCountStart = -1;
@@ -358,7 +431,12 @@ const installThreadJumpProbe = () => {
       this.maxReversalPx = 0;
       this.maxUnexplainedPx = 0;
       this.maxSpreadPx = 0;
+      this.maxAnchorDriftPx = 0;
       this.lostPlaceFrames = 0;
+      this.anchorId = '';
+      this.anchorBaseTop = Number.NaN;
+      this.prevThreadCount = -1;
+      this.prevListHeight = -1;
       this.prevRows = new Map();
       this.prevMounted = new Map();
       this.prevScrollTop = this.scroller?.scrollTop ?? 0;
@@ -378,21 +456,57 @@ const installThreadJumpProbe = () => {
         maxReversalPx: Math.round(this.maxReversalPx),
         maxUnexplainedPx: Math.round(this.maxUnexplainedPx),
         maxSpreadPx: Math.round(this.maxSpreadPx),
+        maxAnchorDriftPx: Math.round(this.maxAnchorDriftPx),
         lostPlaceFrames: this.lostPlaceFrames,
         jumps: this.jumps,
+        coldFrames: this.coldFrames,
       };
     },
   };
 
   (window as unknown as { __threadJumpProbe: typeof probe }).__threadJumpProbe = probe;
 
+  const extractCaller = (): string => {
+    const raw = new Error().stack ?? '';
+    const lines = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(
+        (line) =>
+          line &&
+          line !== 'Error' &&
+          !line.includes('extractCaller') &&
+          !line.includes('recordWrite') &&
+          !line.includes('wrapped') &&
+          !line.includes('set scrollTop')
+      );
+    return lines
+      .slice(0, 3)
+      .map((line) => line.replace(/https?:\/\/[^/]+/g, '').replace(/\?t=\d+/g, ''))
+      .join(' <- ');
+  };
+
   /** Counts a write of the thread's scroll position by the page; returns how far it asks to move. */
-  const recordWrite = (el: unknown, value: number): number => {
+  const recordWrite = (
+    el: unknown,
+    value: number,
+    api: ScrollWriteRecord['api']
+  ): number => {
     if (!probe.active) return 0;
     if (!probe.scroller || !probe.scroller.isConnected) probe.scroller = probe.findScroller();
     if (!probe.scroller || el !== probe.scroller) return 0;
-    const delta = value - probe.scroller.scrollTop;
+    const from = probe.scroller.scrollTop;
+    const delta = value - from;
     probe.writeDelta += delta;
+    if (probe.frameWrites.length < 12) {
+      probe.frameWrites.push({
+        api,
+        from: Math.round(from),
+        to: Math.round(value),
+        delta: Math.round(delta),
+        caller: extractCaller(),
+      });
+    }
     return delta;
   };
 
@@ -405,7 +519,7 @@ const installThreadJumpProbe = () => {
         return get.call(this);
       },
       set(value: number) {
-        const delta = recordWrite(this, value);
+        const delta = recordWrite(this, value, 'scrollTop');
         set.call(this, value);
         // The offset ledger settles with such a write and renders the rows after it, a frame of
         // 100 ms and more on a phone. The stall stands in for that frame: the reader's next wheel
@@ -426,7 +540,7 @@ const installThreadJumpProbe = () => {
       const top =
         typeof first === 'object' && first !== null ? (first as { top?: number }).top : args[1];
       if (typeof top === 'number') {
-        recordWrite(this, name === 'scrollBy' ? this.scrollTop + top : top);
+        recordWrite(this, name === 'scrollBy' ? this.scrollTop + top : top, name);
       }
       orig.apply(this, args);
     };
@@ -456,6 +570,8 @@ const installThreadJumpProbe = () => {
         const listHeight = Number.parseFloat(inner.style.height || '0') || 0;
         const appDelta = probe.writeDelta;
         probe.writeDelta = 0;
+        const writes = probe.frameWrites;
+        probe.frameWrites = [];
         const wheelPx = probe.wheelPx;
         probe.wheelPx = 0;
 
@@ -501,6 +617,28 @@ const installThreadJumpProbe = () => {
         const bottomGapPx = lastRow
           ? Math.round(view.bottom - lastRow.getBoundingClientRect().bottom)
           : Number.NaN;
+
+        if (!probe.anchorId && current.size > 0) {
+          // Track the newest visible row (last entry in DOM order) as the reader's anchor.
+          const visibleIds = Array.from(current.keys());
+          const chosenId = visibleIds[visibleIds.length - 1] ?? '';
+          const chosenSnap = current.get(chosenId);
+          if (chosenId && chosenSnap) {
+            probe.anchorId = chosenId;
+            probe.anchorBaseTop = chosenSnap.top - view.top;
+          }
+        }
+        const anchorTopNow =
+          probe.anchorId && mounted.has(probe.anchorId)
+            ? mounted.get(probe.anchorId)! - view.top
+            : Number.NaN;
+        const anchorDriftPx =
+          Number.isFinite(anchorTopNow) && Number.isFinite(probe.anchorBaseTop)
+            ? anchorTopNow - probe.anchorBaseTop
+            : Number.NaN;
+        if (Number.isFinite(anchorDriftPx) && Math.abs(anchorDriftPx) > probe.maxAnchorDriftPx) {
+          probe.maxAnchorDriftPx = Math.abs(anchorDriftPx);
+        }
 
         if (probe.hasVisibleBaseline) {
           if (current.size < probe.minVisibleCount) probe.minVisibleCount = current.size;
@@ -588,10 +726,40 @@ const installThreadJumpProbe = () => {
               listHeight: Math.round(listHeight),
               threadCount,
               visibleCount: current.size,
+              anchorId: probe.anchorId || undefined,
+              anchorTop: Number.isFinite(anchorTopNow) ? Math.round(anchorTopNow) : undefined,
+              anchorDriftPx: Number.isFinite(anchorDriftPx) ? Math.round(anchorDriftPx) : undefined,
+              writes: writes.length > 0 ? writes : undefined,
+            });
+          }
+
+          const notableChange =
+            threadCount !== probe.prevThreadCount ||
+            Math.round(listHeight) !== probe.prevListHeight ||
+            writes.length > 0 ||
+            Math.abs(median) >= 4 ||
+            Math.abs(dBottomGap) >= 10;
+          if (notableChange && probe.coldFrames.length < 160) {
+            probe.coldFrames.push({
+              t: Math.round(now),
+              frame: probe.visibleFrames,
+              threadCount,
+              visibleCount: current.size,
+              scrollTop: Math.round(scrollTop),
+              listHeight: Math.round(listHeight),
+              marginTop: Math.round(marginTop),
+              bottomGapPx: Number.isFinite(bottomGapPx) ? bottomGapPx : -9999,
+              anchorId: probe.anchorId,
+              anchorTop: Number.isFinite(anchorTopNow) ? Math.round(anchorTopNow) : -9999,
+              anchorDriftPx: Number.isFinite(anchorDriftPx) ? Math.round(anchorDriftPx) : -9999,
+              median: Math.round(median),
+              writes,
             });
           }
         }
 
+        probe.prevThreadCount = threadCount;
+        probe.prevListHeight = Math.round(listHeight);
         probe.prevRows = current;
         probe.prevMounted = mounted;
         probe.prevScrollTop = scrollTop;
@@ -721,6 +889,220 @@ test.describe('thread timeline jumps reproducers', () => {
         expect(
           report.maxBottomGapJumpPx,
           `bottom-gap jump after reveal: ${summary}`
+        ).toBeLessThanOrEqual(20);
+      });
+    });
+  });
+
+  OPEN_SETUPS.forEach((setup) => {
+    test(`${setup.engine} ${setup.viewport}: cold open pinned to bottom across 10+ slow /relations pages does not jump`, async ({
+      baseURL,
+    }) => {
+      test.skip(!world, 'disposable homeserver is not running');
+      test.skip(
+        setup.engine === 'webkit' && !WEBKIT_EXECUTABLE,
+        'PLAYWRIGHT_WEBKIT_EXECUTABLE not set'
+      );
+      const fixture = world!;
+
+      await openAndRun(setup, baseURL, fixture, async (page) => {
+        let relationsPages = 0;
+        let relationsDone = false;
+        const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
+        await page.route('**/_matrix/client/v1/media/**', async (route) => {
+          await wait(350);
+          await route.continue();
+        });
+        await page.route('**/relations/**', async (route) => {
+          const url = new URL(route.request().url());
+          if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
+            url.searchParams.set('limit', '25');
+            await wait(450);
+            const response = await route.fetch({ url: url.toString() });
+            const body = await response.text();
+            relationsPages += 1;
+            try {
+              const parsed = JSON.parse(body) as { next_batch?: string };
+              if (!parsed.next_batch) relationsDone = true;
+            } catch {
+              // Ignore non-JSON error responses.
+            }
+            await route.fulfill({ response, body });
+            return;
+          }
+          await route.continue();
+        });
+
+        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+        const card = page.locator(
+          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+        );
+        await expect(card).toBeVisible({ timeout: 30_000 });
+
+        // Force a cold open with no cached thread pages in IndexedDB.
+        await page.evaluate(async () => {
+          await (
+            window as unknown as {
+              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+            }
+          ).__threadJumpProbe.clearCacheStore();
+        });
+
+        await startProbe(page, 'open');
+        await card.click();
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
+        await expect
+          .poll(() => relationsDone && relationsPages >= 10, { timeout: 60_000 })
+          .toBe(true);
+        await page.waitForTimeout(800);
+        const report = await stopProbe(page);
+
+        const summary = JSON.stringify({
+          relationsPages,
+          threadCountStart: report.threadCountStart,
+          threadCountEnd: report.threadCountEnd,
+          minVisibleCount: report.minVisibleCount,
+          maxRowJumpPx: report.maxRowJumpPx,
+          maxBottomGapJumpPx: report.maxBottomGapJumpPx,
+          maxAnchorDriftPx: report.maxAnchorDriftPx,
+          topJumps: report.jumps.slice(0, 12),
+          coldFramesSample: report.coldFrames.slice(0, 25),
+        });
+        expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(report.visibleFrames, 'recorded visible cold-open frames').toBeGreaterThan(20);
+        expect(
+          report.minVisibleCount,
+          `blank screen during cold open (pinned): ${summary}`
+        ).toBeGreaterThan(0);
+        expect(
+          report.maxRowJumpPx,
+          `row jump during cold open (pinned): ${summary}`
+        ).toBeLessThanOrEqual(4);
+        expect(
+          report.maxBottomGapJumpPx,
+          `bottom-gap jump during cold open (pinned): ${summary}`
+        ).toBeLessThanOrEqual(20);
+        expect(
+          report.maxAnchorDriftPx,
+          `anchor drift during cold open (pinned): ${summary}`
+        ).toBeLessThanOrEqual(20);
+      });
+    });
+
+    test(`${setup.engine} ${setup.viewport}: cold open reading mid-thread while 10+ slow /relations pages arrive does not jump`, async ({
+      baseURL,
+    }) => {
+      test.skip(!world, 'disposable homeserver is not running');
+      test.skip(
+        setup.engine === 'webkit' && !WEBKIT_EXECUTABLE,
+        'PLAYWRIGHT_WEBKIT_EXECUTABLE not set'
+      );
+      const fixture = world!;
+
+      await openAndRun(setup, baseURL, fixture, async (page) => {
+        let relationsPages = 0;
+        let relationsDone = false;
+        const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
+        await page.route('**/_matrix/client/v1/media/**', async (route) => {
+          await wait(350);
+          await route.continue();
+        });
+        await page.route('**/relations/**', async (route) => {
+          const url = new URL(route.request().url());
+          if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
+            url.searchParams.set('limit', '25');
+            await wait(450);
+            const response = await route.fetch({ url: url.toString() });
+            const body = await response.text();
+            relationsPages += 1;
+            try {
+              const parsed = JSON.parse(body) as { next_batch?: string };
+              if (!parsed.next_batch) relationsDone = true;
+            } catch {
+              // Ignore non-JSON error responses.
+            }
+            await route.fulfill({ response, body });
+            return;
+          }
+          await route.continue();
+        });
+
+        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+        const card = page.locator(
+          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+        );
+        await expect(card).toBeVisible({ timeout: 30_000 });
+
+        await page.evaluate(async () => {
+          await (
+            window as unknown as {
+              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+            }
+          ).__threadJumpProbe.clearCacheStore();
+        });
+
+        await card.click();
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
+        // Wait for the first 2 pages so the thread is taller than the viewport and scrollable.
+        await expect
+          .poll(() => relationsPages, { timeout: 30_000 })
+          .toBeGreaterThanOrEqual(2);
+        await page.waitForTimeout(120);
+
+        // Reader taps & scrolls up mid-thread while remaining ~10 pages are still arriving.
+        const scrolledUp = await page.evaluate(() => {
+          const inner = document.querySelector<HTMLElement>(
+            '[data-timeline-rows][data-thread-count]'
+          );
+          let scroller = inner?.parentElement ?? null;
+          while (scroller) {
+            const { overflowY } = getComputedStyle(scroller);
+            if (overflowY === 'auto' || overflowY === 'scroll') break;
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return { ok: false, before: 0, after: 0 };
+          scroller.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
+          const before = scroller.scrollTop;
+          const target = Math.max(0, before - 600);
+          scroller.scrollTop = target;
+          scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
+          return { ok: before - scroller.scrollTop >= 150, before, after: scroller.scrollTop };
+        });
+        await page.waitForTimeout(200);
+
+        await startProbe(page, 'open');
+        await expect
+          .poll(() => relationsDone && relationsPages >= 10, { timeout: 60_000 })
+          .toBe(true);
+        await page.waitForTimeout(800);
+        const report = await stopProbe(page);
+
+        const summary = JSON.stringify({
+          relationsPages,
+          scrolledUp,
+          threadCountStart: report.threadCountStart,
+          threadCountEnd: report.threadCountEnd,
+          minVisibleCount: report.minVisibleCount,
+          maxRowJumpPx: report.maxRowJumpPx,
+          maxBottomGapJumpPx: report.maxBottomGapJumpPx,
+          maxAnchorDriftPx: report.maxAnchorDriftPx,
+          topJumps: report.jumps.slice(0, 12),
+          coldFramesSample: report.coldFrames.slice(0, 25),
+        });
+        expect(scrolledUp.ok, `failed to scroll mid-thread: ${summary}`).toBe(true);
+        expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(report.visibleFrames, 'recorded visible mid-thread frames').toBeGreaterThan(20);
+        expect(
+          report.minVisibleCount,
+          `blank screen during cold open (mid-thread): ${summary}`
+        ).toBeGreaterThan(0);
+        expect(
+          report.maxRowJumpPx,
+          `row jump during cold open (mid-thread): ${summary}`
+        ).toBeLessThanOrEqual(4);
+        expect(
+          report.maxAnchorDriftPx,
+          `anchor drift during cold open (mid-thread): ${summary}`
         ).toBeLessThanOrEqual(20);
       });
     });
