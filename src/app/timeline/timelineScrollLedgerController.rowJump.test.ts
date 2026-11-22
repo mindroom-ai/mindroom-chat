@@ -5,15 +5,19 @@ import {
   useTimelineScrollLedgerController,
   type TimelineScrollLedgerController,
 } from './timelineScrollLedgerController';
+import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
-  options: {},
+  options: { scrollMargin: 0 },
+  scrollOffset: 129,
   setOptions: vi.fn(),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
   getVirtualItems: () => [],
 }));
+
+const quiescenceResolvers = vi.hoisted(() => [] as (() => void)[]);
 
 vi.mock('@tanstack/react-virtual', () => ({ useVirtualizer: () => virtualizer }));
 
@@ -22,11 +26,14 @@ vi.mock('./rideTraceRecorder', () => ({
   isRideTraceEnabled: () => false,
 }));
 
-// The wait for rest never ends here, so the only settles are the ones at the boundary.
+// The wait for rest stays pending unless a test explicitly flushes it.
 vi.mock('./scrollQuiescence', () => ({
   hasActiveWindowTouches: () => false,
   isIOSWebKitDevice: () => false,
-  waitForScrollQuiescence: () => new Promise<void>(() => undefined),
+  waitForScrollQuiescence: () =>
+    new Promise<void>((resolve) => {
+      quiescenceResolvers.push(resolve);
+    }),
 }));
 
 type Correction = (
@@ -48,15 +55,29 @@ const mountRoomLedger = ({ settle = true } = {}) => {
   // Changes when the room's rows are replaced rather than added to.
   let rowsKey = 0;
   const writes: number[] = [];
+  virtualizer.scrollOffset = scrollTop;
+  virtualizer.options = { scrollMargin: 0 };
   let onScroll: (() => void) | undefined;
+  let onStatusBarScrollTop: ((event: Event) => void) | undefined;
   const scrollArea = {
     clientHeight: 704,
     scrollHeight: 1663,
     getBoundingClientRect: () => ({ top: 0, bottom: 704 }),
-    addEventListener: (type: string, listener: () => void) => {
-      if (type === 'scroll') onScroll = listener;
+    addEventListener: (type: string, listener: (event: Event) => void) => {
+      if (type === 'scroll') onScroll = listener as () => void;
+      if (type === STATUS_BAR_SCROLL_TOP_EVENT) onStatusBarScrollTop = listener;
     },
-    removeEventListener: () => undefined,
+    removeEventListener: (type: string, listener: (event: Event) => void) => {
+      if (type === 'scroll' && onScroll === (listener as () => void)) onScroll = undefined;
+      if (type === STATUS_BAR_SCROLL_TOP_EVENT && onStatusBarScrollTop === listener) {
+        onStatusBarScrollTop = undefined;
+      }
+    },
+    scrollTo: vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && options.top !== undefined) {
+        scrollArea.scrollTop = options.top;
+      }
+    }),
     get scrollTop() {
       return scrollTop;
     },
@@ -132,11 +153,28 @@ const mountRoomLedger = ({ settle = true } = {}) => {
     if (applied) scrollTo(scrollTop + delta);
     return applied;
   };
+  const statusBarScrollTop = () => {
+    const event = new Event(STATUS_BAR_SCROLL_TOP_EVENT, { cancelable: true });
+    act(() => {
+      onStatusBarScrollTop?.(event);
+    });
+    return event;
+  };
+  const flushQuiescence = async () => {
+    await act(async () => {
+      const pending = quiescenceResolvers.splice(0, quiescenceResolvers.length);
+      pending.forEach((resolve) => resolve());
+      await Promise.resolve();
+    });
+  };
   return {
     rows,
+    scrollArea,
     writes,
     scrollTo,
     applyCorrection,
+    statusBarScrollTop,
+    flushQuiescence,
     endSettleDiscardWatch: () => controller?.endSettleDiscardWatch(),
     takeSettledScrollTop: () => controller?.takeSettledScrollTop(),
     /** The room shows other rows: emptied for an event it has not loaded, say. */
@@ -152,6 +190,7 @@ const mountRoomLedger = ({ settle = true } = {}) => {
 describe('the offset ledger after a settle', () => {
   afterEach(() => {
     virtualizer.setOptions.mockClear();
+    quiescenceResolvers.length = 0;
   });
 
   it('names the position its settle wrote, once', () => {
@@ -213,6 +252,63 @@ describe('the offset ledger after a settle', () => {
     expect(ledger.rows.style.marginTop).toBe('');
     ledger.scrollTo(0);
     expect(ledger.writes).toEqual([]);
+    ledger.unmount();
+  });
+});
+
+describe('status-bar tap scroll-to-top with the offset ledger', () => {
+  afterEach(() => {
+    virtualizer.setOptions.mockClear();
+    quiescenceResolvers.length = 0;
+  });
+
+  it('clears an unsettled positive ledger, jumps to 0, and prevents boundary or quiescence settles from shifting back down', async () => {
+    const ledger = mountRoomLedger({ settle: false });
+    expect(ledger.rows.style.marginTop).toBe('-830px');
+    expect(ledger.scrollArea.scrollTop).toBe(129);
+    virtualizer.setOptions.mockClear();
+
+    const event = ledger.statusBarScrollTop();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.scrollArea.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(ledger.scrollArea.scrollTop).toBe(0);
+    expect(ledger.writes).toEqual([0]);
+    expect(virtualizer.scrollOffset).toBe(0);
+    expect(virtualizer.setOptions).toHaveBeenCalledWith({ scrollMargin: 0 });
+
+    // A following scroll event at 0 must not settle the dropped fold or push scrollTop back down.
+    ledger.scrollTo(0);
+    expect(ledger.scrollArea.scrollTop).toBe(0);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.writes).toEqual([0]);
+
+    // A previously armed quiescence wait from before the tap must also be ignored.
+    await ledger.flushQuiescence();
+    expect(ledger.scrollArea.scrollTop).toBe(0);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.writes).toEqual([0]);
+
+    ledger.unmount();
+  });
+
+  it('clears an active settle discard watch so jumping to 0 does not fold the previous settle back in', () => {
+    const ledger = mountRoomLedger({ settle: true });
+    expect(ledger.writes).toEqual([959]);
+
+    const event = ledger.statusBarScrollTop();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(ledger.scrollArea.scrollTop).toBe(0);
+    expect(ledger.writes).toEqual([959, 0]);
+    expect(ledger.takeSettledScrollTop()).toBeUndefined();
+
+    // A following scroll event at 0 must not trigger the discard watch to re-apply -830px.
+    ledger.scrollTo(0);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.writes).toEqual([959, 0]);
+
     ledger.unmount();
   });
 });

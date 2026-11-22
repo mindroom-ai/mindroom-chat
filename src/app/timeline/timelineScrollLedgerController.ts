@@ -48,6 +48,7 @@ import {
   type ThreadLedgerEvent,
 } from './threadScrollLedger';
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
+import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -928,20 +929,62 @@ export const useTimelineScrollLedgerController = ({
         settleScrollCompensation('boundary');
       }
     };
+    // Status-bar tap jumps straight to the top of the loaded rows: drop any unsettled offset
+    // ledger atomically before writing `scrollTop = 0`, so neither the boundary guard at 0 nor
+    // a later quiescence settle shifts `scrollTop` back down by the accumulated positive fold.
+    const onStatusBarScrollTop = (event: Event) => {
+      event.preventDefault();
+      const inner = virtualInnerRef.current;
+      const hadLedger =
+        scrollCompensationPxRef.current !== 0 ||
+        rowFoldPxRef.current !== 0 ||
+        droppedRowFoldPxRef.current !== 0 ||
+        pendingRoomFoldPxRef.current !== 0 ||
+        (inner !== null && inner.style.marginTop !== '');
+      ledgerGenerationRef.current += 1;
+      compensationSettleArmedRef.current = false;
+      ledgerSettleWantedRef.current = false;
+      settleDiscardWatchRef.current = undefined;
+      settledScrollTopRef.current = undefined;
+      scrollCompensationPxRef.current = 0;
+      rowFoldPxRef.current = 0;
+      droppedRowFoldPxRef.current = 0;
+      pendingRoomFoldPxRef.current = 0;
+      threadLedgerAnchorRef.current = undefined;
+      roomLedgerAnchorRef.current = undefined;
+      roomLeadingAboveViewRef.current = false;
+      wheelPx = 0;
+      if (inner) inner.style.marginTop = '';
+      if (typeof scrollElement.scrollTo === 'function') {
+        scrollElement.scrollTo({ top: 0 });
+      } else {
+        scrollElement.scrollTop = 0;
+      }
+      const top = scrollElement.scrollTop;
+      ledgerBoundaryScrollTopRef.current = top;
+      if (hadLedger) {
+        virtualizerRef.current.scrollOffset = top;
+        virtualizerRef.current.setOptions({ ...virtualizerRef.current.options, scrollMargin: 0 });
+        setLedgerCommitTick((tick) => tick + 1);
+      }
+    };
     scrollElement.addEventListener('touchstart', onLedgerBoundaryTouchStart, {
       capture: true,
       passive: true,
     });
     scrollElement.addEventListener('wheel', onLedgerBoundaryWheel, { passive: true });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
+    scrollElement.addEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
     return () => {
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
       scrollElement.removeEventListener('wheel', onLedgerBoundaryWheel);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
+      scrollElement.removeEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
     };
   }, [
     getScrollElement,
     handleDroppedCorrection,
+    pendingRoomFoldPxRef,
     settleScrollCompensation,
     threadId,
     threadInitialRenderMode,
