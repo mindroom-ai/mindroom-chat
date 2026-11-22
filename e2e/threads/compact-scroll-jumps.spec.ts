@@ -60,6 +60,35 @@ const formatWrites = (frame: ListFrame) =>
     )
     .join('; ');
 
+/** Waits until `key` leads the list (in the Pinned list for `pinned`) and the list rests. */
+const waitForFirst = async (page: Page, key: string, pinned = false) => {
+  await page.waitForFunction(
+    ([first, group]) => {
+      const lead = window.compactRecorder.last?.order[0];
+      return lead?.[0] === first && (!group || lead[1] === group);
+    },
+    [key, pinned ? 'pinned' : ''] as const,
+    { timeout: 20_000 }
+  );
+  await page.evaluate(settleView);
+};
+
+/**
+ * The furthest `key` showed from where `before` had it in any of `frames`, in its place in the
+ * list and as painted; a frame that does not show it counts as a jump.
+ */
+const worstShift = (before: ListFrame, frames: ListFrame[], key: string): number => {
+  const was = before.visible.find((row) => row.key === key)!;
+  return Math.max(
+    0,
+    ...frames.map((frame) => {
+      const now = frame.visible.find((row) => row.key === key);
+      if (!now) return 9999;
+      return Math.max(Math.abs(now.top - was.top), Math.abs(now.painted - was.painted));
+    })
+  );
+};
+
 type SeededRoom = {
   roomId: string;
   rootPath: string;
@@ -178,15 +207,11 @@ test.describe('Compact scroll jump regressions', () => {
       const before = (await takeFrames(page)).at(-1)!;
       const belowKey = before.order.at(-2)![0];
       await send('Live reply re-sorting older thread to top while scrolled down', belowKey);
-      await page.waitForTimeout(900);
+      await waitForFirst(page, belowKey);
       const frames = [before, ...(await takeFrames(page))];
       const after = frames.at(-1)!;
-
-      const beforeMap = new Map(before.visible.map((r) => [r.key, r]));
-      const surviving = after.visible.find((r) => beforeMap.has(r.key));
-      const topShift = surviving
-        ? Math.abs(surviving.top - beforeMap.get(surviving.key)!.top)
-        : 9999;
+      // In every frame, not only once the list rests.
+      const topShift = worstShift(before, frames, before.visible[0]!.key);
 
       expect(
         after.y,
@@ -196,9 +221,9 @@ test.describe('Compact scroll jump regressions', () => {
       ).toBeGreaterThan(before.y - 200);
       expect(
         topShift,
-        `[${browserName}/${form}] visible anchor jumped by ${topShift.toFixed(1)}px (y: ${
-          before.y
-        }->${after.y})`
+        `[${browserName}/${form}] visible anchor jumped by ${topShift.toFixed(
+          1
+        )}px in some frame (y: ${before.y}->${after.y})`
       ).toBeLessThanOrEqual(2);
     });
 
@@ -245,18 +270,22 @@ test.describe('Compact scroll jump regressions', () => {
       await takeFrames(page);
       const rect = (await compactView(page).boundingBox())!;
       await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      const edits: Promise<string>[] = [];
       for (let i = 0; i < 20; i += 1) {
         await page.mouse.wheel(0, -100);
         if (i === 4) {
           for (const root of [roots[60]!, roots[59]!, roots[58]!]) {
-            void editRoot(
-              root,
-              'Long edited title that wraps onto multiple lines above the active scroll position during fast upward wheel scrolling'
+            edits.push(
+              editRoot(
+                root,
+                'Long edited title that wraps onto multiple lines above the active scroll position during fast upward wheel scrolling'
+              )
             );
           }
         }
         await page.waitForTimeout(16);
       }
+      await Promise.all(edits);
       await page.waitForTimeout(500);
       const raceFrames = await takeFrames(page);
       const backwardsSnaps: string[] = [];
@@ -267,11 +296,12 @@ test.describe('Compact scroll jump regressions', () => {
         const prevMap = new Map(prev.visible.map((r) => [r.key, r]));
         const common = cur.visible.find((r) => prevMap.has(r.key));
         const paintD = common ? common.painted - prevMap.get(common.key)!.painted : 0;
-        if (dy > 5 && paintD < -5 && cur.writes.length === 0) {
+        // With or without a write of the page's own in the frame.
+        if (dy > 5 && paintD < -5) {
           backwardsSnaps.push(
             `f${i}: y ${prev.y.toFixed(1)}->${cur.y.toFixed(1)} (dy=+${dy.toFixed(
               1
-            )}, paintD=${paintD.toFixed(1)}, writes=0)`
+            )}, paintD=${paintD.toFixed(1)}, writes=${formatWrites(cur) || 'none'})`
           );
         }
       }
@@ -283,7 +313,7 @@ test.describe('Compact scroll jump regressions', () => {
       ).toEqual([]);
     });
 
-    test(`2C (${form}): deep link restore survives competing prepend/layout writes and reaches target card @webkit`, async ({
+    test(`2C (${form}): a card opened by its link is reached and stays in place as a thread arrives above @webkit`, async ({
       page,
       browserName,
     }) => {
@@ -301,24 +331,27 @@ test.describe('Compact scroll jump regressions', () => {
         timeout: 30_000,
       });
       await page.evaluate(settleView);
-      // Simulate another writer nudging scrollTop without reader input (e.g. native anchoring),
-      // then a new thread joins above (growing content so ResizeObserver fires restore again).
-      await compactView(page).evaluate((el) => {
-        if (el.scrollTop > 0) el.scrollTop += 180;
-      });
-      await send('New thread arriving above while restore is still following');
-      await page.waitForTimeout(700);
-      await page.evaluate(settleView);
-
-      const frames = await takeFrames(page);
-      const finalFrame = frames.at(-1)!;
-      const targetVisible = finalFrame.visible.some((r) => r.key === linkTarget);
+      const restore = await takeFrames(page);
+      const placed = restore.at(-1)!;
       expect(
-        targetVisible,
-        `[${browserName}/${form}] linked card ${linkTarget} never reached viewport (final y=${
-          finalFrame.y
-        }, writes=${frames.map(formatWrites).filter(Boolean).join(' | ')})`
+        placed.visible.some((r) => r.key === linkTarget),
+        `[${browserName}/${form}] linked card ${linkTarget} never reached viewport (y=${
+          placed.y
+        }, writes=${restore.map(formatWrites).filter(Boolean).join(' | ')})`
       ).toBe(true);
+
+      // The browser's scroll anchoring, or the list's own, scrolls for the card that joins: the
+      // restore must not take that for the reader's scroll, nor scroll on top of it.
+      const arrived = await send('New thread arriving above the linked card');
+      await waitForFirst(page, arrived);
+      const frames = await takeFrames(page);
+      const shift = worstShift(placed, frames, linkTarget);
+      expect(
+        shift,
+        `[${browserName}/${form}] linked card moved ${shift.toFixed(1)}px in some frame (writes=${
+          frames.map(formatWrites).filter(Boolean).join(' | ') || 'none'
+        })`
+      ).toBeLessThanOrEqual(2);
     });
   }
 
@@ -391,26 +424,74 @@ test.describe('Compact scroll jump regressions', () => {
     const targetCard = compactView(page).locator(`[data-thread-root-id="${target.key}"]${LIVE}`);
 
     await targetCard.hover();
-    await send('Held live reply released when moving pointer to opened thread', roots[4]);
-    await page.waitForTimeout(400);
+    const held = 'Held live reply released when moving pointer to opened thread';
+    await page.evaluate(
+      (evidence) => {
+        window.compactRecorder.evidence = evidence;
+      },
+      [roots[4]!, held] as [string, string]
+    );
+    await send(held, roots[4]);
+    await page.waitForFunction(() => window.compactRecorder.last?.replySeen, undefined, {
+      timeout: 20_000,
+    });
     await takeFrames(page);
 
     await targetCard.click();
     await expect(page).toHaveURL(/threadId=/);
     await page.mouse.move(1250, 450);
-    await page.waitForTimeout(900);
+    // Let go, the list sorts the thread that got the reply first.
+    await waitForFirst(page, roots[4]!);
     const frames = [before, ...(await takeFrames(page))];
     const after = frames.at(-1)!;
 
     expect(after.y, `[${browserName}] scrollTop jumped ${before.y}->${after.y}`).toBeGreaterThan(
       before.y - 200
     );
-    const beforeMap = new Map(before.visible.map((r) => [r.key, r]));
-    const kept = after.visible.find((r) => beforeMap.has(r.key));
-    const shift = kept ? Math.abs(kept.top - beforeMap.get(kept.key)!.top) : 9999;
+    // In every frame since the click, not only once the list rests.
+    const shift = worstShift(before, frames, before.visible[0]!.key);
     expect(
       shift,
-      `[${browserName}] visible card moved ${shift.toFixed(1)}px (y: ${before.y}->${after.y})`
+      `[${browserName}] visible card moved ${shift.toFixed(1)}px in some frame (y: ${before.y}->${
+        after.y
+      })`
+    ).toBeLessThanOrEqual(2);
+  });
+
+  test('1C (desktop): pinning the first card in view while the pointer holds the order keeps the next one in place @webkit', async ({
+    page,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver not running');
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await seedLongCompactRoom(page, { layout: 'beside' });
+    await wheelBurst(page, 12, 220);
+    await page.evaluate(settleView);
+    const before = (await takeFrames(page)).at(-1)!;
+    // The first card that shows whole below the header, and the one after it.
+    const first = before.visible.findIndex((row) => row.top >= before.start);
+    const pinned = before.visible[first]!;
+    const next = before.visible[first + 1]!;
+
+    // The pointer on the card holds the order; the pinned card moves to the Pinned list anyway.
+    const shell = compactView(page).locator(`[data-scroll-anchor="${pinned.key}"]${LIVE}`);
+    await shell.locator('[data-thread-root-id]').hover();
+    await shell.locator('[data-compact-thread-pin]').click();
+    await waitForFirst(page, pinned.key, true);
+    const frames = [before, ...(await takeFrames(page))];
+    const after = frames.at(-1)!;
+
+    expect(after.y, `[${browserName}] scrollTop jumped ${before.y}->${after.y}`).toBeGreaterThan(
+      before.y - 200
+    );
+    const shift = worstShift(before, frames, next.key);
+    expect(
+      shift,
+      `[${browserName}] card after the pinned one moved ${shift.toFixed(1)}px in some frame (y: ${
+        before.y
+      }->${after.y})`
     ).toBeLessThanOrEqual(2);
   });
 });
