@@ -127,7 +127,7 @@ export function useCompactBlocks(options: Options) {
         near(slot, first, last) ||
         near(slot, goal[0], goal[1]) ||
         near(slot, targetReady ? targetSlot : undefined) ||
-        near(slot, state.end ? blocks.length - 1 : undefined);
+        near(slot, state.end && missing < 0 ? blocks.length - 1 : undefined);
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
         if (inBand || retained.has(id)) {
@@ -282,7 +282,8 @@ export function useCompactBlocks(options: Options) {
     if (back && !placeReady && state.reachable === order) render();
   });
   // The scrollbar's End reads the extent once the end band is mounted and measured: cached
-  // heights that a width or font change left stale are not the list's end.
+  // heights that a width or font change left stale are not the list's end. While the extent is
+  // still discovered, End goes to the end there is, as it does while a list still mounts.
   const prepareEnd = useMemo(
     () => () => {
       state.end = true;
