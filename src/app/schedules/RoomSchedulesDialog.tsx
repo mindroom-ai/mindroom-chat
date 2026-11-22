@@ -114,6 +114,7 @@ function ScheduleAccordionItem({
 
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const promptTextRef = useRef<HTMLParagraphElement>(null);
+  const promptToggleRef = useRef<HTMLButtonElement>(null);
   const detailsButtonRef = useRef<HTMLButtonElement>(null);
   const detailsRef = useRef<HTMLDListElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -143,20 +144,26 @@ function ScheduleAccordionItem({
     }
     if (!open) return undefined;
     const el = promptTextRef.current;
+    const updatePromptOverflows = (next: boolean) => {
+      if (!next && promptToggleRef.current && document.activeElement === promptToggleRef.current) {
+        toggleButtonRef.current?.focus();
+      }
+      setPromptOverflows(next);
+    };
     if (!el || promptText === undefined) {
-      setPromptOverflows(false);
+      updatePromptOverflows(false);
       return undefined;
     }
     const effectivelyExpanded = promptExpanded && !promptChanged;
     const measure = () => {
       if (effectivelyExpanded) {
-        setPromptOverflows(true);
+        updatePromptOverflows(true);
         return;
       }
       if (el.clientHeight > 0) {
-        setPromptOverflows(el.scrollHeight > el.clientHeight + 1);
+        updatePromptOverflows(el.scrollHeight > el.clientHeight + 1);
       } else {
-        setPromptOverflows(isLongPrompt(promptText));
+        updatePromptOverflows(isLongPrompt(promptText));
       }
     };
     measure();
@@ -432,6 +439,7 @@ function ScheduleAccordionItem({
             </Text>
             {promptOverflows && (
               <button
+                ref={promptToggleRef}
                 type="button"
                 className={css.PromptToggle}
                 aria-controls={promptTextId}

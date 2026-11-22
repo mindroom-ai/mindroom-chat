@@ -1252,6 +1252,118 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       unmount();
     }
   });
+
+  it('moves focus to the row toggle when a focused prompt disclosure disappears on live update or resize', async () => {
+    const longTask = makeTask({
+      taskId: 'shrink-prompt',
+      description: 'Shrinkable prompt',
+      message: 'A'.repeat(240),
+    });
+    const base = {
+      roomId: '!room:example.org',
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+
+    // Case 1: live update shortens prompt while "Show full prompt" has focus.
+    const { host, rerender, unmount } = mountDialog({ ...base, tasks: [longTask] });
+    try {
+      const promptToggle = findButtonByText(host, 'Show full prompt')!;
+      act(() => {
+        promptToggle.focus();
+      });
+      expect(document.activeElement).toBe(promptToggle);
+
+      rerender({ ...base, tasks: [{ ...longTask, message: 'Short prompt.' }] });
+      expect(findButtonByText(host, 'Show full prompt')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+    } finally {
+      unmount();
+    }
+
+    // Case 2: dialog widens via ResizeObserver while "Show full prompt" has focus, and does not steal focus when another control has it.
+    let resizeCallback: ResizeObserverCallback | undefined;
+    const OriginalResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class MockResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCallback = cb;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    const mount2 = mountDialog({ ...base, tasks: [longTask] });
+    try {
+      const p = mount2.host.querySelector<HTMLParagraphElement>('article p')!;
+      let scrollHeight = 120;
+      const clientHeight = 60;
+      Object.defineProperty(p, 'clientHeight', { configurable: true, get: () => clientHeight });
+      Object.defineProperty(p, 'scrollHeight', { configurable: true, get: () => scrollHeight });
+
+      const promptToggle = findButtonByText(mount2.host, 'Show full prompt')!;
+      act(() => {
+        promptToggle.focus();
+      });
+      expect(document.activeElement).toBe(promptToggle);
+
+      scrollHeight = 50;
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+      expect(findButtonByText(mount2.host, 'Show full prompt')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        mount2.host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+
+      // Re-overflow, move focus to Copy ID, then widen again: Copy ID keeps focus.
+      scrollHeight = 120;
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+      expect(findButtonByText(mount2.host, 'Show full prompt')).toBeDefined();
+      const copyBtn = findButtonByText(mount2.host, 'Copy ID')!;
+      act(() => {
+        copyBtn.focus();
+      });
+      scrollHeight = 50;
+      act(() => {
+        resizeCallback?.([], {} as ResizeObserver);
+      });
+      expect(findButtonByText(mount2.host, 'Show full prompt')).toBeUndefined();
+      expect(document.activeElement).toBe(copyBtn);
+    } finally {
+      mount2.unmount();
+      globalThis.ResizeObserver = OriginalResizeObserver;
+    }
+
+    // Case 3: expanded prompt widened, then keyboard-activating "Show less" hides the toggle and moves focus to row toggle.
+    const mount3 = mountDialog({ ...base, tasks: [longTask] });
+    try {
+      const p = mount3.host.querySelector<HTMLParagraphElement>('article p')!;
+      let scrollHeight = 120;
+      const clientHeight = 60;
+      Object.defineProperty(p, 'clientHeight', { configurable: true, get: () => clientHeight });
+      Object.defineProperty(p, 'scrollHeight', { configurable: true, get: () => scrollHeight });
+
+      const showFull = findButtonByText(mount3.host, 'Show full prompt')!;
+      await click(showFull);
+      const showLess = findButtonByText(mount3.host, 'Show less')!;
+      act(() => {
+        showLess.focus();
+      });
+      scrollHeight = 50;
+      await click(showLess);
+      expect(findButtonByText(mount3.host, 'Show less')).toBeUndefined();
+      expect(findButtonByText(mount3.host, 'Show full prompt')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        mount3.host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+    } finally {
+      mount3.unmount();
+    }
+  });
 });
 
 describe('RoomSchedulesDialog recurrence', () => {
