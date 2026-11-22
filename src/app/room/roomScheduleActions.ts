@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   MsgType,
+  RoomEvent,
   RoomMemberEvent,
-  RoomStateEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -28,6 +28,25 @@ import { isCommandSafeTaskId } from '../schedules/roomSchedules';
 
 const EMPTY_IGNORED_USERS: ReadonlySet<string> = new Set();
 
+const computeHasJoinedMindroomAgent = (
+  room: Room,
+  viewerUserId: string,
+  boundRouterId: string | undefined,
+  rosterAccountIds: ReadonlySet<string>
+): boolean => {
+  const joinedMembers = typeof room.getJoinedMembers === 'function' ? room.getJoinedMembers() : [];
+  const joinedIds = new Set(joinedMembers.map((member) => member.userId));
+  const trustedAccountIds = trustedRoomAccountIds(
+    boundRouterId,
+    rosterAccountIds,
+    joinedIds,
+    EMPTY_IGNORED_USERS
+  );
+  return joinedMembers.some((member) =>
+    isMindroomResponderForViewer(member.userId, viewerUserId, trustedAccountIds)
+  );
+};
+
 /**
  * True when the room currently has at least one joined, recognized MindRoom agent
  * (same-homeserver `mindroom_*` member, or an account trusted via `io.mindroom.router` /
@@ -41,21 +60,36 @@ export function useHasJoinedMindroomAgent(
   roomCreators: ReadonlySet<string>,
   enabled = true
 ): boolean {
-  const routerBindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBindingEvent = useStateEvent(
+    room,
+    MINDROOM_ROUTER_STATE_EVENT,
+    enabled ? '' : null
+  );
   const routerBinding =
     typeof routerBindingEvent?.isRedacted === 'function' && !routerBindingEvent.isRedacted()
       ? routerBindingEvent
       : undefined;
-  const rawPowerLevelsEvent = useStateEvent(room, StateEvent.RoomPowerLevels);
+  const rawPowerLevelsEvent = useStateEvent(
+    room,
+    StateEvent.RoomPowerLevels,
+    enabled ? '' : null
+  );
   const rawPowerLevels =
     typeof rawPowerLevelsEvent?.getContent === 'function'
       ? rawPowerLevelsEvent.getContent()
       : undefined;
   const boundRouterId = useMemo(
-    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
-    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
+    () =>
+      enabled
+        ? trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels)
+        : undefined,
+    [enabled, routerBinding, powerLevels, roomCreators, rawPowerLevels]
   );
-  const rosterEvent = useStateEvent(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundRouterId ?? null);
+  const rosterEvent = useStateEvent(
+    room,
+    MINDROOM_ACCOUNTS_STATE_EVENT,
+    enabled ? boundRouterId ?? null : null
+  );
   const roster =
     typeof rosterEvent?.isRedacted === 'function' && !rosterEvent.isRedacted()
       ? rosterEvent
@@ -65,48 +99,90 @@ export function useHasJoinedMindroomAgent(
     [boundRouterId, roster]
   );
 
-  const [membershipRevision, setMembershipRevision] = useState(0);
+  const viewerUserId = mx.getSafeUserId();
+  const compute = useCallback(
+    () =>
+      enabled
+        ? computeHasJoinedMindroomAgent(room, viewerUserId, boundRouterId, rosterAccountIds)
+        : false,
+    [boundRouterId, enabled, room, rosterAccountIds, viewerUserId]
+  );
+
+  // Derive synchronously when inputs change; membership events only commit when the boolean flips.
+  const [snapshot, setSnapshot] = useState<{ compute: () => boolean; value: boolean }>(() => ({
+    compute,
+    value: compute(),
+  }));
+  const currentValue = snapshot.compute === compute ? snapshot.value : compute();
+  const currentValueRef = useRef(currentValue);
+  useLayoutEffect(() => {
+    currentValueRef.current = currentValue;
+  }, [currentValue]);
+
   useEffect(() => {
-    if (!enabled || typeof mx.on !== 'function' || typeof mx.removeListener !== 'function') {
-      return undefined;
-    }
+    if (!enabled) return undefined;
     let disposed = false;
-    const refresh = () => {
-      if (!disposed) setMembershipRevision((rev) => rev + 1);
+    const syncEligibility = () => {
+      if (disposed) return;
+      const next = compute();
+      if (next !== currentValueRef.current) {
+        currentValueRef.current = next;
+        setSnapshot({ compute, value: next });
+      }
     };
-    const onMember = (event: MatrixEvent | undefined, member?: RoomMember) => {
+    const onMember = (
+      event: MatrixEvent | undefined,
+      member?: RoomMember,
+      oldMembership?: string
+    ) => {
       const eventRoomId = event?.getRoomId?.() ?? member?.roomId;
-      if (eventRoomId === room.roomId) refresh();
+      if (eventRoomId !== room.roomId) return;
+      const nextMembership = member?.membership ?? event?.getContent?.()?.membership;
+      const prevMembership = oldMembership ?? event?.getPrevContent?.()?.membership;
+      if (
+        prevMembership !== undefined &&
+        nextMembership !== undefined &&
+        prevMembership === nextMembership
+      ) {
+        return;
+      }
+      if (currentValueRef.current && nextMembership === 'join') return;
+      if (!currentValueRef.current && nextMembership !== undefined && nextMembership !== 'join') {
+        return;
+      }
+      const userId = member?.userId ?? event?.getStateKey?.();
+      if (
+        userId &&
+        userId !== boundRouterId &&
+        !rosterAccountIds.has(userId) &&
+        !isMindroomResponderForViewer(userId, viewerUserId, EMPTY_IGNORED_USERS)
+      ) {
+        return;
+      }
+      syncEligibility();
     };
-    const onStateMembers = (_event: MatrixEvent, state: { roomId?: string }) => {
-      if (state?.roomId === room.roomId) refresh();
-    };
-    mx.on(RoomMemberEvent.Membership, onMember);
-    mx.on(RoomStateEvent.Members, onStateMembers);
+    const hasClientListeners =
+      typeof mx.on === 'function' && typeof mx.removeListener === 'function';
+    const hasRoomListeners =
+      typeof room.on === 'function' && typeof room.removeListener === 'function';
+    if (hasClientListeners) {
+      mx.on(RoomMemberEvent.Membership, onMember);
+    }
+    if (hasRoomListeners) {
+      room.on(RoomEvent.CurrentStateUpdated, syncEligibility);
+    }
     return () => {
       disposed = true;
-      mx.removeListener(RoomMemberEvent.Membership, onMember);
-      mx.removeListener(RoomStateEvent.Members, onStateMembers);
+      if (hasClientListeners) {
+        mx.removeListener(RoomMemberEvent.Membership, onMember);
+      }
+      if (hasRoomListeners) {
+        room.removeListener(RoomEvent.CurrentStateUpdated, syncEligibility);
+      }
     };
-  }, [enabled, mx, room]);
+  }, [boundRouterId, compute, enabled, mx, room, rosterAccountIds, viewerUserId]);
 
-  const viewerUserId = mx.getSafeUserId();
-  return useMemo(() => {
-    if (!enabled) return false;
-    void membershipRevision;
-    const joinedMembers =
-      typeof room.getJoinedMembers === 'function' ? room.getJoinedMembers() : [];
-    const joinedIds = new Set(joinedMembers.map((member) => member.userId));
-    const trustedAccountIds = trustedRoomAccountIds(
-      boundRouterId,
-      rosterAccountIds,
-      joinedIds,
-      EMPTY_IGNORED_USERS
-    );
-    return joinedMembers.some((member) =>
-      isMindroomResponderForViewer(member.userId, viewerUserId, trustedAccountIds)
-    );
-  }, [boundRouterId, enabled, membershipRevision, room, rosterAccountIds, viewerUserId]);
+  return currentValue;
 }
 
 /**

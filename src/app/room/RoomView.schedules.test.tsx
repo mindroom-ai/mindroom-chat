@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import type { ReactNode, RefObject } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
-import { createClient, Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  MatrixEvent,
+  Room,
+  RoomMemberEvent,
+  RoomStateEvent,
+} from 'matrix-js-sdk';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -14,9 +20,11 @@ import type { RoomViewHeaderProps } from './RoomViewHeader';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
-vi.spyOn(room, 'getJoinedMembers').mockImplementation(
-  () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
-);
+const getJoinedMembersSpy = vi
+  .spyOn(room, 'getJoinedMembers')
+  .mockImplementation(
+    () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
+  );
 
 const { capturedHeaderProps, threadRouteState, sendMessage } = vi.hoisted(() => ({
   capturedHeaderProps: [] as RoomViewHeaderProps[],
@@ -162,5 +170,53 @@ describe('RoomView schedule wiring', () => {
     expect(settledThreadHeaderProps?.scheduleCancelState?.cancelSentIds.has('layout-task-1')).toBe(
       true
     );
+  });
+
+  it('skips membership listeners when the room has no agents and ignores replayed or unchanged member events', () => {
+    const noAgents = render(<RoomView room={room} hasMindroomAgents={false} />);
+    expect(mx.listenerCount(RoomMemberEvent.Membership)).toBe(0);
+    expect(mx.listenerCount(RoomStateEvent.Members)).toBe(0);
+    noAgents.unmount();
+
+    capturedHeaderProps.length = 0;
+    getJoinedMembersSpy.mockClear();
+
+    render(<RoomView room={room} hasMindroomAgents />);
+    const initialRenders = capturedHeaderProps.length;
+    const initialScans = getJoinedMembersSpy.mock.calls.length;
+    expect(mx.listenerCount(RoomStateEvent.Members)).toBe(0);
+
+    const memberEvent = new MatrixEvent({
+      type: 'm.room.member',
+      room_id: room.roomId,
+      state_key: '@mindroom_helper:example.org',
+      content: { membership: 'join', displayname: 'Helper' },
+    });
+    const fakeMember = {
+      roomId: room.roomId,
+      userId: '@mindroom_helper:example.org',
+      membership: 'join',
+    };
+    act(() => {
+      for (let i = 0; i < 5; i += 1) {
+        mx.emit(RoomStateEvent.Members, memberEvent, room.currentState, fakeMember as never);
+        mx.emit(RoomMemberEvent.Membership, memberEvent, fakeMember as never, 'join');
+      }
+      // Irrelevant human leaving also triggers neither a rescan nor a rerender.
+      mx.emit(
+        RoomMemberEvent.Membership,
+        new MatrixEvent({
+          type: 'm.room.member',
+          room_id: room.roomId,
+          state_key: '@bob:example.org',
+          content: { membership: 'leave' },
+        }),
+        { roomId: room.roomId, userId: '@bob:example.org', membership: 'leave' } as never,
+        'join'
+      );
+    });
+
+    expect(capturedHeaderProps.length).toBe(initialRenders);
+    expect(getJoinedMembersSpy.mock.calls.length).toBe(initialScans);
   });
 });

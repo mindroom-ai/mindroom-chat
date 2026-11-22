@@ -61,6 +61,7 @@ function ScheduleAccordionItem({
   task,
   now,
   locale,
+  timeZone,
   formatter,
   grouped,
   open,
@@ -78,6 +79,7 @@ function ScheduleAccordionItem({
   task: ParsedScheduledTask;
   now: number;
   locale: string;
+  timeZone?: string;
   formatter: Intl.DateTimeFormat;
   grouped: boolean;
   open: boolean;
@@ -268,7 +270,7 @@ function ScheduleAccordionItem({
     ? { label: formatShortCadence(task, t), variant: css.StatusPillSuccess }
     : executionTime !== undefined
     ? {
-        label: formatRelativeCountdown(executionTime, now, t, locale),
+        label: formatRelativeCountdown(executionTime, now, t, locale, timeZone),
         variant: css.StatusPillPrimary,
       }
     : undefined;
@@ -291,7 +293,7 @@ function ScheduleAccordionItem({
           t('roomSchedules.unknownTime')
         ) : (
           <time dateTime={new Date(executionTime).toISOString()}>
-            {formatCompactExecutionTime(executionTime, now, locale)}
+            {formatCompactExecutionTime(executionTime, now, locale, timeZone)}
           </time>
         ),
     });
@@ -864,6 +866,7 @@ export const RoomSchedulesDialog = forwardRef<
       () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
       [locale]
     );
+    const timeZone = useMemo(() => formatter.resolvedOptions().timeZone, [formatter]);
 
     let onceCount = 0;
     let recurringCount = 0;
@@ -1091,6 +1094,7 @@ export const RoomSchedulesDialog = forwardRef<
                             task={task}
                             now={now}
                             locale={locale}
+                            timeZone={timeZone}
                             formatter={formatter}
                             grouped={grouped}
                             open={open}

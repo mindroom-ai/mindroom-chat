@@ -282,7 +282,7 @@ export function RoomViewHeader({
     room,
     powerLevels,
     roomCreators,
-    hasJoinedMindroomAgent === undefined
+    hasJoinedMindroomAgent === undefined && Boolean(hasMindroomAgents)
   );
   const hasJoinedAgent = hasJoinedMindroomAgent ?? localHasJoinedAgent;
   const myUserId = mx.getSafeUserId();

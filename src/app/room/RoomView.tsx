@@ -160,7 +160,13 @@ export function RoomView({
   const roomCreators = useRoomCreators(room);
   const powerLevels = usePowerLevelsContext();
   const permissions = useRoomPermissions(roomCreators, powerLevels);
-  const hasJoinedAgent = useHasJoinedMindroomAgent(client, room, powerLevels, roomCreators);
+  const hasJoinedAgent = useHasJoinedMindroomAgent(
+    client,
+    room,
+    powerLevels,
+    roomCreators,
+    Boolean(hasMindroomAgents)
+  );
   const canMessage = permissions.event('m.room.message', myUserId);
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);

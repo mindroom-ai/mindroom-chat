@@ -33,6 +33,11 @@ const OTHER_YEAR_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
   timeStyle: 'short',
 };
 
+const withTimeZone = (
+  options: Intl.DateTimeFormatOptions,
+  timeZone?: string
+): Intl.DateTimeFormatOptions => (timeZone ? { ...options, timeZone } : options);
+
 /** A task that will post to the existing thread, not create another one. */
 export const isScheduleInThread = (task: ParsedScheduledTask, threadId: string): boolean =>
   !task.newThread && task.threadId === threadId;
@@ -76,7 +81,8 @@ export const formatRelativeCountdown = (
   executionTime: number,
   now: number,
   t: TFunction,
-  locale?: string
+  locale?: string,
+  timeZone?: string
 ): string => {
   const diffMs = executionTime - now;
   if (diffMs <= 0) return t('roomSchedules.awaitingShort');
@@ -105,9 +111,12 @@ export const formatRelativeCountdown = (
   const nowDate = new Date(now);
   return dateTimeFormat(
     locale,
-    execDate.getFullYear() === nowDate.getFullYear()
-      ? SAME_YEAR_DATE_OPTIONS
-      : OTHER_YEAR_DATE_OPTIONS
+    withTimeZone(
+      execDate.getFullYear() === nowDate.getFullYear()
+        ? SAME_YEAR_DATE_OPTIONS
+        : OTHER_YEAR_DATE_OPTIONS,
+      timeZone
+    )
   ).format(executionTime);
 };
 
@@ -115,7 +124,8 @@ export const formatRelativeCountdown = (
 export const formatCompactExecutionTime = (
   executionTime: number,
   now: number,
-  locale?: string
+  locale?: string,
+  timeZone?: string
 ): string => {
   const execDate = new Date(executionTime);
   const nowDate = new Date(now);
@@ -126,12 +136,18 @@ export const formatCompactExecutionTime = (
     execDate.getDate() === nowDate.getDate();
 
   if (sameDay) {
-    return dateTimeFormat(locale, SAME_DAY_TIME_OPTIONS).format(executionTime);
+    return dateTimeFormat(locale, withTimeZone(SAME_DAY_TIME_OPTIONS, timeZone)).format(
+      executionTime
+    );
   }
   if (sameYear) {
-    return dateTimeFormat(locale, SAME_YEAR_DATETIME_OPTIONS).format(executionTime);
+    return dateTimeFormat(locale, withTimeZone(SAME_YEAR_DATETIME_OPTIONS, timeZone)).format(
+      executionTime
+    );
   }
-  return dateTimeFormat(locale, OTHER_YEAR_DATETIME_OPTIONS).format(executionTime);
+  return dateTimeFormat(locale, withTimeZone(OTHER_YEAR_DATETIME_OPTIONS, timeZone)).format(
+    executionTime
+  );
 };
 
 /** Concise cadence pill label for a recurring task; the full description stays in the subtitle. */

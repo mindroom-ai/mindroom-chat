@@ -178,6 +178,17 @@ describe('formatCompactExecutionTime', () => {
       });
     }
   });
+
+  it('distinguishes IANA time zones with the same current UTC offset for future DST dates', () => {
+    const januaryNow = Date.UTC(2026, 0, 15, 19, 0, 0);
+    const julyExecution = Date.UTC(2026, 6, 15, 18, 0, 0);
+    expect(
+      formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Phoenix')
+    ).toBe('Jul 15, 11:00 AM');
+    expect(
+      formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Denver')
+    ).toBe('Jul 15, 12:00 PM');
+  });
 });
 
 describe('formatShortCadence', () => {
