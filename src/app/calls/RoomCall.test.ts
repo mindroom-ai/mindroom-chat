@@ -5,7 +5,12 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import { RoomCall, type RoomCallOptions } from './RoomCall';
 import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
-import { rememberCallForResume, takeCallResume, withdrawOwnMemberships } from './callResume';
+import {
+  rememberCallForResume,
+  RESUME_WINDOW_MS,
+  takeCallResume,
+  withdrawOwnMemberships,
+} from './callResume';
 import { sendCallKey } from './callKeyProvider';
 import { defined } from '../../test/utils/defined';
 
@@ -268,13 +273,20 @@ beforeEach(() => {
   fakes.encryption = undefined;
   fakes.keys.length = 0;
   vi.mocked(getLivekitServiceUrl).mockClear();
-  vi.mocked(requestSfuGrant).mockClear();
+  vi.mocked(requestSfuGrant).mockReset();
+  vi.mocked(requestSfuGrant).mockResolvedValue({ url: 'wss://sfu.calls.test', jwt: 'jwt' });
   vi.mocked(withdrawOwnMemberships).mockClear();
   vi.mocked(sendCallKey).mockReset();
   vi.mocked(sendCallKey).mockResolvedValue(undefined);
 });
 
+const setVisibility = (state: DocumentVisibilityState) => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: state });
+  document.dispatchEvent(new Event('visibilitychange'));
+};
+
 afterEach(() => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   document.body.innerHTML = '';
 });
 
@@ -1544,5 +1556,279 @@ describe("RoomCall members' media", () => {
     expect(permissions).toHaveBeenLastCalledWith(false, allowed(OTHER_IDENTITY, CAROL_IDENTITY));
     session.setMemberships([membership(CAROL, CAROL_DEVICE)]);
     expect(permissions).toHaveBeenLastCalledWith(false, allowed(CAROL_IDENTITY));
+  });
+});
+
+describe('RoomCall rejoin after background disconnect', () => {
+  it('keeps the call reconnecting while hidden, then rejoins on visible with a fresh grant, one membership, and current inputs', async () => {
+    const earlyGrant = Promise.resolve({
+      serviceUrl: fakes.serviceUrl,
+      grant: { url: 'wss://early.calls.test', jwt: 'early-jwt' },
+    });
+    const { call, session } = setup({ grant: earlyGrant, notify: 'ring', video: true });
+    await call.join();
+    const firstMedia = onlyMediaRoom();
+    expect(requestSfuGrant).not.toHaveBeenCalled();
+    expect(session.join).toHaveBeenCalledTimes(1);
+
+    // Change mic choice before the drop; camera stays on.
+    await call.setMicrophone(false);
+    setVisibility('hidden');
+    firstMedia.emit('Disconnected');
+    await settle();
+
+    // Still the active call in reconnecting, device lock held, waiting for visible.
+    expect(call.getState()).toMatchObject({
+      phase: 'reconnecting',
+      microphone: false,
+      camera: true,
+    });
+    expect(call.getState().problem).toBeUndefined();
+    expect(fakes.releases[0]).not.toHaveBeenCalled();
+    expect(session.leave).toHaveBeenCalledTimes(1);
+    expect(requestSfuGrant).not.toHaveBeenCalled();
+    expect(mediaRooms()).toHaveLength(1);
+
+    // Returning to visible rejoins the same call with a fresh SFU grant and no second ring.
+    vi.mocked(requestSfuGrant).mockResolvedValueOnce({
+      url: 'wss://fresh.calls.test',
+      jwt: 'fresh-jwt',
+    });
+    setVisibility('visible');
+    await settle();
+
+    expect(requestSfuGrant).toHaveBeenCalledTimes(1);
+    expect(session.join).toHaveBeenCalledTimes(2);
+    expect(session.join).toHaveBeenLastCalledWith(
+      { userId: ME, deviceId: DEVICE, memberId: `${ME}:${DEVICE}` },
+      [{ type: 'livekit', livekit_service_url: fakes.serviceUrl, livekit_alias: ROOM_ID }],
+      expect.objectContaining({ notificationType: undefined, callIntent: 'video' })
+    );
+    // The old membership was left before joining again, so there is only one membership.
+    expect(defined(session.leave.mock.invocationCallOrder[0], 'the leave')).toBeLessThan(
+      defined(session.join.mock.invocationCallOrder[1], 'the rejoin')
+    );
+    expect(mediaRooms()).toHaveLength(2);
+    const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+    expect(secondMedia.connect).toHaveBeenCalledWith('wss://fresh.calls.test', 'fresh-jwt');
+    expect(secondMedia.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+    expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    expect(call.getState()).toMatchObject({
+      phase: 'connected',
+      microphone: false,
+      camera: true,
+    });
+    expect(fakes.releases[0]).not.toHaveBeenCalled();
+  });
+
+  it('rejoins immediately when Disconnected arrives just after the page becomes visible again', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const firstMedia = onlyMediaRoom();
+
+    setVisibility('hidden');
+    setVisibility('visible');
+    firstMedia.emit('Disconnected');
+    await settle();
+
+    expect(mediaRooms()).toHaveLength(2);
+    expect(session.join).toHaveBeenCalledTimes(2);
+    expect(call.getState().phase).toBe('connected');
+  });
+
+  it('replaces the encryption worker and keeps media encryption working across a rejoin', async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    const firstWorker = defined(fakes.workers[0], 'the first worker');
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+
+    expect(firstWorker.terminate).toHaveBeenCalledTimes(1);
+    setVisibility('visible');
+    await settle();
+
+    expect(fakes.workers).toHaveLength(2);
+    const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+    expect(secondMedia.setE2EEEnabled).toHaveBeenCalledWith(true);
+    expect(session.join).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceId: DEVICE }),
+      expect.anything(),
+      expect.objectContaining({ manageMediaKeys: true })
+    );
+    expect(call.getState().phase).toBe('connected');
+  });
+
+  it('honors input toggles made while reconnecting once the rejoin connects', async () => {
+    const { call } = setup({ microphone: true, video: false });
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+
+    await call.setMicrophone(false);
+    await call.setCamera(true);
+    setVisibility('visible');
+    await settle();
+
+    const secondMedia = defined(mediaRooms()[1], 'the rejoined LiveKit room');
+    expect(secondMedia.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+    expect(secondMedia.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    expect(call.getState()).toMatchObject({ phase: 'connected', microphone: false, camera: true });
+  });
+
+  it('fails with the connection problem when the page stays hidden longer than RESUME_WINDOW_MS', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+
+      setVisibility('hidden');
+      await vi.advanceTimersByTimeAsync(30_000);
+      onlyMediaRoom().emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS - 31_000);
+      expect(call.getState().phase).toBe('reconnecting');
+      expect(fakes.releases[0]).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+      expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+
+      // Coming back later does not rejoin a call that already gave up.
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mediaRooms()).toHaveLength(1);
+      expect(session.join).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails immediately when Disconnected arrives after being hidden longer than RESUME_WINDOW_MS', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+
+      setVisibility('hidden');
+      await vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS + 1_000);
+      setVisibility('visible');
+      onlyMediaRoom().emit('Disconnected');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+      expect(mediaRooms()).toHaveLength(1);
+      expect(session.join).toHaveBeenCalledTimes(1);
+      expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails with the connection problem when the rejoin grant or media connect fails', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+    expect(call.getState().phase).toBe('reconnecting');
+
+    vi.mocked(requestSfuGrant).mockRejectedValueOnce(new Error('sfu unreachable'));
+    setVisibility('visible');
+    await settle();
+
+    expect(requestSfuGrant).toHaveBeenCalledTimes(2);
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.join).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails with the connection problem if the rejoin itself disconnects during connect', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+
+    fakes.connect = async (room) => {
+      (room as FakeMediaRoom).emit('Disconnected');
+      throw new Error('dropped during rejoin');
+    };
+    setVisibility('visible');
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.leave).toHaveBeenCalledTimes(2);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('ends normally when the user leaves while reconnecting', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+    expect(call.getState().phase).toBe('reconnecting');
+
+    await call.leave();
+    expect(call.getState().phase).toBe('ended');
+    expect(call.getState().problem).toBeUndefined();
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+
+    // Becoming visible after leaving does not start a rejoin.
+    setVisibility('visible');
+    await settle();
+    expect(mediaRooms()).toHaveLength(1);
+    expect(session.join).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops cleanly when the user leaves while a rejoin is in flight', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    setVisibility('hidden');
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+
+    const grant = pending<{ url: string; jwt: string }>();
+    vi.mocked(requestSfuGrant).mockReturnValueOnce(grant.promise);
+    setVisibility('visible');
+    await settle();
+    expect(requestSfuGrant).toHaveBeenCalledTimes(2);
+
+    await call.leave();
+    grant.resolve({ url: 'wss://fresh.calls.test', jwt: 'fresh-jwt' });
+    await settle();
+
+    expect(call.getState().phase).toBe('ended');
+    expect(call.getState().problem).toBeUndefined();
+    expect(mediaRooms()).toHaveLength(1);
+    expect(session.join).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps failing immediately when Disconnected happens while the page stayed visible', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+
+    // Even after an earlier brief background switch that LiveKit itself reconnected from.
+    setVisibility('hidden');
+    setVisibility('visible');
+    media.emit('Reconnecting');
+    media.emit('Reconnected');
+
+    media.emit('Disconnected');
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(mediaRooms()).toHaveLength(1);
+    expect(session.join).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 });

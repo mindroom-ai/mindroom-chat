@@ -25,7 +25,7 @@ import {
   type SfuGrant,
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
-import { withdrawOwnMemberships } from './callResume';
+import { RESUME_WINDOW_MS, withdrawOwnMemberships } from './callResume';
 import type { CallNotifyInputs } from './callRings';
 import { startCallRingTrace } from './callRingTrace';
 
@@ -56,6 +56,8 @@ const unmutedInputTrack = (publication: LocalTrackPublication | undefined) =>
 
 const isLiveInputTrack = (track: MediaStreamTrack | undefined) =>
   track?.readyState === 'live' && track.muted === false;
+
+const isPageHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
 
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
@@ -219,6 +221,19 @@ export class RoomCall {
 
   /** Failed sends of the own key, by the same keys as `keysResent`. */
   private readonly keyResendFailures = new Map<string, number>();
+
+  /** Whether LiveKit connected at least once; drops before that fail as a join failure. */
+  private hasConnected = false;
+
+  /** When the page was last hidden since connecting, used to allow and bound background rejoin. */
+  private hiddenAt?: number;
+
+  private rejoining = false;
+
+  /** Active while waiting for the page to become visible before rejoining. */
+  private rejoinTimer?: number;
+
+  private pendingSessionLeave?: Promise<void>;
 
   constructor(options: RoomCallOptions) {
     this.options = options;
@@ -461,41 +476,137 @@ export class RoomCall {
   }
 
   private watchMedia(media: MediaRoom) {
+    const active = () => this.media === media;
+    const refresh = () => {
+      if (active()) this.refresh();
+    };
     media
       .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+        if (!active()) return;
         if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
         this.refresh();
       })
       .on(RoomEvent.TrackUnsubscribed, (track) => {
+        if (!active()) return;
         this.detachAudio(track);
         this.refresh();
       })
       .on(RoomEvent.ParticipantConnected, (participant) => {
+        if (!active()) return;
         this.keyPeers.add(participant.identity);
         this.resendOwnKey();
         this.refresh();
       })
-      .on(RoomEvent.ParticipantDisconnected, this.refresh)
-      .on(RoomEvent.TrackMuted, this.refresh)
-      .on(RoomEvent.TrackUnmuted, this.refresh)
-      .on(RoomEvent.LocalTrackPublished, this.onLocalTrackPublished)
-      .on(RoomEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-      .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
-      .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
-      .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
+      .on(RoomEvent.ParticipantDisconnected, refresh)
+      .on(RoomEvent.TrackMuted, refresh)
+      .on(RoomEvent.TrackUnmuted, refresh)
+      .on(RoomEvent.LocalTrackPublished, (pub) => {
+        if (active()) this.onLocalTrackPublished(pub);
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (active()) this.onLocalTrackUnpublished(pub);
+      })
+      .on(RoomEvent.ActiveSpeakersChanged, refresh)
+      .on(RoomEvent.AudioPlaybackStatusChanged, refresh)
+      .on(RoomEvent.Reconnecting, () => {
+        if (active()) this.update({ phase: 'reconnecting' });
+      })
       .on(RoomEvent.Reconnected, () => {
-        if (this.stopped) return;
+        if (!active() || this.stopped) return;
+        this.hiddenAt = isPageHidden() ? Date.now() : undefined;
         this.update({ phase: 'connected' });
         this.refresh();
       })
       // The media server dropped this device for good (LiveKit retries before giving up); after
       // a leave or another failure this is the teardown's own disconnect.
-      .on(RoomEvent.Disconnected, () => this.fail('connection'))
+      .on(RoomEvent.Disconnected, () => this.onMediaDisconnected(media))
       .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
+        if (!active()) return;
         this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
         // A switched microphone is a new media track.
         this.refresh();
       });
+  }
+
+  private clearRejoinTimer() {
+    if (this.rejoinTimer !== undefined) {
+      window.clearTimeout(this.rejoinTimer);
+      this.rejoinTimer = undefined;
+    }
+  }
+
+  private onVisibilityChange = () => {
+    if (this.stopped) return;
+    if (isPageHidden()) {
+      if (this.hasConnected && this.rejoinTimer === undefined && !this.rejoining) {
+        this.hiddenAt = Date.now();
+      }
+      return;
+    }
+    if (this.rejoinTimer !== undefined) this.resumeFromBackground();
+  };
+
+  private onMediaDisconnected(media: MediaRoom) {
+    if (this.stopped || this.media !== media) return;
+    const hiddenAt = this.hiddenAt ?? (isPageHidden() ? Date.now() : undefined);
+    const remainingMs = hiddenAt === undefined ? 0 : hiddenAt + RESUME_WINDOW_MS - Date.now();
+    if (!this.hasConnected || this.rejoining || remainingMs <= 0) {
+      this.fail('connection');
+      return;
+    }
+    this.hiddenAt = hiddenAt;
+    this.detachMedia();
+    this.worker?.terminate();
+    this.worker = undefined;
+    this.ownKey = undefined;
+    this.keyPeers.clear();
+    this.keysResent.clear();
+    this.keyResendFailures.clear();
+    this.pendingSessionLeave = this.session.isJoined()
+      ? this.session.leave(LEAVE_TIMEOUT_MS).then(
+          () => undefined,
+          () => undefined
+        )
+      : undefined;
+    this.update({
+      phase: 'reconnecting',
+      screenShare: false,
+      audioBlocked: false,
+      microphoneTrack: undefined,
+      participants: this.readParticipants(),
+    });
+    if (!isPageHidden()) {
+      this.resumeFromBackground();
+      return;
+    }
+    this.rejoinTimer = window.setTimeout(() => {
+      this.rejoinTimer = undefined;
+      this.fail('connection');
+    }, remainingMs);
+  }
+
+  private resumeFromBackground() {
+    this.clearRejoinTimer();
+    if (this.stopped || this.rejoining) return;
+    if (this.hiddenAt !== undefined && Date.now() - this.hiddenAt > RESUME_WINDOW_MS) {
+      this.fail('connection');
+      return;
+    }
+    this.rejoining = true;
+    void this.rejoin().catch(() => this.fail('connection'));
+  }
+
+  private async rejoin(): Promise<void> {
+    const leave = this.pendingSessionLeave;
+    this.pendingSessionLeave = undefined;
+    if (leave) await leave;
+    if (this.stopped) return;
+    const deviceId = this.mx.getDeviceId();
+    if (!deviceId) {
+      this.fail('connection');
+      return;
+    }
+    await this.connectCall(deviceId, true);
   }
 
   private onMemberships = () => {
@@ -560,7 +671,9 @@ export class RoomCall {
     });
   }
 
-  private onMembershipError = () => this.fail('connection');
+  private onMembershipError = () => {
+    if (this.rejoinTimer === undefined) this.fail('connection');
+  };
 
   /** Left, or given up: a join still on its way stops at its next step. */
   private get stopped(): boolean {
@@ -609,9 +722,11 @@ export class RoomCall {
   }
 
   /** A grant for the call service: the one asked for while preparing, or a new one. */
-  private async grantFor(serviceUrl: string, deviceId: string): Promise<SfuGrant> {
-    const early = await this.options.grant;
-    if (early?.serviceUrl === serviceUrl) return early.grant;
+  private async grantFor(serviceUrl: string, deviceId: string, fresh = false): Promise<SfuGrant> {
+    if (!fresh) {
+      const early = await this.options.grant;
+      if (early?.serviceUrl === serviceUrl) return early.grant;
+    }
     const token = await this.mx.getOpenIdToken();
     return requestSfuGrant(serviceUrl, { roomId: this.room.roomId, deviceId, token });
   }
@@ -622,8 +737,7 @@ export class RoomCall {
    * MindRoom agent too) start joining while this device connects, instead of after it.
    */
   async join(): Promise<void> {
-    const { mx, room } = this;
-    const deviceId = mx.getDeviceId();
+    const deviceId = this.mx.getDeviceId();
     if (!isBrowserSupported() || (this.encrypted && !isE2EESupported()) || !deviceId) {
       this.fail('browser');
       return;
@@ -631,6 +745,15 @@ export class RoomCall {
     this.session.on(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.on(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    await this.connectCall(deviceId, false);
+  }
+
+  private async connectCall(deviceId: string, rejoin: boolean): Promise<void> {
+    const { mx, room } = this;
+    const failJoin = (problem: CallProblem) => this.fail(rejoin ? 'connection' : problem);
     await this.withdrawLeftover(deviceId);
     if (this.stopped) return;
 
@@ -643,16 +766,16 @@ export class RoomCall {
     );
     if (this.stopped) return;
     if ('refused' in service) {
-      this.fail(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
+      failJoin(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
       return;
     }
     const serviceUrl = service.url;
 
     let grant: SfuGrant;
     try {
-      grant = await this.grantFor(serviceUrl, deviceId);
+      grant = await this.grantFor(serviceUrl, deviceId, rejoin);
     } catch {
-      this.fail('service');
+      failJoin('service');
       return;
     }
     if (this.stopped) return;
@@ -664,27 +787,29 @@ export class RoomCall {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
       this.stopRingTrace?.();
-      this.stopRingTrace = startCallRingTrace({
-        room,
-        session: this.session,
-        ownMembership: this.ownMembership,
-        encrypted: this.encrypted,
-        notify: this.options.notify,
-        notifyInputs: this.options.notifyInputs,
-      });
+      this.stopRingTrace = rejoin
+        ? undefined
+        : startCallRingTrace({
+            room,
+            session: this.session,
+            ownMembership: this.ownMembership,
+            encrypted: this.encrypted,
+            notify: this.options.notify,
+            notifyInputs: this.options.notifyInputs,
+          });
       this.session.join(
         this.ownMembership,
         [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
         {
           manageMediaKeys: this.encrypted,
           callIntent: this.state.camera ? 'video' : 'audio',
-          notificationType: this.options.notify,
+          notificationType: rejoin ? undefined : this.options.notify,
           notificationLifetimeMs: RING_LIFETIME_MS,
         }
       );
     } catch {
       // The SDK refuses a membership it cannot make at once; the panel offers Dismiss.
-      this.fail('service');
+      failJoin('service');
       return;
     }
 
@@ -711,7 +836,7 @@ export class RoomCall {
       if (this.stopped) return;
       await media.connect(grant.url, grant.jwt);
     } catch {
-      this.fail('service');
+      failJoin('service');
       return;
     }
     if (this.stopped) {
@@ -719,6 +844,9 @@ export class RoomCall {
       await media.disconnect(true).catch(() => undefined);
       return;
     }
+    this.rejoining = false;
+    this.hasConnected = true;
+    this.hiddenAt = isPageHidden() ? Date.now() : undefined;
     this.update({ phase: 'connected' });
     // Before this device publishes anything.
     this.followMembers();
@@ -747,7 +875,7 @@ export class RoomCall {
     this.requestedInputs[kind] = on;
     this.update({ [kind]: on });
     const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
+    if (!participant || this.state.phase === 'connecting' || this.rejoining) return;
     const failed = await (kind === 'microphone'
       ? participant.setMicrophoneEnabled(on)
       : participant.setCameraEnabled(on)
@@ -783,7 +911,7 @@ export class RoomCall {
    */
   async setScreenShare(on: boolean) {
     const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
+    if (!participant || this.state.phase === 'connecting' || this.rejoining) return;
     await participant
       .setScreenShareEnabled(on, {
         audio: true,
@@ -825,12 +953,7 @@ export class RoomCall {
     this.refresh();
   }
 
-  private async teardown() {
-    this.stopRingTrace?.();
-    this.stopRingTrace = undefined;
-    this.session.off(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
-    this.session.off(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
-    this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
+  private detachMedia(): MediaRoom | undefined {
     const media = this.media;
     this.media = undefined;
     this.watchInputTrack('microphone');
@@ -838,14 +961,32 @@ export class RoomCall {
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
     });
+    this.audioHost?.remove();
+    this.audioHost = undefined;
+    return media;
+  }
+
+  private async teardown() {
+    this.clearRejoinTimer();
+    this.rejoining = false;
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    this.stopRingTrace?.();
+    this.stopRingTrace = undefined;
+    this.session.off(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
+    this.session.off(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
+    this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
+    const media = this.detachMedia();
     const participants = this.readParticipants();
     if (this.state.microphoneTrack || !sameParticipants(participants, this.state.participants)) {
       this.update({ microphoneTrack: undefined, participants });
     }
-    this.audioHost?.remove();
-    this.audioHost = undefined;
     try {
-      const membership = this.session.isJoined() ? this.session.leave(LEAVE_TIMEOUT_MS) : undefined;
+      const membership = this.session.isJoined()
+        ? this.session.leave(LEAVE_TIMEOUT_MS)
+        : this.pendingSessionLeave;
+      this.pendingSessionLeave = undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
       await Promise.allSettled([media?.disconnect(true), membership]);
     } finally {
