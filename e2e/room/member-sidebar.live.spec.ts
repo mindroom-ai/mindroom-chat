@@ -2,7 +2,7 @@ import { devices, expect, test, type Locator, type Page } from '@playwright/test
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, createPrivateSpace, loginToMatrix } from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader } from '../helpers/roomMenu';
 
 test.skip(!hasPrimaryCredentials(), 'Requires a local Matrix test account.');
 
@@ -137,9 +137,8 @@ test.describe('phone member sheet', () => {
     const roomUrl = page.url();
     const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
     const sheet = page.getByTestId('phone-members-sheet');
-    // A phone's header leaves Members to the room menu, whose button gets focus back.
-    const show = roomMoreOptions(page);
-    const showEntry = page.getByRole('menuitem', { name: 'Show Members', exact: true });
+    // This room has space for Members in the header; its button gets focus back.
+    const show = roomHeader(page).getByRole('button', { name: 'Show Members', exact: true });
     const expectGone = async () => {
       await expect(sheet).toHaveCount(0);
       await expect(page).toHaveURL(roomUrl);
@@ -148,13 +147,10 @@ test.describe('phone member sheet', () => {
     const openWithKeyboard = async () => {
       await show.focus();
       await page.keyboard.press('Enter');
-      await showEntry.focus();
-      await page.keyboard.press('Enter');
       await expectSheetOut(sheet);
     };
     const openWithTap = async () => {
       await show.tap();
-      await showEntry.tap();
       await expectSheetOut(sheet);
     };
     await expect(show).toBeVisible();

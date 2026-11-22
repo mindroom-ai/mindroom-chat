@@ -1434,6 +1434,7 @@ const makeRoom = ({
     getLiveTimeline: () => roomLiveTimeline,
     getJoinedMembers: () => joinedMembers.map((userId) => ({ userId })),
     getMember: (userId: string) => ({ name: userId }),
+    membersLoaded: () => true,
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
     getThreads: () => threads,
     getUnfilteredTimelineSet: () => timelineSet,

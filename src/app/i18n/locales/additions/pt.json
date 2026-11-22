@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados"
+        "advancedFilters": "Filtros avançados",
+        "includeResolvedThreads": "Incluir tópicos resolvidos",
+        "hideResolvedThreads": "Ocultar tópicos resolvidos",
+        "forMeSummary": "{{summary}}. Filtro «Para mim» ativado."
       },
       "threadPeopleFilter": {
         "label": "Pessoas",
@@ -1059,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Expandir todas as mensagens longas",
-        "collapseAllLong": "Recolher todas as mensagens longas"
+        "collapseAllLong": "Recolher todas as mensagens longas",
+        "showFullMessage": "Mostrar mensagem completa"
       }
     },
     "computer": {
@@ -1246,6 +1250,10 @@
   "composer": {
     "voicePausedInThisRoom": "A gravação de voz está em pausa — termine ou descarte a gravação não enviada em outro lugar desta sala",
     "voiceThreadRootUnsent": "O tópico desta mensagem de voz não tem uma primeira mensagem enviada. Tente novamente quando essa mensagem for enviada ou descarte a gravação.",
+    "voiceIndicator": {
+      "recording": "Gravando {{time}}",
+      "paused": "Em pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta",
     "moreActions": "Mais ações",
@@ -1717,6 +1725,7 @@
   "threadNav": {
     "forMe": "Para mim",
     "forMeHint": "Apenas tópicos em que participa, em que um agente publicou em seu nome ou que fixou",
+    "roomForMeHint": "Apenas tópicos em que participa ou em que um agente publicou em seu nome",
     "emptyForMe": "Ainda não há tópicos para si",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
@@ -1753,5 +1762,9 @@
   },
   "threadActions": {
     "openBeside": "Abrir na segunda coluna"
+  },
+  "roomSchedules": {
+    "thisThread": "Este tópico",
+    "elsewhereInRoom": "Em outras partes desta sala"
   }
 }

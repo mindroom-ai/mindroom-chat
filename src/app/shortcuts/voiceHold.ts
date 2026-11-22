@@ -8,17 +8,17 @@
  */
 export const VOICE_HOLD_MS = 300;
 
-/** `none` without an open recorder; `other` while it processes, sends or holds a failed one. */
+/** `none` with no recording shown; `other` while it sends or a failed one waits. */
 export type VoiceTargetPhase = 'none' | 'requesting' | 'recording' | 'paused' | 'other';
 
 /** The composer a press acts in, pinned from the key going down until it comes up. */
 export type VoiceHoldTarget = {
-  /** A recorder is open here, or a failed recording waits here. */
+  /** A recording shows here (the account's, in every composer), or a failed one waits here. */
   active: () => boolean;
   phase: () => VoiceTargetPhase;
   /** Text or staged attachments, which a send would take along. */
   hasContent: () => boolean;
-  /** Opens the recorder as the mic button does; false when its guards refuse. */
+  /** Starts a recording as the mic button does; false when its guards refuse. */
   start: () => boolean;
   /** Sends the recording through the composer's send path (Enter). */
   send: () => void;

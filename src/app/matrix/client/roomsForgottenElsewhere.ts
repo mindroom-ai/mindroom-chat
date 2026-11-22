@@ -84,10 +84,8 @@ export const dropRoomsForgottenElsewhere = (mx: MatrixClient): void => {
       mx.store.removeRoom(roomId);
       mx.emit(ClientEvent.DeleteRoom, roomId);
     });
-    // A save asked for while another one writes returns that one, which read the saved sync
-    // before the change (the SDK saves after the session's first sync too); the second save
-    // then writes it.
-    await mx.store.save(true);
+    // A forced save waits for one that still writes, which read the saved sync before the
+    // change (the SDK saves after the session's first sync too), and then writes it.
     await mx.store.save(true);
   };
 

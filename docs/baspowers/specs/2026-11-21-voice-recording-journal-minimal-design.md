@@ -39,6 +39,8 @@ successful send, confirmed Discard, or sign-out.**
   unmounts while recording, parks the captured audio as a recovered draft instead of dropping it.
   When another composer takes the mic, the displaced recording stays on disk with its lock
   released until the next page load, without occupying the draft slot.
+  Since voice follows navigation (#703) the account owns the live recording: no unmount or
+  second microphone ends it, so only self-stop parks, and account exit keeps the record unlocked.
 - **Send.** The record is deleted after `sendRecording` resolved. A failed send keeps it. The
   existing failed-send copy (`savedVoiceDraft.ts`) stores the recording id. On restore, a journal
   record with that id is not offered a second time.

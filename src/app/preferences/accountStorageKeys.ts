@@ -46,6 +46,10 @@ export const pluginPanelWidthStorageKeyPrefix = (userId: string): string =>
 export const pluginPanelWidthStorageKey = (userId: string, panelId: string): string =>
   `${pluginPanelWidthStorageKeyPrefix(userId)}${panelId}`;
 
+/** Room model catalogs last reported to this Matrix user. */
+export const modelCatalogStorageKey = (userId: string): string =>
+  `mindroom_client_model_catalogs::${userId}`;
+
 /** Every key above of one account. */
 export const accountStorageKeys = (userId: string): string[] => [
   spaceOrderStorageKey(userId),
@@ -61,6 +65,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   subagentsWidthStorageKey(userId),
   secondThreadStorageKey(userId),
   secondThreadWidthStorageKey(userId),
+  modelCatalogStorageKey(userId),
 ];
 
 /** The starts of the account's keys that hold one value per panel or device. */

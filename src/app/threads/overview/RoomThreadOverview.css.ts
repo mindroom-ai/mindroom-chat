@@ -2,13 +2,13 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
-import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../../ui/styles/Glass.css';
+import { glassFloating, glassOverFadingBackdrop, glassSurface } from '../../ui/styles/Glass.css';
 import { touchTarget } from '../../ui/styles/touchTarget';
 
 export const Overview = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   glassFloating,
-  glassDenseOverBackdrop,
+  glassOverFadingBackdrop,
   {
     margin: `${config.space.S200} ${config.space.S300}`,
     position: 'relative',
@@ -20,27 +20,23 @@ export const Overview = style([
 ]);
 
 const WORKFLOW_GAP = toRem(2);
-/** The toolbar width below which the workflow tabs and the Group switch fold to their icons. */
+/** At this toolbar width, workflow tabs and toggles fold to their icons. */
 export const NARROW_BAR = '(max-width: 40rem)';
 
 export const ToolbarHeader = style({
   display: 'flex',
   // Wrap controls into recognizable rows when the room is narrow.
   flexWrap: 'wrap',
+  containerType: 'inline-size',
   placeItems: 'center start',
   columnGap: config.space.S200,
   rowGap: config.space.S100,
   selectors: {
-    '&:has([data-thread-tab])': {
-      containerType: 'inline-size',
-      columnGap: WORKFLOW_GAP,
-    },
-    // The simple bar has no tabs, but its Group switch folds to its icon the same way.
-    '&:has([data-thread-sections])': { containerType: 'inline-size' },
+    '&:has([data-thread-tab])': { columnGap: WORKFLOW_GAP },
   },
 });
 
-export const SectionsSwitchLabel = style({
+export const BarToggleLabel = style({
   '@container': { [NARROW_BAR]: { display: 'none' } },
 });
 

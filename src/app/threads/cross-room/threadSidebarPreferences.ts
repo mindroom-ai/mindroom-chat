@@ -12,7 +12,7 @@ const THREAD_SIDEBAR_PREFERENCES = 'threadSidebarPreferences';
 const THREAD_SIDEBAR_PREFERENCES_VERSION = 1;
 const MAX_PINNED_SIDEBAR_THREADS = 50;
 
-/** Recent: one list by latest activity. Sections: Working, Snoozed, Idle and Resolved. */
+/** Recent: one list by latest activity. Sections: Idle (Needs you), Working, Later and Resolved (Done). */
 export type ThreadSidebarLayout = 'recent' | 'sections';
 
 export type ThreadSidebarPreferences = {
@@ -39,7 +39,7 @@ type ThreadSidebarPreferencesAtom = WritableAtom<
 export const DEFAULT_THREAD_SIDEBAR_PREFERENCES: ThreadSidebarPreferences = {
   pinnedThreadKeys: [],
   layout: 'recent',
-  involvedOnly: false,
+  involvedOnly: true,
 };
 
 const isValidThreadKey = (value: unknown): value is string =>
@@ -61,7 +61,7 @@ export const sanitizeThreadSidebarPreferences = (value: unknown): ThreadSidebarP
     pinnedThreadKeys,
     // Preferences stored before the layout existed read as Recent, the list they showed.
     layout: value.layout === 'sections' ? 'sections' : 'recent',
-    involvedOnly: value.involvedOnly === true,
+    involvedOnly: value.involvedOnly !== false,
   };
 };
 

@@ -4,7 +4,7 @@ MindRoom Chat is a single-page React app that talks to a Matrix homeserver throu
 
 ## Stack
 
-React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`) and the folds component library; jotai for UI state, TanStack Query for server reads, React Router 6, Slate for the composer, i18next for translations; `matrix-js-sdk` 41.7 with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`); `livekit-client` for calls; Workbox for the service worker; Capacitor 8 for the iOS and Android shells. Versions are pinned in `package.json`, and `patches/` holds patch-package fixes to some of them (`matrix-js-sdk`, `folds`, `i18next` and others), applied by `npm ci`.
+React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`) and the folds component library; jotai for UI state, TanStack Query for server reads, React Router 6, Slate for the composer, i18next for translations; `matrix-js-sdk` 45.1 with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`); `livekit-client` for calls; Workbox for the service worker; Capacitor 8 for the iOS and Android shells. Versions are pinned in `package.json`, and `patches/` holds patch-package fixes to some of them (`matrix-js-sdk`, `folds`, `i18next` and others), applied by `npm ci`.
 
 ## How the app starts
 
@@ -86,7 +86,8 @@ src/
                          agent-run/, question/, reactions/, reply/, edit/, pins/, thread-summary/, canvas/, live/,
                          viewers/ (image, PDF, text), url-preview/, layout/
     canvas/              agent canvases: panel, room canvas panel, index, state; page/ (the Canvases route)
-    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/
+    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/ (the account
+                         owns a live voice recording; the composer whose Send is pressed owns its delivery)
     notifications/       unread title, chimes, read receipts and mark-read items; inbox/ (invites), notices/, push/ (iOS),
                          settings/
     schedules/           the scheduled tasks dialog and button

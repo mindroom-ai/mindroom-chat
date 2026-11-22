@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés"
+        "advancedFilters": "Filtres avancés",
+        "includeResolvedThreads": "Inclure les fils résolus",
+        "hideResolvedThreads": "Masquer les fils résolus",
+        "forMeSummary": "{{summary}}. Filtre « Pour moi » activé."
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -1059,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Déplier tous les messages longs",
-        "collapseAllLong": "Replier tous les messages longs"
+        "collapseAllLong": "Replier tous les messages longs",
+        "showFullMessage": "Afficher le message complet"
       }
     },
     "computer": {
@@ -1246,6 +1250,10 @@
   "composer": {
     "voicePausedInThisRoom": "L'enregistrement vocal est en pause — terminez ou supprimez l'enregistrement non envoyé ailleurs dans ce salon",
     "voiceThreadRootUnsent": "Le fil de ce message vocal n'a pas de premier message envoyé. Réessayez une fois ce message envoyé, ou supprimez l'enregistrement.",
+    "voiceIndicator": {
+      "recording": "Enregistrement {{time}}",
+      "paused": "En pause {{time}}"
+    },
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",
@@ -1717,6 +1725,7 @@
   "threadNav": {
     "forMe": "Pour moi",
     "forMeHint": "Uniquement les fils auxquels vous participez, dans lesquels un agent a publié pour vous ou que vous avez épinglés",
+    "roomForMeHint": "Uniquement les fils auxquels vous participez ou dans lesquels un agent a publié pour vous",
     "emptyForMe": "Pas encore de fils pour vous",
     "group": "Grouper",
     "groupHint": "Grouper par statut",
@@ -1753,5 +1762,9 @@
   },
   "threadActions": {
     "openBeside": "Ouvrir dans la seconde colonne"
+  },
+  "roomSchedules": {
+    "thisThread": "Ce fil",
+    "elsewhereInRoom": "Ailleurs dans ce salon"
   }
 }

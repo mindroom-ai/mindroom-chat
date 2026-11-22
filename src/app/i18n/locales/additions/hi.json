@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर"
+        "advancedFilters": "उन्नत फ़िल्टर",
+        "includeResolvedThreads": "सुलझाए गए थ्रेड शामिल करें",
+        "hideResolvedThreads": "सुलझाए गए थ्रेड छिपाएँ",
+        "forMeSummary": "{{summary}}। मेरे लिए फ़िल्टर चालू है।"
       },
       "threadPeopleFilter": {
         "label": "लोग",
@@ -1038,7 +1041,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "सभी लंबे संदेश खोलें",
-        "collapseAllLong": "सभी लंबे संदेश समेटें"
+        "collapseAllLong": "सभी लंबे संदेश समेटें",
+        "showFullMessage": "पूरा संदेश दिखाएँ"
       }
     },
     "computer": {
@@ -1215,6 +1219,10 @@
   "composer": {
     "voicePausedInThisRoom": "वॉयस रिकॉर्डिंग रोक दी गई - इस रूम में कहीं और अपनी न भेजी गई रिकॉर्डिंग को समाप्त करें या हटा दें",
     "voiceThreadRootUnsent": "इस वॉयस संदेश के थ्रेड में कोई भेजा गया पहला संदेश नहीं है। वह संदेश भेजे जाने के बाद फिर से प्रयास करें, या रिकॉर्डिंग हटा दें।",
+    "voiceIndicator": {
+      "recording": "रिकॉर्डिंग {{time}}",
+      "paused": "रुका हुआ {{time}}"
+    },
     "emoji": "इमोजी",
     "cancelReply": "जवाब रद्द करें",
     "moreActions": "और कार्रवाइयाँ",
@@ -1677,6 +1685,7 @@
   "threadNav": {
     "forMe": "मेरे लिए",
     "forMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं, जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है या जिन्हें आपने पिन किया है",
+    "roomForMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं या जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है",
     "emptyForMe": "अभी आपके लिए कोई थ्रेड नहीं हैं",
     "group": "समूह",
     "groupHint": "स्थिति के अनुसार समूह बनाएँ",
@@ -1709,5 +1718,9 @@
   },
   "threadActions": {
     "openBeside": "दूसरे कॉलम में खोलें"
+  },
+  "roomSchedules": {
+    "thisThread": "यह थ्रेड",
+    "elsewhereInRoom": "इस रूम में कहीं और"
   }
 }

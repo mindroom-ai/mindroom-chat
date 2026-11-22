@@ -173,8 +173,11 @@ export const useHeldThreadOrder = (
   return shown;
 };
 
-/** How long a mouse resting on the cards still holds them: a click is almost always aimed by a move. */
-export const MOUSE_REST_HOLD_MS = 3_000;
+/**
+ * How long a mouse resting on the cards still holds them: a click comes within moments of the move
+ * that aimed it, and a longer hold only delays the move the reader then sees anyway.
+ */
+export const MOUSE_REST_HOLD_MS = 700;
 
 /**
  * Whether a pointer is over the cards, which holds their order (`useHeldThreadOrder`), and the

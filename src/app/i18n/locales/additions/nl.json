@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters"
+        "advancedFilters": "Geavanceerde filters",
+        "includeResolvedThreads": "Opgeloste threads opnemen",
+        "hideResolvedThreads": "Opgeloste threads verbergen",
+        "forMeSummary": "{{summary}}. Filter ‘Voor mij’ staat aan."
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -1038,7 +1041,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Alle lange berichten uitklappen",
-        "collapseAllLong": "Alle lange berichten inklappen"
+        "collapseAllLong": "Alle lange berichten inklappen",
+        "showFullMessage": "Volledig bericht tonen"
       }
     },
     "computer": {
@@ -1215,6 +1219,10 @@
   "composer": {
     "voicePausedInThisRoom": "Spraakopname gepauzeerd — maak je niet-verzonden opname elders in deze ruimte af of verwijder deze",
     "voiceThreadRootUnsent": "De thread van dit spraakbericht heeft geen verzonden eerste bericht. Probeer het opnieuw zodra dat bericht verzonden is, of verwijder de opname.",
+    "voiceIndicator": {
+      "recording": "Opname {{time}}",
+      "paused": "Gepauzeerd {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",
@@ -1677,6 +1685,7 @@
   "threadNav": {
     "forMe": "Voor mij",
     "forMeHint": "Alleen threads waaraan je deelneemt, waarin een agent namens jou heeft gepost of die je hebt vastgezet",
+    "roomForMeHint": "Alleen threads waaraan je deelneemt of waarin een agent namens jou heeft gepost",
     "emptyForMe": "Nog geen threads voor jou",
     "group": "Groeperen",
     "groupHint": "Groeperen op status",
@@ -1709,5 +1718,9 @@
   },
   "threadActions": {
     "openBeside": "In tweede kolom openen"
+  },
+  "roomSchedules": {
+    "thisThread": "Deze thread",
+    "elsewhereInRoom": "Elders in deze ruimte"
   }
 }

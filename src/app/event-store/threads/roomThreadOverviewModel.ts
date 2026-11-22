@@ -44,12 +44,16 @@ export interface ThreadFilterState {
   statusMode: 'and' | 'or';
   // People filter (user IDs): a thread matches when any of them took part. Absent or empty: all.
   people?: string[];
+  /** Only threads for this account. Absent on older filters and presets, meaning off. */
+  forMe?: boolean;
 }
 
 export type ThreadSortFreezeState = {
   controlSignature: string | null;
   orderedRootIds: string[];
 };
+
+const DEFAULT_THREAD_FILTER_FOR_ME = false;
 
 export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   resolved: 'any',
@@ -64,6 +68,7 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   freeText: '',
   unsupportedQuery: '',
   statusMode: 'and',
+  forMe: DEFAULT_THREAD_FILTER_FOR_ME,
 });
 
 export interface SerializedThreadFilterState {
@@ -82,6 +87,7 @@ export interface SerializedThreadFilterState {
   unsupportedQuery?: string;
   statusMode?: ThreadFilterState['statusMode'];
   people?: string[];
+  forMe?: boolean;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -142,6 +148,7 @@ export const serializeThreadFilterState = (
     unsupportedQuery,
     statusMode,
     ...(people.length > 0 ? { people } : {}),
+    ...(typeof state.forMe === 'boolean' ? { forMe: state.forMe } : {}),
   };
 };
 
@@ -195,6 +202,7 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
     unsupportedQuery,
     statusMode,
     ...(people.length > 0 ? { people } : {}),
+    ...(typeof value.forMe === 'boolean' ? { forMe: value.forMe } : {}),
   };
 
   // v1 stored both structured fields and a DSL string. Runtime behavior made
@@ -240,7 +248,8 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   state.tags.size > 0 ||
   (state.freeText ?? '').length > 0 ||
   (state.unsupportedQuery ?? '').length > 0 ||
-  (state.people?.length ?? 0) > 0;
+  (state.people?.length ?? 0) > 0 ||
+  state.forMe === true;
 
 /**
  * Whether the reader chose a filter. Hiding snoozed threads is what Compact's default and every
@@ -298,6 +307,7 @@ export const createThreadSortControlSignature = ({
     searchQuery: searchQuery ?? state.freeText ?? '',
     viewMode: viewMode ?? 'threaded',
     ...(state.people?.length ? { people: state.people } : {}),
+    ...(state.forMe ? { forMe: true } : {}),
   });
 
 export const applyFrozenThreadOrder = (
@@ -317,7 +327,10 @@ export const applyFrozenThreadOrder = (
   return resolvedOrderedIds;
 };
 
-export const resetThreadFilterState = (): ThreadFilterState => createDefaultThreadFilterState();
+export const resetThreadFilterState = (): ThreadFilterState => ({
+  ...createDefaultThreadFilterState(),
+  forMe: false,
+});
 
 export const normalizeThreadSearchText = (query: string): string =>
   query.trim().split(/\s+/).filter(Boolean).join(' ');
@@ -326,7 +339,7 @@ export const normalizeThreadSearchText = (query: string): string =>
 
 /**
  * Project a persisted filter state onto the subspace reachable in simple
- * mode: defaults everywhere except sorting and the resolved and snoozed
+ * mode: defaults everywhere except sorting, For me, and the resolved and snoozed
  * dimensions, of which only 'exclude' survives ("unresolved only", and the
  * snoozed threads Compact hides). Controls for the other dimensions are
  * hidden in simple mode, so their persisted values must not
@@ -341,6 +354,7 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
     ...createDefaultThreadFilterState(),
     resolved: state.resolved === 'exclude' ? 'exclude' : 'any',
     snoozed: state.snoozed === 'exclude' ? 'exclude' : 'any',
+    forMe: state.forMe,
     sortBy: state.sortBy,
     sortDirection: state.sortDirection,
   };
@@ -348,8 +362,7 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
 
 /**
  * Agentless Simple Mode exposes sorting but not the agent-specific unresolved
- * filter. Preserve only the visible sort choice while leaving all hidden
- * filter dimensions inactive.
+ * filter. Keep For me and the sort choice while leaving hidden filters inactive.
  */
 export const simplifyAgentlessSimpleThreadFilterState = (
   state: ThreadFilterState
@@ -375,6 +388,7 @@ export const simplifyAgentlessThreadFilterState = (
   freeText: state.freeText,
   unsupportedQuery: state.unsupportedQuery,
   people: state.people,
+  forMe: state.forMe,
 });
 
 // ─── Tag filter helpers ──────────────────────────────────────────────────────

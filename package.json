@@ -76,7 +76,7 @@
     "linkifyjs": "4.4.0",
     "livekit-client": "2.24.1",
     "markdown-it": "14.3.3",
-    "matrix-js-sdk": "41.7.0",
+    "matrix-js-sdk": "45.1.0",
     "mermaid": "12.3.0",
     "onnxruntime-web": "1.31.1",
     "prismjs": "1.30.0",

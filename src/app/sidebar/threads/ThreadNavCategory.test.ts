@@ -331,15 +331,13 @@ describe('ThreadNavCategory', () => {
     if (grouped) fireEvent.click(group);
     const forMe = screen.getByRole('button', { name: 'For me' });
 
-    expect(forMe.getAttribute('aria-pressed')).toBe('false');
-    expect(screen.getByText(newer.summaryText)).toBeTruthy();
-    fireEvent.click(forMe);
     expect(forMe.getAttribute('aria-pressed')).toBe('true');
     expect(group.getAttribute('aria-pressed')).toBe(String(grouped));
     expect(screen.getByText(older.summaryText)).toBeTruthy();
     expect(screen.queryByText(newer.summaryText)).toBeNull();
     if (grouped) expect(screen.getByRole('button', { name: 'Idle · 1' })).toBeTruthy();
     fireEvent.click(forMe);
+    expect(forMe.getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByText(newer.summaryText)).toBeTruthy();
   });
 
@@ -357,9 +355,6 @@ describe('ThreadNavCategory', () => {
     });
     renderCategory();
 
-    act(() => {
-      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
-    });
     expect(
       renderer!.root
         .findAll((node) => node.props['data-thread-key'])
@@ -377,9 +372,6 @@ describe('ThreadNavCategory', () => {
     });
     renderCategory();
 
-    act(() => {
-      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
-    });
     expect(
       renderer!.root
         .findAll((node) => node.props['data-thread-key'])
@@ -401,16 +393,13 @@ describe('ThreadNavCategory', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
-  it('shows a distinct empty state when For me hides every thread', () => {
+  it('shows a distinct empty state when the default For me hides every thread', () => {
     store.set(crossRoomThreadIndexAtom, {
       ...store.get(crossRoomThreadIndexAtom),
       entries: new Map([[newer.key, { ...newer, isInvolved: false, isForUser: false }]]),
     });
     renderCategory();
 
-    act(() => {
-      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
-    });
     expect(
       renderer!.root.findAll((node) => node.children.includes('No threads for you yet'))
     ).not.toHaveLength(0);

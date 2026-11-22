@@ -124,6 +124,11 @@ const LEAVE_TIMEOUT_MS = 5000;
 const LEFTOVER_TIMEOUT_MS = 10_000;
 /** When sending this device's media key to one device again fails, the waits before the next tries. */
 const KEY_RESEND_RETRY_MS = [1_000, 3_000];
+/**
+ * How long the others are rung or notified of the call (the `lifetime` of its notification event);
+ * the SDK's own default is ninety seconds.
+ */
+const RING_LIFETIME_MS = 30_000;
 
 const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.length === b.length &&
@@ -626,7 +631,7 @@ export class RoomCall {
 
     // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
     const ownService = await getLivekitServiceUrl(mx);
-    const oldest = this.session.getOldestMembership();
+    const oldest = this.session.memberships[0];
     const service = chooseCallService(
       oldest ? firstLivekitServiceUrl(oldest.transports) : undefined,
       ownService
@@ -653,14 +658,14 @@ export class RoomCall {
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
-      this.session.joinRTCSession(
+      this.session.join(
         this.ownMembership,
         [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
-        undefined,
         {
           manageMediaKeys: this.encrypted,
           callIntent: this.state.camera ? 'video' : 'audio',
           notificationType: this.options.notify,
+          notificationLifetimeMs: RING_LIFETIME_MS,
         }
       );
     } catch {
@@ -821,9 +826,7 @@ export class RoomCall {
     this.audioHost?.remove();
     this.audioHost = undefined;
     try {
-      const membership = this.session.isJoined()
-        ? this.session.leaveRoomSession(LEAVE_TIMEOUT_MS)
-        : undefined;
+      const membership = this.session.isJoined() ? this.session.leave(LEAVE_TIMEOUT_MS) : undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
       await Promise.allSettled([media?.disconnect(true), membership]);
     } finally {

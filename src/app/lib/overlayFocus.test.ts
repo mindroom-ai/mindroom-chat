@@ -5,7 +5,9 @@ import {
   OWNS_FOCUS_ATTRIBUTE,
   installOverlayFocus,
   layerOf,
+  markOverlayDismissed,
   observeLayerHost,
+  setOverlayOpenerFallback,
 } from './overlayFocus';
 
 const flush = async () => {
@@ -61,6 +63,32 @@ describe('overlay focus', () => {
     document.getElementById('portalContainer')!.append(layer);
     expect(layerOf(document, first)).toBe(layer);
     expect(layerOf(document, trigger)).toBeUndefined();
+  });
+
+  it('consumes the explicit dismissal flag before a reused layer closes again', async () => {
+    const { layer, first } = menuLayer();
+    layer.setAttribute('role', 'dialog');
+    const fallback = button('More Options');
+    trigger.after(fallback);
+    setOverlayOpenerFallback(trigger, () => fallback);
+    trigger.focus();
+    press(trigger, 'Enter');
+    document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(first);
+
+    markOverlayDismissed(first);
+    trigger.remove();
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(fallback);
+
+    document.body.append(layer);
+    await flush();
+    first.focus();
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('moves focus into a menu that Enter opened while focus stayed on its button', async () => {
