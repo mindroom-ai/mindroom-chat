@@ -470,9 +470,9 @@ test.describe('Compact scroll jump regressions', () => {
       },
       [roots[4]!, held] as [string, string]
     );
-    await send(held, roots[4]);
-    // The pointer keeps moving within the card until the reply shows: at rest, its hold on the
-    // order would run out after 700 ms.
+    // The pointer keeps moving within the card while the reply is sent and until it shows: at
+    // rest, its hold on the order would run out after 700 ms.
+    const sent = send(held, roots[4]);
     const box = (await targetCard.boundingBox())!;
     const deadline = Date.now() + 20_000;
     for (let step = 0; ; step += 1) {
@@ -482,6 +482,7 @@ test.describe('Compact scroll jump regressions', () => {
       await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2);
       await page.waitForTimeout(100);
     }
+    await sent;
     // The reply is in, and the pointer still holds the order: its thread has not sorted first.
     const beforeClick = (await takeFrames(page)).at(-1)!;
     expect(beforeClick.held, `[${browserName}] the list is held before the click`).toBe(true);
