@@ -7,7 +7,12 @@ import { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
-import { describeDefault, ModelPicker, ThreadModelPicker } from './ModelPicker';
+import {
+  describeDefault,
+  ModelPicker,
+  ThreadModelPicker,
+  TrappedModelPickerPanel,
+} from './ModelPicker';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ModelIcon } from './ModelIcon';
 
@@ -1498,5 +1503,48 @@ describe('describeDefault', () => {
     expect(roomOverride('room', 'room_config')).toBe(false);
     expect(roomOverride('room', 'agent')).toBe(false);
     expect(roomOverride()).toBe(false);
+  });
+});
+
+describe('TrappedModelPickerPanel', () => {
+  it('supports a custom dialog label and reselecting the current choice when allowReselect is set', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const panelRoot = createRoot(host);
+    const state = createState({ override: null, canMutate: true });
+    const onCommand = vi.fn();
+    try {
+      act(() =>
+        panelRoot.render(
+          <TrappedModelPickerPanel
+            state={state}
+            defaults={{
+              label: 'Use configured default',
+              agents: '',
+              description: 'Follow default.',
+            }}
+            room="50vh"
+            ariaLabel="Model"
+            allowReselect
+            requestClose={vi.fn()}
+            onCommand={onCommand}
+          />
+        )
+      );
+      const dialog = host.querySelector('[role="dialog"]');
+      expect(dialog?.getAttribute('aria-label')).toBe('Model');
+      const defaultOption = host.querySelector<HTMLElement>(
+        '[role="option"][aria-selected="true"]'
+      );
+      expect(defaultOption?.textContent).toContain('Use configured default');
+      act(() => {
+        defaultOption?.click();
+      });
+      expect(onCommand).toHaveBeenCalledTimes(1);
+      expect(state.resetToRoomDefault).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => panelRoot.unmount());
+      host.remove();
+    }
   });
 });

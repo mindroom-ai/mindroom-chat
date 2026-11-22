@@ -40,10 +40,14 @@ const EFFORT_HEIGHT = 344;
 
 type ModelPickerPanelProps = {
   state: ModelPickerState;
-  /** The words for the row that clears the thread's model: its title, agents and description. */
+  /** The words for the row that clears the model: its title, optional agents and description. */
   defaults: DefaultWords;
-  /** The height above the button the menu may take, a CSS length. */
+  /** The height the menu may take, a CSS length. */
   room: string;
+  /** Accessible dialog label; defaults to the thread model picker label. */
+  ariaLabel?: string;
+  /** When true, picking the already-current row or level still runs the callback. */
+  allowReselect?: boolean;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -96,7 +100,7 @@ export const describeDefault = (
     roomOverride: inherited.length > 0 && inherited.every(({ source }) => source === 'room'),
   };
 };
-type DefaultWords = { label: string; agents: string; description: string };
+export type DefaultWords = { label: string; agents: string; description: string };
 const DEFAULT_LABELS = {
   agent: 'agentDefault',
   room: 'roomModel',
@@ -124,6 +128,8 @@ function ModelPickerPanel({
   state,
   defaults,
   room,
+  ariaLabel,
+  allowReselect = false,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
@@ -234,7 +240,11 @@ function ModelPickerPanel({
     if (mutationsDisabled) return;
     // The current choice needs no command; choosing it again only closes the menu. A current model
     // at a named level goes back to its plain key, which runs it at its default.
-    if (isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
+    if (
+      !allowReselect &&
+      isCurrent(item) &&
+      (item.kind === 'default' || state.reasoning === null)
+    ) {
       requestClose();
       return;
     }
@@ -246,7 +256,7 @@ function ModelPickerPanel({
   const selectLevel = (level: ReasoningLevel) => {
     if (mutationsDisabled || !current.model) return;
     // The level the thread already runs at needs no command.
-    if (level === current.level) {
+    if (!allowReselect && level === current.level) {
       requestClose();
       return;
     }
@@ -522,7 +532,7 @@ function ModelPickerPanel({
   return (
     <Menu
       role="dialog"
-      aria-label={t('mindroomUi.models.modelPicker.modelForThread')}
+      aria-label={ariaLabel ?? t('mindroomUi.models.modelPicker.modelForThread')}
       className={panes && !stacked ? css.EffortPanel : css.Panel}
       style={
         panes
@@ -555,7 +565,7 @@ function ModelPickerPanel({
   );
 }
 
-function TrappedPanel(props: ModelPickerPanelProps) {
+export function TrappedModelPickerPanel(props: ModelPickerPanelProps) {
   return (
     <FocusTrap
       focusTrapOptions={{
@@ -683,7 +693,7 @@ export function ModelPicker({
       align="Start"
       content={
         anchor ? (
-          <TrappedPanel
+          <TrappedModelPickerPanel
             state={state}
             defaults={defaults}
             room={room}

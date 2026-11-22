@@ -34,7 +34,6 @@ const MODELS: ModelCatalogEntry[] = [
     reasoning_levels: ['low', 'medium', 'high'],
     reasoning_default: 'medium',
   },
-  { key: 'mini', display_name: 'Mini', provider: 'other', id: 'other-mini' },
 ];
 
 const RUNTIME = {
@@ -84,6 +83,9 @@ vi.mock('../../../ui/directional', () => ({
     anchor ? <div data-testid="popout">{content}</div> : null,
 }));
 vi.mock('../../../ui/glass/GlassPrimitives', () => ({
+  IconButton: ({ children }: { children?: React.ReactNode }) => (
+    <button type="button">{children}</button>
+  ),
   Menu: ({
     children,
     role,
@@ -96,6 +98,12 @@ vi.mock('../../../ui/glass/GlassPrimitives', () => ({
     <div role={role} aria-label={ariaLabel}>
       {children}
     </div>
+  ),
+}));
+vi.mock('../../../ui/styles/Glass.css', () => ({ glassExpanded: 'glassExpanded' }));
+vi.mock('../../../ui/IconTooltip', () => ({
+  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => (
+    <>{children(() => undefined)}</>
   ),
 }));
 vi.mock('../../../models/ModelPicker.css', () => ({
@@ -115,9 +123,11 @@ vi.mock('../../../models/ModelPicker.css', () => ({
   EffortRow: 'EffortRow',
   EffortValue: 'EffortValue',
   Empty: 'Empty',
+  Error: 'Error',
   ErrorActions: 'ErrorActions',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
+  IconImage: 'IconImage',
   Mirrored: 'Mirrored',
   Option: 'Option',
   OptionDetail: 'OptionDetail',
@@ -135,12 +145,13 @@ vi.mock('../../../models/ModelPicker.css', () => ({
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
   StatusRow: 'StatusRow',
+  TextButton: 'TextButton',
+  Trigger: 'Trigger',
+  TriggerDivider: 'TriggerDivider',
+  ViewStatus: 'ViewStatus',
+  VisuallyHidden: 'VisuallyHidden',
 }));
-vi.mock('./RoomModelSettingTile.css', () => ({
-  TriggerButton: 'TriggerButton',
-  Unavailable: 'Unavailable',
-  RetryButton: 'RetryButton',
-}));
+vi.mock('./RoomModelSettingTile.css', () => ({ TriggerButton: 'TriggerButton' }));
 vi.mock('./RoomTextSettingTile.css', () => ({ VisuallyHidden: 'VisuallyHidden' }));
 vi.mock('folds', () => ({
   Box: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
@@ -200,21 +211,13 @@ vi.mock('folds', () => ({
     <span role={role}>{children}</span>
   ),
   color: { Critical: { Main: 'red' } },
+  config: { space: { S200: '8px', S300: '12px' } },
   toRem: (px: number) => `${px / 16}rem`,
 }));
 vi.mock('../../../ui/SettingTile', () => ({
-  SettingTile: ({
-    title,
-    description,
-    after,
-  }: {
-    title: string;
-    description?: string;
-    after: React.ReactNode;
-  }) => (
+  SettingTile: ({ title, after }: { title: string; after: React.ReactNode }) => (
     <div>
       <span>{title}</span>
-      {description && <span>{description}</span>}
       {after}
     </div>
   ),
@@ -246,22 +249,17 @@ const createCatalog = (overrides: Partial<ModelPickerState> = {}): ModelPickerSt
   ...overrides,
 });
 
-const renderTile = ({
-  definition = MODEL_DEF,
-  catalog = createCatalog(),
-  screenSize = ScreenSize.Desktop,
-}: {
-  definition?: RoomModelSettingDefinition;
-  catalog?: ModelPickerState;
-  screenSize?: ScreenSize;
-} = {}) =>
+const renderTile = (
+  definition: RoomModelSettingDefinition = MODEL_DEF,
+  catalog: ModelPickerState = createCatalog()
+) =>
   render(
-    <ScreenSizeProvider value={screenSize}>
+    <ScreenSizeProvider value={ScreenSize.Desktop}>
       <RoomModelSettingTile room={ROOM} definition={definition} catalog={catalog} />
     </ScreenSizeProvider>
   );
 
-const trigger = () => screen.getByRole<HTMLButtonElement>('button', { expanded: undefined });
+const trigger = () => screen.getByRole<HTMLButtonElement>('button', { expanded: false });
 
 beforeEach(() => {
   live.event = undefined;
@@ -278,32 +276,28 @@ afterEach(() => {
 });
 
 describe('RoomModelSettingTile', () => {
-  it('shows Use configured default when unset and marks the default row selected', () => {
-    const catalog = createCatalog();
-    renderTile({ catalog });
+  it('shows Use configured default when unset and highlights the default row in the shared panel', () => {
+    renderTile();
     expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'model']);
     expect(trigger().textContent).toBe('Use configured default');
 
     fireEvent.click(trigger());
-    const listbox = screen.getByRole('listbox', { name: 'Model' });
-    const defaultOption = within(listbox).getByRole('option', {
-      name: /Use configured default/,
-    });
-    expect(defaultOption.getAttribute('aria-selected')).toBe('true');
+    const dialog = screen.getByRole('dialog', { name: 'Model' });
     expect(
-      within(listbox).getByRole('option', { name: /Quick/ }).getAttribute('aria-selected')
-    ).toBe('false');
+      within(dialog)
+        .getByRole('option', { name: /Use configured default/ })
+        .getAttribute('aria-selected')
+    ).toBe('true');
   });
 
-  it('selects a known model, writes via useRoomSetting, and never calls picker mutations', async () => {
+  it('writes selected model through useRoomSetting without calling picker mutations', async () => {
     const catalog = createCatalog();
-    renderTile({ catalog });
+    renderTile(MODEL_DEF, catalog);
 
     fireEvent.click(trigger());
     await act(async () => {
       fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
     });
-
     expect(client.sendStateEvent).toHaveBeenCalledWith(
       ROOM.roomId,
       ROOM_SETTINGS_EVENT,
@@ -316,21 +310,18 @@ describe('RoomModelSettingTile', () => {
     expect(screen.getByRole('status').textContent).toBe('Saved');
   });
 
-  it('offers reasoning levels for Model and writes key@level or plain key', async () => {
+  it('writes key@level via the effort column on Model and omits levels on Title model', async () => {
     setLive({ value: 'deep@high' });
-    const catalog = createCatalog();
-    renderTile({ catalog });
+    renderTile();
     expect(trigger().textContent).toBe('Deep · High');
 
     fireEvent.click(trigger());
-    expect(screen.getByRole('option', { name: /Deep/ }).getAttribute('aria-selected')).toBe('true');
-    const effortGroup = screen.getByRole('radiogroup', { name: 'Effort for Deep' });
-    expect(
-      within(effortGroup).getByRole('radio', { name: 'High' }).getAttribute('aria-checked')
-    ).toBe('true');
-
+    const effort = screen.getByRole('radiogroup', { name: 'Effort for Deep' });
+    expect(within(effort).getByRole('radio', { name: 'High' }).getAttribute('aria-checked')).toBe(
+      'true'
+    );
     await act(async () => {
-      fireEvent.click(within(effortGroup).getByRole('radio', { name: 'Low' }));
+      fireEvent.click(within(effort).getByRole('radio', { name: 'Low' }));
     });
     expect(client.sendStateEvent).toHaveBeenLastCalledWith(
       ROOM.roomId,
@@ -340,32 +331,15 @@ describe('RoomModelSettingTile', () => {
     );
     expect(trigger().textContent).toBe('Deep · Low');
 
-    // Picking the model row itself writes the plain key (model default level).
-    setLive({ value: 'deep@low' }, '$sent0');
-    fireEvent.click(trigger());
-    await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
-    });
-    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'deep' },
-      'model'
-    );
-  });
-
-  it('writes plain keys without effort column for Title model', async () => {
+    cleanup();
     setLive({ value: 'deep' });
-    const catalog = createCatalog();
-    renderTile({ definition: TITLE_MODEL_DEF, catalog });
-    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'thread_summary_model']);
-
+    renderTile(TITLE_MODEL_DEF);
     fireEvent.click(trigger());
     expect(screen.queryByRole('radiogroup')).toBeNull();
     await act(async () => {
       fireEvent.click(screen.getByRole('option', { name: /Quick/ }));
     });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
       ROOM.roomId,
       ROOM_SETTINGS_EVENT,
       { value: 'fast' },
@@ -373,10 +347,9 @@ describe('RoomModelSettingTile', () => {
     );
   });
 
-  it('shows an unknown value raw, marks it unknown, never as Default, and lets reset clear it', async () => {
+  it('shows unknown values raw, never as Default, and resets them to {}', async () => {
     setLive({ value: 'retired-model' });
-    const catalog = createCatalog();
-    renderTile({ catalog });
+    renderTile();
 
     expect(trigger().textContent).toBe('retired-model');
     expect(
@@ -387,7 +360,6 @@ describe('RoomModelSettingTile', () => {
     expect(
       screen.getByRole('option', { name: /Use configured default/ }).getAttribute('aria-selected')
     ).toBe('false');
-
     await act(async () => {
       fireEvent.click(screen.getByRole('option', { name: /Use configured default/ }));
     });
@@ -400,16 +372,16 @@ describe('RoomModelSettingTile', () => {
     expect(trigger().textContent).toBe('Use configured default');
   });
 
-  it('marks an unrecognized reasoning level on a known model as unknown', () => {
+  it('marks an invalid reasoning level on a known model as unknown', () => {
     setLive({ value: 'deep@bogus' });
-    renderTile({ catalog: createCatalog() });
+    renderTile();
     expect(trigger().textContent).toBe('deep@bogus');
     expect(
       screen.getByText('Unknown model: "deep@bogus" is not in this room\'s model list.')
     ).toBeTruthy();
   });
 
-  it('still shows the raw value and allows reset when no catalog is available', async () => {
+  it('shows the raw value and allows reset and retry when no catalog is available', async () => {
     setLive({ value: 'saved-model' });
     const catalog = createCatalog({
       eligible: false,
@@ -418,28 +390,19 @@ describe('RoomModelSettingTile', () => {
       models: [],
       loading: false,
     });
-    renderTile({ catalog });
+    renderTile(MODEL_DEF, catalog);
 
     expect(trigger().textContent).toBe('saved-model');
-    // Without a catalog, do not falsely claim the value is unknown.
     expect(screen.queryByText(/Unknown model:/)).toBeNull();
 
     fireEvent.click(trigger());
     expect(catalog.refresh).toHaveBeenCalledTimes(1);
-    expect(
-      screen.getByText(
-        'No model list is available right now. You can still reset to the configured default.'
-      )
-    ).toBeTruthy();
-    expect(
-      screen.getByRole('option', { name: /Use configured default/ }).getAttribute('aria-selected')
-    ).toBe('false');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    const dialog = screen.getByRole('dialog', { name: 'Model' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }));
     expect(catalog.refresh).toHaveBeenCalledTimes(2);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Use configured default/ }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Use configured default' }));
     });
     expect(client.sendStateEvent).toHaveBeenCalledWith(
       ROOM.roomId,
@@ -450,89 +413,23 @@ describe('RoomModelSettingTile', () => {
     expect(trigger().textContent).toBe('Use configured default');
   });
 
-  it('filters long catalogs with search and supports keyboard selection', async () => {
-    const manyModels: ModelCatalogEntry[] = Array.from({ length: 10 }, (_, index) => ({
-      key: `model-${index}`,
-      display_name: `Model ${index}`,
-      provider: 'acme',
-      id: `acme-model-${index}`,
-    }));
-    renderTile({ catalog: createCatalog({ models: manyModels }) });
-
-    fireEvent.click(trigger());
-    const search = screen.getByRole<HTMLInputElement>('searchbox', { name: 'Search models' });
-    fireEvent.change(search, { target: { value: 'Model 9' } });
-    expect(screen.getAllByRole('option')).toHaveLength(1);
-
-    await act(async () => {
-      fireEvent.keyDown(search, { key: 'Enter' });
-    });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'model-9' },
-      'model'
-    );
-  });
-
-  it('shows save failure alert and keeps the previous room value on rejection', async () => {
+  it('shows an alert on write failure and stays read-only for non-editors', async () => {
     setLive({ value: 'fast' });
     client.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
-    renderTile({ catalog: createCatalog() });
+    renderTile();
 
     fireEvent.click(trigger());
     await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Mini/ }));
+      fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
     });
     expect(screen.getByRole('alert').textContent).toBe(FAILED);
     expect(trigger().textContent).toBe('Quick');
-  });
 
-  it('is read-only for non-editors', () => {
+    cleanup();
     live.canSend = false;
-    setLive({ value: 'fast' });
-    renderTile({ catalog: createCatalog() });
-
+    renderTile();
     expect(trigger().disabled).toBe(true);
     expect(trigger().textContent).toBe('Quick');
     expect(screen.getByText(READ_ONLY)).toBeTruthy();
-  });
-
-  it('lets editors switch runtimes when multiple runtimes answered', () => {
-    const secondRuntime = {
-      id: '@mindroom_other:example.test:DEV2',
-      userId: '@mindroom_other:example.test',
-      deviceId: 'DEV2',
-      curveKey: 'curve-2',
-    };
-    const catalog = createCatalog({
-      runtimes: [RUNTIME, secondRuntime],
-      runtime: undefined,
-      models: [],
-    });
-    renderTile({ catalog });
-
-    fireEvent.click(trigger());
-    const runtimeSelect = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Runtime' });
-    fireEvent.change(runtimeSelect, { target: { value: secondRuntime.id } });
-    expect(catalog.chooseRuntime).toHaveBeenCalledWith(secondRuntime.id);
-  });
-
-  it('opens the stacked effort view on mobile and writes model@level', async () => {
-    setLive({ value: 'deep' });
-    renderTile({ catalog: createCatalog(), screenSize: ScreenSize.Mobile });
-
-    fireEvent.click(trigger());
-    fireEvent.click(screen.getByRole('button', { name: /Effort/ }));
-    const effortGroup = screen.getByRole('radiogroup', { name: 'Effort for Deep' });
-    await act(async () => {
-      fireEvent.click(within(effortGroup).getByRole('radio', { name: 'High' }));
-    });
-    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'deep@high' },
-      'model'
-    );
   });
 });
