@@ -14,7 +14,9 @@ const SHOWN_MS = 12_000;
 export function ModeratorGrantErrorNotice() {
   const { t } = useTranslation();
   const [failure, setFailure] = useAtom(detachedGrantErrorAtom);
-  const slot = useAtomValue(coverNoticeSlotAtom) ?? useAtomValue(pageNoticeSlotAtom);
+  const coverSlot = useAtomValue(coverNoticeSlotAtom);
+  const pageSlot = useAtomValue(pageNoticeSlotAtom);
+  const slot = coverSlot ?? pageSlot;
 
   useEffect(() => {
     if (!failure) return undefined;
