@@ -54,8 +54,8 @@ const panelBoxBase = {
   borderRadius: config.radii.R300,
   minWidth: 0,
 } as const;
-const compactTouchBase = minBox(38, 32);
-// 36-38 px padding box + 2 * 4 px = 44-46 px wide; 30-32 px + 2 * 7 px = 44-46 px tall (zero overlap).
+const compactTouchBase = minBox(38, 33);
+// 36-38 px padding box + 2 * 4 px = 44-46 px wide; 30-33 px + 2 * 7 px = 44-47 px tall (zero overlap).
 const compactTouch = touchTarget('4px', '', { blockReach: '7px' });
 
 // The room header's schedules button; the count sits on its corner. 40 px with 4 px to the next

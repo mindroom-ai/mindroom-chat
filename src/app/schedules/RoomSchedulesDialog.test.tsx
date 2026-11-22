@@ -464,6 +464,49 @@ describe('RoomSchedulesDialog', () => {
     expect(document.activeElement).toBe(toggles[2]);
   });
 
+  it('recovers focus to the expanded row when a pending cancel finishes after filter remount', async () => {
+    let resolveCancel!: () => void;
+    const onCancelTask = vi.fn(() => new Promise<void>((r) => (resolveCancel = r)));
+    const view = mountDialog({
+      roomId: '!r:example.org',
+      tasks: [
+        makeTask({ taskId: 'rec-1', description: 'Recurring 1', scheduleType: 'cron' }),
+        makeTask({ taskId: 'rec-2', description: 'Recurring 2', scheduleType: 'cron' }),
+        makeTask({ taskId: 'once-1', description: 'One-time task', scheduleType: 'once' }),
+      ],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask,
+    });
+    cleanup = view.unmount;
+
+    const onceToggle = view.host.querySelector<HTMLButtonElement>(
+      '[data-schedule-task-id="once-1"] button[data-schedule-toggle]'
+    )!;
+    await click(onceToggle);
+    await click(btnAria(view.host, 'Cancel')!);
+    await click(btnText(view.host, 'Cancel task')!);
+
+    // Filter the row out and back in, then focus its remounted Cancelling button.
+    const filterButtons = [
+      ...view.host.querySelectorAll<HTMLButtonElement>(
+        '[role="group"][aria-label="Filter scheduled tasks"] button'
+      ),
+    ];
+    await click(filterButtons.find((b) => b.textContent?.includes('Recurring'))!);
+    await click(filterButtons.find((b) => b.textContent?.includes('All'))!);
+    const cancellingBtn = btnText(view.host, 'Cancelling...')!;
+    cancellingBtn.focus();
+    expect(document.activeElement).toBe(cancellingBtn);
+
+    await act(async () => {
+      resolveCancel();
+    });
+    expect(document.activeElement).toBe(
+      view.host.querySelector('[data-schedule-task-id="once-1"] button[data-schedule-toggle]')
+    );
+  });
+
   it('recovers focus when a focused task row unmounts and ticks imminent countdowns every second', () => {
     vi.useFakeTimers();
     const baseNow = new Date('2026-09-15T10:00:00Z').getTime();
