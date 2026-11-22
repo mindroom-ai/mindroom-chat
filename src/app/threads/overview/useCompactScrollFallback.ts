@@ -20,8 +20,11 @@ type CardsInView = {
 const ANCHOR_CANDIDATES = 8;
 
 /** The topmost cards in view (cards carry `data-scroll-anchor`). */
+const cssPx = (view: HTMLElement, property: 'paddingTop' | 'scrollPaddingTop'): number =>
+  typeof getComputedStyle === 'function' ? parseFloat(getComputedStyle(view)[property]) || 0 : 0;
+
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
-  const viewTop = view.getBoundingClientRect().top;
+  const viewTop = view.getBoundingClientRect().top + cssPx(view, 'scrollPaddingTop');
   const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
   // The cards stack in one column: find the first one in view by halving, so a reader far down a
   // long list costs a few layout reads rather than one per card above the view.
@@ -115,6 +118,19 @@ export const useCompactScrollFallback = (
   const touchingRef = useRef(false);
   const pendingDeltaRef = useRef(0);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const paddingRef = useRef<{ pad: number; scrollTop: number }>();
+
+  const compensatePadding = useCallback((view: HTMLElement) => {
+    const pad = cssPx(view, 'paddingTop');
+    const prev = paddingRef.current;
+    if (prev && view.scrollTop > 0 && Math.abs(pad - prev.pad) >= 0.5) {
+      const moved = pad - prev.pad;
+      const clamped = view.scrollTop - prev.scrollTop;
+      if ((moved > 0 && clamped >= 0) || clamped === 0) view.scrollTop += moved;
+      else if (moved < 0 && clamped < 0 && clamped > moved) view.scrollTop += moved - clamped;
+    }
+    paddingRef.current = { pad, scrollTop: view.scrollTop };
+  }, []);
 
   const compensate = useCallback(
     (view: HTMLElement, nextRows: readonly string[], rowSection?: SectionOfRow) => {
@@ -154,19 +170,34 @@ export const useCompactScrollFallback = (
   );
 
   // Every commit: a card's thread that loads above the view changes its height without an order
-  // change.
+  // change, and the floating header or filter bar can change the scroller's padding-top.
   useLayoutEffect(() => {
     latestRowsRef.current = rows;
     latestSectionRef.current = sectionOfRow;
     const view = viewRef.current;
-    // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
-    if (!view || browserAnchorsScroll()) return;
-    compensate(view, rows, sectionOfRow);
+    if (!view) return;
+    if (browserAnchorsScroll()) compensatePadding(view);
+    else compensate(view, rows, sectionOfRow);
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || browserAnchorsScroll()) return undefined;
+    if (!view) return undefined;
+    if (browserAnchorsScroll()) {
+      const onScroll = () => {
+        if (paddingRef.current) paddingRef.current.scrollTop = view.scrollTop;
+      };
+      const resizeObserver =
+        typeof ResizeObserver !== 'undefined'
+          ? new ResizeObserver(() => compensatePadding(view))
+          : undefined;
+      resizeObserver?.observe(view);
+      view.addEventListener('scroll', onScroll, { passive: true });
+      return () => {
+        resizeObserver?.disconnect();
+        view.removeEventListener('scroll', onScroll);
+      };
+    }
     const scheduleSettle = () => {
       clearTimeout(settleTimerRef.current);
       if (touchingRef.current) return;
@@ -203,11 +234,12 @@ export const useCompactScrollFallback = (
     };
     const content = contentRef?.current;
     const resizeObserver =
-      content && typeof ResizeObserver !== 'undefined'
+      typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() =>
             compensate(view, latestRowsRef.current, latestSectionRef.current)
           )
         : undefined;
+    resizeObserver?.observe(view);
     if (content) resizeObserver?.observe(content);
     const listeners: [string, EventListener, AddEventListenerOptions | boolean][] = [
       ['scroll', record, { passive: true }],
@@ -228,7 +260,7 @@ export const useCompactScrollFallback = (
       resizeObserver?.disconnect();
       listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
-  }, [compensate, contentRef, viewRef]);
+  }, [compensate, compensatePadding, contentRef, viewRef]);
 };
 
 /**

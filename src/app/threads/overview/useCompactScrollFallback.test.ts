@@ -252,6 +252,40 @@ describe('useCompactScrollFallback', () => {
     }
   });
 
+    it('anchors below scroll-padding-top rather than to a card hidden under the floating header', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e'];
+    const { view, show, writes } = list(ids, 120);
+    view.style.scrollPaddingTop = '120px';
+    const { rerender } = renderHook(
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    // At scrollTop 120 with scrollPaddingTop 120, $b (bottom 80) is hidden under the header and
+    // $c (top 80, bottom 180) is the first visible card below it. Growing $b must move scrollTop.
+    const next = ['$a', '$b', '$extra', '$c', '$d', '$e'];
+    show(next);
+    rerender({ live: next });
+    expect(writes).toEqual([220]);
+  });
+
+  it('compensates scroller padding-top changes when scrolled down even with native scroll anchoring', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const ids = ['$c', '$b', '$a'];
+    const { view, writes } = list(ids, 150);
+    view.style.paddingTop = '120px';
+    const { rerender } = renderHook(
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    view.style.paddingTop = '178px';
+    rerender({ live: ids });
+    expect(writes).toEqual([208]);
+    view.style.paddingTop = '156px';
+    rerender({ live: ids });
+    expect(writes).toEqual([208, 186]);
+  });
+
     it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
