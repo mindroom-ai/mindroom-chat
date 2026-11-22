@@ -6,7 +6,7 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 const BLOCK_CARDS = 12;
 const BUFFER_BLOCKS = 1;
 const SHELL = '[data-scroll-anchor]';
-const GESTURE_EVENTS = 'pointerdown pointerup pointercancel dragstart dragend blur'.split(' ');
+const HEARD = 'pointerdown pointerup pointercancel dragstart dragend blur wheel keydown'.split(' ');
 const cardId = (element?: Element | null) =>
   element?.closest<HTMLElement>(SHELL)?.dataset.scrollAnchor;
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
@@ -19,8 +19,7 @@ type Geometry = {
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
-// Heights last as long as the place to go back to. Of the rooms without one, the last shown
-// keep theirs: the oldest of more than eight rooms is let go.
+// Heights last as long as the place to go back to; of the other rooms, for the last eight shown.
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   const cache = rooms.get(memory) ?? new Map<string, Geometry>();
   rooms.set(memory, cache);
@@ -29,6 +28,8 @@ const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   cache.set(roomId, kept);
   const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
   if (idle.length > 7) cache.delete(idle[0]!);
+  // A list that returns to its top starts there: the cards last in view may have moved.
+  if (!memory.get(roomId)?.scrollTop) kept.visible = [];
   return kept;
 };
 
@@ -49,12 +50,9 @@ export function useCompactBlocks(options: Options) {
   const { target, protectedId, records, indexPending } = options;
   const state = useMemo(() => {
     const geometry = getGeometry(memory, roomId);
-    const saved = memory.get(roomId);
-    // A list that returns to its top starts there: the cards last in view may have moved.
-    if (!saved?.scrollTop) geometry.visible = [];
     return {
       geometry,
-      saved,
+      saved: memory.get(roomId),
       previousVisible: geometry.visible,
       reachable: undefined as string | undefined,
       placed: false,
@@ -86,10 +84,9 @@ export function useCompactBlocks(options: Options) {
   // The blocks that hold `ids`, each buffered alone: unmeasured blocks take no space, so two in
   // view can be far apart. After an order change, the median card's: one that jumped is left out.
   const band = (ids: string[]): number[] => {
-    const all = slotsOf(ids);
-    const slots = [...new Set(all)];
+    const slots = [...new Set(slotsOf(ids))];
     const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
-    return same && slots.length ? slots : [median(all) ?? 0];
+    return same && slots.length ? slots : [median(slotsOf(ids)) ?? 0];
   };
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>
@@ -197,7 +194,7 @@ export function useCompactBlocks(options: Options) {
     document.fonts?.addEventListener('loadingdone', fontsChanged);
     const track = (event: Event) => {
       const { type, target } = event;
-      if (/down|wheel|touchmove/.test(type)) state.input += 1;
+      if (/down|wheel/.test(type)) state.input += 1; // What the reader scrolls with.
       const pointer = (event as Partial<PointerEvent>).pointerId;
       if (type === 'pointerdown' || type === 'dragstart') {
         const id = target instanceof Element && content.contains(target) && cardId(target);
@@ -209,15 +206,12 @@ export function useCompactBlocks(options: Options) {
       )
         state.gesture = undefined;
     };
-    // What the reader does to scroll counts as their input: a scroll without it is the browser's.
-    const events = [...GESTURE_EVENTS, 'wheel', 'touchmove', 'keydown'];
-    const listen = { capture: true, passive: true };
-    events.forEach((event) => window.addEventListener(event, track, listen));
+    HEARD.forEach((event) => window.addEventListener(event, track, true));
     view.addEventListener('scroll', scroll, { passive: true });
     return () => {
       state.wake = undefined;
       observer?.disconnect();
-      events.forEach((event) => window.removeEventListener(event, track, true));
+      HEARD.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
@@ -281,7 +275,8 @@ export function useCompactBlocks(options: Options) {
       }
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
-      return changed || `${band(geometry.visible)}` !== `${reader}`;
+      // A Back placed or retired since this render is dropped by the next one.
+      return changed || back || `${band(geometry.visible)}` !== `${reader}`;
     };
     const measured = layout();
     const pending = measured || (!small && probe >= 0);
@@ -289,21 +284,18 @@ export function useCompactBlocks(options: Options) {
       if (layout()) state.wake?.();
     };
     // Discovery parks while the list cannot measure. A frame advances it; a scroll does not.
-    // A Back that still waited when an address retired it is dropped by a render.
-    const waiting = back && !placeReady;
     state.measure = (advance) => {
       if (advance) state.end = false;
       const now = layout();
-      return now !== undefined && (now || (waiting && state.placed) || (!!advance && pending));
+      return now !== undefined && (now || (!!advance && pending));
     };
     if (back && !placeReady && state.reachable === order) render();
     else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
   });
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
   // heights that a width or font change left stale are not the list's end. The second render
-  // counts with the heights the first measured. Not while the extent is still discovered:
-  // there a render grows it, and End goes to the end there is. A small list is all mounted.
-  // An End at the end scrolls nothing: the next frame lets the band go.
+  // counts with the first's heights. Not while the extent is still discovered (a render grows
+  // it), nor for a small list, all mounted. An End that scrolls nothing ends with the next frame.
   const prepareEnd = () => {
     if (small) return;
     state.end = true;

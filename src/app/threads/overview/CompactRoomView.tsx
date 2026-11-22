@@ -642,12 +642,9 @@ export function CompactRoomView({
     const now = [view?.scrollTop, blocks.progress.input] as const;
     if (address && asked.current[0] !== requestKey) asked.current = [requestKey, ...now];
     if (!focusRequest || !focusShown) return;
-    // A newer address retires a Back that still waits, and the list renders without it: the place
-    // it leaves is then the one saved. A reader whose input scrolled the list meanwhile stays.
-    if (address && !blocks.progress.placed) {
-      blocks.progress.placed = true;
-      blocks.progress.wake?.();
-    }
+    // A newer address retires a Back that still waits; a reader whose input scrolled it stays.
+    if (address && !blocks.progress.placed) blocks.progress.wake?.();
+    if (address) blocks.progress.placed = true;
     const stayed = now.some((value, i) => value === asked.current[i + 1]);
     const place = pushed && view && stayed && compactFocusPlace(focusRequest, view);
     if (place && placing.current !== requestKey) {
