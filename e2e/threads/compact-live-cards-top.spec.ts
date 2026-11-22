@@ -406,7 +406,11 @@ test('a sync batch larger than the Compact window does not displace a held card 
     let deliveredIds: string[] = [];
     await page.route(/\/_matrix\/client\/(?:v3|r0)\/sync(?:\?|$)/, async (route) => {
       let response = await route.fetch({ timeout: 60_000 }).catch(() => undefined);
-      if (!response) return;
+      // A sync that failed is the client's to ask again: left open, the route would strand it.
+      if (!response) {
+        await route.abort().catch(() => undefined);
+        return;
+      }
       const url = new URL(route.request().url());
       if (buffering && url.searchParams.has('since')) {
         await gate;
