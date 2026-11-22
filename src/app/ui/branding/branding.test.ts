@@ -19,6 +19,7 @@ describe('MindRoom branding', () => {
       ios: 'MindRoom iOS',
       android: 'MindRoom Android',
       macos: 'MindRoom macOS',
+      desktop: 'MindRoom Desktop',
     });
     expect(MINDROOM_NOTIFICATION_BRAND).toBe(MINDROOM_APP_NAME);
     expect(MINDROOM_SOURCE_URL).toBe('https://github.com/mindroom-ai/mindroom');
