@@ -11,15 +11,7 @@ const virtualizer = vi.hoisted(() => ({
   setOptions: vi.fn(),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-  getVirtualItems: (() => []) as () => Array<{
-    key: string | number;
-    index: number;
-    start: number;
-    size: number;
-    end: number;
-    lane: number;
-  }>,
+  getVirtualItems: () => [],
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   getVirtualItemForOffset: (() => undefined) as (
     offset: number
@@ -65,7 +57,6 @@ beforeEach(() => {
   virtualizer.options = {};
   virtualizer.setOptions.mockClear();
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
-  virtualizer.getVirtualItems = () => [];
   virtualizer.getVirtualItemForOffset = () => undefined;
   settleWaits.length = 0;
 });
@@ -187,50 +178,6 @@ describe('useTimelineScrollLedgerController', () => {
     checks.shift()?.();
     checks.shift()?.();
     expect(requests).toBe(1);
-    act(() => renderer.unmount());
-  });
-
-  it('ignores zero-sized unmounted rows when checking opening fill geometry', () => {
-    const geometryReader = { current: (): string | undefined => undefined };
-    const owner = createRoomAutomaticFill({
-      readGeometry: () => geometryReader.current(),
-      schedule: () => {},
-    });
-    const root = {
-      scrollTop: 0,
-      scrollHeight: 600,
-      clientHeight: 600,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    } as unknown as HTMLDivElement;
-    const inner = { style: { marginTop: '' } };
-    virtualizer.getVirtualItems = () => [
-      { key: '$break', index: 0, start: 0, size: 42, end: 42, lane: 0 },
-      { key: '$hidden', index: 1, start: 42, size: 0, end: 42, lane: 0 },
-    ];
-    virtualizer.itemSizeCache = new Map([['$break', 42]]);
-    const Harness = () => {
-      const controller = useTimelineScrollLedgerController({
-        alive: () => true,
-        estimateSize: (index) => (index === 0 ? 42.5 : 0),
-        getItemKey: (index) => (index === 0 ? '$break' : '$hidden'),
-        getScrollElement: () => root,
-        itemCount: 2,
-        pendingRoomFoldPxRef: useRef(0),
-        roomFoldPriceRef: useRef(() => 42),
-        roomId: '!room:example.org',
-        threadEventIndexMap: new Map(),
-        threadEvents: [],
-        threadInitialRenderMode: 'live',
-        automaticFill: { ...owner, geometryReader },
-      });
-      return React.createElement('inner', { ref: controller.virtualInnerRef });
-    };
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(Harness), { createNodeMock: () => inner });
-    });
-    expect(geometryReader.current()).toBe('600|0|600|$break:0:42,$hidden:42:0');
     act(() => renderer.unmount());
   });
 

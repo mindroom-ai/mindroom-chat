@@ -1,5 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
+import type { TimelineEventEntry } from '../event-store/timeline/roomTimelineEvents';
+import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 import { getMemberEventKindForEvent, type MemberEventKind } from '../messages/useMemberEventParser';
 
 /** Fewer consecutive membership events than this stay ungrouped. */
@@ -18,10 +20,10 @@ export type MembershipFoldSummary = {
 };
 
 export type MembershipFold = {
-  /** First event ID in the run, used as an anchor when opening the fold. */
+  /** The ID of the run's first event, whose row draws the fold's break. */
   key: string;
-  /** Folded event IDs in timeline order. */
-  hiddenIds: readonly string[];
+  /** The IDs of the run's events, in timeline order. */
+  eventIds: readonly string[];
   /** Total event count and deduplicated user tallies per category. */
   summary: MembershipFoldSummary;
 };
@@ -33,20 +35,14 @@ export type MembershipFoldRules = {
   pinnedIds: ReadonlySet<string>;
 };
 
+export type MembershipFoldState = { fold: MembershipFold; open: boolean };
+
+/** The room's folds, each by the ID of its first event. */
 export type MembershipFoldView = {
-  /** Rows of closed folds that render nothing and measure as 0 px. */
-  hiddenIds: ReadonlySet<string>;
-  /** Each fold's break pill, keyed by the row ID that draws it. */
-  breaks: ReadonlyMap<string, { fold: MembershipFold; open: boolean }>;
-  /** Every folded event ID mapped to its owning fold and open state. */
-  foldByEventId: ReadonlyMap<string, { fold: MembershipFold; open: boolean }>;
+  breaks: ReadonlyMap<string, MembershipFoldState>;
 };
 
-export const EMPTY_MEMBERSHIP_FOLD_VIEW: MembershipFoldView = {
-  hiddenIds: new Set(),
-  breaks: new Map(),
-  foldByEventId: new Map(),
-};
+export const EMPTY_MEMBERSHIP_FOLD_VIEW: MembershipFoldView = { breaks: new Map() };
 
 type SummaryBucketKey = Exclude<keyof MembershipFoldSummary, 'total'>;
 
@@ -80,6 +76,11 @@ const bucketForMemberKind = (kind: MemberEventKind): SummaryBucketKey | undefine
 export const isFoldableMembershipEvent = (event: MatrixEvent): boolean =>
   event.getType() === 'm.room.member' && event.getStateKey() !== undefined;
 
+/**
+ * Counts a run's events as their rows read: each by the sentence `useMemberEventParser` gives it.
+ * A redacted event, which shows only with hidden events, keeps its `membership`, so its row still
+ * reads as a ban, an invitation or a request, and it counts as one.
+ */
 export const summarizeMembershipRun = (events: readonly MatrixEvent[]): MembershipFoldSummary => {
   const buckets: Record<SummaryBucketKey, Set<string>> = {
     joined: new Set(),
@@ -93,7 +94,6 @@ export const summarizeMembershipRun = (events: readonly MatrixEvent[]): Membersh
   };
 
   for (const event of events) {
-    if (event.isRedacted()) continue;
     const bucket = bucketForMemberKind(getMemberEventKindForEvent(event));
     if (bucket) {
       buckets[bucket].add(event.getStateKey() ?? '');
@@ -128,18 +128,14 @@ export const planMembershipFolds = (
 
   const flush = () => {
     if (run.length >= MIN_FOLDED_MEMBERSHIP_EVENTS) {
-      const hiddenIds = run.flatMap((event) => event.getId() ?? []);
-      const key = hiddenIds[0];
+      const eventIds = run.flatMap((event) => event.getId() ?? []);
+      const key = eventIds[0];
       if (
         key &&
-        hiddenIds.length === run.length &&
-        !hiddenIds.some((id) => rules.pinnedIds.has(id))
+        eventIds.length === run.length &&
+        !eventIds.some((id) => rules.pinnedIds.has(id))
       ) {
-        folds.push({
-          key,
-          hiddenIds,
-          summary: summarizeMembershipRun(run),
-        });
+        folds.push({ key, eventIds, summary: summarizeMembershipRun(run) });
       }
     }
     run = [];
@@ -160,58 +156,141 @@ export const planMembershipFolds = (
   return folds;
 };
 
-/**
- * Projects planned membership folds into the hidden row IDs and break row placements for the
- * current window. When `visibleIds` is given, each fold's pill anchors on the first folded row
- * present in the window (falling back to the run's first row when the run is outside the window).
- */
 export const viewMembershipFolds = (
   folds: readonly MembershipFold[],
-  isOpen: (fold: MembershipFold) => boolean,
-  visibleIds?: ReadonlySet<string>
+  isOpen: (fold: MembershipFold) => boolean
 ): MembershipFoldView => {
   if (folds.length === 0) return EMPTY_MEMBERSHIP_FOLD_VIEW;
-  const hiddenIds = new Set<string>();
-  const breaks = new Map<string, { fold: MembershipFold; open: boolean }>();
-  const foldByEventId = new Map<string, { fold: MembershipFold; open: boolean }>();
-
-  for (const fold of folds) {
-    const open = isOpen(fold);
-    const entry = { fold, open };
-    const breakRowId =
-      (visibleIds ? fold.hiddenIds.find((id) => visibleIds.has(id)) : undefined) ??
-      fold.hiddenIds[0];
-    for (const id of fold.hiddenIds) {
-      foldByEventId.set(id, entry);
-      if (!open && id !== breakRowId) hiddenIds.add(id);
-    }
-    if (breakRowId) {
-      breaks.set(breakRowId, entry);
-    }
-  }
-
-  return { hiddenIds, breaks, foldByEventId };
+  const breaks = new Map<string, MembershipFoldState>();
+  for (const fold of folds) breaks.set(fold.key, { fold, open: isOpen(fold) });
+  return { breaks };
 };
 
 /**
- * Resolves a room row index (such as the opening unread scroll anchor) so that if the target
- * event is hidden inside a closed membership fold, scrolling lands on that fold's break row.
+ * The room's rows as the timeline lists them: every loaded row, with each closed fold as one row.
+ * The window, the virtual list and every jump count in these rows, so no row of the list is
+ * hidden and no window can start or end inside a closed fold. The timeline's state keeps counting
+ * in loaded rows (`timeline.range`), which history pages, live rows and removed rows move.
  */
-export const resolveMembershipFoldAnchorIndex = (
-  events: readonly MatrixEvent[],
-  index: number | undefined,
+export type RoomRowProjection = {
+  /** A closed fold's row holds the fold's first event. */
+  rows: MatrixEvent[];
+  /**
+   * The rows' places in the loaded timeline. A closed fold's row stands at its last event: a
+   * read marker anywhere before that one leaves part of the fold unread.
+   */
+  entries: TimelineEventEntry[];
+  /** How many loaded rows the rows stand for. */
+  loadedCount: number;
+  /** Each row's first loaded row. Without a closed fold the rows are the loaded rows: undefined. */
+  loadedStarts?: readonly number[];
+  /** The row of each event a closed fold holds, by its ID. */
+  foldedRows: ReadonlyMap<string, number>;
+};
+
+const NO_FOLDED_ROWS: ReadonlyMap<string, number> = new Map();
+
+/**
+ * Lists the loaded rows with each closed fold as one row. A fold's run reaches from its first
+ * event to its last: the rowless and hidden events between them, which draw nothing, go with it.
+ */
+export const projectRoomRows = (
+  events: MatrixEvent[],
+  entries: TimelineEventEntry[],
   view: MembershipFoldView
-): number | undefined => {
-  if (index === undefined) return undefined;
-  const eventId = events[index]?.getId();
-  if (!eventId || !view.hiddenIds.has(eventId)) return index;
-  const entry = view.foldByEventId.get(eventId);
-  if (!entry || entry.open) return index;
-  for (const [breakRowId, breakEntry] of view.breaks) {
-    if (breakEntry.fold === entry.fold) {
-      const breakIndex = events.findIndex((event) => event.getId() === breakRowId);
-      return breakIndex >= 0 ? breakIndex : index;
-    }
+): RoomRowProjection => {
+  let closed = false;
+  view.breaks.forEach(({ open }) => {
+    if (!open) closed = true;
+  });
+  if (!closed) {
+    return { rows: events, entries, loadedCount: events.length, foldedRows: NO_FOLDED_ROWS };
   }
-  return index;
+  // As where the rows are read by their index: the entries pair with the events.
+  const paired = entries.length === events.length;
+  const rows: MatrixEvent[] = [];
+  const rowEntries: TimelineEventEntry[] = [];
+  const loadedStarts: number[] = [];
+  const foldedRows = new Map<string, number>();
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (!event) continue;
+    const state = view.breaks.get(event.getId() ?? '');
+    const lastId = state && !state.open ? state.fold.eventIds.at(-1) : undefined;
+    let last = index;
+    if (state && lastId) {
+      while (last < events.length && events[last]?.getId() !== lastId) last += 1;
+      // A fold of other rows than these: its first event is a row of its own.
+      if (last === events.length) last = index;
+      else state.fold.eventIds.forEach((id) => foldedRows.set(id, rows.length));
+    }
+    loadedStarts.push(index);
+    rows.push(event);
+    const entry = entries[index];
+    const lastEntry = entries[last];
+    if (paired && entry && lastEntry) {
+      rowEntries.push(last === index ? entry : { event, absoluteIndex: lastEntry.absoluteIndex });
+    }
+    index = last;
+  }
+  return {
+    rows,
+    entries: paired ? rowEntries : entries,
+    loadedCount: events.length,
+    loadedStarts,
+    foldedRows,
+  };
+};
+
+/** The row that holds the loaded row at `loadedIndex`; past the last loaded row, the row count. */
+export const rowIndexOfLoaded = (
+  { loadedStarts, loadedCount, rows }: RoomRowProjection,
+  loadedIndex: number
+): number => {
+  if (!loadedStarts) return loadedIndex;
+  if (loadedIndex >= loadedCount) return rows.length;
+  let low = 0;
+  let high = loadedStarts.length - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if ((loadedStarts[middle] ?? 0) <= loadedIndex) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+};
+
+/**
+ * The rows that hold the loaded rows of `range`. A closed fold the range starts or ends inside
+ * is in it whole: a page of history can bring earlier events of the run a window starts with.
+ */
+export const rowRangeOfLoaded = (
+  projection: RoomRowProjection,
+  range: TimelineRange
+): TimelineRange => {
+  if (!projection.loadedStarts) return range;
+  const start = rowIndexOfLoaded(projection, Math.max(range.start, 0));
+  if (range.end <= range.start) return { start, end: start };
+  return { start, end: rowIndexOfLoaded(projection, range.end - 1) + 1 };
+};
+
+/** The loaded rows the rows of `range` stand for. */
+export const loadedRangeOfRows = (
+  { loadedStarts, loadedCount }: RoomRowProjection,
+  range: TimelineRange
+): TimelineRange => {
+  if (!loadedStarts) return range;
+  const loadedIndex = (row: number) =>
+    row >= loadedStarts.length ? loadedCount : loadedStarts[Math.max(row, 0)] ?? loadedCount;
+  return { start: loadedIndex(range.start), end: loadedIndex(range.end) };
+};
+
+/** The height the list gave each membership row of the window it last rendered, by event ID. */
+export type FoldedRowSizes = ReadonlyMap<string, number>;
+
+/** The height of the rows of the last render that a fold now holds, or 0 when it held none. */
+export const heldFoldHeight = (sizes: FoldedRowSizes, fold: MembershipFold): number => {
+  if (sizes.size === 0) return 0;
+  let px = 0;
+  for (const id of fold.eventIds) px += sizes.get(id) ?? 0;
+  return px;
 };

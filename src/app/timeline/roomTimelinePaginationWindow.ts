@@ -72,6 +72,36 @@ export const useWindowKeepsNewestRow = ({
 };
 
 /**
+ * The room's rows list a closed fold as one row (`RoomRowProjection`), and a window that the
+ * state counts into a closed fold shows the fold whole: a page of history brought earlier events
+ * of the run the window starts with, or a fold closed over a window's edge. The state then
+ * follows the window shown, so what counts on from it (a live row grown in at its end) counts
+ * from the rows on screen.
+ */
+export const useWindowHoldsWholeFolds = ({
+  timeline,
+  stateRange,
+  loadedRange,
+  setTimeline,
+}: {
+  timeline: Timeline;
+  /** The window the state counts, in loaded rows, and the loaded rows of the window shown. */
+  stateRange: ItemRange;
+  loadedRange: ItemRange;
+  setTimeline: SetTimeline;
+}) => {
+  useLayoutEffect(() => {
+    // A window the state does not hold (a thread's, a filtered overview's, a placed one) is not
+    // the state's to follow.
+    if (stateRange !== timeline.range || loadedRange === stateRange) return;
+    const shown = timeline.range;
+    setTimeline((current) =>
+      current.range === shown ? { ...current, range: loadedRange } : current
+    );
+  }, [loadedRange, setTimeline, stateRange, timeline.range]);
+};
+
+/**
  * Shows the chain a limited sync's relink rebuilt, unless it holds no row: a server can mark a
  * room's timeline limited for events the view hides (a member's new name while membership changes
  * are hidden), and the new live timeline alone then shows nothing. The view keeps its rows while
@@ -206,16 +236,13 @@ export const useRoomRowRemoval = ({
   useLiveEventRemove(room, handleRemove);
 };
 
-type RoomRowFoldPrice = (
-  key: string | number | bigint,
-  index: number,
-  nextWindowStart?: number
-) => number;
+type RoomRowFoldPrice = (key: string | number | bigint, index: number) => number;
 
 /**
  * The paginator of the room's window. Rows mounted above the reader put their height into the
  * offset ledger (`pendingRoomFoldPxRef`, priced by `roomFoldPriceRef`), so the rows on screen stay
- * where they are, and reaching either end of the window loads more of the room.
+ * where they are, and reaching either end of the window loads more of the room. It counts in the
+ * room's rows; the state takes each window in loaded rows (`loadedRangeOfRef`).
  */
 export const useRoomWindowPaginator = ({
   alive,
@@ -223,6 +250,7 @@ export const useRoomWindowPaginator = ({
   roomRowsRef,
   activeTimelineRange,
   activeRangeRef,
+  loadedRangeOfRef,
   threadIdRef,
   firstRoomTimelineRef,
   scrollRef,
@@ -239,6 +267,8 @@ export const useRoomWindowPaginator = ({
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
   activeTimelineRange: ItemRange;
   activeRangeRef: MutableRefObject<ItemRange>;
+  /** The loaded rows that a window of the room's rows stands for. */
+  loadedRangeOfRef: MutableRefObject<(rowRange: ItemRange) => ItemRange>;
   threadIdRef: MutableRefObject<string | undefined>;
   firstRoomTimelineRef: MutableRefObject<EventTimeline | undefined>;
   scrollRef: MutableRefObject<HTMLElement | null>;
@@ -266,7 +296,7 @@ export const useRoomWindowPaginator = ({
         for (let index = next.start; index < Math.min(current.start, next.end); index += 1) {
           const key = roomRowsRef.current[index]?.getId() ?? index;
           // Priced by its place in the window still mounted, which the estimate reads.
-          foldPx += roomFoldPriceRef.current(key, index - current.start, next.start);
+          foldPx += roomFoldPriceRef.current(key, index - current.start);
         }
         pendingRoomFoldPxRef.current += foldPx;
         roomFoldWindowRef.current = current;
@@ -275,15 +305,17 @@ export const useRoomWindowPaginator = ({
       // widened. When another window was set after that render (the newest row kept, a live row
       // grown in), the page would undo it and drop rows the reader sees: it is dropped, and the
       // paginator looks at the sentinels again once that window renders.
-      const widened = pagedFrom && next.end > pagedFrom.end ? pagedFrom : undefined;
+      const loadedRangeOf = loadedRangeOfRef.current;
+      const widened = pagedFrom && next.end > pagedFrom.end ? loadedRangeOf(pagedFrom) : undefined;
+      const range = loadedRangeOf(next);
       setTimeline((currentTimeline) =>
         widened &&
         (currentTimeline.range.start !== widened.start || currentTimeline.range.end !== widened.end)
           ? currentTimeline
-          : { ...currentTimeline, range: next }
+          : { ...currentTimeline, range }
       );
     },
-    [activeRangeRef, roomRowsRef, setTimeline, threadIdRef]
+    [activeRangeRef, loadedRangeOfRef, roomRowsRef, setTimeline, threadIdRef]
   );
   const getRoomRowElement = useCallback(
     (index: number) =>

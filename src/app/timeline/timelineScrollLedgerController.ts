@@ -60,7 +60,7 @@ export type TimelineScrollLedgerControllerOptions = {
    * latest end) sees new rows arrive.
    */
   anchorRoomRows?: () => boolean;
-  estimateSize: (index?: number, nextWindowStart?: number) => number;
+  estimateSize: (index?: number) => number;
   getItemKey: (index: number) => VirtualItemKey;
   getScrollElement: () => HTMLDivElement | null;
   itemCount: number;
@@ -71,9 +71,7 @@ export type TimelineScrollLedgerControllerOptions = {
    * update), so the fold waits for the render that mounts them.
    */
   roomFoldHeld?: boolean;
-  roomFoldPriceRef: MutableRefObject<
-    (key: VirtualItemKey, index: number, nextWindowStart?: number) => number
-  >;
+  roomFoldPriceRef: MutableRefObject<(key: VirtualItemKey, index: number) => number>;
   roomId: string;
   /**
    * Changes when the room's rows are replaced rather than added to: the ledger starts over, as
@@ -251,8 +249,8 @@ export const useTimelineScrollLedgerController = ({
   const ledgerFoldSizeCacheRef = useRef<Map<VirtualItemKey, number>>();
 
   const priceThreadRowForLedger = useCallback(
-    (key: VirtualItemKey, index: number, nextWindowStart?: number): number =>
-      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index, nextWindowStart),
+    (key: VirtualItemKey, index: number): number =>
+      ledgerFoldSizeCacheRef.current?.get(key) ?? estimateSize(index),
     [estimateSize]
   );
   // Thread prepend planning is pure. Its mutations are applied only after
@@ -1048,9 +1046,7 @@ export const useTimelineScrollLedgerController = ({
       )
         return undefined;
       const items = virtualizer.getVirtualItems();
-      // Zero-sized rows (such as folded membership rows) mount no tile to measure.
-      if (items.some((item) => item.size > 0 && !virtualizer.itemSizeCache.has(item.key)))
-        return undefined;
+      if (items.some((item) => !virtualizer.itemSizeCache.has(item.key))) return undefined;
       return `${root.clientHeight}|${root.scrollTop}|${root.scrollHeight}|${items
         .map((item) => `${item.key}:${item.start}:${item.size}`)
         .join(',')}`;

@@ -161,6 +161,61 @@ describe('foldTimelineRowContexts', () => {
     }
   });
 
+  it('lets the break of a closed fold stand for its rows, wherever the window starts', () => {
+    const day = 24 * 60;
+    // A message, the break of a fold whose run starts the next day and ends at place 5 of the
+    // loaded timeline, and two messages of that day by the sender of the run's first event.
+    const rows: Row[] = [
+      { id: '$a', sender: '@maya:x', type: 'm.room.message', minute: 0 },
+      { id: '$fold', sender: '@maya:x', type: 'm.room.member', minute: day, stateKey: '@maya:x' },
+      { id: '$b', sender: '@maya:x', type: 'm.room.message', minute: day + 1, replyTo: '$a' },
+      { id: '$c', sender: '@maya:x', type: 'm.room.message', minute: day + 2 },
+    ];
+    const places = [0, 5, 6, 7];
+    const events = rows.map(toEvent);
+    const contextsFrom = (firstIndex: number, readUptoAbsoluteIndex: number) => {
+      const contexts = foldTimelineRowContexts({
+        indexes: Array.from({ length: events.length - firstIndex }, (_, n) => firstIndex + n),
+        getEvent: (index) => events[index],
+        isSkipped: () => false,
+        getAbsoluteIndex: (index) => places[index],
+        readUptoAbsoluteIndex,
+        isFoldBreak: (index) => index === 1,
+      });
+      return rows
+        .slice(firstIndex)
+        .map((row, n) => [row.id, contexts.get(firstIndex + n)] as const);
+    };
+    // Read up to an event inside the fold: the unread divider is the break's. The break takes no
+    // date divider and ends the group and the reply run above it: the day that changed shows
+    // above the next row, which keeps its author line and its quote.
+    expect(contextsFrom(0, 3)).toEqual([
+      ['$a', expect.objectContaining({ collapse: false, dayDivider: false, unreadDivider: false })],
+      ['$fold', { collapse: false, dayDivider: false, unreadDivider: true }],
+      [
+        '$b',
+        {
+          collapse: false,
+          dayDivider: true,
+          unreadDivider: false,
+          inPlaceReplyEventId: undefined,
+        },
+      ],
+      ['$c', expect.objectContaining({ collapse: true, dayDivider: false })],
+    ]);
+    // Read to the fold's last event, the next row is the first unread one.
+    expect(contextsFrom(0, 5)[1]?.[1]).toMatchObject({ unreadDivider: false });
+    expect(contextsFrom(0, 5)[2]?.[1]).toMatchObject({ unreadDivider: true });
+    // The rows read the same when the list mounts from the break or from the row after it: the
+    // row above the fold stays the row above the next row.
+    for (const readUpto of [0, 3, 5, 6]) {
+      const whole = contextsFrom(0, readUpto);
+      for (let firstIndex = 1; firstIndex < rows.length; firstIndex += 1) {
+        expect(contextsFrom(firstIndex, readUpto)).toEqual(whole.slice(firstIndex));
+      }
+    }
+  });
+
   it('gives each row the same context wherever the window starts', () => {
     const day = 24 * 60;
     const rows: Row[] = [

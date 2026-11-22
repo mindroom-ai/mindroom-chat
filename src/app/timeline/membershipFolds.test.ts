@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
   MIN_FOLDED_MEMBERSHIP_EVENTS,
+  loadedRangeOfRows,
   planMembershipFolds,
-  resolveMembershipFoldAnchorIndex,
+  projectRoomRows,
+  rowIndexOfLoaded,
+  rowRangeOfLoaded,
   viewMembershipFolds,
 } from './membershipFolds';
 
@@ -25,7 +28,8 @@ const memberEvent = (
     state_key: target,
     type: 'm.room.member',
     origin_server_ts: options.ts ?? DAY_1,
-    content: options.redacted ? {} : content,
+    // A redaction keeps `membership` and drops the rest of the content.
+    content: options.redacted ? { membership: content.membership } : content,
     unsigned: options.redacted
       ? {
           redacted_because: {
@@ -36,6 +40,7 @@ const memberEvent = (
             content: {},
             unsigned: {},
           },
+          prev_content: prevContent,
         }
       : { prev_content: prevContent },
   });
@@ -141,7 +146,7 @@ describe('planMembershipFolds', () => {
     expect(planMembershipFolds(three, defaultRules)).toEqual([
       {
         key: '$m1',
-        hiddenIds: ['$m1', '$m2', '$m3'],
+        eventIds: ['$m1', '$m2', '$m3'],
         summary: {
           total: 3,
           joined: 3,
@@ -199,7 +204,7 @@ describe('planMembershipFolds', () => {
 
     const folds = planMembershipFolds(events, defaultRules);
     expect(folds).toHaveLength(1);
-    expect(folds[0]?.hiddenIds).toEqual(['$m1', '$m2', '$m3']);
+    expect(folds[0]?.eventIds).toEqual(['$m1', '$m2', '$m3']);
   });
 
   it('breaks runs on room name, topic, and avatar changes while keeping moderation events inside', () => {
@@ -219,7 +224,7 @@ describe('planMembershipFolds', () => {
     ];
 
     const folds = planMembershipFolds(events, defaultRules);
-    expect(folds.map((fold) => fold.hiddenIds)).toEqual([
+    expect(folds.map((fold) => fold.eventIds)).toEqual([
       ['$m1', '$m2', '$m3'],
       ['$m6', '$m7', '$m8'],
     ]);
@@ -241,41 +246,72 @@ describe('planMembershipFolds', () => {
       pinnedIds: new Set(),
     });
     expect(folds).toHaveLength(1);
-    expect(folds[0]?.hiddenIds).toEqual(['$m1', '$m2', '$m3']);
+    expect(folds[0]?.eventIds).toEqual(['$m1', '$m2', '$m3']);
   });
 
-  it('skips redacted membership events when hidden and folds them without a bucket when shown', () => {
+  it('counts a redacted event that shows as its row reads, and skips one that is hidden', () => {
     const events = [
       joinEvent('$m1', '@a:x'),
       joinEvent('$m2', '@b:x'),
-      memberEvent('$red', '@c:x', {}, {}, { redacted: true }),
-      joinEvent('$m3', '@d:x'),
-      joinEvent('$m4', '@e:x'),
+      // Redacted, these keep their `membership`: their rows still read as a ban, a request, an
+      // invitation, a join and a kick.
+      memberEvent(
+        '$ban',
+        '@c:x',
+        { membership: 'ban', reason: 'spam' },
+        { membership: 'join' },
+        { sender: '@mod:example.org', redacted: true }
+      ),
+      memberEvent('$knock', '@d:x', { membership: 'knock' }, {}, { redacted: true }),
+      memberEvent(
+        '$invite',
+        '@e:x',
+        { membership: 'invite' },
+        {},
+        { sender: '@mod:example.org', redacted: true }
+      ),
+      memberEvent(
+        '$join',
+        '@f:x',
+        { membership: 'join', displayname: 'Fay' },
+        {},
+        {
+          redacted: true,
+        }
+      ),
+      memberEvent(
+        '$kick',
+        '@g:x',
+        { membership: 'leave' },
+        { membership: 'join' },
+        { sender: '@mod:example.org', redacted: true }
+      ),
+      joinEvent('$m3', '@h:x'),
     ];
+    expect(events[2]?.isRedacted()).toBe(true);
 
-    // When showHiddenEvents is true, visible redacted members join the run and count in total only.
-    const visibleRedacted = planMembershipFolds(events, defaultRules);
-    expect(visibleRedacted).toHaveLength(1);
-    expect(visibleRedacted[0]?.hiddenIds).toEqual(['$m1', '$m2', '$red', '$m3', '$m4']);
-    expect(visibleRedacted[0]?.summary).toEqual({
-      total: 5,
+    // With hidden events shown, the redacted events are rows of the run.
+    const shown = planMembershipFolds(events, defaultRules);
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.summary).toEqual({
+      total: 8,
       joined: 4,
       left: 0,
-      invited: 0,
-      requested: 0,
-      kicked: 0,
-      banned: 0,
+      invited: 1,
+      requested: 1,
+      kicked: 1,
+      banned: 1,
       unbanned: 0,
       profileChanges: 0,
     });
 
-    // When showHiddenEvents is false, redacted events are skipped and do not break or inflate the run.
-    const skippedRedacted = planMembershipFolds(events, {
+    // Without, they are skipped: they neither part the run nor count in it.
+    const hidden = planMembershipFolds(events, {
       isSkipped: (event) => event.isRedacted(),
       pinnedIds: new Set(),
     });
-    expect(skippedRedacted.map((fold) => fold.hiddenIds)).toEqual([['$m1', '$m2', '$m3', '$m4']]);
-    expect(skippedRedacted[0]?.summary.total).toBe(4);
+    expect(hidden.map((fold) => fold.eventIds)).toEqual([['$m1', '$m2', '$m3']]);
+    expect(hidden[0]?.summary).toMatchObject({ total: 3, joined: 3, banned: 0 });
   });
 
   it('keeps a run unfolded when any of its events is in pinnedIds', () => {
@@ -293,18 +329,13 @@ describe('planMembershipFolds', () => {
       isSkipped: () => false,
       pinnedIds: new Set(['$m2']),
     });
-    expect(folds.map((fold) => fold.hiddenIds)).toEqual([['$m4', '$m5', '$m6']]);
+    expect(folds.map((fold) => fold.eventIds)).toEqual([['$m4', '$m5', '$m6']]);
   });
 });
 
 describe('viewMembershipFolds', () => {
   const fold = planMembershipFolds(
-    [
-      joinEvent('$m1', '@a:x'),
-      joinEvent('$m2', '@b:x'),
-      joinEvent('$m3', '@c:x'),
-      joinEvent('$m4', '@d:x'),
-    ],
+    [joinEvent('$m1', '@a:x'), joinEvent('$m2', '@b:x'), joinEvent('$m3', '@c:x')],
     defaultRules
   )[0]!;
 
@@ -312,46 +343,146 @@ describe('viewMembershipFolds', () => {
     expect(viewMembershipFolds([], () => false)).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
   });
 
-  it('anchors the break on the first row in visibleIds when a run starts before the window', () => {
-    const visibleIds = new Set(['$m3', '$m4', '$msg']);
-    const closed = viewMembershipFolds([fold], () => false, visibleIds);
-    expect([...closed.breaks.keys()]).toEqual(['$m3']);
-    expect(closed.breaks.get('$m3')).toEqual({ fold, open: false });
-    expect([...closed.hiddenIds].sort()).toEqual(['$m1', '$m2', '$m4']);
+  it('names each fold by its first event, open or closed', () => {
+    expect([...viewMembershipFolds([fold], () => false).breaks]).toEqual([
+      ['$m1', { fold, open: false }],
+    ]);
+    expect([...viewMembershipFolds([fold], () => true).breaks]).toEqual([
+      ['$m1', { fold, open: true }],
+    ]);
+  });
+});
 
-    const open = viewMembershipFolds([fold], () => true, visibleIds);
-    expect([...open.breaks.keys()]).toEqual(['$m3']);
-    expect(open.breaks.get('$m3')).toEqual({ fold, open: true });
-    expect(open.hiddenIds.size).toBe(0);
+describe('projectRoomRows', () => {
+  // Loaded rows 0 to 8: a message, a run of five (a reaction among them), a message, a run of
+  // two and a last message. Their places in the loaded timeline count by ten.
+  const loaded = [
+    messageEvent('$msg0'),
+    joinEvent('$m1', '@a:x'),
+    joinEvent('$m2', '@b:x'),
+    reactionEvent('$react', '$msg0'),
+    joinEvent('$m3', '@c:x'),
+    joinEvent('$m4', '@d:x'),
+    messageEvent('$msg1'),
+    joinEvent('$m5', '@e:x'),
+    messageEvent('$msg2'),
+  ];
+  const entries = loaded.map((event, index) => ({ event, absoluteIndex: index * 10 }));
+  const folds = planMembershipFolds(loaded, defaultRules);
+  const ids = (rows: MatrixEvent[]) => rows.map((event) => event.getId());
+
+  it('lists a closed fold as one row at its first event, standing at its last', () => {
+    const projection = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => false)
+    );
+    expect(ids(projection.rows)).toEqual(['$msg0', '$m1', '$msg1', '$m5', '$msg2']);
+    // No row of the list is hidden: the fold's four events and the reaction among them are the
+    // one row.
+    expect(projection.loadedStarts).toEqual([0, 1, 6, 7, 8]);
+    expect(projection.loadedCount).toBe(9);
+    expect(
+      projection.entries.map(({ event, absoluteIndex }) => [event.getId(), absoluteIndex])
+    ).toEqual([
+      ['$msg0', 0],
+      ['$m1', 50],
+      ['$msg1', 60],
+      ['$m5', 70],
+      ['$msg2', 80],
+    ]);
+    expect([...projection.foldedRows]).toEqual([
+      ['$m1', 1],
+      ['$m2', 1],
+      ['$m3', 1],
+      ['$m4', 1],
+    ]);
   });
 
-  it('falls back to hiddenIds[0] when the entire run lies outside visibleIds', () => {
-    const view = viewMembershipFolds([fold], () => false, new Set(['$msg']));
-    expect([...view.breaks.keys()]).toEqual(['$m1']);
-    expect([...view.hiddenIds].sort()).toEqual(['$m2', '$m3', '$m4']);
+  it('lists the loaded rows themselves when no fold is closed', () => {
+    const open = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => true)
+    );
+    expect(open.rows).toBe(loaded);
+    expect(open.entries).toBe(entries);
+    expect(open.loadedStarts).toBeUndefined();
+    expect(open.foldedRows.size).toBe(0);
+    expect(projectRoomRows(loaded, entries, EMPTY_MEMBERSHIP_FOLD_VIEW).rows).toBe(loaded);
+    const range = { start: 2, end: 7 };
+    expect(rowRangeOfLoaded(open, range)).toBe(range);
+    expect(loadedRangeOfRows(open, range)).toBe(range);
+    expect(rowIndexOfLoaded(open, 4)).toBe(4);
   });
 
-  it('resolves an unread anchor inside a closed fold to the fold break row index', () => {
-    const timeline = [
-      messageEvent('$msg0'),
-      joinEvent('$m1', '@a:x'),
-      joinEvent('$m2', '@b:x'),
-      joinEvent('$m3', '@c:x'),
-      joinEvent('$m4', '@d:x'),
-      messageEvent('$msg1'),
-    ];
-    const closed = viewMembershipFolds([fold], () => false);
-    expect(resolveMembershipFoldAnchorIndex(timeline, 3, closed)).toBe(1);
-    expect(resolveMembershipFoldAnchorIndex(timeline, 1, closed)).toBe(1);
-    expect(resolveMembershipFoldAnchorIndex(timeline, 5, closed)).toBe(5);
-    expect(resolveMembershipFoldAnchorIndex(timeline, undefined, closed)).toBeUndefined();
+  it('maps loaded rows to their rows, a closed fold whole', () => {
+    const projection = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => false)
+    );
+    expect(
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((index) => rowIndexOfLoaded(projection, index))
+    ).toEqual([0, 1, 1, 1, 1, 1, 2, 3, 4, 5]);
+    // A window the state starts inside the fold (history brought earlier events of its run) or
+    // ends inside it holds the fold whole.
+    expect(rowRangeOfLoaded(projection, { start: 4, end: 9 })).toEqual({ start: 1, end: 5 });
+    expect(rowRangeOfLoaded(projection, { start: 0, end: 3 })).toEqual({ start: 0, end: 2 });
+    expect(rowRangeOfLoaded(projection, { start: 6, end: 9 })).toEqual({ start: 2, end: 5 });
+    expect(rowRangeOfLoaded(projection, { start: 0, end: 0 })).toEqual({ start: 0, end: 0 });
+    // And a window of rows stands for whole folds of loaded rows.
+    expect(loadedRangeOfRows(projection, { start: 1, end: 5 })).toEqual({ start: 1, end: 9 });
+    expect(loadedRangeOfRows(projection, { start: 0, end: 2 })).toEqual({ start: 0, end: 6 });
+    expect(loadedRangeOfRows(projection, { start: 2, end: 3 })).toEqual({ start: 6, end: 7 });
+  });
 
-    // When the window starts mid-fold, the anchor resolves to the window break row.
-    const partial = viewMembershipFolds([fold], () => false, new Set(['$m2', '$m3', '$m4']));
-    expect(resolveMembershipFoldAnchorIndex(timeline, 4, partial)).toBe(2);
+  it('keeps every loaded row of the window when a fold near its end opens or closes', () => {
+    // The state's window, in loaded rows, does not change with a fold's state: the rows it
+    // stands for do.
+    const stateRange = { start: 0, end: 9 };
+    const closed = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => false)
+    );
+    const open = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => true)
+    );
+    const closedWindow = rowRangeOfLoaded(closed, stateRange);
+    expect(ids(closed.rows.slice(closedWindow.start, closedWindow.end))).toEqual([
+      '$msg0',
+      '$m1',
+      '$msg1',
+      '$m5',
+      '$msg2',
+    ]);
+    const openWindow = rowRangeOfLoaded(open, stateRange);
+    expect(ids(open.rows.slice(openWindow.start, openWindow.end))).toEqual(ids(loaded));
+  });
 
-    // When the fold is open, the anchor stays on the exact member row.
-    const open = viewMembershipFolds([fold], () => true);
-    expect(resolveMembershipFoldAnchorIndex(timeline, 3, open)).toBe(3);
+  it("gives the read marker and a jump inside a closed fold the fold's row", () => {
+    const projection = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(folds, () => false)
+    );
+    // The read marker at `$m2` (loaded row 2): the opening scroll goes to the fold's row.
+    expect(rowIndexOfLoaded(projection, 2)).toBe(1);
+    // A jump to `$m3` finds no row of its own, and its fold's row.
+    expect(projection.rows.some((event) => event.getId() === '$m3')).toBe(false);
+    expect(projection.foldedRows.get('$m3')).toBe(1);
+    // Pinned, its run is unfolded and it is a row.
+    const pinned = projectRoomRows(
+      loaded,
+      entries,
+      viewMembershipFolds(
+        planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set(['$m3']) }),
+        () => false
+      )
+    );
+    expect(pinned.rows.findIndex((event) => event.getId() === '$m3')).toBe(4);
   });
 });

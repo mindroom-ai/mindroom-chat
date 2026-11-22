@@ -38,7 +38,12 @@ import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes
 import { foldTimelineRowContexts } from './timelineRowFold';
 import type { ThreadTurnFold, ThreadTurnFoldView } from './threadTurnFolds';
 import { TurnBreak } from './TurnBreak';
-import type { MembershipFold, MembershipFoldView } from './membershipFolds';
+import {
+  heldFoldHeight,
+  type FoldedRowSizes,
+  type MembershipFold,
+  type MembershipFoldView,
+} from './membershipFolds';
 import { MembershipBreak } from './MembershipBreak';
 
 /**
@@ -190,6 +195,7 @@ export const timelineRowSizing = ({
   threadRecordMapRef,
   turnFolds,
   membershipFoldsRef,
+  foldedRowSizesRef,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -202,65 +208,41 @@ export const timelineRowSizing = ({
   threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
   /** The open thread's folded turns: a break adds its height to its row, which it alone fills. */
   turnFolds?: ThreadTurnFoldView;
-  /** The room's folded membership runs, read through a ref so paginator folds price accurately. */
+  /**
+   * The room's folded membership runs, as a closed fold's row is its break alone and an open
+   * fold's first row holds its break too. Read through refs, as the rows are.
+   */
   membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
+  /** The heights of the last render's membership rows (`useMembershipFoldRowSizes`). */
+  foldedRowSizesRef?: MutableRefObject<FoldedRowSizes>;
 }) => {
-  const estimateSize = (index?: number, nextWindowStart?: number): number => {
+  const estimateSize = (index?: number): number => {
     if (!threadId) {
       const rows = roomRowsRef.current;
       const position = index === undefined ? undefined : activeRangeRef.current.start + index;
       const event = position === undefined ? undefined : rows[position];
-      const eventId = event?.getId() ?? '';
-      const membershipView = eventId ? membershipFoldsRef?.current : undefined;
-      let membershipBreak: { fold: MembershipFold; open: boolean } | undefined;
-      if (membershipView) {
-        if (nextWindowStart !== undefined) {
-          const entry = membershipView.foldByEventId.get(eventId);
-          if (entry) {
-            const foldIds = new Set(entry.fold.hiddenIds);
-            let destBreakId: string | undefined;
-            for (
-              let rowIndex = Math.max(nextWindowStart, 0);
-              rowIndex < rows.length;
-              rowIndex += 1
-            ) {
-              const candidateId = rows[rowIndex]?.getId();
-              if (candidateId && foldIds.has(candidateId)) {
-                destBreakId = candidateId;
-                break;
-              }
-            }
-            if (!entry.open) {
-              return eventId === destBreakId ? TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX : 0;
-            }
-            if (eventId === destBreakId) {
-              membershipBreak = entry;
-            }
-          }
-        } else {
-          if (membershipView.hiddenIds.has(eventId)) return 0;
-          membershipBreak = membershipView.breaks.get(eventId);
-          // Offset by ROOM_ROW_UNMEASURED_PX so a 42 px break row still records in virtual-core's
-          // itemSizeCache and lets the opening room automatic fill reveal the timeline.
-          if (membershipBreak?.open === false) {
-            return TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
-          }
-        }
+      const membershipFold = event && membershipFoldsRef?.current.breaks.get(event.getId() ?? '');
+      if (membershipFold?.open === false) {
+        // A fold that closed over rows of the last render takes their place at their height.
+        const heldPx = foldedRowSizesRef
+          ? heldFoldHeight(foldedRowSizesRef.current, membershipFold.fold)
+          : 0;
+        return heldPx > 0 ? heldPx : TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
       }
-      let normal: number;
-      if (compactLayout) {
-        normal = ROOM_ROW_ESTIMATE_PX.compact;
-      } else if (!event || position === undefined) {
-        normal = ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
-      } else {
-        // The threaded view shows a badge under each message that starts a thread with replies.
-        const threadBadge =
-          !showThreadRepliesInRoom && hasThreadReplies(threadRecordMapRef.current.get(eventId));
-        normal =
-          estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) +
-          ROOM_ROW_UNMEASURED_PX;
+      const breakPx = membershipFold ? TURN_BREAK_ESTIMATE_PX : 0;
+      if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact + breakPx;
+      if (!event || position === undefined) {
+        return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
       }
-      return membershipBreak ? normal + TURN_BREAK_ESTIMATE_PX : normal;
+      // The threaded view shows a badge under each message that starts a thread with replies.
+      const threadBadge =
+        !showThreadRepliesInRoom &&
+        hasThreadReplies(threadRecordMapRef.current.get(event.getId() ?? ''));
+      return (
+        estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) +
+        ROOM_ROW_UNMEASURED_PX +
+        breakPx
+      );
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {
@@ -373,7 +355,9 @@ export const isTimelineRowHidden = (
  * thread's plans hide, replies a plugin hides, ignored senders and redactions take no place in
  * that walk. A fork's divider goes above the row it names, before that row's own dividers; a fork
  * draft's divider goes under the row it names. A thread's folded turn hides its middle rows, and
- * the first of them draws the turn's break, open or not, above its own dividers.
+ * the first of them draws the turn's break, open or not, above its own dividers. A closed fold of
+ * the room's membership events is one row (`RoomRowProjection`), which draws its break under the
+ * unread divider; an open one draws its break above its first row.
  */
 export const renderTimelineTiles = ({
   virtualItems,
@@ -451,8 +435,6 @@ export const renderTimelineTiles = ({
     return (
       !!turnFolds?.view.hiddenIds.has(id) ||
       turnFolds?.view.breaks.get(id)?.open === false ||
-      !!membershipFolds?.view.hiddenIds.has(id) ||
-      membershipFolds?.view.breaks.get(id)?.open === false ||
       messageData.threadSummaryTimeline.hiddenEventIds.has(id) ||
       messageData.secretRequestTimeline.hiddenEventIds.has(id) ||
       isTimelineRowHidden(event, {
@@ -463,36 +445,15 @@ export const renderTimelineTiles = ({
       })
     );
   };
-  const getClosedBreakAnchor =
-    !threadId && membershipFolds && membershipFolds.view.breaks.size > 0
-      ? (index: number) => {
-          const event = getRowEvent(index);
-          const id = event?.getId();
-          if (!id) return undefined;
-          const breakEntry = membershipFolds.view.breaks.get(id);
-          if (!breakEntry || breakEntry.open) return undefined;
-          const lastHiddenId = breakEntry.fold.hiddenIds.at(-1);
-          let lastAbsoluteIndex = roomRowEntries[windowStart + index]?.absoluteIndex;
-          if (lastHiddenId) {
-            for (
-              let entryIndex = Math.max(windowStart + index, 0);
-              entryIndex < roomRowEntries.length;
-              entryIndex += 1
-            ) {
-              const entry = roomRowEntries[entryIndex];
-              if (entry?.event.getId() === lastHiddenId) {
-                lastAbsoluteIndex = entry.absoluteIndex;
-                break;
-              }
-            }
-          }
-          return { lastAbsoluteIndex };
-        }
-      : undefined;
+  const membershipFoldAt = (event: MatrixEvent | undefined) =>
+    threadId ? undefined : membershipFolds?.view.breaks.get(event?.getId() ?? '');
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),
     getEvent: getRowEvent,
     isSkipped: isRowHidden,
+    isFoldBreak: membershipFolds
+      ? (index) => membershipFoldAt(getRowEvent(index))?.open === false
+      : undefined,
     getAbsoluteIndex: threadId
       ? undefined
       : (index) => roomRowEntries[windowStart + index]?.absoluteIndex,
@@ -503,7 +464,6 @@ export const renderTimelineTiles = ({
     joinsQuietRun: joinsQuietMarkerRun
       ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
       : undefined,
-    getClosedBreakAnchor,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
@@ -512,41 +472,38 @@ export const renderTimelineTiles = ({
     // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
     // its tile mounted until measuring corrects it.
     const id = event.getId() ?? '';
-    // So has a row a fold hides, once sized as nothing; the row that draws its break stays.
-    if (
-      item.size === 0 &&
-      (reactionOrEditEvent(event) ||
-        turnFolds?.view.hiddenIds.has(id) ||
-        membershipFolds?.view.hiddenIds.has(id))
-    ) {
+    // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
+    if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.view.hiddenIds.has(id))) {
       return null;
     }
     const context = rowContexts.get(item.index);
     // Outside the row's boundary, so the break keeps its focus when its fold opens or closes.
     const turnBreak = turnFolds?.view.breaks.get(id);
-    const membershipBreak = membershipFolds?.view.breaks.get(id);
-    const breakNode = turnBreak ? (
-      <TurnBreak
-        count={turnBreak.fold.count}
-        open={turnBreak.open}
-        onToggle={() => turnFolds?.toggle(turnBreak.fold)}
-      />
-    ) : membershipBreak ? (
-      <MembershipBreak
-        summary={membershipBreak.fold.summary}
-        open={membershipBreak.open}
-        onToggle={() => membershipFolds?.toggle(membershipBreak.fold)}
-      />
-    ) : undefined;
-    const isClosedBreak = turnBreak?.open === false || membershipBreak?.open === false;
-    const closedUnreadDivider =
-      membershipBreak?.open === false && context?.unreadDivider ? (
-        <UnreadDivider separatorRef={unreadMarkerRef} />
-      ) : null;
+    const membershipFold = membershipFoldAt(event);
+    let breakNode: ReactNode;
+    if (turnBreak) {
+      breakNode = (
+        <TurnBreak
+          count={turnBreak.fold.count}
+          open={turnBreak.open}
+          onToggle={() => turnFolds?.toggle(turnBreak.fold)}
+        />
+      );
+    } else if (membershipFold) {
+      breakNode = (
+        <MembershipBreak
+          summary={membershipFold.fold.summary}
+          open={membershipFold.open}
+          onToggle={() => membershipFolds?.toggle(membershipFold.fold)}
+        />
+      );
+    }
+    // A closed membership fold's row is its break, under the unread divider when the fold holds
+    // the first unread event.
+    const foldClosed = membershipFold?.open === false;
     let content: ReactNode = null;
-    // A closed break renders only its break (and optional unread divider), not its hidden row.
     // A quiet marker folded into the run's first row, which shows it, renders nothing.
-    if (!isClosedBreak && context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
+    if (!foldClosed && context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
       const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
         const marker = getRowEvent(index);
         const eventId = marker?.getId();
@@ -602,7 +559,7 @@ export const renderTimelineTiles = ({
         style={{ top: item.start + ledgerPxAtRender }}
       >
         <div data-room-row-index={threadId ? undefined : item.index}>
-          {closedUnreadDivider}
+          {foldClosed && context?.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
           {breakNode}
           {content}
         </div>
