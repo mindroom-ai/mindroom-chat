@@ -7,7 +7,8 @@ import { framingHeaders } from '../../scripts/frame-headers.mjs';
 const APP_SCHEME = 'capacitor';
 export const APP_ORIGIN = `${APP_SCHEME}://localhost`;
 export const FRAME_PAGE_FILES: readonly string[] = ['pdf-frame.html'];
-const OPEN_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+const OPEN_FLAGS =
+  fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
 
 export const parseAppUrl = (raw: string): URL | undefined => {
   try {
