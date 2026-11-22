@@ -1,6 +1,7 @@
 import { Box, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
+import { useRoomThreadMode } from '../../../matrix/hooks/useRoomThreadMode';
 import { SettingTile } from '../../../ui/SettingTile';
 import { ChoiceButton } from '../../../ui/settings/ChoiceButton';
 import type { RoomChoiceSettingDefinition } from './roomSettingDefinitions';
@@ -14,6 +15,20 @@ const readExactValue = (content: unknown): string | undefined => {
   const value = (content as { value?: unknown } | undefined)?.value;
   return typeof value === 'string' ? value : undefined;
 };
+
+/** Read-only line naming the room's effective `io.mindroom.thread_mode`, when published. */
+function EffectiveThreadModeLine({ roomId }: { roomId: string }) {
+  const { t } = useTranslation();
+  const mode = useRoomThreadMode(roomId, true);
+  if (!mode) return null;
+  return (
+    <Text size="T200" priority="300">
+      {t(`${STRINGS}.threadMode.effective`, {
+        mode: t(`${STRINGS}.threadMode.effectiveModes.${mode}`),
+      })}
+    </Text>
+  );
+}
 
 /**
  * A room setting with a few values: a menu that saves the choice as soon as it is picked, even
@@ -59,6 +74,7 @@ export function RoomChoiceSettingTile({
           />
         }
       />
+      {definition.showEffectiveThreadMode && <EffectiveThreadModeLine roomId={room.roomId} />}
       {/* The menu shows the new choice; this line says the save went through. */}
       <span role="status" className={css.VisuallyHidden}>
         {justSaved ? t(`${STRINGS}.saved`) : ''}
