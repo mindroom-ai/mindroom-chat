@@ -119,8 +119,8 @@ class BeforeCommit extends Component<{ read: () => void }> {
  * stay where they are whatever changes around them: the list scrolls so that the topmost card in
  * view that kept its place among the rows shows where it did. That one rule holds in every
  * browser. Chromium's scroll anchoring stays on, and the rule scrolls by what it leaves. A section
- * header is a row like a card: one that leads the view stays, and a section that opens under it
- * shows its cards there.
+ * header counts as a card only in the commit that opens or closes its section: one that leads the
+ * view stays, and the section shows its cards under it.
  *
  * In a commit, the cards are read right before React changes the page (render what the hook
  * returns inside the list) and compared after it, once React has put the focus back. A thread
@@ -163,8 +163,18 @@ export const useCompactScrollAnchor = (
         const cards = [...view.querySelectorAll<HTMLElement>(ROWS)];
         const stationary =
           before.order === order ? undefined : stationaryRows(before.order, order, sectionOf);
+        // Whether a section shows cards: its header is followed by one.
+        const open = (rows: readonly string[], header: string) => {
+          const next = rows[rows.indexOf(header) + 1];
+          return next !== undefined && !sectionOf?.(next);
+        };
         const anchor = before.cards
           .filter(({ rootId }) => stationary?.has(rootId) ?? true)
+          // A header only in the commit that opened or closed its section.
+          .filter(
+            ({ rootId }) =>
+              !sectionOf?.(rootId) || open(before.order, rootId) !== open(order, rootId)
+          )
           .map(({ rootId, top }) => ({
             top,
             card: cards.find((element) => rowKey(element) === rootId),

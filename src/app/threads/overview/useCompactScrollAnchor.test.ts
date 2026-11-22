@@ -163,7 +163,7 @@ describe('useCompactScrollAnchor', () => {
     expect(writes).toEqual([SECTION_HEADER + 10]);
   });
 
-  it('holds the header that leads the view when its section opens under it', () => {
+  it('holds the header that leads the view when its section opens or closes under it', () => {
     const later = ['#later', '$c', '$d', '$e', '$f'];
     const ids = ['#needsYou', '$a', '$b', '#working', ...later];
     // The folded section's header is the topmost row in view.
@@ -174,11 +174,26 @@ describe('useCompactScrollAnchor', () => {
     expect(view.querySelector('[data-scroll-anchor="$w1"]')!.getBoundingClientRect().top).toBe(
       SECTION_HEADER
     );
+
+    rerender(ids, () => show(ids));
+    expect(writes).toEqual([]);
+  });
+
+  it('keeps the cards in view in place when a card joins right under the header that leads the view', () => {
+    const ids = ['#needsYou', '$a', '$b', '#working', '$c', '$d', '$e', '$f'];
+    const { view, show, writes, rerender } = list(ids, SECTION_HEADER + 2 * CARD);
+    const topOfC = () =>
+      view.querySelector('[data-scroll-anchor="$c"]')!.getBoundingClientRect().top;
+    expect(topOfC()).toBe(SECTION_HEADER);
+    const next = ['#needsYou', '$a', '$b', '#working', '$new', '$c', '$d', '$e', '$f'];
+    rerender(next, () => show(next));
+    expect(writes).toEqual([SECTION_HEADER + 3 * CARD]);
+    expect(topOfC()).toBe(SECTION_HEADER);
   });
 
   it('reads a header that glides where the layout has it', () => {
-    const ids = ['#needsYou', '$a', '#working', '$b', '$c', '$d', '$e'];
-    const { view, writes, resize } = list(ids, SECTION_HEADER + CARD);
+    const ids = ['#needsYou', '$a', '#working', '#later', '$b', '$c', '$d'];
+    const { view, writes, rerender } = list(ids, SECTION_HEADER + CARD);
     // The header is 30 px into a glide when the reader's scroll reads the rows.
     const header = view.querySelector<HTMLElement>('[data-compact-section="#working"]')!;
     let glide = 30;
@@ -192,7 +207,8 @@ describe('useCompactScrollAnchor', () => {
     }));
     view.dispatchEvent(new Event('scroll'));
     glide = 0;
-    resize();
+    // Its section opens once the glide is over (the cards it shows are left out of this page).
+    rerender(['#needsYou', '$a', '#working', '$w1', '#later', '$b', '$c', '$d']);
     expect(writes).toEqual([]);
   });
 
