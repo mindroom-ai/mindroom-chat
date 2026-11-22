@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { AXE_PATH, axeFindings } from '../helpers/axe';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -387,6 +389,29 @@ test('Tab and Shift+Tab stop at every card of a long list, in both directions (W
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await onWebKitPage({ baseURL }, (page) => checkTabOrder(page, 'tabw', MAC ? 'Alt+Tab' : 'Tab'));
+});
+
+test('the cards a long list has not mounted are a named button that shows them', async ({
+  page,
+}) => {
+  test.skip(!fs.existsSync(AXE_PATH), 'axe-core is not installed');
+  test.setTimeout(240_000);
+  const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
+  const order = await openOrchard(page, 'axe', 1280, topics);
+  // At the top, the list mounts its first 24 cards: one button stands for the other six.
+  const spacer = page.locator(`${COMPACT_VIEW} [data-compact-spacer]`);
+  await expect(spacer).toHaveCount(1);
+  await expect(spacer).toHaveAccessibleName('6 more threads');
+  // No critical or serious finding names it (aria-hidden-focus, button-name), in any rule.
+  const findings = await axeFindings(page);
+  expect(findings.filter((finding) => finding.includes('data-compact-spacer'))).toEqual([]);
+  expect(findings.filter((finding) => /^(aria-hidden-focus|button-name):/.test(finding))).toEqual(
+    []
+  );
+  // A screen reader activates it without moving the focus to it: its first card takes the focus.
+  await spacer.evaluate((button: HTMLElement) => button.click());
+  await expect(card(page, order[24] ?? '')).toBeFocused();
+  await expect(card(page, order[24] ?? '')).toBeInViewport();
 });
 
 test('a thread left far down a long list hands the focus to its card', async ({ page }) => {
