@@ -700,6 +700,38 @@ final class ThreadSnapshotTests: XCTestCase {
         }
     }
 
+    func testTheEventsKeptForAnotherTrustBuildTheSameThread() throws {
+        let replace = { (id: String) in ["rel_type": "m.replace", "event_id": id] as JSON }
+        // A reply streams in edits, each with all of the text so far: only the newest is read.
+        let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "…", "io.mindroom.stream_status": "streaming"]))
+        let parts = (1...3).map { part in
+            event("$part\(part)", 4 + part, ["m.new_content": ["msgtype": "m.text", "body": "Part \(part)"] as JSON, "m.relates_to": replace("$reply")])
+        }
+        let foreign = event("$foreign", 9, sender: "@mallory:x", ["m.new_content": ["body": "Not mine to edit"] as JSON, "m.relates_to": replace("$reply")])
+        let locked = event("$locked", 10, type: "m.room.encrypted", ["ciphertext": "x", "m.relates_to": replace("$reply")])
+        let placeholder = echo("$echo", 2, of: "$root", VoiceEcho.placeholder)
+        let written = event("$written", 3, ["m.new_content": ["msgtype": "m.text", "body": "🎤 Book a flight",
+            "com.mindroom.visible_router_voice_echo": true, "com.mindroom.voice_source_event_id": "$root"] as JSON, "m.relates_to": replace("$echo")])
+        // A card reads every edit of it.
+        let cardEdits = ["denied", "approved"].enumerated().map { index, status in
+            event("$card\(index)", 12 + index, sender: "@mindroom_router:x", type: "io.mindroom.tool_approval",
+                  ["m.new_content": ["status": status] as JSON, "m.relates_to": replace("$card")])
+        }
+        let reaction = event("$reaction", 14, sender: me, type: "m.reaction", ["m.relates_to": ["rel_type": "m.annotation", "event_id": "$reply", "key": "👍"] as JSON])
+        let related = [placeholder, written, reply] + parts + [foreign, locked, card("$card", 11)] + cardEdits + [reaction]
+        let kept = try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, related)))
+        XCTAssertEqual(kept.related.compactMap { $0["event_id"] as? String },
+                       ["$echo", "$written", "$reply", "$part3", "$foreign", "$card", "$card0", "$card1", "$reaction"])
+        for trusted in [[], [agent]] as [Set<String>] {
+            let whole = ThreadSnapshot.build(root: voiceRoot, related: related, ownUserId: me, now: now, trustedAccounts: trusted)
+            XCTAssertEqual(ThreadSnapshot.build(root: kept.root, related: kept.related, ownUserId: me, now: now, trustedAccounts: trusted), whole)
+            XCTAssertEqual(whole.reply?.text, "Part 3")
+            XCTAssertEqual(whole.approvals.first?.status, .approved)
+        }
+        // No trust changes a thread without a message marked as a voice echo: nothing is kept of it.
+        XCTAssertNil(ThreadSnapshot.kept((voiceRoot, [reply] + parts + [card("$card", 11)] + cardEdits)))
+    }
+
     func testAVoiceMessageWhoseShownVersionNamesNoKindTakesNoTranscript() {
         // As the web client: the version shown is audio by its own `msgtype`, not by the first version's.
         let voice = event("$voice", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/v",

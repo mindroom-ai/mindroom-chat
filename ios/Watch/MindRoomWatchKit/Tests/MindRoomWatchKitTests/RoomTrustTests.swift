@@ -20,11 +20,9 @@ final class RoomTrustTests: XCTestCase {
     func testTrustIsEmptyUntilAReadSucceeds() async {
         let trust = RoomTrust()
         XCTAssertEqual(trust.accounts, [])
-        let failed = await trust.refresh { nil }
-        XCTAssertNil(failed)
+        await trust.refresh { nil }
         XCTAssertEqual(trust.accounts, [])
-        let read = await trust.refresh { self.state(roster: [self.helper]) }
-        XCTAssertEqual(read?.count, 4)
+        await trust.refresh { self.state(roster: [self.helper]) }
         XCTAssertEqual(trust.accounts, [router, helper])
     }
 
@@ -43,15 +41,14 @@ final class RoomTrustTests: XCTestCase {
         let trust = RoomTrust()
         let underWay = expectation(description: "the older read is under way")
         let older = Task {
-            _ = await trust.refresh {
+            await trust.refresh {
                 await withCheckedContinuation { self.finishOlder = $0; underWay.fulfill() }
                 return self.state(roster: [self.helper])
             }
         }
         await fulfillment(of: [underWay], timeout: 5)
         // A read that began later finds the helper gone from the roster, and finishes first.
-        let newer = await trust.refresh { self.state() }
-        XCTAssertNotNil(newer)
+        await trust.refresh { self.state() }
         XCTAssertEqual(trust.accounts, [router])
         finishOlder?.resume()
         await older.value
@@ -101,6 +98,63 @@ final class RoomTrustTests: XCTestCase {
         // And an open thread does not wait until the clock is where it was.
         await trust.refresh(ifOlderThan: 30, now: start.addingTimeInterval(-120), read)
         XCTAssertEqual(reads, 3)
+    }
+
+    private func resolvedTag(_ rootId: String) -> JSON {
+        ["type": ThreadTags.eventType, "state_key": ThreadTags.resolvedStateKey(root: rootId), "sender": "@bas:x",
+         "content": ThreadTags.resolvedContent(userId: "@bas:x", at: Date(timeIntervalSince1970: 1_000))]
+    }
+
+    func testTheResolvedThreadsAreThoseOfTheReadThatCounts() async {
+        let trust = RoomTrust()
+        let underWay = expectation(description: "the list's read is under way")
+        // The threads list reads the room's state before the thread was resolved...
+        let list = Task {
+            await trust.refresh {
+                await withCheckedContinuation { self.finishOlder = $0; underWay.fulfill() }
+                return self.state()
+            }
+        }
+        await fulfillment(of: [underWay], timeout: 5)
+        // ...and a notification's read, begun later, ends first. The list's own answer is dropped, and the
+        // list still knows the thread is resolved: the tags are those of the read that counts.
+        await trust.refresh { self.state() + [self.resolvedTag("$done")] }
+        XCTAssertEqual(trust.resolved, ["$done"])
+        finishOlder?.resume()
+        await list.value
+        XCTAssertEqual(trust.resolved, ["$done"])
+        // A thread resolved on this watch stays resolved when the room's state cannot be read.
+        trust.resolve("$here")
+        await trust.refresh { nil }
+        XCTAssertEqual(trust.resolved, ["$done", "$here"])
+        await trust.refresh { self.state() }
+        XCTAssertEqual(trust.resolved, [])
+    }
+
+    func testAJoiningCallerWaitsForTheReadUnderWayAndReadsWhenThereIsNone() async {
+        let trust = RoomTrust()
+        let underWay = expectation(description: "a read is under way")
+        let first = Task {
+            await trust.refresh {
+                await withCheckedContinuation { self.finishOlder = $0; underWay.fulfill() }
+                return self.state()
+            }
+        }
+        await fulfillment(of: [underWay], timeout: 5)
+        var reads = 0
+        let read: @MainActor () async -> [JSON]? = { reads += 1; return self.state(roster: [self.helper]) }
+        // Two notifications, or one and the threads list, share one request for the room's state.
+        let joined = Task { await trust.refreshOrJoin(read) }
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(trust.accounts, [])
+        finishOlder?.resume()
+        await joined.value
+        await first.value
+        XCTAssertEqual(reads, 0)
+        XCTAssertEqual(trust.accounts, [router])
+        await trust.refreshOrJoin(read)
+        XCTAssertEqual(reads, 1)
+        XCTAssertEqual(trust.accounts, [router, helper])
     }
 
     func testARoomHasOneTrust() {
