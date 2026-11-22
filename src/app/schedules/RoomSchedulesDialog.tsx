@@ -123,6 +123,8 @@ function ScheduleAccordionItem({
 
   useEffect(() => {
     if (!open) {
+      setConfirmingCancel(false);
+      focusInsideConfirmRef.current = false;
       setEditBusy(false);
       setCopyFailed(false);
     }
@@ -424,9 +426,6 @@ function ScheduleAccordionItem({
                   {copied ? t('roomSchedules.copied') : t('roomSchedules.copyId')}
                 </Text>
               </Button>
-              <span role="status" className={css.SrOnly}>
-                {copied ? t('roomSchedules.copied') : ''}
-              </span>
 
               {onEditTask && commandSafe && (
                 <IconButton
@@ -506,7 +505,10 @@ function ScheduleAccordionItem({
                   variant="Secondary"
                   fill="Soft"
                   radii="300"
-                  className={isCancelling ? css.AriaDisabledButton : undefined}
+                  className={classNames(
+                    css.CancelBarButton,
+                    isCancelling && css.AriaDisabledButton
+                  )}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleKeepCancel}
                 >
@@ -518,7 +520,10 @@ function ScheduleAccordionItem({
                   variant="Critical"
                   fill="Solid"
                   radii="300"
-                  className={isCancelling ? css.AriaDisabledButton : undefined}
+                  className={classNames(
+                    css.CancelBarButton,
+                    isCancelling && css.AriaDisabledButton
+                  )}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleConfirmCancelClick}
                 >
@@ -685,7 +690,7 @@ export const RoomSchedulesDialog = forwardRef<
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const hadDialogFocusRef = useRef(false);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
   const [now, setNow] = useState(Date.now);
   const [filter, setFilter] = useState<ScheduleFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(() =>
@@ -756,12 +761,14 @@ export const RoomSchedulesDialog = forwardRef<
     }
   }, [filter, showFilterBar]);
 
-  // Recover focus inside the dialog if a focused task row or filter pill unmounts.
+  // Recover focus inside the dialog only when the previously focused element unmounted.
   useLayoutEffect(() => {
     const modal = dialogRef.current;
-    if (!modal || !hadDialogFocusRef.current) return;
+    const lastFocused = lastFocusedRef.current;
+    if (!modal || !lastFocused || lastFocused.isConnected) return;
     const doc = modal.ownerDocument;
     if (doc.activeElement && doc.activeElement !== doc.body) return;
+    lastFocusedRef.current = null;
     const firstToggle = modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
     if (firstToggle) firstToggle.focus();
     else closeButtonRef.current?.focus();
@@ -883,12 +890,15 @@ export const RoomSchedulesDialog = forwardRef<
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      onFocusCapture={() => {
-        hadDialogFocusRef.current = true;
+      onFocusCapture={(event: FocusEvent<HTMLDivElement>) => {
+        if (event.target instanceof HTMLElement) {
+          lastFocusedRef.current = event.target;
+        }
       }}
       onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
-        if (event.relatedTarget && !dialogRef.current?.contains(event.relatedTarget)) {
-          hadDialogFocusRef.current = false;
+        const next = event.relatedTarget;
+        if (next instanceof Node && dialogRef.current && !dialogRef.current.contains(next)) {
+          lastFocusedRef.current = null;
         }
       }}
     >
@@ -950,6 +960,7 @@ export const RoomSchedulesDialog = forwardRef<
                         className={classNames(css.FilterPill, active && css.FilterPillActive)}
                         onClick={() => handleSelectFilter(option.id)}
                       >
+                        {active && <Icon size="50" src={Icons.Check} aria-hidden />}
                         <span>{option.label}</span>
                         <span className={css.FilterCount}>{option.count}</span>
                       </button>

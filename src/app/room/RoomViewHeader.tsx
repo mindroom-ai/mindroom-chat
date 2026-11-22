@@ -62,6 +62,7 @@ import {
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
+import { toPlainText } from '../editor/output';
 import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
@@ -105,6 +106,8 @@ export type RoomViewHeaderProps = {
   threadFilterState?: ThreadFilterState;
   /** Focuses the target conversation composer after an action closes a header dialog. */
   onFocusComposer?: (targetThreadId?: string) => void;
+  /** True while the open thread composer is drafting a thread fork rather than a regular reply. */
+  isForkDraft?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -225,6 +228,7 @@ export function RoomViewHeader({
   openThreadId = threadId,
   threadFilterState,
   onFocusComposer,
+  isForkDraft = false,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -428,32 +432,36 @@ export function RoomViewHeader({
   };
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
-    const editTargetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+    if (isForkDraft) return 'draft-busy';
+    const targetThreadId = openThreadId;
     const prefix = `!edit_schedule ${task.taskId} `;
+    const draftKey = getRoomInputDraftKey(myUserId, room.roomId, targetThreadId);
+    const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+    const existing = store.get(draftAtom);
+    const existingText = toPlainText(existing, false);
     const offer = [createParagraphElement(prefix)];
+    // Allow resuming an existing edit draft for this exact task while still rejecting
+    // unrelated drafts, staged attachments, reply targets, or voice drafts.
+    const targetOffer = existingText.startsWith(prefix) ? existing : offer;
     const offerState = store.get(
-      composerOfferAtom([myUserId, room.roomId, editTargetThreadId], offer, confirmedVoiceThreadId)
+      composerOfferAtom(
+        [myUserId, room.roomId, targetThreadId],
+        targetOffer,
+        confirmedVoiceThreadId
+      )
     );
     if (offerState === 'busy') {
       return 'draft-busy';
     }
     if (offerState === 'empty') {
-      const draftKey = getRoomInputDraftKey(myUserId, room.roomId, editTargetThreadId);
-      store.set(roomIdToMsgDraftAtomFamily(draftKey), offer);
+      store.set(draftAtom, offer);
     }
     const opener = schedules?.opener;
     setSchedules(undefined);
-    if (editTargetThreadId && editTargetThreadId !== openThreadId) {
-      openScheduledThread(editTargetThreadId);
-    } else {
-      if (!editTargetThreadId && viewSwitch?.compact) {
-        viewSwitch.toggle();
-      }
-      requestAnimationFrame(() => {
-        if (onFocusComposer) onFocusComposer(editTargetThreadId);
-        else restoreFocusAfterDismiss(opener);
-      });
-    }
+    window.requestAnimationFrame(() => {
+      if (onFocusComposer) onFocusComposer(targetThreadId);
+      else restoreFocusAfterDismiss(opener);
+    });
     return 'prefilled';
   };
 

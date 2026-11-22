@@ -9,10 +9,51 @@ type PromptToken = {
   offset: number;
 };
 
+const isStartOfLine = (text: string, index: number): boolean => {
+  let pos = index - 1;
+  while (pos >= 0 && (text[pos] === ' ' || text[pos] === '\t')) {
+    pos -= 1;
+  }
+  return pos < 0 || text[pos] === '\n';
+};
+
+const findFenceBlockEnd = (prompt: string, openRunEnd: number, runLen: number): number => {
+  const firstNewline = prompt.indexOf('\n', openRunEnd);
+  if (firstNewline === -1) return prompt.length;
+
+  let lineStart = firstNewline + 1;
+  while (lineStart < prompt.length) {
+    const nextNewline = prompt.indexOf('\n', lineStart);
+    const lineEnd = nextNewline === -1 ? prompt.length : nextNewline;
+
+    let pos = lineStart;
+    while (pos < lineEnd && (prompt[pos] === ' ' || prompt[pos] === '\t')) {
+      pos += 1;
+    }
+    let ticksEnd = pos;
+    while (ticksEnd < lineEnd && prompt[ticksEnd] === '`') {
+      ticksEnd += 1;
+    }
+    if (ticksEnd - pos >= runLen) {
+      let tail = ticksEnd;
+      while (tail < lineEnd && (prompt[tail] === ' ' || prompt[tail] === '\t')) {
+        tail += 1;
+      }
+      if (tail === lineEnd) {
+        return lineEnd;
+      }
+    }
+
+    if (nextNewline === -1) break;
+    lineStart = nextNewline + 1;
+  }
+
+  return prompt.length;
+};
+
 /**
  * Splits only clean single-backtick inline spans on a single line.
- * Escaped backticks (`\``) and multi-backtick spans or fenced blocks (`` `` ``, ```` ``` ````)
- * stay completely verbatim.
+ * Escaped backticks (`\``), fenced code blocks, and multi-backtick spans stay verbatim.
  */
 const tokenizeInlineCode = (prompt: string): PromptToken[] => {
   const tokens: PromptToken[] = [];
@@ -36,10 +77,21 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
     }
     const runLen = runEnd - i;
 
+    if (runLen >= 3 && isStartOfLine(prompt, i)) {
+      const verbatimEnd = findFenceBlockEnd(prompt, runEnd, runLen);
+      if (i > textStart) {
+        tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
+      }
+      tokens.push({ kind: 'verbatim', value: prompt.slice(i, verbatimEnd), offset: i });
+      i = verbatimEnd;
+      textStart = i;
+      continue;
+    }
+
     if (runLen >= 2) {
       let k = runEnd;
       let matchedEnd = -1;
-      while (k < prompt.length) {
+      while (k < prompt.length && prompt[k] !== '\n') {
         if (prompt[k] === '\\' && prompt[k + 1] === '`') {
           k += 2;
           continue;
@@ -59,7 +111,7 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
         k += 1;
       }
 
-      const verbatimEnd = matchedEnd === -1 ? prompt.length : matchedEnd;
+      const verbatimEnd = matchedEnd === -1 ? runEnd : matchedEnd;
       if (i > textStart) {
         tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
       }

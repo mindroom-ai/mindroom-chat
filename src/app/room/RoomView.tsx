@@ -345,6 +345,7 @@ export function RoomView({
               openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
+              isForkDraft={Boolean(openThreadId && forkAt)}
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -397,6 +398,7 @@ export function RoomView({
                     threadId={openThreadId}
                     threadFilterState={threadState.threadFilterState}
                     onFocusComposer={focusScheduleComposer}
+                    isForkDraft={Boolean(openThreadId && forkAt)}
                     {...headerProps}
                   />
                 )}
@@ -437,6 +439,7 @@ export function RoomView({
                             threadId={openThreadId}
                             threadFilterState={threadState.threadFilterState}
                             onFocusComposer={focusScheduleComposer}
+                            isForkDraft={Boolean(openThreadId && forkAt)}
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

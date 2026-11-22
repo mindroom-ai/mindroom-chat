@@ -60,11 +60,11 @@ vi.mock('./roomSchedules.css', () => ({
   ActionsSecondary: 'actions-secondary',
   CompactAction: 'compact-action',
   IconAction: 'icon-action',
+  CancelBarButton: 'cancel-bar-button',
   AriaDisabledButton: 'aria-disabled-button',
   Metadata: 'metadata',
   TaskId: 'task-id',
   Awaiting: 'awaiting',
-  SrOnly: 'sr-only',
 }));
 vi.mock('../lib/dom', () => ({ copyToClipboard: mocks.copyToClipboard }));
 vi.mock('../ui/page/PageScroll', () => ({
@@ -331,6 +331,7 @@ describe('RoomSchedulesDialog accordion, filters, and focus recovery', () => {
       const filterBar = mixed.host.querySelector('.filter-bar')!;
       const pills = [...filterBar.querySelectorAll<HTMLButtonElement>('button')];
       expect(pills.map((btn) => btn.textContent)).toEqual(['All2', 'One-time1', 'Recurring1']);
+      expect(pills.map((btn) => btn.querySelectorAll('svg').length)).toEqual([1, 0, 0]);
 
       // Clicking Recurring narrows to 1 task and auto-expands it.
       pills[2]!.focus();
@@ -521,6 +522,7 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       await click(findButtonByText(host, 'Copy ID')!);
       expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
       expect(findButtonByText(host, 'Copied')).toBeDefined();
+      expect(host.textContent?.match(/Copied/g)).toHaveLength(1);
 
       act(() => {
         vi.advanceTimersByTime(2_000);
@@ -703,6 +705,55 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       });
       expect(host.textContent).toContain('Cancellation sent');
       expect(document.activeElement).toBe(detailsBtn);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('does not jump focus on live updates when the previously focused control is still connected', () => {
+    const first = makeTask({ taskId: 'keep-1', description: 'First task' });
+    const second = makeTask({ taskId: 'keep-2', description: 'Second task' });
+    const base = {
+      roomId: '!room:example.org',
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+    const { host, rerender, unmount } = mountDialog({ ...base, tasks: [first] });
+    try {
+      const toggle = host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')!;
+      toggle.focus();
+      expect(document.activeElement).toBe(toggle);
+      // Simulate clicking plain text so activeElement falls to body while toggle stays in the DOM.
+      toggle.blur();
+      expect(document.activeElement).toBe(document.body);
+
+      rerender({ ...base, tasks: [first, second] });
+      expect(document.activeElement).toBe(document.body);
+    } finally {
+      unmount();
+    }
+  });
+
+  it('dismisses an open cancel confirmation when the row collapses', async () => {
+    const first = makeTask({ taskId: 'collapse-1', description: 'Collapsible task' });
+    const second = makeTask({ taskId: 'collapse-2', description: 'Other task' });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [first, second],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+    });
+    try {
+      const toggle = host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')!;
+      await click(toggle);
+      await click(findButtonByAriaLabel(host, 'Cancel')!);
+      expect(host.textContent).toContain('Cancel this scheduled task?');
+
+      // Collapsing and re-opening should not leave the stale confirmation bar open.
+      await click(toggle);
+      await click(toggle);
+      expect(host.textContent).not.toContain('Cancel this scheduled task?');
     } finally {
       unmount();
     }

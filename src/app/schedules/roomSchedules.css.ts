@@ -8,6 +8,7 @@ const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}
 
 const subtleBorder = `color-mix(in srgb, ${color.Surface.OnContainer} 10%, transparent)`;
 const strongBorder = `color-mix(in srgb, ${color.Surface.OnContainer} 18%, transparent)`;
+const activePillBorder = `color-mix(in srgb, ${color.Primary.OnContainer} 35%, transparent)`;
 const subtleSurface = `color-mix(in srgb, ${color.Surface.OnContainer} 4%, transparent)`;
 const hoverSurface = `color-mix(in srgb, ${color.Surface.OnContainer} 6%, transparent)`;
 
@@ -128,7 +129,7 @@ export const FilterPill = style([
 export const FilterPillActive = style({
   backgroundColor: color.Primary.Container,
   color: color.Primary.OnContainer,
-  borderColor: color.Primary.ContainerLine,
+  borderColor: activePillBorder,
   selectors: {
     '&:hover': {
       backgroundColor: color.Primary.ContainerHover,
@@ -496,14 +497,29 @@ export const ActionsSecondary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S200,
+  gap: config.space.S300,
   marginInlineStart: 'auto',
   minWidth: 0,
 });
 
 export const CompactAction = style([touchTarget('4px', '', { blockReach: '10px' })]);
 
-export const IconAction = style([touchTarget('10px', '', { blockReach: '10px' })]);
+export const IconAction = style([
+  {
+    minWidth: toRem(32),
+    minHeight: toRem(32),
+  },
+  touchTarget('6px', '', { blockReach: '6px' }),
+]);
+
+export const CancelBarButton = style({
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${color.Critical.OnContainer}`,
+      outlineOffset: toRem(2),
+    },
+  },
+});
 
 export const AriaDisabledButton = style({
   opacity: 0.65,
@@ -537,16 +553,4 @@ export const TaskId = style([
 export const Awaiting = style({
   color: color.Warning.OnContainer,
   fontWeight: config.fontWeight.W600,
-});
-
-export const SrOnly = style({
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0, 0, 0, 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
 });

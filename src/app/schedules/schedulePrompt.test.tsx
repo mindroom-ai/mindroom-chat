@@ -70,19 +70,33 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
-  it('leaves escaped backticks, double-backtick spans, and fenced JS template literals verbatim', () => {
-    const prompt =
-      'Escaped \\`not code\\`, double ``has `inner` ticks`` and fence:\n```js\nconst s = `hi ${x}`;\n@decorator\n```\nthen `real`';
-    const { host, cleanup } = renderPrompt(prompt);
+  it('leaves escaped backticks, double-backtick spans, and fenced JS blocks with embedded backticks verbatim', () => {
+    const fenced =
+      '```js\nconst fence = "```";\nconst s = `hi ${x}`;\n@decorator\n```\nThen run `npm test`.';
+    const { host, cleanup } = renderPrompt(fenced);
     try {
       const codes = [...host.querySelectorAll('code.inline-code')].map((el) => el.textContent);
-      expect(codes).toEqual(['real']);
+      expect(codes).toEqual(['npm test']);
       expect(host.querySelectorAll('.prompt-mention')).toHaveLength(0);
       expect(host.textContent).toBe(
-        'Escaped \\`not code\\`, double ``has `inner` ticks`` and fence:\n```js\nconst s = `hi ${x}`;\n@decorator\n```\nthen real'
+        '```js\nconst fence = "```";\nconst s = `hi ${x}`;\n@decorator\n```\nThen run npm test.'
       );
     } finally {
       cleanup();
+    }
+
+    const inlineMulti = 'Escaped \\`not code\\` and double ``has `inner` ticks`` then `real`';
+    const second = renderPrompt(inlineMulti);
+    try {
+      const codes = [...second.host.querySelectorAll('code.inline-code')].map(
+        (el) => el.textContent
+      );
+      expect(codes).toEqual(['real']);
+      expect(second.host.textContent).toBe(
+        'Escaped \\`not code\\` and double ``has `inner` ticks`` then real'
+      );
+    } finally {
+      second.cleanup();
     }
   });
 
