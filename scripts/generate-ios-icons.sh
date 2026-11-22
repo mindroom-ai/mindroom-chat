@@ -18,6 +18,11 @@ else
   exit 1
 fi
 
+if ! command -v resvg >/dev/null 2>&1; then
+  echo "resvg is required to draw the launch screen (nix shell nixpkgs#resvg)." >&2
+  exit 1
+fi
+
 resize() {
   local size="$1"
   local out="$2"
@@ -69,14 +74,12 @@ echo "Generated iOS and Mac AppIcon assets in $ICON_DIR"
 
 # The launch screen: App/Base.lproj/LaunchScreen.storyboard centres the M on black, half the
 # screen's shorter side wide and at most 230 points (690 pixels at 3x). The M is the vector
-# logo, scripts/branding/mindroom-logo-mark.svgz (assets/logo/logo-mark.svgz of
-# mindroom-ai/mindroom), drawn with resvg at 4 times the largest size and cropped to the M.
+# logo, drawn with resvg on a 2760-pixel canvas and cropped to the M. The committed PNGs were
+# drawn with resvg 0.49.0 and ImageMagick 7.1.2.
+# scripts/branding/mindroom-logo-mark.svgz is a copy of assets/logo/logo-mark.svgz of
+# mindroom-ai/mindroom; copy it again from there when the logo changes.
 SPLASH_DIR="ios/App/App/Assets.xcassets/Splash.imageset"
 VECTOR_MARK="scripts/branding/mindroom-logo-mark.svgz"
-if ! command -v resvg >/dev/null 2>&1; then
-  echo "resvg is required to draw the launch screen (nix shell nixpkgs#resvg)." >&2
-  exit 1
-fi
 resvg -w 2760 "$VECTOR_MARK" "$MAC_DIR/splash-source.png"
 for scale in 1 2 3; do
   suffix=$([[ $scale == 1 ]] && echo "" || echo "@${scale}x")
