@@ -41,8 +41,9 @@ Working back; an edit without a status does not. Once the thread holds the reply
 or as the reply its summary names, only the usual checks of that reply count. Encrypted rooms are
 excluded. Known costs: a tool call silent for more than 5 minutes shows Needs you until its next
 edit, as does a stream silent since relaunch; a redaction or a finishing edit that never arrives
-can leave Working for up to 5 minutes; and the thread's details show no tool trace for a reply the
-thread does not hold.
+can leave Working for up to 5 minutes, as can edits of one reply that share a server timestamp
+(three or more, the finishing one in between with its status in record form); and the thread's
+details show no tool trace for a reply the thread does not hold.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups

@@ -22,7 +22,7 @@ import { isTrustedAgentSender } from '../protocol/untrustedContent';
 import { isEventOrderedAfter } from '../room';
 import { watchRoomThreads } from '../watchRoomThreads';
 import { STREAM_IDLE_LIMIT_MS } from './streamingReplies';
-import { getSyncedEdit } from './syncedEdits';
+import { getFinishingEdit, getSyncedEdit } from './syncedEdits';
 
 // A thread holds its replies only once it loads its first page, which the app does when it shows
 // or opens the thread. After a reload, a thread whose newest event is its title notice (MindRoom
@@ -258,8 +258,10 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const thread = hint?.thread ?? edit.getThread();
     if (!thread || (!hint && edit.getSender() !== reply?.getSender())) return;
     const bundled = reply && getSameSenderBundledEdit(reply.event);
-    // Of two edits sent at once the thread keeps the later arrival; the sync's store, the earlier.
-    const others = [edit, bundled && new MatrixEvent(bundled), getSyncedEdit(replyId)];
+    // Of edits sent at once the thread keeps the last arrival and the sync's store the first; a
+    // finish between the two is the one that the store remembers apart.
+    const synced = [getSyncedEdit(replyId), reply && getFinishingEdit(reply)];
+    const others = [edit, bundled && new MatrixEvent(bundled), ...synced];
     const known = revisionsOf(thread, replyId, from, others);
     if (finishedSince(known, from)) {
       dropHints((_hint, id) => id === replyId);

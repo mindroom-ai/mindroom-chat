@@ -276,7 +276,7 @@ describe('streaming replies on thread cards', () => {
     ];
   });
   afterEach(() => {
-    clients.splice(0).forEach((mx) => mx.stopClient());
+    clients.splice(0).forEach((mx) => closeClient(mx));
     [
       Thread.hasServerSideSupport,
       Thread.hasServerSideListSupport,
@@ -600,6 +600,13 @@ describe('streaming replies on thread cards', () => {
         done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
         return { live: [[done], [s.streaming(now)]] };
       },
+    ],
+    [
+      // Neither the thread nor the sync's store of newest edits keeps the middle one of three.
+      'a stale edit synced after a streaming one and one that finished the reply, all at the same time',
+      (s, now) => ({
+        live: [[s.streaming(now, '$a-first')], [s.completed(now)], [s.streaming(now, '$b-later')]],
+      }),
     ],
     [
       'a newer finishing edit from the saved sync that no thread took',
