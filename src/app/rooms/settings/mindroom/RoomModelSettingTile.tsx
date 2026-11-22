@@ -109,6 +109,7 @@ export function RoomModelSettingTile({
   };
 
   const toggle = (event: MouseEvent<HTMLButtonElement>) => {
+    if (sending) return;
     if (anchor) {
       setAnchor(undefined);
       return;
@@ -159,7 +160,10 @@ export function RoomModelSettingTile({
               aria-description={label}
               aria-haspopup="dialog"
               aria-expanded={anchor !== undefined}
-              disabled={!canEdit || sending}
+              // Someone who may not edit gets a disabled button. A save only marks it disabled, so
+              // the focus the closing menu handed back stays on it until the save ends.
+              disabled={!canEdit}
+              aria-disabled={sending || undefined}
               onClick={toggle}
               variant="Secondary"
               fill="Soft"

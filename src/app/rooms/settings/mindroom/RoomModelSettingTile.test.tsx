@@ -276,6 +276,32 @@ describe('RoomModelSettingTile', () => {
     expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
   });
 
+  it('keeps focus on its button through a save, which opens nothing meanwhile', async () => {
+    let finish: (result: { event_id: string }) => void = () => undefined;
+    client.sendStateEvent.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    renderTile();
+
+    open();
+    fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
+    await settle();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger());
+    expect(trigger().disabled).toBe(false);
+    expect(trigger().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(trigger());
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await act(async () => finish({ event_id: '$sent' }));
+    expect(document.activeElement).toBe(trigger());
+    expect(trigger().hasAttribute('aria-disabled')).toBe(false);
+    expect(trigger().textContent).toBe('Deep');
+  });
+
   it('shows an alert when the save fails, and a disabled button to someone who may not edit', async () => {
     setLive({ value: 'fast' });
     client.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
