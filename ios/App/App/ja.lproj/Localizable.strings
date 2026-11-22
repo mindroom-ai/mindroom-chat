@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%1$@ で %2$@ %3$@";
 "IMAGE_FROM_USER" = "%1$@ が画像を送信しました：%2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@ が %3$@ で画像を送信しました：%2$@";
-"VOICE_CALL_FROM_USER" = "%1$@ からの音声通話";
-"VIDEO_CALL_FROM_USER" = "%1$@ からのビデオ通話";
+"VOICE_CALL_FROM_USER" = "%1$@ からの着信";
+"VIDEO_CALL_FROM_USER" = "%1$@ からのビデオ通話の着信";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ があなたを %2$@ に招待しました";
 "USER_INVITE_TO_CHAT" = "%1$@ があなたをチャットに招待しました";
 "QUICK_CAPTURE" = "クイックキャプチャ";

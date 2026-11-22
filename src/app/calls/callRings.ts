@@ -20,6 +20,32 @@ export type IncomingRing = {
   expiresAt: number;
 };
 
+/** Rooms with at most this many joined members ring on call start, even outside `m.direct`. */
+export const MAX_RING_JOINED_MEMBERS = 3;
+
+export type CallNotifyInputs = {
+  peopleInCall: number;
+  direct: boolean;
+  joinedMembers: number;
+};
+
+export type CallNotifyChoice = 'ring' | 'notification' | undefined;
+
+/**
+ * Picks whether starting a call rings the room (`ring`), notifies a group (`notification`), or
+ * sends nothing (`undefined`, when somebody is already in the call).
+ */
+export const chooseCallNotify = ({
+  peopleInCall,
+  direct,
+  joinedMembers,
+}: CallNotifyInputs): CallNotifyChoice => {
+  if (peopleInCall > 0) return undefined;
+  return direct || (joinedMembers >= 2 && joinedMembers <= MAX_RING_JOINED_MEMBERS)
+    ? 'ring'
+    : 'notification';
+};
+
 /** A notification ring lasts this long when it names no lifetime (MSC4075's default). */
 const DEFAULT_RING_LIFETIME_MS = 30_000;
 /**

@@ -24,6 +24,7 @@
 		D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */; };
 		D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */; };
 		D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000007 /* PrivacyInfo.xcprivacy */; };
+		C41100000000000000000002 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
 		A18A00000000000000000002 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A18A00000000000000000001 /* InfoPlist.strings */; };
 		0C0000000000000000000002 /* QuickCaptureSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000001 /* QuickCaptureSceneDelegate.swift */; };
 		0C0000000000000000000004 /* MacWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000003 /* MacWindowing.swift */; };
@@ -51,6 +52,7 @@
 		5B970209E27EB413F9F80129 /* MindRoomAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */; };
 		6A144DF55DEECEA2EFEE3376 /* MindRoomMacSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A27EE41BC509082EB29A25 /* MindRoomMacSupport.swift */; };
 		6C08BB7B403AC934D33AE22B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000007 /* PrivacyInfo.xcprivacy */; };
+		C41100000000000000000003 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
 		6EFA77CC23C196F79EF56888 /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		709FB5E9C80813AB7DAE22E0 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
 		7A65B94786FF949EF0E4CD2F /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
@@ -188,6 +190,7 @@
 		D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsRecorder.swift; sourceTree = "<group>"; };
 		D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsPlugin.swift; sourceTree = "<group>"; };
 		D1A600000000000000000007 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C41100000000000000000001 /* ring.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = ring.wav; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 		A18A000000000000000000C8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en"; path = "en.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A18A00000000000000000065 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "de"; path = "de.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -402,6 +405,7 @@
 				4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */,
 				1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */,
 				D1A600000000000000000007 /* PrivacyInfo.xcprivacy */,
+				C41100000000000000000001 /* ring.wav */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -707,6 +711,7 @@
 				C0DEC0DE0000000000000007 /* Localizable.strings in Resources */,
 				A18A00000000000000000002 /* InfoPlist.strings in Resources */,
 				D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */,
+				C41100000000000000000002 /* ring.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -737,6 +742,7 @@
 				7CE6F5DED105D44E79BFEAFD /* Localizable.strings in Resources */,
 				21C73799E96EA34CE273455A /* InfoPlist.strings in Resources */,
 				6C08BB7B403AC934D33AE22B /* PrivacyInfo.xcprivacy in Resources */,
+				C41100000000000000000003 /* ring.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
