@@ -115,7 +115,6 @@ const longCollapsibleText = (turn: number): string =>
   ].join('\n');
 
 const longAgentAnswer = (turn: number) => {
-  // Vary sizes dramatically (some huge 55-line code blocks, some short) to stress estimates!
   const extraCode = turn % 3 === 0 ? 55 : turn % 2 === 0 ? 28 : 10;
   const codeLines = Array.from(
     { length: extraCode },
@@ -161,8 +160,7 @@ type FixtureWorld = {
   agent: DisposableUser;
   roomId: string;
   hugeThreadRootId: string;
-  streamingThreadRootId: string;
-  hugeThreadEventCount: number;
+  switchThreadRootId: string;
 };
 
 const buildFixtureWorld = async (): Promise<FixtureWorld> => {
@@ -179,29 +177,23 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   const imgSized = await uploadPng(agent.accessToken, 800, 520, 40);
   const imgUnsized = await uploadPng(agent.accessToken, 680, 560, 160);
 
-  // Thread 1: HUGE realistic thread (~420+ primary events, 64 finished turns) so that initial open
-  // loads only the newest ~200 events and scrolling UP triggers 6+ real /relations back-pagination
-  // pages filled with folded agent turns, images (with & without w/h), collapsible pastes, and huge code blocks!
+  // Thread 1: 48 turns (~260 events) with folded turns, images, collapsibles, huge code blocks
   const hugeThreadRootId = await send(reader, roomId, 'm.room.message', {
     msgtype: 'm.text',
     body: `Huge thread timeline jumps (${tag})`,
   });
   let lastId = hugeThreadRootId;
-  let eventCount = 1;
-
-  for (let turn = 1; turn <= 64; turn += 1) {
+  for (let turn = 1; turn <= 48; turn += 1) {
     const userBody =
       turn % 3 === 0
         ? longCollapsibleText(turn)
-        : `Turn #${turn}: check scroll behavior when loading older history pages and folded turns.`;
+        : `Turn #${turn}: check scroll behavior when older pages with folded turns land mid-scroll.`;
     lastId = await send(reader, roomId, 'm.room.message', {
       msgtype: 'm.text',
       body: userBody,
       ...inThread(hugeThreadRootId, lastId),
     });
-    eventCount += 1;
 
-    // 3 intermediate agent messages -> folded behind TurnBreak by planThreadTurnFolds!
     for (let step = 1; step <= 3; step += 1) {
       lastId = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.text',
@@ -211,80 +203,52 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
         'io.mindroom.stream_status': 'completed',
         ...inThread(hugeThreadRootId, lastId),
       });
-      eventCount += 1;
     }
 
-    // Images (alternating sized vs unsized)
     if (turn % 4 === 1) {
       const hasDims = turn % 8 === 1;
       lastId = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.image',
         body: `screenshot-turn-${turn}.png`,
         url: hasDims ? imgSized : imgUnsized,
-        info: hasDims
-          ? { mimetype: 'image/png', w: 800, h: 520 }
-          : { mimetype: 'image/png' },
+        info: hasDims ? { mimetype: 'image/png', w: 800, h: 520 } : { mimetype: 'image/png' },
         ...inThread(hugeThreadRootId, lastId),
       });
-      eventCount += 1;
     }
 
-    // Final long agent reply
     lastId = await send(agent, roomId, 'm.room.message', {
       ...longAgentAnswer(turn),
       ...inThread(hugeThreadRootId, lastId),
     });
-    eventCount += 1;
   }
 
-  await send(agent, roomId, 'm.room.message', {
-    msgtype: 'm.notice',
-    body: 'Huge thread timeline jumps investigation',
-    'io.mindroom.thread_summary': {
-      version: 1,
-      summary: 'Huge thread timeline jumps investigation',
-      message_count: eventCount,
-      generated_at: new Date().toISOString(),
-      model: 'test',
-    },
-    ...inThread(hugeThreadRootId, lastId),
-  });
-  eventCount += 1;
-
-  // Thread 2: Streaming open thread
-  const streamingThreadRootId = await send(reader, roomId, 'm.room.message', {
+  // Thread 2: Second realistic thread with folded turns (for thread switching & late banner test)
+  const switchThreadRootId = await send(reader, roomId, 'm.room.message', {
     msgtype: 'm.text',
-    body: `Streaming open thread (${tag})`,
+    body: `Switch target thread (${tag})`,
   });
-  let streamLast = streamingThreadRootId;
-  for (let turn = 1; turn <= 5; turn += 1) {
-    streamLast = await send(reader, roomId, 'm.room.message', {
+  let switchLast = switchThreadRootId;
+  for (let turn = 1; turn <= 12; turn += 1) {
+    switchLast = await send(reader, roomId, 'm.room.message', {
       msgtype: 'm.text',
-      body: `Streaming fixture turn ${turn}`,
-      ...inThread(streamingThreadRootId, streamLast),
+      body: turn % 3 === 0 ? longCollapsibleText(200 + turn) : `Switch turn #${turn}`,
+      ...inThread(switchThreadRootId, switchLast),
     });
-    for (let step = 1; step <= 2; step += 1) {
-      streamLast = await send(agent, roomId, 'm.room.message', {
+    for (let step = 1; step <= 3; step += 1) {
+      switchLast = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.text',
-        body: `Intermediate step ${step} of turn ${turn}`,
+        body: `Switch step ${step} of turn ${turn}\n`.repeat(3),
         'io.mindroom.stream_status': 'completed',
-        ...inThread(streamingThreadRootId, streamLast),
+        ...inThread(switchThreadRootId, switchLast),
       });
     }
-    streamLast = await send(agent, roomId, 'm.room.message', {
-      ...longAgentAnswer(100 + turn),
-      ...inThread(streamingThreadRootId, streamLast),
+    switchLast = await send(agent, roomId, 'm.room.message', {
+      ...longAgentAnswer(200 + turn),
+      ...inThread(switchThreadRootId, switchLast),
     });
   }
 
-  return {
-    reader,
-    agent,
-    roomId,
-    hugeThreadRootId,
-    streamingThreadRootId,
-    hugeThreadEventCount: eventCount,
-  };
+  return { reader, agent, roomId, hugeThreadRootId, switchThreadRootId };
 };
 
 type WriteEntry = {
@@ -564,7 +528,6 @@ const installThreadJumpProbe = () => {
             const userScroll = dScroll - appDelta;
             const unexplained = ds.length > 0 ? median + userScroll : 0;
             const inputAge = now - probe.lastInput;
-            // Exclude pure browser momentum inertia (app wrote nothing and rows moved by exact -dScroll)
             const pureBrowserScroll = appDelta === 0 && Math.abs(median + dScroll) < 2;
 
             const reasons: string[] = [];
@@ -660,7 +623,7 @@ const stopProbe = (page: Page): Promise<ProbeReport> =>
     ).__threadJumpProbe.stop()
   );
 
-const scrollUpFastThroughHistory = async (
+const scrollUpWhilePaginating = async (
   page: Page,
   cdp: CDPSession | undefined,
   setup: Setup
@@ -677,39 +640,37 @@ const scrollUpFastThroughHistory = async (
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   });
 
-  // Scroll all the way up across multiple paginated pages!
   if (setup.viewport === 'desktop') {
     await page.mouse.move(center.x, center.y);
-    for (let burst = 0; burst < 32; burst += 1) {
-      for (let notch = 0; notch < 18; notch += 1) {
-        await page.mouse.wheel(0, -240);
+    for (let burst = 0; burst < 20; burst += 1) {
+      for (let notch = 0; notch < 14; notch += 1) {
+        await page.mouse.wheel(0, -220);
         await page.waitForTimeout(16);
       }
-      // Alternate short/medium/long pauses so we hit mid-scroll, quiescence settles, and back-pagination!
-      await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 60);
+      // Pause ~350ms every other burst so back-pagination commits & quiescence settles fire!
+      await page.waitForTimeout(burst % 2 === 0 ? 450 : 180);
     }
-    await page.waitForTimeout(1_200);
+    await page.waitForTimeout(1_000);
     return;
   }
 
   if (setup.engine === 'chromium' && cdp) {
-    for (let burst = 0; burst < 32; burst += 1) {
+    for (let burst = 0; burst < 20; burst += 1) {
       await cdp.send('Input.synthesizeScrollGesture', {
         x: Math.round(center.x),
         y: Math.round(center.y),
-        yDistance: 2000,
-        speed: 4500,
+        yDistance: 1600,
+        speed: 4200,
         gestureSourceType: 'touch',
         preventFling: false,
       });
-      await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 80);
+      await page.waitForTimeout(burst % 2 === 0 ? 450 : 180);
     }
-    await page.waitForTimeout(1_200);
+    await page.waitForTimeout(1_000);
     return;
   }
 
-  // WebKit phone: fast touch drag bursts
-  for (let burst = 0; burst < 32; burst += 1) {
+  for (let burst = 0; burst < 20; burst += 1) {
     await page.evaluate(() =>
       new Promise<void>((resolve) => {
         const probe = (
@@ -740,10 +701,10 @@ const scrollUpFastThroughHistory = async (
           );
         };
         touch('touchstart');
-        let left = 2800;
+        let left = 2200;
         let last = performance.now();
         const step = (now: number) => {
-          const move = Math.min(left, Math.max(1, (now - last) * 4.5));
+          const move = Math.min(left, Math.max(1, (now - last) * 4.0));
           last = now;
           left -= move;
           probe.driving = true;
@@ -761,9 +722,9 @@ const scrollUpFastThroughHistory = async (
         requestAnimationFrame(step);
       })
     );
-    await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 80);
+    await page.waitForTimeout(burst % 2 === 0 ? 450 : 180);
   }
-  await page.waitForTimeout(1_200);
+  await page.waitForTimeout(1_000);
 };
 
 const summarize = (label: string, report: ProbeReport) => {
@@ -796,18 +757,18 @@ const summarize = (label: string, report: ProbeReport) => {
 
 test.use({ trace: 'off', video: 'off' });
 
-test.describe('thread timeline jumps investigation', () => {
+test.describe('thread timeline jumps investigation (in-ride pagination + late banner)', () => {
   test.setTimeout(8 * 60_000);
   let world: FixtureWorld | undefined;
 
   test.beforeAll(async () => {
-    test.setTimeout(5 * 60_000);
+    test.setTimeout(4 * 60_000);
     if (!(await disposableHomeserverIsUp())) return;
     world = await buildFixtureWorld();
   });
 
   SETUPS.forEach((setup) => {
-    test(`${setup.engine} ${setup.viewport}: huge realistic thread open & multi-page fast scroll up`, async ({
+    test(`${setup.engine} ${setup.viewport}: fast scroll up while older folded pages land`, async ({
       baseURL,
     }) => {
       test.skip(!world, 'disposable homeserver is not running');
@@ -848,7 +809,7 @@ test.describe('thread timeline jumps investigation', () => {
           filterState: createDefaultThreadFilterState(),
         });
 
-        // Realistic latency on media downloads and /relations continuations
+        // Delay media 400ms and /relations continuations 700ms so pages arrive DURING fast scroll up!
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
           await wait(400);
           await route.continue();
@@ -859,7 +820,7 @@ test.describe('thread timeline jumps investigation', () => {
         });
         await page.route('**/relations/**', async (route) => {
           if (route.request().url().includes('from=')) {
-            await wait(350);
+            await wait(700);
           }
           await route.continue();
         });
@@ -869,21 +830,53 @@ test.describe('thread timeline jumps investigation', () => {
           `[data-compact-room-view="true"] [data-thread-root-id="${fixture.hugeThreadRootId}"]`
         );
         await expect(hugeCard).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(600);
 
-        // --- SCENARIO 1: Open huge realistic thread (cold open, phone slides!) ---
-        await startProbe(page, 'open');
+        // Open thread, wait ONLY for first visible rows (~31 events), then IMMEDIATELY start scrolling UP
+        // while older pages (with folded turns, images, collapsibles) are STILL arriving!
         await hugeCard.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(2_000);
-        const openReport = await stopProbe(page);
-        summarize(`${setup.engine}-${setup.viewport}-open-cold`, openReport);
+        await expect
+          .poll(async () => page.locator('[data-message-item]').count(), { timeout: 15_000 })
+          .toBeGreaterThan(0);
+        await page.waitForTimeout(250);
 
-        // --- SCENARIO 2: Fast scroll UP across multiple back-pagination pages! ---
         await startProbe(page, 'scrollUp');
-        await scrollUpFastThroughHistory(page, cdp, setup);
+        await scrollUpWhilePaginating(page, cdp, setup);
         const scrollReport = await stopProbe(page);
-        summarize(`${setup.engine}-${setup.viewport}-scroll-up-multipage`, scrollReport);
+        summarize(`${setup.engine}-${setup.viewport}-scroll-up-live-pages`, scrollReport);
+
+        // Now test switching to Thread 2 while late thread summary arrives right after open!
+        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+        const switchCard = page.locator(
+          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.switchThreadRootId}"]`
+        );
+        await expect(switchCard).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(500);
+
+        await startProbe(page, 'open');
+        await switchCard.click();
+        // Send a late thread summary 350ms after clicking open (grows ThreadContextBanner!)
+        void (async () => {
+          await wait(350);
+          await send(fixture.agent, fixture.roomId, 'm.room.message', {
+            msgtype: 'm.notice',
+            body: 'Long generated thread title that wraps onto multiple lines inside the thread banner after opening',
+            'io.mindroom.thread_summary': {
+              version: 1,
+              summary:
+                'Long generated thread title that wraps onto multiple lines inside the thread banner after opening',
+              message_count: 50,
+              generated_at: new Date().toISOString(),
+              model: 'test',
+            },
+            ...inThread(fixture.switchThreadRootId, fixture.switchThreadRootId),
+          });
+        })();
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
+        await page.waitForTimeout(2_000);
+        const switchReport = await stopProbe(page);
+        summarize(`${setup.engine}-${setup.viewport}-open-late-banner`, switchReport);
 
         await context.close();
       } finally {
