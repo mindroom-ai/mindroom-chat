@@ -295,20 +295,21 @@ test.describe('Compact scroll jump regressions', () => {
       const { rootPath, roots, send } = await seedLongCompactRoom(page, {
         layout: form === 'phone' ? 'full' : 'beside',
       });
-      // Send a fresh reply to an older thread so sync/hydration prepends above the initial batch.
-      await send('Fresh reply before deep link navigation', roots[0]);
       const linkTarget = roots[15]!;
       await takeFrames(page);
       await page.goto(`${rootPath}/${encodeURIComponent(linkTarget)}?focusEvent=1`);
       await expect(compactView(page).locator('[data-scroll-anchor]').first()).toBeAttached({
         timeout: 30_000,
       });
-      // Simulate another writer nudging scrollTop during restore (e.g. native scroll anchoring).
-      await compactView(page).evaluate((el) => {
-        if (el.scrollTop > 0) el.scrollTop += 105;
-      });
       await page.evaluate(settleView);
-      await page.waitForTimeout(400);
+      // Simulate another writer nudging scrollTop without reader input (e.g. native anchoring),
+      // then a new thread joins above (growing content so ResizeObserver fires restore again).
+      await compactView(page).evaluate((el) => {
+        if (el.scrollTop > 0) el.scrollTop += 180;
+      });
+      await send('New thread arriving above while restore is still following');
+      await page.waitForTimeout(700);
+      await page.evaluate(settleView);
 
       const frames = await takeFrames(page);
       const finalFrame = frames.at(-1)!;
