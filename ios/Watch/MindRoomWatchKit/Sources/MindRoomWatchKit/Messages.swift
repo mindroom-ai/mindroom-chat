@@ -61,7 +61,7 @@ public enum RunState: Equatable, Sendable {
     }
 }
 
-/// The thread's AI title: the router's newest `io.mindroom.thread_summary` notice.
+/// The thread's AI title: the newest `io.mindroom.thread_summary` notice.
 public enum ThreadSummary {
     public static func title(from events: [JSON]) -> String? {
         events
@@ -86,14 +86,19 @@ public enum AudioCaption {
     }
 }
 
-/// The router's echo of a voice message: a reply that says it is transcribing, edited into the transcript.
+/// A voice message's transcript echo: posted directly or edited from the legacy transcribing placeholder.
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
 
     public static func transcript(_ event: JSON, latestEdit: JSON?) -> (voiceEventId: String, text: String?)? {
+        let content = effectiveContent(event, latestEdit: latestEdit)
         guard event.content["com.mindroom.visible_router_voice_echo"] as? Bool == true,
-              let voiceId = (event.relation?["m.in_reply_to"] as? JSON)?["event_id"] as? String else { return nil }
-        let body = effectiveContent(event, latestEdit: latestEdit)["body"] as? String
+              content["com.mindroom.voice_raw_audio_fallback"] as? Bool != true else { return nil }
+        let nonEmpty = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
+        guard let voiceId = nonEmpty(content["com.mindroom.voice_source_event_id"])
+            ?? nonEmpty(event.content["com.mindroom.voice_source_event_id"])
+            ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
+        let body = content["body"] as? String
         return (voiceId, body == placeholder ? nil : body)
     }
 }

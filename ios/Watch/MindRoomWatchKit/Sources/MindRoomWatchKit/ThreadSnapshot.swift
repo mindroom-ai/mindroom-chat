@@ -7,7 +7,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
         public let eventId: String
         public let sender: String
         public let isOwn: Bool
-        /// Plain text. Of an audio message: what the router wrote out of it or its caption, else nothing.
+        /// Plain text. Of an audio message: its transcript or caption, else nothing.
         public let text: String
         /// An audio message's file, as the JSON the SDK reads a media source from.
         public let audio: String?
@@ -35,13 +35,13 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// Milliseconds since the epoch of the root.
     public let rootTs: Int
     public let title: String
-    /// The title where the first entry does not give it already: the router's own title, or what stands for a
+    /// The title where the first entry does not give it already: the AI title, or what stands for a
     /// root that is no entry (one that cannot be read).
     public let heading: String?
     public let isVoiceRoot: Bool
     /// A voice root's file name: Send follows its own recording by it.
     public let voiceFile: String?
-    /// The whole thread in order: the root and every reply, without the router's echoes, relays and titles,
+    /// The whole thread in order: the root and every reply, without folded voice echoes, relays and titles,
     /// and each approval card that was decided or is the one waiting for this person (`pendingApproval`).
     public let entries: [Entry]
     /// The newest reply from anyone else, not a relay.
@@ -65,7 +65,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
         return .idle(Date(timeIntervalSince1970: Double(latestTs) / 1000))
     }
 
-    public static func build(root: JSON, related: [JSON], ownUserId: String, now: Date) -> ThreadSnapshot {
+    public static func build(root: JSON, related: [JSON], ownUserId: String, now: Date,
+                             trustedAccounts: Set<String> = []) -> ThreadSnapshot {
         let rootId = root.eventId ?? ""
         var edits: [JSON] = []
         var reactions: [JSON] = []
@@ -99,11 +100,14 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }
 
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        // What the router wrote out of each voice message.
+        // Folded transcripts from trusted room accounts.
         var transcripts: [String: String] = [:]
+        var hiddenEchoIds = Set<String>()
         for message in messages {
-            if let echo = VoiceEcho.transcript(message, latestEdit: edit(message)), let text = echo.text,
-               transcripts[echo.voiceEventId] == nil { transcripts[echo.voiceEventId] = text }
+            guard let sender = message["sender"] as? String, trustedAccounts.contains(sender),
+                  let echo = VoiceEcho.transcript(message, latestEdit: edit(message)) else { continue }
+            if let id = message.eventId { hiddenEchoIds.insert(id) }
+            if let text = echo.text, transcripts[echo.voiceEventId] == nil { transcripts[echo.voiceEventId] = text }
         }
         let transcript = transcripts[rootId]
         // Each message as its newest edit says it (the whole new content, keeping its thread relation).
@@ -121,9 +125,9 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let title = summary ?? transcript
             ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
-        // The conversation: what people and agents said, without the router's echo and titles.
+        // The conversation: what people and agents said, without folded voice echoes and titles.
         let conversation = messages.filter { message in
-            VoiceEcho.transcript(message, latestEdit: nil) == nil && message.content["io.mindroom.thread_summary"] == nil
+            !(message.eventId.map(hiddenEchoIds.contains) ?? false) && message.content["io.mindroom.thread_summary"] == nil
         }
         let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
         let message = { (event: JSON) -> Message in
@@ -140,7 +144,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
                            audio: audio ? mediaSource(content) ?? mediaSource(event.content) : nil,
                            tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
         }
-        // The router's relay of a message hands it to an agent; it is not an answer.
+        // An internal relay of a message hands it to an agent; it is not an answer.
         let isMessage = { (event: JSON) in
             event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
         }
@@ -149,7 +153,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let pendingApproval = approvals.last {
             $0.status == .pending && isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId)
         }
-        // As the web client: only the newest agent reply asks (not the router's relay of a message), until
+        // As the web client: only the newest agent reply asks (not an internal relay of a message), until
         // the person writes or reacts, for 7 days, and only when it answers this person.
         var openQuestion: Question?
         if let asking = conversation.last(where: {

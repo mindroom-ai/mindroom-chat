@@ -31,7 +31,8 @@ final class ThreadSnapshotTests: XCTestCase {
         let replyEdit = event("$replyEdit", 5, ["m.new_content": ["body": "🔧 `scheduler` [1]\nReminder set for **Saturday**.",
             "io.mindroom.ai_run": ["version": 1, "status": "completed"]] as JSON,
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
-        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now)
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x"])
         XCTAssertTrue(snapshot.isVoiceRoot)
         XCTAssertEqual(snapshot.title, "🎤 Remind me to call the dentist")
         XCTAssertEqual(snapshot.reply?.sender, agent)
@@ -257,7 +258,7 @@ final class ThreadSnapshotTests: XCTestCase {
                              ["m.new_content": ["status": "approved"] as JSON,
                               "m.relates_to": ["rel_type": "m.replace", "event_id": "$annas"] as JSON])
         let snapshot = ThreadSnapshot.build(root: root, related: [mine, card("$card", 9), summary, answer, relay, echo, annas],
-                                            ownUserId: me, now: now)
+                                            ownUserId: me, now: now, trustedAccounts: ["@mindroom_router:x"])
         // Without the router's echo, relay and title, and without the card that waits for someone else.
         XCTAssertEqual(ids(snapshot), ["$root", "$answer", "$mine", "$card"])
         guard case let .message(first) = snapshot.entries[0], case let .message(second) = snapshot.entries[1],
@@ -297,7 +298,8 @@ final class ThreadSnapshotTests: XCTestCase {
         let echo = event("$echo", 5, sender: "@mindroom_router:x", ["msgtype": "m.text", "body": "🎤 The table is booked",
             "com.mindroom.visible_router_voice_echo": true,
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$spoken"]] as JSON])
-        let written = ThreadSnapshot.build(root: voiceRoot, related: [spoken, echo], ownUserId: me, now: now).reply
+        let written = ThreadSnapshot.build(root: voiceRoot, related: [spoken, echo], ownUserId: me, now: now,
+                                           trustedAccounts: ["@mindroom_router:x"]).reply
         XCTAssertEqual(written?.text, "🎤 The table is booked")
         XCTAssertEqual(written?.isVoiceOnly, false)
         XCTAssertEqual(source(written)?["url"] as? String, "mxc://x/answer")
@@ -367,7 +369,8 @@ final class ThreadSnapshotTests: XCTestCase {
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$again"]] as JSON])
         let first = event("$root", 1, sender: me, ["msgtype": "m.audio", "body": "voice-message.m4a", "url": "mxc://x/take",
                                                    "org.matrix.msc3245.voice": [:] as JSON])
-        let snapshot = ThreadSnapshot.build(root: first, related: [again, echo], ownUserId: me, now: now)
+        let snapshot = ThreadSnapshot.build(root: first, related: [again, echo], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x"])
         guard case let .message(root) = snapshot.entries[0], case let .message(reply) = snapshot.entries[1] else {
             return XCTFail("\(snapshot.entries)")
         }
@@ -455,10 +458,68 @@ final class ThreadSnapshotTests: XCTestCase {
             "com.mindroom.voice_source_event_id": "$root",
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$root"]] as JSON,
         ])
+        // Default empty trusted set fails closed.
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [forged], ownUserId: me, now: now)
         XCTAssertEqual(snapshot.title, "Voice message")
         XCTAssertEqual(ids(snapshot), ["$root", "$forged"])
         XCTAssertEqual(snapshot.reply?.eventId, "$forged")
         XCTAssertEqual(snapshot.reply?.text, "🎤 Forged transcript")
+        // Also ignored when another account is trusted.
+        let withOtherTrusted = ThreadSnapshot.build(root: voiceRoot, related: [forged], ownUserId: me, now: now,
+                                                    trustedAccounts: ["@mindroom_router:x", agent])
+        XCTAssertEqual(withOtherTrusted.title, "Voice message")
+        XCTAssertEqual(ids(withOtherTrusted), ["$root", "$forged"])
+    }
+
+    func testTrustedRosterAgentVoiceEchoFoldsAndHides() {
+        let echo = event("$echo", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 Book a flight",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo], ownUserId: me, now: now,
+                                            trustedAccounts: ["@mindroom_router:x", agent])
+        XCTAssertEqual(snapshot.title, "🎤 Book a flight")
+        XCTAssertEqual(ids(snapshot), ["$root"])
+        XCTAssertNil(snapshot.reply)
+    }
+
+    func testRawAudioFallbackEchoStaysVisibleEvenFromTrustedSender() {
+        let fallback = event("$fallback", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "🎤 [Attached voice message]",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "com.mindroom.voice_raw_audio_fallback": true,
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [fallback], ownUserId: me, now: now,
+                                            trustedAccounts: [agent])
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertEqual(ids(snapshot), ["$root", "$fallback"])
+        // Same when a placeholder is edited into a raw-audio fallback.
+        let placeholder = event("$p", 2, sender: agent, [
+            "msgtype": "m.text",
+            "body": "Router agent is transcribing…",
+            "com.mindroom.visible_router_voice_echo": true,
+            "com.mindroom.voice_source_event_id": "$root",
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root"] as JSON,
+        ])
+        let editedFallback = event("$pEdit", 3, sender: agent, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": "🎤 [Attached voice message]",
+                "com.mindroom.visible_router_voice_echo": true,
+                "com.mindroom.voice_source_event_id": "$root",
+                "com.mindroom.voice_raw_audio_fallback": true,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$p"] as JSON,
+        ])
+        let editedSnapshot = ThreadSnapshot.build(root: voiceRoot, related: [placeholder, editedFallback], ownUserId: me, now: now,
+                                                  trustedAccounts: [agent])
+        XCTAssertEqual(editedSnapshot.title, "Voice message")
+        XCTAssertEqual(ids(editedSnapshot), ["$root", "$p"])
     }
 }
