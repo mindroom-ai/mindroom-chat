@@ -47,7 +47,7 @@ type ModelPickerPanelProps = {
   room: string;
   /** Accessible dialog label; defaults to the thread model picker label. */
   ariaLabel?: string;
-  /** When true, picking the already-current row or level still runs the callback. */
+  /** When true, picking the already-current row still runs the callback. */
   allowReselect?: boolean;
   requestClose: () => void;
   onCommand: () => void;
@@ -125,7 +125,7 @@ const currentChoice = (state: ModelPickerState) => {
   return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
-function ModelPickerPanel({
+export function ModelPickerPanel({
   state,
   newThread,
   defaults,
@@ -258,7 +258,7 @@ function ModelPickerPanel({
   const selectLevel = (level: ReasoningLevel) => {
     if (mutationsDisabled || !current.model) return;
     // The level the thread already runs at needs no command.
-    if (!allowReselect && level === current.level) {
+    if (level === current.level) {
       requestClose();
       return;
     }

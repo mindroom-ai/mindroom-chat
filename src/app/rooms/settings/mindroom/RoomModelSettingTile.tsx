@@ -4,7 +4,7 @@ import { Box, Button, Icon, Icons, Spinner, Text, color, config, type RectCords 
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { ModelIcon } from '../../../models/ModelIcon';
-import { TrappedModelPickerPanel, type DefaultWords } from '../../../models/ModelPicker';
+import { ModelPickerPanel, type DefaultWords } from '../../../models/ModelPicker';
 import * as pickerCss from '../../../models/ModelPicker.css';
 import {
   splitModelReference,
@@ -22,6 +22,7 @@ import { useRoomSetting } from './useRoomSetting';
 
 const STRINGS = 'featureUi.roomSettings.mindroom';
 const PICKER_STRINGS = 'mindroomUi.models.modelPicker';
+const WRAP_STYLE = { overflowWrap: 'anywhere' as const };
 
 type StoredModelState =
   | { kind: 'default' }
@@ -47,7 +48,7 @@ const classifyStoredModel = (
 
 /**
  * A room setting holding a model reference (`key` or `key@level`), populated from room-scope
- * discovery and written via `useRoomSetting`. Reuses `TrappedModelPickerPanel` via an adapter state.
+ * discovery and written via `useRoomSetting`. Reuses `ModelPickerPanel` inside one `FocusTrap`.
  */
 export function RoomModelSettingTile({
   room,
@@ -121,12 +122,12 @@ export function RoomModelSettingTile({
   );
 
   const toggle = (event: MouseEvent<HTMLButtonElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    setAnchor((open) => {
-      if (open) return undefined;
-      if (!hasCatalog && !catalog.loading) catalog.refresh();
-      return rect;
-    });
+    if (anchor) {
+      setAnchor(undefined);
+      return;
+    }
+    if (!hasCatalog && !catalog.loading) catalog.refresh();
+    setAnchor(event.currentTarget.getBoundingClientRect());
   };
 
   const shownLabel =
@@ -144,17 +145,9 @@ export function RoomModelSettingTile({
   const disabled = !canEdit || sending;
   const showPicker = hasCatalog || catalog.runtimes.length > 1;
 
-  const popover = !anchor ? undefined : showPicker ? (
-    <TrappedModelPickerPanel
-      state={adaptedState}
-      defaults={defaults}
-      room="50vh"
-      ariaLabel={label}
-      allowReselect
-      requestClose={close}
-      onCommand={close}
-    />
-  ) : (
+  // One FocusTrap stays mounted across loading, no-catalog, and results so a late catalog reply
+  // never triggers onDeactivate and closes the picker.
+  const popover = !anchor ? undefined : (
     <FocusTrap
       focusTrapOptions={{
         initialFocus: false,
@@ -164,51 +157,63 @@ export function RoomModelSettingTile({
       }}
     >
       <div>
-        <Menu role="dialog" aria-label={label} className={pickerCss.Panel}>
-          <Box direction="Column" gap="200" style={{ padding: config.space.S300 }}>
-            {catalog.loading ? (
-              <div className={pickerCss.StatusRow} role="status">
-                <Spinner size="100" variant="Secondary" />
-                {t(`${PICKER_STRINGS}.loading`)}
-              </div>
-            ) : (
-              <Text size="T200" priority="300" role="status">
-                {t(`${STRINGS}.model.catalogUnavailable`)}
-              </Text>
-            )}
-            <Box gap="200" justifyContent="End">
-              {!catalog.loading && (
+        {showPicker ? (
+          <ModelPickerPanel
+            state={adaptedState}
+            defaults={defaults}
+            room="50vh"
+            ariaLabel={label}
+            allowReselect
+            requestClose={close}
+            onCommand={close}
+          />
+        ) : (
+          <Menu role="dialog" aria-label={label} className={pickerCss.Panel}>
+            <Box direction="Column" gap="200" style={{ padding: config.space.S300 }}>
+              {catalog.loading ? (
+                <div className={pickerCss.StatusRow} role="status">
+                  <Spinner size="100" variant="Secondary" />
+                  {t(`${PICKER_STRINGS}.loading`)}
+                </div>
+              ) : (
+                <Text size="T200" priority="300" role="status">
+                  {t(`${STRINGS}.model.catalogUnavailable`)}
+                </Text>
+              )}
+              <Box gap="200" justifyContent="End">
+                {!catalog.loading && (
+                  <Button
+                    type="button"
+                    size="300"
+                    radii="300"
+                    variant="Secondary"
+                    fill="None"
+                    onClick={catalog.refresh}
+                  >
+                    <Text size="B300">{t(`${PICKER_STRINGS}.retry`)}</Text>
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="300"
                   radii="300"
                   variant="Secondary"
-                  fill="None"
-                  onClick={catalog.refresh}
+                  fill="Soft"
+                  disabled={disabled}
+                  onClick={() => writeSetting('')}
                 >
-                  <Text size="B300">{t(`${PICKER_STRINGS}.retry`)}</Text>
+                  <Text size="B300">{defaults.label}</Text>
                 </Button>
-              )}
-              <Button
-                type="button"
-                size="300"
-                radii="300"
-                variant="Secondary"
-                fill="Soft"
-                disabled={disabled}
-                onClick={() => writeSetting('')}
-              >
-                <Text size="B300">{defaults.label}</Text>
-              </Button>
+              </Box>
             </Box>
-          </Box>
-        </Menu>
+          </Menu>
+        )}
       </div>
     </FocusTrap>
   );
 
   return (
-    <Box direction="Column" gap="200">
+    <Box direction="Column" gap="200" data-room-setting={definition.key}>
       <SettingTile
         title={label}
         description={t(definition.description)}
@@ -249,8 +254,13 @@ export function RoomModelSettingTile({
         }
       />
       {stored.kind === 'unknown' && (
-        <Text size="T200" priority="300">
+        <Text size="T200" priority="300" style={WRAP_STYLE}>
           {t(`${STRINGS}.model.unknown`, { value: stored.raw })}
+        </Text>
+      )}
+      {stored.kind === 'raw' && (
+        <Text size="T200" priority="300" style={WRAP_STYLE}>
+          {t(`${STRINGS}.model.storedRaw`, { value: stored.raw })}
         </Text>
       )}
       <span role="status" className={textCss.VisuallyHidden}>

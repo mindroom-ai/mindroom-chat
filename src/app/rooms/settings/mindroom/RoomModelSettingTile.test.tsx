@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import type FocusTrap from 'focus-trap-react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,17 +9,13 @@ import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
 import type { ModelCatalogEntry } from '../../../models/modelProtocol';
 import type { ModelPickerState } from '../../../models/useModelPicker';
 import { ScreenSize, ScreenSizeProvider } from '../../../lib/hooks/useScreenSize';
-import {
-  ROOM_SETTING_DEFINITIONS,
-  type RoomModelSettingDefinition,
-} from './roomSettingDefinitions';
+import { ROOM_SETTING_SECTIONS, type RoomModelSettingDefinition } from './roomSettingDefinitions';
 import { RoomModelSettingTile } from './RoomModelSettingTile';
 
 const ROOM = { roomId: '!room:example.test' } as Room;
-const MODEL_DEF = ROOM_SETTING_DEFINITIONS.find(
-  (d): d is RoomModelSettingDefinition => d.key === 'model'
-)!;
-const TITLE_MODEL_DEF = ROOM_SETTING_DEFINITIONS.find(
+const ALL_SETTINGS = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);
+const MODEL_DEF = ALL_SETTINGS.find((d): d is RoomModelSettingDefinition => d.key === 'model')!;
+const TITLE_MODEL_DEF = ALL_SETTINGS.find(
   (d): d is RoomModelSettingDefinition => d.key === 'thread_summary_model'
 )!;
 const FAILED = "Couldn't save the setting. Try again.";
@@ -58,9 +55,21 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+vi.mock('focus-trap-react', async (original) => {
+  const { default: RealFocusTrap } = await original<{ default: typeof FocusTrap }>();
+  return {
+    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+      <RealFocusTrap
+        {...props}
+        focusTrapOptions={{
+          ...focusTrapOptions,
+          delayInitialFocus: false,
+          tabbableOptions: { displayCheck: 'none' },
+        }}
+      />
+    ),
+  };
+});
 vi.mock('../../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
@@ -393,6 +402,7 @@ describe('RoomModelSettingTile', () => {
     renderTile(MODEL_DEF, catalog);
 
     expect(trigger().textContent).toBe('saved-model');
+    expect(screen.getByText('Configured value: saved-model')).toBeTruthy();
     expect(screen.queryByText(/Unknown model:/)).toBeNull();
 
     fireEvent.click(trigger());
@@ -431,5 +441,37 @@ describe('RoomModelSettingTile', () => {
     expect(trigger().disabled).toBe(true);
     expect(trigger().textContent).toBe('Quick');
     expect(screen.getByText(READ_ONLY)).toBeTruthy();
+  });
+
+  it('keeps the picker open with real FocusTrap when a late catalog arrives while open', async () => {
+    const loadingCatalog = createCatalog({
+      eligible: false,
+      runtimes: [],
+      runtime: undefined,
+      models: [],
+      loading: true,
+    });
+    const { rerender } = renderTile(MODEL_DEF, loadingCatalog);
+
+    fireEvent.click(trigger());
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBeTruthy();
+
+    // Catalog arrives while the menu is already open; the single FocusTrap must not deactivate.
+    rerender(
+      <ScreenSizeProvider value={ScreenSize.Desktop}>
+        <RoomModelSettingTile room={ROOM} definition={MODEL_DEF} catalog={createCatalog()} />
+      </ScreenSizeProvider>
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Model' });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('option', { name: /Deep/ }));
+    });
+    expect(client.sendStateEvent).toHaveBeenCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      { value: 'deep' },
+      'model'
+    );
   });
 });

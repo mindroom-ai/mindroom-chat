@@ -1571,6 +1571,47 @@ describe('TrappedModelPickerPanel', () => {
       });
       expect(onCommand).toHaveBeenCalledTimes(1);
       expect(state.resetToRoomDefault).toHaveBeenCalledTimes(1);
+
+      // Picking the default level of a plain-key model still closes without pinning key@level.
+      const requestClose = vi.fn();
+      const levelState = createState({
+        models: [
+          {
+            key: 'deep',
+            display_name: 'Deep',
+            provider: 'acme',
+            id: 'deep-1',
+            reasoning_levels: ['low', 'medium', 'high'],
+            reasoning_default: 'medium',
+          },
+        ],
+        override: 'deep',
+        reasoning: null,
+        canMutate: true,
+      });
+      act(() =>
+        panelRoot.render(
+          <TrappedModelPickerPanel
+            state={levelState}
+            defaults={{
+              label: 'Use configured default',
+              agents: '',
+              description: 'Follow default.',
+            }}
+            room="50vh"
+            ariaLabel="Model"
+            allowReselect
+            requestClose={requestClose}
+            onCommand={onCommand}
+          />
+        )
+      );
+      const defaultRadio = host.querySelector<HTMLElement>('[role="radio"][data-level="medium"]');
+      act(() => {
+        defaultRadio?.click();
+      });
+      expect(levelState.selectModel).not.toHaveBeenCalled();
+      expect(requestClose).toHaveBeenCalledTimes(1);
     } finally {
       act(() => panelRoot.unmount());
       host.remove();
