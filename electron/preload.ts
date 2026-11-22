@@ -12,13 +12,17 @@ const externalUrlForClick = (event: MouseEvent): string | undefined => {
     );
   // A non-editable island inside an editable area (e.g. a mention pill) still opens, as on web.
   if (!hit || hit.isContentEditable) return undefined;
+  let target: string;
   if (hit instanceof HTMLButtonElement) {
-    return event.type === 'click' && !hit.disabled
-      ? hit.getAttribute('data-open-external') || undefined
-      : undefined;
+    if (event.type !== 'click' || hit.disabled) return undefined;
+    target = hit.getAttribute('data-open-external') ?? '';
+  } else {
+    // A link that saves instead of opening (Option-click, `download`) opens nothing.
+    if (hit.hasAttribute('download') || (event.type === 'click' && event.altKey)) return undefined;
+    target = hit.href;
   }
   try {
-    const parsed = new URL(hit.href, window.location.href);
+    const parsed = new URL(target, window.location.href);
     return parsed.origin !== window.location.origin ? parsed.href : undefined;
   } catch {
     return undefined;

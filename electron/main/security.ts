@@ -15,7 +15,8 @@ const OPENABLE_SCHEMES = new Set(['http:', 'https:', 'mailto:']);
 // `access_token` as a parameter name (query, fragment, or a query inside the fragment), or
 // `access_token=` anywhere, which also catches a nested redirect that carries one.
 const ACCESS_TOKEN_RE = /[?&#]access_token(?:[=&#]|$)|access_token=/i;
-const MAILTO_BLOCKED_PARAMS = new Set(['attach', 'attachment']);
+// eslint-disable-next-line no-control-regex
+const MAILTO_ATTACH_RE = /[?&]attach(?:ment)?(?:[=&#\0]|$)/i;
 
 /** The text as written, percent-decoded once, and twice. Decodes byte by byte: never throws. */
 const decodings = (value: string): string[] => {
@@ -47,16 +48,18 @@ export const openableHref = (url: string): string | undefined => {
   } catch {
     return undefined;
   }
-  if (!OPENABLE_SCHEMES.has(u.protocol) || u.username || u.password) return undefined;
-  if (decodings(url).some((text) => ACCESS_TOKEN_RE.test(text))) return undefined;
+  if (u.href.length > MAX_URL_LENGTH || !OPENABLE_SCHEMES.has(u.protocol)) return undefined;
+  if (u.username || u.password) return undefined;
+  const texts = decodings(url);
+  const paths = decodings(u.pathname);
+  if (texts.some((text) => ACCESS_TOKEN_RE.test(text))) return undefined;
   if (u.protocol === 'mailto:') {
-    const blocked = Array.from(u.searchParams.keys()).some((key) =>
-      MAILTO_BLOCKED_PARAMS.has(key.toLowerCase())
-    );
-    // An authority (`mailto://host/x`) is no address; `mailto:` alone names nobody.
-    if (u.host || u.href.startsWith('mailto://') || !u.pathname.trim() || blocked) return undefined;
+    // An authority (`mailto://host/x`) is no address; a blank path names nobody.
+    if (u.host || u.href.startsWith('mailto://') || paths.some((path) => !path.trim()))
+      return undefined;
+    if (texts.some((text) => MAILTO_ATTACH_RE.test(text))) return undefined;
   }
-  return decodings(u.pathname).some(isMediaPath) ? undefined : u.href;
+  return paths.some(isMediaPath) ? undefined : u.href;
 };
 
 export const isOpenable = (url: string): boolean => openableHref(url) !== undefined;

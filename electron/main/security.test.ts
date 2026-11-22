@@ -317,6 +317,11 @@ describe('isOpenable', () => {
     ['mailto', 'mailto:a@b.example', 'mailto:a@b.example'],
     ['mailto subject', 'mailto:a@b.example?subject=Hi', 'mailto:a@b.example?subject=Hi'],
     [
+      'mailto, attach as a value',
+      'mailto:a@b.example?subject=attach',
+      'mailto:a@b.example?subject=attach',
+    ],
+    [
       'token only in text',
       'https://example.org/docs/access_token',
       'https://example.org/docs/access_token',
@@ -335,6 +340,7 @@ describe('isOpenable', () => {
     ['empty', ''],
     ['not a URL', 'not-a-url'],
     ['over the length cap', `https://example.org/${'a'.repeat(8173)}`],
+    ['over the length cap once canonical', `https://example.org/${'é'.repeat(2000)}`],
     ['newline', 'https://example.org/a\nb'],
     ['tab', 'https://example.org/acc\tess_token=1'],
     ['NUL', 'https://example.org/\0'],
@@ -353,6 +359,8 @@ describe('isOpenable', () => {
     ['mailto authority', 'mailto://host.example/x'],
     ['mailto empty authority', 'mailto:///x'],
     ['mailto nobody', 'mailto:'],
+    ['mailto encoded blank', 'mailto:%20'],
+    ['mailto twice encoded blank', 'mailto:%2520?subject=Hi'],
     // access_token as a parameter name or `access_token=` anywhere, however encoded.
     ['query', 'https://example.org/page?access_token=syt_placeholder'],
     ['query, upper case', 'https://example.org/page?a=1&ACCESS_TOKEN=syt_placeholder'],
@@ -378,6 +386,9 @@ describe('isOpenable', () => {
     ['ATTACH', 'mailto:a@b.example?subject=x&ATTACH=/etc/passwd'],
     ['attachment', 'mailto:a@b.example?attachment=/etc/passwd'],
     ['encoded attach', 'mailto:a@b.example?%61ttach=/etc/passwd'],
+    ['twice encoded attach', 'mailto:a@b.example?%2561ttach=/etc/passwd'],
+    ['attach then encoded NUL', 'mailto:a@b.example?attach%00=/etc/passwd'],
+    ['attach, no value', 'mailto:a@b.example?subject=x&attachment'],
     // Matrix media, every route family and spelling.
     ['media v3 download', `${HS}/_matrix/media/v3/download/hs.example/abc`],
     ['media r0 thumbnail', `${HS}/_matrix/media/r0/thumbnail/hs.example/abc`],
