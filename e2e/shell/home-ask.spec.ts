@@ -177,10 +177,10 @@ test("a question from Home is a new thread of its own, which leaves rooms' draft
   await expect(page.getByRole('button', { name: `In Lobby ${RUN}` })).toBeFocused();
   await page.getByRole('button', { name: 'Helper answers' }).click();
   await page.getByRole('menuitemradio', { name: 'Scout' }).click();
+  await expect(page.getByRole('button', { name: 'Scout answers' })).toBeFocused();
   await page.getByRole('button', { name: 'Scout answers' }).click();
   await page.getByRole('menuitemradio', { name: 'Helper' }).click();
-  await page.getByRole('button', { name: `In Lobby ${RUN}` }).click();
-  await page.getByRole('menuitemradio', { name: `Engineering ${RUN}` }).click();
+  await expect(page.getByRole('button', { name: `In Engineering ${RUN}` })).toBeVisible();
   await expect(field).toContainText('Summarize the open incidents');
   await expect(field).not.toContainText('draft');
   expect(

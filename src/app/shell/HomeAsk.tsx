@@ -105,10 +105,14 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   if (!direct) roomIds.push(null);
   else if (!roomIds.includes(direct.roomId)) roomIds.push(direct.roomId);
   const room = roomId ? mx.getRoom(roomId) : null;
-  // A chat just started is among the choices once the client has it.
+  // A chat just started is among the choices once the client has it, and waits until the agent
+  // joins even if the room arrives before `m.direct` syncs back.
   const valid =
-    agents.includes(agent) && (roomIds.includes(roomId) || (!!choice?.started && !room));
-  const waiting = !!direct?.waiting && roomId === direct.roomId;
+    agents.includes(agent) &&
+    (roomIds.includes(roomId) || (!!choice?.started && (!room || !direct)));
+  const waiting =
+    (!!direct?.waiting && roomId === direct.roomId) ||
+    (!!choice?.started && !!room && !canAskIn(room, agent.userId));
   const usable = valid && !!room && canAskIn(room, agent.userId);
   const starting = starts[agent.userId];
   const composerShown = !!room && !waiting;
@@ -208,9 +212,10 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               Icons.User,
               option === agent,
               { label: option.name, badge: agentBadge(option) },
-              choose(() =>
-                setChoice({ agentId: option.userId, roomId: option.defaultRoomId ?? null })
-              )
+              choose(() => {
+                setFocusOnMount(false);
+                setChoice({ agentId: option.userId, roomId: option.defaultRoomId ?? null });
+              })
             )
           )
         }
@@ -240,7 +245,10 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               Icons.Hash,
               id === roomId,
               shown(id),
-              choose(() => setChoice({ agentId: agent.userId, roomId: id })),
+              choose(() => {
+                setFocusOnMount(false);
+                setChoice({ agentId: agent.userId, roomId: id });
+              }),
               id === null ? t('home.ask.startsDirectChat', { name }) : undefined
             )
           )
