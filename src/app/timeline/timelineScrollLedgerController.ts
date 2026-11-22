@@ -113,6 +113,11 @@ export type TimelineScrollLedgerController = {
    * width changed: the render that shows them may give the list its new height before the paint.
    */
   unrenderedRewrap: () => boolean;
+  /**
+   * Whether a size that is not rendered yet came from the rows' observer: the render that shows it
+   * before the paint then runs in the browser's ResizeObserver loop.
+   */
+  unrenderedInRowReport: () => boolean;
   /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
   /**
@@ -816,10 +821,15 @@ export const useTimelineScrollLedgerController = ({
   }, []);
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
   const unrenderedRewrap = useCallback(() => unrenderedRewrapRef.current, []);
+  // Whether the rows' observer reported a size since the last commit. A row measured as it
+  // mounts (`createScrollMountMeasurement`) is sized outside of the observer's report.
+  const unrenderedInRowReportRef = useRef(false);
+  const unrenderedInRowReport = useCallback(() => unrenderedInRowReportRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
     unrenderedEndCorrectionPxRef.current = 0;
     unrenderedRowMoveRef.current = false;
+    unrenderedInRowReportRef.current = false;
     // The render that showed the rows wrapped anew has committed: a later one asks again.
     unrenderedRewrapRef.current = false;
   });
@@ -1013,6 +1023,7 @@ export const useTimelineScrollLedgerController = ({
     });
     return (...args: Parameters<typeof decide>): boolean => {
       dropped = false;
+      if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const apply = decide(...args);
       // An applied correction renders before the paint already, and the offset ledger moves
       // the rows of a dropped one in its own commit; the newest row moves no row after it, but
@@ -1105,6 +1116,7 @@ export const useTimelineScrollLedgerController = ({
     unrenderedCorrectionPx,
     unrenderedRowMove,
     unrenderedRewrap,
+    unrenderedInRowReport,
     virtualInnerRef,
     virtualizer,
     readMeasurementCorrectionPx,
