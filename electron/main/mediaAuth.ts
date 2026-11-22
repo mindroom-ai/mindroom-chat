@@ -98,8 +98,13 @@ export const installMediaAuth = (
       result =
         next === undefined ? { ok: false, code: 'BAD_ARGUMENTS' } : { ok: true, value: undefined };
       // A response cached for the account that left must not be served to a request without its header.
+      // If the cache cannot be cleared, fail closed: no session, and the page is told so.
       if (previous && (previous.baseUrl !== next?.baseUrl || previous.userId !== next?.userId))
-        return void ses.clearCache().then(reply, reply);
+        return void ses.clearCache().then(reply, () => {
+          auth.set(owner.id, undefined);
+          result = { ok: false, code: 'CACHE_CLEAR_FAILED' };
+          reply();
+        });
     } catch {
       // Answer what was decided so far; the page must never stay blocked.
     }

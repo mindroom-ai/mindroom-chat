@@ -388,13 +388,21 @@ describe('installMediaAuth', () => {
       { ok: false, code: 'BAD_ARGUMENTS' }
     );
 
-    // A second logout has no account to forget; a failed clear still answers.
+    // A second logout has no account to forget.
     clearCache.mockClear();
     expect(await push(validEvent, null)).toEqual(ok);
     expect(clearCache).not.toHaveBeenCalled();
+    // A failed clear fails closed: the switch is refused and no session is kept.
     expect(await push(validEvent, alice)).toEqual(ok);
     clearCache.mockImplementationOnce(() => Promise.reject(new Error('cache')));
-    expect(await push(validEvent, null)).toEqual(ok);
+    expect(await push(validEvent, { ...alice, userId: '@bob:hs', accessToken: 'tok-9' })).toEqual({
+      ok: false,
+      code: 'CACHE_CLEAR_FAILED',
+    });
+    // With no session left, the next push is a first sign-in again and needs no clear.
+    clearCache.mockClear();
+    expect(await push(validEvent, alice)).toEqual(ok);
+    expect(clearCache).not.toHaveBeenCalled();
   });
 
   it('validates IPC, clears previous session on rejected push from owner, leaves it on forbidden sender, handles throwing frame getters, and forgets on cleanup', async () => {

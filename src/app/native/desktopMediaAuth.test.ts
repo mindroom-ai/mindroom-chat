@@ -136,7 +136,12 @@ describe('desktopMediaAuth', () => {
     expect(auth.ready()).toBe(false);
     expect(auth.notified).not.toHaveBeenCalled();
 
+    // A rejected push is offered again on the next store change, even for the same session.
     auth.answer.current = OK;
+    putSession(account('alice'));
+    expect(auth.calls).toEqual([pushed('alice'), pushed('alice')]);
+    expect(auth.ready()).toBe(true);
+
     putSession(account('bob'));
     expect(auth.ready()).toBe(true);
 

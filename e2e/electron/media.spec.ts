@@ -64,6 +64,14 @@ const startMediaServer = async (
     };
 
     if (req.method === 'OPTIONS') {
+      // Recorded, so a test can assert that implicitly authorized media sent no preflight.
+      requests.push({
+        url: req.url ?? '/',
+        method: 'OPTIONS',
+        authorization: undefined,
+        range: undefined,
+      });
+      notify();
       res.writeHead(204, cors);
       res.end();
       return;
@@ -305,6 +313,12 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
     expect(videoReq.authorization).toBe('Bearer tok-a');
     expect(videoReq.range).toMatch(/^bytes=/);
     expect(videoReq.url).not.toContain('access_token');
+    // The header main adds causes no CORS preflight for any media request.
+    expect(
+      server.requests.filter(
+        (r) => r.method === 'OPTIONS' && r.url.includes('/_matrix/client/v1/media/')
+      )
+    ).toEqual([]);
 
     // 5. fetch to /sync with its own bearer passes untouched
     await page.evaluate(async (url) => {

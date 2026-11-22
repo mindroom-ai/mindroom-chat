@@ -25,15 +25,19 @@ export const startDesktopMediaAuth = (
     const session = raw?.accessToken
       ? { baseUrl: raw.baseUrl, userId: raw.userId, accessToken: raw.accessToken }
       : null;
-    const same = sent?.baseUrl === session?.baseUrl && sent?.accessToken === session?.accessToken;
+    const same =
+      sent?.baseUrl === session?.baseUrl &&
+      sent?.userId === session?.userId &&
+      sent?.accessToken === session?.accessToken;
     if (sent !== undefined && same) return;
-    sent = session;
     let ok = false;
     try {
       ok = bridge.setMediaSession(session).ok;
     } catch {
       // Main did not answer: it holds no session this page knows of.
     }
+    // Only an accepted push counts as sent, so the same session is offered again on the next change.
+    sent = ok ? session : undefined;
     const next = ok && session !== null;
     if (ready === next) return;
     ready = next;

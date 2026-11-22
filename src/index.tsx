@@ -284,12 +284,13 @@ runSafely('recovery marker', () => {
   if (window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') clearRecoveryMarker();
 });
 
+// Before the first render, so main holds the session before any media request.
+runSafely('desktop media auth', () => {
+  startDesktopMediaAuth(getActiveSession, subscribeToSessionStore);
+});
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   createRoot(rootElement).render(<App />);
 }
-
-runSafely('desktop media auth', () => {
-  startDesktopMediaAuth(getActiveSession, subscribeToSessionStore);
-});
 startServiceWorker();
