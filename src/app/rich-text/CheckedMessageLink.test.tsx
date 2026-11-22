@@ -75,17 +75,8 @@ describe('CheckedMessageLink with a link card', () => {
   });
 
   it('marks the Open button for desktop preload and avoids a scripted anchor click in Electron', () => {
-    const bridge = {
-      onShellEvent: vi.fn(() => vi.fn()),
-      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
-      startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
-      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
-      appUrl: {
-        addListener: vi.fn(async () => ({ remove: vi.fn() })),
-        getLaunchUrl: vi.fn(async () => undefined),
-      },
-    };
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+    // Only the bridge's presence matters here.
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
     try {
       const link = renderLink(undefined, 'https://good.example', 'https://evil.example/');
       expect(fireEvent.click(link)).toBe(false);

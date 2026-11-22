@@ -100,6 +100,17 @@ test.describe('Electron external link handling', () => {
           'data-open-external': 'javascript:alert(1)',
         });
         mk('a', 'e2e-link-file', 'FileLink', { href: 'file:///etc/passwd' });
+        mk('a', 'e2e-link-mailto', 'MailLink', { href: 'mailto:someone@example.org' });
+        // Links that save rather than open; the address refuses connections at once.
+        mk('a', 'e2e-link-alt', 'AltLink', { href: 'http://127.0.0.1:9/alt-click' });
+        mk('a', 'e2e-link-download', 'DownloadLink', {
+          href: 'http://127.0.0.1:9/download',
+          download: '',
+        });
+        mk('button', 'e2e-btn-relative', 'RelativeBtn', {
+          type: 'button',
+          'data-open-external': '/home',
+        });
 
         // Link inside a contenteditable editor must not open externally when clicked.
         const editable = document.createElement('div');
@@ -138,12 +149,19 @@ test.describe('Electron external link handling', () => {
       await clickEl('#e2e-btn-js');
       await clickEl('#e2e-link-file');
       await clickEl('#e2e-link-editable');
+      await clickEl('#e2e-link-download');
+      await clickEl('#e2e-btn-relative');
+      await page.keyboard.down('Alt');
+      await clickEl('#e2e-link-alt');
+      await page.keyboard.up('Alt');
 
-      // Real primary click, middle click on a _blank link, and Enter on a _blank link: once each.
+      // Real primary click, middle click on a _blank link, Enter on a _blank link, and a click on
+      // a mailto link: once each.
       await clickEl('#e2e-link-primary');
       await clickEl('#e2e-link-middle', 'middle');
       await page.evaluate(() => (document.getElementById('e2e-link-enter') as HTMLElement).focus());
       await page.keyboard.press('Enter');
+      await clickEl('#e2e-link-mailto');
 
       await expect
         .poll(async () => (await readTelemetry(app)).externalOpens)
@@ -151,6 +169,7 @@ test.describe('Electron external link handling', () => {
           'https://example.org/primary',
           'https://example.org/middle',
           'https://example.org/enter-blank',
+          'mailto:someone@example.org',
         ]);
       expect(app.windows()).toHaveLength(1);
     } finally {
