@@ -1032,6 +1032,45 @@ describe('useAccountHoldSwitch', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it('cancels without switching when the window changes size under a pointer that stays where it is', () => {
+    const onSwitch = vi.fn();
+    const onClick = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+    const leftListening = watchWindowListeners();
+    holdOpen(trigger);
+    const { bobRow } = layoutTriggerAndMenu();
+    fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 }));
+    expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+
+    // The menu is placed again for the new size: Bob's row is no longer where the pointer is.
+    fireEvent(window, new Event('resize'));
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+
+    // The release where Bob was switches to nobody, and its click opens nothing.
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onSwitch).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(leftListening()).toEqual([]);
+
+    // Before the menu opened, the hold just ends: the tap's click is the user's own.
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 2, clientX: 25, clientY: 420 }));
+    fireEvent(window, new Event('resize'));
+    expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(leftListening()).toEqual([]);
+  });
+
   it('keeps the menu when the same accounts arrive again in the same order', () => {
     const onSwitch = vi.fn();
     const view = render(<Harness others={[BOB, CAROL]} onSwitch={onSwitch} onClick={vi.fn()} />);
@@ -1277,6 +1316,57 @@ describe('useAccountHoldSwitch', () => {
       });
       expect(vi.getTimerCount()).toBe(0);
       expect(onSwitch).toHaveBeenCalledTimes(2);
+    });
+
+    it('chooses the account as the finger lifts and stops the edge scroll, so no queued frame moves another row there', () => {
+      const onSwitch = vi.fn();
+      let frame: FrameRequestCallback | undefined;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        frame = callback;
+        return 1;
+      });
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+        frame = undefined;
+      });
+      render(<Harness others={[BOB, CAROL, DAVE]} onSwitch={onSwitch} onClick={vi.fn()} />);
+      const trigger = screen.getByTestId('trigger');
+      trigger.getBoundingClientRect = () => rect(10, 400, 42, 42);
+      holdOpen(trigger);
+
+      // The list shows 80 px (y 200..280) of three 44 px rows 2 px apart, scrolled by 43 px:
+      // Bob ends at 201, Carol starts at 203. One frame of scrolling up moves the rows about
+      // 5 px down, enough to bring Bob under a finger that is 1 px into Carol.
+      const list = screen.getByTestId('quick-list');
+      Object.defineProperty(list, 'clientHeight', { configurable: true, value: 80 });
+      Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 136 });
+      list.scrollTop = 43;
+      list.getBoundingClientRect = () => rect(60, 200, 220, 80);
+      ['bob', 'carol', 'dave'].forEach((id, index) => {
+        screen.getByTestId(`row-${id}`).getBoundingClientRect = () =>
+          rect(60, 200 + index * 46 - list.scrollTop, 220, 44);
+      });
+      const nearTopEdge = { clientX: 120, clientY: 204 };
+
+      // In the edge zone at the top: Carol is under the finger and a scroll frame is queued.
+      fireEvent(window, pointerEvent('pointermove', { pointerId: 1, ...nearTopEdge }));
+      expect(screen.getByTestId('row-carol').getAttribute('data-highlighted')).toBe('true');
+      expect(frame).toBeDefined();
+
+      // The finger lifts there with a touchend alone; a frame still queued runs before the timer.
+      touchEnd('touchend', nearTopEdge);
+      const queued = frame;
+      frame = undefined;
+      act(() => {
+        queued?.(116);
+      });
+      expect(list.scrollTop).toBe(43);
+      expect(frame).toBeUndefined();
+
+      // Nor does anything else that moves the rows before the timer change the choice.
+      list.scrollTop = 20;
+      runPendingTimers();
+      expect(onSwitch).toHaveBeenCalledTimes(1);
+      expect(onSwitch).toHaveBeenCalledWith(CAROL.session);
     });
 
     it('ends a short tap at once, so its hold cannot run out first on a busy page', () => {

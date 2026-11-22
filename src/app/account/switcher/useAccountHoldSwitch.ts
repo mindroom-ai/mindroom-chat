@@ -513,13 +513,15 @@ export function useAccountHoldSwitch({
         updateHoverAndAutoScroll(current);
       };
 
-      // The pointer lifted, at `point` when the lift may choose an account: over a visible row of
-      // an open menu that nothing covers it switches to that account, anywhere else to none.
-      const release = (current: ActiveGesture, point?: { x: number; y: number }) => {
-        const targetSessionId =
-          point && current.open && !isCovered(menuRef.current)
-            ? hitTestQuickAccountRow(point.x, point.y, current.anchor, menuRef.current)
-            : undefined;
+      // The account a lift there chooses: the one whose visible row is at that point, in an open
+      // menu that nothing covers. Anywhere else it chooses none.
+      const accountAt = (current: ActiveGesture, x: number, y: number): string | undefined =>
+        current.open && !isCovered(menuRef.current)
+          ? hitTestQuickAccountRow(x, y, current.anchor, menuRef.current)
+          : undefined;
+
+      // The pointer lifted: the gesture ends, with a switch to the account its lift chose, if any.
+      const release = (targetSessionId?: string) => {
         finishGesture('lifted');
 
         if (!targetSessionId) return;
@@ -537,13 +539,15 @@ export function useAccountHoldSwitch({
 
         // The last button of a mouse chord to lift is not the one that held the menu open.
         const primaryRelease = winEvent.pointerType !== 'mouse' || winEvent.button === 0;
-        release(current, primaryRelease ? { x: winEvent.clientX, y: winEvent.clientY } : undefined);
+        release(
+          primaryRelease ? accountAt(current, winEvent.clientX, winEvent.clientY) : undefined
+        );
       };
 
       const onWindowPointerCancel = (winEvent: PointerEvent) => {
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
-        release(current);
+        release();
       };
 
       // The pointer may lift in another window: no listener stays behind waiting for it.
@@ -581,11 +585,14 @@ export function useAccountHoldSwitch({
           finishGesture('lifted');
           return;
         }
+        // The account is chosen now, where the finger lifted, and the list scrolls no further: a
+        // frame of edge scrolling still queued would put another row there before the timer runs.
         const lifted = touchEvent.type === 'touchend' ? touchEvent.changedTouches[0] : undefined;
-        const liftPoint = lifted && { x: lifted.clientX, y: lifted.clientY };
+        const targetSessionId = lifted && accountAt(current, lifted.clientX, lifted.clientY);
+        stopEdgeScroll(current);
         current.liftTimer = setTimeout(() => {
           current.liftTimer = undefined;
-          if (gestureRef.current === current) release(current, liftPoint);
+          if (gestureRef.current === current) release(targetSessionId);
         }, 0);
       };
 
@@ -604,8 +611,12 @@ export function useAccountHoldSwitch({
       window.addEventListener('blur', onWindowBlur);
       window.addEventListener('focusin', onWindowFocusIn);
       window.addEventListener('keydown', onWindowKeyDown, true);
+      // A window that changes size, or a phone that turns, puts the menu and its rows elsewhere
+      // under a pointer that stays where it is.
+      window.addEventListener('resize', close);
 
       const removeListeners = () => {
+        window.removeEventListener('resize', close);
         window.removeEventListener('pointerdown', onWindowPointerDown, true);
         window.removeEventListener('touchend', onWindowTouchEnd, true);
         window.removeEventListener('touchcancel', onWindowTouchEnd, true);
