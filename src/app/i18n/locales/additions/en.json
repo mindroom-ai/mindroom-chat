@@ -605,7 +605,9 @@
     },
     "accountMenu": {
       "open": "Open account menu for {{name}}",
-      "manageAccounts": "Manage Accounts"
+      "otherAccounts": "Other accounts",
+      "manage": "Manage",
+      "signOut": "Sign out"
     },
     "roomOrder": {
       "sortByName": "Sort Rooms A to Z"

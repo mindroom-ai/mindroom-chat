@@ -592,7 +592,9 @@
     },
     "accountMenu": {
       "open": "{{name}} のアカウントメニューを開く",
-      "manageAccounts": "アカウントの管理"
+      "otherAccounts": "他のアカウント",
+      "manage": "管理",
+      "signOut": "ログアウト"
     },
     "roomOrder": {
       "sortByName": "ルームを A から Z の順に並べる"

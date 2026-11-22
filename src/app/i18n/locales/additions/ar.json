@@ -657,7 +657,9 @@
     },
     "accountMenu": {
       "open": "فتح قائمة حساب ⁨{{name}}⁩",
-      "manageAccounts": "إدارة الحسابات"
+      "otherAccounts": "حسابات أخرى",
+      "manage": "إدارة",
+      "signOut": "تسجيل الخروج"
     },
     "roomOrder": {
       "sortByName": "ترتيب الغرف من أ إلى ي"

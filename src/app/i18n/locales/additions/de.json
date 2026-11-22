@@ -605,7 +605,9 @@
     },
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
-      "manageAccounts": "Konten verwalten"
+      "otherAccounts": "Andere Konten",
+      "manage": "Verwalten",
+      "signOut": "Abmelden"
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"

@@ -93,11 +93,11 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}`);
   await signIn(page, first);
 
-  // One account: the menu names it and offers Settings and Add Account only.
+  // One account: the menu names it and offers Settings, Add Account and Sign out.
   await openAccountMenu(page);
   const menu = page.getByRole('menu');
   await expect(menu).toHaveAccessibleName(`Avery Menu ${firstId}`);
-  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account']);
+  await expect(menu.getByRole('menuitem')).toHaveText(['Settings', 'Add Account', 'Sign out']);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   // Only the active account's button is on the rail.
@@ -110,14 +110,15 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await signIn(page, second);
   await expect.poll(() => activeUserId(page)).toBe(secondId);
 
-  // Two accounts: the other one is listed with its Matrix ID, and Manage Accounts appears.
+  // Two accounts: Manage and the other account appear in the Other accounts well.
   await openAccountMenu(page);
   await expect(menu).toHaveAccessibleName(`Blake Menu ${secondId}`);
   await expect(menu.getByRole('menuitem')).toHaveText([
     'Settings',
+    'Manage',
     new RegExp(`Avery Menu.*${firstId}`),
     'Add Account',
-    'Manage Accounts',
+    'Sign out',
   ]);
   await menu.getByRole('menuitem', { name: `Switch to account Avery Menu (${firstId})` }).click();
   await waitForShell(page);

@@ -618,7 +618,9 @@
     },
     "accountMenu": {
       "open": "Abrir o menu da conta de {{name}}",
-      "manageAccounts": "Gerir contas"
+      "otherAccounts": "Outras contas",
+      "manage": "Gerir",
+      "signOut": "Terminar sessão"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de A a Z"

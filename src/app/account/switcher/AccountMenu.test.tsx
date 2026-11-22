@@ -12,7 +12,9 @@ vi.mock('react-i18next', async () => {
 });
 vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),
-  PopOut: ({ content }: { content: React.ReactNode }) => content,
+  PopOut: ({ content, position }: { content: React.ReactNode; position?: string }) => (
+    <div data-popout-position={position}>{content}</div>
+  ),
 }));
 vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: ({ alt }: { alt: string }) => <span data-avatar={alt} />,
@@ -48,7 +50,11 @@ const CAROL: AccountMenuAccount = {
   displayName: 'Carol',
 };
 
-const open = (others: AccountMenuAccount[], withManage = others.length > 0) => {
+const open = (
+  others: AccountMenuAccount[],
+  options?: { withManage?: boolean; below?: boolean }
+) => {
+  const withManage = options?.withManage ?? others.length > 0;
   const anchor = document.createElement('button');
   anchor.textContent = 'Account';
   document.body.append(anchor);
@@ -57,6 +63,7 @@ const open = (others: AccountMenuAccount[], withManage = others.length > 0) => {
     onOpenSettings: vi.fn(),
     onSwitchAccount: vi.fn(),
     onAddAccount: vi.fn(),
+    onSignOut: vi.fn(),
     onManageAccounts: withManage ? vi.fn() : undefined,
     onClose: vi.fn(),
   };
@@ -65,6 +72,7 @@ const open = (others: AccountMenuAccount[], withManage = others.length > 0) => {
       anchor={anchor}
       active={{ userId: '@alice:mindroom.chat', displayName: 'Alice' }}
       others={others}
+      below={options?.below}
       {...props}
     />
   );
@@ -82,18 +90,20 @@ afterEach(() => {
 });
 
 describe('AccountMenu', () => {
-  it('names the signed-in account and lists the other accounts between Settings and Add Account', () => {
+  it('renders the header card, Other accounts well with Manage, and split footer with multiple accounts', () => {
     open([BOB, CAROL]);
     const menu = screen.getByRole('menu');
     expect(menu.getAttribute('aria-labelledby')).toBeTruthy();
     expect(screen.getByText('Alice')).toBeTruthy();
     expect(screen.getByText('@alice:mindroom.chat')).toBeTruthy();
+    expect(screen.getByText('Other accounts')).toBeTruthy();
     expect(entryNames()).toEqual([
       'Settings',
+      'Manage',
       'Switch to account Bob (@bob:matrix.org)',
       'Switch to account Carol (@carol:example.org)',
       'Add Account',
-      'Manage Accounts',
+      'Sign out',
     ]);
     // Each account shows its picture, name and Matrix ID.
     const bob = screen.getByRole('menuitem', { name: 'Switch to account Bob (@bob:matrix.org)' });
@@ -101,9 +111,11 @@ describe('AccountMenu', () => {
     expect(bob.querySelector('[data-avatar="Bob"]')).toBeTruthy();
   });
 
-  it('offers Settings and Add Account alone with a single account', () => {
+  it('omits the Other accounts well and Manage with a single account', () => {
     open([]);
-    expect(entryNames()).toEqual(['Settings', 'Add Account']);
+    expect(screen.queryByText('Other accounts')).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Manage' })).toBeNull();
+    expect(entryNames()).toEqual(['Settings', 'Add Account', 'Sign out']);
     // Settings shows its shortcut beside its name, not in it, and names it for assistive technology.
     const settings = screen.getByRole('menuitem', { name: 'Settings' });
     expect(settings.textContent).toBe('Settings');
@@ -118,20 +130,23 @@ describe('AccountMenu', () => {
     expect(onSwitchAccount).toHaveBeenCalledWith(CAROL.session);
   });
 
-  it('closes before opening Settings, adding an account or managing them', () => {
-    const { onClose, onOpenSettings, onAddAccount, onManageAccounts } = open([BOB]);
+  it('closes before opening Settings, managing accounts, adding an account or signing out', () => {
+    const { onClose, onOpenSettings, onManageAccounts, onAddAccount, onSignOut } = open([BOB]);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add Account' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage Accounts' }));
-    expect(onClose).toHaveBeenCalledTimes(3);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+    expect(onClose).toHaveBeenCalledTimes(4);
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
-    expect(onAddAccount).toHaveBeenCalledTimes(1);
     expect(onManageAccounts).toHaveBeenCalledTimes(1);
+    expect(onAddAccount).toHaveBeenCalledTimes(1);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves focus on its button, walks the entries with the arrow keys and closes on Escape', async () => {
-    const { anchor, onClose } = open([BOB]);
+  it('walks every actionable item in visual order with the arrow keys and closes on Escape', async () => {
+    const { anchor, onClose } = open([BOB, CAROL]);
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
+    expect(items).toHaveLength(6);
     // A pointer press keeps focus on the button (installOverlayFocus moves it for Enter or Space).
     await new Promise((resolve) => {
       setTimeout(resolve, 10);
@@ -139,12 +154,15 @@ describe('AccountMenu', () => {
     expect(document.activeElement).toBe(anchor);
     const arrow = (key: 'ArrowDown' | 'ArrowUp', keyCode: number) =>
       fireEvent.keyDown(document.activeElement ?? document.body, { key, keyCode, which: keyCode });
+    // Settings -> Manage -> Bob -> Carol -> Add Account -> Sign out -> wraps to Settings
+    for (const item of items) {
+      arrow('ArrowDown', 40);
+      expect(document.activeElement).toBe(item);
+    }
     arrow('ArrowDown', 40);
     expect(document.activeElement).toBe(items[0]);
-    arrow('ArrowDown', 40);
-    expect(document.activeElement).toBe(items[1]);
     arrow('ArrowUp', 38);
-    expect(document.activeElement).toBe(items[0]);
+    expect(document.activeElement).toBe(items[items.length - 1]);
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(onClose).toHaveBeenCalled();
   });
@@ -156,5 +174,12 @@ describe('AccountMenu', () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.mouseDown(document.body);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('places the menu below the anchor on phones', () => {
+    open([], { below: true });
+    expect(
+      document.querySelector('[data-popout-position]')?.getAttribute('data-popout-position')
+    ).toBe('Bottom');
   });
 });

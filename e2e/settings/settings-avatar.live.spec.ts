@@ -27,7 +27,7 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expectLoggedInShellStable(page);
 
     await openAccountMenu(page);
-    await expect(page.getByRole('menuitem', { name: 'Manage accounts' })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Manage', exact: true })).toHaveCount(0);
     await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
 
     await expect(
@@ -66,8 +66,8 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
     await openAccountMenu(page);
-    await expect(page.getByRole('menuitem', { name: 'Manage accounts' })).toBeVisible();
-    await page.getByRole('menuitem', { name: 'Manage accounts' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Manage', exact: true })).toBeVisible();
+    await page.getByRole('menuitem', { name: 'Manage', exact: true }).click();
 
     await expect(page.getByText('Accounts', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(

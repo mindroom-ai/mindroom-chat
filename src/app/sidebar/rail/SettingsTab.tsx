@@ -113,7 +113,7 @@ const useCachedActiveAvatar = (
 /**
  * The account button at the foot of the icon rail, or with `inTopBar` at the end of a phone's top
  * bar: the active account's avatar, which opens the account menu (Settings, the other accounts,
- * Add Account, Manage Accounts).
+ * Add Account, Sign out).
  */
 export function SettingsTab({
   inTopBar = false,
@@ -132,8 +132,8 @@ export function SettingsTab({
   const [menuButton, setMenuButton] = useState<HTMLElement>();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
-  /** The inactive account whose logout waits for confirmation. */
-  const [leaving, setLeaving] = useState<StoredSession>();
+  /** The account whose logout waits for confirmation: the active one or an inactive session. */
+  const [leaving, setLeaving] = useState<'active' | StoredSession>();
 
   const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
   // The stored copy carries the freshest cached profile fields.
@@ -235,6 +235,7 @@ export function SettingsTab({
       onOpenSettings={openSettings}
       onSwitchAccount={handleSwitch}
       onAddAccount={handleAddAccount}
+      onSignOut={() => setLeaving('active')}
       onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
       onClose={closeMenu}
       below={inTopBar}
@@ -313,10 +314,14 @@ export function SettingsTab({
             <FocusTrap
               focusTrapOptions={{
                 clickOutsideDeactivates: true,
+                initialFocus: false,
                 onDeactivate: closeLeaving,
               }}
             >
-              <LogoutDialog session={leaving} handleClose={closeLeaving} />
+              <LogoutDialog
+                session={leaving === 'active' ? undefined : leaving}
+                handleClose={closeLeaving}
+              />
             </FocusTrap>
           </OverlayCenter>
         </Overlay>

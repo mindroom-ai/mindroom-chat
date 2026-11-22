@@ -592,7 +592,9 @@
     },
     "accountMenu": {
       "open": "Buka menu akun untuk {{name}}",
-      "manageAccounts": "Kelola akun"
+      "otherAccounts": "Akun lain",
+      "manage": "Kelola",
+      "signOut": "Keluar"
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"

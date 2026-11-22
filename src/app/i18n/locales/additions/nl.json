@@ -605,7 +605,9 @@
     },
     "accountMenu": {
       "open": "Accountmenu voor {{name}} openen",
-      "manageAccounts": "Accounts beheren"
+      "otherAccounts": "Andere accounts",
+      "manage": "Beheren",
+      "signOut": "Uitloggen"
     },
     "roomOrder": {
       "sortByName": "Kamers sorteren van A tot Z"

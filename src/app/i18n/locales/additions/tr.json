@@ -605,7 +605,9 @@
     },
     "accountMenu": {
       "open": "{{name}} için hesap menüsünü aç",
-      "manageAccounts": "Hesapları yönet"
+      "otherAccounts": "Diğer hesaplar",
+      "manage": "Yönet",
+      "signOut": "Çıkış yap"
     },
     "roomOrder": {
       "sortByName": "Odaları A'dan Z'ye sırala"
