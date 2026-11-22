@@ -165,13 +165,13 @@ export function useScrollAnchorMemory({
       };
     }
     const state = restoreRef.current;
+    const activeObserver = { current: undefined as ResizeObserver | undefined };
 
-    let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
       if (restoringRef) restoringRef.current = false;
       stopFollowingRef.current = undefined;
-      observer?.disconnect();
+      activeObserver.current?.disconnect();
       listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
     const onKeyDown = (event: Event) => {
@@ -225,14 +225,15 @@ export function useScrollAnchorMemory({
     if (!state.snapshot) return undefined;
 
     stopFollowingRef.current = stopFollowing;
-    observer = new ResizeObserver(restore);
+    const observer = new ResizeObserver(restore);
+    activeObserver.current = observer;
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
     listeners.forEach(([type, handler, opts]) => view.addEventListener(type, handler, opts));
     return () => {
       if (restoringRef) restoringRef.current = false;
       stopFollowingRef.current = undefined;
-      observer?.disconnect();
+      observer.disconnect();
       listeners.forEach(([type, handler, opts]) => view.removeEventListener(type, handler, opts));
     };
   }, [contentRef, memory, memoryKey, ready, restarts, restoringRef, scrollRef]);

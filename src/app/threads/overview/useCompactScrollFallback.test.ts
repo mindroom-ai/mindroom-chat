@@ -245,7 +245,9 @@ describe('useCompactScrollFallback', () => {
       rerender({ live: ['$d', ...ids] });
       expect(writes).toEqual([]);
       expect(view.scrollTop).toBe(150);
-      act(() => vi.advanceTimersByTime(SCROLL_SETTLE_MS));
+      act(() => {
+        vi.advanceTimersByTime(SCROLL_SETTLE_MS);
+      });
       expect(writes).toEqual([250]);
       expect(view.scrollTop).toBe(250);
     } finally {
@@ -253,7 +255,7 @@ describe('useCompactScrollFallback', () => {
     }
   });
 
-    it('anchors below scroll-padding-top rather than to a card hidden under the floating header', () => {
+  it('anchors below scroll-padding-top rather than to a card hidden under the floating header', () => {
     withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e'];
     const { view, show, writes } = list(ids, 120);
