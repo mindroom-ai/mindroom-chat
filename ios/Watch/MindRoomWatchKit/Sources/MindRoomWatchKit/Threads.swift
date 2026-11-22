@@ -58,6 +58,24 @@ public enum Waveform {
 }
 
 
+/// A thread's resolved title together with its source event id and kind (summary notice vs voice-root transcript).
+public struct KnownTitle: Equatable, Sendable {
+    public enum Kind: String, Equatable, Sendable {
+        case summary
+        case transcript
+    }
+
+    public let text: String
+    public let sourceEventId: String
+    public let kind: Kind
+
+    public init(text: String, sourceEventId: String, kind: Kind) {
+        self.text = text
+        self.sourceEventId = sourceEventId
+        self.kind = kind
+    }
+}
+
 /// One thread root returned by `/threads`, carrying Tuwunel's bundled summary fields
 /// (`io.mindroom.title`, `io.mindroom.latest_reply`, `latest_event`, `count`) for instant first paint
 /// and edit-aware cache invalidation.
@@ -66,7 +84,7 @@ public struct ThreadListEntry: Equatable, Sendable {
     public let rootTs: Int
     public let latestTs: Int
     public let count: Int
-    public let serverTitle: String?
+    public let serverTitle: KnownTitle?
     public let fallbackTitle: String
     public let previewSender: String?
     public let previewText: String?
@@ -76,7 +94,7 @@ public struct ThreadListEntry: Equatable, Sendable {
     /// Changes on any new reply, count change, or bundled edit of the latest reply / latest event / title / root.
     public let cacheKey: String
 
-    public static func parse(_ root: JSON) -> ThreadListEntry? {
+    public static func parse(_ root: JSON, ownUserId: String) -> ThreadListEntry? {
         guard let rootId = root.eventId else { return nil }
         let threadRel = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON
         let count = (threadRel?["count"] as? NSNumber)?.intValue ?? 0
@@ -84,7 +102,7 @@ public struct ThreadListEntry: Equatable, Sendable {
         let latestReply = threadRel?["io.mindroom.latest_reply"] as? JSON
         let titleEvent = threadRel?["io.mindroom.title"] as? JSON
 
-        let serverTitle: String? = titleEvent.flatMap { event in
+        let serverTitle: KnownTitle? = titleEvent.flatMap { event in
             let content = effectiveContent(event, latestEdit: event.validBundledEdit)
             let summaryObj = content["io.mindroom.thread_summary"] as? JSON
             let raw: String?
@@ -95,7 +113,7 @@ public struct ThreadListEntry: Equatable, Sendable {
                 raw = content["body"] as? String
             }
             guard let raw, !raw.isEmpty else { return nil }
-            return raw
+            return KnownTitle(text: raw, sourceEventId: event.eventId ?? "", kind: .summary)
         }
 
         let rootEdit = root.validBundledEdit
@@ -109,11 +127,20 @@ public struct ThreadListEntry: Equatable, Sendable {
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
         let voiceFile = isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil
 
+        let isTitleNotice = { (event: JSON) in event.content["io.mindroom.thread_summary"] != nil }
+        let isPreviewCandidate = { (event: JSON) -> Bool in
+            guard !isTitleNotice(event),
+                  (event["sender"] as? String) != ownUserId,
+                  event.content["com.mindroom.original_sender"] == nil,
+                  VoiceEcho.transcript(event, latestEdit: nil) == nil else { return false }
+            return true
+        }
+
         var previewSender: String?
         var previewText: String?
         var previewIsEncrypted = false
         var previewIsVoiceOnly = false
-        if let preview = latestReply ?? latestEvent {
+        if let preview = [latestReply, latestEvent].compactMap({ $0 }).first(where: isPreviewCandidate) {
             previewSender = preview["sender"] as? String
             let type = preview["type"] as? String
             if type == "m.room.encrypted" {
@@ -133,14 +160,17 @@ public struct ThreadListEntry: Equatable, Sendable {
             }
         }
 
-        let latestTs = [
+        var timestamps = [
             root.timestamp,
             rootEdit?.timestamp ?? 0,
             latestReply?.timestamp ?? 0,
             latestReply?.validBundledEdit?.timestamp ?? 0,
-            latestEvent?.timestamp ?? 0,
-            latestEvent?.validBundledEdit?.timestamp ?? 0,
-        ].max() ?? root.timestamp
+        ]
+        if let latestEvent, !isTitleNotice(latestEvent) {
+            timestamps.append(latestEvent.timestamp)
+            timestamps.append(latestEvent.validBundledEdit?.timestamp ?? 0)
+        }
+        let latestTs = timestamps.max() ?? root.timestamp
 
         let cacheKey = [
             latestEvent?.eventId ?? rootId,

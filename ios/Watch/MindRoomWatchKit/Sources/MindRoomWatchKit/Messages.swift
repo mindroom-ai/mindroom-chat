@@ -64,15 +64,20 @@ public enum RunState: Equatable, Sendable {
 /// The thread's AI title: the router's newest `io.mindroom.thread_summary` notice.
 public enum ThreadSummary {
     public static func title(from events: [JSON]) -> String? {
+        titleWithEventId(from: events)?.title
+    }
+
+    public static func titleWithEventId(from events: [JSON]) -> (eventId: String, title: String)? {
         events
-            .compactMap { event -> (Int, String)? in
+            .compactMap { event -> (Int, String, String)? in
                 guard let summary = event.content["io.mindroom.thread_summary"] as? JSON,
                       (summary["version"] as? NSNumber)?.intValue == 1 else { return nil }
-                let text = (summary["summary"] as? String) ?? (event.content["body"] as? String)
-                return text.map { (event.timestamp, $0) }
+                guard let text = (summary["summary"] as? String) ?? (event.content["body"] as? String),
+                      !text.isEmpty else { return nil }
+                return (event.timestamp, event.eventId ?? "", text)
             }
-            .max { $0.0 < $1.0 }?
-            .1
+            .max { $0.0 < $1.0 }
+            .map { ($0.1, $0.2) }
     }
 }
 

@@ -529,19 +529,19 @@ final class ThreadSnapshotTests: XCTestCase {
 
         // 1. io.mindroom.title (serverTitle) wins over window summary and cache.
         let s1 = ThreadSnapshot.build(root: root, related: [windowSummary], ownUserId: me, now: now,
-                                      serverTitle: "Server Title", cachedTitle: "Cached Title")
+                                      serverTitle: KnownTitle(text: "Server Title", sourceEventId: "$st", kind: .summary), cachedTitle: KnownTitle(text: "Cached Title", sourceEventId: "$ct", kind: .summary))
         XCTAssertEqual(s1.title, "Server Title")
-        XCTAssertEqual(s1.knownTitle, "Server Title")
+        XCTAssertEqual(s1.knownTitle?.text, "Server Title")
 
         // 2. Window summary wins over cache when serverTitle is nil.
         let s2 = ThreadSnapshot.build(root: root, related: [windowSummary], ownUserId: me, now: now,
-                                      serverTitle: nil, cachedTitle: "Cached Title")
+                                      serverTitle: nil, cachedTitle: KnownTitle(text: "Cached Title", sourceEventId: "$ct", kind: .summary))
         XCTAssertEqual(s2.title, "Window Summary")
-        XCTAssertEqual(s2.knownTitle, "Window Summary")
+        XCTAssertEqual(s2.knownTitle?.text, "Window Summary")
 
         // 3. Cached title wins over root text when summary scrolled out of the window.
         let s3 = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now,
-                                      serverTitle: nil, cachedTitle: "Cached Title")
+                                      serverTitle: nil, cachedTitle: KnownTitle(text: "Cached Title", sourceEventId: "$ct", kind: .summary))
         XCTAssertEqual(s3.title, "Cached Title")
         XCTAssertNil(s3.knownTitle)
 
@@ -597,9 +597,9 @@ final class ThreadSnapshotTests: XCTestCase {
             return r
         }
 
-        let entry1 = ThreadListEntry.parse(makeRoot(reply: reply1))
-        let entry2 = ThreadListEntry.parse(makeRoot(reply: reply2))
-        XCTAssertEqual(entry1?.serverTitle, "Renamed Thread")
+        let entry1 = ThreadListEntry.parse(makeRoot(reply: reply1), ownUserId: me)
+        let entry2 = ThreadListEntry.parse(makeRoot(reply: reply2), ownUserId: me)
+        XCTAssertEqual(entry1?.serverTitle?.text, "Renamed Thread")
         XCTAssertEqual(entry1?.previewSender, agent)
         XCTAssertEqual(entry1?.previewText, "Draft 1")
         XCTAssertEqual(entry2?.previewText, "Final 2")
@@ -626,5 +626,119 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.title, "Early title")
         // Old message was not added to entries!
         XCTAssertEqual(snapshot.entries.map(\.id), ["$root"])
+    }
+
+    func testEncryptedRoomPendingCardOutsideWindowRemainsNeedsYouWhenFetchedById() {
+        // Card at ts 2 followed by 31 replies (ts 10..40): card is outside a 20-reply window,
+        // re-fetched by its known id alongside its m.replace page.
+        let oldCard = card("$oldEncCard", 2)
+        let recentReplies = (21...40).map { i in
+            event("$r\(i)", i, sender: agent, inThread(["msgtype": "m.text", "body": "Reply \(i)"]))
+        }
+        let stillPending = ThreadSnapshot.build(root: voiceRoot, related: recentReplies + [oldCard], ownUserId: me, now: now)
+        XCTAssertEqual(stillPending.pendingApproval?.eventId, "$oldEncCard")
+        XCTAssertEqual(stillPending.rowState, .needsYou)
+
+        // Once its m.replace edit approves it, it clears needsYou.
+        let cardEdit = event("$ce", 45, sender: "@mindroom_router:x", type: ApprovalCard.eventType, [
+            "m.new_content": ["tool_name": "send_email", "status": "approved"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$oldEncCard"] as JSON,
+        ])
+        let decided = ThreadSnapshot.build(root: voiceRoot, related: recentReplies + [oldCard, cardEdit], ownUserId: me, now: now)
+        XCTAssertNil(decided.pendingApproval)
+        XCTAssertNotEqual(decided.rowState, .needsYou)
+    }
+
+    func testQuestionWithMissingSourceIsNotActionableUntilSourceIsFetched() {
+        let q = event("$q1", 50, sender: agent, inThread([
+            "msgtype": "m.text", "body": "Pick one",
+            "io.mindroom.interactive": [
+                "question_text": "Pick one",
+                "options": ["1": "A", "🍎": "A"] as JSON,
+                "source_event_id": "$oldSource",
+            ] as JSON,
+        ]))
+        // Missing source -> not actionable yet, exposes missingQuestionSourceId.
+        let unknown = ThreadSnapshot.build(root: voiceRoot, related: [q], ownUserId: me, now: now)
+        XCTAssertNil(unknown.openQuestion)
+        XCTAssertEqual(unknown.missingQuestionSourceId, "$oldSource")
+
+        // Source from someone else -> still not actionable, no longer missing.
+        let annasPrompt = event("$oldSource", 10, sender: "@anna:x", inThread(["msgtype": "m.text", "body": "Ask me"]))
+        let forAnna = ThreadSnapshot.build(root: voiceRoot, related: [q], ownUserId: me, now: now, questionSource: annasPrompt)
+        XCTAssertNil(forAnna.openQuestion)
+        XCTAssertNil(forAnna.missingQuestionSourceId)
+
+        // Source from viewer -> actionable, without polluting entries with the old source event.
+        let myPrompt = event("$oldSource", 10, sender: me, inThread(["msgtype": "m.text", "body": "Ask me"]))
+        let forMe = ThreadSnapshot.build(root: voiceRoot, related: [q], ownUserId: me, now: now, questionSource: myPrompt)
+        XCTAssertEqual(forMe.openQuestion?.eventId, "$q1")
+        XCTAssertNil(forMe.missingQuestionSourceId)
+        XCTAssertFalse(forMe.entries.map(\.id).contains("$oldSource"))
+    }
+
+    func testQuestionCandidateIdStaysSetAfterViewerReactionForWithdrawalPolling() {
+        let q = question("$q1", 5)
+        let reaction = event("$rx", 6, sender: me, type: "m.reaction", [
+            "m.relates_to": ["rel_type": "m.annotation", "event_id": "$q1", "key": "✈️"] as JSON,
+        ])
+        let answered = ThreadSnapshot.build(root: voiceRoot, related: [q, reaction], ownUserId: me, now: now)
+        XCTAssertNil(answered.openQuestion)
+        XCTAssertEqual(answered.questionCandidateId, "$q1")
+    }
+
+    func testCachedVoiceTranscriptShowsInVoiceRootNotAsHeading() {
+        let cached = KnownTitle(text: "🎤 Book dinner at seven", sourceEventId: "$echo1", kind: .transcript)
+        let reply = event("$r1", 50, sender: agent, inThread(["msgtype": "m.text", "body": "Booked."]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now, cachedTitle: cached)
+        XCTAssertEqual(snapshot.title, "🎤 Book dinner at seven")
+        XCTAssertNil(snapshot.heading)
+        guard case let .message(rootMsg) = snapshot.entries.first else { return XCTFail("missing root entry") }
+        XCTAssertEqual(rootMsg.text, "🎤 Book dinner at seven")
+        XCTAssertFalse(rootMsg.isVoiceOnly)
+    }
+
+    func testRedactedCachedTitleSourceIsDropped() {
+        let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Fallback root"])
+        let cached = KnownTitle(text: "Old Title", sourceEventId: "$sum1", kind: .summary)
+        let redactedNotice = event("$sum1", 3, sender: "@mindroom_router:x", [:])
+        let snapshot = ThreadSnapshot.build(root: root, related: [redactedNotice], ownUserId: me, now: now, cachedTitle: cached)
+        XCTAssertTrue(snapshot.cachedTitleWasRedacted)
+        XCTAssertEqual(snapshot.title, "Fallback root")
+        XCTAssertNil(snapshot.heading)
+    }
+
+    func testThreadListEntrySkipsOwnAndRelayPreviewsAndIgnoresTitleNoticeTimestamp() {
+        let titleNotice = event("$t1", 99, sender: "@mindroom_router:x", [
+            "msgtype": "m.notice", "body": "Title",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Title"] as JSON,
+        ])
+        let ownReply = event("$own", 20, sender: me, ["msgtype": "m.text", "body": "My follow-up"])
+        let relay = event("$relay", 30, sender: "@mindroom_router:x", [
+            "msgtype": "m.text", "body": "Relayed", "com.mindroom.original_sender": me,
+        ])
+        var root1 = event("$root1", 10, sender: me, ["msgtype": "m.text", "body": "Hello"])
+        root1["unsigned"] = ["m.relations": ["m.thread": [
+            "count": 2, "latest_event": titleNotice, "io.mindroom.title": titleNotice, "io.mindroom.latest_reply": ownReply,
+        ] as JSON] as JSON] as JSON
+        let e1 = ThreadListEntry.parse(root1, ownUserId: me)
+        XCTAssertNil(e1?.previewSender)
+        XCTAssertEqual(e1?.latestTs, 20)
+
+        var root2 = event("$root2", 10, sender: me, ["msgtype": "m.text", "body": "Hello"])
+        root2["unsigned"] = ["m.relations": ["m.thread": [
+            "count": 2, "latest_event": titleNotice, "io.mindroom.title": titleNotice, "io.mindroom.latest_reply": relay,
+        ] as JSON] as JSON] as JSON
+        let e2 = ThreadListEntry.parse(root2, ownUserId: me)
+        XCTAssertNil(e2?.previewSender)
+    }
+
+    func testBundledEditWithoutRelatesToIsIgnored() {
+        let noRelEdit = event("$e1", 5, sender: agent, [
+            "m.new_content": ["msgtype": "m.text", "body": "Missing relation"] as JSON,
+        ])
+        let reply = withBundledEdit(event("$r1", 2, sender: agent, inThread(["msgtype": "m.text", "body": "Original"])), noRelEdit)
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.text, "Original")
     }
 }
