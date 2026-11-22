@@ -65,6 +65,8 @@ const hitTestQuickAccountRow = (
     const visibleLeft = Math.max(rect.left, containerRect.left);
     const visibleRight = Math.min(rect.right, containerRect.right);
     if (visibleBottom <= visibleTop || visibleRight <= visibleLeft) continue;
+    // Beside the rows, in the list's padding or over its scrollbar, no row is meant.
+    if (clientX < visibleLeft || clientX > visibleRight) continue;
 
     // The row whose visible part holds the pointer wins outright, however near a neighbour is.
     if (clientY >= visibleTop && clientY <= visibleBottom) return sessionId;
@@ -125,7 +127,8 @@ const edgeScrollVelocity = (
 /**
  * What the pointer that started a gesture is doing as the gesture ends: `lifted` (released or
  * cancelled), `held` (still down: Escape, a second pointer, a covering layer, `enabled` turning
- * false) or `gone` (the window lost focus, so its release may never reach this window).
+ * false) or `gone` (the window lost focus, so its release may happen in another window and never
+ * reach this one).
  */
 type PointerAtEnd = 'lifted' | 'held' | 'gone';
 
@@ -241,40 +244,46 @@ export function useAccountHoldSwitch({
 
   /**
    * Suppresses the click a pointer leaves behind when it lifts after its hold opened the menu.
-   * With `heldPointerId`, the menu closed while that pointer was still down: suppression stays
-   * armed until the pointer lifts. Either way it then lasts a short while, for a lift that leaves
-   * no click. Only four things disarm it: the click it swallows, that timer, a new primary press
-   * on the avatar, and the window losing focus, after which the lift may happen in another window
-   * and never be seen here. A key press never does: its own click passes anyway (`onClickCapture`).
+   * - `lifted`: for a short while, since a lift off the avatar leaves no click.
+   * - `held`: until the pointer lifts, then for that short while.
+   * - `gone`: with no timer and no listener, since the lift may never be seen here. The pointer
+   *   may also come back still down and lift on the avatar, and that click is swallowed too.
+   *
+   * Left armed, it swallows nothing it should not: a click without a pointer (Enter, Space,
+   * assistive technology) passes anyway (`onClickCapture`), and a new press on the avatar disarms
+   * it before its own click.
    */
   const armSuppressNextClick = useCallback(
-    (heldPointerId?: number) => {
+    (pointer: PointerAtEnd, pointerId: number) => {
       clearSuppressNextClick();
       suppressNextClickRef.current = true;
+      if (pointer === 'gone') return;
       const expireSoon = () => {
         suppressClickTimerRef.current = setTimeout(
           clearSuppressNextClick,
           SUPPRESS_CLICK_TIMEOUT_MS
         );
       };
-      const onEnd = (winEvent: PointerEvent) => {
-        if (winEvent.pointerId !== heldPointerId) return;
-        window.removeEventListener('pointerup', onEnd);
-        window.removeEventListener('pointercancel', onEnd);
+      if (pointer === 'lifted') {
         expireSoon();
-      };
-      window.addEventListener('blur', clearSuppressNextClick);
-      if (heldPointerId === undefined) {
-        expireSoon();
-      } else {
-        window.addEventListener('pointerup', onEnd);
-        window.addEventListener('pointercancel', onEnd);
+        return;
       }
-      removeSuppressListenersRef.current = () => {
-        window.removeEventListener('blur', clearSuppressNextClick);
+      const stopWaiting = () => {
         window.removeEventListener('pointerup', onEnd);
         window.removeEventListener('pointercancel', onEnd);
+        window.removeEventListener('blur', stopWaiting);
+        removeSuppressListenersRef.current = undefined;
       };
+      function onEnd(winEvent: PointerEvent) {
+        if (winEvent.pointerId !== pointerId) return;
+        stopWaiting();
+        expireSoon();
+      }
+      window.addEventListener('pointerup', onEnd);
+      window.addEventListener('pointercancel', onEnd);
+      // The window losing focus leaves the pointer `gone`: armed, with nothing waiting.
+      window.addEventListener('blur', stopWaiting);
+      removeSuppressListenersRef.current = stopWaiting;
     },
     [clearSuppressNextClick]
   );
@@ -287,9 +296,7 @@ export function useAccountHoldSwitch({
       const { pointerId } = current;
       gestureRef.current = undefined;
       teardownGesture(current);
-      if (wasOpen && pointer !== 'gone') {
-        armSuppressNextClick(pointer === 'held' ? pointerId : undefined);
-      }
+      if (wasOpen) armSuppressNextClick(pointer, pointerId);
       setPressing(false);
       setHoldAnchor(undefined);
       setHoveredSessionId(undefined);
@@ -356,11 +363,12 @@ export function useAccountHoldSwitch({
         return;
       }
 
-      if (event.button !== 0 || event.isPrimary === false) return;
-      // A fresh primary press starts an independent interaction; never let a stale suppression
-      // from a previous hold swallow it (even when `enabled` is currently false).
+      if (event.isPrimary === false) return;
+      // A new press, with any button, means the pointer of a previous hold has lifted: a
+      // suppression still armed for it is stale and must not swallow this press's click or
+      // context menu (even when `enabled` is currently false).
       clearSuppressNextClick();
-      if (!enabledRef.current) return;
+      if (event.button !== 0 || !enabledRef.current) return;
 
       const anchor = event.currentTarget;
       const { pointerId, clientX: startX, clientY: startY } = event;
@@ -431,6 +439,13 @@ export function useAccountHoldSwitch({
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
 
+        // A mouse lifts its primary button without a pointerup while another button of a chord
+        // stays down, or outside the window before the menu captured the pointer.
+        if (winEvent.pointerType === 'mouse' && (winEvent.buttons & 1) === 0) {
+          close();
+          return;
+        }
+
         current.lastX = winEvent.clientX;
         current.lastY = winEvent.clientY;
 
@@ -455,8 +470,10 @@ export function useAccountHoldSwitch({
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
 
+        // The last button of a mouse chord to lift is not the one that held the menu open.
+        const primaryRelease = winEvent.pointerType !== 'mouse' || winEvent.button === 0;
         const targetSessionId =
-          current.open && !isCovered(menuRef.current)
+          current.open && primaryRelease && !isCovered(menuRef.current)
             ? hitTestQuickAccountRow(
                 winEvent.clientX,
                 winEvent.clientY,
@@ -481,14 +498,17 @@ export function useAccountHoldSwitch({
         finishGesture('lifted');
       };
 
-      // The pointer may lift in another window: nothing stays behind waiting for it.
+      // The pointer may lift in another window: no listener stays behind waiting for it.
       const onWindowBlur = () => {
         finishGesture('gone');
       };
 
-      // Focus moving into a layer that opened over the menu is the first sign of it.
+      // Focus moving into a layer that opened over the page (while the hold is pending) or over
+      // the menu is the first sign of it.
       const onWindowFocusIn = () => {
-        if (gestureRef.current?.open && isCovered(menuRef.current)) close();
+        const current = gestureRef.current;
+        if (!current) return;
+        if (current.open ? isCovered(menuRef.current) : hasOpenOverlay(current.anchor)) close();
       };
 
       const onWindowKeyDown = (winEvent: KeyboardEvent) => {
@@ -537,6 +557,12 @@ export function useAccountHoldSwitch({
       gesture.holdTimer = setTimeout(() => {
         const current = gestureRef.current;
         if (current !== gesture || !enabledRef.current) return;
+        // Settings or the command palette opened from their shortcut during the wait: the hold
+        // ends there, with no menu and nothing to suppress.
+        if (hasOpenOverlay(current.anchor)) {
+          close();
+          return;
+        }
         current.holdTimer = undefined;
         current.open = true;
 

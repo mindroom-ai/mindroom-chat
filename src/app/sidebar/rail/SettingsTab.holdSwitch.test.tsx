@@ -285,4 +285,29 @@ describe('SettingsTab hold-and-swipe account switch', () => {
     fireEvent.click(trigger, { detail: 0 });
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
   });
+
+  it('does not open AccountMenu when the window lost focus mid-hold and the pointer, still down, lifts on the avatar after coming back', () => {
+    renderTab({ inTopBar: false });
+    const trigger = screen.getByRole('button', { name: 'Open account menu for Alice' });
+
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(screen.getByRole('menu', { name: 'Other accounts' })).toBeTruthy();
+
+    fireEvent.blur(window);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // No press comes before this click: it is the lift of the pointer that held the quick menu.
+    fireEvent.click(trigger, { detail: 1 });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    // A new tap opens AccountMenu as always.
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 2, clientX: 25, clientY: 420 }));
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 25, clientY: 420 }));
+    fireEvent.click(trigger, { detail: 1 });
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
+  });
 });

@@ -46,6 +46,8 @@ const pointerEvent = (
     pointerType?: string;
     isPrimary?: boolean;
     button?: number;
+    /** The buttons still down, as a real mouse reports them; jsdom's default is none. */
+    buttons?: number;
     clientX?: number;
     clientY?: number;
   } = {}
@@ -54,6 +56,7 @@ const pointerEvent = (
     bubbles: true,
     cancelable: true,
     button: init.button ?? 0,
+    buttons: init.buttons ?? 0,
     clientX: init.clientX ?? 0,
     clientY: init.clientY ?? 0,
   });
@@ -373,6 +376,36 @@ describe('useAccountHoldSwitch', () => {
     expect(onSwitch).toHaveBeenCalledWith(CAROL.session);
   });
 
+  it('selects no row beside the rows, in the side padding or scrollbar gutter of the list', () => {
+    const onSwitch = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+    // The list spans x 56..284 and its rows 60..280: 4 px on each side belong to no row.
+    const { bobRow, carolRow } = layoutTriggerAndMenu();
+    const highlighted = () =>
+      [bobRow, carolRow].filter((row) => row?.getAttribute('data-highlighted') === 'true').length;
+    const moveTo = (clientX: number, clientY: number) =>
+      fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX, clientY }));
+
+    moveTo(60, 320);
+    expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+    moveTo(280, 320);
+    expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+    // Level with Bob's row, inside the list, beside the row.
+    moveTo(58, 320);
+    expect(highlighted()).toBe(0);
+    moveTo(282, 320);
+    expect(highlighted()).toBe(0);
+    // Level with the gap between the rows: its padding reaches no further sideways either.
+    moveTo(282, 345);
+    expect(highlighted()).toBe(0);
+
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 282, clientY: 320 }));
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    expect(onSwitch).not.toHaveBeenCalled();
+  });
+
   it('gives the pointer to the row it is on, not to a clipped neighbour whose gap padding reaches it', () => {
     const onSwitch = vi.fn();
     render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
@@ -486,6 +519,125 @@ describe('useAccountHoldSwitch', () => {
     }
   );
 
+  it.each(['the hold time running out', 'focusin'] as const)(
+    'opens no menu when a dialog opens during the hold, seen at %s',
+    (seenAt) => {
+      const onSwitch = vi.fn();
+      const onClick = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      const setPointerCapture = vi.fn();
+      trigger.setPointerCapture = setPointerCapture;
+
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS - 100);
+      });
+      const dialog = openCoveringDialog();
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBe('true');
+      if (seenAt === 'focusin') {
+        fireEvent.focusIn(dialog.querySelector('button') as HTMLElement);
+        expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      }
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      expect(setPointerCapture).not.toHaveBeenCalled();
+      expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+
+      // The release switches nothing, and no menu opened, so a click is the user's own.
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+      expect(onSwitch).not.toHaveBeenCalled();
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('does not switch when a mouse lifts its primary button first and another button last', () => {
+    const onSwitch = vi.fn();
+    const onClick = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+    const mouse = (type: string, init: Parameters<typeof pointerEvent>[1]) =>
+      pointerEvent(type, { pointerId: 1, pointerType: 'mouse', ...init });
+
+    // Left down, and the hold opens the menu.
+    fireEvent(trigger, mouse('pointerdown', { buttons: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    const { bobRow } = layoutTriggerAndMenu();
+    fireEvent(window, mouse('pointermove', { buttons: 1, clientX: 120, clientY: 320 }));
+    expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+
+    // Right down as well: a mouse reports a further button as a move, and the menu stays.
+    fireEvent(window, mouse('pointermove', { button: 2, buttons: 3, clientX: 120, clientY: 320 }));
+    expect(screen.getByTestId('quick-menu')).toBeTruthy();
+
+    // Left up, right still down: again a move, and the menu closes without a switch. The left
+    // button's click goes to the avatar, which captured the pointer, and opens nothing.
+    fireEvent(window, mouse('pointermove', { button: 0, buttons: 2, clientX: 120, clientY: 320 }));
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).not.toHaveBeenCalled();
+
+    // Over Carol's row, then right up: the only pointerup of the chord.
+    fireEvent(window, mouse('pointermove', { buttons: 2, clientX: 120, clientY: 365 }));
+    fireEvent(window, mouse('pointerup', { button: 2, buttons: 0, clientX: 120, clientY: 365 }));
+    expect(onSwitch).not.toHaveBeenCalled();
+  });
+
+  it('does not switch on a mouse pointerup of another button than the primary', () => {
+    const onSwitch = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    const mouse = (type: string, init: Parameters<typeof pointerEvent>[1]) =>
+      pointerEvent(type, { pointerId: 1, pointerType: 'mouse', ...init });
+
+    fireEvent(trigger, mouse('pointerdown', { buttons: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    const { bobRow } = layoutTriggerAndMenu();
+    fireEvent(window, mouse('pointermove', { buttons: 1, clientX: 120, clientY: 320 }));
+    expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+
+    // No move reported the left button lifting; the release that arrives is the right button's.
+    fireEvent(window, mouse('pointerup', { button: 2, buttons: 0, clientX: 120, clientY: 320 }));
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    expect(onSwitch).not.toHaveBeenCalled();
+  });
+
+  it('switches on a mouse release of the primary button, and ends a pending hold whose button lifted unseen', () => {
+    const onSwitch = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    const mouse = (type: string, init: Parameters<typeof pointerEvent>[1]) =>
+      pointerEvent(type, { pointerId: 1, pointerType: 'mouse', ...init });
+
+    // The button lifted outside the window during the wait; the mouse comes back with none down.
+    fireEvent(trigger, mouse('pointerdown', { buttons: 1, clientX: 25, clientY: 420 }));
+    fireEvent(window, mouse('pointermove', { buttons: 0, clientX: 26, clientY: 420 }));
+    expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+    // An ordinary hold, drag and release of the left button switches.
+    fireEvent(trigger, mouse('pointerdown', { buttons: 1, clientX: 25, clientY: 420 }));
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    layoutTriggerAndMenu();
+    fireEvent(window, mouse('pointermove', { buttons: 1, clientX: 120, clientY: 320 }));
+    fireEvent(window, mouse('pointerup', { button: 0, buttons: 0, clientX: 120, clientY: 320 }));
+    expect(onSwitch).toHaveBeenCalledWith(BOB.session);
+  });
+
   it('keeps the menu for focus that moves while nothing covers it, and for a dialog that was open before it', () => {
     const onSwitch = vi.fn();
     const before = openCoveringDialog();
@@ -576,29 +728,92 @@ describe('useAccountHoldSwitch', () => {
     expect(onClick).toHaveBeenCalledTimes(2);
   });
 
-  it.each(['open', 'after Escape'] as const)(
-    'leaves no window listener and swallows no later click when the window loses focus (%s)',
+  describe.each(['open', 'after Escape'] as const)(
+    'when the window loses focus with the pointer still down (%s)',
     (state) => {
-      const onClick = vi.fn();
-      render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
-      const trigger = screen.getByTestId('trigger');
-      const leftListening = watchWindowListeners();
-      holdOpen(trigger);
-      if (state === 'after Escape') fireEvent.keyDown(window, { key: 'Escape' });
-      expect(leftListening()).not.toEqual([]);
+      /** Holds until the menu opens, then leaves the window; no listener may stay behind. */
+      const holdAndLeave = (trigger: HTMLElement) => {
+        const leftListening = watchWindowListeners();
+        holdOpen(trigger);
+        if (state === 'after Escape') fireEvent.keyDown(window, { key: 'Escape' });
+        expect(leftListening()).not.toEqual([]);
 
-      // The pointer lifts in another window: no pointerup ever reaches this one.
-      fireEvent.blur(window);
-      expect(screen.queryByTestId('quick-menu')).toBeNull();
-      expect(leftListening()).toEqual([]);
+        fireEvent.blur(window);
+        expect(screen.queryByTestId('quick-menu')).toBeNull();
+        expect(leftListening()).toEqual([]);
+        expect(vi.getTimerCount()).toBe(0);
+      };
 
-      // Back in the window, the first activation is the user's own, from a pointer or not.
-      fireEvent.click(trigger, { detail: 1 });
-      expect(onClick).toHaveBeenCalledTimes(1);
-      fireEvent.click(trigger, { detail: 0 });
-      expect(onClick).toHaveBeenCalledTimes(2);
+      it('lets a click without a pointer and a new tap through after the pointer lifted elsewhere', () => {
+        const onClick = vi.fn();
+        render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+        const trigger = screen.getByTestId('trigger');
+        holdAndLeave(trigger);
+
+        // The pointer lifted in another window: no pointerup ever reached this one. Back here,
+        // an activation without a pointer works at once.
+        fireEvent.click(trigger, { detail: 0 });
+        expect(onClick).toHaveBeenCalledTimes(1);
+
+        // And so does a tap, whose press comes before its click.
+        fireEvent(
+          trigger,
+          pointerEvent('pointerdown', { pointerId: 2, clientX: 25, clientY: 420 })
+        );
+        fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 25, clientY: 420 }));
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).toHaveBeenCalledTimes(2);
+      });
+
+      it('swallows the click of a pointer that comes back still down and lifts on the avatar', () => {
+        const onClick = vi.fn();
+        render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+        const trigger = screen.getByTestId('trigger');
+        holdAndLeave(trigger);
+
+        // However long it stayed away: a click with no press before it is the held pointer's.
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).not.toHaveBeenCalled();
+
+        // Only that one.
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).toHaveBeenCalledTimes(1);
+      });
+
+      it('lets the context menu of a new press with another button through', () => {
+        render(<Harness onSwitch={vi.fn()} onClick={vi.fn()} />);
+        const trigger = screen.getByTestId('trigger');
+        holdAndLeave(trigger);
+
+        fireEvent(
+          trigger,
+          pointerEvent('pointerdown', { pointerId: 2, pointerType: 'mouse', button: 2, buttons: 2 })
+        );
+        const contextMenu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        trigger.dispatchEvent(contextMenu);
+        expect(contextMenu.defaultPrevented).toBe(false);
+        expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      });
     }
   );
+
+  it('suppresses nothing when the window loses focus before the menu opened', () => {
+    const onClick = vi.fn();
+    render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+    const leftListening = watchWindowListeners();
+
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+    fireEvent.blur(window);
+    expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+    expect(leftListening()).toEqual([]);
+
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
 
   it('removes its window listeners once the suppression of a lifted pointer runs out', () => {
     render(<Harness onSwitch={vi.fn()} onClick={vi.fn()} />);
