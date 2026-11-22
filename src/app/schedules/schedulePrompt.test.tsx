@@ -100,6 +100,35 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
+  it('handles CRLF closing fences and multiline double-backtick spans verbatim', () => {
+    const crlf = '```js\r\nconst x = `inner`;\r\n```\r\nPing @helper and run `build`';
+    const first = renderPrompt(crlf);
+    try {
+      expect(
+        [...first.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
+      ).toEqual(['build']);
+      expect(
+        [...first.host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)
+      ).toEqual(['@helper']);
+      expect(first.host.textContent).toBe(
+        '```js\r\nconst x = `inner`;\r\n```\r\nPing @helper and run build'
+      );
+    } finally {
+      first.cleanup();
+    }
+
+    const multiLineDouble = 'Use ``line 1 `inner`\nline 2`` then `ok`';
+    const second = renderPrompt(multiLineDouble);
+    try {
+      expect(
+        [...second.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
+      ).toEqual(['ok']);
+      expect(second.host.textContent).toBe('Use ``line 1 `inner`\nline 2`` then ok');
+    } finally {
+      second.cleanup();
+    }
+  });
+
   it('ignores email addresses, multi-line backticks, and handles glued to closing backticks', () => {
     const { host, cleanup } = renderPrompt(
       'Email user@example.org, `cmd`@glued then (@helper)\n`open\nclose`'

@@ -14,7 +14,7 @@ const isStartOfLine = (text: string, index: number): boolean => {
   while (pos >= 0 && (text[pos] === ' ' || text[pos] === '\t')) {
     pos -= 1;
   }
-  return pos < 0 || text[pos] === '\n';
+  return pos < 0 || text[pos] === '\n' || text[pos] === '\r';
 };
 
 const findFenceBlockEnd = (prompt: string, openRunEnd: number, runLen: number): number => {
@@ -36,7 +36,10 @@ const findFenceBlockEnd = (prompt: string, openRunEnd: number, runLen: number): 
     }
     if (ticksEnd - pos >= runLen) {
       let tail = ticksEnd;
-      while (tail < lineEnd && (prompt[tail] === ' ' || prompt[tail] === '\t')) {
+      while (
+        tail < lineEnd &&
+        (prompt[tail] === ' ' || prompt[tail] === '\t' || prompt[tail] === '\r')
+      ) {
         tail += 1;
       }
       if (tail === lineEnd) {
@@ -91,7 +94,7 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
     if (runLen >= 2) {
       let k = runEnd;
       let matchedEnd = -1;
-      while (k < prompt.length && prompt[k] !== '\n') {
+      while (k < prompt.length) {
         if (prompt[k] === '\\' && prompt[k + 1] === '`') {
           k += 2;
           continue;

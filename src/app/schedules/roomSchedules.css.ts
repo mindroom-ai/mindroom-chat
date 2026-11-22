@@ -518,6 +518,10 @@ export const CancelBarButton = style({
       outline: `2px solid ${color.Critical.OnContainer}`,
       outlineOffset: toRem(2),
     },
+    '&[aria-disabled="true"]': {
+      opacity: '1 !important',
+      cursor: 'progress',
+    },
   },
 });
 
@@ -553,4 +557,16 @@ export const TaskId = style([
 export const Awaiting = style({
   color: color.Warning.OnContainer,
   fontWeight: config.fontWeight.W600,
+});
+
+export const SrOnly = style({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 });

@@ -55,6 +55,7 @@ import {
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
   composerOfferAtom,
@@ -62,6 +63,7 @@ import {
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
 import { toPlainText } from '../editor/output';
 import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
@@ -106,8 +108,8 @@ export type RoomViewHeaderProps = {
   threadFilterState?: ThreadFilterState;
   /** Focuses the target conversation composer after an action closes a header dialog. */
   onFocusComposer?: (targetThreadId?: string) => void;
-  /** True while the open thread composer is drafting a thread fork rather than a regular reply. */
-  isForkDraft?: boolean;
+  /** False when the active view has no eligible composer to receive an edit command. */
+  canEditSchedule?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -228,7 +230,7 @@ export function RoomViewHeader({
   openThreadId = threadId,
   threadFilterState,
   onFocusComposer,
-  isForkDraft = false,
+  canEditSchedule = true,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -428,11 +430,17 @@ export function RoomViewHeader({
       body: `!cancel_schedule ${task.taskId}`,
       ...(relation ? { 'm.relates_to': relation } : {}),
     } as RoomMessageEventContent;
-    await mx.sendMessage(room.roomId, cancelTargetThreadId ?? null, content);
+    const txnId = mx.makeTxnId();
+    try {
+      await mx.sendMessage(room.roomId, cancelTargetThreadId ?? null, content, txnId);
+    } catch (error) {
+      discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
+      throw error;
+    }
   };
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
-    if (isForkDraft) return 'draft-busy';
+    if (store.get(liveVoiceRecordingAtom) !== undefined) return 'draft-busy';
     const targetThreadId = openThreadId;
     const prefix = `!edit_schedule ${task.taskId} `;
     const draftKey = getRoomInputDraftKey(myUserId, room.roomId, targetThreadId);
@@ -836,7 +844,7 @@ export function RoomViewHeader({
           }}
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
-          onEditTask={canManageSchedules ? editScheduledTask : undefined}
+          onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
         />
       )}
       {dialog}

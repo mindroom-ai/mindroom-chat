@@ -65,6 +65,7 @@ vi.mock('./roomSchedules.css', () => ({
   Metadata: 'metadata',
   TaskId: 'task-id',
   Awaiting: 'awaiting',
+  SrOnly: 'sr-only',
 }));
 vi.mock('../lib/dom', () => ({ copyToClipboard: mocks.copyToClipboard }));
 vi.mock('../ui/page/PageScroll', () => ({
@@ -519,19 +520,23 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       onOpenThread: vi.fn(),
     });
     try {
-      await click(findButtonByText(host, 'Copy ID')!);
+      const copyBtn = findButtonByAriaLabel(host, 'Copy ID')!;
+      await click(copyBtn);
       expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
-      expect(findButtonByText(host, 'Copied')).toBeDefined();
-      expect(host.textContent?.match(/Copied/g)).toHaveLength(1);
+      expect(copyBtn.getAttribute('aria-label')).toBe('Copy ID');
+      expect(copyBtn.querySelector('p[aria-hidden="true"]')?.textContent).toBe('Copied');
+      const liveRegion = host.querySelector('.sr-only[role="status"][aria-live="polite"]');
+      expect(liveRegion?.textContent).toBe('Copied');
 
       act(() => {
         vi.advanceTimersByTime(2_000);
       });
-      expect(findButtonByText(host, 'Copy ID')).toBeDefined();
+      expect(copyBtn.querySelector('p[aria-hidden="true"]')?.textContent).toBe('Copy ID');
+      expect(liveRegion?.textContent).toBe('');
 
       mocks.copyToClipboard.mockResolvedValueOnce(false);
       expect(host.querySelector('dl')).toBeNull();
-      await click(findButtonByText(host, 'Copy ID')!);
+      await click(copyBtn);
       expect(host.querySelector('dl')).not.toBeNull();
       expect(host.textContent).toContain('Could not copy. Select the Task ID in Details.');
     } finally {
@@ -754,6 +759,55 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       await click(toggle);
       await click(toggle);
       expect(host.textContent).not.toContain('Cancel this scheduled task?');
+    } finally {
+      unmount();
+    }
+  });
+
+  it('hides Edit while keeping Cancel for preApprovedCall tasks', () => {
+    const preApproved = makeTask({
+      taskId: 'call-1',
+      description: 'Pre-approved call',
+      preApprovedCall: true,
+    });
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [preApproved],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+      onEditTask: vi.fn(),
+    });
+    try {
+      expect(findButtonByAriaLabel(host, 'Edit')).toBeUndefined();
+      expect(findButtonByAriaLabel(host, 'Cancel')).toBeDefined();
+    } finally {
+      unmount();
+    }
+  });
+
+  it('dismisses an open cancel confirmation and returns focus to row toggle when onCancelTask disappears', async () => {
+    const task = makeTask({ taskId: 'revoke-1', description: 'Revoked permission task' });
+    const base = {
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+    const { host, rerender, unmount } = mountDialog({
+      ...base,
+      onCancelTask: vi.fn(async () => undefined),
+    });
+    try {
+      await click(findButtonByAriaLabel(host, 'Cancel')!);
+      const keepBtn = findButtonByText(host, 'Keep')!;
+      expect(document.activeElement).toBe(keepBtn);
+
+      rerender({ ...base, onCancelTask: undefined });
+      expect(host.textContent).not.toContain('Cancel this scheduled task?');
+      expect(document.activeElement).toBe(
+        host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
     } finally {
       unmount();
     }

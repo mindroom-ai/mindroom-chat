@@ -10,6 +10,8 @@ import {
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { createParagraphElement } from '../editor/utils';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { StateEvent } from '../matrix/types/room';
@@ -21,18 +23,30 @@ type CapturedOverlayProps = {
   onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
 };
 
-const { perms, tombstoneState, sendMessage, navigateRoomThread, setViewMode, overlayCapture } =
-  vi.hoisted(() => ({
-    perms: { canSend: true },
-    tombstoneState: { event: undefined as { getType: () => StateEvent } | undefined },
-    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-    navigateRoomThread: vi.fn(),
-    setViewMode: vi.fn(),
-    overlayCapture: {
-      openTrigger: undefined as (() => void) | undefined,
-      props: undefined as CapturedOverlayProps | undefined,
-    },
-  }));
+const {
+  perms,
+  tombstoneState,
+  sendMessage,
+  makeTxnId,
+  getEventForTxnId,
+  discardFailedLocalEcho,
+  navigateRoomThread,
+  setViewMode,
+  overlayCapture,
+} = vi.hoisted(() => ({
+  perms: { canSend: true },
+  tombstoneState: { event: undefined as { getType: () => StateEvent } | undefined },
+  sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+  makeTxnId: vi.fn(() => 'txn-1'),
+  getEventForTxnId: vi.fn((_txnId: string) => undefined as unknown),
+  discardFailedLocalEcho: vi.fn(),
+  navigateRoomThread: vi.fn(),
+  setViewMode: vi.fn(),
+  overlayCapture: {
+    openTrigger: undefined as (() => void) | undefined,
+    props: undefined as CapturedOverlayProps | undefined,
+  },
+}));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('folds', async (importOriginal) => ({
@@ -66,8 +80,12 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:example.org',
     getRoom: () => null,
+    makeTxnId,
     sendMessage,
   }),
+}));
+vi.mock('../matrix/protocol/pendingLocalEcho', () => ({
+  discardFailedLocalEcho,
 }));
 vi.mock('../matrix/session/useSessionStore', async (original) => ({
   ...(await original<typeof import('../matrix/session/useSessionStore')>()),
@@ -79,6 +97,7 @@ vi.mock('../matrix/hooks/useRoom', () => ({
     name: 'General',
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
+    getEventForTxnId,
   }),
   useIsDirectRoom: () => false,
 }));
@@ -151,7 +170,11 @@ afterEach(() => {
   renderer = undefined;
   perms.canSend = true;
   tombstoneState.event = undefined;
-  sendMessage.mockClear();
+  sendMessage.mockReset();
+  sendMessage.mockResolvedValue({ event_id: '$sent' });
+  makeTxnId.mockClear();
+  getEventForTxnId.mockReset();
+  discardFailedLocalEcho.mockClear();
   navigateRoomThread.mockClear();
   setViewMode.mockClear();
   overlayCapture.openTrigger = undefined;
@@ -175,7 +198,7 @@ const renderAndOpenSchedules = (props: RoomViewHeaderProps = {}) => {
 };
 
 describe('RoomViewHeader schedule actions', () => {
-  it('omits cancel and edit callbacks when the user cannot send messages or the room is tombstoned', () => {
+  it('omits cancel/edit when unpermitted or tombstoned, and hides edit when canEditSchedule is false', () => {
     perms.canSend = false;
     renderAndOpenSchedules();
     expect(overlayCapture.props?.onCancelTask).toBeUndefined();
@@ -186,36 +209,53 @@ describe('RoomViewHeader schedule actions', () => {
     renderAndOpenSchedules();
     expect(overlayCapture.props?.onCancelTask).toBeUndefined();
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
+
+    tombstoneState.event = undefined;
+    renderAndOpenSchedules({ canEditSchedule: false });
+    expect(overlayCapture.props?.onCancelTask).toBeDefined();
+    expect(overlayCapture.props?.onEditTask).toBeUndefined();
   });
 
-  it('sends !cancel_schedule to the task destination only, never an unconfirmed or unrelated open thread, and blocks unsafe IDs', async () => {
+  it('sends !cancel_schedule to task destination with txnId, discards failed local echo, and blocks unsafe IDs', async () => {
     renderAndOpenSchedules({ openThreadId: '~local-unconfirmed' });
 
     await overlayCapture.props!.onCancelTask!(task({ taskId: 'abc', threadId: '$task-thread' }));
-    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', '$task-thread', {
-      msgtype: MsgType.Text,
-      body: '!cancel_schedule abc',
-      'm.relates_to': {
-        rel_type: RelationType.Thread,
-        event_id: '$task-thread',
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: '$task-thread' },
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      '!room:example.org',
+      '$task-thread',
+      {
+        msgtype: MsgType.Text,
+        body: '!cancel_schedule abc',
+        'm.relates_to': {
+          rel_type: RelationType.Thread,
+          event_id: '$task-thread',
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: '$task-thread' },
+        },
       },
-    });
+      'txn-1'
+    );
 
     await overlayCapture.props!.onCancelTask!(task({ taskId: 'room-1', threadId: null }));
-    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', null, {
-      msgtype: MsgType.Text,
-      body: '!cancel_schedule room-1',
-    });
-
-    await overlayCapture.props!.onCancelTask!(
-      task({ taskId: 'new-1', threadId: '$ignored', newThread: true })
+    expect(sendMessage).toHaveBeenLastCalledWith(
+      '!room:example.org',
+      null,
+      {
+        msgtype: MsgType.Text,
+        body: '!cancel_schedule room-1',
+      },
+      'txn-1'
     );
-    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', null, {
-      msgtype: MsgType.Text,
-      body: '!cancel_schedule new-1',
-    });
+
+    // Failed cancel send discards its failed local echo event and rethrows.
+    const failedEvent = { getId: () => '~local-failed' };
+    getEventForTxnId.mockReturnValueOnce(failedEvent);
+    sendMessage.mockRejectedValueOnce(new Error('send failed'));
+    await expect(
+      overlayCapture.props!.onCancelTask!(task({ taskId: 'room-2', threadId: null }))
+    ).rejects.toThrow('send failed');
+    expect(getEventForTxnId).toHaveBeenCalledWith('txn-1');
+    expect(discardFailedLocalEcho).toHaveBeenCalledWith(expect.anything(), failedEvent);
 
     sendMessage.mockClear();
     await overlayCapture.props!.onCancelTask!(task({ taskId: 'all' }));
@@ -223,7 +263,7 @@ describe('RoomViewHeader schedule actions', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('always targets the visible composer without toggling Compact view or navigating, supports resuming edits, and respects busy/fork states', () => {
+  it('targets the visible composer without toggling Compact, resumes edits, and blocks busy or live voice recording', () => {
     const rafCallbacks: FrameRequestCallback[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       rafCallbacks.push(cb);
@@ -236,8 +276,17 @@ describe('RoomViewHeader schedule actions', () => {
       getRoomInputDraftKey('@me:example.org', '!room:example.org', undefined)
     );
 
-    // Editing a thread-bound task from the room view targets the visible room composer, never navigates or toggles Compact.
+    // Live voice recording blocks editing without modifying drafts.
+    store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
     let result: EditScheduledTaskResult = undefined;
+    act(() => {
+      result = overlayCapture.props!.onEditTask!(task({ taskId: 'edit-voice', threadId: null }));
+    });
+    expect(result).toBe('draft-busy');
+    expect(store.get(roomDraftAtom)).toEqual([]);
+    store.set(liveVoiceRecordingAtom, undefined);
+
+    // Editing a thread-bound task from room view targets room composer, never navigates or toggles Compact.
     act(() => {
       result = overlayCapture.props!.onEditTask!(
         task({ taskId: 'edit-1', threadId: '$other-thread' })
@@ -252,7 +301,7 @@ describe('RoomViewHeader schedule actions', () => {
     rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
 
-    // Resuming an in-progress edit of the SAME task preserves the typed edits and focuses composer.
+    // Resuming an in-progress edit of the SAME task preserves typed text and focuses composer.
     store.set(roomDraftAtom, [createParagraphElement('!edit_schedule edit-1 tomorrow at 9am')]);
     act(() => {
       overlayCapture.openTrigger?.();
@@ -267,7 +316,7 @@ describe('RoomViewHeader schedule actions', () => {
     rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith(undefined);
 
-    // Staged attachment rejects even when the draft starts with the matching prefix.
+    // Staged attachment and reply target still reject even with matching prefix.
     const file = new File(['x'], 'report.txt');
     store.set(composerUploadItemsAtom('!room:example.org', undefined), {
       type: 'PUT',
@@ -284,7 +333,6 @@ describe('RoomViewHeader schedule actions', () => {
     expect(result).toBe('draft-busy');
     store.set(composerUploadItemsAtom('!room:example.org', undefined), { type: 'RESET' });
 
-    // Reply target also rejects even when the draft starts with the matching prefix.
     store.set(composerReplyDraftAtom('!room:example.org', undefined), {
       userId: '@bob:example.org',
       eventId: '$evt',
@@ -295,16 +343,6 @@ describe('RoomViewHeader schedule actions', () => {
     });
     expect(result).toBe('draft-busy');
     store.set(composerReplyDraftAtom('!room:example.org', undefined), undefined);
-
-    // Unrelated draft in the current composer returns draft-busy and stays untouched.
-    store.set(roomDraftAtom, [createParagraphElement('unrelated note')]);
-    act(() => {
-      result = overlayCapture.props!.onEditTask!(task({ taskId: 'edit-2', threadId: null }));
-    });
-    expect(result).toBe('draft-busy');
-    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
-      'unrelated note',
-    ]);
 
     // Inside an open thread, edit targets that open thread composer.
     const threadDraftAtom = roomIdToMsgDraftAtomFamily(
@@ -333,28 +371,5 @@ describe('RoomViewHeader schedule actions', () => {
     ]);
     rafCallbacks.splice(0).forEach((cb) => cb(0));
     expect(onFocusComposer).toHaveBeenLastCalledWith('$open-thread');
-
-    // When drafting a thread fork (isForkDraft), edit returns draft-busy without touching parent thread draft.
-    store.set(threadDraftAtom, []);
-    act(() => {
-      renderer?.update(
-        <Provider store={store}>
-          <RoomViewHeader
-            hasMindroomAgents
-            openThreadId="$open-thread"
-            isForkDraft
-            onFocusComposer={onFocusComposer}
-          />
-        </Provider>
-      );
-    });
-    act(() => {
-      overlayCapture.openTrigger?.();
-    });
-    act(() => {
-      result = overlayCapture.props!.onEditTask!(task({ taskId: 'edit-fork', threadId: null }));
-    });
-    expect(result).toBe('draft-busy');
-    expect(store.get(threadDraftAtom)).toEqual([]);
   });
 });

@@ -122,13 +122,18 @@ function ScheduleAccordionItem({
   }, []);
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !onCancelTask) {
+      if (confirmingCancel && confirmBarRef.current?.contains(document.activeElement)) {
+        toggleButtonRef.current?.focus();
+      }
       setConfirmingCancel(false);
       focusInsideConfirmRef.current = false;
+    }
+    if (!open) {
       setEditBusy(false);
       setCopyFailed(false);
     }
-  }, [open]);
+  }, [confirmingCancel, onCancelTask, open]);
 
   const showCancelBar = confirmingCancel || isCancelling || cancelError;
 
@@ -419,15 +424,19 @@ function ScheduleAccordionItem({
                 fill="None"
                 radii="300"
                 className={css.CompactAction}
+                aria-label={t('roomSchedules.copyId')}
                 onClick={() => void handleCopyId()}
               >
                 {copied ? <Icon size="100" src={Icons.Check} /> : <CopyIcon />}
-                <Text size="T200">
+                <Text size="T200" aria-hidden="true">
                   {copied ? t('roomSchedules.copied') : t('roomSchedules.copyId')}
                 </Text>
               </Button>
+              <span className={css.SrOnly} role="status" aria-live="polite">
+                {copied ? t('roomSchedules.copied') : ''}
+              </span>
 
-              {onEditTask && commandSafe && (
+              {onEditTask && commandSafe && !task.preApprovedCall && (
                 <IconButton
                   type="button"
                   size="300"
@@ -505,10 +514,7 @@ function ScheduleAccordionItem({
                   variant="Secondary"
                   fill="Soft"
                   radii="300"
-                  className={classNames(
-                    css.CancelBarButton,
-                    isCancelling && css.AriaDisabledButton
-                  )}
+                  className={css.CancelBarButton}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleKeepCancel}
                 >
@@ -520,10 +526,7 @@ function ScheduleAccordionItem({
                   variant="Critical"
                   fill="Solid"
                   radii="300"
-                  className={classNames(
-                    css.CancelBarButton,
-                    isCancelling && css.AriaDisabledButton
-                  )}
+                  className={css.CancelBarButton}
                   aria-disabled={isCancelling || undefined}
                   onClick={handleConfirmCancelClick}
                 >

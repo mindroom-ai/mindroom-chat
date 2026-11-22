@@ -58,9 +58,11 @@ test('room schedule accordion filters, formats prompts, reveals details, runs ac
   const creator = morningDetails.getByRole('link', { name: '@Alice', exact: true });
   await expect(creator).toHaveAttribute('title', '@alice:example.org');
 
-  // Copy ID provides Copied feedback.
-  await morningCard.getByRole('button', { name: 'Copy ID', exact: true }).click();
-  await expect(morningCard.getByRole('button', { name: 'Copied', exact: true })).toBeVisible();
+  // Copy ID keeps its stable accessible name while updating visual text and polite status.
+  const copyBtn = morningCard.getByRole('button', { name: 'Copy ID', exact: true });
+  await copyBtn.click();
+  await expect(copyBtn).toContainText('Copied');
+  await expect(morningCard.getByRole('status').filter({ hasText: 'Copied' })).toHaveText('Copied');
 
   // Inline cancel confirmation: Keep returns to idle, Confirm sends cancellation.
   await morningCard.getByRole('button', { name: 'Cancel', exact: true }).click();
