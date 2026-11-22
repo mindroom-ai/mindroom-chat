@@ -99,15 +99,32 @@ public struct ThreadSnapshot: Equatable, Sendable {
             (effectiveContent(event, latestEdit: edit(event))["msgtype"] ?? event.content["msgtype"]) as? String == "m.audio"
         }
 
+        // An internal relay of a message hands it to an agent; it is not an answer.
+        let isMessage = { (event: JSON) in
+            event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
+        }
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        // Folded transcripts from trusted room accounts.
+        // Events rendered as audio messages that can display a folded transcript.
+        let audioIds = Set(([root] + messages).compactMap { event -> String? in
+            guard let id = event.eventId, isMessage(event), isAudio(event),
+                  id == rootId || event.content["io.mindroom.thread_summary"] == nil else { return nil }
+            return id
+        })
+        // Pair each rendered audio message with its first valid trusted echo (mirroring web's planVoiceTranscripts).
+        var pairedVoiceIds = Set<String>()
         var transcripts: [String: String] = [:]
         var hiddenEchoIds = Set<String>()
         for message in messages {
-            guard let sender = message["sender"] as? String, trustedAccounts.contains(sender),
-                  let echo = VoiceEcho.transcript(message, latestEdit: edit(message)) else { continue }
-            if let id = message.eventId { hiddenEchoIds.insert(id) }
-            if let text = echo.text, transcripts[echo.voiceEventId] == nil { transcripts[echo.voiceEventId] = text }
+            guard let id = message.eventId,
+                  let sender = message["sender"] as? String, trustedAccounts.contains(sender),
+                  message.content["io.mindroom.thread_summary"] == nil,
+                  let echo = VoiceEcho.transcript(message, latestEdit: edit(message)),
+                  echo.voiceEventId != id,
+                  audioIds.contains(echo.voiceEventId),
+                  !pairedVoiceIds.contains(echo.voiceEventId) else { continue }
+            pairedVoiceIds.insert(echo.voiceEventId)
+            hiddenEchoIds.insert(id)
+            if let text = echo.text { transcripts[echo.voiceEventId] = text }
         }
         let transcript = transcripts[rootId]
         // Each message as its newest edit says it (the whole new content, keeping its thread relation).
@@ -143,10 +160,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
                            audio: audio ? mediaSource(content) ?? mediaSource(event.content) : nil,
                            tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
-        }
-        // An internal relay of a message hands it to an agent; it is not an answer.
-        let isMessage = { (event: JSON) in
-            event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
         }
         let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
         let approvals = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: now) }

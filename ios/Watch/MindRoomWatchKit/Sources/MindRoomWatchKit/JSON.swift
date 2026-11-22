@@ -27,3 +27,18 @@ extension Dictionary where Key == String, Value == Any {
 func effectiveContent(_ event: JSON, latestEdit: JSON?) -> JSON {
     latestEdit?.newContent ?? event.content
 }
+
+/// Strict JSON boolean: rejects JSONSerialization-decoded numbers (0/1) that bridge to `Bool`.
+func jsonBool(_ value: Any?) -> Bool? {
+    guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return nil }
+    return number.boolValue
+}
+
+/// Strict JSON finite number: `.some(nil)` if absent, `nil` if present and non-numeric (including JSON booleans).
+func jsonNumber(_ value: Any?) -> Double?? {
+    guard let value else { return .some(nil) }
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID(),
+          number.doubleValue.isFinite else { return nil }
+    return .some(number.doubleValue)
+}

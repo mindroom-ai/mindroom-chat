@@ -46,25 +46,15 @@ public enum TrustedAccounts {
               let rawLevels = powerLevels?.content else { return nil }
         let eventsMap = rawLevels["events"] as? JSON
         let usersMap = rawLevels["users"] as? JSON
-        guard let stateDefault = parseLevel(rawLevels["state_default"]),
-              let usersDefault = parseLevel(rawLevels["users_default"]),
-              let eventLevel = parseLevel(eventsMap?[routerEventType]),
-              let userLevel = parseLevel(usersMap?[userId]) else { return nil }
+        guard let stateDefault = jsonNumber(rawLevels["state_default"]),
+              let usersDefault = jsonNumber(rawLevels["users_default"]),
+              let eventLevel = jsonNumber(eventsMap?[routerEventType]),
+              let userLevel = jsonNumber(usersMap?[userId]) else { return nil }
         let defaultUser = usersDefault ?? 0
         let writeLevel = eventLevel ?? stateDefault ?? 50
         guard writeLevel > defaultUser else { return nil }
         if creators(from: create).contains(userId) { return userId }
         return (userLevel ?? defaultUser) >= writeLevel ? userId : nil
-    }
-
-    /// `nil` if present and not a finite JSON number; `.some(nil)` if absent; `.some(value)` if numeric.
-    private static func parseLevel(_ value: Any?) -> Double?? {
-        guard let value else { return .some(nil) }
-        if value is Bool { return nil }
-        guard let number = value as? NSNumber,
-              CFGetTypeID(number) != CFBooleanGetTypeID(),
-              number.doubleValue.isFinite else { return nil }
-        return .some(number.doubleValue)
     }
 
     private static func creators(from createEvent: JSON?) -> Set<String> {

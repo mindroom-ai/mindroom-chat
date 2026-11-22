@@ -92,8 +92,8 @@ public enum VoiceEcho {
 
     public static func transcript(_ event: JSON, latestEdit: JSON?) -> (voiceEventId: String, text: String?)? {
         let content = effectiveContent(event, latestEdit: latestEdit)
-        guard event.content["com.mindroom.visible_router_voice_echo"] as? Bool == true,
-              content["com.mindroom.voice_raw_audio_fallback"] as? Bool != true else { return nil }
+        guard jsonBool(event.content["com.mindroom.visible_router_voice_echo"]) == true,
+              jsonBool(content["com.mindroom.voice_raw_audio_fallback"]) != true else { return nil }
         let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
         guard let voiceId = nonEmpty(content["com.mindroom.voice_source_event_id"])
             ?? nonEmpty(event.content["com.mindroom.voice_source_event_id"])
