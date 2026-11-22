@@ -23,6 +23,8 @@ export const MenuScrollBody = style({
   minBlockSize: 0,
   overflowY: 'auto',
   overscrollBehavior: 'contain',
+  // An item scrolled into view keeps room for its focus ring.
+  scrollPaddingBlock: toRem(6),
 });
 
 export const Divider = style({

@@ -45,7 +45,7 @@ const removeAsksThenLogsOut = async (page: Page, browserName: string) => {
   await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, { homeserver: HOMESERVER, ...staying, addAccount: true });
 
-  await chooseFromAccountMenu(page, 'Manage accounts');
+  await chooseFromAccountMenu(page, 'Manage');
   const accountRow = page.getByText(leaving.userId, { exact: true }).first();
   await expect(accountRow).toBeVisible();
   const remove = page.getByRole('button', { name: 'Remove from Device' });

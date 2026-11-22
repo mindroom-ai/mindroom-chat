@@ -1,4 +1,4 @@
-import { useId, useMemo } from 'react';
+import { useCallback, useId, useLayoutEffect, useMemo, useState, type FocusEvent } from 'react';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
@@ -70,7 +70,8 @@ function AccountAvatar({
  * and a split Add Account / Sign out footer. It opens beside the button; arrow keys walk every
  * actionable item in visual order, and Escape or a press elsewhere closes it. Like the app's
  * other menus it leaves keyboard focus to `installOverlayFocus`: opened with Enter or Space it
- * focuses Settings, and a key that closes it gives focus back to the button.
+ * focuses Settings, and a key that closes it gives focus back to the button. On a short window
+ * the header and the well scroll above the footer, and the menu follows window resizes.
  */
 export function AccountMenu({
   anchor,
@@ -89,14 +90,24 @@ export function AccountMenu({
   const userIdId = useId();
   const othersHeadingId = useId();
   const entries = useMenuBehaviour<HTMLDivElement>('menu', undefined, undefined);
-  const anchorRect = useMemo(() => anchor.getBoundingClientRect(), [anchor]);
+  // The button's box and the window's height, measured as the menu opens and again whenever the
+  // window resizes: both the placement and the height cap below depend on them.
+  const measure = useCallback(
+    () => ({
+      anchorRect: anchor.getBoundingClientRect(),
+      viewportHeight: document.documentElement.clientHeight || window.innerHeight,
+    }),
+    [anchor]
+  );
+  const [{ anchorRect, viewportHeight }, setMeasured] = useState(measure);
+  useLayoutEffect(() => {
+    const onResize = () => setMeasured(measure());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [measure]);
   const maxBlockSize = useMemo(() => {
     const viewportCap =
       'calc(100dvh - 1rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))';
-    const viewportHeight =
-      typeof window !== 'undefined'
-        ? document.documentElement.clientHeight || window.innerHeight
-        : 0;
     if (viewportHeight <= 0) return viewportCap;
     // Leave room for PopOut's 8 px offset (when opening below/above) and an 8 px viewport margin.
     const available = below
@@ -104,7 +115,11 @@ export function AccountMenu({
       : Math.max(anchorRect.bottom, viewportHeight - anchorRect.top) - 8;
     if (available <= 0) return viewportCap;
     return `min(${Math.floor(available)}px, ${viewportCap})`;
-  }, [anchorRect, below]);
+  }, [anchorRect, viewportHeight, below]);
+  // The app's focus manager focuses the first item without scrolling, so a short menu would hide
+  // the focused item, and its focus ring, below the fold of the scrolling body.
+  const showFocusedItem = (event: FocusEvent<HTMLElement>) =>
+    event.target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   const onAnchor = (target: EventTarget | null) =>
     target instanceof Node && anchor.contains(target);
   const closeThen = (action: () => void) => () => {
@@ -133,7 +148,7 @@ export function AccountMenu({
           onKeyDown={entries.onKeyDown}
           className={css.MenuBody}
         >
-          <div className={css.MenuScrollBody}>
+          <div className={css.MenuScrollBody} onFocus={showFocusedItem}>
             <div className={css.HeaderCard}>
               <AccountAvatar
                 userId={active.userId}
@@ -187,7 +202,9 @@ export function AccountMenu({
                         type="button"
                         role="menuitem"
                         className={css.ManageButton}
-                        aria-label={t('accountsRail.manageAccounts')}
+                        // Named by its visible label, as voice control needs; the heading tells
+                        // a screen reader what it manages.
+                        aria-describedby={othersHeadingId}
                         onClick={closeThen(onManageAccounts)}
                       >
                         <Text as="span" size="T200">

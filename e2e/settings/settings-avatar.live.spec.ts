@@ -16,7 +16,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 test.describe('live ISSUE-044 settings avatar behavior', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('the active avatar opens Settings directly and hides Manage accounts for a single session', async ({
+  test('the active avatar opens Settings directly and hides Manage for a single session', async ({
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
@@ -27,9 +27,7 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expectLoggedInShellStable(page);
 
     await openAccountMenu(page);
-    await expect(page.getByRole('menuitem', { name: 'Manage accounts', exact: true })).toHaveCount(
-      0
-    );
+    await expect(page.getByRole('menuitem', { name: 'Manage', exact: true })).toHaveCount(0);
     await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
 
     await expect(
@@ -43,7 +41,7 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-044-active-avatar-settings');
   });
 
-  test('Manage accounts appears only after adding a second session and still keeps Settings on the active avatar', async ({
+  test('Manage appears only after adding a second session and still keeps Settings on the active avatar', async ({
     page,
   }) => {
     const secondaryCredentials = getSecondaryCredentials();
@@ -68,10 +66,8 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
     await openAccountMenu(page);
-    await expect(
-      page.getByRole('menuitem', { name: 'Manage accounts', exact: true })
-    ).toBeVisible();
-    await page.getByRole('menuitem', { name: 'Manage accounts', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Manage', exact: true })).toBeVisible();
+    await page.getByRole('menuitem', { name: 'Manage', exact: true }).click();
 
     await expect(page.getByText('Accounts', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(

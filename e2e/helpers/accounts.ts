@@ -58,7 +58,7 @@ export const expectActiveAccountSwitcherForUsername = async (page: Page, usernam
 };
 
 export const openAccountSwitcher = async (page: Page) => {
-  await chooseFromAccountMenu(page, 'Manage accounts');
+  await chooseFromAccountMenu(page, 'Manage');
   await expect(page.getByText('Accounts', { exact: true })).toBeVisible();
   await expect(
     page.getByText('Switch accounts, add another account, or remove an inactive one.')

@@ -120,7 +120,10 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
     'Add Account',
     'Logout',
   ]);
-  await expect(menu.getByRole('menuitem', { name: 'Manage accounts', exact: true })).toBeVisible();
+  // Manage is named by its visible word, and the well's heading says what it manages.
+  await expect(
+    menu.getByRole('menuitem', { name: 'Manage', exact: true })
+  ).toHaveAccessibleDescription('Other accounts');
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 
@@ -153,6 +156,66 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   const addBox = (await addItem.boundingBox())!;
   expect(logoutBox.y + logoutBox.height).toBeLessThanOrEqual(320);
   expect(addBox.y + addBox.height).toBeLessThanOrEqual(320);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // A window that shrinks under the open menu: the menu stays below the top bar's avatar and
+  // inside the window, with the footer in reach.
+  await page.setViewportSize({ width: 640, height: 700 });
+  await openAccountMenu(page);
+  const menuStaysBelowAvatar = async (viewportHeight: number) => {
+    const avatarBox = (await avatarButton.boundingBox())!;
+    const menuBox = (await menu.boundingBox())!;
+    const footerBox = (await logoutItem.boundingBox())!;
+    return (
+      menuBox.y >= avatarBox.y + avatarBox.height &&
+      menuBox.y + menuBox.height <= viewportHeight &&
+      footerBox.y + footerBox.height <= viewportHeight
+    );
+  };
+  await expect.poll(() => menuStaysBelowAvatar(700)).toBe(true);
+  await page.setViewportSize({ width: 640, height: 280 });
+  await expect.poll(() => menuStaysBelowAvatar(280)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  // A very short window (a short one zoomed in): the item the keyboard focuses is scrolled into
+  // view inside the menu's scrolling body, so its focus ring shows.
+  await page.setViewportSize({ width: 427, height: 213 });
+  /** Whether the focused menu item lies inside its scrolling ancestor's box, or the menu's. */
+  const focusedItemShown = () =>
+    menu.evaluate((menuElement) => {
+      const item = document.activeElement;
+      if (!item || item.getAttribute('role') !== 'menuitem' || !menuElement.contains(item)) {
+        return false;
+      }
+      let frame: Element = menuElement;
+      for (let parent = item.parentElement; parent; parent = parent.parentElement) {
+        if (parent === menuElement) break;
+        if (getComputedStyle(parent).overflowY === 'auto') {
+          frame = parent;
+          break;
+        }
+      }
+      const itemBox = item.getBoundingClientRect();
+      const frameBox = frame.getBoundingClientRect();
+      return itemBox.top >= frameBox.top && itemBox.bottom <= frameBox.bottom;
+    });
+  await avatarButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await expect.poll(focusedItemShown).toBe(true);
+  // The arrow keys keep each item they reach in view too: Manage, the account, the footer.
+  for (const name of ['Manage', new RegExp(`^Switch to account Avery Menu`), 'Add Account']) {
+    await page.keyboard.press('ArrowDown');
+    await expect(
+      menu.getByRole('menuitem', { name, exact: typeof name === 'string' })
+    ).toBeFocused();
+    await expect.poll(focusedItemShown).toBe(true);
+  }
+  await page.keyboard.press('Home');
+  await expect(menu.getByRole('menuitem', { name: 'Settings', exact: true })).toBeFocused();
+  await expect.poll(focusedItemShown).toBe(true);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   if (originalViewport) await page.setViewportSize(originalViewport);
