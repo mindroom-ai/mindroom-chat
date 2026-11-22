@@ -344,6 +344,24 @@ it('places a Back in its first commit after nine other rooms were shown', () => 
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
 });
 
+it('lets no room go for a render that React throws away', () => {
+  const memory = new Map();
+  const visit = (roomId: string) => {
+    const { container, unmount } = render(<List memory={memory} roomId={roomId} />);
+    const warm = container.querySelector<HTMLElement>('[data-view]')!.dataset.complete;
+    tick(12);
+    unmount();
+    return warm;
+  };
+  for (let room = 0; room < 8; room += 1) visit(`!room${room}`);
+  const fail = () => {
+    throw new Error('thrown away');
+  };
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  expect(() => render(<List memory={memory} roomId="!ninth" onIds={fail} />)).toThrow();
+  expect(visit('!room0')).toBe('true');
+});
+
 it('keeps the measured heights of the rooms last shown, and lets the oldest without a place go', () => {
   const memory = new Map();
   const visit = (roomId: string) => {

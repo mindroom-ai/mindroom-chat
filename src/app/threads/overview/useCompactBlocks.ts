@@ -18,17 +18,6 @@ type Geometry = {
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
-// Heights last as long as the place to go back to; of the other rooms, for the last eight shown.
-const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
-  const cache = rooms.get(memory) ?? new Map<string, Geometry>();
-  rooms.set(memory, cache);
-  const kept = cache.get(roomId) ?? { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
-  cache.delete(roomId);
-  cache.set(roomId, kept);
-  const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
-  if (idle.length > 7) cache.delete(idle[0]!);
-  return kept;
-};
 
 type Options = {
   groups: Record<string, string[]>;
@@ -46,9 +35,9 @@ export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
   const { target, protectedId, records, indexPending } = options;
   const state = useMemo(() => {
-    const geometry = getGeometry(memory, roomId);
+    const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
     return {
-      geometry,
+      geometry: rooms.get(memory)?.get(roomId) ?? empty,
       saved: memory.get(roomId),
       order: undefined as string | undefined,
       reachable: undefined as string | undefined,
@@ -171,6 +160,14 @@ export function useCompactBlocks(options: Options) {
   useEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return undefined;
+    // Heights last as long as the place to go back to; of the other rooms, for the last eight
+    // shown. A list that mounted is shown: a render React throws away lets no room go.
+    const cache = rooms.get(memory) ?? new Map<string, Geometry>();
+    rooms.set(memory, cache);
+    cache.delete(roomId);
+    cache.set(roomId, geometry);
+    const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
+    if (idle.length > 7) cache.delete(idle[0]!);
     let frame = 0;
     const schedule = () => {
       if (!frame)
@@ -221,7 +218,7 @@ export function useCompactBlocks(options: Options) {
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
     };
-  }, [contentRef, geometry, scrollRef, state]);
+  }, [contentRef, geometry, memory, roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;
