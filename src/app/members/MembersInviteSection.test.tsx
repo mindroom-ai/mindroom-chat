@@ -7,6 +7,7 @@ import { MembersInviteSection } from './MembersInviteSection';
 
 const mocks = vi.hoisted(() => ({
   invite: vi.fn<(roomId: string, userId: string) => Promise<unknown>>(),
+  setPowerLevel: vi.fn<(roomId: string, userId: string, level: number) => Promise<unknown>>(),
   search: {
     suggestions: [] as ServerUserDirectoryUser[],
     isFetching: false,
@@ -17,8 +18,15 @@ vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../test/utils/i18n');
   return { ...(await importOriginal<object>()), useTranslation: () => ({ t: translateFromEn }) };
 });
+const mockClient = {
+  getSafeUserId: () => '@me:example.org',
+  invite: mocks.invite,
+  setPowerLevel: mocks.setPowerLevel,
+  on: vi.fn(),
+  removeListener: vi.fn(),
+};
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', invite: mocks.invite }),
+  useMatrixClient: () => mockClient,
 }));
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
@@ -28,10 +36,29 @@ vi.mock('./useInviteUserSearch', () => ({
 }));
 
 const memberships: Record<string, string> = {};
+const roomState = {
+  isSpace: false,
+  powerLevels: {
+    users: { '@me:example.org': 100 },
+    users_default: 0,
+    state_default: 50,
+    events: { 'm.room.power_levels': 100 },
+  } as Record<string, unknown>,
+};
 const room = {
   roomId: '!room:example.org',
+  client: mockClient,
+  isSpaceRoom: () => roomState.isSpace,
   getMember: (userId: string) =>
     memberships[userId] ? { userId, membership: memberships[userId] } : null,
+  getLiveTimeline: () => ({
+    getState: () => ({
+      getStateEvents: (eventType: string) =>
+        eventType === 'm.room.power_levels'
+          ? { getContent: () => roomState.powerLevels }
+          : undefined,
+    }),
+  }),
 } as unknown as Room;
 
 const marco = { userId: '@marco:example.org', displayName: 'Marco Rossi' };
@@ -51,6 +78,14 @@ describe('MembersInviteSection', () => {
   beforeEach(() => {
     mocks.search = { suggestions: [marco, mara], isFetching: false };
     mocks.invite.mockReset();
+    mocks.setPowerLevel.mockReset();
+    roomState.isSpace = false;
+    roomState.powerLevels = {
+      users: { '@me:example.org': 100 },
+      users_default: 0,
+      state_default: 50,
+      events: { 'm.room.power_levels': 100 },
+    };
     Object.keys(memberships).forEach((userId) => delete memberships[userId]);
     memberships['@maya:example.org'] = 'join';
   });
@@ -185,5 +220,105 @@ describe('MembersInviteSection', () => {
     mocks.search = { suggestions: [], isFetching: false };
     rerender(<MembersInviteSection room={room} query="jor" />);
     expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
+  });
+
+  it('offers Make moderator after inviting a MindRoom agent and replaces it once granted', async () => {
+    const helper = { userId: '@mindroom_helper:example.org', displayName: 'Helper' };
+    mocks.search = { suggestions: [helper], isFetching: false };
+    mocks.invite.mockResolvedValueOnce({});
+    mocks.setPowerLevel.mockResolvedValueOnce({});
+    render(<MembersInviteSection room={room} query="help" />);
+
+    expect(screen.queryByRole('button', { name: /Make .* moderator/i })).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(inviteButton('Helper'));
+    });
+    expect(mocks.invite).toHaveBeenCalledWith('!room:example.org', '@mindroom_helper:example.org');
+    expect(mocks.setPowerLevel).not.toHaveBeenCalled();
+
+    const makeMod = screen.getByRole('button', { name: 'Make Helper moderator' });
+    expect(isOff(makeMod)).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(makeMod);
+    });
+    expect(mocks.setPowerLevel).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_helper:example.org',
+      50
+    );
+    expect(screen.queryByRole('button', { name: 'Make Helper moderator' })).toBeNull();
+    const granted = within(section()).getByRole('button', { name: 'Moderator' });
+    expect(isOff(granted)).toBe(true);
+    expect(screen.getByRole('status').textContent).toBe('Gave moderator rights to Helper.');
+  });
+
+  it('keeps the invite and shows an error when Make moderator fails', async () => {
+    const helper = { userId: '@mindroom_helper:example.org', displayName: 'Helper' };
+    mocks.search = { suggestions: [helper], isFetching: false };
+    mocks.invite.mockResolvedValueOnce({});
+    mocks.setPowerLevel.mockRejectedValueOnce(new Error('Forbidden'));
+    render(<MembersInviteSection room={room} query="help" />);
+
+    await act(async () => {
+      fireEvent.click(inviteButton('Helper'));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Make Helper moderator' }));
+    });
+
+    expect(within(section()).getByRole('button', { name: 'Invited' })).toBeTruthy();
+    expect(within(section()).getByRole('alert').textContent).toContain('Forbidden');
+    expect(isOff(screen.getByRole('button', { name: 'Make Helper moderator' }))).toBe(false);
+  });
+
+  it.each([
+    {
+      label: 'human user',
+      candidate: { userId: '@marco:example.org', displayName: 'Marco Rossi' },
+      setup: () => undefined,
+    },
+    {
+      label: 'owner account',
+      candidate: { userId: '@mindroom_router:example.org', displayName: 'Owner' },
+      setup: () => undefined,
+    },
+    {
+      label: 'foreign-server agent',
+      candidate: { userId: '@mindroom_helper:other.org', displayName: 'Remote Helper' },
+      setup: () => undefined,
+    },
+    {
+      label: 'Space room',
+      candidate: { userId: '@mindroom_helper:example.org', displayName: 'Helper' },
+      setup: () => {
+        roomState.isSpace = true;
+      },
+    },
+    {
+      label: 'viewer cannot change power levels',
+      candidate: { userId: '@mindroom_helper:example.org', displayName: 'Helper' },
+      setup: () => {
+        roomState.powerLevels = {
+          users: { '@me:example.org': 50 },
+          users_default: 0,
+          state_default: 50,
+          events: { 'm.room.power_levels': 100 },
+        };
+      },
+    },
+  ])('hides Make moderator after inviting $label', async ({ candidate, setup }) => {
+    setup();
+    mocks.search = { suggestions: [candidate], isFetching: false };
+    mocks.invite.mockResolvedValueOnce({});
+    render(<MembersInviteSection room={room} query="test" />);
+
+    await act(async () => {
+      fireEvent.click(inviteButton(candidate.displayName));
+    });
+
+    expect(within(section()).getByRole('button', { name: 'Invited' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Make .* moderator/i })).toBeNull();
   });
 });

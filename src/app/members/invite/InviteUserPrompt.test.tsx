@@ -88,6 +88,10 @@ type MockMatrixClient = Pick<
   | 'mxcUrlToHttp'
   | 'searchUserDirectory'
   | 'invite'
+  | 'setPowerLevel'
+  | 'getRoom'
+  | 'on'
+  | 'removeListener'
 >;
 
 const readyCache = (): UserDirectoryCacheState => ({
@@ -104,7 +108,27 @@ const readyCache = (): UserDirectoryCacheState => ({
   ownerKey: '@me:example.org|https://example.org',
 });
 
-const makeMx = (): MockMatrixClient => ({
+type RoomOptions = {
+  isSpace?: boolean;
+  powerLevels?: Record<string, unknown>;
+  createContent?: Record<string, unknown>;
+  createSender?: string;
+  members?: { userId: string; membership: string }[];
+};
+
+const defaultPowerLevels = (): Record<string, unknown> => ({
+  users: { '@me:example.org': 100 },
+  users_default: 0,
+  state_default: 50,
+  events: { 'm.room.power_levels': 100 },
+});
+
+const makeStateEvent = (content: Record<string, unknown>, sender?: string) => ({
+  getContent: () => content,
+  getSender: () => sender,
+});
+
+const makeMx = (getRoom: () => Room | null): MockMatrixClient => ({
   baseUrl: 'https://example.org',
   getSafeUserId: vi.fn(() => '@me:example.org'),
   getHomeserverUrl: vi.fn(() => 'https://example.org'),
@@ -114,12 +138,36 @@ const makeMx = (): MockMatrixClient => ({
     results: [],
   })),
   invite: vi.fn(async () => undefined) as unknown as MockMatrixClient['invite'],
+  setPowerLevel: vi.fn(async () => undefined) as unknown as MockMatrixClient['setPowerLevel'],
+  getRoom: vi.fn(getRoom) as unknown as MockMatrixClient['getRoom'],
+  on: vi.fn() as unknown as MockMatrixClient['on'],
+  removeListener: vi.fn() as unknown as MockMatrixClient['removeListener'],
 });
 
-const makeRoom = (): Pick<Room, 'roomId' | 'getMember'> => ({
-  roomId: '!room:example.org',
-  getMember: () => null,
-});
+const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
+  const members = options.members ?? [];
+  const powerEvent = makeStateEvent(options.powerLevels ?? defaultPowerLevels());
+  const createEvent = options.createContent
+    ? makeStateEvent(options.createContent, options.createSender)
+    : undefined;
+  return {
+    roomId: '!room:example.org',
+    client: mx,
+    isSpaceRoom: () => options.isSpace ?? false,
+    getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
+    getMembers: () => members,
+    loadMembersIfNeeded: vi.fn(async () => true),
+    getLiveTimeline: () => ({
+      getState: () => ({
+        getStateEvents: (eventType: string) => {
+          if (eventType === 'm.room.power_levels') return powerEvent;
+          if (eventType === 'm.room.create') return createEvent;
+          return undefined;
+        },
+      }),
+    }),
+  };
+};
 
 const anchorRect = {
   x: 24,
@@ -140,10 +188,11 @@ const createNodeMock = (element: React.ReactElement) => {
   return null;
 };
 
-const renderPrompt = () => {
+const renderPrompt = (options: RoomOptions = {}) => {
   const store = createStore();
-  const mx = makeMx();
-  const room = makeRoom();
+  let room: ReturnType<typeof makeRoom> | undefined;
+  const mx = makeMx(() => (room as unknown as Room) ?? null);
+  room = makeRoom(mx, options);
   store.set(userDirectoryCacheAtom, readyCache());
 
   let renderer: ReactTestRenderer;
@@ -151,7 +200,7 @@ const renderPrompt = () => {
     renderer = create(
       <Provider store={store}>
         <MatrixClientProvider value={mx as MatrixClient}>
-          <InviteUserPrompt room={room as Room} requestClose={vi.fn()} />
+          <InviteUserPrompt room={room as unknown as Room} requestClose={vi.fn()} />
         </MatrixClientProvider>
       </Provider>,
       { createNodeMock }
@@ -305,4 +354,155 @@ describe('InviteUserPrompt', () => {
       expect(mx.invite).not.toHaveBeenCalledWith(room.roomId, '@suggestion:example.org', undefined);
     }
   );
+
+  const findModeratorCheckbox = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll((node) => node.type === 'input' && node.props.type === 'checkbox')[0];
+
+  const textContent = (renderer: ReactTestRenderer, role: string) =>
+    renderer.root
+      .findAll((node) => node.props.role === role)
+      .map((node) => (Array.isArray(node.children) ? node.children.join('') : String(node.children)))
+      .join(' ');
+
+  it('defaults moderator rights ON for a MindRoom agent when none holds moderator power, and invites before granting', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    const calls: string[] = [];
+    vi.mocked(mx.invite).mockImplementation(async () => {
+      calls.push('invite');
+      return {} as never;
+    });
+    vi.mocked(mx.setPowerLevel).mockImplementation(async () => {
+      calls.push('setPowerLevel');
+      return {} as never;
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    const checkbox = findModeratorCheckbox(renderer);
+    expect(checkbox).toBeDefined();
+    expect(checkbox?.props.checked).toBe(true);
+
+    await submitInvite(renderer);
+
+    expect(calls).toEqual(['invite', 'setPowerLevel']);
+    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(
+      room.roomId,
+      '@mindroom_helper:example.org',
+      50
+    );
+  });
+
+  it('defaults moderator rights OFF when a MindRoom agent in the room already holds moderator power', async () => {
+    const { renderer, mx, room } = renderPrompt({
+      members: [{ userId: '@mindroom_steward:example.org', membership: 'join' }],
+      powerLevels: {
+        users: { '@me:example.org': 100, '@mindroom_steward:example.org': 50 },
+        users_default: 0,
+        state_default: 50,
+        events: { 'm.room.power_levels': 100 },
+      },
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    const checkbox = findModeratorCheckbox(renderer);
+    expect(checkbox).toBeDefined();
+    expect(checkbox?.props.checked).toBe(false);
+
+    await submitInvite(renderer);
+
+    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+  });
+
+  it('skips setPowerLevel when the user unchecks the moderator checkbox', async () => {
+    const { renderer, mx, room } = renderPrompt();
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    const checkbox = findModeratorCheckbox(renderer);
+    expect(checkbox?.props.checked).toBe(true);
+    act(() => {
+      checkbox?.props.onClick();
+    });
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
+
+    await submitInvite(renderer);
+
+    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+  });
+
+  it('uses the room router state power level when higher than 50', async () => {
+    const { renderer, mx, room } = renderPrompt({
+      powerLevels: {
+        users: { '@me:example.org': 100 },
+        users_default: 0,
+        state_default: 50,
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
+      },
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+
+    await submitInvite(renderer);
+
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(
+      room.roomId,
+      '@mindroom_helper:example.org',
+      75
+    );
+  });
+
+  it.each([
+    { label: 'human user', target: '@alice:example.org', options: {} },
+    { label: 'owner account', target: '@mindroom_router:example.org', options: {} },
+    { label: 'foreign-server agent', target: '@mindroom_helper:other.org', options: {} },
+    { label: 'Space room', target: '@mindroom_helper:example.org', options: { isSpace: true } },
+    {
+      label: 'viewer cannot change power levels',
+      target: '@mindroom_helper:example.org',
+      options: {
+        powerLevels: {
+          users: { '@me:example.org': 50 },
+          users_default: 0,
+          state_default: 50,
+          events: { 'm.room.power_levels': 100 },
+        },
+      },
+    },
+    {
+      label: 'target already holds moderator power',
+      target: '@mindroom_helper:example.org',
+      options: {
+        powerLevels: {
+          users: { '@me:example.org': 100, '@mindroom_helper:example.org': 50 },
+          users_default: 0,
+          state_default: 50,
+          events: { 'm.room.power_levels': 100 },
+        },
+      },
+    },
+  ])('hides the moderator checkbox for $label', ({ target, options }) => {
+    const { renderer } = renderPrompt(options);
+    typeUserId(renderer, target);
+    expect(findModeratorCheckbox(renderer)).toBeUndefined();
+  });
+
+  it('keeps the invite and shows a non-blocking error when granting moderator rights fails', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    await submitInvite(renderer);
+
+    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(
+      room.roomId,
+      '@mindroom_helper:example.org',
+      50
+    );
+    expect(getInput(renderer).props.value).toBe('');
+    expect(textContent(renderer, 'status')).toContain('@mindroom_helper:example.org');
+    expect(textContent(renderer, 'alert')).toContain('Forbidden');
+  });
 });
