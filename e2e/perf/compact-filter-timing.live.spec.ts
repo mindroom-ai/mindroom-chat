@@ -477,16 +477,25 @@ test.describe('compact filter timing', () => {
         await page.mouse.move(1, 1);
         // Let the list settle (cache writes, receipts) before timing it.
         await wait(3_000);
-        const topIds = () =>
-          cards.evaluateAll((elements) =>
-            elements.slice(0, 6).map((card) => card.getAttribute('data-thread-root-id') ?? '')
-          );
-        const showingAll: Expect = { first: await topIds(), count: total };
+        // What each change must show comes from the unfiltered cards and their resolved marks,
+        // not from what the filter shows: a filter that reordered its cards would pass otherwise.
+        const top = await cards.evaluateAll((elements) =>
+          elements.map((card) => ({
+            id: card.getAttribute('data-thread-root-id') ?? '',
+            resolved: card.getAttribute('data-attention-state') === 'resolved',
+          }))
+        );
+        const firstOf = (shown: typeof top) => shown.slice(0, 6).map((card) => card.id);
+        const showingAll: Expect = { first: firstOf(top), count: total };
+        const showingUnresolved: Expect = {
+          first: firstOf(top.filter((card) => !card.resolved)),
+          count: total - RESOLVED,
+        };
+        expect(showingUnresolved.first).toHaveLength(6);
+        expect(showingUnresolved.first).not.toEqual(showingAll.first);
+        // One untimed round first.
         await unresolved.click();
         await expect(view).toHaveAttribute('data-compact-card-count', String(total - RESOLVED));
-        const showingUnresolved: Expect = { first: await topIds(), count: total - RESOLVED };
-        expect(showingAll.first).not.toHaveLength(0);
-        expect(showingUnresolved.first).not.toHaveLength(0);
         await unresolved.click();
         await expect(view).toHaveAttribute('data-compact-card-count', String(total));
 
