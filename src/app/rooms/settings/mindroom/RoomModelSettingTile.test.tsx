@@ -320,14 +320,26 @@ describe('RoomModelSettingTile', () => {
     expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
   });
 
-  it('drops its rows when asking again fails, and keeps the reset row with Retry', () => {
+  it('trusts no list after a refresh that failed: the stored value shows as it is, with Retry', () => {
+    setLive({ value: 'fast' });
     const refresh = vi.fn();
     const { rerender } = renderTile(MODEL_DEF, createCatalog({ refresh }));
-    open();
+    expect(trigger().textContent).toBe('Quick');
 
-    // The runtime did not answer: its old rows may name models it no longer has.
+    // A refresh refused for want of capacity leaves the list its runtime confirmed.
+    rerender(tile(MODEL_DEF, createCatalog({ refresh, error: 'Model discovery is busy.' })));
+    expect(trigger().textContent).toBe('Quick');
+    open();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('option', { name: /Deep/ }).getAttribute('aria-disabled')).toBe(
+      'false'
+    );
+
+    // The runtime did not answer: its old list may name models it no longer has.
     const failed = { refresh, error: 'Model discovery unavailable.', canMutate: false };
     rerender(tile(MODEL_DEF, createCatalog(failed)));
+    expect(trigger().textContent).toBe('fast');
+    expect(screen.getByText('Room setting: fast')).toBeTruthy();
     expect(screen.queryByRole('option', { name: /Deep/ })).toBeNull();
     expect(screen.getByRole('alert').textContent).toBe(
       'No model list is available right now. You can still reset to the configured default.Retry'

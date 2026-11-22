@@ -65,7 +65,13 @@ export function RoomModelSettingTile({
   const [anchor, setAnchor] = useState<RectCords>();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const label = t(definition.label);
-  const hasCatalog = Boolean(catalog.runtime);
+  // The catalog's `canMutate` says its runtime answered the latest refresh. With no runtime, or a
+  // refresh that failed, there is no list to trust: the tile shows the stored value as it is and
+  // the menu keeps the reset row, with a notice and Retry. A refresh refused for want of capacity
+  // leaves a confirmed list as it was.
+  const unavailable =
+    catalog.runtimes.length === 0 || (catalog.error !== undefined && !catalog.canMutate);
+  const hasCatalog = Boolean(catalog.runtime) && !unavailable;
   const stored = useMemo(
     () => classifyStoredModel(value, catalog.models, hasCatalog),
     [value, catalog.models, hasCatalog]
@@ -92,9 +98,6 @@ export function RoomModelSettingTile({
     [catalog.models, definition.allowReasoningLevels]
   );
 
-  // Models are offered from a list a runtime just confirmed. With none, or after a refresh that
-  // failed, the menu keeps the reset row and says so with Retry: a model of an old list may be gone.
-  const unavailable = catalog.error !== undefined || catalog.runtimes.length === 0;
   const mayWrite = canEdit && !sending;
   const state: ModelPickerState = {
     ...catalog,
