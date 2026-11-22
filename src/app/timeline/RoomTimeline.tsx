@@ -1148,6 +1148,46 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
+  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
+  // (the row that draws a folded turn's break measures the break, also when it is a secret
+  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
+  const threadHiddenIds = useMemo(() => {
+    if (!threadId) return EMPTY_IDS;
+    if (
+      pluginHiddenThreadIds.size === 0 &&
+      secretRequestTimeline.hiddenEventIds.size === 0 &&
+      voiceTranscripts.hiddenEventIds.size === 0 &&
+      replyCards.hiddenEventIds.size === 0 &&
+      modelChanges.hiddenEventIds.size === 0 &&
+      turnFolds.view.hiddenIds.size === 0
+    ) {
+      return approvalTimeline.hiddenEventIds;
+    }
+    return new Set([
+      ...approvalTimeline.hiddenEventIds,
+      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
+      ...voiceTranscripts.hiddenEventIds,
+      ...replyCards.hiddenEventIds,
+      ...modelChanges.hiddenEventIds,
+      ...pluginHiddenThreadIds,
+      ...turnFolds.view.hiddenIds,
+    ]);
+  }, [
+    threadId,
+    approvalTimeline.hiddenEventIds,
+    secretRequestTimeline.hiddenEventIds,
+    voiceTranscripts.hiddenEventIds,
+    replyCards.hiddenEventIds,
+    modelChanges.hiddenEventIds,
+    pluginHiddenThreadIds,
+    turnFolds.view,
+  ]);
+  // What prices the open thread's rows besides its events: the ledger holds the reader's rows
+  // when it changes the price of an unmeasured row above them.
+  const threadRowPricing = useMemo(
+    () => [threadHiddenIds, turnFolds.view],
+    [threadHiddenIds, turnFolds.view]
+  );
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout,
@@ -1159,6 +1199,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeRangeRef,
     threadRecordMapRef,
     turnFolds: turnFolds.view,
+    hiddenIds: threadHiddenIds,
   });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
@@ -1194,6 +1235,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEvents,
     threadId,
     threadInitialRenderMode,
+    threadRowPricing,
     leadingKey: threadId
       ? [
           threadLoadError ? 'error' : '',
@@ -1241,40 +1283,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const listHeight = heldList
     ? heldListHeight(heldList, ledger.ledgerPxAtRender)
     : virtualizer.getTotalSize();
-  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break, also when it is a secret
-  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
-  const threadHiddenIds = useMemo(() => {
-    if (!threadId) return EMPTY_IDS;
-    if (
-      pluginHiddenThreadIds.size === 0 &&
-      secretRequestTimeline.hiddenEventIds.size === 0 &&
-      voiceTranscripts.hiddenEventIds.size === 0 &&
-      replyCards.hiddenEventIds.size === 0 &&
-      modelChanges.hiddenEventIds.size === 0 &&
-      turnFolds.view.hiddenIds.size === 0
-    ) {
-      return approvalTimeline.hiddenEventIds;
-    }
-    return new Set([
-      ...approvalTimeline.hiddenEventIds,
-      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
-      ...voiceTranscripts.hiddenEventIds,
-      ...replyCards.hiddenEventIds,
-      ...modelChanges.hiddenEventIds,
-      ...pluginHiddenThreadIds,
-      ...turnFolds.view.hiddenIds,
-    ]);
-  }, [
-    threadId,
-    approvalTimeline.hiddenEventIds,
-    secretRequestTimeline.hiddenEventIds,
-    voiceTranscripts.hiddenEventIds,
-    replyCards.hiddenEventIds,
-    modelChanges.hiddenEventIds,
-    pluginHiddenThreadIds,
-    turnFolds.view,
-  ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
   useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
 

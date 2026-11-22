@@ -187,6 +187,7 @@ export const timelineRowSizing = ({
   activeRangeRef,
   threadRecordMapRef,
   turnFolds,
+  hiddenIds,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -199,6 +200,8 @@ export const timelineRowSizing = ({
   threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
   /** The open thread's folded turns: a break adds its height to its row, which it alone fills. */
   turnFolds?: ThreadTurnFoldView;
+  /** The open thread's rows that show nothing: priced as nothing, like the size they then get. */
+  hiddenIds?: ReadonlySet<string>;
 }) => {
   const estimateSize = (index?: number): number => {
     if (!threadId) {
@@ -223,7 +226,9 @@ export const timelineRowSizing = ({
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
         : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
     }
-    const open = turnFolds?.breaks.get(event.getId() ?? '')?.open;
+    const id = event.getId() ?? '';
+    if (hiddenIds?.has(id)) return 0;
+    const open = turnFolds?.breaks.get(id)?.open;
     if (open === false) return TURN_BREAK_ESTIMATE_PX;
     const row = estimateMessageRowHeight(event, { compact: compactLayout });
     return open ? row + TURN_BREAK_ESTIMATE_PX : row;

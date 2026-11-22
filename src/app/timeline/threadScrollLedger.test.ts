@@ -25,12 +25,14 @@ const anchorOn = (
 const plan = (
   anchor: ThreadLedgerAnchor | undefined,
   threadEvents: readonly ThreadLedgerEvent[],
-  priceRow: (eventId: string, index: number) => number = () => 10
+  priceRow: (eventId: string, index: number) => number = () => 10,
+  pricing?: unknown
 ) =>
   planThreadLedgerRender({
     anchor,
     eventIndexMap: indexMap(threadEvents),
     priceRow,
+    pricing,
     threadEvents,
     threadId: '$root',
   });
@@ -51,10 +53,9 @@ describe('planThreadLedgerRender', () => {
   it('folds rows that land above the reader, whoever added them', () => {
     const previous = events('$root', '$a', '$reader', '$c');
     const next = events('$root', '$old1', '$old2', '$a', '$reader', '$c');
-    const priceRow = vi.fn((eventId: string) => (eventId === '$old1' ? 30 : 50));
+    const priceRow = (eventId: string) => (eventId === '$old1' ? 30 : 50);
 
-    expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 80 });
-    expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$old1', '$old2']);
+    expect(plan(anchorOn(previous, '$reader', priceRow), next, priceRow)).toEqual({ foldPx: 80 });
   });
 
   it('leaves rows that land below the reader, such as new replies and edits', () => {
@@ -63,7 +64,29 @@ describe('planThreadLedgerRender', () => {
     const priceRow = vi.fn(() => 10);
 
     expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 0 });
-    expect(priceRow).not.toHaveBeenCalled();
+    expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$a']);
+  });
+
+  it('folds the price change of an unmeasured row that stays above the reader', () => {
+    // A page of older replies completes the turn `$step` is in: it folds away with it.
+    const previous = events('$root', '$step', '$reader');
+    const next = events('$root', '$person', '$break', '$step', '$reader');
+    const previousPrice = (eventId: string) => (eventId === '$step' ? 190 : 0);
+    const price = (eventId: string) => ({ $person: 30, $break: 42 }[eventId] ?? 0);
+
+    expect(plan(anchorOn(previous, '$reader', previousPrice), next, price)).toEqual({
+      foldPx: 30 + 42 - 190,
+    });
+  });
+
+  it('folds a price change above the reader in the same rows', () => {
+    const list = events('$root', '$a', '$b', '$reader');
+    const anchor = { ...anchorOn(list, '$reader', () => 190), pricing: 'shown' };
+
+    expect(plan(anchor, list, () => 190, 'shown')).toEqual({ foldPx: 0 });
+    expect(plan(anchor, list, (eventId) => (eventId === '$b' ? 0 : 190), 'hidden')).toEqual({
+      foldPx: -190,
+    });
   });
 
   it('keeps the root in place when the reader is looking at it', () => {
@@ -78,7 +101,9 @@ describe('planThreadLedgerRender', () => {
     const next = events('$root', '$a', '$reader');
     const previousPrice = vi.fn((_eventId: string, index: number) => (index === 1 ? 70 : 0));
 
-    expect(plan(anchorOn(previous, '$reader', previousPrice), next)).toEqual({ foldPx: -70 });
+    expect(plan(anchorOn(previous, '$reader', previousPrice), next, () => 0)).toEqual({
+      foldPx: -70,
+    });
     expect(previousPrice).toHaveBeenCalledWith('$gone', 1);
   });
 
@@ -99,18 +124,17 @@ describe('planThreadLedgerRender', () => {
   it("folds a fork's parent rows that land above its root, but not the root", () => {
     const previous = events('$root', '$a', '$reader');
     const next = events('$p0', '$p1', '$root', '$a', '$reader');
-    const priceRow = vi.fn(parentPrice);
+    const priceRow = (eventId: string) => (eventId === '$a' ? 10 : parentPrice(eventId));
 
     expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 90 });
-    expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$p0', '$p1']);
   });
 
   it("takes a fork's parent rows' height away when they leave, but not the root's", () => {
     const previous = events('$p0', '$p1', '$root', '$a', '$reader');
     const next = events('$root', '$a', '$reader');
-    const previousPrice = vi.fn(parentPrice);
-
-    expect(plan(anchorOn(previous, '$reader', previousPrice), next)).toEqual({ foldPx: -90 });
+    expect(plan(anchorOn(previous, '$reader', parentPrice), next, parentPrice)).toEqual({
+      foldPx: -90,
+    });
   });
 
   it("anchors on a fork's parent row above the root when the reader's rows left", () => {

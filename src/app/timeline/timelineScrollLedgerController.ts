@@ -82,6 +82,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
+  /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
+  threadRowPricing?: unknown;
   /**
    * What the timeline renders above its rows: a thread's lines between its banner and its rows,
    * or the room's start (the room intro) and the line above its rows.
@@ -211,6 +213,7 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadInitialRenderMode,
+  threadRowPricing,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -259,6 +262,7 @@ export const useTimelineScrollLedgerController = ({
     anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
     eventIndexMap: threadEventIndexMap,
     priceRow: priceThreadRowForLedger,
+    pricing: threadRowPricing,
     threadEvents,
     threadId,
   });
@@ -587,7 +591,12 @@ export const useTimelineScrollLedgerController = ({
       return;
     }
     threadLedgerViewRef.current = {
-      rows: { threadId, events: threadEvents, priceRow: priceThreadRowForLedger },
+      rows: {
+        threadId,
+        events: threadEvents,
+        priceRow: priceThreadRowForLedger,
+        pricing: threadRowPricing,
+      },
       // A row at virtual-core offset s paints at inner.top + s + ledger.
       listTop:
         scrollElement.scrollTop -
