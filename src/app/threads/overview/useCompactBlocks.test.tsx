@@ -80,7 +80,7 @@ let observers: number;
 const getHeight = (row: HTMLElement) =>
   row.dataset.scrollAnchor === undefined
     ? Number.parseFloat(row.style.height) || 0
-    : height(row.dataset.scrollAnchor);
+    : height(row.dataset.scrollAnchor) * (row.hasAttribute('inert') ? 0.96 : 1);
 
 beforeEach(() => {
   observers = 0;
@@ -339,6 +339,27 @@ it('keeps measured extent while the conversation is hidden', () => {
   width = 390;
   resize();
   tick(12);
+  expect(extent()).toBe(measured);
+});
+
+it('does not take the height of a card from the inert copy that animates its leave', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  const extent = () =>
+    [...container.querySelectorAll<HTMLElement>('[data-compact-spacer]')].reduce(
+      (sum, spacer) => sum + parseFloat(spacer.style.height),
+      0
+    );
+  tick(12);
+  const measured = extent();
+  const copy = document.createElement('div');
+  copy.setAttribute('inert', '');
+  copy.dataset.scrollAnchor = '$row60';
+  container.querySelector('[data-view] > div')!.append(copy);
+  resize();
+  tick(2);
+  copy.remove();
+  rerender(<List memory={memory} />);
   expect(extent()).toBe(measured);
 });
 

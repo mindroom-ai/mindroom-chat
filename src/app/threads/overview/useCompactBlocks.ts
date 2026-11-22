@@ -234,7 +234,9 @@ export function useCompactBlocks(options: Options) {
       const bottom = top + view.clientHeight;
       const visible: string[] = [];
       for (const id of liveIds) fresh.add(id);
-      for (const row of content.querySelectorAll<HTMLElement>(`${SHELL}, [data-compact-spacer]`)) {
+      // An inert copy animates a card's leave: it is not the card.
+      const rowsNow = `${SHELL}:not([inert]), [data-compact-spacer]`;
+      for (const row of content.querySelectorAll<HTMLElement>(rowsNow)) {
         const { top: y, height, bottom: end } = row.getBoundingClientRect();
         const id = row.dataset.scrollAnchor;
         if (id !== undefined) {
