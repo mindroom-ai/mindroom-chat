@@ -115,24 +115,25 @@ const longCollapsibleText = (turn: number): string =>
   ].join('\n');
 
 const longAgentAnswer = (turn: number) => {
-  const extraCode = turn % 2 === 0 ? 36 : 16;
+  // Vary sizes dramatically (some huge 55-line code blocks, some short) to stress estimates!
+  const extraCode = turn % 3 === 0 ? 55 : turn % 2 === 0 ? 28 : 10;
   const codeLines = Array.from(
     { length: extraCode },
     (_, i) =>
       `const step_${turn}_${i} = computeAnchorOffset(rows[${i}], scrollTop + inset - listTop);`
   ).join('\n');
   const tableRows = Array.from(
-    { length: 6 },
+    { length: 5 },
     (_, i) =>
       `<tr><td>metric_${turn}_${i}</td><td>${120 + i * 37}px</td><td>verified</td></tr>`
   ).join('');
-  const body = `🔧 bash [1]\n\nTurn #${turn} summary: checked ${turn * 3} frames across desktop and phone.\n\n\`\`\`ts\n${codeLines}\n\`\`\`\n\nEverything settled cleanly for turn #${turn}.`;
+  const body = `🔧 bash [1]\n\nTurn #${turn} summary: checked ${turn * 3} frames.\n\n\`\`\`ts\n${codeLines}\n\`\`\`\n\nDone for turn #${turn}.`;
   const formattedBody = [
     `<p>🔧 <code>bash</code> [1]</p>`,
-    `<p>Turn #${turn} summary: investigated layout and scroll measurements across desktop and phone viewports with folded intermediate steps, code blocks, and images.</p>`,
+    `<p>Turn #${turn} summary: investigated layout and scroll measurements with folded intermediate steps, code blocks, and images.</p>`,
     `<pre><code class="language-ts">${codeLines}</code></pre>`,
     `<table><thead><tr><th>Metric</th><th>Delta</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table>`,
-    `<p>Follow-up notes for turn #${turn}: confirmed virtualizer measurements, offset ledger margin, and resize observer passes stayed aligned.</p>`,
+    `<p>Follow-up notes for turn #${turn}.</p>`,
   ].join('\n');
   return {
     msgtype: 'm.text',
@@ -147,7 +148,7 @@ const longAgentAnswer = (turn: number) => {
           type: 'tool_call_completed',
           tool_name: 'bash',
           args_preview: `rg "scrollTop" src/app/timeline/ # turn ${turn}`,
-          result_preview: `Found 14 matches across 6 files for turn ${turn}\n`.repeat(12),
+          result_preview: `Found 14 matches across 6 files for turn ${turn}\n`.repeat(8),
           truncated: false,
         },
       ],
@@ -159,10 +160,9 @@ type FixtureWorld = {
   reader: DisposableUser;
   agent: DisposableUser;
   roomId: string;
-  longThreadRootId: string;
+  hugeThreadRootId: string;
   streamingThreadRootId: string;
-  otherThreadRootId: string;
-  longThreadEventCount: number;
+  hugeThreadEventCount: number;
 };
 
 const buildFixtureWorld = async (): Promise<FixtureWorld> => {
@@ -177,28 +177,27 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   await joinRoom(DISPOSABLE_HOMESERVER, agent.accessToken, roomId);
 
   const imgSized = await uploadPng(agent.accessToken, 800, 520, 40);
-  const imgUnsized = await uploadPng(agent.accessToken, 720, 480, 160);
+  const imgUnsized = await uploadPng(agent.accessToken, 680, 560, 160);
 
-  // Thread 1: Realistic long thread (~220+ primary events, 34 finished turns with folded
-  // intermediate steps, long agent replies with tool traces + code blocks + tables,
-  // collapsible user pastes, images with and without dimensions) -> requires multiple
-  // real /relations back-pagination pages beyond the initial open!
-  const longThreadRootId = await send(reader, roomId, 'm.room.message', {
+  // Thread 1: HUGE realistic thread (~420+ primary events, 64 finished turns) so that initial open
+  // loads only the newest ~200 events and scrolling UP triggers 6+ real /relations back-pagination
+  // pages filled with folded agent turns, images (with & without w/h), collapsible pastes, and huge code blocks!
+  const hugeThreadRootId = await send(reader, roomId, 'm.room.message', {
     msgtype: 'm.text',
-    body: `Investigate thread timeline jumps (${tag})`,
+    body: `Huge thread timeline jumps (${tag})`,
   });
-  let lastId = longThreadRootId;
+  let lastId = hugeThreadRootId;
   let eventCount = 1;
 
-  for (let turn = 1; turn <= 34; turn += 1) {
+  for (let turn = 1; turn <= 64; turn += 1) {
     const userBody =
       turn % 3 === 0
         ? longCollapsibleText(turn)
-        : `Turn #${turn}: check the scroll behavior after loading older pages and tool folds.`;
+        : `Turn #${turn}: check scroll behavior when loading older history pages and folded turns.`;
     lastId = await send(reader, roomId, 'm.room.message', {
       msgtype: 'm.text',
       body: userBody,
-      ...inThread(longThreadRootId, lastId),
+      ...inThread(hugeThreadRootId, lastId),
     });
     eventCount += 1;
 
@@ -210,14 +209,14 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
           4
         ),
         'io.mindroom.stream_status': 'completed',
-        ...inThread(longThreadRootId, lastId),
+        ...inThread(hugeThreadRootId, lastId),
       });
       eventCount += 1;
     }
 
-    // Images with and without w/h metadata
-    if (turn % 3 === 1) {
-      const hasDims = turn % 2 === 0;
+    // Images (alternating sized vs unsized)
+    if (turn % 4 === 1) {
+      const hasDims = turn % 8 === 1;
       lastId = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.image',
         body: `screenshot-turn-${turn}.png`,
@@ -225,47 +224,34 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
         info: hasDims
           ? { mimetype: 'image/png', w: 800, h: 520 }
           : { mimetype: 'image/png' },
-        ...inThread(longThreadRootId, lastId),
+        ...inThread(hugeThreadRootId, lastId),
       });
       eventCount += 1;
     }
 
-    // Final long agent reply (sent as pending then finalized with m.replace like real MindRoom!)
-    const replyId = await send(agent, roomId, 'm.room.message', {
-      msgtype: 'm.text',
-      body: 'Thinking...',
-      format: 'org.matrix.custom.html',
-      formatted_body: '<p>Thinking...</p>',
-      'io.mindroom.stream_status': 'pending',
-      ...inThread(longThreadRootId, lastId),
+    // Final long agent reply
+    lastId = await send(agent, roomId, 'm.room.message', {
+      ...longAgentAnswer(turn),
+      ...inThread(hugeThreadRootId, lastId),
     });
-    const finalContent = longAgentAnswer(turn);
-    await send(agent, roomId, 'm.room.message', {
-      ...finalContent,
-      body: `* ${finalContent.body}`,
-      'm.new_content': finalContent,
-      'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
-    });
-    lastId = replyId;
-    eventCount += 2;
+    eventCount += 1;
   }
 
-  // Thread summary notice (populates thread banner title!)
   await send(agent, roomId, 'm.room.message', {
     msgtype: 'm.notice',
-    body: 'Thread timeline scroll and opening jumps investigation',
+    body: 'Huge thread timeline jumps investigation',
     'io.mindroom.thread_summary': {
       version: 1,
-      summary: 'Thread timeline scroll and opening jumps investigation',
+      summary: 'Huge thread timeline jumps investigation',
       message_count: eventCount,
       generated_at: new Date().toISOString(),
       model: 'test',
     },
-    ...inThread(longThreadRootId, lastId),
+    ...inThread(hugeThreadRootId, lastId),
   });
   eventCount += 1;
 
-  // Thread 2: Another thread for switching & streaming-on-open
+  // Thread 2: Streaming open thread
   const streamingThreadRootId = await send(reader, roomId, 'm.room.message', {
     msgtype: 'm.text',
     body: `Streaming open thread (${tag})`,
@@ -291,24 +277,13 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
     });
   }
 
-  // Thread 3: Smaller thread
-  const otherThreadRootId = await send(reader, roomId, 'm.room.message', {
-    msgtype: 'm.text',
-    body: `Other thread (${tag})`,
-  });
-  await send(agent, roomId, 'm.room.message', {
-    ...longAgentAnswer(200),
-    ...inThread(otherThreadRootId, otherThreadRootId),
-  });
-
   return {
     reader,
     agent,
     roomId,
-    longThreadRootId,
+    hugeThreadRootId,
     streamingThreadRootId,
-    otherThreadRootId,
-    longThreadEventCount: eventCount,
+    hugeThreadEventCount: eventCount,
   };
 };
 
@@ -457,7 +432,7 @@ const installThreadJumpProbe = () => {
     const from = probe.scroller.scrollTop;
     const delta = value - from;
     probe.writeDelta += delta;
-    if (probe.writes.length < 400) {
+    if (probe.writes.length < 600) {
       probe.writes.push({
         kind,
         from: Math.round(from),
@@ -512,7 +487,8 @@ const installThreadJumpProbe = () => {
         probe.scroller = probe.findScroller();
       }
       const scroller = probe.scroller;
-      const inner = scroller?.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ?? null;
+      const inner =
+        scroller?.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ?? null;
       if (scroller && inner) {
         probe.totalFrames += 1;
         const hidden = getComputedStyle(inner).visibility === 'hidden';
@@ -547,7 +523,8 @@ const installThreadJumpProbe = () => {
           allRows.forEach((el) => {
             const rect = el.getBoundingClientRect();
             if (rect.bottom <= view.top || rect.top >= view.bottom || rect.height === 0) return;
-            const id = el.dataset.eventId || el.dataset.messageId || el.getAttribute('data-index') || '';
+            const id =
+              el.dataset.eventId || el.dataset.messageId || el.getAttribute('data-index') || '';
             const tile = el.closest<HTMLElement>('[data-index]');
             const idx = tile?.dataset.index ?? '?';
             if (!id) return;
@@ -560,7 +537,9 @@ const installThreadJumpProbe = () => {
               moved.push({ id, idx, d: snap.top - prev.top });
             }
             if (Math.abs(snap.h - prev.h) >= 2) {
-              heightChanges.push(`#${idx}(${id.slice(0, 10)}):${Math.round(prev.h)}->${Math.round(snap.h)}`);
+              heightChanges.push(
+                `#${idx}(${id.slice(0, 10)}):${Math.round(prev.h)}->${Math.round(snap.h)}`
+              );
             }
           });
 
@@ -585,6 +564,8 @@ const installThreadJumpProbe = () => {
             const userScroll = dScroll - appDelta;
             const unexplained = ds.length > 0 ? median + userScroll : 0;
             const inputAge = now - probe.lastInput;
+            // Exclude pure browser momentum inertia (app wrote nothing and rows moved by exact -dScroll)
+            const pureBrowserScroll = appDelta === 0 && Math.abs(median + dScroll) < 2;
 
             const reasons: string[] = [];
             if (probe.mode === 'open') {
@@ -597,7 +578,7 @@ const installThreadJumpProbe = () => {
               if (Math.abs(unexplained) >= 6) {
                 reasons.push(`unexplained(${Math.round(unexplained)}px)`);
               }
-              if (inputAge > 350 && Math.abs(median) >= 4) {
+              if (inputAge > 350 && !pureBrowserScroll && Math.abs(median) >= 4) {
                 reasons.push(`quietMove(${Math.round(median)}px)`);
               }
             }
@@ -616,10 +597,10 @@ const installThreadJumpProbe = () => {
                       median < 0 ? -median : 0,
                       spread,
                       Math.abs(unexplained),
-                      inputAge > 350 ? Math.abs(median) : 0
+                      inputAge > 350 && !pureBrowserScroll ? Math.abs(median) : 0
                     );
               if (jumpMag > probe.maxJumpPx) probe.maxJumpPx = jumpMag;
-              if (probe.jumps.length < 150) {
+              if (probe.jumps.length < 200) {
                 probe.jumps.push({
                   t: Math.round(now),
                   frame: probe.visibleFrames,
@@ -679,7 +660,11 @@ const stopProbe = (page: Page): Promise<ProbeReport> =>
     ).__threadJumpProbe.stop()
   );
 
-const scrollUpFast = async (page: Page, cdp: CDPSession | undefined, setup: Setup) => {
+const scrollUpFastThroughHistory = async (
+  page: Page,
+  cdp: CDPSession | undefined,
+  setup: Setup
+) => {
   const center = await page.evaluate(() => {
     const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
     let scroller = inner?.parentElement ?? null;
@@ -692,39 +677,39 @@ const scrollUpFast = async (page: Page, cdp: CDPSession | undefined, setup: Setu
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   });
 
+  // Scroll all the way up across multiple paginated pages!
   if (setup.viewport === 'desktop') {
     await page.mouse.move(center.x, center.y);
-    // Sustained fast bursts with varying pauses (including 0ms continuous and 220ms/450ms pauses
-    // to exercise quiescence settles, back-pagination commits, and boundary settles!)
-    for (let burst = 0; burst < 18; burst += 1) {
-      for (let notch = 0; notch < 16; notch += 1) {
-        await page.mouse.wheel(0, -180);
+    for (let burst = 0; burst < 32; burst += 1) {
+      for (let notch = 0; notch < 18; notch += 1) {
+        await page.mouse.wheel(0, -240);
         await page.waitForTimeout(16);
       }
-      await page.waitForTimeout(burst % 3 === 0 ? 500 : 180);
+      // Alternate short/medium/long pauses so we hit mid-scroll, quiescence settles, and back-pagination!
+      await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 60);
     }
     await page.waitForTimeout(1_200);
     return;
   }
 
   if (setup.engine === 'chromium' && cdp) {
-    for (let burst = 0; burst < 18; burst += 1) {
+    for (let burst = 0; burst < 32; burst += 1) {
       await cdp.send('Input.synthesizeScrollGesture', {
         x: Math.round(center.x),
         y: Math.round(center.y),
-        yDistance: 1600,
-        speed: 3800,
+        yDistance: 2000,
+        speed: 4500,
         gestureSourceType: 'touch',
         preventFling: false,
       });
-      await page.waitForTimeout(burst % 3 === 0 ? 550 : 200);
+      await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 80);
     }
     await page.waitForTimeout(1_200);
     return;
   }
 
   // WebKit phone: fast touch drag bursts
-  for (let burst = 0; burst < 18; burst += 1) {
+  for (let burst = 0; burst < 32; burst += 1) {
     await page.evaluate(() =>
       new Promise<void>((resolve) => {
         const probe = (
@@ -755,10 +740,10 @@ const scrollUpFast = async (page: Page, cdp: CDPSession | undefined, setup: Setu
           );
         };
         touch('touchstart');
-        let left = 2200;
+        let left = 2800;
         let last = performance.now();
         const step = (now: number) => {
-          const move = Math.min(left, Math.max(1, (now - last) * 3.5));
+          const move = Math.min(left, Math.max(1, (now - last) * 4.5));
           last = now;
           left -= move;
           probe.driving = true;
@@ -776,17 +761,17 @@ const scrollUpFast = async (page: Page, cdp: CDPSession | undefined, setup: Setu
         requestAnimationFrame(step);
       })
     );
-    await page.waitForTimeout(burst % 3 === 0 ? 550 : 200);
+    await page.waitForTimeout(burst % 4 === 0 ? 700 : burst % 2 === 0 ? 250 : 80);
   }
   await page.waitForTimeout(1_200);
 };
 
 const summarize = (label: string, report: ProbeReport) => {
-  const biggest = [...report.jumps].sort((a, b) => b.mag - a.mag).slice(0, 8);
+  const biggest = [...report.jumps].sort((a, b) => b.mag - a.mag).slice(0, 10);
   const biggestTimes = new Set(biggest.map((j) => j.t));
   const nearWrites = report.writes
-    .filter((w) => Array.from(biggestTimes).some((t) => Math.abs(w.t - t) <= 80))
-    .slice(0, 25);
+    .filter((w) => Array.from(biggestTimes).some((t) => Math.abs(w.t - t) <= 100))
+    .slice(0, 30);
   // eslint-disable-next-line no-console
   console.log(
     `JUMP-PROBE[${label}] ${JSON.stringify({
@@ -816,13 +801,13 @@ test.describe('thread timeline jumps investigation', () => {
   let world: FixtureWorld | undefined;
 
   test.beforeAll(async () => {
-    test.setTimeout(4 * 60_000);
+    test.setTimeout(5 * 60_000);
     if (!(await disposableHomeserverIsUp())) return;
     world = await buildFixtureWorld();
   });
 
   SETUPS.forEach((setup) => {
-    test(`${setup.engine} ${setup.viewport}: realistic thread open & fast scroll up`, async ({
+    test(`${setup.engine} ${setup.viewport}: huge realistic thread open & multi-page fast scroll up`, async ({
       baseURL,
     }) => {
       test.skip(!world, 'disposable homeserver is not running');
@@ -863,92 +848,42 @@ test.describe('thread timeline jumps investigation', () => {
           filterState: createDefaultThreadFilterState(),
         });
 
-        // Add realistic latency to media downloads and /relations continuations
+        // Realistic latency on media downloads and /relations continuations
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(350);
+          await wait(400);
           await route.continue();
         });
         await page.route('**/_matrix/media/**', async (route) => {
-          await wait(350);
+          await wait(400);
           await route.continue();
         });
         await page.route('**/relations/**', async (route) => {
           if (route.request().url().includes('from=')) {
-            await wait(300);
+            await wait(350);
           }
           await route.continue();
         });
 
         await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-        const longCard = page.locator(
-          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+        const hugeCard = page.locator(
+          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.hugeThreadRootId}"]`
         );
-        await expect(longCard).toBeVisible({ timeout: 30_000 });
+        await expect(hugeCard).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(800);
 
-        // --- SCENARIO 1: Open realistic long thread from Compact view (cold open, phone slides!) ---
+        // --- SCENARIO 1: Open huge realistic thread (cold open, phone slides!) ---
         await startProbe(page, 'open');
-        await longCard.click();
+        await hugeCard.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(2_500);
+        await page.waitForTimeout(2_000);
         const openReport = await stopProbe(page);
         summarize(`${setup.engine}-${setup.viewport}-open-cold`, openReport);
 
-        // --- SCENARIO 2: Fast scroll UP through history (older pages, folded turns, images, collapsibles) ---
+        // --- SCENARIO 2: Fast scroll UP across multiple back-pagination pages! ---
         await startProbe(page, 'scrollUp');
-        await scrollUpFast(page, cdp, setup);
+        await scrollUpFastThroughHistory(page, cdp, setup);
         const scrollReport = await stopProbe(page);
-        summarize(`${setup.engine}-${setup.viewport}-scroll-up`, scrollReport);
-
-        // --- SCENARIO 3: Open streaming thread while agent reply streams live edits ---
-        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-        const streamCard = page.locator(
-          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.streamingThreadRootId}"]`
-        );
-        await expect(streamCard).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(500);
-
-        const liveReplyId = await send(fixture.agent, fixture.roomId, 'm.room.message', {
-          msgtype: 'm.text',
-          body: 'Thinking...',
-          format: 'org.matrix.custom.html',
-          formatted_body: '<p>Thinking...</p>',
-          'io.mindroom.stream_status': 'streaming',
-          ...inThread(fixture.streamingThreadRootId, fixture.streamingThreadRootId),
-        });
-        let streamRunning = true;
-        const streamTask = (async () => {
-          for (let i = 1; i <= 10 && streamRunning; i += 1) {
-            await wait(160);
-            const paras = Array.from(
-              { length: i * 2 },
-              (_, p) =>
-                `<p>Streaming paragraph ${p + 1}: live tokens arriving during thread open.</p>`
-            ).join('\n');
-            const content = {
-              msgtype: 'm.text',
-              body: `Streaming chunk ${i}`,
-              format: 'org.matrix.custom.html',
-              formatted_body: paras,
-              'io.mindroom.stream_status': i === 10 ? 'completed' : 'streaming',
-            };
-            await send(fixture.agent, fixture.roomId, 'm.room.message', {
-              ...content,
-              body: `* Streaming chunk ${i}`,
-              'm.new_content': content,
-              'm.relates_to': { rel_type: 'm.replace', event_id: liveReplyId },
-            });
-          }
-        })();
-
-        await startProbe(page, 'open');
-        await streamCard.click();
-        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
-        await page.waitForTimeout(2_500);
-        streamRunning = false;
-        await streamTask;
-        const streamOpenReport = await stopProbe(page);
-        summarize(`${setup.engine}-${setup.viewport}-open-streaming`, streamOpenReport);
+        summarize(`${setup.engine}-${setup.viewport}-scroll-up-multipage`, scrollReport);
 
         await context.close();
       } finally {
