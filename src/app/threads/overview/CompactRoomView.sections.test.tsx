@@ -981,6 +981,21 @@ describe('a focus request on the mounted Compact room', () => {
       expect([60, 61, 62].map((row) => topOf(`$card${row}`) || 0)).toEqual([0, 100, 200]);
     });
 
+    it('lets go of the Back a newer address retired for a card already in view', () => {
+      memory.clear();
+      memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$late', offset: 83 }] });
+      const { rerender, unmount } = render(at(undefined, cards, true));
+      rerender(at({ eventId: '$card1', entryKey: 'in-view', pushed: true }, cards, true));
+      expect(scrollTop).toBe(0);
+      act(() => {
+        vi.advanceTimersByTime(17);
+      });
+      // The reader leaves from the top: that is the place to come back to, not the retired one.
+      unmount();
+      expect(memory.get(ROOM_ID)?.scrollTop).toBe(0);
+      expect(memory.get(ROOM_ID)?.anchors[0]?.key).toBe('$card0');
+    });
+
     it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
       memory.clear();
       const partial = large.slice(0, 40);

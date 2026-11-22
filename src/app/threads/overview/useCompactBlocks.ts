@@ -289,9 +289,11 @@ export function useCompactBlocks(options: Options) {
       if (layout()) state.wake?.();
     };
     // Discovery parks while the list cannot measure. A frame advances it; a scroll does not.
+    // A Back that still waited when an address retired it is dropped by a render.
+    const waiting = back && !placeReady;
     state.measure = (advance) => {
       const now = layout();
-      return now !== undefined && (now || (!!advance && pending));
+      return now !== undefined && (now || (waiting && state.placed) || (!!advance && pending));
     };
     if (back && !placeReady && state.reachable === order) render();
     else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
