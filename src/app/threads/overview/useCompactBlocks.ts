@@ -228,7 +228,8 @@ export function useCompactBlocks(options: Options) {
     if (!view || !content || typeof window === 'undefined') return;
     mounted.current = liveIds;
     if (records && !indexPending)
-      for (const id of heights.keys()) if (!records.has(id) && !index.has(id)) heights.delete(id);
+      for (const kept of [heights, fresh])
+        for (const id of kept.keys()) if (!records.has(id) && !index.has(id)) kept.delete(id);
     // The view shows a spacer: its cards mount before the paint, not on a frame.
     let hole = false;
     // Undefined while the list has no size (hidden): nothing can be measured there.
