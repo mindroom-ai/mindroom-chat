@@ -17,6 +17,8 @@ export const View = style([
     paddingInline: config.space.S300,
     overflowY: 'auto',
     overflowX: 'hidden',
+    // The scroll owner anchors cards in every engine, so native scroll anchoring stays off.
+    overflowAnchor: 'none',
     // Cards hold positioned elements. Without a stacking context on this composited scroller, WebKit
     // gives each card its own layer plus clip and scroll proxies (about 6,000 layers for 731 cards).
     isolation: 'isolate',
@@ -50,13 +52,9 @@ export const CardShell = style({
   minWidth: 0,
 });
 
-// A card's moving part: positioned, so a card that travels far passes over the others. It holds
-// no scroll anchor of the browser's, which anchors on the shell around it instead: once a card
-// had glided, Chromium no longer scrolled a list anchored inside it, and each card that joined
-// above the ones in view moved them down by its height.
+// A card's moving part: positioned, so a card that travels far passes over the others.
 export const CardMotion = style({
   position: 'relative',
-  overflowAnchor: 'none',
 });
 
 // A section's header among the cards (Sections): it folds the section, as the sidebar's do.

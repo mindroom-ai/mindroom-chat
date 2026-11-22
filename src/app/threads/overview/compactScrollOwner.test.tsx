@@ -119,11 +119,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-const withoutScrollAnchoring = () => vi.stubGlobal('CSS', { supports: () => false });
 
 describe('Compact scroll owner', () => {
   it("does not undo the reader's scroll that a render sees before its scroll event", () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, show, writes, scrollBy } = list(ids, 150);
 
@@ -135,7 +133,6 @@ describe('Compact scroll owner', () => {
   });
 
   it('keeps the cards in view in place when a card joins above them, without scroll anchoring', () => {
-    withoutScrollAnchoring();
     const ids = ['$c', '$b', '$a'];
     const { view, show } = list(ids, 150);
 
@@ -144,7 +141,6 @@ describe('Compact scroll owner', () => {
   });
 
   it('keeps its place when the topmost card in view moves to the top, by the card after it', () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, show, writes } = list(ids, 250);
 
@@ -159,7 +155,6 @@ describe('Compact scroll owner', () => {
     ['the topmost card in view', ['$a', '$b', '$d', '$e', '$f', '$c'], '$d'],
     ['a card above the view', ['$b', '$c', '$d', '$e', '$f', '$a'], '$c'],
   ])('anchors the stationary cards when %s moves down', (_label, live, anchor) => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, show, writes } = list(ids, 250);
     const topOf = () =>
@@ -172,7 +167,6 @@ describe('Compact scroll owner', () => {
   });
 
   it('anchors the topmost card when the card just above moves down into a new section', () => {
-    withoutScrollAnchoring();
     const later = ['#later', '$c', '$d', '$e', '$f'];
     const ids = ['#needsYou', '$a', '$b', ...later];
     const { view, show, writes } = list(ids, HEADER + CARD + 10);
@@ -189,7 +183,6 @@ describe('Compact scroll owner', () => {
   });
 
   it("corrects from the reader's new place once the scroll event has fired", () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
     const { view, show, scrollBy, writes } = list(ids, 150);
     scrollBy(100);
@@ -198,13 +191,14 @@ describe('Compact scroll owner', () => {
     expect(writes).toEqual([350]);
   });
 
-  it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
+  it('anchors stationary cards in every engine, even when CSS overflow-anchor is supported', () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
-    const { show, writes } = list(ids, 150);
+    const { view, show, writes } = list(ids, 150);
 
     show(['$d', ...ids]);
-    expect(writes).toEqual([]);
+    expect(writes).toEqual([250]);
+    expect(view.scrollTop).toBe(250);
   });
 
   it('consumes a placement token only once, even if a newer token came and went', () => {
@@ -250,7 +244,6 @@ describe('Compact scroll owner', () => {
   });
 
   it('stops following a pending placement on reorder and hands off to passive keep', () => {
-    withoutScrollAnchoring();
     const ids = ['$a', '$b', '$c', '$d', '$e'];
     const saved = { id: 'mount', scrollTop: 150, anchors: [{ key: '$c', offset: 50 }] };
     const { view, show } = list(ids, 0, saved);
@@ -262,10 +255,10 @@ describe('Compact scroll owner', () => {
   });
 
   it('does not chase a focused card that later reorders to the top', () => {
-    vi.stubGlobal('CSS', { supports: () => true });
     const { view, show } = list(['$a', '$b', '$target'], 0, focus);
     expect(view.scrollTop).toBe(175);
+    // $target moves to index 0: pending placement stops and passive keep holds $b in place (+100).
     show(['$target', '$a', '$b']);
-    expect(view.scrollTop).toBe(175);
+    expect(view.scrollTop).toBe(275);
   });
 });
