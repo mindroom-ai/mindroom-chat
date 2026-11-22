@@ -270,22 +270,45 @@ test.describe('Compact scroll jump regressions', () => {
       await takeFrames(page);
       const rect = (await compactView(page).boundingBox())!;
       await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
-      const edits: Promise<string>[] = [];
-      for (let i = 0; i < 20; i += 1) {
+      const edited = [roots[60]!, roots[59]!, roots[58]!];
+      const heights = () =>
+        compactView(page).evaluate(
+          (el, ids) =>
+            ids.map(
+              (id) =>
+                el
+                  .querySelector(`[data-scroll-anchor="${CSS.escape(id)}"]`)
+                  ?.getBoundingClientRect().height ?? 0
+            ),
+          edited
+        );
+      const heightsBefore = await heights();
+      // Long enough to wrap onto a second line in a wide list as well.
+      const title =
+        'Long edited title that wraps onto a second line above the active scroll position during fast upward wheel scrolling. '.repeat(
+          3
+        );
+      const edits = edited.map((root) => editRoot(root, title));
+      // Wheel up until a card grew and for some steps after, so the growth lands inside the
+      // burst, and stop short of the top of the list.
+      const stepsAfter = 8;
+      const stepsBefore = Math.floor((afterGrow.y - 300) / 100) - stepsAfter;
+      let grewAfter = -1;
+      for (let step = 0; grewAfter < 0 ? step < stepsBefore : step < grewAfter + stepsAfter; ) {
         await page.mouse.wheel(0, -100);
-        if (i === 4) {
-          for (const root of [roots[60]!, roots[59]!, roots[58]!]) {
-            edits.push(
-              editRoot(
-                root,
-                'Long edited title that wraps onto multiple lines above the active scroll position during fast upward wheel scrolling'
-              )
-            );
-          }
-        }
         await page.waitForTimeout(16);
+        step += 1;
+        if (grewAfter < 0 && (await heights()).some((h, i) => h > heightsBefore[i]! + 5)) {
+          grewAfter = step;
+        }
       }
       await Promise.all(edits);
+      expect(
+        grewAfter,
+        `[webkit/${form}] no edited card grew within ${stepsBefore} wheel steps (heights ${heightsBefore.join()} -> ${(
+          await heights()
+        ).join()})`
+      ).toBeGreaterThan(0);
       await page.waitForTimeout(500);
       const raceFrames = await takeFrames(page);
       const backwardsSnaps: string[] = [];
