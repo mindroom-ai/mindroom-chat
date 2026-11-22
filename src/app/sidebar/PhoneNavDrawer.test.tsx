@@ -970,7 +970,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
     }
   });
 
-  it('falls back to discrete open on rail-only pages when pageNoticeSlotAtom has an active notice', async () => {
+  it('still opens interactively on rail-only pages when pageNoticeSlotAtom has a page-only notice', async () => {
     const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
       cb(0);
       return 1;
@@ -989,34 +989,38 @@ describe('PhoneNavDrawer interactive swipes', () => {
     });
 
     const pageNoticeSlot = document.createElement('div');
-    const discardButton = document.createElement('button');
-    discardButton.type = 'button';
-    discardButton.textContent = 'Discard';
-    pageNoticeSlot.append(discardButton);
+    const noticeButton = document.createElement('button');
+    noticeButton.type = 'button';
+    noticeButton.textContent = 'Connection lost';
+    pageNoticeSlot.append(noticeButton);
     document.body.append(pageNoticeSlot);
     drawer.store.set(pageNoticeSlotAtom, pageNoticeSlot);
-    discardButton.focus();
+    noticeButton.focus();
 
     try {
+      // Mid-drag: interactive finger-following works on rail-only pages, while drawer NoticeSlot stays
+      // unmounted during peek so focus on the page notice is never stolen.
       domAct(() => {
         dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
-        dispatchTouch(window, 'touchmove', [{ clientX: 130, clientY: 200 }], 200);
+        dispatchTouch(window, 'touchmove', [{ clientX: 44, clientY: 200 }], 200);
       });
 
-      // Fell back cleanly instead of peeking a rail-only drawer that would jump wider when NoticeSlot mounts.
-      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
-      expect(drawer.panel.style.translate).toBe('');
-      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
+      expect(drawer.panel.style.translate).toBe('26px 0');
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).not.toBeNull();
       expect(drawer.store.get(drawerNoticeSlotAtom)).toBeNull();
-      expect(document.activeElement).toBe(discardButton);
+      expect(document.activeElement).toBe(noticeButton);
 
-      // Releasing past discrete threshold still opens the drawer cleanly.
+      // Release past 35% of 64 px: commits cleanly and mounts drawer NoticeSlot once open.
       domAct(() => {
         dispatchTouch(window, 'touchend', [], 220);
       });
       await flushMicrotasks();
       expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
       expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+      expect(drawer.store.get(drawerNoticeSlotAtom)).not.toBeNull();
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
     } finally {
       drawer.unmount();
       pageNoticeSlot.remove();

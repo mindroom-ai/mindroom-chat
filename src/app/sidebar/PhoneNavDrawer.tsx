@@ -28,7 +28,7 @@ import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
-import { NoticeSlot, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import { NoticeSlot } from '../ui/noticeSlots';
 import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
@@ -242,10 +242,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       if (!panel || !scrim) return null;
 
       flushSync(() => setPeeking(true));
-      const railOnlyWithPageNotice =
-        (slotRef.current?.childElementCount ?? 0) === 0 &&
-        (store.get(pageNoticeSlotAtom)?.childElementCount ?? 0) > 0;
-      const extent = railOnlyWithPageNotice ? 0 : panel.getBoundingClientRect().width;
+      const extent = panel.getBoundingClientRect().width;
       if (extent <= 0) {
         flushSync(() => setPeeking(false));
         return null;
