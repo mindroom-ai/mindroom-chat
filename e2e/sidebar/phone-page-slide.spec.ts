@@ -526,6 +526,8 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
         timeout: 90_000,
       })
       .toBeGreaterThanOrEqual(threadCount);
+    // The seek below is taken once, against the measured extent: the count shows before it.
+    await expect(before).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
     const first = before.locator(cards).first();
     await expect(first).toBeInViewport();
     const firstId = await first.getAttribute('data-thread-root-id');

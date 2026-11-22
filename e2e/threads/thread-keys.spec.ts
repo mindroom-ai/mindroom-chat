@@ -9,6 +9,7 @@ import {
 import { sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Into a thread and out of it by keyboard, in a Compact room against the disposable homeserver of
 // `just hs-up` (or a slot of scripts/e2e-slot.sh). Alt and the right arrow goes one level in (the
@@ -287,6 +288,105 @@ test('beside its thread, the keys reach the cards and open the next thread', asy
   await expect(card(page, third)).toBeFocused();
   await page.keyboard.press('Alt+ArrowRight');
   await expect.poll(() => openThread(page)).toBe(third);
+});
+
+/** The control that has the focus in the cards: its card and name, and whether it shows. */
+const focusedStop = (page: Page) =>
+  page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    const view = active?.closest('[data-compact-room-view]');
+    if (!active || !view || active.getAttribute('role') === 'scrollbar') return undefined;
+    if (active.hasAttribute('data-compact-spacer')) return 'a spacer kept the focus';
+    const box = active.getBoundingClientRect();
+    const area = view.getBoundingClientRect();
+    const control = active.dataset.threadRootId ? 'card' : active.getAttribute('aria-label');
+    const id = active.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor;
+    const shown = box.bottom > area.top && box.top < area.bottom;
+    const place = `${Math.round(box.top)}..${Math.round(box.bottom)} of ${Math.round(area.bottom)}`;
+    return `${id} ${control}${shown ? '' : `, out of view at ${place}, ${view.scrollTop}`}`;
+  });
+
+/** The stops `key` (Tab or Shift+Tab) makes from the focused control until it leaves the cards. */
+const tabStops = async (page: Page, key: string): Promise<string[]> => {
+  const stops: string[] = [];
+  for (let press = 0; press < 400; press += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press(key);
+    // eslint-disable-next-line no-await-in-loop
+    const stop = await focusedStop(page);
+    if (stop === undefined) break;
+    stops.push(stop);
+  }
+  return stops;
+};
+
+// Tab and Shift+Tab are the browser's own in a list that mounts a window of its cards: every
+// card is a stop in the page's order, forwards from its button and backwards from its last
+// control, as when every card is mounted. `tab` is the browser's key for every control: Safari
+// tabs past buttons without Option.
+const checkTabOrder = async (page: Page, tag: string, tab = 'Tab') => {
+  const back = `Shift+${tab}`;
+  const topics = Array.from({ length: 60 }, (_, index) => `Row ${index + 1} of the orchard`);
+  const order = await openOrchard(page, tag, 1280, topics);
+  const view = page.locator(COMPACT_VIEW);
+  const scrollTo = (top: number) =>
+    view.evaluate(async (scroller, to) => {
+      scroller.scrollTop = to < 0 ? scroller.scrollHeight : to;
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+    }, top);
+  await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
+  const [first, second] = [order[0] ?? '', order[1] ?? ''];
+  const last = order.at(-1) ?? '';
+  await expect(card(page, last)).toHaveCount(0);
+  await card(page, first).focus();
+  const forward = [`${first} card`, ...(await tabStops(page, tab))];
+  expect([...new Set(forward.map((stop) => stop.split(' ')[0]))]).toEqual(order);
+  expect(forward.filter((stop) => /spacer|out of view/.test(stop))).toEqual([]);
+  // Each card has the same controls: its button, then at least its menu.
+  expect(forward.length % order.length).toBe(0);
+  const controls = forward.length / order.length;
+  expect(controls).toBeGreaterThanOrEqual(2);
+  // Past the last card, then back: the same stops in reverse, each card entered at its end.
+  expect(await view.getByRole('scrollbar').evaluate((bar) => bar === document.activeElement)).toBe(
+    true
+  );
+  expect(await tabStops(page, back)).toEqual([...forward].reverse());
+
+  // From the first card's last control, with the list scrolled to its end: only that card is
+  // left of the first cards, and the next stop of the page is the spacer after it.
+  await card(page, first).focus();
+  for (let press = 1; press < controls; press += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press(tab);
+  }
+  await scrollTo(-1);
+  await expect(card(page, second)).toHaveCount(0);
+  await page.keyboard.press(tab);
+  expect(await focusedStop(page)).toBe(`${second} card`);
+  // From the scrollbar, with the list back at its top: the last card is entered at its end.
+  await scrollTo(-1);
+  await view.getByRole('scrollbar').focus();
+  await scrollTo(0);
+  await expect(card(page, last)).toHaveCount(0);
+  await page.keyboard.press(back);
+  expect(await focusedStop(page)).toBe(forward.at(-1));
+};
+
+test('Tab and Shift+Tab stop at every card of a long list, in both directions', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await checkTabOrder(page, 'tab');
+});
+
+test('Tab and Shift+Tab stop at every card of a long list, in both directions (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  await onWebKitPage({ baseURL }, (page) => checkTabOrder(page, 'tabw', MAC ? 'Alt+Tab' : 'Tab'));
 });
 
 test('a thread left far down a long list hands the focus to its card', async ({ page }) => {

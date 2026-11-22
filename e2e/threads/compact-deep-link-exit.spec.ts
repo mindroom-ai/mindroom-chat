@@ -202,6 +202,7 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
     const newVisibleHeights = new Map<string, number>();
     const offsets: number[] = [startScrollTop];
     let upFrames = 0;
+    let worstStep = 0;
     let framesWithoutAnchor = 0;
     let missingAnchors = 0;
     let worst = { drift: 0, frame: -1, id: '', delta: 0 };
@@ -213,6 +214,9 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
       await new Promise((resolve) => requestAnimationFrame(resolve));
       const after = read();
       const delta = after.scrollTop - before.scrollTop;
+      // The browser moved by what was asked: a block swap that clamps the offset moves it further.
+      const asked = frame < frames ? Math.max(0, before.scrollTop + deltaY) : before.scrollTop;
+      worstStep = Math.max(worstStep, Math.abs(after.scrollTop - asked));
       offsets.push(after.scrollTop);
       if (delta < 0) upFrames += 1;
       let anchors = 0;
@@ -250,6 +254,7 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
       distance: startScrollTop - before.scrollTop,
       offsets,
       upFrames,
+      worstStep,
       framesWithoutAnchor,
       missingAnchors,
       newVisibleCards: heights.length,
@@ -308,6 +313,10 @@ const checkReverseScroll = async (
       `max drift net of actual scroll: ${JSON.stringify(result.worst)}`
     ).toBeLessThan(1);
     expect(result.writes, 'only the reader scrolls during block swaps').toHaveLength(result.frames);
+    expect(
+      result.worstStep,
+      `each frame lands where it was asked to: ${result.offsets.join(', ')}`
+    ).toBeLessThan(1);
     if (throughTop) expect(result.offsets.slice(-2)).toEqual([0, 0]);
     await expect(early).toBeFocused();
   });
@@ -330,6 +339,101 @@ test('reverse scrolling reaches native zero through its first idle paint (WebKit
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await checkReverseScroll(baseURL, 'no-preference', true);
+});
+
+// After a width change the cards outside the window keep their cached heights until they mount.
+// End must read the extent with the real end mounted, in its one scroll write.
+test('scrollbar End reaches the real end after the cards below grew (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  const { reader, roomId, rootIds } = await seed('resized_end', true);
+  // Wide enough for the long titles to take one line; narrowed below, they take two.
+  await onWebKitPage({ viewport: { width: 1800, height: 800 }, baseURL }, async (page) => {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    const view = page.locator(COMPACT_VIEW);
+    await expect(view).toHaveAttribute('data-compact-card-count', String(ROOTS), {
+      timeout: 60_000,
+    });
+    await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
+    const frames = () =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          })
+      );
+    const extent = () => view.evaluate((el) => el.scrollHeight - el.clientHeight);
+    await view.evaluate((el) => {
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.4;
+    });
+    await frames();
+    const wide = await extent();
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await frames();
+    await frames();
+    const last = view.locator(`button[data-thread-root-id="${rootIds[0]!}"]`);
+    await expect(last).toHaveCount(0);
+    const end = await view.evaluate((scroller) => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+      const writes: number[] = [];
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => Number(descriptor.get?.call(scroller)),
+        set: (value: number) => {
+          writes.push(value);
+          descriptor.set?.call(scroller, value);
+        },
+      });
+      const before = scroller.scrollHeight - scroller.clientHeight;
+      const bar = scroller.querySelector<HTMLElement>('[role="scrollbar"]')!;
+      bar.focus({ preventScroll: true });
+      bar.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
+      );
+      const result = {
+        before,
+        writes,
+        scrollTop: scroller.scrollTop,
+        maximum: scroller.scrollHeight - scroller.clientHeight,
+      };
+      return new Promise<typeof result & { settledTop: number; settledMaximum: number }>(
+        (resolve) => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              Reflect.deleteProperty(scroller, 'scrollTop');
+              resolve({
+                ...result,
+                settledTop: scroller.scrollTop,
+                settledMaximum: scroller.scrollHeight - scroller.clientHeight,
+              });
+            })
+          );
+        }
+      );
+    });
+    test.info().annotations.push({ type: 'resized end', description: JSON.stringify(end) });
+    expect(wide, 'the list had a deep scroll range at the wide width').toBeGreaterThan(3_000);
+    expect(
+      end.settledMaximum - end.before,
+      'the cards below the reader were taller than their cached heights'
+    ).toBeGreaterThan(100);
+    expect(end.writes, 'End writes the offset once').toHaveLength(1);
+    expect(Math.abs(end.scrollTop - end.maximum), 'End lands on the real end').toBeLessThanOrEqual(
+      1
+    );
+    expect(
+      Math.abs(end.settledTop - end.settledMaximum),
+      'and the end stays the end once the window has settled'
+    ).toBeLessThanOrEqual(1);
+    await expect(last).toBeInViewport();
+  });
 });
 
 test('scrollbar End during discovery reaches the available end (WebKit)', async ({ baseURL }) => {

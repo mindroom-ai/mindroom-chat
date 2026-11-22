@@ -30,8 +30,10 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
  * first screenful show its result, that is until that frame has been painted (the next task
  * after it); the search's 300 ms pause in typing is not counted. Every change runs FILTER_ROUNDS
  * (default 3) times; the median of each must stay within FILTER_BUDGET_MS (default 100) and no
- * single run above twice that. In Chromium no task between the press and the result may take
- * longer than FILTER_BUDGET_MS. Offscreen cards mount only when scrolled into view.
+ * single run above twice that. Cards outside the window mount only when scrolled into view; the
+ * ones a change brings back are measured a block a frame, and the list's scroll range must be
+ * measured within FILTER_COMPLETE_BUDGET_MS (default 2000). In Chromium no task between the press
+ * and the measured range may take longer than FILTER_BUDGET_MS.
  *
  * Then, once every engine has had its idle run, FILTER_AGENTS (default 8) agents stream replies
  * in threads of their own, an edit a second each, and the Unresolved toggle is timed again on each
@@ -47,6 +49,7 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 const THREADS = Number(process.env.FILTER_THREADS ?? 600);
 const ROUNDS = Number(process.env.FILTER_ROUNDS ?? 3);
 const BUDGET_MS = Number(process.env.FILTER_BUDGET_MS ?? 100);
+const COMPLETE_BUDGET_MS = Number(process.env.FILTER_COMPLETE_BUDGET_MS ?? 2000);
 const BUSY_BUDGET_MS = Number(process.env.FILTER_BUSY_BUDGET_MS ?? 150);
 const AGENTS = Number(process.env.FILTER_AGENTS ?? 8);
 const PROFILE = process.env.FILTER_PROFILE === '1';
@@ -187,12 +190,13 @@ type Expect = {
   resolved?: number;
   selector?: string;
 };
-type Timing = { shown?: number; longestTask?: number; error?: string };
+type Timing = { shown?: number; complete?: number; longestTask?: number; error?: string };
 
 /**
  * Installed before the app. `arm(expect)` starts a timing at the next press or keydown: `shown`
  * when the frame after the list shows `expect` has been painted (the next task after it),
- * and the longest task during the change (Chromium only).
+ * `complete` when the list's scroll range is measured (`data-cards-pending` is gone), and the
+ * longest task in between (Chromium only).
  */
 const instrument = () => {
   const state: { timing?: Timing } = {};
@@ -254,7 +258,8 @@ const instrument = () => {
             ...longTasks
               .filter(
                 (task) =>
-                  task.start + task.duration >= startedAt && task.start <= startedAt + timing.shown!
+                  task.start + task.duration >= startedAt &&
+                  task.start <= startedAt + timing.complete!
               )
               .map((task) => task.duration)
           )
@@ -270,13 +275,21 @@ const instrument = () => {
           })}`;
           return;
         }
-        if (shownNow()) {
+        if (timing.shown === undefined && shownNow()) {
           // The frame that shows the result is painted before the next task runs.
           setTimeout(() => {
             timing.shown = performance.now() - startedAt;
-            // Long tasks are reported after they end; read them a moment later.
-            setTimeout(finish, 50);
+            requestAnimationFrame(check);
           }, 0);
+          return;
+        }
+        if (
+          timing.shown !== undefined &&
+          !document.querySelector('[data-compact-room-view][data-cards-pending]')
+        ) {
+          timing.complete = performance.now() - startedAt;
+          // Long tasks are reported after they end; read them a moment later.
+          setTimeout(finish, 50);
           return;
         }
         requestAnimationFrame(check);
@@ -316,6 +329,7 @@ const timeChange = async (
   if (result.error !== undefined) throw new Error(result.error);
   return {
     shown: Math.round(result.shown ?? Number.NaN),
+    complete: Math.round(result.complete ?? Number.NaN),
     longestTask: result.longestTask ?? 0,
   };
 };
@@ -492,17 +506,21 @@ test.describe('compact filter timing', () => {
         };
 
         const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
-        const timings: Record<string, { shown: number[]; longestTask: number[] }> = {};
+        const timings: Record<
+          string,
+          { shown: number[]; complete: number[]; longestTask: number[] }
+        > = {};
         const record = async (
           name: string,
           expected: Expect,
           act: () => Promise<void>,
           pauseMs = 0
         ) => {
-          const entry = (timings[name] ??= { shown: [], longestTask: [] });
+          const entry = (timings[name] ??= { shown: [], complete: [], longestTask: [] });
           const label = `${name.replace(/\W+/g, '-')}-${entry.shown.length}`;
           const timing = await profiled(label, () => timeChange(page, expected, act));
           entry.shown.push(timing.shown - pauseMs);
+          entry.complete.push(timing.complete - pauseMs);
           entry.longestTask.push(timing.longestTask);
           await page.mouse.move(1, 1);
           await wait(500);
@@ -578,6 +596,7 @@ test.describe('compact filter timing', () => {
             {
               shown: entry.shown,
               median: median(entry.shown),
+              complete: entry.complete,
               longestTask: entry.longestTask,
             },
           ])
@@ -643,6 +662,9 @@ test.describe('compact filter timing', () => {
         expect
           .soft(Math.max(...entry.shown), `${engine} ${name}: shown, slowest (ms)`)
           .toBeLessThanOrEqual(BUDGET_MS * 2);
+        expect
+          .soft(Math.max(...entry.complete), `${engine} ${name}: scroll range measured (ms)`)
+          .toBeLessThanOrEqual(COMPLETE_BUDGET_MS);
         expect
           .soft(Math.max(...entry.longestTask), `${engine} ${name}: longest task (ms)`)
           .toBeLessThanOrEqual(BUDGET_MS);
