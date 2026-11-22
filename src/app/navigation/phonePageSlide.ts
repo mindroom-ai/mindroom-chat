@@ -32,8 +32,10 @@ const SWIPE_PREVIEW = 'data-swipe-preview';
 const SWIPE_BACKDROP = 'data-swipe-backdrop';
 /** Marks the subtle dim veil between the upper and lower swipe layers. */
 const SWIPE_DIM = 'data-swipe-dim';
+/** Marks the input shield below the top bar while an interactive handoff awaits route commit. */
+const SWIPE_HOLD_SHIELD = 'data-swipe-hold-shield';
 /** Elements inside the stage that belong to active slide/swipe chrome and must never be cloned. */
-const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${COPY}]`;
+const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${SWIPE_HOLD_SHIELD}], [${COPY}]`;
 /** A vertical scroll clip. */
 const CLIP = '[data-page-slide-clip]';
 /** A row in a clip becomes an empty box once it is more than one screen out of view. */
@@ -113,7 +115,8 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
       !child.hasAttribute(PHONE_TOP_BAR) &&
       !child.hasAttribute(COPY) &&
       !child.hasAttribute(SWIPE_PREVIEW) &&
-      !child.hasAttribute(SWIPE_DIM)
+      !child.hasAttribute(SWIPE_DIM) &&
+      !child.hasAttribute(SWIPE_HOLD_SHIELD)
   );
 
 const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
@@ -129,7 +132,11 @@ const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement
  * Strips typed form values, `[contenteditable]` drafts, media sources, active swipe chrome, and
  * inline `translate` / swipe attributes so the snapshot always starts cleanly at rest.
  */
-export const captureStageSnapshot = (stage: Element): StageSnapshot => {
+export const captureStageSnapshot = (
+  stage: Element,
+  options?: { horizontalShiftPx?: number }
+): StageSnapshot => {
+  const horizontalShiftPx = options?.horizontalShiftPx ?? 0;
   const bounds = stage.getBoundingClientRect();
   // Keep a screen of rows on either side: the keyboard can go away or text can shrink mid-slide.
   const buffer = Math.max(window.screen.height, window.innerHeight);
@@ -147,7 +154,7 @@ export const captureStageSnapshot = (stage: Element): StageSnapshot => {
     });
   };
   const prepare = (element: Element, twin: Element): Element => {
-    if (element.closest(SKIP_CLONE)) return twin;
+    if (element.closest(SKIP_CLONE) || element.closest(CONTENTEDITABLE)) return twin;
     const { scrollTop, scrollLeft } = element;
     if (scrollTop || scrollLeft) scrolled.push([twin, scrollTop, scrollLeft]);
     if (element instanceof HTMLCanvasElement && element.width && element.height) {
@@ -165,14 +172,17 @@ export const captureStageSnapshot = (stage: Element): StageSnapshot => {
     if (!(element instanceof HTMLImageElement)) return blank;
     const { complete, naturalWidth, naturalHeight } = element;
     const box = element.getBoundingClientRect();
+    const shift = element.closest(`[${PHONE_TOP_BAR}]`) ? 0 : horizontalShiftPx;
+    const restingLeft = box.left - shift;
+    const restingRight = box.right - shift;
     if (
       !complete ||
       !naturalWidth ||
       !naturalHeight ||
       !box.width ||
       !box.height ||
-      box.right <= bounds.left ||
-      box.left >= bounds.right ||
+      restingRight <= bounds.left ||
+      restingLeft >= bounds.right ||
       box.bottom < buffered.top ||
       box.top > buffered.bottom
     )
@@ -271,16 +281,18 @@ export const captureStageSnapshot = (stage: Element): StageSnapshot => {
   copy.querySelectorAll<HTMLElement>(CONTENTEDITABLE).forEach((field) => {
     field.textContent = '';
   });
-  return { copy, scrolled };
+  return { copy, scrolled: scrolled.filter(([element]) => copy.contains(element)) };
 };
 
 /** Two single-entry retained preview slots for finger-following thread <-> room swipes. */
 let roomPreview: StoredPreview | undefined;
 let threadPreview: StoredPreview | undefined;
+let resizeListenerAttached = false;
 /** The currently active room/thread context, synced by `useRoomViewThreadState`. */
 let activeSwipeContext: ActivePhoneSwipeContext | undefined;
 /** The latest router location key observed by `withPhonePageSlide`. */
 let currentPhoneLocationKey: string | undefined;
+let activeRouterSubscribers = 0;
 /** Active interactive swipe handoff waiting for the router to commit the target route. */
 let interactiveHandoff: InteractiveHandoff | undefined;
 
@@ -294,49 +306,74 @@ export const clearActivePhoneSwipeContext = (context: ActivePhoneSwipeContext): 
 
 export const getCurrentPhoneLocationKey = (): string | undefined => currentPhoneLocationKey;
 
+const syncPreviewResizeListener = (): void => {
+  if (typeof window === 'undefined') return;
+  const hasPreview = roomPreview !== undefined || threadPreview !== undefined;
+  if (hasPreview && !resizeListenerAttached) {
+    window.addEventListener('resize', clearPhoneSwipePreviews);
+    resizeListenerAttached = true;
+  } else if (!hasPreview && resizeListenerAttached) {
+    window.removeEventListener('resize', clearPhoneSwipePreviews);
+    resizeListenerAttached = false;
+  }
+};
+
 const storePhoneSwipePreview = (
   kind: 'room' | 'thread',
   key: PhoneSwipePreviewKey,
   snapshot: StageSnapshot
-): void => {
-  if (typeof window === 'undefined') return;
-  if (!key.sessionId || !key.roomId) return;
-  if (kind === 'thread' && !key.threadId) return;
+): StoredPreview | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  if (!key.sessionId || !key.roomId) return undefined;
+  if (kind === 'thread' && !key.threadId) return undefined;
   const stored: StoredPreview = {
     snapshot,
     key: {
       sessionId: key.sessionId,
       roomId: key.roomId,
-      ...(kind === 'thread' ? { threadId: key.threadId } : {}),
+      ...(key.threadId ? { threadId: key.threadId } : {}),
       width: window.innerWidth,
       height: window.innerHeight,
     },
   };
   if (kind === 'room') roomPreview = stored;
   else threadPreview = stored;
+  syncPreviewResizeListener();
+  return stored;
+};
+
+const capturePhoneSwipePreviewEntry = (
+  kind: 'room' | 'thread',
+  key: PhoneSwipePreviewKey,
+  options?: { horizontalShiftPx?: number }
+): StoredPreview | undefined => {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return undefined;
+  if (!key.sessionId || !key.roomId) return undefined;
+  if (kind === 'thread' && !key.threadId) return undefined;
+  const stage = document.querySelector(`[${PHONE_STAGE}]`);
+  if (!stage) return undefined;
+  try {
+    return storePhoneSwipePreview(kind, key, captureStageSnapshot(stage, options));
+  } catch {
+    // Snapshot failures must never block navigation or swipes.
+    return undefined;
+  }
 };
 
 /** Captures `[data-phone-stage]` into the retained `room` or `thread` swipe preview slot. */
 export const capturePhoneSwipePreview = (
   kind: 'room' | 'thread',
-  key: PhoneSwipePreviewKey
+  key: PhoneSwipePreviewKey,
+  options?: { horizontalShiftPx?: number }
 ): void => {
-  if (typeof document === 'undefined' || typeof window === 'undefined') return;
-  if (!key.sessionId || !key.roomId) return;
-  if (kind === 'thread' && !key.threadId) return;
-  const stage = document.querySelector(`[${PHONE_STAGE}]`);
-  if (!stage) return;
-  try {
-    storePhoneSwipePreview(kind, key, captureStageSnapshot(stage));
-  } catch {
-    // Snapshot failures must never block navigation or swipes.
-  }
+  capturePhoneSwipePreviewEntry(kind, key, options);
 };
 
 /** Discards both retained phone swipe previews (e.g. on account switch, sign-out, or resize). */
 export const clearPhoneSwipePreviews = (): void => {
   roomPreview = undefined;
   threadPreview = undefined;
+  syncPreviewResizeListener();
 };
 
 const getMatchingPreview = (
@@ -356,13 +393,49 @@ const getMatchingPreview = (
   if (entry.key.roomId !== key.roomId) {
     if (kind === 'room') roomPreview = undefined;
     else threadPreview = undefined;
+    syncPreviewResizeListener();
     return undefined;
   }
   if (kind === 'thread' && entry.key.threadId !== key.threadId) {
     return undefined;
   }
+  if (kind === 'room' && entry.key.threadId !== undefined && entry.key.threadId !== key.threadId) {
+    return undefined;
+  }
   if (entry.snapshot.copy.isConnected) return undefined;
   return entry.snapshot;
+};
+
+const isSceneContextCurrent = (
+  kind: 'back' | 'forward',
+  key: PhoneSwipePreviewKey,
+  fromLocationKey: string,
+  startedWithContext: boolean
+): boolean => {
+  if (
+    fromLocationKey &&
+    activeRouterSubscribers > 0 &&
+    currentPhoneLocationKey !== undefined &&
+    currentPhoneLocationKey !== fromLocationKey
+  ) {
+    return false;
+  }
+  if (startedWithContext && !activeSwipeContext) return false;
+  if (activeSwipeContext) {
+    if (
+      activeSwipeContext.sessionId !== key.sessionId ||
+      activeSwipeContext.roomId !== key.roomId
+    ) {
+      return false;
+    }
+    if (kind === 'back' && activeSwipeContext.threadId !== key.threadId) {
+      return false;
+    }
+    if (kind === 'forward' && activeSwipeContext.threadId !== undefined) {
+      return false;
+    }
+  }
+  return true;
 };
 
 /** The changes of the slide that waits for the frame that shows the page as it is. */
@@ -386,6 +459,20 @@ export const claimInteractivePhoneSlide = ({
   holdElement?: HTMLElement;
   timeoutMs?: number;
 }): (() => void) => {
+  if (
+    fromLocationKey &&
+    activeRouterSubscribers > 0 &&
+    currentPhoneLocationKey !== undefined &&
+    currentPhoneLocationKey !== fromLocationKey
+  ) {
+    if (holdElement) {
+      holdElement.remove();
+      holdElement.removeAttribute(SWIPE_PREVIEW);
+      clearInlineTranslate(holdElement);
+    }
+    return () => undefined;
+  }
+
   if (interactiveHandoff) interactiveHandoff.release();
   if (active) active.skip();
 
@@ -396,6 +483,17 @@ export const claimInteractivePhoneSlide = ({
     if (stage && !holdElement.isConnected) stage.append(holdElement);
     holdElement.setAttribute(SWIPE_PREVIEW, 'hold');
     holdElement.style.translate = '0px 0';
+  }
+
+  let shield: HTMLDivElement | undefined;
+  if (page && stage) {
+    shield = page.createElement('div');
+    shield.setAttribute(SWIPE_HOLD_SHIELD, '');
+    shield.setAttribute('aria-hidden', 'true');
+    const topBarHeight = getTopBarHeight(stage);
+    if (topBarHeight > 0) shield.style.insetBlockStart = `${topBarHeight}px`;
+    shield.style.pointerEvents = 'auto';
+    stage.append(shield);
   }
 
   let released = false;
@@ -418,6 +516,7 @@ export const claimInteractivePhoneSlide = ({
     window.cancelAnimationFrame(frame);
     watch?.disconnect();
     page?.removeEventListener('visibilitychange', onVisibilityChange);
+    shield?.remove();
     if (holdElement) {
       holdElement.remove();
       holdElement.removeAttribute(SWIPE_PREVIEW);
@@ -544,7 +643,17 @@ export const createThreadBackSwipeScene = ({
   topElements.forEach((element) => element.setAttribute('data-swiping', ''));
   topPage?.setAttribute('data-swipe-shadow', '');
 
+  const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let capturedPreview: StoredPreview | undefined;
+
+  const rollbackCapturedPreview = () => {
+    if (capturedPreview && threadPreview === capturedPreview) {
+      threadPreview = undefined;
+      syncPreviewResizeListener();
+    }
+    capturedPreview = undefined;
+  };
 
   const clearTopStyles = () => {
     topElements.forEach((element) => {
@@ -566,8 +675,12 @@ export const createThreadBackSwipeScene = ({
       dim.style.opacity = String(DIM_MAX_OPACITY * (1 - progress));
     },
     settle(commit, durationMs, currentOffsetPx) {
-      if (commit) {
-        capturePhoneSwipePreview('thread', key);
+      const shouldCommit =
+        commit && isSceneContextCurrent('back', key, fromLocationKey, startedWithContext);
+      if (shouldCommit) {
+        capturedPreview = capturePhoneSwipePreviewEntry('thread', key, {
+          horizontalShiftPx: currentOffsetPx * sign,
+        });
       }
       const currentProgress = Math.max(0, Math.min(1, currentOffsetPx / width));
       const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
@@ -575,33 +688,40 @@ export const createThreadBackSwipeScene = ({
           element,
           keyframes: [
             { translate: `${currentOffsetPx * sign}px 0` },
-            { translate: `${commit ? width * sign : 0}px 0` },
+            { translate: `${shouldCommit ? width * sign : 0}px 0` },
           ],
         })),
         {
           element: under,
           keyframes: [
             { translate: `${-0.3 * width * (1 - currentProgress) * sign}px 0` },
-            { translate: `${commit ? 0 : -0.3 * width * sign}px 0` },
+            { translate: `${shouldCommit ? 0 : -0.3 * width * sign}px 0` },
           ],
         },
         {
           element: dim,
           keyframes: [
             { opacity: String(DIM_MAX_OPACITY * (1 - currentProgress)) },
-            { opacity: String(commit ? 0 : DIM_MAX_OPACITY) },
+            { opacity: String(shouldCommit ? 0 : DIM_MAX_OPACITY) },
           ],
         },
       ];
       return animateSwipeElements(animations, durationMs);
     },
     commit() {
+      if (!isSceneContextCurrent('back', key, fromLocationKey, startedWithContext)) {
+        rollbackCapturedPreview();
+        return;
+      }
       handedOff = true;
       dim.remove();
       under.removeAttribute('data-swiping');
       under.style.translate = '0px 0';
       under.setAttribute(SWIPE_PREVIEW, 'hold');
-      if (roomPreview?.snapshot.copy === under) roomPreview = undefined;
+      if (roomPreview?.snapshot.copy === under) {
+        roomPreview = undefined;
+        syncPreviewResizeListener();
+      }
       claimInteractivePhoneSlide({ fromLocationKey, holdElement: under });
       clearTopStyles();
       onCommit();
@@ -610,6 +730,7 @@ export const createThreadBackSwipeScene = ({
       dim.remove();
       clearTopStyles();
       if (!handedOff) {
+        rollbackCapturedPreview();
         under.remove();
         under.removeAttribute(SWIPE_PREVIEW);
         under.removeAttribute('data-swiping');
@@ -675,7 +796,17 @@ export const createThreadForwardSwipeScene = ({
   stage.setAttribute(SWIPE_STAGE, 'forward');
   underElements.forEach((element) => element.setAttribute('data-swiping', ''));
 
+  const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let capturedPreview: StoredPreview | undefined;
+
+  const rollbackCapturedPreview = () => {
+    if (capturedPreview && roomPreview === capturedPreview) {
+      roomPreview = undefined;
+      syncPreviewResizeListener();
+    }
+    capturedPreview = undefined;
+  };
 
   const clearUnderStyles = () => {
     underElements.forEach((element) => {
@@ -696,43 +827,54 @@ export const createThreadForwardSwipeScene = ({
       dim.style.opacity = String(DIM_MAX_OPACITY * progress);
     },
     settle(commit, durationMs, currentOffsetPx) {
-      if (commit) {
-        capturePhoneSwipePreview('room', { sessionId: key.sessionId, roomId: key.roomId });
-      }
       const currentProgress = Math.max(0, Math.min(1, currentOffsetPx / width));
+      const shouldCommit =
+        commit && isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext);
+      if (shouldCommit) {
+        capturedPreview = capturePhoneSwipePreviewEntry('room', key, {
+          horizontalShiftPx: -0.3 * width * currentProgress * sign,
+        });
+      }
       const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
         {
           element: over,
           keyframes: [
             { translate: `${(width - currentOffsetPx) * sign}px 0` },
-            { translate: `${commit ? 0 : width * sign}px 0` },
+            { translate: `${shouldCommit ? 0 : width * sign}px 0` },
           ],
         },
         ...underElements.map((element) => ({
           element,
           keyframes: [
             { translate: `${-0.3 * width * currentProgress * sign}px 0` },
-            { translate: `${commit ? -0.3 * width * sign : 0}px 0` },
+            { translate: `${shouldCommit ? -0.3 * width * sign : 0}px 0` },
           ],
         })),
         {
           element: dim,
           keyframes: [
             { opacity: String(DIM_MAX_OPACITY * currentProgress) },
-            { opacity: String(commit ? DIM_MAX_OPACITY : 0) },
+            { opacity: String(shouldCommit ? DIM_MAX_OPACITY : 0) },
           ],
         },
       ];
       return animateSwipeElements(animations, durationMs);
     },
     commit() {
+      if (!isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext)) {
+        rollbackCapturedPreview();
+        return;
+      }
       handedOff = true;
       dim.remove();
       over.removeAttribute('data-swiping');
       overShadowTarget.removeAttribute('data-swipe-shadow');
       over.style.translate = '0px 0';
       over.setAttribute(SWIPE_PREVIEW, 'hold');
-      if (threadPreview?.snapshot.copy === over) threadPreview = undefined;
+      if (threadPreview?.snapshot.copy === over) {
+        threadPreview = undefined;
+        syncPreviewResizeListener();
+      }
       claimInteractivePhoneSlide({ fromLocationKey, holdElement: over });
       clearUnderStyles();
       onCommit();
@@ -741,6 +883,7 @@ export const createThreadForwardSwipeScene = ({
       dim.remove();
       clearUnderStyles();
       if (!handedOff) {
+        rollbackCapturedPreview();
         over.remove();
         over.removeAttribute(SWIPE_PREVIEW);
         over.removeAttribute('data-swiping');
@@ -869,7 +1012,22 @@ export const slidePhonePage = (change: Change): void => {
     }
     if (snapshot && departingContext) {
       if (from === 1 && to === 2) {
-        storePhoneSwipePreview('room', departingContext, snapshot);
+        const enteredContext = activeSwipeContext;
+        const sameRoom =
+          !enteredContext ||
+          (enteredContext.sessionId === departingContext.sessionId &&
+            enteredContext.roomId === departingContext.roomId);
+        if (sameRoom) {
+          storePhoneSwipePreview(
+            'room',
+            {
+              sessionId: departingContext.sessionId,
+              roomId: departingContext.roomId,
+              ...(enteredContext?.threadId ? { threadId: enteredContext.threadId } : {}),
+            },
+            snapshot
+          );
+        }
       } else if (from === 2 && to === 1 && departingContext.threadId) {
         storePhoneSwipePreview('thread', departingContext, snapshot);
       }
@@ -984,8 +1142,9 @@ export const withPhonePageSlide = (router: Router): Router => {
   );
   const subscribe: Router['subscribe'] = (listener) => {
     let shown = router.state.location.key;
+    activeRouterSubscribers += 1;
     currentPhoneLocationKey = shown;
-    return router.subscribe((state, opts) => {
+    const unsubscribe = router.subscribe((state, opts) => {
       const moved = state.location.key !== shown;
       shown = state.location.key;
       currentPhoneLocationKey = shown;
@@ -1016,6 +1175,11 @@ export const withPhonePageSlide = (router: Router): Router => {
         slidePhonePage((sliding) => listener(state, sliding ? { ...opts, flushSync: true } : opts));
       } else afterWaitingSlide(() => listener(state, opts));
     });
+    return () => {
+      unsubscribe();
+      activeRouterSubscribers = Math.max(0, activeRouterSubscribers - 1);
+      if (activeRouterSubscribers === 0) currentPhoneLocationKey = undefined;
+    };
   };
   // The router's own properties are read through it: they are getters over its state.
   return Object.create(router, { subscribe: { value: subscribe } }) as Router;

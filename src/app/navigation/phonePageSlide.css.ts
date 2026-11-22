@@ -12,8 +12,9 @@ const STAGE = '[data-phone-stage]';
 const COPY = '[data-page-slide-copy]';
 const PREVIEW = '[data-swipe-preview]';
 const DIM = '[data-swipe-dim]';
+const HOLD_SHIELD = '[data-swipe-hold-shield]';
 // What slides: all of the layout but the top bar, which stays above every page.
-const SLIDES = `:not([data-phone-top-bar], [data-page-slide-copy], ${PREVIEW}, ${DIM})`;
+const SLIDES = `:not([data-phone-top-bar], [data-page-slide-copy], ${PREVIEW}, ${DIM}, ${HOLD_SHIELD})`;
 const forward = "html[data-page-slide='forward']";
 const back = "html[data-page-slide='back']";
 const playing = (selector: string) => `${forward} ${selector}, ${back} ${selector}`;
@@ -60,6 +61,16 @@ globalStyle("[data-swipe-preview='over'], [data-swipe-preview='over-backdrop']",
 });
 globalStyle("[data-swipe-preview='hold']", {
   zIndex: 2,
+});
+// Blocks taps below the top bar while an async interactive handoff awaits route commit,
+// so taps on the settled preview cannot activate controls in the departing page underneath.
+globalStyle(HOLD_SHIELD, {
+  position: 'absolute',
+  insetInline: 0,
+  insetBlockEnd: 0,
+  insetBlockStart: 0,
+  zIndex: 3,
+  pointerEvents: 'auto',
 });
 
 globalStyle(DIM, {

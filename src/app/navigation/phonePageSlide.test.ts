@@ -82,6 +82,8 @@ const browser = () => {
 };
 /** The browser of the test that runs. */
 let shown: ReturnType<typeof browser> | undefined;
+/** Router subscriptions created during a test, cleaned up in afterEach. */
+const unsubscribes: Array<() => void> = [];
 
 const showList = (shown: boolean) => store.set(phoneNavDrawerOpenAtom, shown);
 const showThread = (shown: boolean) => store.set(conversationUnderThreadAtom, shown);
@@ -100,6 +102,7 @@ afterEach(async () => {
   shown?.frame();
   await shown?.finish();
   shown = undefined;
+  while (unsubscribes.length > 0) unsubscribes.pop()?.();
   clearPhoneSwipePreviews();
   setActivePhoneSwipeContext(undefined);
   document.body.replaceChildren();
@@ -885,7 +888,7 @@ describe('withPhonePageSlide', () => {
     const page = browser();
     const { router, emit } = routerAt('a');
     const listener = vi.fn(() => showThread(true));
-    withPhonePageSlide(router).subscribe(listener);
+    unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
 
     const next = stateAt('b');
     emit(next);
@@ -901,7 +904,7 @@ describe('withPhonePageSlide', () => {
     const page = browser();
     const { router, emit } = routerAt('a');
     const listener = vi.fn();
-    withPhonePageSlide(router).subscribe(listener);
+    unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
 
     const same = stateAt('a');
     emit(same);
@@ -913,7 +916,7 @@ describe('withPhonePageSlide', () => {
     const page = browser();
     const { router, emit } = routerAt('a');
     const seen: RouterState[] = [];
-    withPhonePageSlide(router).subscribe((state) => seen.push(state));
+    unsubscribes.push(withPhonePageSlide(router).subscribe((state) => seen.push(state)));
 
     const moved = stateAt('b');
     const settled = stateAt('b');
@@ -930,7 +933,7 @@ describe('withPhonePageSlide', () => {
     const page = browser();
     const { router, emit } = routerAt('b');
     const listener = vi.fn();
-    withPhonePageSlide(router).subscribe(listener);
+    unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
 
     const swiped = new Event('popstate');
     Object.defineProperty(swiped, 'hasUAVisualTransition', { value: true });
@@ -1053,6 +1056,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
 
     slidePhonePage(() => {
       showThread(true);
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: THREAD });
       page.textContent = 'Thread View';
     });
     pageMock.frame();
@@ -1162,7 +1166,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
 
     const { router, emit } = routerAt('k-thread');
     const listener = vi.fn(() => showThread(false));
-    withPhonePageSlide(router).subscribe(listener);
+    unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
 
     const onCommit = vi.fn();
     const scene = createThreadBackSwipeScene({
@@ -1304,5 +1308,236 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     stage.removeAttribute(PHONE_STAGE);
     await Promise.resolve();
     expect(hold3.isConnected).toBe(false);
+  });
+
+  it('excludes scrolled descendants of redacted [contenteditable] drafts from snapshot.scrolled', () => {
+    const { stage, page } = makeStage('Room', 145);
+    const editor = document.createElement('div');
+    editor.setAttribute('contenteditable', 'true');
+    const draftScroll = document.createElement('div');
+    draftScroll.scrollTop = 42;
+    draftScroll.innerHTML = '<p><span>secret draft text</span></p>';
+    editor.append(draftScroll);
+    page.append(editor);
+
+    const snapshot = captureStageSnapshot(stage);
+
+    expect(snapshot.copy.textContent).not.toContain('secret draft text');
+    expect(snapshot.scrolled.every(([el]) => snapshot.copy.contains(el))).toBe(true);
+    expect(snapshot.scrolled).toHaveLength(1);
+    expect(snapshot.scrolled[0]?.[1]).toBe(145);
+  });
+
+  it('mounts a below-top-bar input shield during async handoff and removes it on release', () => {
+    const pageMock = browser();
+    const { stage, topBar } = makeStage('Room');
+    vi.spyOn(topBar, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 390,
+      height: 52,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 52,
+      toJSON: () => ({}),
+    });
+    const { router, emit } = routerAt('k-thread');
+    unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+
+    const hold = document.createElement('div');
+    claimInteractivePhoneSlide({ fromLocationKey: 'k-thread', holdElement: hold });
+
+    const shield = stage.querySelector<HTMLElement>('[data-swipe-hold-shield]');
+    expect(shield).not.toBeNull();
+    expect(shield?.style.pointerEvents).toBe('auto');
+    expect(shield?.style.insetBlockStart).toBe('52px');
+
+    emit(stateAt('k-room', 'POP'));
+    // Shield stays until the 1-rAF paint frame completes.
+    expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+
+    pageMock.frame();
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(stage.querySelector('[data-swipe-preview="hold"]')).toBeNull();
+  });
+
+  it('aborts commit and discards captured preview if active thread or location changes mid-settle', async () => {
+    browser();
+    const { stage, page } = makeStage('Thread A');
+    const { router, emit } = routerAt('k-a');
+    unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-a' });
+
+    let finishAnim!: () => void;
+    const animPromise = new Promise<void>((resolve) => {
+      finishAnim = resolve;
+    });
+    const fakeAnimate = vi.fn(
+      () =>
+        ({
+          finished: animPromise,
+          cancel: vi.fn(),
+        } as unknown as Animation)
+    );
+    const origAnimate = HTMLElement.prototype.animate;
+    HTMLElement.prototype.animate = fakeAnimate;
+
+    try {
+      const onCommit = vi.fn();
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-a' },
+        fromLocationKey: 'k-a',
+        onCommit,
+        dirSign: 1,
+      });
+      expect(scene).not.toBeNull();
+
+      scene!.update(260, 260 / 390);
+      const settlePromise = scene!.settle(true, 150, 260);
+
+      // Route switches to thread B mid-settle while RoomView stays mounted.
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-b' });
+      emit(stateAt('k-b', 'PUSH'));
+
+      finishAnim();
+      await settlePromise;
+      scene!.commit();
+      scene!.cleanup(true);
+
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(stage.querySelector('[data-swipe-preview]')).toBeNull();
+      expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+      expect(page.style.translate).toBe('');
+
+      // No stale thread-a preview was left behind.
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      const forward = createThreadForwardSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-a' },
+        fromLocationKey: 'k-b',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="over-backdrop"]')).not.toBeNull();
+      forward!.cleanup(false);
+    } finally {
+      HTMLElement.prototype.animate = origAnimate;
+    }
+  });
+
+  it('binds roomPreview to the entered threadId and invalidates immediately on window resize', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Room Overview');
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+
+    slidePhonePage(() => {
+      showThread(true);
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
+      page.textContent = 'Thread 1';
+    });
+    pageMock.frame();
+    await pageMock.finish();
+
+    // Thread 2 in the same room must NOT reuse Thread 1's room preview.
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-2' });
+    const t2Scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-2' },
+      fromLocationKey: 'k-t2',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+    t2Scene!.cleanup(false);
+
+    // Thread 1 still hits the room preview before resize.
+    setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
+    const t1Scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+      fromLocationKey: 'k-t1',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
+      'Room Overview'
+    );
+    t1Scene!.cleanup(false);
+
+    // Rotate away and back (window resize event fires, final dimensions unchanged): preview invalidated!
+    const origWidth = window.innerWidth;
+    try {
+      Object.defineProperty(window, 'innerWidth', { value: origWidth + 200, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+
+      const afterRotateBack = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+        fromLocationKey: 'k-t1',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      afterRotateBack!.cleanup(false);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
+    }
+  });
+
+  it('preserves loaded images inside a horizontally translated page via horizontalShiftPx', async () => {
+    const { stage, page } = makeStage('Thread With Avatar');
+    const img = document.createElement('img');
+    img.src = 'https://example.org/avatar.png';
+    Object.defineProperties(img, {
+      complete: { value: true, configurable: true },
+      naturalWidth: { value: 64, configurable: true },
+      naturalHeight: { value: 64, configurable: true },
+      offsetWidth: { value: 32, configurable: true },
+      offsetHeight: { value: 32, configurable: true },
+    });
+    // Image's resting box is [100..132], shifted +320px to [420..452] outside stage width 390.
+    vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
+      x: 420,
+      y: 100,
+      width: 32,
+      height: 32,
+      top: 100,
+      left: 420,
+      right: 452,
+      bottom: 132,
+      toJSON: () => ({}),
+    });
+    page.append(img);
+
+    const drawImage = vi.fn();
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+
+    try {
+      // Without shift compensation, the translated image appears off-screen and stays blank.
+      const unshifted = captureStageSnapshot(stage);
+      expect(unshifted.copy.querySelector('canvas')).toBeNull();
+      expect(drawImage).not.toHaveBeenCalled();
+
+      // With horizontalShiftPx = 320, resting coordinates [100..132] are inside [0..390] and drawn.
+      const shifted = captureStageSnapshot(stage, { horizontalShiftPx: 320 });
+      expect(shifted.copy.querySelector('canvas')).not.toBeNull();
+      expect(drawImage).toHaveBeenCalledTimes(1);
+
+      // End-to-end via createThreadBackSwipeScene settle(true, 0, 320): retained thread preview keeps canvas!
+      drawImage.mockClear();
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey: 'k-thread',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      await scene!.settle(true, 0, 320);
+      scene!.commit();
+      scene!.cleanup(true);
+      expect(drawImage).toHaveBeenCalledTimes(1);
+    } finally {
+      getContextSpy.mockRestore();
+    }
   });
 });
