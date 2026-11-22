@@ -448,8 +448,9 @@ test.describe('Compact scroll jump regressions', () => {
     expect(after.y, `[${browserName}] scrollTop jumped ${before.y}->${after.y}`).toBeGreaterThan(
       before.y - 200
     );
-    // In every frame since the click, not only once the list rests.
-    const shift = worstShift(before, frames, before.visible[0]!.key);
+    // In every frame since the click, not only once the list rests. The card that was clicked:
+    // the header grows over the topmost one as the list narrows.
+    const shift = worstShift(before, frames, target.key);
     expect(
       shift,
       `[${browserName}] visible card moved ${shift.toFixed(1)}px in some frame (y: ${before.y}->${
@@ -469,11 +470,19 @@ test.describe('Compact scroll jump regressions', () => {
     await seedLongCompactRoom(page, { layout: 'beside' });
     await wheelBurst(page, 12, 220);
     await page.evaluate(settleView);
+    // A card right below the header, so the topmost card in view shows whole and can be pinned.
+    await compactView(page).evaluate((el) => {
+      const edge =
+        el.getBoundingClientRect().top + (parseFloat(getComputedStyle(el).scrollPaddingTop) || 0);
+      const card = [...el.querySelectorAll('[data-scroll-anchor]')].find(
+        (row) => row.getBoundingClientRect().top >= edge
+      );
+      if (card) el.scrollBy(0, card.getBoundingClientRect().top - edge - 2);
+    });
+    await page.evaluate(settleView);
     const before = (await takeFrames(page)).at(-1)!;
-    // The first card that shows whole below the header, and the one after it.
-    const first = before.visible.findIndex((row) => row.top >= before.start);
-    const pinned = before.visible[first]!;
-    const next = before.visible[first + 1]!;
+    const pinned = before.visible[0]!;
+    const next = before.visible[1]!;
 
     // The pointer on the card holds the order; the pinned card moves to the Pinned list anyway.
     const shell = compactView(page).locator(`[data-scroll-anchor="${pinned.key}"]${LIVE}`);
