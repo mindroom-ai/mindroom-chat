@@ -93,7 +93,7 @@ final class VoiceEchoTests: XCTestCase {
     }
 
     func testTheEditCarriesTheTranscript() throws {
-        let result = try XCTUnwrap(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: edit(of: "$echo", ["body": "🎤 Remind me to call the dentist"])))
+        let result = try XCTUnwrap(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: edit(of: "$echo", ["body": "🎤 Remind me to call the dentist", "com.mindroom.visible_router_voice_echo": true])))
         XCTAssertEqual(result.text, "🎤 Remind me to call the dentist")
     }
 
@@ -164,5 +164,28 @@ final class VoiceEchoTests: XCTestCase {
         let result = try XCTUnwrap(VoiceEcho.transcript(numericFallback, latestEdit: nil))
         XCTAssertEqual(result.voiceEventId, "$voice")
         XCTAssertEqual(result.text, "🎤 Hi")
+    }
+
+    func testTheNewestVersionSaysWhetherItIsAnEchoAndOfWhichVoiceMessage() throws {
+        let named: JSON = ["msgtype": "m.text", "body": "🎤 Hello", "com.mindroom.visible_router_voice_echo": true,
+                           "com.mindroom.voice_source_event_id": "$voice"]
+        let original = message(named, id: "$echo")
+        // As the web client's `getVoiceSourceEventId`: the flag and the name are those of the version shown.
+        XCTAssertNil(VoiceEcho.transcript(original, latestEdit: edit(of: "$echo", ["body": "Not an echo", "com.mindroom.voice_source_event_id": "$voice"])))
+        XCTAssertNil(VoiceEcho.transcript(original, latestEdit: edit(of: "$echo", named.merging(["com.mindroom.visible_router_voice_echo": false]) { $1 })))
+        XCTAssertNil(VoiceEcho.transcript(original, latestEdit: edit(of: "$echo", ["body": "🎤 Hello", "com.mindroom.visible_router_voice_echo": true])))
+        let moved = try XCTUnwrap(VoiceEcho.transcript(original, latestEdit: edit(of: "$echo", named.merging(["com.mindroom.voice_source_event_id": "$other"]) { $1 })))
+        XCTAssertEqual(moved.voiceEventId, "$other")
+        // An older backend's echo names its voice message by its reply relation, which an edit does not repeat.
+        let legacy = try XCTUnwrap(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: edit(of: "$echo", ["body": "🎤 Hello", "com.mindroom.visible_router_voice_echo": true])))
+        XCTAssertEqual(legacy.voiceEventId, "$voice")
+        XCTAssertEqual(legacy.text, "🎤 Hello")
+    }
+
+    func testAPreviewOfALongTextIsNoTranscript() {
+        let preview: JSON = ["msgtype": "m.text", "body": "🎤 The first words…", "com.mindroom.visible_router_voice_echo": true,
+                             "com.mindroom.voice_source_event_id": "$voice", "io.mindroom.long_text": ["version": 2] as JSON]
+        XCTAssertNil(VoiceEcho.transcript(message(preview, id: "$echo"), latestEdit: nil))
+        XCTAssertNil(VoiceEcho.transcript(echo("Router agent is transcribing…"), latestEdit: edit(of: "$echo", preview)))
     }
 }
