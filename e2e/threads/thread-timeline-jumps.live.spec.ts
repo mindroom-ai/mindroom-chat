@@ -1,13 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
-import {
-  chromium,
-  expect,
-  test,
-  type BrowserContextOptions,
-  type CDPSession,
-  type Page,
-} from '@playwright/test';
+import { chromium, expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { send, wait } from '../helpers/busyThreadRoom';
 import {
@@ -26,24 +19,33 @@ import {
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 /**
- * Reproduces the thread timeline scroll/opening jumps reported by Bas (2026-11-21/22):
+ * The rows of a realistic agent thread (56 turns of folded steps, code, tables and images) keep
+ * their places while it opens and while the reader scrolls up fast through its history. A probe in
+ * the page compares every animation frame with the one before it: where the rows in view are, how
+ * far the scroll position moved, and how much of that the page wrote itself.
  *
- * 1. Opening a realistic agent thread with folded turns (Desktop + Phone, Chromium + WebKit):
- *    - Reveal bounce (130-470px): `useRoomFocusScrollController` pins to `scrollHeight - clientHeight`
- *      ignoring `pendingListShrinkPx()` while `heldList` keeps old `listHeight`, then `useListEndClamp`
- *      pulls `scrollTop` back on the next frame.
- *    - Blank-screen jump (3,400-6,100px): `timelineRowSizing.estimateSize` prices `threadHiddenIds`
- *      at full message height (~190px each) instead of 0; `useThreadApprovalRowMeasurements` shrinks
- *      them via `resizeItem(i, 0)` while `useRoomFocusScrollController` pins to the inflated DOM
- *      `listHeight`, leaving 0 visible rows until the next frame.
- * 2. Fast scrolling up through a realistic agent thread:
- *    - WebKit Desktop reversal jump (730-790px): `waitForScrollQuiescence` (150ms) settles a large
- *      negative ledger between wheel bursts; WebKit's scrolling thread discards the settle write on
- *      the next upward wheel notch, and `isDiscardedSettleWrite` misses it because `|delta|` is
- *      reduced by `|wheeledPx|` below `0.8 * |px|`.
- *    - Chromium Desktop unexplained jump (~148px) when older folded history lands mid-scroll: an
- *      unmeasured row above the reader becomes a `TurnBreak` (`180px -> 32px`), which
- *      `planThreadLedgerRender` skips because the row already existed above the anchor.
+ * Opening (desktop and phone, Chromium and WebKit):
+ * - The rows a folded turn hides were priced at their message estimate (about 190 px each) and
+ *   sized as nothing after the render: the list was thousands of pixels too tall, the opening pin
+ *   went to that end, and a frame showed no row (3,400 to 6,100 px).
+ * - The render after rows are measured as they mount kept the list's old height: the pin and the
+ *   ledger's settle scrolled to the end of that list, and the next render or the end clamp moved
+ *   the rows it had shown (130 to 470 px back, 72 px on).
+ *
+ * Scrolling up (desktop):
+ * - A page of older replies completes the turn at the top of the loaded rows. The row that drew
+ *   that turn's break (42 px, unmeasured) folds away with it, priced at its message estimate for
+ *   one render, and the ledger folded 148 px too much.
+ * - WebKit scrolls a wheel on its scrolling thread. A settle of the offset ledger whose write has
+ *   not reached that thread when the next notch does comes back as the position before it plus
+ *   the notch: 496 px against a 736 px fold, which the discard watch took for motion from the
+ *   settled position. virtual-core, which hears of the position first, rendered and measured the
+ *   rows there without the fold, rows far above the reader, and their size changes moved the
+ *   reader's rows for good (580 px).
+ * - Not fixed: some of those writes are not gone. WebKit applies them a few frames after it
+ *   reported the old position, when the watch has put the fold back, and the rows move by the
+ *   fold once more (300 to 800 px). The scroll test in WebKit fails on that in about one run in
+ *   eight.
  */
 
 type Setup = { engine: 'chromium' | 'webkit'; viewport: 'desktop' | 'phone' };
@@ -221,7 +223,9 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
     for (let step = 1; step <= 3; step += 1) {
       lastId = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.text',
-        body: `Step ${step}/3 for turn #${turn}: inspecting scroll ledger measurements.\n`.repeat(4),
+        body: `Step ${step}/3 for turn #${turn}: inspecting scroll ledger measurements.\n`.repeat(
+          4
+        ),
         'io.mindroom.stream_status': 'completed',
         ...inThread(longThreadRootId, lastId),
       });
@@ -260,15 +264,6 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   return { reader, agent, roomId, longThreadRootId };
 };
 
-type WriteEntry = {
-  kind: string;
-  from: number;
-  value: number;
-  delta: number;
-  t: number;
-  stack: string;
-};
-
 type JumpFrame = {
   t: number;
   frame: number;
@@ -299,8 +294,8 @@ type ProbeReport = {
   maxReversalPx: number;
   maxUnexplainedPx: number;
   maxSpreadPx: number;
+  lostPlaceFrames: number;
   jumps: JumpFrame[];
-  writes: WriteEntry[];
 };
 
 const installThreadJumpProbe = () => {
@@ -308,10 +303,12 @@ const installThreadJumpProbe = () => {
   const probe = {
     active: false,
     mode: 'open' as 'open' | 'scrollUp',
-    lastInput: 0,
+    stallMs: 0,
     writeDelta: 0,
+    wheelPx: 0,
+    wheelAheadPx: 0,
+    lastWrite: { px: 0, at: 0 },
     scroller: null as HTMLElement | null,
-    writes: [] as WriteEntry[],
     jumps: [] as JumpFrame[],
     visibleFrames: 0,
     scrolledPx: 0,
@@ -323,7 +320,9 @@ const installThreadJumpProbe = () => {
     maxReversalPx: 0,
     maxUnexplainedPx: 0,
     maxSpreadPx: 0,
+    lostPlaceFrames: 0,
     prevRows: new Map<string, RowSnap>(),
+    prevMounted: new Map<string, number>(),
     prevScrollTop: 0,
     prevBottomGap: Number.NaN,
     hasVisibleBaseline: false,
@@ -338,12 +337,15 @@ const installThreadJumpProbe = () => {
       }
       return null;
     },
-    start(mode: 'open' | 'scrollUp') {
+    start(mode: 'open' | 'scrollUp', stallMs = 0) {
       this.active = true;
       this.mode = mode;
+      this.stallMs = stallMs;
       this.writeDelta = 0;
+      this.wheelPx = 0;
+      this.wheelAheadPx = 0;
+      this.lastWrite = { px: 0, at: 0 };
       this.scroller = this.findScroller();
-      this.writes = [];
       this.jumps = [];
       this.visibleFrames = 0;
       this.scrolledPx = 0;
@@ -355,7 +357,9 @@ const installThreadJumpProbe = () => {
       this.maxReversalPx = 0;
       this.maxUnexplainedPx = 0;
       this.maxSpreadPx = 0;
+      this.lostPlaceFrames = 0;
       this.prevRows = new Map();
+      this.prevMounted = new Map();
       this.prevScrollTop = this.scroller?.scrollTop ?? 0;
       this.prevBottomGap = Number.NaN;
       this.hasVisibleBaseline = false;
@@ -373,31 +377,22 @@ const installThreadJumpProbe = () => {
         maxReversalPx: Math.round(this.maxReversalPx),
         maxUnexplainedPx: Math.round(this.maxUnexplainedPx),
         maxSpreadPx: Math.round(this.maxSpreadPx),
+        lostPlaceFrames: this.lostPlaceFrames,
         jumps: this.jumps,
-        writes: this.writes,
       };
     },
   };
 
   (window as unknown as { __threadJumpProbe: typeof probe }).__threadJumpProbe = probe;
 
-  const recordWrite = (kind: string, el: unknown, value: number) => {
-    if (!probe.active) return;
+  /** Counts a write of the thread's scroll position by the page; returns how far it asks to move. */
+  const recordWrite = (el: unknown, value: number): number => {
+    if (!probe.active) return 0;
     if (!probe.scroller || !probe.scroller.isConnected) probe.scroller = probe.findScroller();
-    if (!probe.scroller || el !== probe.scroller) return;
-    const from = probe.scroller.scrollTop;
-    const delta = value - from;
+    if (!probe.scroller || el !== probe.scroller) return 0;
+    const delta = value - probe.scroller.scrollTop;
     probe.writeDelta += delta;
-    if (probe.writes.length < 400) {
-      probe.writes.push({
-        kind,
-        from: Math.round(from),
-        value: Math.round(value),
-        delta: Math.round(delta),
-        t: Math.round(performance.now()),
-        stack: (new Error().stack ?? '').split('\n').slice(2, 8).join(' < '),
-      });
-    }
+    return delta;
   };
 
   const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
@@ -409,8 +404,17 @@ const installThreadJumpProbe = () => {
         return get.call(this);
       },
       set(value: number) {
-        recordWrite('scrollTop', this, value);
+        const delta = recordWrite(this, value);
         set.call(this, value);
+        // The offset ledger settles with such a write and renders the rows after it, a frame of
+        // 100 ms and more on a phone. The stall stands in for that frame: the reader's next wheel
+        // reaches WebKit's scrolling thread before the write does.
+        if (probe.stallMs > 0 && Math.abs(delta) >= 48) {
+          const until = performance.now() + probe.stallMs;
+          while (performance.now() < until) {
+            // Keeps the main thread busy.
+          }
+        }
       },
     });
   }
@@ -421,20 +425,17 @@ const installThreadJumpProbe = () => {
       const top =
         typeof first === 'object' && first !== null ? (first as { top?: number }).top : args[1];
       if (typeof top === 'number') {
-        recordWrite(name, this, name === 'scrollBy' ? this.scrollTop + top : top);
+        recordWrite(this, name === 'scrollBy' ? this.scrollTop + top : top);
       }
       orig.apply(this, args);
     };
   });
-
-  ['wheel', 'touchstart', 'touchmove', 'touchend', 'keydown'].forEach((type) =>
-    window.addEventListener(
-      type,
-      () => {
-        probe.lastInput = performance.now();
-      },
-      { capture: true, passive: true }
-    )
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      probe.wheelPx += event.deltaY;
+    },
+    { capture: true, passive: true }
   );
 
   const tick = (now: number) => {
@@ -454,17 +455,25 @@ const installThreadJumpProbe = () => {
         const listHeight = Number.parseFloat(inner.style.height || '0') || 0;
         const appDelta = probe.writeDelta;
         probe.writeDelta = 0;
+        const wheelPx = probe.wheelPx;
+        probe.wheelPx = 0;
 
         const view = scroller.getBoundingClientRect();
         const current = new Map<string, RowSnap>();
         const moved: number[] = [];
+        // Rows mounted in this frame and the one before, in view or not, and where they were.
+        const mounted = new Map<string, number>();
+        const carried: { before: number; px: number }[] = [];
         const allRows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-item]'));
         allRows.forEach((el) => {
           const rect = el.getBoundingClientRect();
-          if (rect.bottom <= view.top || rect.top >= view.bottom || rect.height === 0) return;
           const id =
             el.dataset.eventId || el.dataset.messageId || el.getAttribute('data-index') || '';
-          if (!id) return;
+          if (!id || rect.height === 0) return;
+          mounted.set(id, rect.top);
+          const before = probe.prevMounted.get(id);
+          if (before !== undefined) carried.push({ before, px: rect.top - before });
+          if (rect.bottom <= view.top || rect.top >= view.bottom) return;
           const snap: RowSnap = { top: rect.top, h: rect.height };
           current.set(id, snap);
           const prev = probe.prevRows.get(id);
@@ -474,6 +483,18 @@ const installThreadJumpProbe = () => {
             moved.push(snap.top - prev.top);
           }
         });
+
+        // A frame that shares no row in view with the one before (a long frame of wheel turns, or a
+        // jump of more than the viewport) is measured by the row that was nearest the view and is
+        // still mounted. With none of those either, the reader is at other rows altogether.
+        const lostPlace =
+          moved.length === 0 && carried.length === 0 && current.size > 0 && probe.prevRows.size > 0;
+        if (moved.length === 0 && carried.length > 0) {
+          const distance = (row: { before: number }) => Math.abs(row.before - view.top);
+          moved.push(
+            carried.reduce((near, row) => (distance(row) < distance(near) ? row : near)).px
+          );
+        }
 
         const lastRow = allRows[allRows.length - 1];
         const bottomGapPx = lastRow
@@ -490,9 +511,27 @@ const installThreadJumpProbe = () => {
           probe.scrolledPx += Math.abs(dScroll);
 
           const ds = [...moved].sort((a, b) => a - b);
-          const median = ds.length > 0 ? (ds[Math.floor(ds.length / 2)] ?? 0) : 0;
+          const median = ds.length > 0 ? ds[Math.floor(ds.length / 2)] ?? 0 : 0;
           const spread = ds.length > 0 ? Math.max(...ds.map((d) => Math.abs(d - median))) : 0;
-          const userScroll = dScroll - appDelta;
+          // The reader only wheels up while the probe watches a scroll. A position that moves down
+          // without a write of the page, or that moves back most of what the page last wrote, is
+          // the browser taking a write back (WebKit discards one that a wheel overtakes): the
+          // reader's part of that frame is what their wheel asked for and the rows have not
+          // followed yet, as far as the rows moved.
+          const movedPx = dScroll - appDelta;
+          if (Math.abs(appDelta) >= 48) probe.lastWrite = { px: appDelta, at: now };
+          const { lastWrite } = probe;
+          const undone =
+            now - lastWrite.at < 2_000 &&
+            movedPx * lastWrite.px < 0 &&
+            Math.abs(movedPx + lastWrite.px) <= Math.abs(lastWrite.px) / 2;
+          if (undone) probe.lastWrite = { px: 0, at: 0 };
+          const wheelAheadPx = wheelPx === 0 && movedPx === 0 ? 0 : probe.wheelAheadPx + wheelPx;
+          const userScroll =
+            probe.mode === 'scrollUp' && (movedPx > 0 || undone)
+              ? -Math.min(-wheelAheadPx, Math.max(0, median))
+              : movedPx;
+          probe.wheelAheadPx = Math.min(0, wheelAheadPx - userScroll);
           const unexplained = ds.length > 0 ? median + userScroll : 0;
 
           if (Math.abs(median) > probe.maxRowJumpPx) probe.maxRowJumpPx = Math.abs(median);
@@ -504,6 +543,7 @@ const installThreadJumpProbe = () => {
             probe.maxUnexplainedPx = Math.abs(unexplained);
           }
           if (spread > probe.maxSpreadPx) probe.maxSpreadPx = spread;
+          if (lostPlace) probe.lostPlaceFrames += 1;
 
           const reasons: string[] = [];
           if (probe.mode === 'open') {
@@ -516,6 +556,7 @@ const installThreadJumpProbe = () => {
               reasons.push(`unexplained(${Math.round(unexplained)}px)`);
             }
             if (spread >= 4) reasons.push(`spread(${Math.round(spread)}px)`);
+            if (lostPlace) reasons.push('lostPlace');
           }
 
           if (reasons.length > 0 && probe.jumps.length < 40) {
@@ -547,6 +588,7 @@ const installThreadJumpProbe = () => {
         }
 
         probe.prevRows = current;
+        probe.prevMounted = mounted;
         probe.prevScrollTop = scrollTop;
         probe.prevBottomGap = bottomGapPx;
         if (current.size > 0) probe.hasVisibleBaseline = true;
@@ -557,12 +599,17 @@ const installThreadJumpProbe = () => {
   requestAnimationFrame(tick);
 };
 
-const startProbe = (page: Page, mode: 'open' | 'scrollUp') =>
-  page.evaluate((m) => {
-    (
-      window as unknown as { __threadJumpProbe: { start: (mode: 'open' | 'scrollUp') => void } }
-    ).__threadJumpProbe.start(m);
-  }, mode);
+const startProbe = (page: Page, mode: 'open' | 'scrollUp', stallMs = 0) =>
+  page.evaluate(
+    ([m, stall]) => {
+      (
+        window as unknown as {
+          __threadJumpProbe: { start: (mode: 'open' | 'scrollUp', stallMs: number) => void };
+        }
+      ).__threadJumpProbe.start(m, stall);
+    },
+    [mode, stallMs] as const
+  );
 
 const stopProbe = (page: Page): Promise<ProbeReport> =>
   page.evaluate(() =>
@@ -575,7 +622,7 @@ const openAndRun = async (
   setup: Setup,
   baseURL: string | undefined,
   fixture: FixtureWorld,
-  body: (page: Page, cdp: CDPSession | undefined) => Promise<void>
+  body: (page: Page) => Promise<void>
 ) => {
   const browser =
     setup.engine === 'webkit'
@@ -588,7 +635,6 @@ const openAndRun = async (
     const context = await browser.newContext({ ...VIEWPORTS[setup.viewport], baseURL });
     const page = await context.newPage();
     await page.addInitScript(installThreadJumpProbe);
-    const cdp = setup.engine === 'chromium' ? await context.newCDPSession(page) : undefined;
 
     await loginWithPassword(page, {
       homeserver: DISPOSABLE_HOMESERVER,
@@ -602,7 +648,7 @@ const openAndRun = async (
       viewMode: 'compact',
       filterState: createDefaultThreadFilterState(),
     });
-    await body(page, cdp);
+    await body(page);
     await context.close();
   } finally {
     await browser.close();
@@ -662,7 +708,10 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: report.jumps.slice(0, 4),
         });
         expect(report.visibleFrames, 'recorded visible open frames').toBeGreaterThan(20);
-        expect(report.minVisibleCount, `blank screen during thread open: ${summary}`).toBeGreaterThan(0);
+        expect(
+          report.minVisibleCount,
+          `blank screen during thread open: ${summary}`
+        ).toBeGreaterThan(0);
         expect(report.maxRowJumpPx, `row jump after reveal: ${summary}`).toBeLessThanOrEqual(4);
         expect(
           report.maxBottomGapJumpPx,
@@ -708,7 +757,9 @@ test.describe('thread timeline jumps reproducers', () => {
         await page.waitForTimeout(250);
 
         const center = await page.evaluate(() => {
-          const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
+          const inner = document.querySelector<HTMLElement>(
+            '[data-timeline-rows][data-thread-count]'
+          );
           let scroller = inner?.parentElement ?? null;
           while (scroller) {
             const { overflowY } = getComputedStyle(scroller);
@@ -719,7 +770,9 @@ test.describe('thread timeline jumps reproducers', () => {
           return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         });
 
-        await startProbe(page, 'scrollUp');
+        // The bursts pause for 220 ms or 450 ms: the ledger settles 150 ms into a pause, and the
+        // stall after its write lasts into the next burst of the shorter ones.
+        await startProbe(page, 'scrollUp', 150);
         await page.mouse.move(center.x, center.y);
         for (let burst = 0; burst < 24; burst += 1) {
           for (let notch = 0; notch < 16; notch += 1) {
@@ -738,15 +791,26 @@ test.describe('thread timeline jumps reproducers', () => {
           maxReversalPx: report.maxReversalPx,
           maxUnexplainedPx: report.maxUnexplainedPx,
           maxSpreadPx: report.maxSpreadPx,
+          lostPlaceFrames: report.lostPlaceFrames,
           topJumps: report.jumps.slice(0, 5),
         });
         expect(report.scrolledPx, 'scrolled upward through thread').toBeGreaterThan(10_000);
-        expect(report.maxReversalPx, `reversal jump during fast upward scroll: ${summary}`).toBeLessThanOrEqual(8);
+        expect(
+          report.lostPlaceFrames,
+          `the reader lost their place during fast upward scroll: ${summary}`
+        ).toBe(0);
+        expect(
+          report.maxReversalPx,
+          `reversal jump during fast upward scroll: ${summary}`
+        ).toBeLessThanOrEqual(8);
         expect(
           report.maxUnexplainedPx,
           `unexplained row jump during fast upward scroll: ${summary}`
         ).toBeLessThanOrEqual(12);
-        expect(report.maxSpreadPx, `row spread jump during fast upward scroll: ${summary}`).toBeLessThanOrEqual(4);
+        expect(
+          report.maxSpreadPx,
+          `row spread jump during fast upward scroll: ${summary}`
+        ).toBeLessThanOrEqual(4);
       });
     });
   });
