@@ -300,6 +300,35 @@ describe('composer model picker', () => {
     }
   );
 
+  it('renders for the next thread in main-room mode and closes immediately on pick', () => {
+    const selectModel = vi.fn();
+    const state = createState({ selectModel });
+    mocks.useModelPicker.mockReturnValue(state);
+    const room = { roomId: '!room:test' } as Room;
+
+    act(() => root.render(<ThreadModelPicker room={room} newThread />));
+
+    expect(mocks.useModelPicker).toHaveBeenCalledWith(room, undefined);
+    const trigger = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Choose model for the next thread"]'
+    );
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger?.click();
+    });
+    expect(container.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+      'Choose model for the next thread'
+    );
+    expect(container.textContent).toContain('This pick applies to the next thread only.');
+    const fast = optionNamed('Quick helper');
+    act(() => {
+      (fast as HTMLElement).click();
+    });
+    expect(selectModel).toHaveBeenCalledWith('fast');
+    // Local draft closes immediately without waiting for pending round-trip.
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('sets the button off from the buttons after it in a thread', () => {
     mocks.useModelPicker.mockReturnValue(createState());
 

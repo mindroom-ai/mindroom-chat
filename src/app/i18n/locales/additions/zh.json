@@ -1172,6 +1172,8 @@
         "defaultChoice": "默认",
         "threadOnly": "在此选择的模型仅适用于此话题。",
         "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
+        "chooseNextThread": "为下一个话题选择模型",
+        "nextThreadOnly": "此选择仅适用于下一个话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",

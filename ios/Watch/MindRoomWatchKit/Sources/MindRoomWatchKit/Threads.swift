@@ -38,6 +38,96 @@ public enum ThreadTags {
     }
 }
 
+/// The room's resolved threads as one model knows them between reads of the room's state, which is megabytes in
+/// a busy room: read when the room comes to the front, after a thread is resolved here, and every 5 minutes.
+public struct ResolvedRoots: Equatable, Sendable {
+    /// How long a read stands.
+    public static let lifetime: TimeInterval = 5 * 60
+
+    public private(set) var roots: Set<String>
+    /// When the last read that succeeded began; nil asks the next refresh for one.
+    private var readAt: Date?
+    /// When the read under way began, the roots resolved here since, and whether another read was asked for since.
+    private var reading: Date?
+    private var resolvedSince: Set<String> = []
+    private var askedSince = false
+
+    public init(_ roots: Set<String>) { self.roots = roots }
+
+    /// Whether to read the state now: no read is under way, and the last one failed, began 5 minutes ago, or
+    /// came before `expire()` or `resolve(_:)`.
+    public func isDue(now: Date) -> Bool {
+        reading == nil && (readAt.map { now.timeIntervalSince($0) >= Self.lifetime } ?? true)
+    }
+
+    public mutating func beginRead(now: Date) {
+        reading = now
+        resolvedSince = []
+        askedSince = false
+    }
+
+    /// The read's answer, nil when it failed. A thread resolved here since the read began stays resolved (the
+    /// answer may be from before its tag was there). After a resolve or `expire()` since it began, the next
+    /// refresh reads again.
+    public mutating func endRead(_ read: Set<String>?) {
+        if let read {
+            roots = read.union(resolvedSince)
+            readAt = askedSince ? nil : reading
+        }
+        reading = nil
+    }
+
+    /// A thread resolved here.
+    public mutating func resolve(_ root: String) {
+        roots.insert(root)
+        resolvedSince.insert(root)
+        expire()
+    }
+
+    /// The room came to the front: the next refresh reads its state.
+    public mutating func expire() {
+        readAt = nil
+        askedSince = true
+    }
+}
+
+/// A thread as the room's thread list (`/threads`) gives it, before the thread itself is read: what
+/// `ThreadSnapshot` makes of the root and the events bundled with it (`latest_event` and, from our homeserver,
+/// `io.mindroom.title` and `io.mindroom.latest_reply`; each with its newest edit).
+public struct ThreadListEntry: Equatable, Sendable {
+    public let rootId: String
+    /// The newest event's id and the reply count: another when something new happened in the thread.
+    public let key: String
+    public let rootTs: Int
+    /// Milliseconds since the epoch of the newest message the list carries, or its newest edit.
+    public let latestTs: Int
+    /// The bundled title, else what a thread without one is called.
+    public let title: String
+    /// The newest reply, when it is from someone else and no relay, echo or title.
+    public let reply: ThreadSnapshot.Message?
+    public let voiceFile: String?
+
+    public static func parse(_ root: JSON, ownUserId: String) -> ThreadListEntry? {
+        guard let rootId = root.eventId else { return nil }
+        let thread = ((root["unsigned"] as? JSON)?["m.relations"] as? JSON)?["m.thread"] as? JSON ?? [:]
+        let latest = thread["latest_event"] as? JSON
+        // The newest reply is mostly both `latest_event` and `io.mindroom.latest_reply`: once.
+        var bundled: [String: JSON] = [:]
+        for name in ["io.mindroom.title", "io.mindroom.latest_reply", "latest_event"] {
+            if let event = thread[name] as? JSON, let id = event.eventId { bundled[id] = event }
+        }
+        let events = Array(bundled.values)
+        let snapshot = ThreadSnapshot.build(root: root, related: events + ([root] + events).compactMap(\.bundledEdit),
+                                            ownUserId: ownUserId, now: Date())
+        // An encrypted room's newest event cannot be read here; its time still says when the thread last moved.
+        let encryptedTs = latest?["type"] as? String == "m.room.encrypted" ? latest?.timestamp ?? 0 : 0
+        return ThreadListEntry(
+            rootId: rootId, key: "\(latest?.eventId ?? rootId) \((thread["count"] as? NSNumber)?.intValue ?? 0)",
+            rootTs: snapshot.rootTs, latestTs: max(snapshot.latestTs, encryptedTs), title: snapshot.title,
+            reply: snapshot.reply, voiceFile: snapshot.voiceFile)
+    }
+}
+
 /// What a thread's row says at its end, most urgent first.
 public enum ThreadRowState: Equatable, Sendable {
     case failed, queued, needsYou, running, idle(Date)

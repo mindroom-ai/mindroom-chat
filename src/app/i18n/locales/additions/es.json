@@ -1234,6 +1234,8 @@
         "defaultChoice": "Predeterminado",
         "threadOnly": "El modelo que elijas aquí solo se aplica a este hilo.",
         "roomOverrideThreadOnly": "Establecido para esta sala con !room_model. El modelo que elijas aquí solo se aplica a este hilo.",
+        "chooseNextThread": "Elegir un modelo para el próximo hilo",
+        "nextThreadOnly": "Esta elección solo se aplica al próximo hilo.",
         "levels": {
           "off": "Desactivado",
           "minimal": "Mínimo",
