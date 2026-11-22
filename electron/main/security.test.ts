@@ -370,6 +370,8 @@ describe('external open and sign-in IPC channels', () => {
       mainFrame,
     } as unknown as Electron.WebContents;
     let pending: { homeserver: string; redirectUrl: string } | undefined;
+    let undelivered: string | undefined =
+      'mindroom://auth/login/hs.example/?ssoNonce=n1&loginToken=tok';
     const authCallback = {
       start: vi.fn(async (req: { homeserver: string; callback: string }) => {
         if (!req.homeserver.startsWith('https://')) throw new RangeError('bad');
@@ -380,6 +382,11 @@ describe('external open and sign-in IPC channels', () => {
         return pending;
       }),
       pending: () => pending,
+      takeUndelivered: () => {
+        const next = undelivered;
+        undelivered = undefined;
+        return next;
+      },
       close: vi.fn(),
     };
     registerExternalOpenHandlers({
@@ -457,7 +464,20 @@ describe('external open and sign-in IPC channels', () => {
       ok: false,
       code: 'BAD_ARGUMENTS',
     });
+    expect(await openSignIn(event, `${goodSignInUrl}&access_token=syt_leak`)).toEqual({
+      ok: false,
+      code: 'BAD_ARGUMENTS',
+    });
     expect(await openSignIn(event, goodSignInUrl)).toEqual({ ok: true, value: undefined });
     expect(opened).toEqual(['https://example.org/', goodSignInUrl]);
+
+    const takeAppUrl = ipcHandlers.get('desktop:take-app-url')!;
+    expect(await takeAppUrl(badEvent)).toEqual({ ok: false, code: 'FORBIDDEN' });
+    expect(await takeAppUrl(event, 'extra')).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(await takeAppUrl(event)).toEqual({
+      ok: true,
+      value: 'mindroom://auth/login/hs.example/?ssoNonce=n1&loginToken=tok',
+    });
+    expect(await takeAppUrl(event)).toEqual({ ok: true, value: undefined });
   });
 });

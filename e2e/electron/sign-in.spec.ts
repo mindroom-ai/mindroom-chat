@@ -213,4 +213,48 @@ test.describe('@homeserver Electron loopback SSO sign-in', () => {
       await otherHs.close();
     }
   });
+
+  test('reopens a closed main window on a valid return and signs in', async () => {
+    const username = `electron_sso_reopen_${Date.now()}`;
+    const mintToken = await registerSsoAccount(username);
+    const session = await launchDesktop();
+    try {
+      const { app, page } = session;
+      await listHomeservers(page, [HOMESERVER]);
+      await advertiseSso(page, HOMESERVER);
+
+      const redirect = await startSsoFromPage(app, page, HOMESERVER, 0);
+      const token = await mintToken();
+
+      // On Linux, closing the last window quits the app; hold an auxiliary hidden window so the
+      // main window can close and be recreated by focusMainWindow() on the loopback return.
+      const keepAliveId =
+        process.platform === 'darwin'
+          ? undefined
+          : await app.evaluate(({ BrowserWindow }) => {
+              const aux = new BrowserWindow({ show: false });
+              return aux.id;
+            });
+
+      try {
+        await page.close();
+        const reopenedPromise = app.waitForEvent('window');
+        const res = await fetch(`${redirect.href}&loginToken=${encodeURIComponent(token)}`);
+        expect(res.status).toBe(200);
+
+        const reopened = await reopenedPromise;
+        await session.watchPage(reopened);
+        await waitForShell(reopened);
+      } finally {
+        if (keepAliveId !== undefined) {
+          await app.evaluate(({ BrowserWindow }, id: number) => {
+            const aux = BrowserWindow.fromId(id);
+            if (aux && !aux.isDestroyed()) aux.destroy();
+          }, keepAliveId);
+        }
+      }
+    } finally {
+      await session.close();
+    }
+  });
 });

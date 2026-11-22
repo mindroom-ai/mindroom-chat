@@ -46,21 +46,23 @@ const focusMainWindow = (): void => {
   app.focus({ steal: true });
 };
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
-
-const authCallback = createAuthCallback((nativeUrl) => {
+const notifyAppUrl = (): void => {
   const win = getMainWindow();
   if (!win || win.isDestroyed()) return;
   try {
     const frame = win.webContents.mainFrame;
     if (frame.origin === APP_ORIGIN && isAllowedAppPage(frame.url)) {
-      win.webContents.send('desktop:app-url', nativeUrl);
+      win.webContents.send('desktop:app-url');
     }
   } catch {
     // Window or main frame was disposed.
   }
-}, focusMainWindow);
+};
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
+
+const authCallback = createAuthCallback(() => notifyAppUrl(), focusMainWindow);
 
 app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
@@ -107,6 +109,9 @@ void app.whenReady().then(() => {
     const forget = () => forgetMedia(wc.id);
     wc.once('destroyed', forget);
     wc.on('render-process-gone', forget);
+    wc.on('did-finish-load', () => {
+      if (wc === getMainWindow()?.webContents && authCallback.hasUndelivered()) notifyAppUrl();
+    });
   });
   showMainWindow();
 });

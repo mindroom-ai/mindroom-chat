@@ -31,6 +31,29 @@ const toHomeserver = (raw: string): URL | undefined => {
   return u && !u.username && !u.password && !u.search && !u.hash ? u : undefined;
 };
 
+const hasDuplicateKeys = (params: URLSearchParams): boolean => {
+  const keys = Array.from(params.keys());
+  return new Set(keys).size !== keys.length;
+};
+
+const sortedQuery = (params: URLSearchParams): string => {
+  const copy = new URLSearchParams(params);
+  copy.sort();
+  return copy.toString();
+};
+
+const hasDotSegment = (pathname: string): boolean => {
+  if (/%(?:2e|5c)/i.test(pathname)) return true;
+  if (pathname.split('/').some((s) => s === '.' || s === '..')) return true;
+  try {
+    return decodeURIComponent(pathname)
+      .split('/')
+      .some((s) => s === '.' || s === '..');
+  } catch {
+    return true;
+  }
+};
+
 export const parseSignInRequest = (raw: unknown): SignInRequest | undefined => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const { homeserver, callback } = raw as Record<string, unknown>;
@@ -38,11 +61,13 @@ export const parseSignInRequest = (raw: unknown): SignInRequest | undefined => {
     return undefined;
   if (!callback.startsWith('/') || callback.startsWith('//') || /[\\#\r\n\0]/.test(callback))
     return undefined;
+  const rawPath = callback.split('?', 1)[0] ?? '';
+  if (hasDotSegment(rawPath)) return undefined;
   const parsed = toUrl(callback, 'http://127.0.0.1');
-  if (!parsed || parsed.origin !== 'http://127.0.0.1') return undefined;
-  const keys = Array.from(parsed.searchParams.keys());
+  if (!parsed || parsed.origin !== 'http://127.0.0.1' || parsed.pathname !== rawPath)
+    return undefined;
   if (
-    new Set(keys).size !== keys.length ||
+    hasDuplicateKeys(parsed.searchParams) ||
     parsed.searchParams.has('loginToken') ||
     !parsed.searchParams.get('ssoNonce')
   )
@@ -52,12 +77,20 @@ export const parseSignInRequest = (raw: unknown): SignInRequest | undefined => {
 
 export const isSignInUrl = (url: string, pending: PendingSignIn): boolean => {
   const hs = toHomeserver(pending.homeserver);
-  const target = !hs || !pending.redirectUrl || /[#\r\n\0]/.test(url) ? undefined : toUrl(url);
-  if (!hs || !target || target.origin !== hs.origin || target.username || target.password)
+  const target = !hs || !pending.redirectUrl || /[\r\n\0]/.test(url) ? undefined : toUrl(url);
+  if (
+    !hs ||
+    !target ||
+    url !== target.href ||
+    target.hash ||
+    target.origin !== hs.origin ||
+    target.username ||
+    target.password
+  )
     return false;
   const basePath = hs.pathname.replace(/\/+$/, '');
-  const rawPath = url.replace(/^https?:\/\/[^/?#]+/i, '').split(/[?#]/, 1)[0] ?? '';
-  const suffix = rawPath.startsWith(basePath) ? rawPath.slice(basePath.length) : '';
+  if (!target.pathname.startsWith(basePath)) return false;
+  const suffix = target.pathname.slice(basePath.length);
   if (
     /%(?:2f|5c|2e)/i.test(suffix) ||
     suffix.includes('\\') ||
@@ -86,24 +119,19 @@ export const isReturn = (
   )
     return false;
   const act = toUrl(url, exp.origin);
-  if (!act) return false;
-  const expMap = new Map<string, string>();
-  for (const [k, v] of exp.searchParams) {
-    if (expMap.has(k) || k === 'loginToken') return false;
-    expMap.set(k, v);
-  }
-  const seen = new Set<string>();
-  for (const [k, v] of act.searchParams) {
-    if (seen.has(k) || (k === 'loginToken' ? !v.trim() : expMap.get(k) !== v)) return false;
-    seen.add(k);
-  }
-  return seen.has('loginToken') && seen.size === expMap.size + 1;
+  if (!act || exp.searchParams.has('loginToken')) return false;
+  if (hasDuplicateKeys(exp.searchParams) || hasDuplicateKeys(act.searchParams)) return false;
+  const tokens = act.searchParams.getAll('loginToken');
+  if (tokens.length !== 1 || !tokens[0]?.trim()) return false;
+  act.searchParams.delete('loginToken');
+  return sortedQuery(act.searchParams) === sortedQuery(exp.searchParams);
 };
 
 export const createAuthCallback = (deliver: (nativeUrl: string) => void, focus: () => void) => {
   let server: http.Server | undefined;
   let listening: Promise<number> | undefined;
   let current: { pending: PendingSignIn; callback: string; expiresAt: number } | undefined;
+  let undelivered: string | undefined;
   let seq = 0;
   let closed = false;
 
@@ -122,12 +150,14 @@ export const createAuthCallback = (deliver: (nativeUrl: string) => void, focus: 
       }
       current = undefined;
       const token = new URL(rawUrl, 'http://127.0.0.1').searchParams.get('loginToken') ?? '';
+      const nativeUrl = `mindroom://auth${entry.callback}&loginToken=${encodeURIComponent(token)}`;
+      undelivered = nativeUrl;
       res.writeHead(200, DONE_HEADERS);
       res.end(DONE_HTML);
       try {
-        deliver(`mindroom://auth${entry.callback}&loginToken=${encodeURIComponent(token)}`);
-      } finally {
         focus();
+      } finally {
+        deliver(nativeUrl);
       }
     });
     server = srv;
@@ -155,22 +185,32 @@ export const createAuthCallback = (deliver: (nativeUrl: string) => void, focus: 
       const port = await ensureServer();
       if (closed || mySeq !== seq) throw new Error('Sign-in start was superseded');
       const rand = crypto.randomBytes(16).toString('hex');
-      const pending = {
-        homeserver: request.homeserver,
-        redirectUrl: `http://127.0.0.1:${port}/auth/${rand}${request.callback}`,
-      };
+      const redirectUrl = `http://127.0.0.1:${port}/auth/${rand}${request.callback}`;
+      if (!new URL(redirectUrl).pathname.startsWith(`/auth/${rand}/`)) {
+        throw new RangeError('Invalid sign-in callback path');
+      }
+      const pending = { homeserver: request.homeserver, redirectUrl };
       current = { pending, callback: request.callback, expiresAt: Date.now() + LIFETIME_MS };
       return pending;
     },
     pending: (): PendingSignIn | undefined => active()?.pending,
+    hasUndelivered: (): boolean => undelivered !== undefined,
+    takeUndelivered(): string | undefined {
+      const url = undelivered;
+      undelivered = undefined;
+      return url;
+    },
     close(): void {
       closed = true;
       seq += 1;
       current = undefined;
+      undelivered = undefined;
       const srv = server;
       [server, listening] = [undefined, undefined];
-      srv?.closeAllConnections?.();
-      srv?.close();
+      if (srv) {
+        srv.closeAllConnections();
+        srv.close();
+      }
     },
   };
 };

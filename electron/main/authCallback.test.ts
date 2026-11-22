@@ -95,7 +95,12 @@ describe('isSignInUrl', () => {
       `${base}?redirectUrl=${encodeURIComponent(
         'http://127.0.0.1:43210/auth/deadbeef/login/matrix.example.org/?ssoNonce=other&addAccount=1'
       )}`,
-      // javascript:
+      // Backslash authority/path tricks, whitespace, dot segments, javascript:
+      `https://matrix.example.org\\@evil.example/_matrix/client/v3/login/sso/redirect?redirectUrl=${redirect}`,
+      `https://matrix.example.org/_matrix/client/v3/login/sso/redirect\\?redirectUrl=${redirect}`,
+      ` https://matrix.example.org/_matrix/client/v3/login/sso/redirect?redirectUrl=${redirect}`,
+      `https://matrix.example.org/_matrix/client/v3/login/sso/redirect/./apple?redirectUrl=${redirect}`,
+      `https://matrix.example.org/_matrix/client/v3/login/sso/redirect?redirectUrl=${redirect}#frag`,
       'javascript:alert(1)',
     ];
     for (const candidate of cases) {
@@ -213,7 +218,6 @@ describe('isReturn', () => {
 describe('createAuthCallback', () => {
   const closers: Array<() => void> = [];
   afterEach(() => {
-    vi.useRealTimers();
     while (closers.length > 0) closers.pop()?.();
   });
 
@@ -266,6 +270,19 @@ describe('createAuthCallback', () => {
         callback: '/login/a/',
       })
     ).rejects.toThrow();
+    for (const badPath of [
+      '/../evil?ssoNonce=n1',
+      '/./login?ssoNonce=n1',
+      '/login/../../evil?ssoNonce=n1',
+      '/%2e%2e/evil?ssoNonce=n1',
+      '/%2E/evil?ssoNonce=n1',
+      '/..%2fevil?ssoNonce=n1',
+    ]) {
+      await expect(
+        cb.start({ homeserver: 'https://matrix.example.org', callback: badPath }),
+        badPath
+      ).rejects.toThrow();
+    }
     expect(cb.pending()).toBeUndefined();
   });
 
@@ -310,6 +327,10 @@ describe('createAuthCallback', () => {
     ]);
     expect(focus).toHaveBeenCalledTimes(1);
     expect(cb.pending()).toBeUndefined();
+    expect(cb.takeUndelivered()).toBe(
+      'mindroom://auth/login/http%3A%2F%2F127.0.0.1%3A28008/?ssoNonce=abc&loginToken=tok%2B1'
+    );
+    expect(cb.takeUndelivered()).toBeUndefined();
 
     // Replaying the same valid return gets 404 and delivers nothing.
     const replay = await rawRequest(port, {
@@ -357,31 +378,79 @@ describe('createAuthCallback', () => {
 
   it('expires the pending sign-in after 30 minutes', async () => {
     const { cb, delivered } = make();
-    const started = await cb.start({
-      homeserver: 'https://matrix.example.org',
-      callback: '/login/matrix.example.org/?ssoNonce=expiring',
-    });
-    const redirect = new URL(started.redirectUrl);
-    const port = Number(redirect.port);
+    const baseNow = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(baseNow);
+    try {
+      const started = await cb.start({
+        homeserver: 'https://matrix.example.org',
+        callback: '/login/matrix.example.org/?ssoNonce=expiring',
+      });
+      const redirect = new URL(started.redirectUrl);
+      const port = Number(redirect.port);
+      expect(cb.pending()).toEqual(started);
 
-    // Advance system time past 30 minutes without blocking socket I/O.
-    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-    // Start again under fake timers so the expiry timer is scheduled on the fake clock.
-    const timed = await cb.start({
-      homeserver: 'https://matrix.example.org',
-      callback: '/login/matrix.example.org/?ssoNonce=expiring2',
-    });
-    const timedUrl = new URL(timed.redirectUrl);
-    expect(cb.pending()).toEqual(timed);
+      nowSpy.mockReturnValue(baseNow + 30 * 60 * 1000);
+      expect(cb.pending()).toBeUndefined();
 
-    vi.advanceTimersByTime(30 * 60 * 1000);
-    expect(cb.pending()).toBeUndefined();
+      const late = await rawRequest(port, {
+        host: redirect.host,
+        path: `${redirect.pathname}${redirect.search}&loginToken=late`,
+      });
+      expect(late.status).toBe(404);
+      expect(delivered).toEqual([]);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
 
-    const late = await rawRequest(port, {
-      host: timedUrl.host,
-      path: `${timedUrl.pathname}${timedUrl.search}&loginToken=late`,
+  it('replaces an untaken undelivered URL on a newer return and clears it on close', async () => {
+    const { cb } = make();
+    const first = await cb.start({
+      homeserver: 'https://hs1.example',
+      callback: '/login/hs1.example/?ssoNonce=n1',
     });
-    expect(late.status).toBe(404);
-    expect(delivered).toEqual([]);
+    const u1 = new URL(first.redirectUrl);
+    expect(
+      (
+        await rawRequest(Number(u1.port), {
+          host: u1.host,
+          path: `${u1.pathname}${u1.search}&loginToken=t1`,
+        })
+      ).status
+    ).toBe(200);
+
+    const second = await cb.start({
+      homeserver: 'https://hs2.example',
+      callback: '/login/hs2.example/?ssoNonce=n2',
+    });
+    const u2 = new URL(second.redirectUrl);
+    expect(
+      (
+        await rawRequest(Number(u2.port), {
+          host: u2.host,
+          path: `${u2.pathname}${u2.search}&loginToken=t2`,
+        })
+      ).status
+    ).toBe(200);
+    expect(cb.takeUndelivered()).toBe(
+      'mindroom://auth/login/hs2.example/?ssoNonce=n2&loginToken=t2'
+    );
+    expect(cb.takeUndelivered()).toBeUndefined();
+
+    const third = await cb.start({
+      homeserver: 'https://hs3.example',
+      callback: '/login/hs3.example/?ssoNonce=n3',
+    });
+    const u3 = new URL(third.redirectUrl);
+    expect(
+      (
+        await rawRequest(Number(u3.port), {
+          host: u3.host,
+          path: `${u3.pathname}${u3.search}&loginToken=t3`,
+        })
+      ).status
+    ).toBe(200);
+    cb.close();
+    expect(cb.takeUndelivered()).toBeUndefined();
   });
 });

@@ -128,6 +128,7 @@ type ExternalOpenDeps = {
   authCallback: {
     start(r: SignInRequest): Promise<PendingSignIn>;
     pending(): PendingSignIn | undefined;
+    takeUndelivered(): string | undefined;
   };
   openUrl: (url: string) => Promise<void>;
 };
@@ -158,7 +159,15 @@ export const registerExternalOpenHandlers = ({
   );
   handle('desktop:open-sign-in', signInOwners, stringArg, async (url) => {
     const pending = authCallback.pending();
-    if (!pending || !isSignInUrl(url, pending)) return { ok: false, code: 'BAD_ARGUMENTS' };
-    return { ok: true, value: await openUrl(url) };
+    if (!pending || !isOpenable(url) || !isSignInUrl(url, pending)) {
+      return { ok: false, code: 'BAD_ARGUMENTS' };
+    }
+    return { ok: true, value: await openUrl(new URL(url).href) };
   });
+  handle(
+    'desktop:take-app-url',
+    signInOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => ({ ok: true, value: authCallback.takeUndelivered() })
+  );
 };

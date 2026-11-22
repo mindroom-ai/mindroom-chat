@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopBridge, DesktopShellEvent } from '../src/app/lib/desktopBridge';
+import type { DesktopBridge, DesktopResult, DesktopShellEvent } from '../src/app/lib/desktopBridge';
 
 const isEditable = (path: EventTarget[], from: number): boolean => {
   for (let i = from; i < path.length; i += 1) {
@@ -51,6 +51,13 @@ const onExternalClick = (event: MouseEvent): void => {
 window.addEventListener('click', onExternalClick, true);
 window.addEventListener('auxclick', onExternalClick, true);
 
+const takeAppUrl = async (): Promise<string | undefined> => {
+  const res = (await ipcRenderer.invoke('desktop:take-app-url')) as DesktopResult<
+    string | undefined
+  >;
+  return res.ok ? res.value : undefined;
+};
+
 const bridge = {
   onShellEvent: (listener: (event: DesktopShellEvent) => void): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, payload: DesktopShellEvent): void => {
@@ -65,10 +72,17 @@ const bridge = {
   startSignIn: (request) => ipcRenderer.invoke('desktop:start-sign-in', request),
   openSignIn: (url) => ipcRenderer.invoke('desktop:open-sign-in', url),
   appUrl: {
-    getLaunchUrl: () => Promise.resolve(undefined),
+    getLaunchUrl: async () => {
+      const url = await takeAppUrl();
+      return url ? { url } : undefined;
+    },
     addListener: (eventName, listener) => {
       if (eventName !== 'appUrlOpen') return Promise.resolve({ remove: () => undefined });
-      const handle = (_event: Electron.IpcRendererEvent, url: string): void => listener({ url });
+      const handle = (): void => {
+        void takeAppUrl().then((url) => {
+          if (url) listener({ url });
+        });
+      };
       ipcRenderer.on('desktop:app-url', handle);
       return Promise.resolve({
         remove: () => ipcRenderer.removeListener('desktop:app-url', handle),
