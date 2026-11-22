@@ -2,36 +2,12 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type PointerEvent,
   type RefObject,
   type TouchEvent,
 } from 'react';
-
-/**
- * The shown order kept against the live one: the threads shown keep their places, threads that
- * left the list go, and new ones join where the live order puts them. One that the live order
- * puts before every shown thread leads (the top of a newest-first list, its live end), one it
- * puts after all of them ends the list, and one between follows its live neighbour.
- */
-export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[]): string[] => {
-  const live = new Set(liveIds);
-  const kept = shownIds.filter((id) => live.has(id));
-  const keptIds = new Set(kept);
-  const firstKept = liveIds.findIndex((id) => keptIds.has(id));
-  const lastKept = liveIds.findLastIndex((id) => keptIds.has(id));
-  const leading: string[] = [];
-  const trailing: string[] = [];
-  liveIds.forEach((id, index) => {
-    if (keptIds.has(id)) return;
-    if (firstKept === -1 || index < firstKept) leading.push(id);
-    else if (index > lastKept) trailing.push(id);
-    else kept.splice(kept.indexOf(liveIds[index - 1] ?? '') + 1, 0, id);
-  });
-  return [...leading, ...kept, ...trailing];
-};
 
 /** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
 type CardsInView = {
@@ -111,43 +87,34 @@ const browserAnchorsScroll = (): boolean =>
   CSS.supports('overflow-anchor', 'auto');
 
 /**
- * The overview's thread order, held while `held` (the reader points at, focuses or has a menu
- * open on a card) so no card moves under the pointer: the threads keep the order they were shown
- * in, threads that leave the list go, and new ones join at their place in the live order, so a
- * newest-first list still shows them at the top. Once released, the live order applies.
- *
  * A reader at the top of the list sees new cards arrive there. Further down, cards that join or
  * grow above the ones in view would push them down, so the list scrolls by as much and the cards
- * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
- * the list scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost
- * card in view from the rows that kept their relative order, even if other cards moved down.
- * It acts only on a render that finds the scroll offset where it recorded the cards. If the
- * reader or another script scrolled since then, it records the cards again without moving them.
+ * in view stay where they are, as Chromium's scroll anchoring keeps them by itself. The list
+ * scrolls only in browsers without it (WebKit, so iOS too). It anchors to the topmost card in view
+ * from the rows that kept their relative order, even if other cards moved down. It acts only on
+ * a render that finds the scroll offset where it recorded the cards. If the reader or another
+ * script scrolled since then, it records the cards again without moving them.
  */
-export const useHeldThreadOrder = (
-  liveRootIds: string[],
-  held: boolean,
-  viewRef?: RefObject<HTMLElement>,
+export const useCompactScrollFallback = (
+  rows: readonly string[],
+  viewRef: RefObject<HTMLElement>,
   sectionOfRow?: SectionOfRow
-): string[] => {
-  const shownRef = useRef(liveRootIds);
-  const shown = useMemo(
-    () => (held ? holdOrder(shownRef.current, liveRootIds) : liveRootIds),
-    [held, liveRootIds]
-  );
+): void => {
+  // The scroll listener needs the latest committed rows. This ref does not decide their order.
+  const latestRowsRef = useRef(rows);
   const cardsInViewRef = useRef<CardsInView>();
   // Every commit: a card's thread that loads above the view changes its height without an order
   // change.
   useLayoutEffect(() => {
-    shownRef.current = shown;
-    const view = viewRef?.current;
+    latestRowsRef.current = rows;
+    const view = viewRef.current;
     // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
     if (!view || browserAnchorsScroll()) return;
     const before = cardsInViewRef.current;
     if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const stationary =
-        before.order === shown ? undefined : stationaryRows(before.order, shown, sectionOfRow);
+        before.order === rows ? undefined : stationaryRows(before.order, rows, sectionOfRow);
       const anchor = before.cards
         .filter(({ rootId }) => stationary?.has(rootId) ?? true)
         .map(({ rootId, top }) => ({
@@ -158,19 +125,18 @@ export const useHeldThreadOrder = (
       const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
       if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
-    cardsInViewRef.current = cardsInView(view, shown);
+    cardsInViewRef.current = cardsInView(view, rows);
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
-    const view = viewRef?.current;
+    const view = viewRef.current;
     if (!view || browserAnchorsScroll()) return undefined;
     const record = () => {
-      cardsInViewRef.current = cardsInView(view, shownRef.current);
+      cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
     };
     view.addEventListener('scroll', record, { passive: true });
     return () => view.removeEventListener('scroll', record);
   }, [viewRef]);
-  return shown;
 };
 
 /**
@@ -180,11 +146,11 @@ export const useHeldThreadOrder = (
 export const MOUSE_REST_HOLD_MS = 700;
 
 /**
- * Whether a pointer is over the cards, which holds their order (`useHeldThreadOrder`), and the
- * handlers of the card list that follow it. A mouse is over them from its enter, or a move for a
- * list drawn under a resting pointer, until it leaves or rests for `MOUSE_REST_HOLD_MS`: a mouse
- * parked over a list that fills the view would otherwise keep it stale for as long as it rests,
- * and its next move holds again. A finger's pointer leaves as it lifts, before the tap's
+ * Whether a pointer is over the cards, which holds their order, and the handlers of the card list
+ * that follow it. A mouse is over them from its enter, or a move for a list drawn under a resting
+ * pointer, until it leaves or rests for `MOUSE_REST_HOLD_MS`: a mouse parked over a list that fills
+ * the view would otherwise keep it stale for as long as it rests, and its next move holds again.
+ * A finger's pointer leaves as it lifts, before the tap's
  * mousedown, mouseup and click, and that mousedown moves focus off a card: let go there, a new
  * order would swap the cards between the mousedown and the mouseup, and the click would miss what
  * was tapped. A finger holds until its tap's click, or lets go at once after a pointercancel, when

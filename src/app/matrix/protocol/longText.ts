@@ -3,6 +3,7 @@ import { IEncryptedFile } from '../types/common';
 import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
+import { THREAD_MODEL_KEY } from './threadModel';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -323,6 +324,9 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     ...(content[MID_TURN_MODE_KEY] === undefined
       ? {}
       : { [MID_TURN_MODE_KEY]: content[MID_TURN_MODE_KEY] }),
+    ...(content[THREAD_MODEL_KEY] === undefined
+      ? {}
+      : { [THREAD_MODEL_KEY]: content[THREAD_MODEL_KEY] }),
     ...(content[SUBMISSION_CONTENT_KEY] === undefined
       ? {}
       : { [SUBMISSION_CONTENT_KEY]: content[SUBMISSION_CONTENT_KEY] }),

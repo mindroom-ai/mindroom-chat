@@ -14,6 +14,7 @@ export type RoomCatalog = {
   runtime: ModelRuntime;
   models: ModelCatalogResponse['models'];
   agentUserIds: string[];
+  supportsRootModel?: true;
   inherited: ModelCatalogResponse['selection']['inherited'];
 };
 export const ROOM_CATALOG_LIMIT = 64;
@@ -37,6 +38,7 @@ const parseRoomCatalog = (value: unknown): RoomCatalog | undefined => {
     runtime: { id: JSON.stringify([userId, deviceId, curveKey]), userId, deviceId, curveKey },
     models: payload.models,
     agentUserIds: payload.agent_user_ids,
+    ...(value.supportsRootModel === true && { supportsRootModel: true }),
     inherited: payload.selection.inherited,
   };
 };
