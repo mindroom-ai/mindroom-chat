@@ -20,6 +20,9 @@ extension Dictionary where Key == String, Value == Any {
 
     var eventId: String? { self["event_id"] as? String }
 
+    /// Redacted: the server's mark on the event, or a message with no content left.
+    var isRedacted: Bool { (self["unsigned"] as? JSON)?["redacted_because"] != nil || content.isEmpty }
+
     var timestamp: Int { (self["origin_server_ts"] as? NSNumber)?.intValue ?? 0 }
 }
 

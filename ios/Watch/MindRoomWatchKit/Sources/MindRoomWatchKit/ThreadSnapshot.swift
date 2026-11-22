@@ -104,11 +104,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
             event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
         }
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        // The voice messages a transcript can show under: drawn as audio, with the voice mark on the version
-        // shown (the web client's `isVoiceMessageContent`). An audio file without it keeps its caption.
+        // The voice messages a transcript can show under, as the web client's `planVoiceTranscripts` takes
+        // them: not redacted (an edit of a redacted one may still be read), and the version shown is audio by
+        // its own `msgtype` and has the voice mark (`isVoiceMessageContent`). An audio file keeps its caption.
         let voiceIds = Set(([root] + messages).compactMap { event -> String? in
             let content = effectiveContent(event, latestEdit: edit(event))
-            guard let id = event.eventId, isMessage(event), isAudio(event),
+            guard let id = event.eventId, isMessage(event), !event.isRedacted, content["msgtype"] as? String == "m.audio",
                   content["org.matrix.msc3245.voice"] != nil || content["m.voice"] != nil,
                   id == rootId || event.content["io.mindroom.thread_summary"] == nil else { return nil }
             return id

@@ -30,7 +30,8 @@ public final class RoomTrust {
     @discardableResult
     public func refresh(ifOlderThan age: TimeInterval = 0, now: Date = Date(),
                         _ read: @MainActor () async -> [JSON]?) async -> [JSON]? {
-        if let readAt, now.timeIntervalSince(readAt) < age { return nil }
+        // A clock set back since the last read holds up no read.
+        if let readAt, (0..<age).contains(now.timeIntervalSince(readAt)) { return nil }
         readAt = now
         reads += 1
         let id = reads

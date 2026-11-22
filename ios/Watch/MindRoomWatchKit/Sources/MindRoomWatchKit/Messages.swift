@@ -96,11 +96,15 @@ public enum VoiceEcho {
     /// the voice message. An older backend's echo names it by its reply relation, which no edit repeats.
     public static func transcript(_ event: JSON, latestEdit: JSON?) -> (voiceEventId: String, text: String?)? {
         let content = effectiveContent(event, latestEdit: latestEdit)
-        guard jsonBool(event.content[flag]) == true, jsonBool(content[flag]) == true,
-              jsonBool(content["com.mindroom.voice_raw_audio_fallback"]) != true,
+        // As the web client's `getLatestMessageContent`: MindRoom metadata an edit carries beside its
+        // `m.new_content` counts where the new content does not name it (never the long-text mark).
+        let beside = latestEdit?.newContent == nil ? nil : latestEdit?.content
+        let shown = { (key: String) in content[key] ?? beside?[key] }
+        guard jsonBool(event.content[flag]) == true, jsonBool(shown(flag)) == true,
+              jsonBool(shown("com.mindroom.voice_raw_audio_fallback")) != true,
               !(content["io.mindroom.long_text"] is JSON) else { return nil }
         let nonEmpty: (Any?) -> String? = { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }
-        guard let voiceId = nonEmpty(content["com.mindroom.voice_source_event_id"])
+        guard let voiceId = nonEmpty(shown("com.mindroom.voice_source_event_id"))
             ?? nonEmpty((event.relation?["m.in_reply_to"] as? JSON)?["event_id"]) else { return nil }
         let body = content["body"] as? String
         return (voiceId, body == placeholder ? nil : body)
