@@ -20,6 +20,12 @@ describe('hasOpenOverlay', () => {
     expect(hasOpenOverlay()).toBe(true);
   });
 
+  it('sees the account quick switcher, which has no role, and leaves it out for itself', () => {
+    const quickMenu = add('<div role="none" data-quick-account-menu=""></div>').firstElementChild;
+    expect(hasOpenOverlay()).toBe(true);
+    expect(hasOpenOverlay(quickMenu)).toBe(false);
+  });
+
   it('leaves out one in an inert page and the asking layer itself', () => {
     add('<div inert><div role="listbox"></div></div>');
     expect(hasOpenOverlay()).toBe(false);
