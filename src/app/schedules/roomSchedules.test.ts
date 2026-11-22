@@ -182,12 +182,12 @@ describe('formatCompactExecutionTime', () => {
   it('distinguishes IANA time zones with the same current UTC offset for future DST dates', () => {
     const januaryNow = Date.UTC(2026, 0, 15, 19, 0, 0);
     const julyExecution = Date.UTC(2026, 6, 15, 18, 0, 0);
-    expect(
-      formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Phoenix')
-    ).toBe('Jul 15, 11:00 AM');
-    expect(
-      formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Denver')
-    ).toBe('Jul 15, 12:00 PM');
+    expect(formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Phoenix')).toBe(
+      'Jul 15, 11:00 AM'
+    );
+    expect(formatCompactExecutionTime(julyExecution, januaryNow, 'en-US', 'America/Denver')).toBe(
+      'Jul 15, 12:00 PM'
+    );
   });
 
   it('compares calendar day in the supplied timeZone rather than the host time zone', () => {
@@ -225,9 +225,9 @@ describe('formatShortCadence', () => {
         mockT
       )
     ).toBe('Every weekday at 09:00');
-    expect(
-      formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (UTC+2)' }), mockT)
-    ).toBe('Daily at 09:00');
+    expect(formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (UTC+2)' }), mockT)).toBe(
+      'Daily at 09:00'
+    );
     expect(
       formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (UTC+99)' }), mockT)
     ).toBe('Daily at 09:00 (UTC+99)');

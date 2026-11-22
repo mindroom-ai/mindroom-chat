@@ -1621,7 +1621,13 @@ describe('RoomSchedulesDialog recurrence', () => {
     const { getI18n } = await import('react-i18next');
     const runtime = getI18n();
     const prevLang = runtime.language;
-    runtime.addResourceBundle('bn', 'translation', { roomSchedules: { title: 'নির্ধারিত কাজ' } }, true, true);
+    runtime.addResourceBundle(
+      'bn',
+      'translation',
+      { roomSchedules: { title: 'নির্ধারিত কাজ' } },
+      true,
+      true
+    );
     await runtime.changeLanguage('bn');
     const { host, unmount } = mountDialog({
       roomId: '!room:example.org',
@@ -1674,6 +1680,57 @@ describe('RoomSchedulesDialog recurrence', () => {
       unmount();
       await runtime.changeLanguage(prevLang);
       runtime.removeResourceBundle('bn', 'translation');
+    }
+  });
+
+  it('dismisses an open cancel confirmation and restores focus when a live update makes the thread destination unconfirmed', async () => {
+    const onCancelTask = vi.fn(async () => undefined);
+    const { host, rerender, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [
+        makeTask({
+          taskId: 'thread-task',
+          description: 'Thread task',
+          threadId: '$confirmed-root',
+          newThread: false,
+        }),
+      ],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask,
+    });
+    try {
+      const cancelBtn = host.querySelector<HTMLButtonElement>('button[aria-label="Cancel"]');
+      expect(cancelBtn).not.toBeNull();
+      await click(cancelBtn!);
+      const keepBtn = findButtonByText(host, 'Keep');
+      expect(keepBtn).not.toBeNull();
+      expect(document.activeElement).toBe(keepBtn);
+
+      rerender({
+        roomId: '!room:example.org',
+        tasks: [
+          makeTask({
+            taskId: 'thread-task',
+            description: 'Thread task',
+            threadId: '~pending',
+            newThread: false,
+          }),
+        ],
+        onClose: vi.fn(),
+        onOpenThread: vi.fn(),
+        onCancelTask,
+      });
+
+      expect(host.querySelector('button[aria-label="Cancel"]')).toBeNull();
+      expect(findButtonByText(host, 'Keep')).toBeUndefined();
+      expect(findButtonByText(host, 'Cancel task')).toBeUndefined();
+      const rowToggle = host.querySelector<HTMLButtonElement>(
+        '[data-schedule-task-id="thread-task"] button[data-schedule-toggle]'
+      );
+      expect(document.activeElement).toBe(rowToggle);
+    } finally {
+      unmount();
     }
   });
 });

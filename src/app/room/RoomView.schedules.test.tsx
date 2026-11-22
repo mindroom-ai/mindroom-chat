@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 import type { ReactNode, RefObject } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
-import {
-  createClient,
-  MatrixEvent,
-  Room,
-  RoomMemberEvent,
-  RoomStateEvent,
-} from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, RoomMemberEvent, RoomStateEvent } from 'matrix-js-sdk';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -26,20 +20,18 @@ const getJoinedMembersSpy = vi
     () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
   );
 
-const { capturedHeaderProps, threadRouteState, threadLayoutState, sendMessage } = vi.hoisted(
-  () => {
-    const layoutState: { layout: 'full' | 'beside'; roomy: boolean } = {
-      layout: 'full',
-      roomy: false,
-    };
-    return {
-      capturedHeaderProps: [] as RoomViewHeaderProps[],
-      threadRouteState: { effectiveThreadId: undefined as string | undefined },
-      threadLayoutState: layoutState,
-      sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-    };
-  }
-);
+const { capturedHeaderProps, threadRouteState, threadLayoutState, sendMessage } = vi.hoisted(() => {
+  const layoutState: { layout: 'full' | 'beside'; roomy: boolean } = {
+    layout: 'full',
+    roomy: false,
+  };
+  return {
+    capturedHeaderProps: [] as RoomViewHeaderProps[],
+    threadRouteState: { effectiveThreadId: undefined as string | undefined },
+    threadLayoutState: layoutState,
+    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
+  };
+});
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => Object.assign(mx, { sendMessage, makeTxnId: () => 'txn-room-1' }),
@@ -244,7 +236,7 @@ describe('RoomView schedule wiring', () => {
 
       rerender(<RoomView room={room} hasMindroomAgents />);
       const scansAfterEnable = getJoinedMembersSpy.mock.calls.length;
-      expect(scansAfterEnable).toBe(1);
+      expect(scansAfterEnable).toBe(2);
       expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(false);
 
       // Subsequent unrelated rerenders reuse the memoized value without rescanning members.
@@ -278,7 +270,8 @@ describe('RoomView schedule wiring', () => {
       expect(capturedHeaderProps.at(-1)?.hasJoinedMindroomAgent).toBe(true);
     } finally {
       getJoinedMembersSpy.mockImplementation(
-        () => [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
+        () =>
+          [{ userId: '@alice:example.org' }, { userId: '@mindroom_helper:example.org' }] as never
       );
     }
   });

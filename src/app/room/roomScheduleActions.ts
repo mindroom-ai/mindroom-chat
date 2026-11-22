@@ -60,20 +60,12 @@ export function useHasJoinedMindroomAgent(
   roomCreators: ReadonlySet<string>,
   enabled = true
 ): boolean {
-  const routerBindingEvent = useStateEvent(
-    room,
-    MINDROOM_ROUTER_STATE_EVENT,
-    enabled ? '' : null
-  );
+  const routerBindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT, enabled ? '' : null);
   const routerBinding =
     typeof routerBindingEvent?.isRedacted === 'function' && !routerBindingEvent.isRedacted()
       ? routerBindingEvent
       : undefined;
-  const rawPowerLevelsEvent = useStateEvent(
-    room,
-    StateEvent.RoomPowerLevels,
-    enabled ? '' : null
-  );
+  const rawPowerLevelsEvent = useStateEvent(room, StateEvent.RoomPowerLevels, enabled ? '' : null);
   const rawPowerLevels =
     typeof rawPowerLevelsEvent?.getContent === 'function'
       ? rawPowerLevelsEvent.getContent()
@@ -170,6 +162,8 @@ export function useHasJoinedMindroomAgent(
     if (hasRoomListeners) {
       room.on(RoomEvent.CurrentStateUpdated, syncEligibility);
     }
+    // Re-check once after subscribing so a membership event between render and effect mount is never missed.
+    syncEligibility();
     return () => {
       disposed = true;
       if (hasClientListeners) {

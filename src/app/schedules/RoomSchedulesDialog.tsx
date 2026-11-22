@@ -186,8 +186,15 @@ function ScheduleAccordionItem({
     };
   }, [open, promptExpanded, promptText]);
 
+  const commandSafe = isCommandSafeTaskId(task.taskId);
+  const canCancel = Boolean(
+    onCancelTask &&
+      commandSafe &&
+      (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId))
+  );
+
   useEffect(() => {
-    if (!open || !onCancelTask) {
+    if (!open || !canCancel) {
       setConfirmingCancel(false);
       focusInsideConfirmRef.current = false;
     }
@@ -195,9 +202,9 @@ function ScheduleAccordionItem({
       setEditBusy(false);
       setCopyFailed(false);
     }
-  }, [onCancelTask, open]);
+  }, [canCancel, open]);
 
-  const showCancelBar = Boolean(onCancelTask && (confirmingCancel || isCancelling || cancelError));
+  const showCancelBar = Boolean(canCancel && (confirmingCancel || isCancelling || cancelError));
 
   useEffect(() => {
     if (confirmingCancel && !prevConfirmingRef.current) {
@@ -232,7 +239,6 @@ function ScheduleAccordionItem({
     prevCancelSentRef.current = cancelSent;
   }, [cancelSent, open]);
 
-  const commandSafe = isCommandSafeTaskId(task.taskId);
   const recurring = isRecurringTask(task);
   const executionTime = getScheduleTimestamp(task);
   const createdTime = parseScheduleTimestamp(task.createdAt);
@@ -569,9 +575,7 @@ function ScheduleAccordionItem({
                 </IconButton>
               )}
 
-              {onCancelTask &&
-                commandSafe &&
-                (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId)) && (
+              {canCancel && (
                 <IconButton
                   ref={cancelButtonRef}
                   type="button"
