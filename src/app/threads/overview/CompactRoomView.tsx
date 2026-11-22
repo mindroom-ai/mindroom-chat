@@ -432,7 +432,7 @@ export function CompactRoomView({
   const mount = useMemo(
     () => ({ key: requestKey, place: compactMountPlace(memory, roomId, focusRequest) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the request the room opened with
-    [memory, roomId]
+    [roomId]
   );
   // Mount the first screen or the saved place; the remaining cards mount a chunk at a time.
   const stagedRootIds = useStagedCardIds(

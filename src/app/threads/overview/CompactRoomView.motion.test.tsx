@@ -3,7 +3,9 @@ import type { Room } from 'matrix-js-sdk';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
+import type { CompactFocusRequest } from './compactFocusRequest';
 import { CompactRoomView } from './CompactRoomView';
 
 const ROOM_ID = '!room:example.org';
@@ -62,14 +64,20 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID } as unknown as Room;
-const list = (threadRootIds: string[], filterBarShown = false) => (
+const list = (
+  threadRootIds: string[],
+  filterBarShown = false,
+  focusRequest?: CompactFocusRequest,
+  memory: ScrollAnchorMemory = new Map()
+) => (
   <CompactRoomView
     room={room}
     filterBarShown={filterBarShown}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
-    compactRoomScrollStateRef={{ current: new Map() }}
+    compactRoomScrollStateRef={{ current: memory }}
+    focusRequest={focusRequest}
   />
 );
 
@@ -91,6 +99,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   motion.restore();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('the compact thread list in motion', () => {
@@ -128,6 +138,29 @@ describe('the compact thread list in motion', () => {
 
     // Before the change and after it, to play each card from where it was.
     expect(readsOfCards()).toBeGreaterThan(0);
+  });
+
+  it('glides the cards of a change that also brings a link, whose card is placed after', () => {
+    let scrollTop = 0;
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
+      scrollTop = value;
+    });
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
+    const memory: ScrollAnchorMemory = new Map();
+    const { rerender } = render(list(['$a', '$b', '$c'], false, undefined, memory));
+    const link = { eventId: '$c', entryKey: 'link', pushed: true };
+    rerender(list(['$b', '$a', '$c'], false, link, memory));
+
+    // The list jumps to the card, and the cards that swapped glide from where they were.
+    expect(scrollTop).toBeGreaterThan(0);
+    expect(glided().sort()).toEqual(['$a', '$b']);
   });
 
   it('glides a card into the Pinned section', () => {
