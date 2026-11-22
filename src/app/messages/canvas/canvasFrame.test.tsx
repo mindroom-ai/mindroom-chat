@@ -13,7 +13,16 @@ const setDesktop = (enabled: boolean): void => {
     Reflect.deleteProperty(window, 'mindroomDesktop');
     return;
   }
-  const bridge: DesktopBridge = { onShellEvent: () => () => undefined };
+  const bridge: DesktopBridge = {
+    onShellEvent: () => () => undefined,
+    setMediaSession: () => ({ ok: true, value: undefined }),
+    startSignIn: async () => ({ ok: true, value: '' }),
+    openSignIn: async () => ({ ok: true, value: undefined }),
+    appUrl: {
+      addListener: async () => ({ remove: () => undefined }),
+      getLaunchUrl: async () => undefined,
+    },
+  };
   Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
 };
 

@@ -14,6 +14,10 @@ export const isCapacitorApp = (): boolean => Capacitor.isNativePlatform();
 /** Whether the page runs inside any bundled app shell (Capacitor or Electron). */
 export const isBundledApp = (): boolean => isDesktopApp() || isCapacitorApp();
 
+/** Props that mark a button for the Electron preload's trusted-click external opener. */
+export const externalOpenProps = (url: string): { 'data-open-external'?: string } =>
+  isDesktopApp() ? { 'data-open-external': url } : {};
+
 let subscribedBridge: DesktopBridge | undefined;
 let stopShellEvents: (() => void) | undefined;
 

@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron';
+import type { DesktopResult } from '../../src/app/lib/desktopBridge';
 import { APP_ORIGIN, isAllowedAppPage } from './bundleProtocol';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; code: string };
+export type Result<T> = DesktopResult<T>;
 
 export const isAuthorized = (
   event: { sender: unknown; senderFrame: { url: string; origin: string } | null },

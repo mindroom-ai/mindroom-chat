@@ -56,9 +56,7 @@ const createExtras = (
   sections,
 });
 
-const section = (
-  overrides: Partial<MessageExtrasSection> = {}
-): MessageExtrasSection => ({
+const section = (overrides: Partial<MessageExtrasSection> = {}): MessageExtrasSection => ({
   title: 'Details',
   contentType: 'text/plain',
   content: 'payload',
@@ -609,5 +607,51 @@ describe('MessageExtras', () => {
     act(() => {
       root?.unmount();
     });
+  });
+
+  it.each([
+    { shell: 'desktop app', desktop: true },
+    { shell: 'web and phone', desktop: false },
+  ])('text/html extra links in the $shell: confirmation is $desktop', ({ desktop }) => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    if (desktop)
+      Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
+    try {
+      act(() => {
+        root.render(
+          React.createElement(MessageExtras, {
+            extras: createExtras(
+              [
+                section({
+                  contentType: 'text/html',
+                  collapsed: false,
+                  content: '<p><a href="https://evil.example/phish">https://good.example</a></p>',
+                }),
+              ],
+              2
+            ),
+            htmlReactParserOptions: {},
+            markerContent: {},
+            toolRows: false,
+          })
+        );
+      });
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe('https://evil.example/phish');
+      // As on main outside the desktop app: the sanitizer's plain anchor, no title, no question.
+      expect(link?.getAttribute('title')).toBe(desktop ? 'https://evil.example/phish' : null);
+      const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+      act(() => {
+        link?.dispatchEvent(evt);
+      });
+      expect(evt.defaultPrevented).toBe(desktop);
+      expect(document.body.querySelector('[role="dialog"]') !== null).toBe(desktop);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

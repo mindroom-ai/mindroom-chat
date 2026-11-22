@@ -48,7 +48,8 @@ import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 import { leavePage } from './boot/inviteFragment';
 import { markPageStartup } from './app/lib/startupTimeline';
-import { isDesktopApp, markDesktopShell } from './app/lib/nativeShell';
+import { desktopBridge, isDesktopApp, markDesktopShell } from './app/lib/nativeShell';
+import { startDesktopMediaAuth } from './app/native/desktopMediaAuth';
 
 markPageStartup('js.entry');
 
@@ -118,7 +119,7 @@ const prepareDocument = (): void => {
     // quick capture widget's web view leaves them to the main one: followed there, a link would
     // take the widget's window away from the widget, to a second copy of the app.
     if (isNativeApp() && !isQuickCapturePath(window.location.pathname)) {
-      registerNativeAppUrlCallbacks(NativeApp);
+      registerNativeAppUrlCallbacks(desktopBridge()?.appUrl ?? NativeApp);
     }
   });
 };
@@ -283,9 +284,13 @@ runSafely('recovery marker', () => {
   if (window.sessionStorage.getItem(SW_CONTROL_RELOAD_KEY) === '1') clearRecoveryMarker();
 });
 
+// Before the first render, so main holds the session before any media request.
+runSafely('desktop media auth', () => {
+  startDesktopMediaAuth(getActiveSession, subscribeToSessionStore);
+});
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   createRoot(rootElement).render(<App />);
 }
-
 startServiceWorker();
