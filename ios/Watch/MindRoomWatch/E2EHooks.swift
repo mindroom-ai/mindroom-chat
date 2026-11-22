@@ -81,6 +81,12 @@ enum E2EHooks {
         Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "e2e").notice("\(line, privacy: .public)")
     }
 
+    /// A line for the simulator run only (it names its room): what a thread says and each request's path do not
+    /// reach the log of a Debug build on a person's watch.
+    static func trace(_ line: @autoclosure () -> String) {
+        if room != nil { log(line()) }
+    }
+
     @MainActor
     static func send(on timeline: Timeline) async {
         guard !sent else { return }

@@ -373,7 +373,9 @@ def main() -> int:
                 return f"read before the first rows showed: {early}"
             requests = sum(1 for verb, kind, _ in before if verb == "GET" and kind == "threads")
             size = sum(size for verb, kind, size in before if verb == "done" and kind == "threads")
-            first = next(i for i, line in enumerate(lines) if (found := read(line)) and found[1] == "threads")
+            first = next((i for i, line in enumerate(lines) if (found := read(line)) and found[1] == "threads"), None)
+            if first is None:
+                return "the app's log has no request for the room's thread list"
             done = next((i for i in range(painted, len(lines)) if "refresh done " in lines[i]), None)
             if done is None:
                 return "the refresh did not finish"

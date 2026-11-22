@@ -47,9 +47,10 @@ public struct ResolvedRoots: Equatable, Sendable {
     public private(set) var roots: Set<String>
     /// When the last read that succeeded began; nil asks the next refresh for one.
     private var readAt: Date?
-    /// When the read under way began, and the roots resolved here since.
+    /// When the read under way began, the roots resolved here since, and whether another read was asked for since.
     private var reading: Date?
     private var resolvedSince: Set<String> = []
+    private var askedSince = false
 
     public init(_ roots: Set<String>) { self.roots = roots }
 
@@ -62,14 +63,16 @@ public struct ResolvedRoots: Equatable, Sendable {
     public mutating func beginRead(now: Date) {
         reading = now
         resolvedSince = []
+        askedSince = false
     }
 
     /// The read's answer, nil when it failed. A thread resolved here since the read began stays resolved (the
-    /// answer may be from before its tag was there), and the next refresh reads again.
+    /// answer may be from before its tag was there). After a resolve or `expire()` since it began, the next
+    /// refresh reads again.
     public mutating func endRead(_ read: Set<String>?) {
         if let read {
             roots = read.union(resolvedSince)
-            readAt = resolvedSince.isEmpty ? reading : nil
+            readAt = askedSince ? nil : reading
         }
         reading = nil
     }
@@ -78,11 +81,14 @@ public struct ResolvedRoots: Equatable, Sendable {
     public mutating func resolve(_ root: String) {
         roots.insert(root)
         resolvedSince.insert(root)
-        readAt = nil
+        expire()
     }
 
     /// The room came to the front: the next refresh reads its state.
-    public mutating func expire() { readAt = nil }
+    public mutating func expire() {
+        readAt = nil
+        askedSince = true
+    }
 }
 
 /// A thread as the room's thread list (`/threads`) gives it, before the thread itself is read: what

@@ -68,11 +68,16 @@ struct ThreadView: View {
                 if let focus { scroll.scrollTo(focus, anchor: .top) }
             }
         }
-        .task { await model.start() }
+        .task { roomModel.openThread = rootId; await model.start() }
+        .onChange(of: model.snapshot) { _, snapshot in if let snapshot { roomModel.adopt(snapshot) } }
         .onChange(of: model.snapshot.map(people), initial: true) { _, people in
             if let people { Task { await roomModel.learnNames(people) } }
         }
-        .onDisappear { model.stop(); speaker.stop() }
+        .onDisappear {
+            // A notification's thread may have taken this one's place already.
+            if roomModel.openThread == rootId { roomModel.openThread = nil }
+            model.stop(); speaker.stop()
+        }
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in Task { await model.replyVoice(take) } }
         }

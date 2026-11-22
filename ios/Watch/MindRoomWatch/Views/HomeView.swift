@@ -100,7 +100,7 @@ struct HomeView: View {
 
     private func open(_ roomId: String) {
         guard model?.room.id() != roomId, let room = try? client.getRoom(roomId: roomId) else { return }
-        let model = RoomModel(room: room, userId: userId, client: client)
+        let model = RoomModel(room: room, userId: userId, client: client, persistsResolved: true)
         self.model = model
         Task { await model.start() }
     }

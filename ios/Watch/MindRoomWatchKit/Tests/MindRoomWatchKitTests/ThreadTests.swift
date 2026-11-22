@@ -86,6 +86,19 @@ final class ResolvedRootsTests: XCTestCase {
         resolved.expire()
         XCTAssertTrue(resolved.isDue(now: start.addingTimeInterval(2)))
     }
+
+    func testComingToTheFrontDuringAReadAsksForAnotherAfterIt() {
+        var resolved = ResolvedRoots([])
+        resolved.beginRead(now: start)
+        resolved.expire()
+        resolved.endRead(["$a"])
+        XCTAssertEqual(resolved.roots, ["$a"])
+        XCTAssertTrue(resolved.isDue(now: start.addingTimeInterval(1)))
+        // The read after it stands.
+        resolved.beginRead(now: start.addingTimeInterval(1))
+        resolved.endRead(["$a"])
+        XCTAssertFalse(resolved.isDue(now: start.addingTimeInterval(2)))
+    }
 }
 
 final class ThreadListEntryTests: XCTestCase {

@@ -50,10 +50,14 @@ final class RoomModel: ObservableObject {
     /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
     private static let snapshotLifetime: TimeInterval = 60
     private var resolved: ResolvedRoots
-    /// Whether this model writes `ResolvedCache`: the one the app shows does. The background refresh's own model
-    /// only reads it, so that neither overwrites what the other resolved.
+    /// Whether this model writes `ResolvedCache`: the default room's, which the app shows, does. The background
+    /// refresh's own model and the model of a room a notification opened only read it, so that none overwrites
+    /// what another resolved.
     private let persistsResolved: Bool
     private var stateRead: Task<Void, Never>?
+    /// The thread on screen. Its own model reads it every 5 s and hands each snapshot over (`adopt`), so a
+    /// refresh does not download it a second time.
+    var openThread: String?
     /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
     /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
     private var threadRows: [String: ThreadRow] = [:]
@@ -64,7 +68,7 @@ final class RoomModel: ObservableObject {
     private let client: Client
     private let session: Session?
 
-    init(room: Room, userId: String, client: Client, persistsResolved: Bool = true) {
+    init(room: Room, userId: String, client: Client, persistsResolved: Bool = false) {
         self.room = room
         self.userId = userId
         self.client = client
@@ -128,6 +132,14 @@ final class RoomModel: ObservableObject {
 
     func snapshot(of rootId: String) -> ThreadSnapshot? { snapshots[rootId] }
 
+    /// The open thread as its own model just read it: its row says the same.
+    func adopt(_ snapshot: ThreadSnapshot) {
+        snapshots[snapshot.rootId] = snapshot
+        guard threadRows[snapshot.rootId] != nil else { return }
+        threadRows[snapshot.rootId] = row(snapshot)
+        publish()
+    }
+
     /// A voice message's audio (`ThreadSnapshot.Message.audio`), decrypted.
     func audio(_ source: String) async throws -> Data {
         try await client.getMediaContent(mediaSource: MediaSource.fromJson(json: source))
@@ -184,7 +196,7 @@ final class RoomModel: ObservableObject {
             threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
             show()
             // The threads resolved elsewhere left the list short, and one opened again is not in it: the list
-            // is read once more after this refresh.
+            // is read once more after this refresh, which leaves the complications to that pass.
             refreshAgain = true
         }
     }
@@ -196,10 +208,14 @@ final class RoomModel: ObservableObject {
     private func refresh() async {
         // Left, or replaced by a new version of the room: the person picks another.
         if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
+        let resolvedBefore = resolved.roots
         var entries: [ThreadListEntry] = []
         var listed = Set<String>()
         var from: String?
+        // Whether the rows are the room's 30 newest open threads, each as its own read found it: no page of the
+        // list failed, and no thread waits for the read of the model that shows it.
         var complete = true
+        let open = { entries.filter { !self.resolved.roots.contains($0.rootId) } }
         // Resolved threads do not count: read a few more pages while they fill the first one.
         for page in 0...3 {
             guard let result = try? await room.threadsJsonPage(from: from, limit: UInt32(Self.pageSize)) else {
@@ -209,7 +225,7 @@ final class RoomModel: ObservableObject {
                 complete = false
                 break
             }
-            for json in result.roots {
+            for json in result.roots where open().count < Self.pageSize {
                 guard let entry = parse(json).flatMap({ ThreadListEntry.parse($0, ownUserId: userId) }),
                       listed.insert(entry.rootId).inserted, !resolved.roots.contains(entry.rootId) else { continue }
                 entries.append(entry)
@@ -219,27 +235,34 @@ final class RoomModel: ObservableObject {
             show()
             if page == 0 {
                 #if DEBUG
-                E2EHooks.log("refresh painted rows=\(rows.count)")
+                E2EHooks.trace("refresh painted rows=\(rows.count)")
                 #endif
                 // Not before the first rows show.
                 readStateIfDue()
             }
             from = result.nextBatch
-            if from == nil || entries.filter({ !resolved.roots.contains($0.rootId) }).count >= Self.pageSize { break }
+            if from == nil || open().count >= Self.pageSize { break }
         }
-        let items = entries.filter { !resolved.roots.contains($0.rootId) }.prefix(Self.pageSize)
+        let items = open()
         // Only a list read without a failure (to its end, to 30 open threads or to the last page) says which
-        // threads are no longer in it.
-        if complete {
-            let roots = Set(items.map(\.rootId))
-            threadRows = threadRows.filter { roots.contains($0.key) }
-            show()
+        // threads are no longer in it. After a failed page the newest rows of before fill what is left of the 30.
+        var roots = Set(items.map(\.rootId))
+        if !complete {
+            let others = threadRows.values.filter { !roots.contains($0.id) }.sorted { $0.ts > $1.ts }
+            roots.formUnion(others.prefix(Self.pageSize - roots.count).map(\.id))
         }
+        threadRows = threadRows.filter { roots.contains($0.key) }
+        show()
         for item in items.sorted(by: { $0.latestTs > $1.latestTs }) {
             let rootId = item.rootId
             let key = item.key
             // Resolved while the threads before it were read.
             if resolved.roots.contains(rootId) { continue }
+            // The thread on screen is read by its own model, whose snapshot this is (`adopt`), or will be.
+            if rootId == openThread {
+                if snapshots[rootId] != nil { snapshotReads[rootId] = (key, Date()) } else { complete = false }
+                continue
+            }
             // A thread nothing new happened in keeps its snapshot for a minute, unless it streams or waits for
             // the person (edits and reactions do not show in the list).
             if let cached = snapshots[rootId], let read = snapshotReads[rootId], read.key == key,
@@ -259,16 +282,18 @@ final class RoomModel: ObservableObject {
                 threadRows[rootId] = row(snapshot)
                 show()
                 #if DEBUG
-                E2EHooks.log("hydrated \(rootId) \(String(describing: snapshot.rowState)) \(snapshot.title) | \(row(snapshot).line)")
+                E2EHooks.trace("hydrated \(rootId) \(String(describing: snapshot.rowState)) \(snapshot.title) | \(row(snapshot).line)")
                 #endif
             }
         }
-        // The complications count what the threads' own reads found, without the threads the state resolves.
         await stateRead?.value
         show()
-        publishWidgetSnapshot()
+        // The complications count the room's open threads as their own reads found them. When the resolved
+        // threads changed under this pass (the state's answer, a thread resolved here), its rows were chosen
+        // against the old ones: the pass that follows writes.
+        if complete, resolved.roots == resolvedBefore { publishWidgetSnapshot() }
         #if DEBUG
-        E2EHooks.log("refresh done rows=\(rows.count)")
+        E2EHooks.trace("refresh done rows=\(rows.count)")
         #endif
     }
 
@@ -355,11 +380,11 @@ final class RoomModel: ObservableObject {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
         #if DEBUG
-        E2EHooks.log("http GET \(url.path)")
+        E2EHooks.trace("http GET \(url.path)")
         #endif
         guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
         #if DEBUG
-        E2EHooks.log("http done \(url.path) \(data.count)")
+        E2EHooks.trace("http done \(url.path) \(data.count)")
         #endif
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
