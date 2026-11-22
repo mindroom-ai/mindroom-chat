@@ -45,10 +45,12 @@ const getRoomTopSpace = (mx: MatrixClient, parentsByRoom: RoomToParents, roomId:
     const space = mx.getRoom(id);
     return space?.isSpaceRoom() === true && !isKnownUnjoined(space);
   });
-  const topSpaceId = spaceIds.find((spaceId) => {
-    const parents = parentsByRoom.get(spaceId);
-    return !parents || !spaceIds.some((other) => parents.has(other));
-  });
+  const topSpaceId =
+    spaceIds.find((spaceId) => (parentsByRoom.get(spaceId)?.size ?? 0) === 0) ??
+    spaceIds.find((spaceId) => {
+      const parents = parentsByRoom.get(spaceId);
+      return !parents || !spaceIds.some((other) => parents.has(other));
+    });
   return topSpaceId ?? spaceIds[0];
 };
 

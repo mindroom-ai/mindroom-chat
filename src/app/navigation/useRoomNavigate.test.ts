@@ -526,6 +526,18 @@ describe('useRoomNavigate', () => {
       renderer.unmount();
     });
 
+    it('prefers a parentless joined space to a joined subspace whose parent the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(outerSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace, outerSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(outerSpace, roomId));
+      renderer.unmount();
+    });
+
     it('opens no other room below the left space whose join page the route shows', () => {
       hold(leftSpace, 'leave');
       mocks.selectedSpace = leftSpace;
