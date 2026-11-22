@@ -277,6 +277,8 @@ Recording permission.
 
 ## Migration
 
+> **Superseded (Bas, 2026-11-22):** the Catalyst Mac app has no users, so there is no backward compatibility. No migration, notice, move card, rollback DMG or Sparkle hand-over is built; the Electron app ships under the final names from its first signed DMG and the Catalyst Mac code is deleted once Bas has it installed. The text below is kept as the record of the earlier plan.
+
 Chromium cannot read WebKit's storage, so the session and the crypto store do not carry over. **The old
 app's data is never deleted or touched** (`~/Library/WebKit/chat.mindroom.app` and
 `~/Library/Caches/chat.mindroom.app` on the M2): Electron cannot see which accounts live only there.
