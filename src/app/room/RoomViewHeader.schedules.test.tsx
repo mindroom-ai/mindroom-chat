@@ -401,6 +401,11 @@ describe('RoomViewHeader schedule actions', () => {
     await expect(overlayCapture.props!.onCancelTask!(task({ taskId: 'bad id' }))).rejects.toThrow(
       'Unsupported task ID'
     );
+    await expect(
+      overlayCapture.props!.onCancelTask!(
+        task({ taskId: 'pending-thread-1', threadId: '~pending', newThread: false })
+      )
+    ).rejects.toThrow('Unconfirmed thread destination');
     expect(sendMessage).not.toHaveBeenCalled();
   });
 

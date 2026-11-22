@@ -1616,4 +1616,64 @@ describe('RoomSchedulesDialog recurrence', () => {
   it('shows no zone without a description or cron expression', async () => {
     expect(await recurrenceDetailsText({})).toBe('Execution time unavailable');
   });
+
+  it('hides Cancel for thread-bound tasks with unconfirmed thread IDs and formats counts with local digits', async () => {
+    const { getI18n } = await import('react-i18next');
+    const runtime = getI18n();
+    const prevLang = runtime.language;
+    runtime.addResourceBundle('bn', 'translation', { roomSchedules: { title: 'নির্ধারিত কাজ' } }, true, true);
+    await runtime.changeLanguage('bn');
+    const { host, unmount } = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [
+        makeTask({
+          taskId: 'unconfirmed-thread',
+          description: 'Pending thread task',
+          threadId: '~pending',
+          newThread: false,
+          scheduleType: 'once',
+        }),
+        makeTask({
+          taskId: 'recurring-1',
+          description: 'Recurring task',
+          scheduleType: 'cron',
+          cronExpression: '0 9 * * *',
+        }),
+      ],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+    });
+    try {
+      expect(host.querySelector('.header-count')?.textContent).toBe('২');
+      expect([...host.querySelectorAll('.filter-count')].map((el) => el.textContent)).toEqual([
+        '২',
+        '১',
+        '১',
+      ]);
+
+      // Expand the unconfirmed-thread row and confirm Cancel is omitted while Edit/Copy stay intact.
+      const rowToggle = host.querySelector<HTMLButtonElement>(
+        '[data-schedule-task-id="unconfirmed-thread"] button[aria-expanded]'
+      );
+      expect(rowToggle).not.toBeNull();
+      await click(rowToggle!);
+      expect(
+        host.querySelector(
+          '[data-schedule-task-id="unconfirmed-thread"] button[aria-controls^="cancel"]'
+        )
+      ).toBeNull();
+      // IconAction with Critical variant is only rendered for Cancel; none should exist on this row.
+      const rowButtons = [
+        ...host.querySelectorAll<HTMLButtonElement>(
+          '[data-schedule-task-id="unconfirmed-thread"] .icon-action'
+        ),
+      ];
+      expect(rowButtons).toHaveLength(0);
+    } finally {
+      unmount();
+      await runtime.changeLanguage(prevLang);
+      runtime.removeResourceBundle('bn', 'translation');
+    }
+  });
 });

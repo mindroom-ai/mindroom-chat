@@ -196,13 +196,15 @@ export async function sendCancelScheduledTask(
   if (!isCommandSafeTaskId(task.taskId)) {
     throw new Error('Unsupported task ID');
   }
-  // Always post the cancel command to the task's own destination (never an unrelated or local thread).
-  const cancelTargetThreadId =
-    !task.newThread && task.threadId
-      ? isConfirmedMatrixEventId(task.threadId)
-        ? task.threadId
-        : undefined
-      : undefined;
+  // Always post the cancel command to the task's own confirmed destination, never falling back
+  // to the room timeline for a thread-bound task whose thread ID is unconfirmed.
+  let cancelTargetThreadId: string | undefined;
+  if (!task.newThread && task.threadId) {
+    if (!isConfirmedMatrixEventId(task.threadId)) {
+      throw new Error('Unconfirmed thread destination');
+    }
+    cancelTargetThreadId = task.threadId;
+  }
   const relation = getMessageRelation(undefined, undefined, cancelTargetThreadId);
   const content = {
     msgtype: MsgType.Text,

@@ -180,7 +180,7 @@ export const formatCompactExecutionTime = (
 const isRecognizedTimeZone = (value: string): boolean => {
   const candidate = value.trim();
   if (!candidate) return false;
-  if (/^(?:UTC|GMT)(?:[+-]\d{1,2}(?::?\d{2})?)?$/i.test(candidate)) return true;
+  if (/^(?:UTC|GMT)(?:[+-](?:0?\d|1[0-4])(?::?[0-5]\d)?)?$/i.test(candidate)) return true;
   if (!/^[A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)+$/.test(candidate)) return false;
   try {
     dateTimeFormat('en-US', { timeZone: candidate });

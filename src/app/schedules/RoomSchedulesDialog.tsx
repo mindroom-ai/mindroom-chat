@@ -15,7 +15,9 @@ import {
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { copyToClipboard } from '../lib/dom';
+import { localDigits } from '../lib/localDigits';
 import { PageScroll } from '../ui/page/PageScroll';
 import { Header, Modal } from '../ui/glass/GlassPrimitives';
 import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
@@ -567,7 +569,9 @@ function ScheduleAccordionItem({
                 </IconButton>
               )}
 
-              {onCancelTask && commandSafe && (
+              {onCancelTask &&
+                commandSafe &&
+                (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId)) && (
                 <IconButton
                   ref={cancelButtonRef}
                   type="button"
@@ -1018,7 +1022,7 @@ export const RoomSchedulesDialog = forwardRef<
                 <Text as="h2" id={titleId} size="H4">
                   {t('roomSchedules.title')}
                 </Text>
-                <span className={css.HeaderCount}>{tasks.length}</span>
+                <span className={css.HeaderCount}>{localDigits(String(tasks.length), locale)}</span>
               </Box>
               <IconButton
                 ref={closeButtonRef}
@@ -1070,7 +1074,9 @@ export const RoomSchedulesDialog = forwardRef<
                         >
                           {active && <Icon size="50" src={Icons.Check} aria-hidden />}
                           <span>{option.label}</span>
-                          <span className={css.FilterCount}>{option.count}</span>
+                          <span className={css.FilterCount}>
+                            {localDigits(String(option.count), locale)}
+                          </span>
                         </button>
                       );
                     })}

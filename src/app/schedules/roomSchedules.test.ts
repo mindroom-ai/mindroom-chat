@@ -229,6 +229,12 @@ describe('formatShortCadence', () => {
       formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (UTC+2)' }), mockT)
     ).toBe('Daily at 09:00');
     expect(
+      formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (UTC+99)' }), mockT)
+    ).toBe('Daily at 09:00 (UTC+99)');
+    expect(
+      formatShortCadence(baseTask({ cronDescription: 'Daily at 09:00 (GMT+00:99)' }), mockT)
+    ).toBe('Recurring');
+    expect(
       formatShortCadence(baseTask({ cronDescription: 'Every day (except Sundays)' }), mockT)
     ).toBe('Recurring');
     expect(formatShortCadence(baseTask({ cronDescription: 'Daily (workdays)' }), mockT)).toBe(
