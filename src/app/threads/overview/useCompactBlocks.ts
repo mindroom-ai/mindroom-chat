@@ -78,11 +78,12 @@ export function useCompactBlocks(options: Options) {
   const slotsOf = (ids: string[]) => ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
   const median = (slots: number[]) => slots[Math.floor(slots.length / 2)];
   // The blocks that hold `ids`, each buffered alone: unmeasured blocks take no space, so two in
-  // view can be far apart. After an order change, the median one: a card that jumped is left out.
+  // view can be far apart. After an order change, the median card's: one that jumped is left out.
   const band = (ids: string[]): number[] => {
-    const slots = [...new Set(slotsOf(ids))];
+    const all = slotsOf(ids);
+    const slots = [...new Set(all)];
     const same = geometry.order === order || (slots.at(-1) ?? 0) - (slots[0] ?? 0) <= BUFFER_BLOCKS;
-    return same && slots.length ? slots : [median(slots) ?? 0];
+    return same && slots.length ? slots : [median(all) ?? 0];
   };
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>

@@ -920,6 +920,39 @@ describe('a focus request on the mounted Compact room', () => {
       expect(scrollTop).toBe(6000);
     });
 
+    // Leave with three cards in view, move the first of them to the end, and come back.
+    const backAfterFirstMoved = (leftAt: number) => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      scrollTop = leftAt;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      unmount();
+      const first = `$card${leftAt / ROW_HEIGHT}`;
+      expect(
+        memory
+          .get(ROOM_ID)
+          ?.anchors.map(({ key }) => key)
+          .slice(0, 3)
+      ).toEqual([0, 1, 2].map((row) => `$card${leftAt / ROW_HEIGHT + row}`));
+      scrollTop = 0;
+      render(at(undefined, [...large.filter((id) => id !== first), first]));
+    };
+
+    it.each([6000, 3800])(
+      'goes Back to the cards that stayed, not to the one that moved to the end (left at %i)',
+      (leftAt) => {
+        backAfterFirstMoved(leftAt);
+        const stayed = `$card${leftAt / ROW_HEIGHT + 1}`;
+        // The card that stayed is one row higher in the list, and where it was on the screen.
+        expect(scrollTop).toBe(leftAt - ROW_HEIGHT);
+        expect(topOf(stayed)).toBe(ROW_HEIGHT);
+        measure();
+        expect(scrollTop).toBe(leftAt - ROW_HEIGHT);
+        expect(topOf(stayed)).toBe(ROW_HEIGHT);
+      }
+    );
+
     it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
       memory.clear();
       const partial = large.slice(0, 40);
