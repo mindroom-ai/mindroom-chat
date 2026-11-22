@@ -499,6 +499,7 @@
         "close": "Закрыть экран звонка",
         "participants": "Участники звонка",
         "connecting": "Подключение…",
+        "connectingAnotherCall": "Подключение к другому звонку…",
         "reconnecting": "Переподключение…",
         "ended": "Звонок завершён.",
         "waitingFor": "Ожидание {{name}}…",

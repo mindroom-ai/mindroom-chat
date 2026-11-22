@@ -490,6 +490,7 @@
         "close": "Fechar a visão da chamada",
         "participants": "Pessoas na chamada",
         "connecting": "A ligar…",
+        "connectingAnotherCall": "A ligar a outra chamada…",
         "reconnecting": "A restabelecer a ligação…",
         "ended": "A chamada terminou.",
         "waitingFor": "À espera de {{name}}…",

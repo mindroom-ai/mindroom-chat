@@ -481,6 +481,7 @@
         "close": "Anrufansicht schließen",
         "participants": "Personen im Anruf",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbindung zu einem anderen Anruf wird hergestellt…",
         "reconnecting": "Verbindung wird wiederhergestellt…",
         "ended": "Der Anruf ist beendet.",
         "waitingFor": "Warten auf {{name}}…",

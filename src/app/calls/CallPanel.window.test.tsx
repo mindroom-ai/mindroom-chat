@@ -722,11 +722,12 @@ describe('the prescreen as the call view moves', () => {
     expect(screen.queryByText(/Already in another call/)).toBeNull();
   });
 
-  it('keeps the busy notice when another room has a pending start', () => {
+  it('shows connecting to another call when another room has a pending start', () => {
     store.set(callStartingAtom, { roomId: callRoom.roomId });
     renderPanel();
 
-    expect(screen.queryByText(/Already in another call/)).not.toBeNull();
+    expect(screen.queryByText('Connecting to another call…')).not.toBeNull();
+    expect(screen.queryByText(/Already in another call/)).toBeNull();
     expect(button('Join')).toBeNull();
     expect(button('Connecting…')).toBeNull();
   });

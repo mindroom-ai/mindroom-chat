@@ -470,9 +470,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   // (RoomCall.join refuses a backend a room member named).
   else if (support === 'unsupported') {
     blocker = t('featureUi.call.callView.yourHomeserverDoesNotSupportCalling');
-  } else if (active || (starting && !startingHere)) {
-    blocker = t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent');
-  } else if (!access.canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
+  } else if (active) blocker = t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent');
+  else if (starting && !startingHere) blocker = t('featureUi.calls.panel.connectingAnotherCall');
+  else if (!access.canJoin) blocker = t('featureUi.call.callView.youDonTHavePermissionToJoin');
 
   const join = () => {
     setJoining(true);

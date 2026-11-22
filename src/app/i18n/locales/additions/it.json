@@ -490,6 +490,7 @@
         "close": "Chiudi la vista della chiamata",
         "participants": "Persone nella chiamata",
         "connecting": "Connessione in corso…",
+        "connectingAnotherCall": "Connessione a un’altra chiamata in corso…",
         "reconnecting": "Riconnessione in corso…",
         "ended": "La chiamata è terminata.",
         "waitingFor": "In attesa di {{name}}…",
