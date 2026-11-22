@@ -225,7 +225,7 @@ describe('SettingsTab hold-and-swipe account switch', () => {
 
       fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 150, clientY: 280 }));
       // Synthetic click following pointerup must not open AccountMenu.
-      fireEvent.click(trigger);
+      fireEvent.click(trigger, { detail: 1 });
 
       expect(setActiveSession).toHaveBeenCalledWith('session-b');
       expect(navigate).toHaveBeenCalledWith('/home');
@@ -243,7 +243,7 @@ describe('SettingsTab hold-and-swipe account switch', () => {
       vi.advanceTimersByTime(ACCOUNT_HOLD_MS - 60);
     });
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
 
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
@@ -277,12 +277,12 @@ describe('SettingsTab hold-and-swipe account switch', () => {
     expect(screen.queryByRole('menu')).toBeNull();
 
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
     expect(screen.queryByRole('menu')).toBeNull();
 
     // A subsequent keyboard activation opens AccountMenu normally.
     fireEvent.keyDown(trigger, { key: 'Enter' });
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 0 });
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy();
   });
 });

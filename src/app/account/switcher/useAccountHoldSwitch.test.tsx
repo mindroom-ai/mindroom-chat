@@ -117,13 +117,45 @@ const layoutTriggerAndMenu = () => {
   return { trigger, list, bobRow, carolRow };
 };
 
+/** Holds the avatar until the quick menu opens. */
+const holdOpen = (trigger: HTMLElement, pointerId = 1) => {
+  fireEvent(trigger, pointerEvent('pointerdown', { pointerId, clientX: 25, clientY: 420 }));
+  act(() => {
+    vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+  });
+};
+
+/** The window listeners added since the call that nothing has removed yet. */
+const watchWindowListeners = () => {
+  const added = vi.spyOn(window, 'addEventListener');
+  const removed = vi.spyOn(window, 'removeEventListener');
+  return () =>
+    added.mock.calls
+      .filter(
+        ([type, listener]) =>
+          !removed.mock.calls.some(([goneType, gone]) => goneType === type && gone === listener)
+      )
+      .map(([type]) => type);
+};
+
+/** A dialog that opens over everything already in the page, as Settings does from its shortcut. */
+const openCoveringDialog = (): HTMLElement => {
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'dialog');
+  dialog.innerHTML = '<button type="button">Close</button>';
+  document.body.append(dialog);
+  return dialog;
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.useRealTimers();
+  document.querySelectorAll('body > [role="dialog"]').forEach((dialog) => dialog.remove());
   document.documentElement.style.removeProperty('user-select');
   document.documentElement.style.removeProperty('-webkit-user-select');
   document.documentElement.style.removeProperty('-webkit-touch-callout');
@@ -225,10 +257,10 @@ describe('useAccountHoldSwitch', () => {
     window.dispatchEvent(touchMoveAfter);
     expect(touchMoveAfter.defaultPrevented).toBe(false);
 
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
     expect(onClick).not.toHaveBeenCalled();
 
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
     expect(onClick).toHaveBeenCalledTimes(1);
     setStyleSpy.mockRestore();
     removeStyleSpy.mockRestore();
@@ -341,6 +373,136 @@ describe('useAccountHoldSwitch', () => {
     expect(onSwitch).toHaveBeenCalledWith(CAROL.session);
   });
 
+  it('gives the pointer to the row it is on, not to a clipped neighbour whose gap padding reaches it', () => {
+    const onSwitch = vi.fn();
+    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+    trigger.getBoundingClientRect = () => rect(10, 400, 42, 42);
+    // The list shows y 100..198. Bob is scrolled out but for his last pixel (100..101); Carol
+    // shows whole (103..147).
+    screen.getByTestId('quick-list').getBoundingClientRect = () => rect(56, 100, 228, 98);
+    const bobRow = screen.getByTestId('row-bob');
+    const carolRow = screen.getByTestId('row-carol');
+    bobRow.getBoundingClientRect = () => rect(60, 57, 220, 44);
+    carolRow.getBoundingClientRect = () => rect(60, 103, 220, 44);
+    const highlighted = () =>
+      [bobRow, carolRow]
+        .filter((row) => row.getAttribute('data-highlighted') === 'true')
+        .map((row) => row.getAttribute('data-quick-account-session-id'));
+    const moveTo = (clientY: number) =>
+      fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY }));
+
+    // On Carol, 1 px in: hers, though Bob's visible pixel is nearer than her middle.
+    moveTo(104);
+    expect(highlighted()).toEqual(['carol']);
+    moveTo(103);
+    expect(highlighted()).toEqual(['carol']);
+    // On Bob's visible pixel: his.
+    moveTo(101);
+    expect(highlighted()).toEqual(['bob']);
+    // In the gap, as near to one as to the other: one row, the earlier.
+    moveTo(102);
+    expect(highlighted()).toEqual(['bob']);
+    // Below Carol the padding still reaches 4 px and no further.
+    moveTo(151);
+    expect(highlighted()).toEqual(['carol']);
+    moveTo(152);
+    expect(highlighted()).toEqual([]);
+
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 104 }));
+    expect(onSwitch).toHaveBeenCalledTimes(1);
+    expect(onSwitch).toHaveBeenCalledWith(CAROL.session);
+  });
+
+  it('moves the highlight when the list scrolls under a pointer that stays where it is', () => {
+    const onSwitch = vi.fn();
+    render(<Harness others={[BOB, CAROL, DAVE]} onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+    trigger.getBoundingClientRect = () => rect(10, 400, 42, 42);
+
+    // The list shows 120 px of three 44 px rows, 2 px apart; the rows move with its scrollTop.
+    const list = screen.getByTestId('quick-list');
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 120 });
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 136 });
+    list.scrollTop = 0;
+    list.getBoundingClientRect = () => rect(60, 200, 220, 120);
+    const rows = ['bob', 'carol', 'dave'].map((id) => screen.getByTestId(`row-${id}`));
+    rows.forEach((row, index) => {
+      row.getBoundingClientRect = () => rect(60, 200 + index * 46 - list.scrollTop, 220, 44);
+    });
+    const [, carolRow, daveRow] = rows;
+    const removeListListener = vi.spyOn(list, 'removeEventListener');
+
+    // The pointer rests in the middle of the list, clear of the edges that scroll it.
+    fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 290 }));
+    expect(carolRow?.getAttribute('data-highlighted')).toBe('true');
+
+    // A wheel scrolls the list by 16 px: Dave is under the pointer now, and no pointer event says so.
+    list.scrollTop = 16;
+    fireEvent.scroll(list);
+    expect(carolRow?.getAttribute('data-highlighted')).toBeNull();
+    expect(daveRow?.getAttribute('data-highlighted')).toBe('true');
+
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 290 }));
+    expect(onSwitch).toHaveBeenCalledWith(DAVE.session);
+    expect(removeListListener).toHaveBeenCalledWith('scroll', expect.any(Function));
+  });
+
+  it.each(['pointerup', 'focusin', 'pointermove'] as const)(
+    'cancels without switching when a dialog has opened over the menu, seen at %s',
+    (seenAt) => {
+      const onSwitch = vi.fn();
+      const onClick = vi.fn();
+      render(<Harness onSwitch={onSwitch} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      holdOpen(trigger);
+      const { bobRow } = layoutTriggerAndMenu();
+      fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 }));
+      expect(bobRow?.getAttribute('data-highlighted')).toBe('true');
+
+      const dialog = openCoveringDialog();
+      // The row is still under the pointer; only the dialog over it is new.
+      expect(screen.getByTestId('quick-menu')).toBeTruthy();
+      if (seenAt === 'focusin') {
+        fireEvent.focusIn(dialog.querySelector('button') as HTMLElement);
+      } else if (seenAt === 'pointermove') {
+        fireEvent(
+          window,
+          pointerEvent('pointermove', { pointerId: 1, clientX: 121, clientY: 321 })
+        );
+      }
+      if (seenAt !== 'pointerup') expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+      // The pointer lifts where Bob's row was; pointer capture sends its click to the avatar.
+      fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+      fireEvent.click(trigger, { detail: 1 });
+
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(onSwitch).not.toHaveBeenCalled();
+      expect(onClick).not.toHaveBeenCalled();
+      expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+    }
+  );
+
+  it('keeps the menu for focus that moves while nothing covers it, and for a dialog that was open before it', () => {
+    const onSwitch = vi.fn();
+    const before = openCoveringDialog();
+    render(<Harness onSwitch={onSwitch} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+    layoutTriggerAndMenu();
+
+    fireEvent.focusIn(trigger);
+    fireEvent.focusIn(before.querySelector('button') as HTMLElement);
+    fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 320 }));
+    expect(screen.getByTestId('quick-menu')).toBeTruthy();
+
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 320 }));
+    expect(onSwitch).toHaveBeenCalledWith(BOB.session);
+  });
+
   it('suppresses the trailing avatar click after Escape cancel while pointer is still down', () => {
     const onSwitch = vi.fn();
     const onClick = vi.fn();
@@ -361,10 +523,93 @@ describe('useAccountHoldSwitch', () => {
       vi.advanceTimersByTime(600);
     });
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
 
     expect(onClick).not.toHaveBeenCalled();
     expect(onSwitch).not.toHaveBeenCalled();
+  });
+
+  it('lets Enter through after Escape while the mouse is still held, and still swallows the click of its lift', () => {
+    const onClick = vi.fn();
+    render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+    // Enter on the focused avatar, the mouse button still down: its click opens the account menu.
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.click(trigger, { detail: 0 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    // The mouse lifts on the avatar: its click would close that menu again, and is swallowed.
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 25, clientY: 420 }));
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    // Only that one click: the next is the user's own.
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('never swallows a click without a pointer (assistive technology), after a release or after Escape', () => {
+    const onClick = vi.fn();
+    render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+    const trigger = screen.getByTestId('trigger');
+
+    // Hold, release off the avatar (no click follows), then a click no key press announced.
+    holdOpen(trigger, 1);
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 500, clientY: 50 }));
+    fireEvent.click(trigger, { detail: 0 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    // Hold, Escape, and the same click while the pointer is still down.
+    holdOpen(trigger, 2);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.click(trigger, { detail: 0 });
+    expect(onClick).toHaveBeenCalledTimes(2);
+
+    // It did not use up the suppression of the held pointer's own click.
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 25, clientY: 420 }));
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['open', 'after Escape'] as const)(
+    'leaves no window listener and swallows no later click when the window loses focus (%s)',
+    (state) => {
+      const onClick = vi.fn();
+      render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      const leftListening = watchWindowListeners();
+      holdOpen(trigger);
+      if (state === 'after Escape') fireEvent.keyDown(window, { key: 'Escape' });
+      expect(leftListening()).not.toEqual([]);
+
+      // The pointer lifts in another window: no pointerup ever reaches this one.
+      fireEvent.blur(window);
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(leftListening()).toEqual([]);
+
+      // Back in the window, the first activation is the user's own, from a pointer or not.
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+      fireEvent.click(trigger, { detail: 0 });
+      expect(onClick).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('removes its window listeners once the suppression of a lifted pointer runs out', () => {
+    render(<Harness onSwitch={vi.fn()} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    const leftListening = watchWindowListeners();
+    holdOpen(trigger);
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 500, clientY: 50 }));
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(leftListening()).toEqual([]);
   });
 
   it('does not swallow an immediate keyboard Enter/Space activation or fresh tap after releasing off the avatar', () => {
@@ -382,7 +627,7 @@ describe('useAccountHoldSwitch', () => {
     fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 500, clientY: 50 }));
 
     fireEvent.keyDown(trigger, { key: 'Enter' });
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 0 });
     expect(onClick).toHaveBeenCalledTimes(1);
 
     // 2. Hold -> release off avatar -> immediate Space click.
@@ -394,7 +639,7 @@ describe('useAccountHoldSwitch', () => {
     fireEvent(window, pointerEvent('pointerup', { pointerId: 2, clientX: 500, clientY: 50 }));
 
     fireEvent.keyDown(trigger, { key: ' ' });
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 0 });
     expect(onClick).toHaveBeenCalledTimes(2);
 
     // 3. Hold -> release off avatar -> immediate fresh short tap.
@@ -407,7 +652,7 @@ describe('useAccountHoldSwitch', () => {
 
     fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 4, clientX: 25, clientY: 420 }));
     fireEvent(window, pointerEvent('pointerup', { pointerId: 4, clientX: 25, clientY: 420 }));
-    fireEvent.click(trigger);
+    fireEvent.click(trigger, { detail: 1 });
     expect(onClick).toHaveBeenCalledTimes(3);
   });
 

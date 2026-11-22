@@ -171,9 +171,6 @@ export const HoldTrigger = style({
   WebkitUserSelect: 'none',
   WebkitTouchCallout: 'none',
   selectors: {
-    '&[data-quick-switch-open="true"]': {
-      touchAction: 'none',
-    },
     '&&[data-quick-switch-pressing="true"]': {
       boxShadow: `0 0 0 ${toRem(2)} ${color.Primary.Main}`,
       transition: transition(['box-shadow'], motion.duration.Instant, motion.easing.Standard),

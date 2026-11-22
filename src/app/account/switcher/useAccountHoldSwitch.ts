@@ -1,5 +1,4 @@
 import {
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
@@ -9,6 +8,7 @@ import {
   useState,
 } from 'react';
 import { holdSelection } from '../../lib/hooks/useLongPress';
+import { hasOpenOverlay } from '../../lib/openOverlay';
 import type { StoredSession } from '../../matrix/session/sessions';
 import type { AccountMenuAccount } from './AccountMenu';
 
@@ -53,8 +53,8 @@ const hitTestQuickAccountRow = (
   }
 
   const rows = container.querySelectorAll<HTMLElement>('[data-quick-account-session-id]');
-  let bestId: string | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
+  let nearestId: string | undefined;
+  let nearestGap = Number.POSITIVE_INFINITY;
 
   for (const row of rows) {
     const sessionId = row.getAttribute('data-quick-account-session-id');
@@ -66,22 +66,27 @@ const hitTestQuickAccountRow = (
     const visibleRight = Math.min(rect.right, containerRect.right);
     if (visibleBottom <= visibleTop || visibleRight <= visibleLeft) continue;
 
-    // Small vertical forgiveness (up to 4 px) only within the visible container to bridge the
-    // 2 px gap between adjacent rows.
-    const hitTop = Math.max(containerRect.top, visibleTop - ROW_HIT_PADDING_Y);
-    const hitBottom = Math.min(containerRect.bottom, visibleBottom + ROW_HIT_PADDING_Y);
-    if (clientY < hitTop || clientY > hitBottom) continue;
+    // The row whose visible part holds the pointer wins outright, however near a neighbour is.
+    if (clientY >= visibleTop && clientY <= visibleBottom) return sessionId;
 
-    const centerY = (visibleTop + visibleBottom) / 2;
-    const distance = Math.abs(clientY - centerY);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestId = sessionId;
+    // Otherwise the pointer is in the 2 px gap between rows: the row whose visible edge is nearest
+    // takes it, up to 4 px away, and of two equally near the earlier one.
+    const gap = clientY < visibleTop ? visibleTop - clientY : clientY - visibleBottom;
+    if (gap <= ROW_HIT_PADDING_Y && gap < nearestGap) {
+      nearestGap = gap;
+      nearestId = sessionId;
     }
   }
 
-  return bestId;
+  return nearestId;
 };
+
+/**
+ * Whether a dialog or menu opened over the quick menu after it, such as Settings or the command
+ * palette from their shortcuts. Pointer capture keeps sending the held pointer to the avatar, so
+ * without this a release where a row was would switch accounts through the layer covering it.
+ */
+const isCovered = (menu: HTMLElement | null): boolean => !!menu && hasOpenOverlay(menu);
 
 /**
  * Returns a normalized scroll velocity in `[-1, 1]` when `(clientX, clientY)` rests inside the top
@@ -116,6 +121,13 @@ const edgeScrollVelocity = (
 
   return undefined;
 };
+
+/**
+ * What the pointer that started a gesture is doing as the gesture ends: `lifted` (released or
+ * cancelled), `held` (still down: Escape, a second pointer, a covering layer, `enabled` turning
+ * false) or `gone` (the window lost focus, so its release may never reach this window).
+ */
+type PointerAtEnd = 'lifted' | 'held' | 'gone';
 
 type ActiveGesture = {
   pointerId: number;
@@ -183,7 +195,6 @@ export type UseAccountHoldSwitchResult = {
   triggerProps: {
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
     onClickCapture: (event: ReactMouseEvent<HTMLElement>) => void;
-    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
     onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
     'data-quick-switch-pressing'?: 'true';
     'data-quick-switch-open'?: 'true';
@@ -209,7 +220,7 @@ export function useAccountHoldSwitch({
   const gestureRef = useRef<ActiveGesture>();
   const suppressNextClickRef = useRef(false);
   const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const removePendingReleaseRef = useRef<() => void>();
+  const removeSuppressListenersRef = useRef<() => void>();
 
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
@@ -224,61 +235,60 @@ export function useAccountHoldSwitch({
       clearTimeout(suppressClickTimerRef.current);
       suppressClickTimerRef.current = undefined;
     }
-    removePendingReleaseRef.current?.();
-    removePendingReleaseRef.current = undefined;
-  }, []);
-
-  const scheduleSuppressExpiry = useCallback(() => {
-    if (suppressClickTimerRef.current !== undefined) {
-      clearTimeout(suppressClickTimerRef.current);
-    }
-    suppressClickTimerRef.current = setTimeout(() => {
-      suppressNextClickRef.current = false;
-      suppressClickTimerRef.current = undefined;
-    }, SUPPRESS_CLICK_TIMEOUT_MS);
+    removeSuppressListenersRef.current?.();
+    removeSuppressListenersRef.current = undefined;
   }, []);
 
   /**
-   * Suppresses the synthetic click that ends an opened hold gesture. When the menu closes before
-   * `pointerup` (e.g. Escape, blur, second touch, `enabled` turning false), keep suppression armed
-   * until the held pointer lifts and only then start the short fallback expiry timer.
+   * Suppresses the click a pointer leaves behind when it lifts after its hold opened the menu.
+   * With `heldPointerId`, the menu closed while that pointer was still down: suppression stays
+   * armed until the pointer lifts. Either way it then lasts a short while, for a lift that leaves
+   * no click. Only four things disarm it: the click it swallows, that timer, a new primary press
+   * on the avatar, and the window losing focus, after which the lift may happen in another window
+   * and never be seen here. A key press never does: its own click passes anyway (`onClickCapture`).
    */
   const armSuppressNextClick = useCallback(
-    (pendingPointerId?: number) => {
+    (heldPointerId?: number) => {
       clearSuppressNextClick();
       suppressNextClickRef.current = true;
-      if (pendingPointerId === undefined || typeof window === 'undefined') {
-        scheduleSuppressExpiry();
-        return;
-      }
-      const onEnd = (winEvent: PointerEvent) => {
-        if (winEvent.pointerId !== pendingPointerId) return;
-        removePendingReleaseRef.current?.();
-        removePendingReleaseRef.current = undefined;
-        if (suppressNextClickRef.current) {
-          scheduleSuppressExpiry();
-        }
+      const expireSoon = () => {
+        suppressClickTimerRef.current = setTimeout(
+          clearSuppressNextClick,
+          SUPPRESS_CLICK_TIMEOUT_MS
+        );
       };
-      window.addEventListener('pointerup', onEnd);
-      window.addEventListener('pointercancel', onEnd);
-      removePendingReleaseRef.current = () => {
+      const onEnd = (winEvent: PointerEvent) => {
+        if (winEvent.pointerId !== heldPointerId) return;
+        window.removeEventListener('pointerup', onEnd);
+        window.removeEventListener('pointercancel', onEnd);
+        expireSoon();
+      };
+      window.addEventListener('blur', clearSuppressNextClick);
+      if (heldPointerId === undefined) {
+        expireSoon();
+      } else {
+        window.addEventListener('pointerup', onEnd);
+        window.addEventListener('pointercancel', onEnd);
+      }
+      removeSuppressListenersRef.current = () => {
+        window.removeEventListener('blur', clearSuppressNextClick);
         window.removeEventListener('pointerup', onEnd);
         window.removeEventListener('pointercancel', onEnd);
       };
     },
-    [clearSuppressNextClick, scheduleSuppressExpiry]
+    [clearSuppressNextClick]
   );
 
   const finishGesture = useCallback(
-    (fromPointerUp: boolean) => {
+    (pointer: PointerAtEnd) => {
       const current = gestureRef.current;
       if (!current) return;
       const wasOpen = current.open;
       const { pointerId } = current;
       gestureRef.current = undefined;
       teardownGesture(current);
-      if (wasOpen) {
-        armSuppressNextClick(fromPointerUp ? undefined : pointerId);
+      if (wasOpen && pointer !== 'gone') {
+        armSuppressNextClick(pointer === 'held' ? pointerId : undefined);
       }
       setPressing(false);
       setHoldAnchor(undefined);
@@ -288,12 +298,39 @@ export function useAccountHoldSwitch({
   );
 
   const close = useCallback(() => {
-    finishGesture(false);
+    finishGesture('held');
   }, [finishGesture]);
+
+  /** Highlights the row under the pointer's last position, the one a release would switch to. */
+  const refreshHover = useCallback((gesture: ActiveGesture) => {
+    const hovered = hitTestQuickAccountRow(
+      gesture.lastX,
+      gesture.lastY,
+      gesture.anchor,
+      menuRef.current
+    );
+    if (hovered !== gesture.hoveredSessionId) {
+      gesture.hoveredSessionId = hovered;
+      setHoveredSessionId(hovered);
+    }
+  }, []);
 
   useEffect(() => {
     if (!enabled) close();
   }, [enabled, close]);
+
+  // A wheel or trackpad scrolls the list under a pointer that stays where it is; the highlight
+  // follows the rows without waiting for the pointer to move.
+  useEffect(() => {
+    const list = holdAnchor && findScrollList(menuRef.current);
+    if (!list) return undefined;
+    const onScroll = () => {
+      const current = gestureRef.current;
+      if (current?.open) refreshHover(current);
+    };
+    list.addEventListener('scroll', onScroll, { passive: true });
+    return () => list.removeEventListener('scroll', onScroll);
+  }, [holdAnchor, refreshHover]);
 
   useEffect(
     () => () => {
@@ -302,15 +339,9 @@ export function useAccountHoldSwitch({
         gestureRef.current = undefined;
         teardownGesture(current);
       }
-      if (suppressClickTimerRef.current !== undefined) {
-        clearTimeout(suppressClickTimerRef.current);
-        suppressClickTimerRef.current = undefined;
-      }
-      removePendingReleaseRef.current?.();
-      removePendingReleaseRef.current = undefined;
-      suppressNextClickRef.current = false;
+      clearSuppressNextClick();
     },
-    []
+    [clearSuppressNextClick]
   );
 
   const onPointerDown = useCallback(
@@ -335,16 +366,7 @@ export function useAccountHoldSwitch({
       const { pointerId, clientX: startX, clientY: startY } = event;
 
       const updateHoverAndAutoScroll = (current: ActiveGesture) => {
-        const nextHovered = hitTestQuickAccountRow(
-          current.lastX,
-          current.lastY,
-          current.anchor,
-          menuRef.current
-        );
-        if (nextHovered !== current.hoveredSessionId) {
-          current.hoveredSessionId = nextHovered;
-          setHoveredSessionId(nextHovered);
-        }
+        refreshHover(current);
 
         const edge = edgeScrollVelocity(
           current.lastX,
@@ -386,17 +408,7 @@ export function useAccountHoldSwitch({
           const clamped = Math.max(0, Math.min(maxScroll, container.scrollTop + delta));
           const snapped = clamped <= 0.5 ? 0 : clamped >= maxScroll - 0.5 ? maxScroll : clamped;
           container.scrollTop = snapped;
-
-          const scrolledHover = hitTestQuickAccountRow(
-            current.lastX,
-            current.lastY,
-            current.anchor,
-            menuRef.current
-          );
-          if (scrolledHover !== current.hoveredSessionId) {
-            current.hoveredSessionId = scrolledHover;
-            setHoveredSessionId(scrolledHover);
-          }
+          refreshHover(current);
 
           if (edgeScrollVelocity(current.lastX, current.lastY, current.anchor, menuRef.current)) {
             current.scrollRafId = requestAnimationFrame(step);
@@ -432,6 +444,10 @@ export function useAccountHoldSwitch({
           return;
         }
 
+        if (isCovered(menuRef.current)) {
+          close();
+          return;
+        }
         updateHoverAndAutoScroll(current);
       };
 
@@ -439,18 +455,18 @@ export function useAccountHoldSwitch({
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
 
-        const wasOpen = current.open;
-        const targetSessionId = wasOpen
-          ? hitTestQuickAccountRow(
-              winEvent.clientX,
-              winEvent.clientY,
-              current.anchor,
-              menuRef.current
-            )
-          : undefined;
-        finishGesture(true);
+        const targetSessionId =
+          current.open && !isCovered(menuRef.current)
+            ? hitTestQuickAccountRow(
+                winEvent.clientX,
+                winEvent.clientY,
+                current.anchor,
+                menuRef.current
+              )
+            : undefined;
+        finishGesture('lifted');
 
-        if (!wasOpen || !targetSessionId) return;
+        if (!targetSessionId) return;
         const match = othersRef.current.find(
           (account) => account.session.sessionId === targetSessionId
         );
@@ -462,11 +478,17 @@ export function useAccountHoldSwitch({
       const onWindowPointerCancel = (winEvent: PointerEvent) => {
         const current = gestureRef.current;
         if (!current || winEvent.pointerId !== current.pointerId) return;
-        finishGesture(true);
+        finishGesture('lifted');
       };
 
+      // The pointer may lift in another window: nothing stays behind waiting for it.
       const onWindowBlur = () => {
-        close();
+        finishGesture('gone');
+      };
+
+      // Focus moving into a layer that opened over the menu is the first sign of it.
+      const onWindowFocusIn = () => {
+        if (gestureRef.current?.open && isCovered(menuRef.current)) close();
       };
 
       const onWindowKeyDown = (winEvent: KeyboardEvent) => {
@@ -483,6 +505,7 @@ export function useAccountHoldSwitch({
       window.addEventListener('pointerup', onWindowPointerUp);
       window.addEventListener('pointercancel', onWindowPointerCancel);
       window.addEventListener('blur', onWindowBlur);
+      window.addEventListener('focusin', onWindowFocusIn);
       window.addEventListener('keydown', onWindowKeyDown, true);
 
       const removeListeners = () => {
@@ -491,6 +514,7 @@ export function useAccountHoldSwitch({
         window.removeEventListener('pointerup', onWindowPointerUp);
         window.removeEventListener('pointercancel', onWindowPointerCancel);
         window.removeEventListener('blur', onWindowBlur);
+        window.removeEventListener('focusin', onWindowFocusIn);
         window.removeEventListener('keydown', onWindowKeyDown, true);
       };
 
@@ -550,24 +574,18 @@ export function useAccountHoldSwitch({
       gestureRef.current = gesture;
       setPressing(true);
     },
-    [clearSuppressNextClick, close, finishGesture]
+    [clearSuppressNextClick, close, finishGesture, refreshHover]
   );
 
   const onClickCapture = useCallback(
     (event: ReactMouseEvent<HTMLElement>) => {
-      if (!suppressNextClickRef.current) return;
+      // Only a pointer's click counts presses (`detail` of 1 or more). Enter, Space and assistive
+      // technology click with 0: never the click a lifted pointer leaves behind, so never
+      // swallowed, and suppression stays armed for a pointer that is still down.
+      if (event.detail === 0 || !suppressNextClickRef.current) return;
       clearSuppressNextClick();
       event.preventDefault();
       event.stopPropagation();
-    },
-    [clearSuppressNextClick]
-  );
-
-  const onKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLElement>) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        clearSuppressNextClick();
-      }
     },
     [clearSuppressNextClick]
   );
@@ -586,7 +604,6 @@ export function useAccountHoldSwitch({
     triggerProps: {
       onPointerDown,
       onClickCapture,
-      onKeyDown,
       onContextMenu,
       'data-quick-switch-pressing': pressing ? 'true' : undefined,
       'data-quick-switch-open': holdAnchor ? 'true' : undefined,

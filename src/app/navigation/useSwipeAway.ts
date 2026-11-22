@@ -42,6 +42,7 @@ export const useSwipeAway = (
       last = start;
     };
     const moveSwipe = (event: TouchEvent) => {
+      if (!start) return;
       if (hasOpenOverlay(panel)) {
         start = undefined;
         last = undefined;
