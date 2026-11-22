@@ -9,7 +9,11 @@ import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
-import { IReplyDraft, roomUploadAtomFamily, threadViewVoiceComposersAtom } from './roomInputDrafts';
+import {
+  IReplyDraft,
+  roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
+} from './roomInputDrafts';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
@@ -63,8 +67,7 @@ const createDeferred = <T>() => {
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file: not encrypted, not a voice message, not a text paste.
-  encInfo: undefined,
-  originalFile: file,
+  encInfo: undefined, originalFile: file,
   metadata: {
     markedAsSpoiler: false,
   },
@@ -74,8 +77,7 @@ const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => (
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file that also carries the marker of a pasted text.
-  encInfo: undefined,
-  originalFile: file,
+  encInfo: undefined, originalFile: file,
   metadata: {
     markedAsSpoiler: false,
     mindroomPasteAttachment: {
@@ -512,9 +514,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [
-      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
-    ]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -525,7 +525,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(room.current().joinedSendPending).toBe(true);
   });
 
-  it('takes a send parked for its thread over once its own send is done', async () => {
+  it("takes a send parked for its thread over once its own send is done", async () => {
     const store = getDefaultStore();
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
@@ -533,9 +533,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [
-      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
-    ]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];
@@ -546,10 +544,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     store.set(threadViewVoiceComposersAtom, []);
     expect(thread.current().joinedSendPending).toBe(false);
 
-    thread.api.uploadsRef.current = [
-      successUpload(own, 'mxc://mindroom/own'),
-      loadingUpload(child),
-    ];
+    thread.api.uploadsRef.current = [successUpload(own, 'mxc://mindroom/own'), loadingUpload(child)];
     await act(async () => {
       store.set(roomUploadAtomFamily(own), { mxc: 'mxc://mindroom/own' });
       await Promise.resolve();
