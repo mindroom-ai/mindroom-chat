@@ -582,6 +582,14 @@ test.describe('Electron desktop shell', () => {
 
     const bobSession = await launchDesktop();
     const aliceSession = await launchDesktop();
+    // The packaged config keeps the recovery password start prompt on; it opens whenever the
+    // server check settles and would cover the composer, so dismiss it whenever it shows.
+    for (const { page } of [bobSession, aliceSession]) {
+      const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
+      await page.addLocatorHandler(setup, () =>
+        setup.getByRole('button', { name: 'Not now' }).click()
+      );
+    }
     try {
       // Sign Bob in first so his device keys are published before Alice encrypts.
       await loginWithPassword(bobSession.page, {
