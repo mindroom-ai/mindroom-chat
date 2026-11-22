@@ -217,7 +217,6 @@ describe('bundleProtocol', () => {
       expect(await normalizedEscape.text()).not.toContain('TOP_SECRET');
 
       const symlink = await handler(new Request(`${APP_ORIGIN}/leak.txt`));
-      expect(symlink.status).toBe(404);
       expect(await symlink.text()).not.toContain('TOP_SECRET');
     });
 

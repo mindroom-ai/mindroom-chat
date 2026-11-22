@@ -378,21 +378,45 @@ test.describe('Electron desktop shell', () => {
       });
       expect(layout).toEqual({ paddingTop: '28px', dragHeight: '28px', dragRegion: 'drag' });
 
-      // Real ModalLayer/Dialog: navigate to an unlisted local server so UnlistedServerCheck opens.
+      const clickInsideStrip = async (target: ReturnType<typeof page.getByRole>) => {
+        await expect(target).toBeVisible();
+        await target.evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          const container =
+            el.closest<HTMLElement>('[role="alertdialog"], [role="dialog"], [role="menu"]') ??
+            el.parentElement;
+          if (!container) return;
+          const containerRect = container.getBoundingClientRect();
+          const dy = 14 - (rect.top + rect.height / 2);
+          container.style.position = 'fixed';
+          container.style.top = `${containerRect.top + dy}px`;
+          container.style.left = '120px';
+          container.style.right = 'auto';
+        });
+        expect(
+          await target.evaluate((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region'))
+        ).toBe('no-drag');
+        const dragRect = await page.locator('[data-titlebar-drag]').boundingBox();
+        const box = await target.boundingBox();
+        expect(dragRect).not.toBeNull();
+        expect(box).not.toBeNull();
+        const cx = box!.x + box!.width / 2;
+        const cy = box!.y + box!.height / 2;
+        expect(cx).toBeGreaterThanOrEqual(dragRect!.x);
+        expect(cx).toBeLessThanOrEqual(dragRect!.x + dragRect!.width);
+        expect(cy).toBeGreaterThanOrEqual(dragRect!.y);
+        expect(cy).toBeLessThan(dragRect!.y + dragRect!.height);
+        await page.mouse.click(cx, cy);
+      };
+
+      // Real ModalLayer/Dialog: navigate to an unlisted local server so UnlistedServerPrompt opens.
       await page.goto(
         `${APP_ORIGIN}/login/${encodeURIComponent(`http://127.0.0.1:${probe.port}`)}`
       );
       await page.getByRole('button', { name: /apple/i }).click();
       const dialog = page.getByRole('alertdialog');
       await expect(dialog).toBeVisible();
-      const cancelBtn = dialog.getByRole('button', { name: /cancel/i });
-      await expect(cancelBtn).toBeVisible();
-      expect(
-        await cancelBtn.evaluate((el) =>
-          getComputedStyle(el).getPropertyValue('-webkit-app-region')
-        )
-      ).toBe('no-drag');
-      await cancelBtn.click();
+      await clickInsideStrip(dialog.getByRole('button', { name: /cancel/i }));
       await expect(dialog).toHaveCount(0);
 
       // Real PopOut Menu: seed a session against the local stub so ClientRoot renders StartupRecoveryMenu.
@@ -422,14 +446,7 @@ test.describe('Electron desktop shell', () => {
       await expect(recoveryTrigger).toBeVisible();
       await recoveryTrigger.click();
 
-      const removeItem = page.getByRole('menuitem', { name: /remove account/i });
-      await expect(removeItem).toBeVisible();
-      expect(
-        await removeItem.evaluate((el) =>
-          getComputedStyle(el).getPropertyValue('-webkit-app-region')
-        )
-      ).toBe('no-drag');
-      await removeItem.click();
+      await clickInsideStrip(page.getByRole('menuitem', { name: /remove account/i }));
       await expect(page.locator('input[name="serverInput"]')).toBeVisible();
 
       // Fullscreen toggles --app-inset-top to 0px via enter-full-screen / leave-full-screen.
@@ -587,7 +604,8 @@ test.describe('Electron desktop shell', () => {
       await composer.click();
       await aliceSession.page.keyboard.type(messageText);
       await aliceSession.page.keyboard.press('Enter');
-      await expect(aliceSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      const aliceTimeline = aliceSession.page.getByTestId('room-virtual-inner');
+      await expect(aliceTimeline.getByText(messageText)).toBeVisible({ timeout: 20_000 });
 
       // Assert the homeserver stored ciphertext (m.room.encrypted) and not plaintext.
       await expect
@@ -606,13 +624,15 @@ test.describe('Electron desktop shell', () => {
 
       // Assert the second account in its own profile decrypts the unique plaintext.
       await bobSession.page.goto(roomUrl);
-      await expect(bobSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await expect(
+        bobSession.page.getByTestId('room-virtual-inner').getByText(messageText)
+      ).toBeVisible({ timeout: 20_000 });
       await expect(bobSession.page.getByText(/Unable to decrypt/i)).toHaveCount(0);
 
       // Reload Alice and verify the encrypted message still decrypts from persistent crypto storage.
       await aliceSession.page.reload();
       await waitForLoggedInShell(aliceSession.page);
-      await expect(aliceSession.page.getByText(messageText)).toBeVisible({ timeout: 20_000 });
+      await expect(aliceTimeline.getByText(messageText)).toBeVisible({ timeout: 20_000 });
       await expect(aliceSession.page.getByText(/Unable to decrypt/i)).toHaveCount(0);
 
       // Probe the homeserver on the LAN address (must be set and reachable).
