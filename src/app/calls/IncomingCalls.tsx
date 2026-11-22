@@ -111,13 +111,18 @@ function RingAlerts({
     return () => document.removeEventListener('visibilitychange', syncVisibility);
   }, []);
 
-  useEffect(
-    () =>
-      sound && !muted && !hiddenOnIOS && isRingCallLive(mx, room, ring.expiresAt)
-        ? startRingtone()
-        : undefined,
-    [sound, muted, hiddenOnIOS, mx, room, ring.eventId, ring.expiresAt]
-  );
+  const hiddenDuringRing = useRef<string>();
+
+  useEffect(() => {
+    if (hiddenOnIOS) {
+      hiddenDuringRing.current = ring.eventId;
+      return undefined;
+    }
+    if (!sound || muted || Date.now() >= ring.expiresAt) return undefined;
+    const isIOSReplay = hiddenDuringRing.current === ring.eventId;
+    if (isIOSReplay && !isRingCallLive(mx, room, ring.expiresAt)) return undefined;
+    return startRingtone();
+  }, [sound, muted, hiddenOnIOS, mx, room, ring.eventId, ring.expiresAt]);
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;

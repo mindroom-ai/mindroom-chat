@@ -19,6 +19,7 @@ const calls = vi.hoisted(() => ({
   nativeIOS: false,
   stopRingtone: vi.fn(),
   startRingtone: vi.fn(),
+  members: [{ userId: '@maya:calls.test' }] as { userId: string }[],
 }));
 const client = vi.hoisted(() => ({
   clientRunning: true,
@@ -49,7 +50,7 @@ vi.mock('./callRings', () => ({
   },
   declineRing: vi.fn(async () => undefined),
 }));
-vi.mock('./callMemberships', () => ({ activeMemberships: () => [{ userId: '@maya:calls.test' }] }));
+vi.mock('./callMemberships', () => ({ activeMemberships: () => calls.members }));
 vi.mock('./CallTile', () => ({ CallMemberAvatar: () => null }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
@@ -122,6 +123,7 @@ afterEach(() => {
   calls.nativeIOS = false;
   calls.startRingtone.mockClear();
   calls.stopRingtone.mockClear();
+  calls.members = [{ userId: '@maya:calls.test' }];
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -221,6 +223,20 @@ describe('IncomingCalls ring alerts', () => {
 
     act(() => renderer.unmount());
   });
+
+  it.each([false, true])(
+    'starts the ringtone on first render even before call memberships are populated (nativeIOS=%s)',
+    (nativeIOS) => {
+      calls.settings = true;
+      calls.nativeIOS = nativeIOS;
+      calls.members = [];
+
+      const renderer = mountAndRing(createStore(), `$empty-members-${nativeIOS}`);
+      expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+
+      act(() => renderer.unmount());
+    }
+  );
 
   it('silences ringtone and desktop alert for a muted non-m.direct room while keeping the card visible', () => {
     calls.settings = true;
