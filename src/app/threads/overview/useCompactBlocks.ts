@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useReducer, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
@@ -69,18 +69,20 @@ export function useCompactBlocks(options: Options) {
   });
   const index = new Map(blocks.flatMap((ids, i) => ids.map((id) => [id, i] as const)));
   const missing = blocks.findIndex((block) => block.some((id) => !heights.has(id)));
-  const order = JSON.stringify(groups);
+  const order = useMemo(() => JSON.stringify(groups), [groups]);
   const small = index.size <= 2 * BLOCK_CARDS;
-  let firstScreen = heights.size === 0 ? 2 * BLOCK_CARDS : 0;
   // A dirty height still occupies space. Only undiscovered space delays placement.
   const extentComplete = missing < 0 || small;
   const band = (ids: string[]) => {
     const slots = ids.flatMap((id) => index.get(id) ?? []);
     return slots.length ? ([Math.min(...slots), Math.max(...slots)] as const) : ([0, 0] as const);
   };
+  const medianSlot = (ids: string[]) => {
+    const slots = ids.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
+    return slots[Math.floor(slots.length / 2)];
+  };
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
-  const savedSlots = savedKeys.flatMap((id) => index.get(id) ?? []).sort((a, b) => a - b);
-  const backSlot = savedSlots[Math.floor(savedSlots.length / 2)];
+  const backSlot = medianSlot(savedKeys);
   const prefixReady = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
   const back = !state.placed && !!saved && saved.scrollTop > 0;
@@ -99,16 +101,11 @@ export function useCompactBlocks(options: Options) {
   const placeReady = !back || ((small || state.checked) && canPlace && !waitingForRange);
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = prefixReady(targetSlot);
-  const visible = geometry.visible.filter((id) => index.has(id));
-  const seed = band(visible);
+  const bandIds = back && backSlot !== undefined ? savedKeys : geometry.visible;
+  const seed = band(bandIds);
+  const middle = medianSlot(bandIds) ?? 0;
   const [first, last] =
-    back && backSlot !== undefined
-      ? geometry.order === order
-        ? band(savedKeys)
-        : [backSlot, backSlot]
-      : geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS
-      ? seed
-      : band(visible.slice(0, 1));
+    geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS ? seed : [middle, middle];
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
@@ -119,7 +116,7 @@ export function useCompactBlocks(options: Options) {
   // Keep the visible rows while a partial restore discovers its new prefix.
   const occupied = back && indexPending ? state.occupied : [];
   const retained = new Set([focused, protectedId, state.gesture?.id, ...occupied]);
-  const liveIds: string[] = [];
+  const projectedIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
     const group: CompactBlockRow[] = [];
@@ -131,11 +128,11 @@ export function useCompactBlocks(options: Options) {
         const height = heights.get(id);
         if (
           small ||
-          firstScreen-- > 0 ||
           slot === probe ||
+          (heights.size === 0 && slot === 1) ||
           (height !== undefined && (inBand || seeking || retained.has(id)))
         ) {
-          liveIds.push(id);
+          projectedIds.push(id);
           group.push(id);
         } else if (height) {
           const tail = group.at(-1);
@@ -155,10 +152,83 @@ export function useCompactBlocks(options: Options) {
     return group;
   });
 
-  useLayoutEffect(() => {
+  const mounted = useRef<string[]>([]);
+  const liveIds =
+    projectedIds.length === mounted.current.length &&
+    projectedIds.every((id, i) => id === mounted.current[i])
+      ? mounted.current
+      : projectedIds;
+  const measure = useRef<(settle?: boolean) => boolean>();
+  const readyRef = useRef(placeReady);
+  readyRef.current = placeReady;
+  const watch = useRef<(nodes: NodeListOf<Element>, wake: boolean) => void>();
+
+  useEffect(() => {
     const view = scrollRef.current;
     const content = contentRef.current;
     if (!view || !content || typeof window === 'undefined') return undefined;
+    let frame = 0;
+    const schedule = () => {
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          if (measure.current?.(true)) render();
+        });
+    };
+    const scroll = () => {
+      if (measure.current?.(true)) flushSync(render);
+    };
+    const observer =
+      typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
+    observer?.observe(view);
+    observer?.observe(content);
+    let observed = new Set<Element>();
+    watch.current = (nodes, wake) => {
+      const next = new Set(nodes);
+      for (const node of observed) if (!next.has(node)) observer?.unobserve?.(node);
+      for (const node of next) if (!observed.has(node)) observer?.observe(node);
+      observed = next;
+      if (wake) schedule();
+    };
+    watch.current(content.querySelectorAll(SHELL), true);
+    const fontsChanged = () => {
+      geometry.metrics = undefined;
+      schedule();
+    };
+    document.fonts?.addEventListener('loadingdone', fontsChanged);
+    const track = (event: Event) => {
+      if (event.type === 'wheel' && readyRef.current) state.placed = true;
+      const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
+      if (event.type === 'pointerdown' || event.type === 'dragstart') {
+        const node = event.target;
+        const id = node instanceof Element && content.contains(node) && cardId(node);
+        if (id) state.gesture = { id, pointer };
+      } else if (
+        event.type === 'dragend' ||
+        event.target === window ||
+        (pointer !== undefined && pointer === state.gesture?.pointer)
+      )
+        state.gesture = undefined;
+    };
+    const events = ['pointerdown', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'blur'];
+    events.forEach((event) => window.addEventListener(event, track, true));
+    view.addEventListener('scroll', scroll, { passive: true });
+    view.addEventListener('wheel', track, { passive: true });
+    return () => {
+      observer?.disconnect();
+      events.forEach((event) => window.removeEventListener(event, track, true));
+      document.fonts?.removeEventListener('loadingdone', fontsChanged);
+      cancelAnimationFrame(frame);
+      view.removeEventListener('scroll', scroll);
+      view.removeEventListener('wheel', track);
+    };
+  }, [contentRef, geometry, scrollRef, state]);
+
+  useLayoutEffect(() => {
+    const view = scrollRef.current;
+    const content = contentRef.current;
+    if (!view || !content || typeof window === 'undefined') return;
+    mounted.current = liveIds;
     if (records && !indexPending)
       for (const id of heights.keys()) {
         if (records.has(id) || index.has(id)) continue;
@@ -169,6 +239,7 @@ export function useCompactBlocks(options: Options) {
       const style = getComputedStyle(content);
       const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
+      if (width <= 0 || view.clientHeight <= 0) return false;
       const metrics = `${width}|${style.fontFamily}|${style.fontSize}|${measuredGap}`;
       let changed = metrics !== geometry.metrics;
       if (changed) fresh.clear();
@@ -179,7 +250,10 @@ export function useCompactBlocks(options: Options) {
       const visible: string[] = [];
       for (const id of liveIds) {
         fresh.add(id);
-        if (!heights.has(id)) heights.set(id, 0);
+        if (!heights.has(id)) {
+          heights.set(id, 0);
+          changed = true;
+        }
       }
       for (const row of content.querySelectorAll<HTMLElement>(`${SHELL}, [data-compact-spacer]`)) {
         const { top: y, height, bottom: end } = row.getBoundingClientRect();
@@ -220,52 +294,8 @@ export function useCompactBlocks(options: Options) {
     const measured = layout();
     if (back && canPlace && !placeReady && (!waitingForRange || state.rangeReady)) render();
     state.checked = true;
-    const update = () => layout(true);
-    let frame = 0;
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        if (update() || measured || (!small && probe >= 0)) render();
-      });
-    };
-    schedule();
-    const scroll = () => {
-      if (update()) flushSync(render);
-    };
-    const observer =
-      typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
-    for (const node of [view, content, ...content.querySelectorAll(SHELL)]) observer?.observe(node);
-    const fontsChanged = () => {
-      geometry.metrics = undefined;
-      schedule();
-    };
-    document.fonts?.addEventListener('loadingdone', fontsChanged);
-    const track = (event: Event) => {
-      if (event.type === 'wheel' && placeReady) state.placed = true;
-      const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
-      if (event.type === 'pointerdown' || event.type === 'dragstart') {
-        const node = event.target;
-        const id = node instanceof Element && content.contains(node) && cardId(node);
-        if (id) state.gesture = { id, pointer };
-      } else if (
-        event.type === 'dragend' ||
-        event.target === window ||
-        (pointer !== undefined && pointer === state.gesture?.pointer)
-      )
-        state.gesture = undefined;
-    };
-    const events = ['pointerdown', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'blur'];
-    events.forEach((event) => window.addEventListener(event, track, true));
-    view.addEventListener('scroll', scroll, { passive: true });
-    view.addEventListener('wheel', track, { passive: true });
-    return () => {
-      observer?.disconnect();
-      events.forEach((event) => window.removeEventListener(event, track, true));
-      document.fonts?.removeEventListener('loadingdone', fontsChanged);
-      cancelAnimationFrame(frame);
-      view.removeEventListener('scroll', scroll);
-      view.removeEventListener('wheel', track);
-    };
+    measure.current = (settle = false) => layout(settle) || measured || (!small && probe >= 0);
+    watch.current?.(content.querySelectorAll(SHELL), measured || (!small && probe >= 0) || (back && placeReady));
   });
 
   return { rows, liveIds, extentComplete, placeReady, targetReady };

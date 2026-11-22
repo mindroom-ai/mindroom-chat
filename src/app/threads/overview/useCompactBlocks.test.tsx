@@ -21,12 +21,14 @@ function List({
   records,
   protectedId,
   indexPending,
+  onIds,
 }: {
   memory: ScrollAnchorMemory;
   shown?: Record<string, string[]>;
   records?: ReadonlyMap<string, ThreadRecord>;
   protectedId?: string;
   indexPending?: boolean;
+  onIds?: (ids: string[]) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,7 @@ function List({
     protectedId,
     indexPending,
   });
+  onIds?.(window.liveIds);
   return (
     <div
       ref={scrollRef}
@@ -67,12 +70,14 @@ function List({
 }
 
 let resize: () => void;
+let observers: number;
 const getHeight = (row: HTMLElement) =>
   row.dataset.scrollAnchor === undefined
     ? Number.parseFloat(row.style.height) || 0
     : height(row.dataset.scrollAnchor);
 
 beforeEach(() => {
+  observers = 0;
   width = 390;
   fontSize = 16;
   vi.useFakeTimers();
@@ -80,9 +85,11 @@ beforeEach(() => {
     'ResizeObserver',
     class {
       constructor(update: () => void) {
+        observers += 1;
         resize = update;
       }
       observe() {}
+      unobserve() {}
       disconnect() {}
     }
   );
@@ -90,6 +97,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
   ) {
+    if (width === 0) return new DOMRect();
     if (this.hasAttribute('data-view')) return new DOMRect(0, 0, width, clientHeight);
     let top = 0 - (this.parentElement?.parentElement?.scrollTop ?? 0);
     for (
@@ -260,6 +268,62 @@ it('lets a wheel take over a clamped pending restore', () => {
     view.dispatchEvent(new Event('scroll'));
   });
   expect(view.querySelector('[data-scroll-anchor="$row0"]')).not.toBeNull();
+});
+
+it('keeps the same observer and mounted IDs through an index-only refresh', () => {
+  const memory = new Map();
+  const onIds = vi.fn();
+  const { rerender } = render(<List memory={memory} onIds={onIds} />);
+  tick(12);
+  const last = onIds.mock.lastCall?.[0];
+  const measured = observers;
+  rerender(
+    <List
+      memory={memory}
+      onIds={onIds}
+      records={new Map(ids.map((id) => [id, {} as ThreadRecord]))}
+    />
+  );
+  expect(onIds.mock.lastCall?.[0]).toBe(last);
+  expect(observers).toBe(measured);
+});
+
+it('keeps measured extent while the conversation is hidden', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  const extent = () =>
+    [...container.querySelectorAll<HTMLElement>('[data-compact-spacer]')].reduce(
+      (sum, spacer) => sum + parseFloat(spacer.style.height),
+      0
+    );
+  tick(12);
+  const measured = extent();
+  width = 0;
+  resize();
+  tick(12);
+  rerender(<List memory={memory} />);
+  expect(extent()).toBe(measured);
+  width = 390;
+  resize();
+  tick(12);
+  expect(extent()).toBe(measured);
+});
+
+it('keeps the stationary visible cards when the first jumps to the top', () => {
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} />);
+  tick(12);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  act(() => {
+    view.scrollTop = 30 * 199.25;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  const stationary = view.querySelector('[data-scroll-anchor="$row61"]');
+  expect(stationary).not.toBeNull();
+  rerender(
+    <List memory={memory} shown={{ cards: [ids[60]!, ...ids.filter((_, i) => i !== 60)] }} />
+  );
+  expect(view.querySelector('[data-scroll-anchor="$row61"]')).toBe(stationary);
 });
 
 it('can place a warm Back while occupied spacer heights await a font refresh', () => {
