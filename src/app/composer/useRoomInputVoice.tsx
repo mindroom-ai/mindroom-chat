@@ -8,7 +8,8 @@ import React, {
 } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { IContent, MatrixClient } from 'matrix-js-sdk';
+import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
+import type { ThreadModelContent } from '../matrix/protocol/threadModel';
 import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
@@ -88,6 +89,7 @@ type UseRoomInputVoiceOptions = {
     ReturnType<typeof useRoomInputSendSessionController>,
     'hasActiveSendSession' | 'startSendSession'
   >;
+  takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
@@ -128,6 +130,7 @@ export const useRoomInputVoice = ({
   attachments: attachmentAccess,
   transport: { createVoiceUploadItems, uploadItem, uploadItemWhileStaged, sendVoiceItem },
   sessions: { hasActiveSendSession, startSendSession },
+  takeRootModelDraft,
   onRoomMessageSent,
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
@@ -193,6 +196,7 @@ export const useRoomInputVoice = ({
   // account it took the lock under. Left since, the lock is the next account's to release.
   const voiceAutoSendClaimedRef = useRef<() => boolean>();
   const voiceAutoSendInFlightRef = useRef(false);
+  const voiceRootModelRef = useRef<ThreadModelContent>();
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
 
@@ -248,12 +252,23 @@ export const useRoomInputVoice = ({
     voiceAutoSendClaimedRef.current = voiceAccountGuard(store);
     store.set(voiceAutoSendPendingAtom, true);
     const bundle = pendingVoiceComposerBundleRef.current;
+    const parked = store.get(liveVoiceRecordingAtom)
+      ? undefined
+      : store.get(pendingVoiceSendDraftAtom);
+    const target = parked && !parked.recovered ? parked.context : getContext();
+    if (
+      !bundle?.pastesMissing &&
+      target.threadingEnabled !== false &&
+      !target.threadId &&
+      !target.replyDraft
+    )
+      voiceRootModelRef.current = takeRootModelDraft?.(target.room);
     if (bundle?.textContent && !bundle.composerReset) {
       bundle.composerReset = true;
       resetText();
     }
     return true;
-  }, [resetText, store]);
+  }, [getContext, resetText, store, takeRootModelDraft]);
 
   const releaseVoiceAutoSend = useCallback(() => {
     const accountGuard = voiceAutoSendClaimedRef.current;
@@ -275,6 +290,7 @@ export const useRoomInputVoice = ({
         );
       }
     }
+    voiceRootModelRef.current = undefined;
     bundle?.releasePasteProtection();
     pendingVoiceComposerBundleRef.current = undefined;
     voiceAutoSendInFlightRef.current = false;
@@ -356,6 +372,8 @@ export const useRoomInputVoice = ({
           store.set(voiceAutoSendPendingAtom, true);
         }
         voiceAutoSendInFlightRef.current = true;
+        const rootModel = voiceRootModelRef.current;
+        voiceRootModelRef.current = undefined;
 
         try {
           fileItems = await createVoiceUploadItems(file, duration, waveform, liveContext.room);
@@ -436,6 +454,7 @@ export const useRoomInputVoice = ({
             }
             await startSendSession({
               textContent: composerBundle?.textContent,
+              rootModel: rootModel ?? null,
               batch: {
                 fileItems: readyItems,
                 uploads: readyItems.map((item) => store.get(roomUploadAtomFamily(item.file))),
@@ -474,7 +493,7 @@ export const useRoomInputVoice = ({
         }
         ensureSameAccount();
         try {
-          sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc);
+          sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc, rootModel);
         } catch (err) {
           return logAndThrowUploadError(err, 'send');
         }

@@ -1,4 +1,9 @@
 import React, { createRef } from 'react';
+import {
+  THREAD_MODEL_KEY,
+  threadModelContent,
+  type ThreadModelContent,
+} from '../../matrix/protocol/threadModel';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -97,7 +102,8 @@ const {
     maxUploadSize: Infinity,
   },
   modelPickerState: {
-    props: [] as Array<{ room: Room; threadId?: string }>,
+    props: [] as Array<{ room: Room; threadId?: string; newThread?: boolean }>,
+    takeRootModelDraft: vi.fn<() => ThreadModelContent | undefined>(() => undefined),
   },
   mxState: {
     cancelUpload: vi.fn(),
@@ -413,11 +419,28 @@ vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
 }));
 
 vi.mock('../../models/ModelPicker', () => ({
-  ThreadModelPicker: ({ room, threadId }: { room: Room; threadId?: string }) => {
-    modelPickerState.props.push({ room, threadId });
-    if (!threadId) return null;
+  ThreadModelPicker: ({
+    room,
+    threadId,
+    newThread,
+  }: {
+    room: Room;
+    threadId?: string;
+    newThread?: boolean;
+  }) => {
+    modelPickerState.props.push({ room, threadId, newThread });
+    if (!threadId && !newThread) return null;
     return React.createElement('button', { 'aria-label': 'Model picker seam' });
   },
+}));
+
+vi.mock('../../models/modelController', () => ({
+  getModelController: () => ({
+    takeRootModelDraft: (...args: unknown[]) =>
+      (modelPickerState.takeRootModelDraft as (...a: unknown[]) => ThreadModelContent | undefined)(
+        ...args
+      ),
+  }),
 }));
 
 vi.mock('../../lib/hooks/useFilePicker', () => ({
@@ -986,6 +1009,7 @@ afterEach(() => {
   customEditorState.props = undefined;
   customEditorState.replyContextRenderCount = 0;
   modelPickerState.props = [];
+  modelPickerState.takeRootModelDraft.mockReset();
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -4907,5 +4931,87 @@ describe('RoomInput in a fork draft', () => {
     expect(draftOf(store, 'fork:$parent:$point')).toEqual(paragraph('for the fork'));
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     act(() => renderer.unmount());
+  });
+});
+
+describe('RoomInput main-room next-thread model pick', () => {
+  const pick = threadModelContent('@router:example.org', 'DEV1', 'sonnet@high');
+
+  it('offers the model picker only in threads-mode main-room composer without reply or fork', async () => {
+    threadModeState.mode = 'thread';
+    const { renderer } = await renderRoomInput(createStore());
+    expect(modelPickerState.props.at(-1)?.newThread).toBe(true);
+    renderer.unmount();
+
+    threadModeState.mode = 'room';
+    const roomMode = await renderRoomInput(createStore());
+    expect(modelPickerState.props.at(-1)?.newThread).toBe(false);
+    roomMode.renderer.unmount();
+
+    threadModeState.mode = 'thread';
+    const inThread = await renderRoomInput(createStore(), { threadId: '$t1' });
+    expect(modelPickerState.props.at(-1)?.newThread).toBe(false);
+    inThread.renderer.unmount();
+
+    const withReplyStore = createStore();
+    withReplyStore.set(roomIdToReplyDraftAtomFamily(ROOM_ID), {
+      userId: '@other:example.org',
+      eventId: '$r1',
+      body: 'hi',
+      formattedBody: undefined,
+    });
+    const withReply = await renderRoomInput(withReplyStore);
+    expect(modelPickerState.props.at(-1)?.newThread).toBe(false);
+    withReply.renderer.unmount();
+  });
+
+  it('takes the draft at Send for standalone voice before capture finishes and stamps it', async () => {
+    threadModeState.mode = 'thread';
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const { renderer } = await renderRoomInput(createStore());
+    await openVoiceRecorder(renderer);
+
+    // Pressing Send claims the recording synchronously and consumes the draft immediately.
+    let claimed = false;
+    await act(async () => {
+      claimed = Boolean(voiceRecorderState.props!.onSendStopRequest?.());
+    });
+    expect(claimed).toBe(true);
+    expect(modelPickerState.takeRootModelDraft).toHaveBeenCalledTimes(1);
+
+    const file = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(file, 1200, [0, 512, 1024]);
+    });
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      msgtype: 'm.audio',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    renderer.unmount();
+  });
+
+  it('takes the draft at Send for voice with attachment and stamps only the root upload', async () => {
+    threadModeState.mode = 'thread';
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const store = createStore();
+    const companion = new File(['attachment'], 'attachment.txt', { type: 'text/plain' });
+    stageUploadItems(store, [createUploadItem(companion)], [companion]);
+    const { renderer } = await renderRoomInput(store);
+    await openVoiceRecorder(renderer);
+
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 1200, [0, 512, 1024]);
+    await submitComposer();
+
+    expect(modelPickerState.takeRootModelDraft).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'attachment.txt',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    expect(mxState.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+    renderer.unmount();
   });
 });

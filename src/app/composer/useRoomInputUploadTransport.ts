@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
+import type { ThreadModelContent } from '../matrix/protocol/threadModel';
 import {
   type PendingVoiceSendContext,
   type StagedList,
@@ -116,7 +117,12 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
   );
 
   const sendVoiceItem = useCallback(
-    async (context: PendingVoiceSendContext, item: TUploadItem, mxc: string): Promise<string> => {
+    async (
+      context: PendingVoiceSendContext,
+      item: TUploadItem,
+      mxc: string,
+      rootModel?: ThreadModelContent
+    ): Promise<string> => {
       const content: IContent = getAudioMsgContent(
         item,
         mxc,
@@ -124,6 +130,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       );
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
+      else if (rootModel) Object.assign(content, rootModel);
       const txnId = mx.makeTxnId();
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);
