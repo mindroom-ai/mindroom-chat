@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -8,7 +8,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 
-// On a desktop (1400 by 900) a thread shown beside the room's messages has a narrow banner (440 px
+// On a desktop (1400 by 900) a thread shown beside the room's messages has a narrow banner (456 px
 // until its column is resized). It takes a phone's layout there, as it does on a phone: no tags
 // row and no pin button (More has both), the whole title wrapping, and the buttons stacked beside a
 // title as tall as them. Filling the page, the same thread's banner keeps its tags and the pin.
@@ -27,6 +27,31 @@ test.beforeEach(async () => {
 });
 
 const banner = (page: Page) => page.locator('[data-thread-context-banner="true"]');
+
+const readBannerHorizontalGaps = (threadBanner: Locator) =>
+  threadBanner.evaluate((element) => {
+    const scroll = element.closest<HTMLElement>('[data-y-scrollbar-width]');
+    if (!scroll) throw new Error('Thread banner has no scroll container');
+    const bannerRect = element.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    return {
+      left: bannerRect.left - scrollRect.left,
+      right: scrollRect.right - bannerRect.right,
+    };
+  });
+
+const expectSymmetricBannerMargins = async (threadBanner: Locator) => {
+  await expect
+    .poll(async () => {
+      const { left, right } = await readBannerHorizontalGaps(threadBanner);
+      return Math.abs(left - right);
+    })
+    .toBeLessThanOrEqual(1);
+  const { left, right } = await readBannerHorizontalGaps(threadBanner);
+  expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+  expect(Math.abs(left - 12)).toBeLessThanOrEqual(1);
+  expect(Math.abs(right - 12)).toBeLessThanOrEqual(1);
+};
 
 test('a narrow thread pane on a desktop gets the compact banner, a full one keeps its tags', async ({
   page,
@@ -78,6 +103,7 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(more).toBeEnabled({ timeout: 30_000 });
   await expect(resolve).toBeVisible();
   expect((await narrow.boundingBox())!.width).toBeLessThan(36 * 16);
+  await expectSymmetricBannerMargins(narrow);
 
   // No tags row, no "+ tag" and no pin button: More has them.
   for (const tag of TAGS) {
@@ -133,6 +159,7 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(threadBanner.getByText('alpha', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(threadBanner.getByRole('button', { name: 'Add tag', exact: true })).toBeVisible();
   await expect(threadBanner.getByRole('button', { name: 'Pin thread', exact: true })).toBeVisible();
+  await expectSymmetricBannerMargins(threadBanner);
   const [moreBox, resolveBox] = await Promise.all([
     threadBanner.getByRole('button', { name: 'Thread options', exact: true }).boundingBox(),
     threadBanner.getByRole('button', { name: 'Resolve', exact: true }).boundingBox(),
@@ -151,4 +178,5 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(beside.getByRole('button', { name: 'Thread options', exact: true })).toBeVisible();
   await expect(beside.getByText('alpha', { exact: true })).toHaveCount(0);
   await expect(beside.getByRole('button', { name: 'Pin thread', exact: true })).toHaveCount(0);
+  await expectSymmetricBannerMargins(beside);
 });

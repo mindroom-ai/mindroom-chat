@@ -1245,11 +1245,11 @@ describe('ThreadContextBanner rendering', () => {
     });
 
     it('keeps a phone compact where its banner is wider than 36rem', () => {
-      // A 750 px phone has 710 px of banner, more than a tablet's 646 px that keeps the tags.
+      // A 750 px phone has 726 px of banner, more than a tablet's 662 px that keeps the tags.
       screenSize = ScreenSize.Mobile;
       const phone = renderBanner(
         TITLE,
-        bannerOf(() => 710)
+        bannerOf(() => 726)
       );
       expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
       expect(tagPills(phone)).toHaveLength(0);

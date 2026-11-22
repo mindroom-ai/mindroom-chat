@@ -216,7 +216,6 @@ import {
   footerProbeStyle,
   listTopSentinelStyle,
   roomViewStyleUnder,
-  threadBannerSlotStyle,
   threadViewStyle,
 } from './RoomTimelineOverlays';
 
@@ -2063,7 +2062,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           clearStart={phone}
         />
       )}
-      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
+      {/* InsetScrollbar replaces the native scrollbar; size="0" avoids folds' 8px inline-end gutter. */}
+      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="0">
         {latestAtTop && latestEndAnchor}
         <Box
           ref={contentRef}
@@ -2083,7 +2083,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >
-                  <div style={threadBannerSlotStyle}>{threadHeader}</div>
+                  {threadHeader}
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.leadingRef}>
