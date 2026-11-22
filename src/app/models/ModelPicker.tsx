@@ -47,8 +47,12 @@ type ModelPickerPanelProps = {
   room: string;
   /** Accessible dialog label; defaults to the thread model picker label. */
   ariaLabel?: string;
-  /** When true, picking the already-current row still runs the callback. */
-  allowReselect?: boolean;
+  /**
+   * The menu sets a room setting, not a thread's model: its default row needs no catalog, so it
+   * shows and counts as current without one; picking the current row writes it again; and an error
+   * names no thread command.
+   */
+  roomSetting?: boolean;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -101,7 +105,7 @@ export const describeDefault = (
     roomOverride: inherited.length > 0 && inherited.every(({ source }) => source === 'room'),
   };
 };
-export type DefaultWords = { label: string; agents: string; description: string };
+type DefaultWords = { label: string; agents: string; description: string };
 const DEFAULT_LABELS = {
   agent: 'agentDefault',
   room: 'roomModel',
@@ -125,13 +129,13 @@ const currentChoice = (state: ModelPickerState) => {
   return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
-export function ModelPickerPanel({
+function ModelPickerPanel({
   state,
   newThread,
   defaults,
   room,
   ariaLabel,
-  allowReselect = false,
+  roomSetting = false,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
@@ -157,7 +161,7 @@ export function ModelPickerPanel({
   const normalizedQuery = filterShown ? query.trim().toLocaleLowerCase() : '';
   // Found by its own words, not by the names of the models it falls back to.
   const defaultVisible =
-    !waitingForCatalog &&
+    (roomSetting || !waitingForCatalog) &&
     (!normalizedQuery ||
       `${defaults.label} ${defaults.description}`.toLocaleLowerCase().includes(normalizedQuery));
   const visibleModels = useMemo(
@@ -179,8 +183,9 @@ export function ModelPickerPanel({
     [defaultVisible, groups]
   );
   const isCurrent = (item: PickerItem): boolean =>
-    !!state.runtime &&
-    (item.kind === 'default' ? state.override === null : state.override === item.model.key);
+    item.kind === 'default'
+      ? state.override === null && (roomSetting || !!state.runtime)
+      : !!state.runtime && state.override === item.model.key;
   // The highlight sits on the current choice, also once a late catalog lists it, until the user
   // moves it with the keys, the pointer or the filter.
   const [movedIndex, setMovedIndex] = useState<number>();
@@ -242,11 +247,7 @@ export function ModelPickerPanel({
     if (mutationsDisabled) return;
     // The current choice needs no command; choosing it again only closes the menu. A current model
     // at a named level goes back to its plain key, which runs it at its default.
-    if (
-      !allowReselect &&
-      isCurrent(item) &&
-      (item.kind === 'default' || state.reasoning === null)
-    ) {
+    if (!roomSetting && isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
       requestClose();
       return;
     }
@@ -387,7 +388,7 @@ export function ModelPickerPanel({
       {state.error && !waitingForCatalog && (
         <div className={css.Error} role="alert">
           <div>{state.error}</div>
-          <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
+          {!roomSetting && <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>}
           <div className={css.ErrorActions}>
             <button
               type="button"

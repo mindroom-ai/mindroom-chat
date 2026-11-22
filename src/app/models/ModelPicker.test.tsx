@@ -1536,7 +1536,7 @@ describe('describeDefault', () => {
 });
 
 describe('TrappedModelPickerPanel', () => {
-  it('supports a custom dialog label and reselecting the current choice when allowReselect is set', () => {
+  it('takes a dialog label and, for a room setting, writes the current choice again', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const panelRoot = createRoot(host);
@@ -1554,7 +1554,7 @@ describe('TrappedModelPickerPanel', () => {
             }}
             room="50vh"
             ariaLabel="Model"
-            allowReselect
+            roomSetting
             requestClose={vi.fn()}
             onCommand={onCommand}
           />
@@ -1600,7 +1600,7 @@ describe('TrappedModelPickerPanel', () => {
             }}
             room="50vh"
             ariaLabel="Model"
-            allowReselect
+            roomSetting
             requestClose={requestClose}
             onCommand={onCommand}
           />

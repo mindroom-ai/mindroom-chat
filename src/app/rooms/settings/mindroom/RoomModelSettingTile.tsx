@@ -1,11 +1,9 @@
-import { MouseEvent, useCallback, useMemo, useRef, useState } from 'react';
-import FocusTrap from 'focus-trap-react';
-import { Box, Button, Icon, Icons, Spinner, Text, color, config, type RectCords } from 'folds';
+import { MouseEvent, useMemo, useRef, useState } from 'react';
+import { Box, Button, Icon, Icons, Text, color, type RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { ModelIcon } from '../../../models/ModelIcon';
-import { ModelPickerPanel, type DefaultWords } from '../../../models/ModelPicker';
-import * as pickerCss from '../../../models/ModelPicker.css';
+import { TrappedModelPickerPanel } from '../../../models/ModelPicker';
 import {
   splitModelReference,
   type ModelCatalogEntry,
@@ -13,7 +11,6 @@ import {
 } from '../../../models/modelProtocol';
 import type { ModelPickerState } from '../../../models/useModelPicker';
 import { PopOut } from '../../../ui/directional';
-import { Menu } from '../../../ui/glass/GlassPrimitives';
 import { SettingTile } from '../../../ui/SettingTile';
 import type { RoomModelSettingDefinition } from './roomSettingDefinitions';
 import * as tileCss from './RoomModelSettingTile.css';
@@ -47,8 +44,9 @@ const classifyStoredModel = (
 };
 
 /**
- * A room setting holding a model reference (`key` or `key@level`), populated from room-scope
- * discovery and written via `useRoomSetting`. Reuses `ModelPickerPanel` inside one `FocusTrap`.
+ * A room setting holding a model reference (`key` or `key@level`), chosen in the composer's model
+ * menu from the room's catalog and written via `useRoomSetting`. The menu shows in every state of
+ * the catalog, so its reset row is always there and the keys stay in one focus trap.
  */
 export function RoomModelSettingTile({
   room,
@@ -73,28 +71,18 @@ export function RoomModelSettingTile({
     [value, catalog.models, hasCatalog]
   );
 
-  const close = useCallback(() => {
+  const close = () => {
     setAnchor(undefined);
     triggerRef.current?.focus();
-  }, []);
+  };
 
-  const writeSetting = useCallback(
-    (next: string) => {
-      clearFeedback();
-      close();
-      void write(next);
-    },
-    [clearFeedback, close, write]
-  );
+  // The menu closes itself before it calls this.
+  const writeSetting = (next: string) => {
+    clearFeedback();
+    void write(next);
+  };
 
-  const defaults: DefaultWords = useMemo(
-    () => ({
-      label: t(`${STRINGS}.model.default`),
-      agents: '',
-      description: t(`${STRINGS}.model.defaultDescription`),
-    }),
-    [t]
-  );
+  const defaultLabel = t(`${STRINGS}.model.default`);
 
   const models = useMemo(
     () =>
@@ -104,22 +92,21 @@ export function RoomModelSettingTile({
     [catalog.models, definition.allowReasoningLevels]
   );
 
-  const adaptedState: ModelPickerState = useMemo(
-    () => ({
-      ...catalog,
-      models,
-      inherited: [],
-      override:
-        stored.kind === 'known' ? stored.model.key : stored.kind === 'unknown' ? stored.raw : null,
-      reasoning: stored.kind === 'known' ? stored.level ?? null : null,
-      pending: false,
-      error: undefined,
-      canMutate: canEdit && !sending,
-      selectModel: (key, level) => writeSetting(level ? `${key}@${level}` : key),
-      resetToRoomDefault: () => writeSetting(''),
-    }),
-    [catalog, models, stored, canEdit, sending, writeSetting]
-  );
+  // Without a list the menu keeps the reset row and says so, with Retry.
+  const unavailable = catalog.runtimes.length === 0;
+  const state: ModelPickerState = {
+    ...catalog,
+    models,
+    inherited: [],
+    override:
+      stored.kind === 'default' ? null : stored.kind === 'known' ? stored.model.key : stored.raw,
+    reasoning: stored.kind === 'known' ? stored.level ?? null : null,
+    pending: false,
+    error: unavailable ? t(`${STRINGS}.model.catalogUnavailable`) : undefined,
+    canMutate: canEdit && !sending,
+    selectModel: (key, level) => writeSetting(level ? `${key}@${level}` : key),
+    resetToRoomDefault: () => writeSetting(''),
+  };
 
   const toggle = (event: MouseEvent<HTMLButtonElement>) => {
     if (anchor) {
@@ -132,7 +119,7 @@ export function RoomModelSettingTile({
 
   const shownLabel =
     stored.kind === 'default'
-      ? defaults.label
+      ? defaultLabel
       : stored.kind === 'known'
       ? stored.level
         ? t(`${PICKER_STRINGS}.withLevel`, {
@@ -142,74 +129,20 @@ export function RoomModelSettingTile({
         : stored.model.display_name
       : stored.raw;
 
-  const disabled = !canEdit || sending;
-  const showPicker = hasCatalog || catalog.runtimes.length > 1;
-
-  // One FocusTrap stays mounted across loading, no-catalog, and results so a late catalog reply
-  // never triggers onDeactivate and closes the picker.
-  const popover = !anchor ? undefined : (
-    <FocusTrap
-      focusTrapOptions={{
-        initialFocus: false,
-        clickOutsideDeactivates: true,
-        onDeactivate: close,
-        returnFocusOnDeactivate: true,
+  const popover = anchor && (
+    <TrappedModelPickerPanel
+      state={state}
+      defaults={{
+        label: defaultLabel,
+        agents: '',
+        description: t(`${STRINGS}.model.defaultDescription`),
       }}
-    >
-      <div>
-        {showPicker ? (
-          <ModelPickerPanel
-            state={adaptedState}
-            defaults={defaults}
-            room="50vh"
-            ariaLabel={label}
-            allowReselect
-            requestClose={close}
-            onCommand={close}
-          />
-        ) : (
-          <Menu role="dialog" aria-label={label} className={pickerCss.Panel}>
-            <Box direction="Column" gap="200" style={{ padding: config.space.S300 }}>
-              {catalog.loading ? (
-                <div className={pickerCss.StatusRow} role="status">
-                  <Spinner size="100" variant="Secondary" />
-                  {t(`${PICKER_STRINGS}.loading`)}
-                </div>
-              ) : (
-                <Text size="T200" priority="300" role="status">
-                  {t(`${STRINGS}.model.catalogUnavailable`)}
-                </Text>
-              )}
-              <Box gap="200" justifyContent="End">
-                {!catalog.loading && (
-                  <Button
-                    type="button"
-                    size="300"
-                    radii="300"
-                    variant="Secondary"
-                    fill="None"
-                    onClick={catalog.refresh}
-                  >
-                    <Text size="B300">{t(`${PICKER_STRINGS}.retry`)}</Text>
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  size="300"
-                  radii="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  disabled={disabled}
-                  onClick={() => writeSetting('')}
-                >
-                  <Text size="B300">{defaults.label}</Text>
-                </Button>
-              </Box>
-            </Box>
-          </Menu>
-        )}
-      </div>
-    </FocusTrap>
+      room="50vh"
+      ariaLabel={label}
+      roomSetting
+      requestClose={close}
+      onCommand={close}
+    />
   );
 
   return (
@@ -226,7 +159,7 @@ export function RoomModelSettingTile({
               aria-description={label}
               aria-haspopup="dialog"
               aria-expanded={anchor !== undefined}
-              disabled={disabled}
+              disabled={!canEdit || sending}
               onClick={toggle}
               variant="Secondary"
               fill="Soft"

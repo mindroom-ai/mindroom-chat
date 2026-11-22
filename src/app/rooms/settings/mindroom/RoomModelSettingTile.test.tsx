@@ -55,17 +55,14 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
+// jsdom lays nothing out, so every element counts as shown for the trap.
 vi.mock('focus-trap-react', async (original) => {
   const { default: RealFocusTrap } = await original<{ default: typeof FocusTrap }>();
   return {
     default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealFocusTrap
         {...props}
-        focusTrapOptions={{
-          ...focusTrapOptions,
-          delayInitialFocus: false,
-          tabbableOptions: { displayCheck: 'none' },
-        }}
+        focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
       />
     ),
   };
@@ -82,156 +79,6 @@ vi.mock('../../../matrix/hooks/useStateEvent', () => ({
     return live.event;
   },
 }));
-vi.mock('../../../models/ModelIcon', () => ({
-  ModelIcon: ({ provider, id }: { provider?: string; id?: string }) => (
-    <span data-testid="model-icon" data-provider={provider} data-id={id} />
-  ),
-}));
-vi.mock('../../../ui/directional', () => ({
-  PopOut: ({ anchor, content }: { anchor?: unknown; content?: React.ReactNode }) =>
-    anchor ? <div data-testid="popout">{content}</div> : null,
-}));
-vi.mock('../../../ui/glass/GlassPrimitives', () => ({
-  IconButton: ({ children }: { children?: React.ReactNode }) => (
-    <button type="button">{children}</button>
-  ),
-  Menu: ({
-    children,
-    role,
-    'aria-label': ariaLabel,
-  }: {
-    children?: React.ReactNode;
-    role?: string;
-    'aria-label'?: string;
-  }) => (
-    <div role={role} aria-label={ariaLabel}>
-      {children}
-    </div>
-  ),
-}));
-vi.mock('../../../ui/styles/Glass.css', () => ({ glassExpanded: 'glassExpanded' }));
-vi.mock('../../../ui/IconTooltip', () => ({
-  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => (
-    <>{children(() => undefined)}</>
-  ),
-}));
-vi.mock('../../../models/ModelPicker.css', () => ({
-  Check: 'Check',
-  Controls: 'Controls',
-  EffortBack: 'EffortBack',
-  EffortColumn: 'EffortColumn',
-  EffortDefault: 'EffortDefault',
-  EffortEntry: 'EffortEntry',
-  EffortEntryBar: 'EffortEntryBar',
-  EffortHeader: 'EffortHeader',
-  EffortLabel: 'EffortLabel',
-  EffortLevels: 'EffortLevels',
-  EffortModel: 'EffortModel',
-  EffortNone: 'EffortNone',
-  EffortPanel: 'EffortPanel',
-  EffortRow: 'EffortRow',
-  EffortValue: 'EffortValue',
-  Empty: 'Empty',
-  Error: 'Error',
-  ErrorActions: 'ErrorActions',
-  Group: 'Group',
-  GroupTitle: 'GroupTitle',
-  IconImage: 'IconImage',
-  Mirrored: 'Mirrored',
-  Option: 'Option',
-  OptionDetail: 'OptionDetail',
-  OptionIcon: 'OptionIcon',
-  OptionText: 'OptionText',
-  OptionTitle: 'OptionTitle',
-  Panel: 'Panel',
-  Picker: 'Picker',
-  Results: 'Results',
-  RoomDefaultDetail: 'RoomDefaultDetail',
-  RuntimeLabel: 'RuntimeLabel',
-  RuntimeRow: 'RuntimeRow',
-  RuntimeSelect: 'RuntimeSelect',
-  SearchIcon: 'SearchIcon',
-  SearchInput: 'SearchInput',
-  SearchRow: 'SearchRow',
-  StatusRow: 'StatusRow',
-  TextButton: 'TextButton',
-  Trigger: 'Trigger',
-  TriggerDivider: 'TriggerDivider',
-  ViewStatus: 'ViewStatus',
-  VisuallyHidden: 'VisuallyHidden',
-}));
-vi.mock('./RoomModelSettingTile.css', () => ({ TriggerButton: 'TriggerButton' }));
-vi.mock('./RoomTextSettingTile.css', () => ({ VisuallyHidden: 'VisuallyHidden' }));
-vi.mock('folds', () => ({
-  Box: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
-    <div role={role}>{children}</div>
-  ),
-  Button: React.forwardRef<
-    HTMLButtonElement,
-    {
-      children?: React.ReactNode;
-      before?: React.ReactNode;
-      after?: React.ReactNode;
-      disabled?: boolean;
-      onClick?: React.MouseEventHandler<HTMLButtonElement>;
-      'aria-description'?: string;
-      'aria-haspopup'?: React.AriaAttributes['aria-haspopup'];
-      'aria-expanded'?: boolean;
-    }
-  >(function MockButton(
-    {
-      children,
-      before,
-      after,
-      disabled,
-      onClick,
-      'aria-description': ariaDescription,
-      'aria-haspopup': ariaHaspopup,
-      'aria-expanded': ariaExpanded,
-    },
-    ref
-  ) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        disabled={disabled}
-        onClick={onClick}
-        aria-description={ariaDescription}
-        aria-haspopup={ariaHaspopup}
-        aria-expanded={ariaExpanded}
-      >
-        {before}
-        {children}
-        {after}
-      </button>
-    );
-  }),
-  Icon: () => null,
-  Icons: { ChevronBottom: 'ChevronBottom' },
-  Scroll: React.forwardRef<HTMLDivElement, { children?: React.ReactNode }>(function MockScroll(
-    { children },
-    ref
-  ) {
-    return <div ref={ref}>{children}</div>;
-  }),
-  Spinner: () => <span data-testid="spinner" />,
-  Text: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
-    <span role={role}>{children}</span>
-  ),
-  color: { Critical: { Main: 'red' } },
-  config: { space: { S200: '8px', S300: '12px' } },
-  toRem: (px: number) => `${px / 16}rem`,
-}));
-vi.mock('../../../ui/SettingTile', () => ({
-  SettingTile: ({ title, after }: { title: string; after: React.ReactNode }) => (
-    <div>
-      <span>{title}</span>
-      {after}
-    </div>
-  ),
-}));
-
 let eventCount = 0;
 const setLive = (content: object | undefined, id = `$event${(eventCount += 1)}`) => {
   live.event =
@@ -257,18 +104,30 @@ const createCatalog = (overrides: Partial<ModelPickerState> = {}): ModelPickerSt
   resetToRoomDefault: vi.fn(),
   ...overrides,
 });
+/** No runtime has answered. */
+const NO_CATALOG = { eligible: false, runtimes: [], runtime: undefined, models: [] };
 
+const tile = (definition: RoomModelSettingDefinition, catalog: ModelPickerState) => (
+  <ScreenSizeProvider value={ScreenSize.Desktop}>
+    <RoomModelSettingTile room={ROOM} definition={definition} catalog={catalog} />
+  </ScreenSizeProvider>
+);
 const renderTile = (
   definition: RoomModelSettingDefinition = MODEL_DEF,
   catalog: ModelPickerState = createCatalog()
-) =>
-  render(
-    <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <RoomModelSettingTile room={ROOM} definition={definition} catalog={catalog} />
-    </ScreenSizeProvider>
-  );
+) => render(tile(definition, catalog));
 
-const trigger = () => screen.getByRole<HTMLButtonElement>('button', { expanded: false });
+const trigger = () => document.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')!;
+/** Opens the menu as Enter on the focused button does. */
+const open = (name = 'Model') => {
+  act(() => trigger().focus());
+  fireEvent.click(trigger());
+  return screen.getByRole('dialog', { name });
+};
+const defaultRow = () => screen.getByRole('option', { name: /Use configured default/ });
+const sent = (content: object, key = 'model') => [ROOM.roomId, ROOM_SETTINGS_EVENT, content, key];
+/** The closing menu's trap hands focus back in a timer. */
+const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve)));
 
 beforeEach(() => {
   live.event = undefined;
@@ -285,103 +144,76 @@ afterEach(() => {
 });
 
 describe('RoomModelSettingTile', () => {
-  it('shows Use configured default when unset and highlights the default row in the shared panel', () => {
-    renderTile();
+  it('shows Use configured default when unset, and opens on its row with the keys', () => {
+    const catalog = createCatalog();
+    renderTile(MODEL_DEF, catalog);
     expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'model']);
     expect(trigger().textContent).toBe('Use configured default');
 
-    fireEvent.click(trigger());
-    const dialog = screen.getByRole('dialog', { name: 'Model' });
-    expect(
-      within(dialog)
-        .getByRole('option', { name: /Use configured default/ })
-        .getAttribute('aria-selected')
-    ).toBe('true');
+    const dialog = open();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(defaultRow().getAttribute('aria-selected')).toBe('true');
   });
 
-  it('writes selected model through useRoomSetting without calling picker mutations', async () => {
+  it('writes the picked model through the room setting, never the thread picker', async () => {
     const catalog = createCatalog();
     renderTile(MODEL_DEF, catalog);
 
-    fireEvent.click(trigger());
-    await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
-    });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'deep' },
-      'model'
-    );
+    open();
+    fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({ value: 'deep' }));
     expect(catalog.selectModel).not.toHaveBeenCalled();
     expect(catalog.resetToRoomDefault).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(trigger().textContent).toBe('Deep');
     expect(screen.getByRole('status').textContent).toBe('Saved');
   });
 
-  it('writes key@level via the effort column on Model and omits levels on Title model', async () => {
+  it('writes key@level from the effort column on Model and offers no levels on Title model', async () => {
     setLive({ value: 'deep@high' });
     renderTile();
     expect(trigger().textContent).toBe('Deep · High');
 
-    fireEvent.click(trigger());
+    open();
     const effort = screen.getByRole('radiogroup', { name: 'Effort for Deep' });
     expect(within(effort).getByRole('radio', { name: 'High' }).getAttribute('aria-checked')).toBe(
       'true'
     );
-    await act(async () => {
-      fireEvent.click(within(effort).getByRole('radio', { name: 'Low' }));
-    });
-    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'deep@low' },
-      'model'
-    );
+    fireEvent.click(within(effort).getByRole('radio', { name: 'Low' }));
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(...sent({ value: 'deep@low' }));
     expect(trigger().textContent).toBe('Deep · Low');
 
     cleanup();
     setLive({ value: 'deep' });
     renderTile(TITLE_MODEL_DEF);
-    fireEvent.click(trigger());
+    open('Title model');
     expect(screen.queryByRole('radiogroup')).toBeNull();
-    await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Quick/ }));
-    });
+    fireEvent.click(screen.getByRole('option', { name: /Quick/ }));
+    await settle();
     expect(client.sendStateEvent).toHaveBeenLastCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'fast' },
-      'thread_summary_model'
+      ...sent({ value: 'fast' }, 'thread_summary_model')
     );
   });
 
-  it('shows unknown values raw, never as Default, and resets them to {}', async () => {
+  it('shows a value the list does not know as it is, never as the default, and resets it', async () => {
     setLive({ value: 'retired-model' });
     renderTile();
-
     expect(trigger().textContent).toBe('retired-model');
     expect(
       screen.getByText('Unknown model: "retired-model" is not in this room\'s model list.')
     ).toBeTruthy();
 
-    fireEvent.click(trigger());
-    expect(
-      screen.getByRole('option', { name: /Use configured default/ }).getAttribute('aria-selected')
-    ).toBe('false');
-    await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Use configured default/ }));
-    });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      {},
-      'model'
-    );
+    open();
+    expect(defaultRow().getAttribute('aria-selected')).toBe('false');
+    fireEvent.click(defaultRow());
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
     expect(trigger().textContent).toBe('Use configured default');
   });
 
-  it('marks an invalid reasoning level on a known model as unknown', () => {
+  it('marks a level its model does not have as unknown', () => {
     setLive({ value: 'deep@bogus' });
     renderTile();
     expect(trigger().textContent).toBe('deep@bogus');
@@ -390,48 +222,68 @@ describe('RoomModelSettingTile', () => {
     ).toBeTruthy();
   });
 
-  it('shows the raw value and allows reset and retry when no catalog is available', async () => {
+  it('without a list shows the stored value, a notice with Retry, and still resets', async () => {
     setLive({ value: 'saved-model' });
-    const catalog = createCatalog({
-      eligible: false,
-      runtimes: [],
-      runtime: undefined,
-      models: [],
-      loading: false,
-    });
+    const catalog = createCatalog(NO_CATALOG);
     renderTile(MODEL_DEF, catalog);
-
     expect(trigger().textContent).toBe('saved-model');
     expect(screen.getByText('Room setting: saved-model')).toBeTruthy();
     expect(screen.queryByText(/Unknown model:/)).toBeNull();
 
-    fireEvent.click(trigger());
-    expect(catalog.refresh).toHaveBeenCalledTimes(1);
-    const dialog = screen.getByRole('dialog', { name: 'Model' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }));
-    expect(catalog.refresh).toHaveBeenCalledTimes(2);
-
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Use configured default' }));
-    });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      {},
-      'model'
+    const dialog = open();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(screen.getByRole('alert').textContent).toBe(
+      'No model list is available right now. You can still reset to the configured default.Retry'
     );
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(catalog.refresh).toHaveBeenCalledTimes(2);
+    expect(defaultRow().getAttribute('aria-selected')).toBe('false');
+
+    fireEvent.click(defaultRow());
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
     expect(trigger().textContent).toBe('Use configured default');
   });
 
-  it('shows an alert on write failure and stays read-only for non-editors', async () => {
+  it('keeps the menu, its focus and the reset row while the list loads and when it arrives', async () => {
+    const { rerender } = renderTile(MODEL_DEF, createCatalog({ ...NO_CATALOG, loading: true }));
+
+    const dialog = open();
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(within(dialog).getByRole('status').textContent).toBe('Loading models');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(defaultRow().getAttribute('aria-selected')).toBe('true');
+
+    rerender(tile(MODEL_DEF, createCatalog()));
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.click(within(dialog).getByRole('option', { name: /Deep/ }));
+    await settle();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({ value: 'deep' }));
+  });
+
+  it('resets at once while two runtimes answer and none is chosen', async () => {
+    setLive({ value: 'deep' });
+    const runtimes = [RUNTIME, { ...RUNTIME, id: `${RUNTIME.userId}:DEV2`, deviceId: 'DEV2' }];
+    const catalog = createCatalog({ runtimes, runtime: undefined, models: [], loading: true });
+    renderTile(MODEL_DEF, catalog);
+
+    open();
+    expect(screen.getByRole('combobox', { name: 'Runtime' })).toBeTruthy();
+    fireEvent.click(defaultRow());
+    await settle();
+    expect(catalog.chooseRuntime).not.toHaveBeenCalled();
+    expect(client.sendStateEvent).toHaveBeenCalledWith(...sent({}));
+  });
+
+  it('shows an alert when the save fails, and a disabled button to someone who may not edit', async () => {
     setLive({ value: 'fast' });
     client.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
     renderTile();
 
-    fireEvent.click(trigger());
-    await act(async () => {
-      fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
-    });
+    open();
+    fireEvent.click(screen.getByRole('option', { name: /Deep/ }));
+    await settle();
     expect(screen.getByRole('alert').textContent).toBe(FAILED);
     expect(trigger().textContent).toBe('Quick');
 
@@ -443,35 +295,17 @@ describe('RoomModelSettingTile', () => {
     expect(screen.getByText(READ_ONLY)).toBeTruthy();
   });
 
-  it('keeps the picker open with real FocusTrap when a late catalog arrives while open', async () => {
-    const loadingCatalog = createCatalog({
-      eligible: false,
-      runtimes: [],
-      runtime: undefined,
-      models: [],
-      loading: true,
-    });
-    const { rerender } = renderTile(MODEL_DEF, loadingCatalog);
+  it('keeps the keys in the open menu when the right to edit goes while the list loads', () => {
+    const loading = createCatalog({ ...NO_CATALOG, loading: true });
+    const { rerender } = renderTile(MODEL_DEF, loading);
+    const dialog = open();
 
-    fireEvent.click(trigger());
-    expect(screen.getByRole('dialog', { name: 'Model' })).toBeTruthy();
-
-    // Catalog arrives while the menu is already open; the single FocusTrap must not deactivate.
-    rerender(
-      <ScreenSizeProvider value={ScreenSize.Desktop}>
-        <RoomModelSettingTile room={ROOM} definition={MODEL_DEF} catalog={createCatalog()} />
-      </ScreenSizeProvider>
-    );
-
-    const dialog = screen.getByRole('dialog', { name: 'Model' });
-    await act(async () => {
-      fireEvent.click(within(dialog).getByRole('option', { name: /Deep/ }));
-    });
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      { value: 'deep' },
-      'model'
-    );
+    live.canSend = false;
+    rerender(tile(MODEL_DEF, loading));
+    expect(defaultRow().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.click(defaultRow());
+    expect(client.sendStateEvent).not.toHaveBeenCalled();
   });
 });
