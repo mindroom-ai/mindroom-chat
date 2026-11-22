@@ -258,20 +258,20 @@ final class PlainTextTests: XCTestCase {
 
     func testWithToolDetailsExtractsNamesAndSplitsWorkAndAnswer() {
         let split = PlainText.withToolDetails("Checking options.\n🔧 `web_search` [1]\nComparing times.\n🔧 `calendar` [2] ⏳\n**Booked** for 10:00.")
-        XCTAssertEqual(split.toolNames, ["web_search", "calendar"])
+        XCTAssertEqual(split.markers, [PlainText.ToolMarker(index: 1, name: "web_search"), PlainText.ToolMarker(index: 2, name: "calendar")])
         XCTAssertEqual(split.workText, "Checking options.\nComparing times.")
         XCTAssertEqual(split.answerText, "Booked for 10:00.")
         XCTAssertEqual(split.text, "Checking options.\nComparing times.\nBooked for 10:00.")
 
         // No prose before tool line: no split.
         let noBefore = PlainText.withToolDetails("🔧 `calendar` [1]\nBooked for 10:00.")
-        XCTAssertEqual(noBefore.toolNames, ["calendar"])
+        XCTAssertEqual(noBefore.markers.map(\.name), ["calendar"])
         XCTAssertNil(noBefore.workText)
         XCTAssertEqual(noBefore.answerText, "Booked for 10:00.")
 
         // No prose after tool line: no split.
         let noAfter = PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]")
-        XCTAssertEqual(noAfter.toolNames, ["calendar"])
+        XCTAssertEqual(noAfter.markers.map(\.name), ["calendar"])
         XCTAssertNil(noAfter.workText)
         XCTAssertEqual(noAfter.answerText, "Checking calendar...")
     }

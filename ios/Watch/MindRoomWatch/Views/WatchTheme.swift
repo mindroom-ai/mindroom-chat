@@ -118,10 +118,10 @@ struct StatusPill: View {
                     .frame(width: 10, height: 10)
             } else if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.caption2.weight(.bold))
             }
             Text(text)
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption2.weight(.bold))
                 .lineLimit(1)
         }
         .foregroundStyle(foreground)

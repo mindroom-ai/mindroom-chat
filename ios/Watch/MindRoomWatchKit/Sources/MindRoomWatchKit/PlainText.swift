@@ -2,8 +2,14 @@ import Foundation
 
 /// An agent reply's Markdown as plain text for the watch, with MindRoom's tool-call lines counted.
 public enum PlainText {
+    /// A matched v2 inline tool marker (`🔧 \`tool_name\` [n]`).
+    public struct ToolMarker: Equatable, Sendable {
+        public let index: Int
+        public let name: String
+    }
+
     /// MindRoom writes each tool call as a line "🔧 `tool_name` [n]", with a trailing ⏳ while it runs.
-    private static let toolLine = try! NSRegularExpression(pattern: #"^🔧[^\S\n]*`([^`\n]+)`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$"#)
+    private static let toolLine = try! NSRegularExpression(pattern: #"^🔧[^\S\n]*`([^`\n]+)`[^\S\n]*\[(\d+)\](?:[^\S\n]*⏳)?[^\S\n]*$"#)
 
     public static func of(markdown: String) -> String { withToolCount(markdown).text }
 
@@ -26,13 +32,13 @@ public enum PlainText {
 
     public static func withToolCount(_ markdown: String) -> (text: String, tools: Int) {
         let details = withToolDetails(markdown)
-        return (details.text, details.toolNames.count)
+        return (details.text, details.markers.count)
     }
 
-    /// Extracts plain text, ordered v2 tool names, and an optional work/answer split around the last v2 tool line.
-    /// `workText` is populated only when non-empty prose exists both before and after the last tool line.
-    public static func withToolDetails(_ markdown: String) -> (text: String, toolNames: [String], workText: String?, answerText: String) {
-        var toolNames: [String] = []
+    /// Extracts plain text, ordered v2 tool markers, and an optional work/answer split around the last v2 tool line.
+    /// `workText` is populated only when substantive prose exists both before and after the last tool line.
+    public static func withToolDetails(_ markdown: String) -> (text: String, markers: [ToolMarker], workText: String?, answerText: String) {
+        var markers: [ToolMarker] = []
         var lastToolIndex: Int?
         var fence: String?
         var lines: [String] = []
@@ -47,8 +53,10 @@ public enum PlainText {
                 continue
             }
             if let match = toolLine.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
-               let nameRange = Range(match.range(at: 1), in: line) {
-                toolNames.append(String(line[nameRange]))
+               let nameRange = Range(match.range(at: 1), in: line),
+               let indexRange = Range(match.range(at: 2), in: line),
+               let markerIndex = Int(line[indexRange]) {
+                markers.append(ToolMarker(index: markerIndex, name: String(line[nameRange])))
                 lastToolIndex = lines.count
                 continue
             }
@@ -58,17 +66,17 @@ public enum PlainText {
         if let splitIndex = lastToolIndex {
             let before = normalize(lines[..<splitIndex])
             let after = normalize(lines[splitIndex...])
-            if !before.isEmpty && !after.isEmpty {
-                return (text, toolNames, before, after)
+            if hasSubstantiveText(before) && hasSubstantiveText(after) {
+                return (text, markers, before, after)
             }
         }
-        return (text, toolNames, nil, text)
+        return (text, markers, nil, text)
     }
 
     /// Splits a raw Markdown body at an LF-indexed line boundary (`body_line` in a v3 tool trace) in a single
     /// fence-aware pass. Counts `splitLine` strictly on LF bytes while formatting embedded newlines identically to
-    /// `withToolDetails`. Returns `nil` if the boundary is out of range, lands inside an open code fence, or has
-    /// no non-empty prose on either side.
+    /// `withToolDetails`. Returns `nil` if the boundary is out of range, lands inside an open code fence, or lacks
+    /// substantive prose on either side.
     public static func splitFinishedWork(markdown: String, atLFLine splitLine: Int) -> (workText: String, answerText: String)? {
         let rawLines = markdown.utf8.split(separator: 0x0A, omittingEmptySubsequences: false).map { slice -> String in
             let trimmed = slice.last == 0x0D ? slice.dropLast() : slice
@@ -105,8 +113,17 @@ public enum PlainText {
         }
         let before = normalize(beforeLines[...])
         let after = normalize(afterLines[...])
-        guard !before.isEmpty && !after.isEmpty else { return nil }
+        guard hasSubstantiveText(before) && hasSubstantiveText(after) else { return nil }
         return (before, after)
+    }
+
+    /// True when `text` has visible content beyond whitespace, pending hourglass markers (`⏳`), and zero-width characters
+    /// (matching the web client's `finishedWorkSplit.ts`).
+    private static func hasSubstantiveText(_ text: String) -> Bool {
+        let invisible: Set<Unicode.Scalar> = ["\u{23F3}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{2060}", "\u{FEFF}", "\u{FE0F}"]
+        return text.unicodeScalars.contains { scalar in
+            !CharacterSet.whitespacesAndNewlines.contains(scalar) && !invisible.contains(scalar)
+        }
     }
 
     private static func normalize(_ lines: ArraySlice<String>) -> String {

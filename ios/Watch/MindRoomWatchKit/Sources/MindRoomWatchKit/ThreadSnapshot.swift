@@ -197,19 +197,19 @@ public struct ThreadSnapshot: Equatable, Sendable {
             // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
             // those lines whoever sent them, and a count shows no call and trusts no one.
             let trace = MindRoomAgent.hasAgentName(sender) ? toolTraceOutOfText(content) : (names: [String](), maxBodyLine: nil as Int?)
-            let totalTools = details.toolNames.count + trace.names.count
+            let totalTools = details.markers.count + trace.names.count
             let trustedAgent = !isOwn && !event.isRedacted && isAgent(sender)
             var toolNames: [String] = []
             var workText: String?
             var answerText = details.text
             var durationSeconds: Int?
             if trustedAgent {
-                toolNames = details.toolNames + trace.names
-                let streamStatus = content["io.mindroom.stream_status"] as? String
-                let isFinished = run == .finished && (streamStatus == nil || streamStatus == "completed")
+                let verifiedV2 = !details.markers.isEmpty && v2MarkersMatchTrace(details.markers, in: content)
+                toolNames = (verifiedV2 ? details.markers.map(\.name) : []) + trace.names
+                let isFinished = isFinishedWork(content: content, editWrapper: latestEdit?.content, run: run)
                 if isFinished {
-                    var splitWork = details.workText
-                    var splitAnswer = details.answerText
+                    var splitWork = verifiedV2 ? details.workText : nil
+                    var splitAnswer = verifiedV2 ? details.answerText : details.text
                     if splitWork == nil, let maxBodyLine = trace.maxBodyLine,
                        let split = PlainText.splitFinishedWork(markdown: body, atLFLine: maxBodyLine) {
                         splitWork = split.workText
@@ -266,24 +266,72 @@ public struct ThreadSnapshot: Equatable, Sendable {
     }
 }
 
+/// Verifies that every parsed v2 inline tool marker (`🔧 \`name\` [n]`) matches its 1-based entry in
+/// `io.mindroom.tool_trace` (version 2), so literal Markdown examples of the marker syntax are never folded.
+func v2MarkersMatchTrace(_ markers: [PlainText.ToolMarker], in content: JSON) -> Bool {
+    guard let trace = content["io.mindroom.tool_trace"] as? JSON,
+          (trace["version"] as? NSNumber).map({ CFGetTypeID($0) != CFBooleanGetTypeID() && $0.intValue == 2 }) == true,
+          let calls = trace["events"] as? [Any] else { return false }
+    return markers.allSatisfy { marker in
+        guard marker.index >= 1, marker.index <= calls.count,
+              let call = calls[marker.index - 1] as? JSON,
+              let name = call["tool_name"] as? String else { return false }
+        return name == marker.name
+    }
+}
+
+/// Reads `io.mindroom.stream_status` in string or `{status | state}` record form from `content` or its edit wrapper,
+/// matching the web client's `aiRun.ts` `readStreamStatus`.
+func readStreamStatus(content: JSON, editWrapper: JSON?) -> (present: Bool, normalized: String?) {
+    let key = "io.mindroom.stream_status"
+    let raw = content[key] ?? editWrapper?[key]
+    guard let raw else { return (false, nil) }
+    if let string = raw as? String, !string.isEmpty {
+        return (true, string.lowercased())
+    }
+    if let record = raw as? JSON {
+        if let status = record["status"] as? String, !status.isEmpty { return (true, status.lowercased()) }
+        if let state = record["state"] as? String, !state.isEmpty { return (true, state.lowercased()) }
+    }
+    return (true, nil)
+}
+
+/// True only when the reply is a finished, non-truncated run whose work may be folded and timed.
+func isFinishedWork(content: JSON, editWrapper: JSON?, run: RunState) -> Bool {
+    if content["io.mindroom.long_text"] is JSON { return false }
+    if run == .stopped { return false }
+    let stream = readStreamStatus(content: content, editWrapper: editWrapper)
+    if stream.present {
+        guard let value = stream.normalized else { return false }
+        return value == "completed" || value == "complete" || value == "done"
+    }
+    return run == .finished
+}
+
 /// The tool calls whose marker lines are not in the content's text: MindRoom sends a reply without the line
 /// "🔧 `tool_name` [n]" of each call, and with the number of lines before it on the call instead (`body_line`
 /// in a tool trace of version 3, as the web client's `toolPositions.ts` reads it). A call without that number
 /// had no line. A version-2 trace has every line in the text, where `PlainText` counts them.
 func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?) {
-    guard let trace = content["io.mindroom.tool_trace"] as? JSON, trace["version"] as? Int == 3,
+    guard let trace = content["io.mindroom.tool_trace"] as? JSON,
+          (trace["version"] as? NSNumber).map({ CFGetTypeID($0) != CFBooleanGetTypeID() && $0.intValue == 3 }) == true,
           let calls = trace["events"] as? [Any] else { return ([], nil) }
     var names: [String] = []
     var maxLine: Int?
-    var monotonic = true
+    var canSplit = true
     for case let call as JSON in calls {
-        guard let name = call["tool_name"] as? String, !name.isEmpty,
-              let line = call["body_line"] as? Int, line >= 0 else { continue }
+        guard let name = call["tool_name"] as? String, !name.isEmpty else { continue }
+        guard let rawLine = call["body_line"] else { continue }
+        guard let number = rawLine as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let line = rawLine as? Int, line >= 0 else {
+            canSplit = false
+            continue
+        }
         names.append(name)
-        if let prev = maxLine, line < prev { monotonic = false }
+        if let prev = maxLine, line < prev { canSplit = false }
         maxLine = max(maxLine ?? line, line)
     }
-    return (names, monotonic ? maxLine : nil)
+    return (names, canSplit ? maxLine : nil)
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an

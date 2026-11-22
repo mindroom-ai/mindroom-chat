@@ -269,7 +269,7 @@ final class ThreadSnapshotTests: XCTestCase {
                                                      audio: first.audio, tools: 0, run: .none))
         XCTAssertEqual(source(first)?["url"] as? String, "mxc://x/take")
         XCTAssertEqual(second, ThreadSnapshot.Message(eventId: "$answer", sender: agent, isOwn: false, text: "For when?",
-                                                      audio: nil, tools: 1, run: .none, toolNames: ["tables"]))
+                                                      audio: nil, tools: 1, run: .none))
         XCTAssertEqual(waiting.eventId, snapshot.pendingApproval?.eventId)
         // Once decided, the other person's card is part of what happened.
         let decided = ThreadSnapshot.build(root: root, related: [answer, annas, approved], ownUserId: me, now: now)
@@ -840,10 +840,15 @@ final class ThreadSnapshotTests: XCTestCase {
 
     func testWorkFoldDetailsForV2MarkdownFinishedVsStreamingAndNoPreProse() {
         let finishedBody = "Looking up flights.\n🔧 `flights_search` [1]\nFound **2 options**."
+        let v2Trace: JSON = [
+            "version": 2,
+            "events": [["type": "tool_call_completed", "tool_name": "flights_search"] as JSON],
+        ]
         let finished = event("$r1", 10_000, inThread([
             "msgtype": "m.text",
             "body": finishedBody,
             "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
         ]))
         let finSnap = ThreadSnapshot.build(root: voiceRoot, related: [finished], ownUserId: me, now: now)
         XCTAssertEqual(finSnap.reply?.toolNames, ["flights_search"])
@@ -857,6 +862,7 @@ final class ThreadSnapshotTests: XCTestCase {
             "msgtype": "m.text",
             "body": finishedBody,
             "io.mindroom.stream_status": "streaming",
+            "io.mindroom.tool_trace": v2Trace,
         ]))
         let streamSnap = ThreadSnapshot.build(root: voiceRoot, related: [streaming], ownUserId: me, now: now)
         XCTAssertEqual(streamSnap.reply?.toolNames, ["flights_search"])
@@ -868,11 +874,36 @@ final class ThreadSnapshotTests: XCTestCase {
             "msgtype": "m.text",
             "body": "🔧 `flights_search` [1]\nFound 2 options.",
             "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
         ]))
         let noPreSnap = ThreadSnapshot.build(root: voiceRoot, related: [noPre], ownUserId: me, now: now)
         XCTAssertEqual(noPreSnap.reply?.toolNames, ["flights_search"])
         XCTAssertNil(noPreSnap.reply?.workText)
         XCTAssertEqual(noPreSnap.reply?.answerText, "Found 2 options.")
+
+        // Literal marker line without a matching v2 trace stays count-only and never hides prose.
+        let literal = event("$r4", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "completed",
+        ]))
+        let literalSnap = ThreadSnapshot.build(root: voiceRoot, related: [literal], ownUserId: me, now: now)
+        XCTAssertEqual(literalSnap.reply?.tools, 1)
+        XCTAssertEqual(literalSnap.reply?.toolNames, [String]())
+        XCTAssertNil(literalSnap.reply?.workText)
+        XCTAssertEqual(literalSnap.reply?.answerText, "Looking up flights.\nFound 2 options.")
+
+        // Hourglass-only tail after a tool call must NOT become the folded answer.
+        let hourglass = event("$r5", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n⏳",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let hourglassSnap = ThreadSnapshot.build(root: voiceRoot, related: [hourglass], ownUserId: me, now: now)
+        XCTAssertEqual(hourglassSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(hourglassSnap.reply?.workText)
+        XCTAssertEqual(hourglassSnap.reply?.answerText, "Looking up flights.\n⏳")
     }
 
     func testV3ToolTraceExtractsToolNamesBodyLineSplitAndDuration() {
@@ -1075,8 +1106,15 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(outOfOrderSnap.reply?.workText)
         XCTAssertEqual(outOfOrderSnap.reply?.answerText, outOfOrderSnap.reply?.text)
 
-        // ai_run.status=completed combined with an active or stopped stream_status must NOT fold or show duration.
-        for conflicting in ["streaming", "cancelled", "approval_pending"] {
+        // ai_run.status=completed combined with string or record-form active/stopped stream_status must NOT fold or show duration.
+        let conflictingValues: [Any] = [
+            "streaming",
+            "cancelled",
+            "approval_pending",
+            ["state": "streaming"] as JSON,
+            ["status": "cancelled"] as JSON,
+        ]
+        for conflicting in conflictingValues {
             let initial = event("$rc", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
             let edit = event("$rce", 1_700_000_012_000, [
                 "m.new_content": [
@@ -1096,6 +1134,86 @@ final class ThreadSnapshotTests: XCTestCase {
             XCTAssertEqual(snap.reply?.answerText, snap.reply?.text, "conflicting=\(conflicting)")
             XCTAssertNil(snap.reply?.durationSeconds, "conflicting=\(conflicting)")
         }
+
+        // Valid success aliases ("complete", "done") and wrapper-level stream_status fold cleanly.
+        for alias in ["complete", "done"] {
+            let reply = event("$ra", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.stream_status": alias,
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                ] as JSON,
+            ]))
+            let snap = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+            XCTAssertEqual(snap.reply?.workText, "Checking staging first.", "alias=\(alias)")
+            XCTAssertEqual(snap.reply?.answerText, "Waiting for approval.", "alias=\(alias)")
+        }
+
+        // Wrapper-level live stream_status on the edit prevents folding even when ai_run says completed.
+        let wrapInitial = event("$rw", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
+        let wrapEdit = event("$rwe", 1_700_000_012_000, [
+            "io.mindroom.stream_status": ["state": "streaming"] as JSON,
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.ai_run": ["version": 1, "status": "completed"] as JSON,
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$rw"] as JSON,
+        ])
+        let wrapSnap = ThreadSnapshot.build(root: voiceRoot, related: [wrapInitial, wrapEdit], ownUserId: me, now: now)
+        XCTAssertNil(wrapSnap.reply?.workText)
+        XCTAssertNil(wrapSnap.reply?.durationSeconds)
+
+        // Present-but-invalid body_line (e.g. null) disables v3 prose splitting while keeping valid tool counts.
+        let malformedPos = event("$rmp", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Line 0.\nLine 1.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [
+                    ["type": "tool_call_completed", "tool_name": "first", "body_line": 1] as JSON,
+                    ["type": "tool_call_completed", "tool_name": "second", "body_line": NSNull()] as JSON,
+                ],
+            ] as JSON,
+        ]))
+        let malformedPosSnap = ThreadSnapshot.build(root: voiceRoot, related: [malformedPos], ownUserId: me, now: now)
+        XCTAssertEqual(malformedPosSnap.reply?.tools, 1)
+        XCTAssertEqual(malformedPosSnap.reply?.toolNames, ["first"])
+        XCTAssertNil(malformedPosSnap.reply?.workText)
+        XCTAssertEqual(malformedPosSnap.reply?.answerText, malformedPosSnap.reply?.text)
+
+        // v3 hourglass-only tail and long_text previews stay unfolded.
+        let v3Hourglass = event("$rh", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Checking staging first.\n⏳",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let v3HourglassSnap = ThreadSnapshot.build(root: voiceRoot, related: [v3Hourglass], ownUserId: me, now: now)
+        XCTAssertNil(v3HourglassSnap.reply?.workText)
+
+        let longTextPreview = event("$rlt", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.long_text": ["version": 1] as JSON,
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let longTextSnap = ThreadSnapshot.build(root: voiceRoot, related: [longTextPreview], ownUserId: me, now: now)
+        XCTAssertNil(longTextSnap.reply?.workText)
 
         // Redacted agent reply with a surviving same-sender edit must NOT expose tool names or work fold.
         var redacted = event("$red", 1_700_000_000_000, inThread([:]))
