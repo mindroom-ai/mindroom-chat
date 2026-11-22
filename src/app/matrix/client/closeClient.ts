@@ -3,8 +3,9 @@ import type { MatrixClient } from 'matrix-js-sdk';
 const closers = new WeakMap<MatrixClient, Array<() => void>>();
 
 /**
- * Has `stop` called when the page is done with the client (`closeClient`, a sign-out): for a listener outside
- * the client that reaches it, which would keep the client in memory and act on it after that.
+ * Has `stop` called when the page is done with the client (`closeClient`, a sign-out): for a
+ * listener outside the client that reaches it, which would keep the client in memory and act on
+ * it after that.
  */
 export const onClientClose = (client: MatrixClient, stop: () => void): void => {
   closers.set(client, [...(closers.get(client) ?? []), stop]);

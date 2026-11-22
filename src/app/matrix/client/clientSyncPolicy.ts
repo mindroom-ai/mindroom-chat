@@ -96,8 +96,8 @@ export const startClient = async (mx: MatrixClient): Promise<void> => {
     keepNewerEditsOnMappedCopies(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
-    keepStreamingRepliesChecked(mx);
-    // Its hints end on timers, which would outlive a closed client.
+    // Their checks and hints wait on timers, which would outlive a closed client.
+    onClientClose(mx, keepStreamingRepliesChecked(mx));
     onClientClose(mx, keepStreamingThreadsLoaded(mx));
     relistThreadsAfterGaps(mx);
     // These saves listen to the page as well (it may be hidden while one waits), which would keep

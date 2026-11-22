@@ -1211,6 +1211,19 @@ describe('streaming replies on thread cards', () => {
     expect(f.replyRequests()).toBe(1);
   });
 
+  it('asks nothing about a reply once the client is closed', async () => {
+    const now = Date.now();
+    const f = fixture();
+    f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+    await f.start();
+    await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+    // The card asks about the reply; its check waits a moment for the room's thread list.
+    expect(f.card().streaming).toBe(false);
+    closeClient(f.mx);
+    await afterCheckDelay();
+    expect(f.replyRequests()).toBe(0);
+  });
+
   it('stops streaming a reply whose finishing edit came in a sync gap', async () => {
     const now = Date.now();
     const f = fixture();
