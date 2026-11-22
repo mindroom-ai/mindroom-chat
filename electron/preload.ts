@@ -11,7 +11,7 @@ const bridge = {
       ipcRenderer.removeListener('desktop:shell-event', handle);
     };
   },
-  setMediaSession: (session) => ipcRenderer.invoke('desktop:set-media-session', session),
+  setMediaSession: (session) => ipcRenderer.sendSync('desktop:set-media-session', session),
 } satisfies DesktopBridge;
 
 contextBridge.exposeInMainWorld('mindroomDesktop', bridge);

@@ -6,15 +6,12 @@ import { installMediaAuth } from './mediaAuth';
 import { guardSession, setBlockedUrlRecorder } from './security';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
-const disabledFeatures = app.commandLine
-  .getSwitchValue('disable-features')
-  .split(',')
-  .map((f) => f.trim())
-  .filter(Boolean);
-if (!disabledFeatures.includes('UseAncestorRenderFrameForWorker')) {
-  disabledFeatures.push('UseAncestorRenderFrameForWorker');
-}
-app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','));
+app.commandLine.appendSwitch(
+  'disable-features',
+  [app.commandLine.getSwitchValue('disable-features'), 'UseAncestorRenderFrameForWorker']
+    .filter(Boolean)
+    .join(',')
+);
 
 registerBundleScheme();
 

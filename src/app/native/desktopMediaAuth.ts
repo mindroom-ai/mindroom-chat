@@ -2,18 +2,9 @@ import type { DesktopMediaSession } from '../lib/desktopBridge';
 import { desktopBridge } from '../lib/nativeShell';
 
 let ready = false;
-// Ignores stale IPC acks that resolve after a newer session push.
-let latest: object | undefined;
-// Skips duplicate IPC pushes on metadata-only session store writes.
-let sentKey: string | undefined;
 const listeners = new Set<() => void>();
 
-const setReady = (next: boolean): void => {
-  if (ready === next) return;
-  ready = next;
-  listeners.forEach((listener) => listener());
-};
-
+/** Whether main holds the active session, so it authorizes this window's media requests. */
 export const desktopMediaAuthReady = (): boolean => ready;
 
 export const subscribeDesktopMediaAuth = (listener: () => void): (() => void) => {
@@ -21,39 +12,32 @@ export const subscribeDesktopMediaAuth = (listener: () => void): (() => void) =>
   return () => listeners.delete(listener);
 };
 
+/** Pushes the active session to main synchronously, now and on every session store change. */
 export const startDesktopMediaAuth = (
   readActiveSession: () => DesktopMediaSession | undefined,
   subscribe: (listener: () => void) => () => void
 ): void => {
   const bridge = desktopBridge();
   if (!bridge) return;
-  const send = (session: DesktopMediaSession | null, token: object, retried: boolean): void => {
-    void bridge
-      .setMediaSession(session)
-      .catch(() => ({ ok: false as const, code: 'IPC_ERROR' }))
-      .then((res) => {
-        if (latest !== token) return;
-        if (res?.ok) setReady(session !== null);
-        else if (!retried) send(session, token, true);
-        else {
-          // If a logout push fails twice at IPC, readiness stays false so the page requests no authenticated media.
-          sentKey = undefined;
-          setReady(false);
-        }
-      });
-  };
+  let sent: DesktopMediaSession | null | undefined;
   const push = (): void => {
     const raw = readActiveSession();
     const session = raw?.accessToken
-      ? { baseUrl: raw.baseUrl, accessToken: raw.accessToken }
+      ? { baseUrl: raw.baseUrl, userId: raw.userId, accessToken: raw.accessToken }
       : null;
-    const key = session ? `${session.baseUrl}\0${session.accessToken}` : '';
-    if (key === sentKey) return;
-    sentKey = key;
-    setReady(false);
-    const token = {};
-    latest = token;
-    send(session, token, false);
+    const same = sent?.baseUrl === session?.baseUrl && sent?.accessToken === session?.accessToken;
+    if (sent !== undefined && same) return;
+    sent = session;
+    let ok = false;
+    try {
+      ok = bridge.setMediaSession(session).ok;
+    } catch {
+      // Main did not answer: it holds no session this page knows of.
+    }
+    const next = ok && session !== null;
+    if (ready === next) return;
+    ready = next;
+    listeners.forEach((listener) => listener());
   };
   subscribe(push);
   push();

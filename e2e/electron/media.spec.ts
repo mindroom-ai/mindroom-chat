@@ -86,6 +86,16 @@ const startMediaServer = async (
       return;
     }
 
+    if (pathname.endsWith('/cacheable.txt')) {
+      res.writeHead(200, {
+        ...cors,
+        'Content-Type': 'text/plain',
+        'Cache-Control': 'private, max-age=31536000, immutable',
+      });
+      res.end('cached');
+      return;
+    }
+
     if (pathname.endsWith('.png')) {
       res.writeHead(200, { ...cors, 'Content-Type': 'image/png' });
       res.end(PIXEL_PNG);
@@ -198,9 +208,10 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
       });
     });
 
-    // Push session through the real session store (exercising startDesktopMediaAuth).
+    // Push session through the real session store (exercising startDesktopMediaAuth). The push is
+    // synchronous, so a request issued right after the store change already carries the token.
     await page.evaluate(
-      ({ key, baseUrl }) => {
+      async ({ key, baseUrl }) => {
         const sessionId = `${encodeURIComponent(baseUrl)}::${encodeURIComponent('@alice:local')}`;
         window.localStorage.setItem(
           key,
@@ -220,19 +231,13 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
           })
         );
         window.dispatchEvent(new StorageEvent('storage', { key }));
+        await fetch(`${baseUrl}/_matrix/client/v1/media/download/a/probe.txt`);
       },
       { key: SESSION_STORE_KEY, baseUrl: server.url }
     );
-
-    // Wait for main to store the pushed session (no sleep).
-    await expect
-      .poll(async () => {
-        await page.evaluate(async (url) => {
-          await fetch(url);
-        }, `${server.url}/_matrix/client/v1/media/download/a/probe.txt`);
-        return server.requests.filter((r) => r.url.includes('/probe.txt')).at(-1)?.authorization;
-      })
-      .toBe('Bearer tok-a');
+    expect(
+      server.requests.filter((r) => r.url.includes('/probe.txt')).map((r) => r.authorization)
+    ).toStrictEqual(['Bearer tok-a']);
 
     // 1. <img>
     await page.evaluate(
@@ -382,23 +387,35 @@ test('authorizes main-frame media requests, preserves caller Authorization, deni
     );
     expect(opaqueReq.authorization).toBeUndefined();
 
-    // 8. after sign-out, requests arrive without Authorization
+    // 8. a cacheable authorized response is served from the HTTP cache while signed in
+    const cacheableUrl = `${server.url}/_matrix/client/v1/media/download/a/cacheable.txt`;
+    const cacheableRequests = (): RecordedRequest[] =>
+      server.requests.filter((r) => r.url.includes('/cacheable.txt'));
+    const fetchText = (url: string): Promise<string> =>
+      page.evaluate(async (u) => (await fetch(u)).text(), url);
+    expect(await fetchText(cacheableUrl)).toBe('cached');
+    expect(await fetchText(cacheableUrl)).toBe('cached');
+    expect(cacheableRequests().map((r) => r.authorization)).toStrictEqual(['Bearer tok-a']);
+
+    // 9. after sign-out the next request arrives without Authorization, and the cached response
+    // is gone: the same URL reaches the server again, without Authorization
     await page.evaluate(
-      ({ key }) => {
+      async ({ key, url }) => {
         window.localStorage.setItem(key, JSON.stringify({ version: 1, sessions: [] }));
         window.dispatchEvent(new StorageEvent('storage', { key }));
+        await fetch(url);
       },
-      { key: SESSION_STORE_KEY }
+      {
+        key: SESSION_STORE_KEY,
+        url: `${server.url}/_matrix/client/v1/media/download/a/after-signout.txt`,
+      }
     );
-    await expect
-      .poll(async () => {
-        await page.evaluate(async (url) => {
-          await fetch(url);
-        }, `${server.url}/_matrix/client/v1/media/download/a/after-signout.txt`);
-        return server.requests.filter((r) => r.url.includes('/after-signout.txt')).at(-1)
-          ?.authorization;
-      })
-      .toBeUndefined();
+    const afterSignOut = server.requests.filter((r) => r.url.includes('/after-signout.txt'));
+    expect(afterSignOut).toHaveLength(1);
+    expect(afterSignOut[0]?.authorization).toBeUndefined();
+    expect(await fetchText(cacheableUrl)).toBe('cached');
+    expect(cacheableRequests()).toHaveLength(2);
+    expect(cacheableRequests()[1]?.authorization).toBeUndefined();
   } finally {
     await desktop.close();
     await server.close();
@@ -443,13 +460,15 @@ test('never attaches a token on redirects across two signed-in windows or same-o
     await page2.waitForLoadState('domcontentloaded');
 
     const resA = await page.evaluate(
-      (baseUrl) => window.mindroomDesktop!.setMediaSession({ baseUrl, accessToken: 'tok-a' }),
+      (baseUrl) =>
+        window.mindroomDesktop!.setMediaSession({ baseUrl, userId: '@a:a', accessToken: 'tok-a' }),
       serverA.url
     );
     expect(resA).toEqual({ ok: true, value: undefined });
 
     const resB = await page2.evaluate(
-      (baseUrl) => window.mindroomDesktop!.setMediaSession({ baseUrl, accessToken: 'tok-b' }),
+      (baseUrl) =>
+        window.mindroomDesktop!.setMediaSession({ baseUrl, userId: '@b:b', accessToken: 'tok-b' }),
       serverB.url
     );
     expect(resB).toEqual({ ok: true, value: undefined });
@@ -536,6 +555,9 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
   };
 
   const imageUri = await upload(PIXEL_PNG, 'image/png', 'media-auth-picture.png');
+  // Its own upload, so a request for the timeline image is not the avatar's.
+  const avatarUri = await upload(PIXEL_PNG, 'image/png', 'media-auth-avatar.png');
+  expect(avatarUri).not.toBe(imageUri);
   const videoUri = await upload(TINY_WEBM, 'video/webm', 'media-auth-clip.webm');
 
   const profilePath = `/profile/${encodeURIComponent(alice.userId)}`;
@@ -547,11 +569,12 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
   await matrixFetch(homeserver, `${profilePath}/avatar_url`, {
     method: 'PUT',
     accessToken: alice.accessToken,
-    body: JSON.stringify({ avatar_url: imageUri }),
+    body: JSON.stringify({ avatar_url: avatarUri }),
   });
 
+  const roomName = `Desktop Media ${suffix}`;
   const roomId = await createRoom(homeserver, alice.accessToken, {
-    name: `Desktop Media ${suffix}`,
+    name: roomName,
     encrypted: false,
   });
 
@@ -585,6 +608,13 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
   const setup = page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' });
   await page.addLocatorHandler(setup, () => setup.getByRole('button', { name: 'Not now' }).click());
 
+  // Every media request of the page, from before the sign-in on.
+  const mediaRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/_matrix\/(?:client\/v1\/)?media\//.test(request.url()))
+      mediaRequests.push(request.url());
+  });
+
   try {
     await loginWithPassword(page, {
       homeserver,
@@ -593,11 +623,15 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
       baseUrl: APP_ORIGIN,
     });
 
-    await page.goto(`${APP_ORIGIN}/home/${encodeURIComponent(roomId)}`);
+    // Open the seeded room through the sidebar: no reload between the sign-in and the first image.
+    await page.getByRole('link', { name: roomName }).first().click({ timeout: 30_000 });
     const timeline = page.getByTestId('room-virtual-inner');
     await expect(timeline).toBeVisible({ timeout: 20_000 });
 
-    // 1. Timeline image renders right after sign-in with no access_token in its URL.
+    // 1. Timeline image renders right after sign-in. The app shows it from a blob it fetched, so
+    // the endpoint is checked on the requests: the image came from the authenticated endpoint, and
+    // no media request went to the legacy one (which this homeserver also answers, and which the
+    // page uses while main holds no session) or put a token in a URL.
     const image = timeline.locator('img[alt="media-auth-picture.png"]').first();
     await expect(image).toBeVisible({ timeout: 20_000 });
     await expect
@@ -605,7 +639,18 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
         timeout: 15_000,
       })
       .toBe(true);
-    const imageSrc = await image.evaluate((el: HTMLImageElement) => el.currentSrc || el.src);
+    const imageSrc = await image.evaluate((el: HTMLImageElement) => el.currentSrc);
+    expect(imageSrc).toMatch(/^blob:|\/_matrix\/client\/v1\/media\//);
+    const imagePath = imageUri.replace('mxc://', '');
+    expect(
+      mediaRequests.filter((url) =>
+        new RegExp(`/_matrix/client/v1/media/(?:thumbnail|download)/${imagePath}(?:[/?]|$)`).test(
+          url
+        )
+      ).length
+    ).toBeGreaterThan(0);
+    expect(mediaRequests.filter((url) => !url.includes('/_matrix/client/v1/media/'))).toEqual([]);
+    expect(mediaRequests.filter((url) => url.includes('access_token'))).toEqual([]);
     expect(imageSrc).not.toContain('access_token');
     expect(imageSrc).not.toContain(alice.accessToken);
 
@@ -667,16 +712,19 @@ test('@homeserver renders authenticated image and avatar, plays video, and copie
       selection?.addRange(range);
       document.execCommand('copy');
     });
-    const copied = await app.evaluate(async ({ clipboard }) => {
-      const parts: string[] = [await clipboard.readText()];
+    const clip = await app.evaluate(async ({ clipboard }) => {
+      let html = '';
       for (const item of await clipboard.read()) {
         if (item.types.includes('text/html')) {
-          parts.push(await (await item.getType('text/html')).text());
+          html += await (await item.getType('text/html')).text();
         }
       }
-      return parts.join('\n');
+      return { html, text: await clipboard.readText() };
     });
-    expect(copied.trim().length).toBeGreaterThan(0);
+    // The copy took the image element along, so the checks below look at its URL.
+    expect(clip.html).toMatch(/<img\b[^>]*\bsrc="[^"]+"/);
+    expect(clip.html).toContain('media-auth-picture.png');
+    const copied = `${clip.html}\n${clip.text}`;
     expect(copied).not.toContain('access_token');
     expect(copied).not.toContain(desktopAccessToken);
     expect(copied).not.toContain(alice.accessToken);

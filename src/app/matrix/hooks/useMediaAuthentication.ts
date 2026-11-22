@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import { isCapacitorApp, isDesktopApp } from '../../lib/nativeShell';
 import { desktopMediaAuthReady, subscribeDesktopMediaAuth } from '../../native/desktopMediaAuth';
 import type { SpecVersions } from '../cs-api';
@@ -41,26 +41,23 @@ const readTransportSupport = (): boolean =>
     hasNativeMediaTransport()
   );
 
+const subscribeTransportSupport = (onChange: () => void): (() => void) => {
+  const stopDesktop = subscribeDesktopMediaAuth(onChange);
+  const serviceWorker = typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
+  serviceWorker?.addEventListener('controllerchange', onChange);
+  return () => {
+    stopDesktop();
+    serviceWorker?.removeEventListener('controllerchange', onChange);
+  };
+};
+
 /**
- * Whether to request authenticated media. Follows the service worker: media switches to the
- * authenticated endpoints once a worker takes control of the page.
+ * Whether to request authenticated media. Follows the transport: media switches to the
+ * authenticated endpoints once a worker takes control of the page or main holds the session.
  */
 export const useMediaAuthentication = (): boolean => {
   const specVersions = useSpecVersions();
-  const [transportSupported, setTransportSupported] = useState(readTransportSupport);
-
-  useEffect(() => {
-    const refresh = () => setTransportSupported(readTransportSupport());
-    refresh();
-    const stopDesktop = subscribeDesktopMediaAuth(refresh);
-    const serviceWorker = typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
-    serviceWorker?.addEventListener('controllerchange', refresh);
-    return () => {
-      stopDesktop();
-      serviceWorker?.removeEventListener('controllerchange', refresh);
-    };
-  }, []);
-
+  const transportSupported = useSyncExternalStore(subscribeTransportSupport, readTransportSupport);
   return shouldUseMediaAuthentication(specVersions, transportSupported);
 };
 

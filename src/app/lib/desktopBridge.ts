@@ -1,7 +1,7 @@
 /** Shell-level events pushed from the Electron main process to the page. */
 export type DesktopShellEvent = { type: 'fullscreen'; value: boolean };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
-export type DesktopMediaSession = { baseUrl: string; accessToken: string };
+export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 
 /**
  * The preload bridge exposed on `window.mindroomDesktop` in the Electron desktop app.
@@ -9,7 +9,8 @@ export type DesktopMediaSession = { baseUrl: string; accessToken: string };
  */
 export type DesktopBridge = {
   onShellEvent: (listener: (event: DesktopShellEvent) => void) => () => void;
-  setMediaSession: (session: DesktopMediaSession | null) => Promise<DesktopResult<void>>;
+  /** Synchronous: main holds the session when this returns. */
+  setMediaSession: (session: DesktopMediaSession | null) => DesktopResult<void>;
 };
 
 declare global {

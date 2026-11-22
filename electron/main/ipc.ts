@@ -1,7 +1,6 @@
 import { ipcMain } from 'electron';
-import { APP_ORIGIN, isAllowedAppPage } from './bundleProtocol';
-
 import type { DesktopResult } from '../../src/app/lib/desktopBridge';
+import { APP_ORIGIN, isAllowedAppPage } from './bundleProtocol';
 
 export type Result<T> = DesktopResult<T>;
 

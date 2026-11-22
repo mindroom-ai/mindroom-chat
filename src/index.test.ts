@@ -288,7 +288,7 @@ describe('application bootstrap', () => {
         listeners.push(listener);
         return () => undefined;
       }),
-      setMediaSession: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
     };
     const win = window as Window & { mindroomDesktop?: typeof bridge };
     win.mindroomDesktop = bridge;

@@ -15,7 +15,7 @@ const setDesktop = (enabled: boolean): void => {
   }
   const bridge: DesktopBridge = {
     onShellEvent: () => () => undefined,
-    setMediaSession: async () => ({ ok: true, value: undefined }),
+    setMediaSession: () => ({ ok: true, value: undefined }),
   };
   Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
 };

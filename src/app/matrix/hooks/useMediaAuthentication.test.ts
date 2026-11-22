@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   hasMediaAuthTransportSupport,
@@ -107,7 +107,7 @@ describe('shouldUseMediaAuthentication', () => {
         location: { protocol: 'capacitor:' },
         mindroomDesktop: {
           onShellEvent: vi.fn(() => vi.fn()),
-          setMediaSession: vi.fn(async () => ({ ok: true, value: undefined })),
+          setMediaSession: vi.fn(() => ({ ok: true, value: undefined })),
         },
       },
     });
@@ -141,43 +141,112 @@ describe('shouldUseMediaAuthentication', () => {
     expect(mediaAuthentication).toBe(true);
   });
 
-  it('reactively enables authenticated media in the desktop app once main acknowledges the session', async () => {
+  const desktopHook = async () => {
     vi.resetModules();
-    let resolveAck!: (result: { ok: true; value: undefined }) => void;
-    const setMediaSession = vi.fn(
-      () =>
-        new Promise<{ ok: true; value: undefined }>((resolve) => {
-          resolveAck = resolve;
-        })
-    );
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
       value: {
         location: { protocol: 'capacitor:' },
-        mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()), setMediaSession },
+        mindroomDesktop: {
+          onShellEvent: vi.fn(() => vi.fn()),
+          setMediaSession: vi.fn(() => ({ ok: true, value: undefined })),
+        },
       },
     });
-    const { startDesktopMediaAuth } = await import('../../native/desktopMediaAuth');
-    const { useMediaAuthentication: useMediaAuth } = await import('./useMediaAuthentication');
-    startDesktopMediaAuth(
-      () => ({ baseUrl: 'https://hs.example', accessToken: 'tok-1' }),
-      () => () => undefined
+    const { desktopMediaAuthReady, startDesktopMediaAuth } = await import(
+      '../../native/desktopMediaAuth'
     );
-    let mediaAuthentication = true;
+    const { useMediaAuthentication: useMediaAuth } = await import('./useMediaAuthentication');
+    const store = {
+      session: undefined as { baseUrl: string; userId: string; accessToken: string } | undefined,
+      changed: (): void => undefined,
+    };
+    startDesktopMediaAuth(
+      () => store.session,
+      (listener) => {
+        store.changed = listener;
+        return () => undefined;
+      }
+    );
+    const signIn = (accessToken: string): void => {
+      store.session = { baseUrl: 'https://hs.example', userId: '@alice:hs', accessToken };
+      store.changed();
+    };
+    const signOut = (): void => {
+      store.session = undefined;
+      store.changed();
+    };
+    return { desktopMediaAuthReady, useMediaAuth, signIn, signOut };
+  };
+
+  it('follows the desktop session: on at sign-in, unchanged by a token refresh, off at logout', async () => {
+    const { useMediaAuth, signIn, signOut } = await desktopHook();
+    const rendered: boolean[] = [];
     const Probe = () => {
-      mediaAuthentication = useMediaAuth();
+      rendered.push(useMediaAuth());
       return null;
     };
     act(() => {
       renderer = create(React.createElement(Probe));
     });
-    expect(mediaAuthentication).toBe(false);
+    expect(rendered.at(-1)).toBe(false);
 
-    await act(async () => {
-      resolveAck({ ok: true, value: undefined });
-      await Promise.resolve();
+    act(() => signIn('tok-1'));
+    expect(rendered.at(-1)).toBe(true);
+
+    const renders = rendered.length;
+    act(() => signIn('tok-2'));
+    expect(rendered).toHaveLength(renders);
+
+    act(() => signOut());
+    expect(rendered.at(-1)).toBe(false);
+  });
+
+  it('never commits a transport state older than the store when it changes during a paused render', async () => {
+    const { desktopMediaAuthReady, useMediaAuth, signIn, signOut } = await desktopHook();
+    signIn('tok-1');
+    const commits: Array<{ hook: boolean; store: boolean }> = [];
+    const Probe = () => {
+      const hook = useMediaAuth();
+      React.useLayoutEffect(() => {
+        commits.push({ hook, store: desktopMediaAuthReady() });
+      });
+      return null;
+    };
+    // Stands in for a logout that lands while a concurrent render of Probe is paused.
+    let interleave = true;
+    const Interleaved = () => {
+      if (interleave) {
+        interleave = false;
+        signOut();
+      }
+      return null;
+    };
+    let show!: () => void;
+    const App = () => {
+      const [shown, setShown] = React.useState(false);
+      show = () => setShown(true);
+      return shown
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(Probe),
+            React.createElement(Interleaved)
+          )
+        : null;
+    };
+    act(() => {
+      // A concurrent root, so the transition below renders in a lane that may be interrupted.
+      renderer = create(React.createElement(App), {
+        createNodeMock: () => null,
+        unstable_isConcurrent: true,
+      } as TestRendererOptions);
     });
-    expect(mediaAuthentication).toBe(true);
+    act(() => React.startTransition(show));
+
+    expect(commits.length).toBeGreaterThan(0);
+    expect(commits.filter(({ hook, store }) => hook !== store)).toEqual([]);
+    expect(commits.at(-1)).toEqual({ hook: false, store: false });
   });
 });

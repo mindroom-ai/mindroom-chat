@@ -1,9 +1,10 @@
+import { ipcMain } from 'electron';
+import type { DesktopMediaSession as MediaSession } from '../../src/app/lib/desktopBridge';
 import { isAllowedHomeserverBaseUrl } from '../../src/app/matrix/cs-api';
 import { validMediaRequest } from '../../src/sw/swMediaAuth';
 import { APP_ORIGIN, isAllowedAppPage } from './bundleProtocol';
-import { handle } from './ipc';
+import { isAuthorized, type Result } from './ipc';
 
-export type MediaSession = { baseUrl: string; accessToken: string };
 export type MediaRequest = {
   id: number;
   url: string;
@@ -13,8 +14,9 @@ export type MediaRequest = {
 };
 
 const HTTP_URLS = { urls: ['http://*/*', 'https://*/*'] };
+// Only a download may end in a file name.
 const MEDIA_ROUTE =
-  /^\/_matrix\/client\/v1\/media\/(?:download|thumbnail)\/[^/]+\/[^/]+(?:\/[^/]+)?$/;
+  /^\/_matrix\/client\/v1\/media\/(?:download\/[^/]+\/[^/]+(?:\/[^/]+)?|thumbnail\/[^/]+\/[^/]+)$/;
 
 const isStrictMediaUrl = (url: string, baseUrl: string): boolean => {
   if (!validMediaRequest(url, baseUrl)) return false;
@@ -32,9 +34,12 @@ export const createMediaAuth = () => {
   const redirectedIds = new Set<number>();
   const owned = new Map<number, string>();
   return {
-    set(windowId: number, session?: MediaSession): void {
+    /** Replaces the window's session and returns the one it had. */
+    set(windowId: number, session?: MediaSession): MediaSession | undefined {
+      const previous = sessions.get(windowId);
       if (session) sessions.set(windowId, session);
       else sessions.delete(windowId);
+      return previous;
     },
     authorize(req: MediaRequest): string | undefined {
       if (redirectedIds.has(req.id) || req.authorization !== undefined || req.method !== 'GET')
@@ -59,20 +64,18 @@ export const createMediaAuth = () => {
   };
 };
 
-type ParsedSession = { valid: true; session: MediaSession | null } | { valid: false };
-
-const parseSession = (args: unknown[]): ParsedSession => {
-  if (args.length > 1) return { valid: false };
-  if (args[0] === undefined || args[0] === null) return { valid: true, session: null };
-  if (typeof args[0] !== 'object' || Array.isArray(args[0])) return { valid: false };
-  const { baseUrl, accessToken } = args[0] as Record<string, unknown>;
-  if (typeof baseUrl !== 'string' || typeof accessToken !== 'string') return { valid: false };
+/** The pushed session, `null` for none (signed out), or `undefined` when the push is malformed. */
+const parseSession = (args: unknown[]): MediaSession | null | undefined => {
+  if (args.length > 1) return undefined;
+  if (args[0] === undefined || args[0] === null) return null;
+  if (typeof args[0] !== 'object' || Array.isArray(args[0])) return undefined;
+  const { baseUrl, userId, accessToken } = args[0] as Record<string, unknown>;
+  if (typeof baseUrl !== 'string' || typeof userId !== 'string' || typeof accessToken !== 'string')
+    return undefined;
   if (!accessToken.trim() || /[\r\n]/.test(accessToken) || !isAllowedHomeserverBaseUrl(baseUrl))
-    return { valid: false };
+    return undefined;
   const { username, password } = new URL(baseUrl);
-  return username || password
-    ? { valid: false }
-    : { valid: true, session: { baseUrl, accessToken } };
+  return username || password ? undefined : { baseUrl, userId, accessToken };
 };
 
 export const installMediaAuth = (
@@ -80,13 +83,27 @@ export const installMediaAuth = (
   owners: () => readonly Electron.WebContents[]
 ): ((windowId: number) => void) => {
   const auth = createMediaAuth();
-  handle('desktop:set-media-session', owners, parseSession, async (parsed, sender) => {
-    if (!parsed.valid) {
-      auth.set(sender.id, undefined);
-      return { ok: false, code: 'BAD_ARGUMENTS' };
+  // The one synchronous channel (all others go through `handle()`): main must hold the token
+  // before the page can send any request after its session store changed.
+  ipcMain.on('desktop:set-media-session', (event, ...args) => {
+    let result: Result<void> = { ok: false, code: 'FORBIDDEN' };
+    const reply = (): void => {
+      event.returnValue = result;
+    };
+    try {
+      const owner = owners().find((candidate) => isAuthorized(event, candidate));
+      if (!owner) return reply();
+      const next = parseSession(args);
+      const previous = auth.set(owner.id, next ?? undefined);
+      result =
+        next === undefined ? { ok: false, code: 'BAD_ARGUMENTS' } : { ok: true, value: undefined };
+      // A response cached for the account that left must not be served to a request without its header.
+      if (previous && (previous.baseUrl !== next?.baseUrl || previous.userId !== next?.userId))
+        return void ses.clearCache().then(reply, reply);
+    } catch {
+      // Answer what was decided so far; the page must never stay blocked.
     }
-    auth.set(sender.id, parsed.session ?? undefined);
-    return { ok: true, value: undefined };
+    return reply();
   });
   ses.webRequest.onBeforeSendHeaders(HTTP_URLS, (d, cb) => {
     let res: Electron.BeforeSendResponse = {};

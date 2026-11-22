@@ -41,7 +41,7 @@ const makeBridge = (): {
   return {
     bridge: {
       onShellEvent,
-      setMediaSession: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
     },
     onShellEvent,
     unsubscribe,
