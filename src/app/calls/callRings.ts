@@ -10,6 +10,7 @@ import {
 import { createDecryptionWaits } from '../matrix/decryptionWaits';
 import { RECENT_LIVE_EVENTS_MS, takeRecentLiveEvents } from '../matrix/client/recentLiveEvents';
 import { matchesEnum } from '../lib/matchesEnum';
+import { isNativeIOS } from '../native/nativeSso';
 
 /** A ring this device has not answered yet. */
 export type IncomingRing = {
@@ -18,6 +19,8 @@ export type IncomingRing = {
   sender: string;
   video: boolean;
   expiresAt: number;
+  /** True on native iOS when APNs owns the ring sound (seen while hidden or caught up after resume). */
+  silent?: boolean;
 };
 
 /** A notification ring lasts this long when it names no lifetime (MSC4075's default). */
@@ -111,6 +114,7 @@ export type RingWatcher = {
  */
 export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void) => {
   const myUserId = mx.getSafeUserId();
+  const nativeIOS = isNativeIOS();
   let stopped = false;
   const decryptions = createDecryptionWaits();
   // A ring read after its decline (its room key came late) does not ring. The catch-up below reads
@@ -118,9 +122,27 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   // newer ring, and does not ring either. Live rings all come after the caught-up ones.
   const declinedRings = new Set<string>();
   let newestRung = -1;
+  let lastBecameVisibleAt =
+    typeof document !== 'undefined' && document.visibilityState === 'visible'
+      ? Date.now()
+      : undefined;
+
+  const onVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      lastBecameVisibleAt = Date.now();
+    }
+  };
+  if (nativeIOS && typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
 
   /** `deliveredAt` places a caught-up event in the order sync delivered them. */
-  const read = (event: MatrixEvent, deliveredAt = Infinity) => {
+  const read = (
+    event: MatrixEvent,
+    deliveredAt = Infinity,
+    seenWhileHidden = false,
+    caughtUp = false
+  ) => {
     const declined = declinedRingId(event, myUserId);
     if (declined) {
       declinedRings.add(declined);
@@ -130,18 +152,30 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     const ring = readRing(event, myUserId);
     if (!ring || declinedRings.has(ring.eventId) || deliveredAt < newestRung) return;
     newestRung = deliveredAt;
-    watcher.onRing(ring);
+    const content = event.getContent();
+    const senderTs = typeof content.sender_ts === 'number' ? content.sender_ts : event.getTs();
+    const sentAt = Math.min(senderTs, event.getTs());
+    const apnsOwnsSound =
+      nativeIOS &&
+      (seenWhileHidden ||
+        (typeof document !== 'undefined' && document.visibilityState !== 'visible') ||
+        caughtUp ||
+        (lastBecameVisibleAt !== undefined && sentAt < lastBecameVisibleAt));
+    watcher.onRing(apnsOwnsSound ? { ...ring, silent: true } : ring);
   };
 
   const consider = async (event: MatrixEvent, deliveredAt?: number) => {
+    const seenWhileHidden =
+      nativeIOS && typeof document !== 'undefined' && document.visibilityState !== 'visible';
+    const caughtUp = deliveredAt !== undefined;
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
     if (!event.isDecryptionFailure()) {
-      read(event, deliveredAt);
+      read(event, deliveredAt, seenWhileHidden, caughtUp);
       return;
     }
     const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    decryptions.wait(event, left, () => read(event, deliveredAt));
+    decryptions.wait(event, left, () => read(event, deliveredAt, seenWhileHidden, caughtUp));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
@@ -164,5 +198,8 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     stopped = true;
     decryptions.stop();
     mx.off(RoomEvent.Timeline, onTimeline);
+    if (nativeIOS && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    }
   };
 };

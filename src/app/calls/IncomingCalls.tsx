@@ -17,6 +17,7 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
+import { isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar } from './CallTile';
@@ -82,7 +83,10 @@ function RingAlerts({
   const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
   latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
 
-  useEffect(() => (sound ? startRingtone() : undefined), [sound, ring.eventId]);
+  useEffect(
+    () => (sound && !ring.silent ? startRingtone() : undefined),
+    [sound, ring.eventId, ring.silent]
+  );
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
@@ -178,11 +182,30 @@ export function IncomingCalls() {
   const { startCall } = useCallActions(mx);
   const { navigateRoom } = useRoomNavigate();
   const [ring, setRing] = useState<IncomingRing>();
+  // On native iOS, the sound owner (web ringtone vs APNs) is fixed the first time a ring event is
+  // seen so coming to the front does not start the web ringtone on top of APNs for the same event.
+  const soundOwners = useRef<Map<string, 'web' | 'apns'>>(new Map());
 
   useEffect(
     () =>
       watchRings(mx, {
-        onRing: setRing,
+        onRing: (incoming) => {
+          let owner = soundOwners.current.get(incoming.eventId);
+          if (!owner) {
+            owner =
+              isNativeIOS() &&
+              (incoming.silent === true ||
+                (typeof document !== 'undefined' && document.visibilityState !== 'visible'))
+                ? 'apns'
+                : 'web';
+            soundOwners.current.set(incoming.eventId, owner);
+            if (soundOwners.current.size > 64) {
+              const oldest = soundOwners.current.keys().next().value;
+              if (oldest !== undefined) soundOwners.current.delete(oldest);
+            }
+          }
+          setRing(owner === 'apns' ? { ...incoming, silent: true } : incoming);
+        },
         // Rejected on another of this account's devices: this one stops ringing too.
         onDeclined: (declined) =>
           setRing((current) => (current?.eventId === declined ? undefined : current)),
