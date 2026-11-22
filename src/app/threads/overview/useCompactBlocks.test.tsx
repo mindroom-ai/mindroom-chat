@@ -598,6 +598,48 @@ it('mounts the whole last screen before End when the last sections are short', (
   expect(extent()).toBe(prepared);
 });
 
+it('lets the end band go after an End that scrolled nothing', () => {
+  let prepareEnd = () => {};
+  const onEnd = (prepare: () => void) => {
+    prepareEnd = prepare;
+  };
+  const memory = new Map();
+  const { container, rerender } = render(<List memory={memory} onEnd={onEnd} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(12);
+  // A filter leaves the first sixty; the reader goes to their end and presses End there.
+  rerender(<List memory={memory} shown={{ cards: ids.slice(0, 60) }} onEnd={onEnd} />);
+  act(() => {
+    view.scrollTop = 30 * 199.25 - clientHeight;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  act(() => prepareEnd());
+  tick(1);
+  // The filter is lifted: the reader's cards stay, and the list's new end is not theirs.
+  rerender(<List memory={memory} onEnd={onEnd} />);
+  expect(view.querySelector('[data-scroll-anchor="$row59"]')).not.toBeNull();
+  expect(view.querySelector('[data-scroll-anchor="$row95"]')).toBeNull();
+});
+
+it('prepares nothing for End on a list too small to window', () => {
+  let prepareEnd = () => {};
+  const onIds = vi.fn();
+  render(
+    <List
+      memory={new Map()}
+      shown={{ cards: ids.slice(0, 20) }}
+      onIds={onIds}
+      onEnd={(prepare) => {
+        prepareEnd = prepare;
+      }}
+    />
+  );
+  tick(3);
+  const renders = onIds.mock.calls.length;
+  act(() => prepareEnd());
+  expect(onIds.mock.calls.length).toBe(renders);
+});
+
 it('keeps the stationary visible cards when the first jumps to the top', () => {
   const memory = new Map();
   const { container, rerender } = render(<List memory={memory} />);

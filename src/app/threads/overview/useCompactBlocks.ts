@@ -292,6 +292,7 @@ export function useCompactBlocks(options: Options) {
     // A Back that still waited when an address retired it is dropped by a render.
     const waiting = back && !placeReady;
     state.measure = (advance) => {
+      if (advance) state.end = false;
       const now = layout();
       return now !== undefined && (now || (waiting && state.placed) || (!!advance && pending));
     };
@@ -301,14 +302,14 @@ export function useCompactBlocks(options: Options) {
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
   // heights that a width or font change left stale are not the list's end. The second render
   // counts with the heights the first measured. Not while the extent is still discovered:
-  // there a render grows it, and End goes to the end there is.
-  const prepareEnd = useMemo(
-    () => () => {
-      state.end = true;
-      flushSync(render);
-      flushSync(render);
-    },
-    [state]
-  );
+  // there a render grows it, and End goes to the end there is. A small list is all mounted.
+  // An End at the end scrolls nothing: the next frame lets the band go.
+  const prepareEnd = () => {
+    if (small) return;
+    state.end = true;
+    flushSync(render);
+    flushSync(render);
+    state.wake?.();
+  };
   return { rows, liveIds, extentComplete, placeReady, targetReady, prepareEnd, progress: state };
 }
