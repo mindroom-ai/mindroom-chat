@@ -221,7 +221,9 @@ export const SidebarAvatar = recipe({
     },
     // The raised button of a rail section. SidebarAvatar adds the glass control material for
     // its rim and shadow; the fill is a deeper grey than the material's, as in home.png, and a
-    // hairline in the rail's line colour runs around the outside of the rim.
+    // hairline in the rail's line colour runs around the outside of the rim. The rail behind it
+    // is solid, so drop the backdrop filter: leaving it on creates a WebKit backdrop layer that
+    // paints over sibling unread badges while the clipped phone navigation drawer slides in.
     outlined: {
       true: {
         position: 'relative',
@@ -231,6 +233,8 @@ export const SidebarAvatar = recipe({
           '&&&': {
             backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82),
             border: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
           },
           [raisedEngaged('')]: {
             backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
