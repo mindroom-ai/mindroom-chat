@@ -238,6 +238,24 @@ describe('IncomingCalls ring alerts', () => {
     }
   );
 
+  it('starts the ringtone on first resume when a ring arrived while hidden before memberships loaded', () => {
+    calls.settings = true;
+    calls.nativeIOS = true;
+    calls.members = [];
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+
+    const renderer = mountAndRing(createStore(), '$hidden-first');
+    expect(calls.startRingtone).not.toHaveBeenCalled();
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+
+    act(() => renderer.unmount());
+  });
+
   it('silences ringtone and desktop alert for a muted non-m.direct room while keeping the card visible', () => {
     calls.settings = true;
     const notifications: string[] = [];
