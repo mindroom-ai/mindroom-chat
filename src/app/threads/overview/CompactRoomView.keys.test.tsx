@@ -207,9 +207,10 @@ describe('the thread keys on the compact thread list', () => {
     };
     const shell = (id: string) => card(id).closest<HTMLElement>('[data-scroll-anchor]')!;
     const more = (id: string) => shell(id).querySelector<HTMLElement>('[aria-haspopup="menu"]')!;
+    // A button, as a card's controls are: a browser that tabs past buttons passes it as well.
     const tabTo = (spacer: Element | null | undefined) => {
-      expect(spacer?.getAttribute('tabindex')).toBe('0');
-      expect(spacer?.hasAttribute('aria-hidden')).toBe(false);
+      expect(spacer).toBeInstanceOf(HTMLButtonElement);
+      expect(spacer?.hasAttribute('data-compact-spacer')).toBe(true);
       act(() => (spacer as HTMLElement).focus());
     };
     beforeEach(() => {

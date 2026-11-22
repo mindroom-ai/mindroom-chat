@@ -41,6 +41,7 @@ export const Cards = style({
 });
 
 export const Spacer = style({
+  all: 'unset',
   flexShrink: 0,
   overflowAnchor: 'none',
   transitionProperty: 'none',

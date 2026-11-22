@@ -521,10 +521,12 @@ export function CompactRoomView({
       setIntent(undefined);
     else if (pending && !address && blocks.targetReady) {
       focusCompactCard(card(pending.id, pending.last));
+      // The focus scrolled the list: the window follows before the target's band is let go.
+      blocks.progress.onWrite?.();
       setIntent(undefined);
     }
     return () => void compactCardNavigation.delete(view);
-  }, [ids, intent, pending, address, blocks.targetReady, keyScope]);
+  }, [ids, intent, pending, address, blocks.targetReady, blocks.progress, keyScope]);
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
@@ -729,11 +731,12 @@ export function CompactRoomView({
     }
     // A Tab stop where its cards would be, in the order of the page: the keyboard's focus goes
     // on to its first card, or coming from below (Shift+Tab) to the last control of its last.
+    // A button, so a browser that tabs past buttons (Safari, unless set otherwise) passes it too.
     return (
-      <div
+      <button
         key={`spacer:${row.key}`}
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-        tabIndex={0}
+        type="button"
+        aria-hidden
         data-compact-spacer={row.key}
         className={css.Spacer}
         style={{ height: row.height }}
