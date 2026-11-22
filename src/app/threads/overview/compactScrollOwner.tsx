@@ -10,17 +10,14 @@ import {
 import { type CompactFocusRequest, compactFocusPlace } from './compactFocusRequest';
 import { type SectionOfRow, stationaryRows } from './compactShownOrder';
 
-/** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
 type CardsInView = {
   cards: { card: HTMLElement; rootId: string; top: number }[];
   scrollTop: number;
   order: readonly string[];
 };
 
-/** How many cards in view are tried, from the top, for one that kept its place. */
 const ANCHOR_CANDIDATES = 8;
 
-/** The topmost cards in view (cards carry `data-scroll-anchor`). */
 const cardsInView = (
   view: HTMLElement,
   order: readonly string[],
@@ -28,25 +25,23 @@ const cardsInView = (
 ): CardsInView | undefined => {
   const viewTop = view.getBoundingClientRect().top;
   const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
-  // The cards stack in one column: find the first one in view by halving, so a reader far down a
-  // long list costs a few layout reads rather than one per card above the view.
+  // Binary search the single column of cards so reading far down a long list costs O(log n) reads.
   let low = 0;
   let high = elements.length;
   while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    if ((elements[middle]?.getBoundingClientRect().bottom ?? Infinity) > viewTop) high = middle;
-    else low = middle + 1;
+    const mid = Math.floor((low + high) / 2);
+    if ((elements[mid]?.getBoundingClientRect().bottom ?? Infinity) > viewTop) high = mid;
+    else low = mid + 1;
   }
   const cards: CardsInView['cards'] = [];
-  for (let index = low; index < elements.length && cards.length < ANCHOR_CANDIDATES; index += 1) {
-    const card = elements[index];
+  for (let i = low; i < elements.length && cards.length < ANCHOR_CANDIDATES; i += 1) {
+    const card = elements[i];
     const rootId = card?.getAttribute('data-scroll-anchor');
     if (card && rootId) cards.push({ card, rootId, top: card.getBoundingClientRect().top });
   }
   return cards.length > 0 ? { cards, scrollTop, order } : undefined;
 };
 
-/** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
 const browserAnchorsScroll = (): boolean =>
   typeof CSS !== 'undefined' &&
   typeof CSS.supports === 'function' &&
@@ -81,11 +76,17 @@ type ScrollState = {
   jumped: boolean;
 };
 
-const clearPending = (state: ScrollState): void => {
+const stopObserving = (state: ScrollState): void => {
+  state.observer?.disconnect();
+  state.observer = undefined;
+};
+
+const clearPending = (state: ScrollState): false => {
   state.pending = undefined;
   state.placedRows = [];
   state.rowOrder = [];
   stopObserving(state);
+  return false;
 };
 
 const writeOffset = (view: HTMLElement, state: ScrollState, top: number): boolean => {
@@ -100,38 +101,28 @@ const writeOffset = (view: HTMLElement, state: ScrollState, top: number): boolea
 const placePending = (view: HTMLElement, state: ScrollState): boolean => {
   let request = state.pending;
   if (!request) return false;
-  if (view.scrollTop !== state.offset) {
-    clearPending(state);
-    return false;
-  }
+  if (view.scrollTop !== state.offset) return clearPending(state);
   if (!state.ready) return false;
   if ('focus' in request) {
     const place = compactFocusPlace(request.focus, view);
-    if (place === null) return false; // The mounted link's card has yet to show.
-    if (!place) {
-      clearPending(state);
-      return false; // The card already shows whole.
-    }
+    if (place === null) return false;
+    if (!place) return clearPending(state);
     request = { id: request.id, ...place };
     state.pending = request;
   }
   const placement = placeRows(view, request, state.placedRows);
-  if (
-    !placement ||
-    (state.placedRows.length > 0 &&
-      state.rowOrder !== state.rows &&
-      !keepsRowOrder(state.rowOrder, state.rows))
-  ) {
-    clearPending(state);
-    return false;
-  }
+  const reordered =
+    state.placedRows.length > 0 &&
+    state.rowOrder !== state.rows &&
+    !keepsRowOrder(state.rowOrder, state.rows);
+  if (!placement || reordered) return clearPending(state);
   const jumped = writeOffset(view, state, placement.scrollTop);
   state.placedRows = placement.rows;
   state.rowOrder = state.rows;
   return jumped;
 };
 
-/** Measure old cards, settle once, then let the parent read for list motion. */
+/** Measure old cards, settle once before layout effects, then let the parent read for motion. */
 export const useCompactScrollOwner = ({
   viewRef,
   contentRef,
@@ -209,7 +200,6 @@ export const useCompactScrollOwner = ({
     return () => {
       view.removeEventListener('scroll', onScroll);
       stopObserving(state);
-      // An empty list leaves its saved place alone.
       if (state.ready) memory.set(roomId, captureScrollAnchors(view));
     };
   }, [memory, roomId, state, viewRef]);
@@ -217,9 +207,4 @@ export const useCompactScrollOwner = ({
   // New callbacks each render: measure even when the order did not change.
   const skipMotion = useCallback(() => state.jumped, [state]);
   return { phase: <BeforeChange order="" read={read} keep={keep} />, skipMotion };
-};
-
-const stopObserving = (state: ScrollState): void => {
-  state.observer?.disconnect();
-  state.observer = undefined;
 };
