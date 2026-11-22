@@ -6,6 +6,7 @@ import {
   MatrixEventEvent,
   RelationType,
   RoomEvent,
+  RoomStateEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -34,6 +35,7 @@ const message = (sender: string, ts: number, type: string = EventType.RoomMessag
     isState: () => false,
     isRedacted: () => false,
     getRelation: () => (edit ? { rel_type: RelationType.Replace } : null),
+    getContent: () => ({}),
   } as unknown as MatrixEvent);
 
 /** A room both agents publish their state in, with the messages the client has loaded. */
@@ -93,5 +95,46 @@ describe('useHomeAgents', () => {
     unmount();
     expect(mx.listenerCount(RoomEvent.Timeline)).toBe(0);
     expect(mx.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('reads the agents again as the members of a room load, and as a message is redacted', () => {
+    let redacted = false;
+    const answer = Object.assign(message(SCOUT, 300), { isRedacted: () => redacted });
+    // A chat of two `m.direct` lists for Helper, its members not loaded yet.
+    const members: { userId: string; membership: string }[] = [];
+    const dm = Object.assign(room('!dm', []), {
+      getJoinedMemberCount: () => 2,
+      getInvitedMemberCount: () => 0,
+      getMembers: () => members,
+      getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
+    });
+    const rooms = [room('!lobby', [answer]), room('!eng', [message(HELPER, 200)]), dm];
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: (roomId: string) => rooms.find((each) => each.roomId === roomId) ?? null,
+      getAccountData: () => ({ getContent: () => ({ [HELPER]: ['!dm'] }) }),
+    });
+    vi.mocked(useMatrixClient).mockReturnValue(mx as unknown as MatrixClient);
+    const { result, unmount } = renderHook(() => useHomeAgents());
+    const helper = () => result.current.find((agent) => agent.userId === HELPER);
+    expect(result.current.map((agent) => agent.userId)).toEqual([SCOUT, HELPER]);
+    expect(helper()?.direct).toBeUndefined();
+
+    // Its members load, Helper among them: no state event says so.
+    members.push({ userId: HELPER, membership: 'join' });
+    act(() => {
+      mx.emit(RoomStateEvent.Members);
+    });
+    expect(helper()?.direct).toEqual({ roomId: '!dm', waiting: false });
+
+    // Scout's answer is redacted: it no longer puts Scout first.
+    redacted = true;
+    act(() => {
+      mx.emit(RoomEvent.Redaction);
+    });
+    expect(result.current.map((agent) => agent.userId)).toEqual([HELPER, SCOUT]);
+
+    unmount();
+    expect(mx.listenerCount(RoomStateEvent.Members)).toBe(0);
+    expect(mx.listenerCount(RoomEvent.Redaction)).toBe(0);
   });
 });

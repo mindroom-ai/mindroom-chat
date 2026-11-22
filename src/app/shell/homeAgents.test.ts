@@ -6,8 +6,16 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { getThreadSummaryReply } from '../matrix/client/unopenedThreadEdits';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import { canAskIn, isDirectRoomWith, readHomeAgents, startDirectChat } from './homeAgents';
+
+// The real one, which a test can have name the reply an unopened thread kept from before its
+// title notice: the app's watcher of threads keeps that, and is not running here.
+vi.mock('../matrix/client/unopenedThreadEdits', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../matrix/client/unopenedThreadEdits')>();
+  return { ...actual, getThreadSummaryReply: vi.fn(actual.getThreadSummaryReply) };
+});
 
 const ME = '@robin:example.org';
 const HELPER = '@mindroom_helper:example.org';
@@ -15,9 +23,18 @@ const SCOUT = '@mindroom_scout:example.org';
 const ROUTER = '@mindroom_router:example.org';
 const ROUTER_HELPER = '@mindroom_router_helper:example.org';
 
+/** A message's sender and time; `title` makes it a thread's title notice. */
 type MessageSpec =
   | [string, number]
-  | { sender: string; ts: number; type?: string; redacted?: boolean; relType?: string };
+  | {
+      sender: string;
+      ts: number;
+      type?: string;
+      redacted?: boolean;
+      relType?: string;
+      title?: boolean;
+    };
+const TITLE = { msgtype: 'm.notice', 'io.mindroom.thread_summary': { summary: 'A title' } };
 
 type RoomSpec = {
   agents?: string[];
@@ -41,6 +58,7 @@ const event = (
   options: { type?: string; redacted?: boolean; relType?: string } = {}
 ) =>
   ({
+    getId: () => `$${sender}-${ts}`,
     getSender: () => sender,
     getStateKey: () => sender,
     getTs: () => ts,
@@ -57,7 +75,9 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
     type === 'io.mindroom.server' ? agents.map((agent) => event(agent)) : [];
   const events = (entries: MessageSpec[]) =>
     entries.map((entry) =>
-      Array.isArray(entry) ? event(entry[0], entry[1]) : event(entry.sender, entry.ts, {}, entry)
+      Array.isArray(entry)
+        ? event(entry[0], entry[1])
+        : event(entry.sender, entry.ts, entry.title ? TITLE : {}, entry)
     );
   const member = (userId: string) => {
     const known = members[userId];
@@ -72,6 +92,11 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
     isSpaceRoom: () => false,
     getMyMembership: () => 'join',
     getMember: member,
+    getMembers: () =>
+      Object.entries(members).map(([userId, known]) => ({
+        userId,
+        membership: typeof known === 'string' ? known : known.membership,
+      })),
     getJoinedMemberCount: () => count,
     getInvitedMemberCount: () => 0,
     currentState: { getStateEvents: stateEvents },
@@ -92,6 +117,7 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
     const loaded = events(Array.isArray(known) ? known : known.loaded);
     const replies = Array.isArray(known) ? loaded : events([known.latest]);
     return {
+      id: rootId,
       events: loaded,
       replyToEvent: replies.filter((reply) => !reply.getRelation()).at(-1) ?? null,
     };
@@ -267,6 +293,45 @@ describe('readHomeAgents', () => {
     expect(earlier?.lastUsedTs).toBe(100);
   });
 
+  it("counts no thread's title notice as an answer, and the answer it followed still", () => {
+    const eng = (ts: number) => room('!eng', { agents: [HELPER], messages: [[HELPER, ts]] });
+    // Loaded, the notice that followed Helper's answer is no later answer.
+    const loaded = [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: {
+          $titled: [[HELPER, 100], { sender: HELPER, ts: 500, title: true }],
+        },
+      }),
+      eng(200),
+    ];
+    const [helper] = readHomeAgents(client(loaded), ids(loaded), []);
+    expect(helper).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+
+    // Not loaded, the thread shows the notice last, which the router sent; the index names
+    // Helper's answer, by the time of its last edit.
+    const unopened = (engTs: number) => [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: { $titled: { loaded: [], latest: { sender: ROUTER, ts: 950, title: true } } },
+      }),
+      eng(engTs),
+    ];
+    const index = [thread('!lobby', HELPER, 900, '$titled')];
+    // The answer kept from before the notice counts, by when it was sent: after Engineering's
+    // of 200, before one of 400.
+    vi.mocked(getThreadSummaryReply).mockReturnValueOnce(event(HELPER, 300));
+    const [kept] = readHomeAgents(client(unopened(200)), ids(unopened(200)), index);
+    expect(kept).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 300 });
+    vi.mocked(getThreadSummaryReply).mockReturnValueOnce(event(HELPER, 300));
+    const [earlier] = readHomeAgents(client(unopened(400)), ids(unopened(400)), index);
+    expect(earlier).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 400 });
+
+    // With none kept (after a reload), the notice hides no answer: the index's counts.
+    const [indexed] = readHomeAgents(client(unopened(200)), ids(unopened(200)), index);
+    expect(indexed).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 900 });
+  });
+
   it('counts the answers in a joined direct chat where the agent publishes no state', () => {
     const rooms = [
       room('!lobby', { agents: [HELPER, SCOUT], messages: [[HELPER, 100]] }),
@@ -295,6 +360,16 @@ describe('readHomeAgents', () => {
     expect(isDirectRoomWith(stale, HELPER)).toBe(false);
     expect(helper?.direct).toBeUndefined();
     expect(helper?.defaultRoomId).toBeUndefined();
+  });
+
+  it('takes no room for a direct chat that a third member it knows of is in or invited to', () => {
+    const GUEST = '@guest:example.org';
+    // The room's counts still say two.
+    const withGuest = (membership: string) =>
+      room('!dm', { members: { [HELPER]: 'join', [GUEST]: membership }, count: 2 });
+    expect(isDirectRoomWith(withGuest('join'), HELPER)).toBe(false);
+    expect(isDirectRoomWith(withGuest('invite'), HELPER)).toBe(false);
+    expect(isDirectRoomWith(withGuest('leave'), HELPER)).toBe(true);
   });
 
   it.each([
@@ -368,6 +443,43 @@ describe('startDirectChat', () => {
     });
     await expect(startDirectChat(fresh, HELPER)).resolves.toBe('!made');
     expect(other.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes no chat while the members of a listed one do not load, and can be tried again', async () => {
+    const unloaded = (roomId: string, load: () => Promise<boolean>) => {
+      let loaded = false;
+      return Object.assign(room(roomId, { count: 2 }), {
+        getMember: (userId: string) => (loaded && userId === SCOUT ? { membership: 'join' } : null),
+        loadMembersIfNeeded: vi.fn(async () => {
+          loaded = await load();
+          return loaded;
+        }),
+      });
+    };
+    const mxFor = (rooms: Room[]) =>
+      Object.assign(client(rooms, { [SCOUT]: ids(rooms) }), {
+        createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+        setAccountData: vi.fn(async () => undefined),
+      });
+    const offline = vi.fn<() => Promise<boolean>>().mockRejectedValueOnce(new Error('offline'));
+    offline.mockResolvedValue(true);
+    const listed = unloaded('!dm', offline);
+    const mx = mxFor([listed]);
+    // The chat may be this one: none is made beside it.
+    await expect(startDirectChat(mx, SCOUT)).rejects.toThrow('did not load');
+    expect(mx.createRoom).not.toHaveBeenCalled();
+    // Tried again once its members load, the chat is this one.
+    await expect(startDirectChat(mx, SCOUT)).resolves.toBe('!dm');
+    expect(listed.loadMembersIfNeeded).toHaveBeenCalledTimes(2);
+    expect(mx.createRoom).not.toHaveBeenCalled();
+
+    // A chat found among the others listed is taken, whatever did not load.
+    const lost = unloaded('!lost', () => Promise.reject(new Error('offline')));
+    const found = unloaded('!found', async () => true);
+    const both = mxFor([lost, found]);
+    await expect(startDirectChat(both, SCOUT)).resolves.toBe('!found');
+    expect(lost.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(both.createRoom).not.toHaveBeenCalled();
   });
 
   it('starts one chat however often it is asked while it starts', async () => {

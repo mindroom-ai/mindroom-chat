@@ -32,6 +32,7 @@ import {
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
 import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { voiceDraftRestoresAtom } from '../voice/savedVoiceDraft';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import type { RoomThreadMode } from '../../matrix/protocol/roomThreadMode';
@@ -5198,16 +5199,20 @@ describe("RoomInput as Home's ask field", () => {
     room.renderer.unmount();
   });
 
-  /** Sends a long question from Home to ROOM_ID; its upload is still on its way. */
+  /**
+   * Sends a long question from Home to ROOM_ID; its upload is still on its way. Home's draft is
+   * kept as going to `keptRoomId`, with null nowhere.
+   */
   const sendLongQuestion = async (
     ask: Partial<NonNullable<React.ComponentProps<typeof RoomInput>['ask']>> = {},
-    keptRoomId: string | undefined = ROOM_ID
+    keptRoomId: string | null = ROOM_ID,
+    onRoomMessageSent?: (eventId: string) => boolean | void
   ) => {
     const store = createStore();
     if (keptRoomId) {
       store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: keptRoomId });
     }
-    const { renderer } = await renderRoomInput(store, { ask: askProps(ask) });
+    const { renderer } = await renderRoomInput(store, { ask: askProps(ask), onRoomMessageSent });
     stageComposerText(LONG_QUESTION);
     resetEditorOnNextSend();
     const upload = createDeferred<{ content_uri: string }>();
@@ -5240,7 +5245,7 @@ describe("RoomInput as Home's ask field", () => {
 
   it.each([
     ['goes there still', ROOM_ID],
-    ['has none kept', undefined],
+    ['has none kept', null],
     ['goes elsewhere', OTHER_ROOM_ID],
   ])(
     "returns a question whose upload failed after Home went to Home's draft alone, with where it was going, when that %s",
@@ -5259,6 +5264,41 @@ describe("RoomInput as Home's ask field", () => {
       store.set(homeDraft(), []);
     }
   );
+
+  it('returns a question for the direct chat as one for the direct chat', async () => {
+    const { store, renderer, fail } = await sendLongQuestion({ isDirect: true }, null);
+    renderer.unmount();
+    await fail();
+
+    expect(store.get(homeDraft())).toEqual(question);
+    expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
+      agentId: HELPER,
+      roomId: ROOM_ID,
+      isDirect: true,
+    });
+    store.set(homeDraft(), []);
+  });
+
+  it('tells of the message made for a question, also after the composer has gone', async () => {
+    const echoId = `~${ROOM_ID}:txn-room-input`;
+    const onLocalEcho = vi.fn();
+    const onRoomMessageSent = vi.fn();
+    const mounted = await sendLongQuestion({ onLocalEcho }, ROOM_ID, onRoomMessageSent);
+    await mounted.finishUpload();
+    expect(onLocalEcho.mock.calls).toEqual([[echoId]]);
+    expect(onRoomMessageSent.mock.calls).toEqual([[echoId]]);
+    mounted.renderer.unmount();
+
+    // The composer goes during the upload: the message is told of, and opens nothing.
+    onLocalEcho.mockClear();
+    onRoomMessageSent.mockClear();
+    const gone = await sendLongQuestion({ onLocalEcho }, ROOM_ID, onRoomMessageSent);
+    gone.renderer.unmount();
+    await gone.finishUpload();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(onLocalEcho.mock.calls).toEqual([[echoId]]);
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
 
   it('says while a send is on its way, to its end also after the composer has gone', async () => {
     const onSendingChange = vi.fn();
@@ -5304,6 +5344,15 @@ describe("RoomInput as Home's ask field", () => {
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
     long.renderer.unmount();
+  });
+
+  it("brings no saved recording back, as a room's composer does: it could show none", async () => {
+    const home = await renderRoomInput(createStore(), { ask: askProps() });
+    expect(home.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(false);
+    home.renderer.unmount();
+    const room = await renderRoomInput();
+    expect(room.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(true);
+    room.renderer.unmount();
   });
 
   it('tells no room that someone types in it', async () => {

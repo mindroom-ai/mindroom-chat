@@ -48,7 +48,12 @@ export function Badge({ id, name, mxc, src, square }: BadgeProps) {
     src ??
     (mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, AVATAR_PX, AVATAR_PX, 'crop') : undefined);
   return (
-    <Avatar size="200" radii={square ? '300' : 'Pill'} className={css.PickerAvatar}>
+    <Avatar
+      size="200"
+      radii={square ? '300' : 'Pill'}
+      className={css.PickerAvatar}
+      aria-hidden="true"
+    >
       <UserAvatar
         userId={id}
         src={url ?? undefined}
@@ -270,7 +275,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const current = shown(roomId);
   const radio = (
     key: string,
-    icon: typeof Icons.User,
     checked: boolean,
     { label, badge }: { label: string; badge: ReactNode },
     onSelect: () => void,
@@ -283,7 +287,7 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
       className={composerCss.ComposerMenuItem}
       label={label}
       description={description}
-      icon={icon}
+      icon={Icons.User}
       after={badge}
       onSelect={onSelect}
     />
@@ -310,7 +314,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
           agents.map((option) =>
             radio(
               option.userId,
-              Icons.User,
               option === agent,
               { label: option.name, badge: agentBadge(option) },
               choose(() => pick('agent', destinationOf(option, option.defaultRoomId ?? null))),
@@ -347,7 +350,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
             roomIds.map((id) =>
               radio(
                 id ?? 'new-direct',
-                Icons.Hash,
                 id === roomId && valid,
                 shown(id),
                 choose(() => pick('room', destinationOf(agent, id))),
@@ -385,10 +387,8 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
             roomId={room.roomId}
             fileDropContainerRef={noDrop}
             onRoomMessageSent={(eventId) => {
-              if (isLocalEchoEventId(eventId)) {
-                const sent = { roomId: room.roomId, agentId: agent.userId, isDirect, eventId };
-                store.set(pendingAtom, { state: 'echo', ...sent });
-              } else {
+              // Sent with no message of the client's own to follow (`onLocalEcho`).
+              if (!isLocalEchoEventId(eventId)) {
                 store.set(pendingAtom, undefined);
                 open(room.roomId, eventId);
               }
@@ -396,6 +396,7 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
             }}
             ask={{
               agentUserId: agent.userId,
+              isDirect,
               placeholder,
               pickers,
               // Read again at the press, and for the question on its way (`sent`) just before
@@ -412,6 +413,12 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
                 } else if (store.get(pendingAtom)?.state === 'sending') {
                   store.set(pendingAtom, undefined);
                 }
+              },
+              // The question's message, followed from here on: heard also after this page has
+              // gone, so the page finds it when it opens again.
+              onLocalEcho: (eventId) => {
+                const sent = { roomId: room.roomId, agentId: agent.userId, isDirect, eventId };
+                store.set(pendingAtom, { state: 'echo', ...sent });
               },
             }}
           />

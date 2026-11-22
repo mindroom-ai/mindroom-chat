@@ -140,14 +140,18 @@ export type RoomInputProps = {
    * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
    * and again for the question on its way (`sent`) just before its message goes out, when the
    * room or the agent may have changed. `onSendingChange` hears while a send is on its way, to
-   * its end also after the composer has gone.
+   * its end, and `onLocalEcho` of the message the client made for it, both also after the
+   * composer has gone. `isDirect` says the room was picked as the agent's direct chat, which a
+   * question returned to Home's draft keeps.
    */
   ask?: {
     agentUserId: string;
+    isDirect?: boolean;
     placeholder: string;
     pickers: ReactNode;
     canSend: (sent?: boolean) => boolean;
     onSendingChange?: (sending: boolean) => void;
+    onLocalEcho?: (eventId: string) => void;
   };
 };
 
@@ -407,17 +411,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const askedAgent = ask?.agentUserId;
+    const askedDirect = !!ask?.isDirect;
     const restoreComposerFallbackForRoom = useCallback(
       (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) => {
         // Home's question returns to Home's draft alone, never to a room's, and that draft goes
         // where the question went: as it does already, since nothing moves it while a question
-        // is being sent.
+        // is being sent. Set to what it is, it writes nothing.
         if (askedAgent !== undefined) {
-          const destinationAtom = homeAskDestinationAtomFamily(userId);
-          const kept = store.get(destinationAtom);
-          if (kept?.agentId !== askedAgent || kept.roomId !== fallbackRoomId) {
-            store.set(destinationAtom, { agentId: askedAgent, roomId: fallbackRoomId });
-          }
+          store.set(homeAskDestinationAtomFamily(userId), {
+            agentId: askedAgent,
+            roomId: fallbackRoomId,
+            ...(askedDirect ? { isDirect: true } : {}),
+          });
         }
         // After any text typed there since: a failed caption is never dropped.
         restoreTextToDraft(
@@ -428,7 +433,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           fragment
         );
       },
-      [askedAgent, store, textKey, userId]
+      [askedAgent, askedDirect, store, textKey, userId]
     );
 
     const rootModelContext = useLatestRef({ roomId, newThread });
@@ -460,6 +465,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       forkFrom,
       takeRootModelDraft,
       beforeSend: ask && (() => ask.canSend(true)),
+      onLocalEchoCreated: ask?.onLocalEcho,
     });
 
     const { restoreText: restoreSentText } = sessions;
@@ -497,6 +503,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
+    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
+    // Home's ask field takes text only, so it neither shows nor sends a recording either. Neither
+    // brings one back from disk: it would hold it from a tab that can show it.
+    const voiceActive = !forkFrom && !ask;
     const voice = useRoomInputVoice({
       mx,
       composer,
@@ -505,6 +515,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sessions,
       takeRootModelDraft,
       onRoomMessageSent,
+      recover: voiceActive,
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -547,9 +558,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
-    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
-    // Home's ask field takes text only, so it neither shows nor sends a recording either.
-    const voiceActive = !forkFrom && !ask;
     const submit = useCallback(
       async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;

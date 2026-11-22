@@ -237,6 +237,8 @@ type UseRoomInputSendSessionControllerOptions = {
    * upload): false sends nothing, and the text returns to the composer.
    */
   beforeSend?: () => boolean;
+  /** Hears of a text message's local echo as it is made, also after the composer has gone. */
+  onLocalEchoCreated?: (eventId: string) => void;
 };
 
 const getTextContentStrings = (content: IContent | undefined): string[] => {
@@ -459,6 +461,7 @@ export const useRoomInputSendSessionController = ({
   forkFrom,
   takeRootModelDraft,
   beforeSend,
+  onLocalEchoCreated,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -486,6 +489,7 @@ export const useRoomInputSendSessionController = ({
   composerContextRef.current = { roomId, threadId: composerThreadId };
   const onRoomMessageSentRef = useLatestRef(onRoomMessageSent);
   const beforeSendRef = useLatestRef(beforeSend);
+  const onLocalEchoCreatedRef = useLatestRef(onLocalEchoCreated);
 
   const isMounted = useCallback(() => mountedRef?.current ?? true, [mountedRef]);
   const showsContext = useCallback(
@@ -566,6 +570,7 @@ export const useRoomInputSendSessionController = ({
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
+        onLocalEchoCreatedRef.current?.(localEventId);
         notifyRoomMessageSent(localEventId);
       }
 
@@ -583,7 +588,7 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       clearReplyDraftForSession(session);
     },
-    [beforeSendRef, mx]
+    [beforeSendRef, mx, onLocalEchoCreatedRef]
   );
 
   const sendSessionUpload = useCallback(

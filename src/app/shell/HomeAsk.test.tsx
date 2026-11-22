@@ -114,6 +114,8 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     getMxcAvatarUrl: () => null,
     getMember: (userId: string) =>
       room.members[userId] ? { membership: room.members[userId] } : null,
+    getMembers: () =>
+      Object.entries(room.members).map(([userId, membership]) => ({ userId, membership })),
     getJoinedMemberCount: () => room.joined,
     getInvitedMemberCount: () => 0,
     currentState: {
@@ -171,12 +173,15 @@ const renderAsk = (
 
 const ECHO_ID = '~!eng:txn-1';
 
-/** The composer sends a message in `room` and reports it: there it is, yet to be confirmed. */
-const sendEcho = (room: FakeRoom) => {
+/**
+ * The composer makes the question's message in `room` and tells of it: there it is, yet to be
+ * confirmed. `from` may be a composer that has gone since.
+ */
+const sendEcho = (room: FakeRoom, from = lastRoomInputProps.current) => {
   const sent = { status: EventStatus.SENDING, error: new Error('offline'), getId: () => ECHO_ID };
   room.echoes.set(ECHO_ID, sent as unknown as MatrixEvent);
   act(() => {
-    lastRoomInputProps.current?.onRoomMessageSent?.(ECHO_ID);
+    from?.ask?.onLocalEcho?.(ECHO_ID);
   });
   return sent as unknown as MatrixEvent;
 };
@@ -517,6 +522,30 @@ describe('HomeAsk', () => {
     expect(navigateRoomThreadDirect).not.toHaveBeenCalled();
   });
 
+  it('follows the message of a question made after the page closed, and opens nothing then', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const mx = makeClient([eng]);
+    const store = createStore();
+    const first = renderAsk(mx, [helperAgent], store);
+    const going = lastRoomInputProps.current;
+    act(() => going?.ask?.onSendingChange?.(true));
+    first.unmount();
+
+    // Its upload done, the composer that went makes the message, and the send ends. The server
+    // refuses the message with the page still closed.
+    const sent = sendEcho(eng, going);
+    act(() => going?.ask?.onSendingChange?.(false));
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
+    expect(navigateRoom).not.toHaveBeenCalled();
+    expect(navigateRoomThreadDirect).not.toHaveBeenCalled();
+
+    // Opened again, the page has its notice, and sends nothing else meanwhile.
+    renderAsk(mx, [helperAgent], store);
+    expect(ask()?.canSend()).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(mx.resendEvent).toHaveBeenCalledWith(sent, eng);
+  });
+
   it('leaves a newer draft of another tab as it is when the page opens', () => {
     const mx = makeClient([
       makeRoom('!eng', 'Engineering', [HELPER]),
@@ -611,7 +640,8 @@ describe('HomeAsk', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Helper answers' }));
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Quill/ }));
+    // An agent reads by its name alone: the initials of its picture are not read after it.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Quill' }));
 
     const nextAgentPicker = screen.getByRole('button', { name: 'Quill answers' });
     expect(document.activeElement).toBe(nextAgentPicker);
