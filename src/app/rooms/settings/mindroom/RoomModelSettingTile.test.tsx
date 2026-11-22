@@ -326,18 +326,21 @@ describe('RoomModelSettingTile', () => {
     const { rerender } = renderTile(MODEL_DEF, createCatalog({ refresh }));
     expect(trigger().textContent).toBe('Quick');
 
-    // A refresh refused for want of capacity leaves the list its runtime confirmed.
-    rerender(tile(MODEL_DEF, createCatalog({ refresh, error: 'Model discovery is busy.' })));
+    // A refresh refused for want of capacity hides no list and confirms none: its rows show,
+    // and write nothing.
+    const busy = { refresh, error: 'Model discovery is busy.', canMutate: false };
+    rerender(tile(MODEL_DEF, createCatalog(busy)));
     expect(trigger().textContent).toBe('Quick');
     open();
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByRole('option', { name: /Deep/ }).getAttribute('aria-disabled')).toBe(
-      'false'
-    );
+    const deep = screen.getByRole('option', { name: /Deep/ });
+    expect(deep.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(deep);
+    expect(client.sendStateEvent).not.toHaveBeenCalled();
+    expect(defaultRow().getAttribute('aria-disabled')).toBe('false');
 
-    // The runtime did not answer: its old list may name models it no longer has.
-    const failed = { refresh, error: 'Model discovery unavailable.', canMutate: false };
-    rerender(tile(MODEL_DEF, createCatalog(failed)));
+    // No runtime answered a refresh, so the catalog holds no list any more.
+    rerender(tile(MODEL_DEF, createCatalog({ ...NO_CATALOG, refresh })));
     expect(trigger().textContent).toBe('fast');
     expect(screen.getByText('Room setting: fast')).toBeTruthy();
     expect(screen.queryByRole('option', { name: /Deep/ })).toBeNull();

@@ -65,13 +65,7 @@ export function RoomModelSettingTile({
   const [anchor, setAnchor] = useState<RectCords>();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const label = t(definition.label);
-  // The catalog's `canMutate` says its runtime answered the latest refresh. With no runtime, or a
-  // refresh that failed, there is no list to trust: the tile shows the stored value as it is and
-  // the menu keeps the reset row, with a notice and Retry. A refresh refused for want of capacity
-  // leaves a confirmed list as it was.
-  const unavailable =
-    catalog.runtimes.length === 0 || (catalog.error !== undefined && !catalog.canMutate);
-  const hasCatalog = Boolean(catalog.runtime) && !unavailable;
+  const hasCatalog = Boolean(catalog.runtime);
   const stored = useMemo(
     () => classifyStoredModel(value, catalog.models, hasCatalog),
     [value, catalog.models, hasCatalog]
@@ -99,17 +93,21 @@ export function RoomModelSettingTile({
   );
 
   const mayWrite = canEdit && !sending;
+  // No runtime has a list, also after a refresh none answered: the menu keeps the reset row and
+  // says so, with Retry.
+  const unavailable = catalog.runtimes.length === 0;
   const state: ModelPickerState = {
     ...catalog,
-    models: unavailable ? [] : models,
+    models,
     inherited: [],
     override:
       stored.kind === 'default' ? null : stored.kind === 'known' ? stored.model.key : stored.raw,
     reasoning: stored.kind === 'known' ? stored.level ?? null : null,
     pending: false,
     error: unavailable ? t(`${STRINGS}.model.catalogUnavailable`) : undefined,
-    // A model or level writes once the runtime answered this opening's refresh: until then the
-    // rows show what it had, which may hold a model it has just lost. The reset needs no list.
+    // A model or level writes once the shown runtime answered the query this opening started
+    // (the catalog's `canMutate`): until then the rows show the list it had, which may hold a
+    // model it has just lost. The reset needs no list.
     canMutate: mayWrite && catalog.canMutate,
     selectModel: (key, level) => writeSetting(level ? `${key}@${level}` : key),
     resetToRoomDefault: () => writeSetting(''),

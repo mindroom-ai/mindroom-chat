@@ -78,6 +78,11 @@ type Scope = {
   typedCommands: Set<string>;
   draft?: RootModelDraft;
   query?: Query;
+  /**
+   * Catalog-only: the latest query started since a model menu of the room's settings last opened.
+   * A runtime in its replies has confirmed its models for that opening.
+   */
+  confirming?: Query;
   command?: Command;
   send?: Command;
 };
@@ -280,7 +285,8 @@ export class ModelController {
 
   /**
    * Room-settings catalog-only snapshot, independent of the room composer's draft and eligibility.
-   * Its `canMutate` says the shown runtime answered the latest refresh, so its models are current.
+   * Its `canMutate` says the shown runtime answered a query started since a model menu last opened
+   * (`refreshRoomCatalog`), so the models shown are that answer's.
    */
   getRoomCatalogSnapshot = (room: Room): ModelPickerSnapshot =>
     this.mx.getUserId() === this.userId
@@ -373,8 +379,17 @@ export class ModelController {
     this.refreshScope(this.scope(room, threadId));
   };
 
+  /**
+   * A model menu of the room's settings opens, or asks again: no answer from before counts for it,
+   * not that of a query still collecting, so a new query starts. Refused (too many queries), the
+   * list it had stays, unconfirmed, until the retry answers.
+   */
   refreshRoomCatalog = (room: Room): void => {
-    this.refreshScope(this.scope(room, undefined, true));
+    const scope = this.scope(room, undefined, true);
+    scope.confirming = undefined;
+    this.cancelQuery(scope);
+    this.refreshScope(scope);
+    if (!scope.query && scope.snapshot.canMutate) this.publish(scope, { loading: false });
   };
 
   private refreshScope(scope: Scope): void {
@@ -407,8 +422,7 @@ export class ModelController {
     };
     scope.query = query;
     this.queries.set(query.id, query);
-    // Room settings write no model of a list this refresh has not confirmed.
-    if (scope.catalogOnly) scope.needsRefresh = true;
+    if (scope.catalogOnly) scope.confirming = query;
     this.publish(scope, { loading: true });
     void this.probe(query);
   }
@@ -461,12 +475,17 @@ export class ModelController {
     const { scope } = query;
     this.cancelQuery(scope);
     if (!query.replies.size) {
-      this.publish(scope, {
-        loading: false,
-        ...(scope.snapshot.eligible || scope.needsRefresh
-          ? { error: 'Model discovery unavailable. Retry or use !model.' }
-          : {}),
-      });
+      if (scope.catalogOnly) {
+        // Room settings keep no list that no runtime vouches for any more.
+        scope.catalogs.clear();
+        this.showCatalogs(scope, { loading: false });
+      } else
+        this.publish(scope, {
+          loading: false,
+          ...(scope.snapshot.eligible || scope.needsRefresh
+            ? { error: 'Model discovery unavailable. Retry or use !model.' }
+            : {}),
+        });
       this.retryLater(scope, true);
       return;
     }
@@ -581,6 +600,8 @@ export class ModelController {
     }
     if (scope.catalogOnly) {
       if (!query.replies.has(runtime.id)) return;
+      // Room settings show a runtime the models of its latest answer, also one chosen later.
+      if (scope.catalogs.has(runtime.id)) scope.catalogs.set(runtime.id, { runtime, response });
     } else if (!scope.threadId && !rootSupported) {
       if (scope.catalogs.delete(runtime.id)) this.showCatalogs(scope);
       else if (scope.draft?.catalog.runtime.id === runtime.id) {
@@ -593,9 +614,7 @@ export class ModelController {
     // The shown runtime's answer is the thread's selection now, so show it at once.
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
-      // For room settings this answer confirms the list, also after a refresh that failed.
-      if (scope.catalogOnly) scope.needsRefresh = false;
-      this.showRuntime(scope, runtime, scope.catalogOnly ? { error: undefined } : undefined);
+      this.showRuntime(scope, runtime);
     } else if (
       !scope.catalogs.size &&
       !scope.send &&
@@ -626,17 +645,12 @@ export class ModelController {
     this.chooseScopeRuntime(this.scope(room, undefined, true), runtimeId);
   };
 
-  private showRuntime(
-    scope: Scope,
-    runtime?: ModelRuntime,
-    patch?: Partial<ModelPickerSnapshot>
-  ): void {
+  private showRuntime(scope: Scope, runtime?: ModelRuntime): void {
     const catalog = runtime && scope.catalogs.get(runtime.id);
     if (scope.draft && !draftMatches(catalog, scope.draft)) scope.draft = undefined;
     else if (scope.draft && catalog) scope.draft.catalog = catalog;
     const selection = catalog?.response.selection;
     this.publish(scope, {
-      ...patch,
       runtime,
       models: catalog ? catalog.response.models : [],
       override: scope.threadId ? selection?.override ?? null : scope.draft?.key ?? null,
@@ -683,7 +697,9 @@ export class ModelController {
       this.active() &&
       catalog &&
       runtime &&
-      (scope.catalogOnly || scope.threadId || supportsRootModel(catalog)) &&
+      (scope.catalogOnly
+        ? scope.confirming?.replies.has(runtime.id)
+        : scope.threadId || supportsRootModel(catalog)) &&
       !scope.command &&
       !scope.send &&
       !scope.needsRefresh &&
