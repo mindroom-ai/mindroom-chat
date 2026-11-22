@@ -113,9 +113,13 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   // Keyed to the active filter so every tab or Unread change resets to PAGE_SIZE on first render.
   const filterKey = `${tab}:${unreadOnly}`;
   const [windowState, setWindowState] = useState({ filterKey, limit: PAGE_SIZE });
-  const filterChanged = windowState.filterKey !== filterKey;
-  if (filterChanged) setWindowState({ filterKey, limit: PAGE_SIZE });
-  const limit = filterChanged ? PAGE_SIZE : windowState.limit;
+  const committedFilterRef = useRef(filterKey);
+  const filterChanged = committedFilterRef.current !== filterKey;
+  if (windowState.filterKey !== filterKey) setWindowState({ filterKey, limit: PAGE_SIZE });
+  const limit = windowState.filterKey === filterKey ? windowState.limit : PAGE_SIZE;
+  useLayoutEffect(() => {
+    committedFilterRef.current = filterKey;
+  }, [filterKey]);
 
   const open = useCallback(
     (row: ActivityRow) => {
