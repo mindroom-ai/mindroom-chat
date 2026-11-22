@@ -91,6 +91,11 @@ const withLiveWrapperContent = (
   return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
 };
 
+const sanitizeAgentSidecar = (downloaded: Record<string, unknown>) =>
+  sanitizeContent(downloaded, true);
+const sanitizeNonAgentSidecar = (downloaded: Record<string, unknown>) =>
+  sanitizeContent(downloaded, false);
+
 const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
   if (!(COMPACTIONS_CONTENT_KEY in content) && !(LIVE_COMPACTIONS_KEY in content)) return content;
   const { [COMPACTIONS_CONTENT_KEY]: _list, [LIVE_COMPACTIONS_KEY]: _live, ...rest } = content;
@@ -408,8 +413,9 @@ export const renderAgentMessageContent = ({
     );
   };
 
-  const transformLongTextContent = (downloaded: Record<string, unknown>) =>
-    sanitizeContent(downloaded, fromMindroomAgent);
+  const transformLongTextContent = fromMindroomAgent
+    ? sanitizeAgentSidecar
+    : sanitizeNonAgentSidecar;
 
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     downloadedContent,
@@ -552,7 +558,8 @@ export const renderAgentMessageContent = ({
     }
 
     const isStreaming = isAiRunStreaming(content);
-    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content)) {
+    const longTextSource = getRenderableLongTextSource(content);
+    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content) && !longTextSource) {
       return (
         <MText
           content={content}
@@ -571,7 +578,6 @@ export const renderAgentMessageContent = ({
       );
     }
 
-    const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       const longText = (
         <LongTextText

@@ -470,6 +470,82 @@ describe('useLiveReplyContent', () => {
     expect(shown().body).toBe('word1 word2');
   });
 
+  it('keeps an expired live frame with tool markers over an older marker-free sidecar preview (with and without live_checkpoint)', () => {
+    const markedMd = '🔧 `read` [1]\n\nFound it. More...';
+    const sidecarMeta = {
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+
+    // With an older live_checkpoint:
+    ingest(snapshot(10, markedMd));
+    render(
+      durable('streaming', {
+        ...sidecarMeta,
+        body: 'Found it.',
+        formatted_body: '<p>Found it.</p>',
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 5 },
+      })
+    );
+    expect(shown().body).toBe(markedMd);
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(shown().body).toBe(markedMd);
+    expect(live()).toBe(true);
+
+    // Without live_checkpoint:
+    act(() => {
+      renderer?.unmount();
+    });
+    renderer = undefined;
+    ingest(snapshot(11, markedMd));
+    render(
+      durable('streaming', {
+        ...sidecarMeta,
+        body: 'Found it.',
+        formatted_body: '<p>Found it.</p>',
+      })
+    );
+    expect(shown().body).toBe(markedMd);
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(shown().body).toBe(markedMd);
+    expect(live()).toBe(true);
+  });
+
+  it('yields an expired older live frame to a newer tool-only sidecar checkpoint saying Thinking...', () => {
+    const update = (content: IContent) =>
+      act(() => {
+        renderer?.update(<Harness mx={mx} event={replyEvent()} content={content} />);
+      });
+    const sidecarMeta = {
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+
+    ingest(snapshot(5, 'Earlier live text'));
+    render(durable('streaming', { body: 'Thinking...' }));
+    expect(shown().body).toBe('Earlier live text');
+
+    // A newer durable tool-only sidecar arrives at seq 10 (still says Thinking...), and the
+    // older live frame at seq 5 expires: the newer durable sidecar must win.
+    update(
+      durable('streaming', {
+        ...sidecarMeta,
+        body: 'Thinking...',
+        formatted_body: '<p>Thinking...</p>',
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 10 },
+      })
+    );
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown().body).toBe('Thinking...');
+    expect(shown()['io.mindroom.long_text']).toEqual(sidecarMeta['io.mindroom.long_text']);
+    expect(live()).toBe(false);
+  });
+
   it('uses a frame stored before the reply rendered', () => {
     ingest(snapshot(0, 'Early'));
     vi.advanceTimersByTime(1000);

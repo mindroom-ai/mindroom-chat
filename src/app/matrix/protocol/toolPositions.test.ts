@@ -179,8 +179,9 @@ describe('tool positions', () => {
     expect('placeholder_body' in trace).toBe(false);
   });
 
-  it('does not erase body or formatted_body when placeholder_body is true with zero placed calls', () => {
-    const malformed = {
+  it('restores placeholder_body: true on non-streaming messages ("2 tool calls")', () => {
+    const callsAlone = caseNamed('a reply of calls alone');
+    const nonStreaming = {
       msgtype: 'm.text',
       body: '2 tool calls',
       format: 'org.matrix.custom.html',
@@ -188,15 +189,64 @@ describe('tool positions', () => {
       [TRACE]: {
         version: 3,
         placeholder_body: true,
-        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+        events: callsAlone.sent.events.map((event) => ({ ...event, body_line: 0, at: 0 })),
       },
     };
-    const restored = withToolMarkersRestored(malformed);
-    expect(restored.body).toBe('2 tool calls');
-    expect(restored.formatted_body).toBe('<p>2 tool calls</p>\n');
+    const restored = withToolMarkersRestored(nonStreaming);
+    expect(restored.body).toBe(callsAlone.sent.body);
+    expect(restored.formatted_body).toBe(callsAlone.sent.formatted_body);
     const trace = restored[TRACE] as Record<string, unknown>;
     expect(trace.version).toBe(2);
     expect('placeholder_body' in trace).toBe(false);
+  });
+
+  it.each([
+    ['zero placed calls', [{ type: 'tool_call_completed', tool_name: 'shell' }]],
+    [
+      'out-of-range positions',
+      [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 1, at: 1 }],
+    ],
+    [
+      'a non-integer position',
+      [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 0.5, at: 0 }],
+    ],
+    ['body_line without at', [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 0 }]],
+    ['at without body_line', [{ type: 'tool_call_completed', tool_name: 'shell', at: 0 }]],
+    ['empty tool_name', [{ type: 'tool_call_completed', tool_name: '', body_line: 0, at: 0 }]],
+  ])(
+    'leaves malformed placeholder_body: true content untouched when events have %s',
+    (_label, events) => {
+      const malformed = {
+        msgtype: 'm.text',
+        body: '2 tool calls',
+        format: 'org.matrix.custom.html',
+        formatted_body: '<p>2 tool calls</p>\n',
+        [TRACE]: {
+          version: 3,
+          placeholder_body: true,
+          events,
+        },
+      };
+      const restored = withToolMarkersRestored(malformed);
+      expect(restored).toBe(malformed);
+      expect(restored.body).toBe('2 tool calls');
+      expect(restored.formatted_body).toBe('<p>2 tool calls</p>\n');
+    }
+  );
+
+  it('leaves placeholder_body: true content untouched when formatted_body is absent', () => {
+    const plainOnly = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      [TRACE]: {
+        version: 3,
+        placeholder_body: true,
+        events: [{ type: 'tool_call_started', tool_name: 'shell', body_line: 0, at: 0 }],
+      },
+    };
+    const restored = withToolMarkersRestored(plainOnly);
+    expect(restored).toBe(plainOnly);
+    expect(restored.body).toBe('Thinking...');
   });
 
   it('restores a placeholder_body edit envelope and removes placeholder_body from outer trace', () => {

@@ -8,6 +8,7 @@ import {
   hasLongTextMetadata,
   hydrateLongTextSource,
   parseLongTextJsonSidecar,
+  withToolTraceFallback,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { sanitizeContent } from './untrustedContent';
@@ -753,5 +754,44 @@ describe('buildLongTextPreview thread_model routing', () => {
       ...pick,
     });
     expect(preview[THREAD_MODEL_KEY]).toEqual(pick[THREAD_MODEL_KEY]);
+  });
+});
+
+describe('withToolTraceFallback', () => {
+  it('does not copy a v3 tool trace from a previous revision onto a new preview', () => {
+    const nextPreview = {
+      msgtype: 'm.text',
+      body: 'Found it.',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Found it.</p>\n',
+    };
+    const previousV3 = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Thinking...</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 3,
+        placeholder_body: true,
+        events: [{ type: 'tool_call_started', tool_name: 'shell', body_line: 0, at: 0 }],
+      },
+    };
+    const result = withToolTraceFallback(nextPreview, previousV3);
+    expect(result).toBe(nextPreview);
+    expect(result['io.mindroom.tool_trace']).toBeUndefined();
+  });
+
+  it('still copies a v2 tool trace fallback when the preview has none', () => {
+    const nextPreview = { msgtype: 'm.text', body: 'Preview' };
+    const previousV2 = {
+      msgtype: 'm.text',
+      body: 'Old',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+      },
+    };
+    const result = withToolTraceFallback(nextPreview, previousV2);
+    expect(result['io.mindroom.tool_trace']).toEqual(previousV2['io.mindroom.tool_trace']);
   });
 });

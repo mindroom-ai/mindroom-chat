@@ -77,6 +77,30 @@ const placed = (events: unknown[], key: 'body_line' | 'at', end: number): Call[]
     .reverse();
 };
 
+/**
+ * Whether every positioned call in a `placeholder_body: true` trace is a well-formed, paired
+ * `(body_line: 0, at: 0)` marker on a named tool, with at least one such call.
+ */
+const hasValidPlaceholderPositions = (events: unknown[]): boolean => {
+  let count = 0;
+  for (const event of events) {
+    if (!isRecord(event)) continue;
+    const hasLine = 'body_line' in event;
+    const hasAt = 'at' in event;
+    if (!hasLine && !hasAt) continue;
+    if (
+      typeof event.tool_name !== 'string' ||
+      !event.tool_name ||
+      event.body_line !== 0 ||
+      event.at !== 0
+    ) {
+      return false;
+    }
+    count += 1;
+  }
+  return count > 0;
+};
+
 /** One layer as its version-2 reply, with its version-3 trace's markers back in its text. */
 const layerWithMarkers = (content: Record<string, unknown>): Record<string, unknown> => {
   const trace = positionsOf(content);
@@ -84,29 +108,33 @@ const layerWithMarkers = (content: Record<string, unknown>): Record<string, unkn
   if (!trace || !Array.isArray(events)) return content;
   const { placeholder_body: placeholderBody, ...restTrace } = trace;
   const isPlaceholderBody = placeholderBody === true;
+  const { body, formatted_body: html } = content;
+  if (
+    isPlaceholderBody &&
+    (typeof body !== 'string' || typeof html !== 'string' || !hasValidPlaceholderPositions(events))
+  ) {
+    return content;
+  }
   const restored: Record<string, unknown> = {
     ...content,
     [MINDROOM_TOOL_TRACE_KEY]: { ...restTrace, version: 2 },
   };
-  const { body, formatted_body: html } = content;
   if (typeof body === 'string') {
-    const placeholderCalls = isPlaceholderBody ? placed(events, 'body_line', 0) : undefined;
-    const baseBody = placeholderCalls && placeholderCalls.length > 0 ? '' : body;
+    const baseBody = isPlaceholderBody ? '' : body;
     // Before line `body_line` with a blank line after it, or at the end after one.
     const lines = baseBody ? baseBody.split('\n') : [];
     const end = lines.length;
-    (placeholderCalls ?? placed(events, 'body_line', end)).forEach(({ at, line }) =>
+    placed(events, 'body_line', end).forEach(({ at, line }) =>
       lines.splice(at, 0, ...(at < end ? [line, ''] : ['', line]))
     );
     // No blank line opens a reply that is its markers alone.
     restored.body = lines.join('\n').slice(baseBody ? 0 : 1);
   }
   if (typeof html === 'string') {
-    const placeholderCalls = isPlaceholderBody ? placed(events, 'at', 0) : undefined;
-    const baseHtml = placeholderCalls && placeholderCalls.length > 0 ? '' : html;
+    const baseHtml = isPlaceholderBody ? '' : html;
     const starts = htmlBlockStarts(baseHtml);
     let text = baseHtml;
-    (placeholderCalls ?? placed(events, 'at', starts.length)).forEach((call) => {
+    placed(events, 'at', starts.length).forEach((call) => {
       const offset = starts[call.at] ?? baseHtml.length;
       text = text.slice(0, offset) + call.html + text.slice(offset);
     });
@@ -141,6 +169,9 @@ export const withToolMarkersRestored = (
   // The HTML is the replacement's, which has its markers back: only the text differs.
   const fallback = layerWithMarkers({
     body: body.slice(2),
+    ...(typeof replacement.formatted_body === 'string'
+      ? { formatted_body: replacement.formatted_body }
+      : {}),
     [MINDROOM_TOOL_TRACE_KEY]: replacement[MINDROOM_TOOL_TRACE_KEY],
   });
   return { ...edit, body: `* ${String(fallback.body)}`, formatted_body: restored.formatted_body };

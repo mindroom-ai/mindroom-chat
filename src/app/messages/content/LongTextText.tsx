@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { trimReplyFromBody } from '../../matrix/room';
@@ -302,7 +302,10 @@ export function LongTextText({
   // same value.
   const warmResolvedContent = hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined;
   const rawDisplayContent = warmResolvedContent ?? resolvedContent;
-  const displayContent = transformContent ? transformContent(rawDisplayContent) : rawDisplayContent;
+  const displayContent = useMemo(
+    () => (transformContent ? transformContent(rawDisplayContent) : rawDisplayContent),
+    [rawDisplayContent, transformContent]
+  );
   const toolMetadataStatus: ToolMetadataStatus =
     !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
       ? 'loading'

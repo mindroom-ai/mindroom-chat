@@ -167,17 +167,61 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
 };
 
+const TOOL_MARKER_LINE_RE = /^\s*🔧 `[^`]+` \[\d+\](?: ⏳)?\s*$/;
+
+const stripStandaloneToolMarkers = (md: string): string => {
+  const lines = md.split('\n');
+  const kept: string[] = [];
+  let skippedMarker = false;
+  for (const line of lines) {
+    if (TOOL_MARKER_LINE_RE.test(line)) {
+      skippedMarker = true;
+      continue;
+    }
+    if (skippedMarker && line === '') {
+      skippedMarker = false;
+      continue;
+    }
+    skippedMarker = false;
+    kept.push(line);
+  }
+  if (skippedMarker && kept.length > 0 && kept[kept.length - 1] === '') {
+    kept.pop();
+  }
+  return kept.join('\n');
+};
+
 /**
- * Whether the streaming durable reply is an earlier state of the live Markdown `md`: its body, or
- * the thinking placeholder, that `md` grew from. Progress edits and frames show the same text.
+ * Whether the streaming durable reply is an earlier state of the last shown live frame: its body,
+ * or the thinking placeholder, that the live frame grew from. Progress edits and frames show the
+ * same text.
  */
-const isEarlierState = (event: MatrixEvent, content: IContent, md: string): boolean => {
+const isEarlierState = (
+  event: MatrixEvent,
+  content: IContent,
+  shown: { docs: LiveDocs; order: LiveOrder }
+): boolean => {
   const status = getStreamStatusFromContent(content);
   if (event.isRedacted() || !status || !LIVE_DURABLE_STATUSES.has(status)) return false;
+  const checkpoint = getLiveCheckpoint(content);
+  if (checkpoint && compareLiveOrder(shown.order, checkpoint) <= 0) return false;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
+  const isLongText =
+    LONG_TEXT_KEY in content || (newContent !== undefined && LONG_TEXT_KEY in newContent);
+  if (isLongText) {
+    if (checkpoint) return shown.docs.md.length > 0 || shown.docs.tools.length > 0;
+    const { body } = withWarmupActivity(content);
+    if (typeof body !== 'string') return false;
+    const strippedMd = stripStandaloneToolMarkers(shown.docs.md);
+    if (isThinkingPlaceholderBody(content)) return strippedMd.trim().length > 0;
+    const cleanBody = body.trim();
+    const cleanMd = strippedMd.trim();
+    return cleanBody.length < cleanMd.length && cleanMd.startsWith(cleanBody);
+  }
   const { body } = withWarmupActivity(content);
   if (typeof body !== 'string') return false;
-  if (isThinkingPlaceholderBody(content)) return md.length > 0;
-  return body.length < md.length && md.startsWith(body);
+  if (isThinkingPlaceholderBody(content)) return shown.docs.md.length > 0;
+  return body.length < shown.docs.md.length && shown.docs.md.startsWith(body);
 };
 
 const noSubscription = () => () => undefined;
@@ -216,15 +260,15 @@ export const useLiveReplyContent = (
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
   // grows or pauses.
-  const shownDocs = useRef<LiveDocs>();
-  if (docs) shownDocs.current = docs;
+  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>();
+  if (docs && entry) shownRef.current = { docs, order: { sid: entry.sid, seq: entry.seq } };
   const heldDocs =
     !docs &&
     verdict !== 'wait' &&
     event &&
-    shownDocs.current &&
-    isEarlierState(event, content, shownDocs.current.md)
-      ? shownDocs.current
+    shownRef.current &&
+    isEarlierState(event, content, shownRef.current)
+      ? shownRef.current.docs
       : undefined;
   const liveDocs = docs ?? heldDocs;
   const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);

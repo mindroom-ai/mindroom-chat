@@ -4,6 +4,7 @@ import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
 import { THREAD_MODEL_KEY } from './threadModel';
+import { hasToolPositions } from './toolPositions';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -176,7 +177,9 @@ export const withToolTraceFallback = (
 ): Record<string, unknown> => {
   if (content[TOOL_TRACE_TAG] !== undefined) return content;
 
-  const fallbackSource = fallbackSources.find((source) => source?.[TOOL_TRACE_TAG] !== undefined);
+  const fallbackSource = fallbackSources.find(
+    (source) => source?.[TOOL_TRACE_TAG] !== undefined && !hasToolPositions(source)
+  );
   if (!fallbackSource) return content;
 
   return {
@@ -267,9 +270,7 @@ const normalizeHydratedContent = (
   return normalizedContent;
 };
 
-export const getLongTextSource = (
-  content: Record<string, unknown>
-): LongTextSource | undefined => {
+export const getLongTextSource = (content: Record<string, unknown>): LongTextSource | undefined => {
   const candidates = getLongTextCandidates(content);
   for (const candidate of candidates) {
     const source = getLongTextSourceFromCandidate(candidate);
