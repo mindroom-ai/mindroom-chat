@@ -91,12 +91,6 @@ type StreamHint = { thread: Thread; edit: MatrixEvent; timer: ReturnType<typeof 
 /** Per client, by reply ID: replies of one thread stream at once. */
 const clientHints = new WeakMap<MatrixClient, Map<string, StreamHint>>();
 
-/** What an edit puts on its reply; an untrusted sender's stream status is stripped where it is read. */
-const newContentOf = (edit: MatrixEvent): Record<string, unknown> => {
-  const content: unknown = edit.getOriginalContent()['m.new_content'];
-  return isRecord(content) ? content : {};
-};
-
 /**
  * The edits the client knows of the reply `replyId` by the sender of its edit `edit`: those of
  * `others`, and those that the thread (waiting, unopened) or its room (as from a page) holds.
@@ -236,10 +230,10 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   /**
    * An edit the sync brought. The revisions of its reply that the client knows decide: the edit,
    * the one the server bundled with the reply the SDK fetched to place the edit, the newest one
-   * the sync brought, and those the thread or the room holds. If one since the hint's edit
-   * ended the stream, the reply's hint goes. If the edit is the newest, live, by the fetched
-   * reply's sender (an agent the reader trusts), says that the reply streams and is not idle, the
-   * hint starts anew.
+   * the sync brought, and those the thread or the room holds. If the edit is the newest, live, by
+   * the fetched reply's sender (an agent the reader trusts), says that the reply streams and is
+   * not idle, the hint starts anew. If not, and a revision since the hint's edit ended the
+   * stream, the reply's hint goes.
    */
   const onEvent = (edit: MatrixEvent) => {
     const room = mx.getRoom(edit.getRoomId());
@@ -261,20 +255,28 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const synced = [getSyncedEdit(replyId), reply && getFinishingEdit(reply)];
     const others = [edit, bundled && new MatrixEvent(bundled), ...synced];
     const known = revisionsOf(thread, replyId, from, others);
-    if (finishedSince(known, from)) {
-      dropHints((_hint, id) => id === replyId);
-      // An edit newer than that finish may say that the reply streams again.
-      if (finishedSince(known, edit)) return;
-    }
     const newest = known.reduce((a, b) => (isEventOrderedAfter(b, a) ? b : a), from);
-    if (!reply || newest !== edit || edit.getType() !== reply.getType()) return;
-    const content = newContentOf(edit);
+    // What the edit puts on its reply; an untrusted sender's stream status is stripped from it.
+    const content: unknown = edit.getOriginalContent()['m.new_content'];
     // The card's rule (`isEventStreaming`): the status must say that the reply streams.
     const streams =
-      getAiRunInfo(content)?.status?.toLowerCase() === 'streaming' ||
-      ACTIVE_STREAM_STATUSES.has(readStreamStatus(content) ?? '');
-    if (!streams || edit.isRedacted() || !isTrustedAgentSender(edit.getSender())) return;
-    if (Date.now() - edit.getTs() > STREAM_IDLE_LIMIT_MS) return;
+      isRecord(content) &&
+      (getAiRunInfo(content)?.status?.toLowerCase() === 'streaming' ||
+        ACTIVE_STREAM_STATUSES.has(readStreamStatus(content) ?? ''));
+    const starts =
+      !!reply &&
+      newest === edit &&
+      edit.getType() === reply.getType() &&
+      streams &&
+      !isTerminalContent(edit.getOriginalContent()) &&
+      !edit.isRedacted() &&
+      isTrustedAgentSender(edit.getSender()) &&
+      Date.now() - edit.getTs() <= STREAM_IDLE_LIMIT_MS;
+    if (!starts) {
+      // Also by an edit without usable new content: the reply fetched for it may bundle a finish.
+      if (finishedSince(known, from)) dropHints((_hint, id) => id === replyId);
+      return;
+    }
     clearTimeout(hint?.timer);
     const timer = setTimeout(() => dropHints((_hint, id) => id === replyId), STREAM_HINT_MS);
     streamHints.set(replyId, { thread, edit, timer });
