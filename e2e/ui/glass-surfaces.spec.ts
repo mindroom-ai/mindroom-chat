@@ -722,20 +722,30 @@ test('custom thread popups receive shared material and retain keyboard actions',
 });
 
 // A long label such as "Recovered recording · 0:42" squeezed the bar's side buttons into tall
-// slivers with shrunken icons on iPhone, as WebKit let them shrink below their icon.
+// slivers with shrunken icons on iPhone, as WebKit let them shrink below their icon. On a narrow
+// phone the waveform gives up its width so the buttons stay inside the bar.
 test('voice recording bar keeps its side buttons square beside a long label @webkit', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 390, height: 1800 });
   await page.goto('/e2e/fixtures/glass-surfaces.html?controls&theme=dark');
-  for (const id of ['recording', 'recovered-recording']) {
-    const buttons = page.getByTestId(id).getByRole('button');
-    await expect(buttons).toHaveCount(2);
-    for (const button of await buttons.all()) {
-      const box = (await button.boundingBox())!;
-      const icon = (await button.locator('svg').boundingBox())!;
-      expect.soft(Math.abs(box.width - box.height), `${id} button is square`).toBeLessThan(0.5);
-      expect.soft(icon.width, `${id} icon keeps its size`).toBeCloseTo(16, 0);
+  await page.evaluate(() => Promise.all([...document.fonts].map((font) => font.load())));
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 1800 });
+    for (const id of ['recording', 'recovered-recording']) {
+      const capsule = (await page.getByTestId(id).locator(':scope > *').boundingBox())!;
+      const buttons = page.getByTestId(id).getByRole('button');
+      await expect(buttons).toHaveCount(2);
+      for (const button of await buttons.all()) {
+        const box = (await button.boundingBox())!;
+        const icon = (await button.locator('svg').boundingBox())!;
+        const at = `${id} at ${width} px`;
+        expect.soft(Math.abs(box.width - box.height), `${at}: button is square`).toBeLessThan(0.5);
+        expect.soft(icon.width, `${at}: icon keeps its size`).toBeCloseTo(16, 0);
+        expect.soft(box.x, `${at}: button starts inside the bar`).toBeGreaterThanOrEqual(capsule.x);
+        expect
+          .soft(box.x + box.width, `${at}: button ends inside the bar`)
+          .toBeLessThanOrEqual(capsule.x + capsule.width);
+      }
     }
   }
 });
