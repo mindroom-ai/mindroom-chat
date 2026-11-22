@@ -1095,9 +1095,12 @@ describe('the side panels of a room', () => {
     expect(hidden()).toBe(false);
     expect(edgeSwipe.enabled).toBe(false);
 
-    // A panel of the room's own registers its own swipe, if any.
+    // Covering panels of the room's own share the same Room-level left-edge swipe on phones.
     await open('subagents');
     expect(hidden()).toBe(true);
+    expect(edgeSwipe.enabled).toBe(true);
+    await act(async () => edgeSwipe.onBack());
+    expect(hidden()).toBe(false);
     expect(edgeSwipe.enabled).toBe(false);
   });
 

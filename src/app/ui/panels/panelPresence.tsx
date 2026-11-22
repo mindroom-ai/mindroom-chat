@@ -165,8 +165,12 @@ const prefersReducedMotion = (): boolean =>
  * the panel is there, so a panel moving in or out carries that gap as a negative start margin.
  */
 export const panelGap = (panel: HTMLElement, side: 'start' | 'end'): number => {
-  const parent = panel.parentElement;
-  if (side !== 'end' || !parent) return 0;
+  if (side !== 'end') return 0;
+  let parent = panel.parentElement;
+  while (parent && getComputedStyle(parent).display === 'contents') {
+    parent = parent.parentElement;
+  }
+  if (!parent) return 0;
   return Number.parseFloat(getComputedStyle(parent).paddingInlineEnd) || 0;
 };
 
