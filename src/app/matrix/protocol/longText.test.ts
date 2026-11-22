@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { THREAD_MODEL_KEY, threadModelContent } from './threadModel';
 import {
   buildLongTextPreview,
   clearLongTextHydrationCache,
@@ -740,5 +741,17 @@ describe('hydrateLongTextSource', () => {
     const recovered = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(recovered.body).toBe('Recovered');
     expect(loader).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('buildLongTextPreview thread_model routing', () => {
+  it('preserves io.mindroom.thread_model on the preview event', () => {
+    const pick = threadModelContent('@router:test', 'DEV1', 'sonnet@high');
+    const preview = buildLongTextPreview({
+      msgtype: 'm.text',
+      body: 'Long message',
+      ...pick,
+    });
+    expect(preview[THREAD_MODEL_KEY]).toEqual(pick[THREAD_MODEL_KEY]);
   });
 });

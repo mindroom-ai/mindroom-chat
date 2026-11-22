@@ -17,6 +17,7 @@ import { CryptoEvent, type CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getModelController, disposeModelController } from './modelController';
+import { THREAD_MODEL_KEY } from '../matrix/protocol/threadModel';
 
 const viewer = '@viewer:test';
 const router = '@mindroom_router:test';
@@ -2008,5 +2009,167 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().pending).toBe(false);
     expect(h.snapshot().error).toBeDefined();
     expect(h.snapshot().loading).toBe(true);
+  });
+});
+
+describe('ModelController main-room next-thread draft', () => {
+  const rootCaps = ['model_selection', 'thread_model_on_root'];
+  const reasoningModels = [
+    {
+      key: 'sonnet',
+      display_name: 'Sonnet',
+      provider: 'anthropic',
+      id: 'claude-sonnet',
+      reasoning_levels: ['low', 'medium', 'high'],
+      reasoning_default: 'medium',
+    },
+    { key: 'fast', display_name: 'Quick', provider: 'openai', id: 'model' },
+  ];
+
+  const discoverMainRoom = async (
+    h: ReturnType<typeof setup>,
+    changes: Record<string, unknown> = {}
+  ) => {
+    const unsubscribe = h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    h.response(h.request(), {
+      capabilities: rootCaps,
+      models: reasoningModels,
+      ...changes,
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    return unsubscribe;
+  };
+
+  it('stays ineligible in main-room scope when runtime lacks thread_model_on_root', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    expect(req.thread_id).toBeUndefined();
+    h.response(req, { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      canMutate: false,
+      override: null,
+      error: undefined,
+    });
+  });
+
+  it('sets, updates with reasoning level, clears, and consumes the local draft without sending', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: null,
+      reasoning: null,
+    });
+
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'sonnet',
+      reasoning: 'high',
+      pending: false,
+    });
+
+    const stamped = h.controller.takeRootModelDraft(h.room);
+    expect(stamped).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+
+    // Choosing Default clears the draft without sending.
+    h.controller.selectModel(h.room, undefined, 'fast');
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+    h.controller.resetToRoomDefault(h.room, undefined);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBeNull();
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('preserves a valid draft across routine membership events', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.member('@bystander:test', 'join');
+    const bystander = h.room.getMember('@bystander:test')!;
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), bystander, 'leave');
+    await flush();
+
+    // Still stamped even if sent before the background re-probe answers.
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'fast',
+      },
+    });
+  });
+
+  it('silently drops the draft and hides the picker when the runtime leaves', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.member(router, 'leave');
+    const routerMember = h.room.getMember(router)!;
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), routerMember, 'join');
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('silently drops the draft and hides the picker when thread_model_on_root disappears', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(h.request(), { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('isolates drafts per account and clears on dispose', async () => {
+    const h1 = setup(false, '@alice:test');
+    const h2 = setup(false, '@bob:test');
+    await discoverMainRoom(h1);
+    h1.controller.selectModel(h1.room, undefined, 'fast');
+
+    expect(h2.controller.getSnapshot(h2.room, undefined).override).toBeNull();
+    expect(h2.controller.takeRootModelDraft(h2.room)).toBeUndefined();
+
+    h1.controller.dispose();
+    expect(h1.controller.takeRootModelDraft(h1.room)).toBeUndefined();
   });
 });
