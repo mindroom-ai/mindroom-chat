@@ -1803,6 +1803,32 @@
   },
   "roomSchedules": {
     "thisThread": "Questo thread",
-    "elsewhereInRoom": "Altrove in questa stanza"
+    "elsewhereInRoom": "Altrove in questa stanza",
+    "filterAll": "Tutte",
+    "filterLabel": "Filtra attività pianificate",
+    "awaitingShort": "In attesa",
+    "inSeconds": "tra {{count}}s",
+    "inMinutes": "tra {{count}}m",
+    "inHours": "tra {{count}}h",
+    "inHoursMinutes": "tra {{hours}}h {{minutes}}m",
+    "inDays": "tra {{count}}g",
+    "thread": "Thread",
+    "destination": "Destinazione",
+    "showFullPrompt": "Mostra prompt completo",
+    "showLessPrompt": "Mostra meno",
+    "details": "Dettagli",
+    "hideDetails": "Nascondi dettagli",
+    "copyId": "Copia ID",
+    "copied": "Copiato",
+    "edit": "Modifica",
+    "cancel": "Annulla",
+    "cancelConfirm": "Annullare questa attività pianificata?",
+    "keep": "Mantieni",
+    "cancelTask": "Annulla attività",
+    "cancelling": "Annullamento...",
+    "cancelError": "Impossibile annullare l'attività. Riprova.",
+    "cancellationSent": "Annullamento inviato",
+    "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
+    "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
   }
 }

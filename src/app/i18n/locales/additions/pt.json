@@ -1803,6 +1803,32 @@
   },
   "roomSchedules": {
     "thisThread": "Este tópico",
-    "elsewhereInRoom": "Em outras partes desta sala"
+    "elsewhereInRoom": "Em outras partes desta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tarefas agendadas",
+    "awaitingShort": "Aguardando",
+    "inSeconds": "em {{count}}s",
+    "inMinutes": "em {{count}}m",
+    "inHours": "em {{count}}h",
+    "inHoursMinutes": "em {{hours}}h {{minutes}}m",
+    "inDays": "em {{count}}d",
+    "thread": "Tópico",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalhes",
+    "hideDetails": "Ocultar detalhes",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "Cancelar esta tarefa agendada?",
+    "keep": "Manter",
+    "cancelTask": "Cancelar tarefa",
+    "cancelling": "Cancelando...",
+    "cancelError": "Não foi possível cancelar a tarefa. Tente novamente.",
+    "cancellationSent": "Cancelamento enviado",
+    "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
+    "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
   }
 }

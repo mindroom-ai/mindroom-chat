@@ -1759,6 +1759,32 @@
   },
   "roomSchedules": {
     "thisThread": "Bu konu",
-    "elsewhereInRoom": "Bu odanın başka yerlerinde"
+    "elsewhereInRoom": "Bu odanın başka yerlerinde",
+    "filterAll": "Tümü",
+    "filterLabel": "Zamanlanmış görevleri filtrele",
+    "awaitingShort": "Bekliyor",
+    "inSeconds": "{{count}}sn içinde",
+    "inMinutes": "{{count}}dk içinde",
+    "inHours": "{{count}}sa içinde",
+    "inHoursMinutes": "{{hours}}sa {{minutes}}dk içinde",
+    "inDays": "{{count}}g içinde",
+    "thread": "Konu",
+    "destination": "Hedef",
+    "showFullPrompt": "Tam istemi göster",
+    "showLessPrompt": "Daha az göster",
+    "details": "Ayrıntılar",
+    "hideDetails": "Ayrıntıları gizle",
+    "copyId": "Kimliği kopyala",
+    "copied": "Kopyalandı",
+    "edit": "Düzenle",
+    "cancel": "İptal et",
+    "cancelConfirm": "Bu zamanlanmış görev iptal edilsin mi?",
+    "keep": "Kalsın",
+    "cancelTask": "Görevi iptal et",
+    "cancelling": "İptal ediliyor...",
+    "cancelError": "Görev iptal edilemedi. Tekrar deneyin.",
+    "cancellationSent": "İptal gönderildi",
+    "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
+    "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   }
 }

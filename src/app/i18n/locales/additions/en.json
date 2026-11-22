@@ -1759,6 +1759,32 @@
   },
   "roomSchedules": {
     "thisThread": "This thread",
-    "elsewhereInRoom": "Elsewhere in this room"
+    "elsewhereInRoom": "Elsewhere in this room",
+    "filterAll": "All",
+    "filterLabel": "Filter scheduled tasks",
+    "awaitingShort": "Awaiting",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}d",
+    "thread": "Thread",
+    "destination": "Destination",
+    "showFullPrompt": "Show full prompt",
+    "showLessPrompt": "Show less",
+    "details": "Details",
+    "hideDetails": "Hide details",
+    "copyId": "Copy ID",
+    "copied": "Copied",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "cancelConfirm": "Cancel this scheduled task?",
+    "keep": "Keep",
+    "cancelTask": "Cancel task",
+    "cancelling": "Cancelling...",
+    "cancelError": "Could not cancel task. Try again.",
+    "cancellationSent": "Cancellation sent",
+    "editDraftBusy": "Clear your current draft before editing this schedule.",
+    "copyFailed": "Could not copy. Select the Task ID in Details."
   }
 }

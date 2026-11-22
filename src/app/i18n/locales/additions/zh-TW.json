@@ -1715,6 +1715,32 @@
   },
   "roomSchedules": {
     "thisThread": "此討論串",
-    "elsewhereInRoom": "此房間中的其他位置"
+    "elsewhereInRoom": "此房間中的其他位置",
+    "filterAll": "全部",
+    "filterLabel": "篩選排程任務",
+    "awaitingShort": "等待中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分鐘後",
+    "inHours": "{{count}}小時後",
+    "inHoursMinutes": "{{hours}}小時{{minutes}}分鐘後",
+    "inDays": "{{count}}天後",
+    "thread": "討論串",
+    "destination": "目標位置",
+    "showFullPrompt": "顯示完整提示詞",
+    "showLessPrompt": "收合",
+    "details": "詳細資訊",
+    "hideDetails": "隱藏詳細資訊",
+    "copyId": "複製 ID",
+    "copied": "已複製",
+    "edit": "編輯",
+    "cancel": "取消",
+    "cancelConfirm": "確定要取消此排程任務嗎？",
+    "keep": "保留",
+    "cancelTask": "取消任務",
+    "cancelling": "正在取消...",
+    "cancelError": "無法取消任務，請再試一次。",
+    "cancellationSent": "已傳送取消請求",
+    "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
+    "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
   }
 }

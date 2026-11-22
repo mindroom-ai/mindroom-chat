@@ -1759,6 +1759,32 @@
   },
   "roomSchedules": {
     "thisThread": "Dieser Thread",
-    "elsewhereInRoom": "An anderer Stelle in diesem Raum"
+    "elsewhereInRoom": "An anderer Stelle in diesem Raum",
+    "filterAll": "Alle",
+    "filterLabel": "Geplante Aufgaben filtern",
+    "awaitingShort": "Ausstehend",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}T",
+    "thread": "Thread",
+    "destination": "Ziel",
+    "showFullPrompt": "Vollständigen Prompt anzeigen",
+    "showLessPrompt": "Weniger anzeigen",
+    "details": "Details",
+    "hideDetails": "Details ausblenden",
+    "copyId": "ID kopieren",
+    "copied": "Kopiert",
+    "edit": "Bearbeiten",
+    "cancel": "Abbrechen",
+    "cancelConfirm": "Diese geplante Aufgabe abbrechen?",
+    "keep": "Behalten",
+    "cancelTask": "Aufgabe abbrechen",
+    "cancelling": "Wird abgebrochen...",
+    "cancelError": "Aufgabe konnte nicht abgebrochen werden. Bitte erneut versuchen.",
+    "cancellationSent": "Abbruch gesendet",
+    "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
+    "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   }
 }

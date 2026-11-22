@@ -1759,6 +1759,32 @@
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",
-    "elsewhereInRoom": "इस रूम में कहीं और"
+    "elsewhereInRoom": "इस रूम में कहीं और",
+    "filterAll": "सभी",
+    "filterLabel": "शेड्यूल किए गए कार्य फ़िल्टर करें",
+    "awaitingShort": "प्रतीक्षारत",
+    "inSeconds": "{{count}}से में",
+    "inMinutes": "{{count}}मि में",
+    "inHours": "{{count}}घं में",
+    "inHoursMinutes": "{{hours}}घं {{minutes}}मि में",
+    "inDays": "{{count}}दि में",
+    "thread": "थ्रेड",
+    "destination": "गंतव्य",
+    "showFullPrompt": "पूरा प्रॉम्प्ट दिखाएं",
+    "showLessPrompt": "कम दिखाएं",
+    "details": "विवरण",
+    "hideDetails": "विवरण छिपाएं",
+    "copyId": "आईडी कॉपी करें",
+    "copied": "कॉपी हो गया",
+    "edit": "संपादित करें",
+    "cancel": "रद्द करें",
+    "cancelConfirm": "क्या इस शेड्यूल किए गए कार्य को रद्द करें?",
+    "keep": "रखें",
+    "cancelTask": "कार्य रद्द करें",
+    "cancelling": "रद्द किया जा रहा है...",
+    "cancelError": "कार्य रद्द नहीं किया जा सका। फिर से प्रयास करें।",
+    "cancellationSent": "रद्दीकरण भेजा गया",
+    "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
+    "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
   }
 }
