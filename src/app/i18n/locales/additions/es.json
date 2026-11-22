@@ -623,7 +623,8 @@
     },
     "accountMenu": {
       "open": "Abrir el menú de la cuenta de {{name}}",
-      "manageAccounts": "Gestionar cuentas"
+      "otherAccounts": "Otras cuentas",
+      "manage": "Gestionar"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de la A a la Z"

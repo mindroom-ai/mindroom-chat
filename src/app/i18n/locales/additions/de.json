@@ -610,7 +610,8 @@
     },
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
-      "manageAccounts": "Konten verwalten"
+      "otherAccounts": "Andere Konten",
+      "manage": "Verwalten"
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"

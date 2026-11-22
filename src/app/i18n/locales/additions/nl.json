@@ -610,7 +610,8 @@
     },
     "accountMenu": {
       "open": "Accountmenu voor {{name}} openen",
-      "manageAccounts": "Accounts beheren"
+      "otherAccounts": "Andere accounts",
+      "manage": "Beheren"
     },
     "roomOrder": {
       "sortByName": "Kamers sorteren van A tot Z"

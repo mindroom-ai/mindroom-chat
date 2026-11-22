@@ -610,7 +610,8 @@
     },
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
-      "manageAccounts": "खातों का प्रबंधन"
+      "otherAccounts": "अन्य खाते",
+      "manage": "प्रबंधित करें"
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { createPrivateRoom, joinRoom, sendRoomMessage } from '../helpers/matrix';
+import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -32,6 +32,27 @@ test.use({
 const register = (name: string) => registerDisposableUser(`menus_${name}_${RUN}`, PASSWORD);
 
 const NOTE = 'The crane schedule for berth four is posted.';
+// A 1 by 1 PNG, the reader's picture.
+const AVATAR_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+);
+
+/** Gives the account a picture, so its menus draw one where they would draw initials. */
+const setAvatar = async (account: { accessToken: string; userId: string }) => {
+  const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${account.accessToken}`, 'Content-Type': 'image/png' },
+    body: AVATAR_PNG,
+  });
+  expect(response.ok).toBe(true);
+  const { content_uri: avatarUrl } = (await response.json()) as { content_uri: string };
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(account.userId)}/avatar_url`, {
+    method: 'PUT',
+    accessToken: account.accessToken,
+    body: JSON.stringify({ avatar_url: avatarUrl }),
+  });
+};
 
 /** A room with a note from another account, which the reader opens. */
 const seed = async (name: string) => {
@@ -157,6 +178,7 @@ const pressOpen = (page: Page, button: Locator) => async () => {
 
 const desktopMenus = async (page: Page, name: string) => {
   const { reader, roomId, roomName } = await seed(`d${name}`);
+  await setAvatar(reader);
   await signIn(page, reader.username, roomId);
 
   const homeOptions = page.getByRole('button', { name: 'Home Options', exact: true });
@@ -186,7 +208,10 @@ const desktopMenus = async (page: Page, name: string) => {
 
   await walkMenu(page, 'message context menu', () => message.click({ button: 'right' }));
 
+  // The account menu shows the reader's picture, as its button does once the picture has loaded:
+  // a picture is an image to assistive technology unless the menu hides it, initials are not.
   const account = page.getByRole('button', { name: /^Open account menu for / });
+  await expect(account.locator('img')).toBeVisible({ timeout: STARTUP_MS });
   await walkMenu(page, 'account', pressOpen(page, account), account);
 };
 

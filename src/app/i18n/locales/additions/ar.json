@@ -662,7 +662,8 @@
     },
     "accountMenu": {
       "open": "فتح قائمة حساب ⁨{{name}}⁩",
-      "manageAccounts": "إدارة الحسابات"
+      "otherAccounts": "حسابات أخرى",
+      "manage": "إدارة"
     },
     "roomOrder": {
       "sortByName": "ترتيب الغرف من أ إلى ي"

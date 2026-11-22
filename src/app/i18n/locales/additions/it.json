@@ -623,7 +623,8 @@
     },
     "accountMenu": {
       "open": "Apri il menu dell'account di {{name}}",
-      "manageAccounts": "Gestisci account"
+      "otherAccounts": "Altri account",
+      "manage": "Gestisci"
     },
     "roomOrder": {
       "sortByName": "Ordina le stanze dalla A alla Z"
