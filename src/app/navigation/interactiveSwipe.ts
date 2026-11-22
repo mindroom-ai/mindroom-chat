@@ -68,7 +68,6 @@ type SwipeRegistration = {
   priority: number;
   elementRef?: RefObject<HTMLElement>;
   within?: RefObject<Element>;
-  blockStandaloneWebApp: boolean;
   cancelCommits: boolean;
   onCommitRef: MutableRefObject<() => void>;
   beginRef: MutableRefObject<InteractiveSwipeBegin | undefined>;
@@ -77,6 +76,7 @@ type SwipeRegistration = {
 type ActiveGesture = {
   entry: SwipeRegistration;
   tracker: SwipeTracker;
+  touchIdentifier: number | undefined;
   axisSign: 1 | -1;
   dirSign: 1 | -1;
   overlayScope: Element | null | undefined;
@@ -91,7 +91,12 @@ type ActiveGesture = {
 type ActiveSettle = {
   token: number;
   gesture: ActiveGesture;
+  watchdogId: ReturnType<typeof setTimeout>;
+  abortHandlers: Set<() => void>;
+  aborted: boolean;
 };
+
+const SETTLE_WATCHDOG_GRACE_MS = 500;
 
 const edgeEntries = new Set<SwipeRegistration>();
 const elementEntries = new Set<SwipeRegistration>();
@@ -157,9 +162,13 @@ const applyKeyframeStyles = (element: HTMLElement, frame: Keyframe | undefined) 
 
 export const animateSwipeElements = async (
   animations: ReadonlyArray<{ element: HTMLElement; keyframes: Keyframe[] }>,
-  durationMs: number
+  durationMs: number,
+  signal?: AbortSignal
 ): Promise<void> => {
   if (animations.length === 0) return;
+
+  const ownerSettle = activeSettle;
+  if (signal?.aborted || ownerSettle?.aborted) return;
 
   const reduced = isReducedMotion();
   const started: Array<{
@@ -190,13 +199,42 @@ export const animateSwipeElements = async (
 
   if (started.length === 0) return;
 
-  try {
-    await Promise.allSettled(started.map(({ anim }) => Promise.resolve(anim?.finished)));
-  } finally {
-    for (const { anim, element, finalFrame } of started) {
-      applyKeyframeStyles(element, finalFrame);
+  let aborted = false;
+  const cancelStarted = () => {
+    for (const { anim } of started) {
       try {
         anim.cancel?.();
+      } catch {
+        // Ignore cancellation errors on detached or mocked animations.
+      }
+    }
+  };
+
+  const onAbort = () => {
+    if (aborted) return;
+    aborted = true;
+    cancelStarted();
+  };
+
+  ownerSettle?.abortHandlers.add(onAbort);
+  signal?.addEventListener('abort', onAbort, { once: true });
+
+  let results: PromiseSettledResult<unknown>[] = [];
+  try {
+    results = await Promise.allSettled(started.map(({ anim }) => Promise.resolve(anim?.finished)));
+  } finally {
+    ownerSettle?.abortHandlers.delete(onAbort);
+    signal?.removeEventListener('abort', onAbort);
+
+    const wasAborted = aborted || signal?.aborted === true || ownerSettle?.aborted === true;
+    for (let i = 0; i < started.length; i += 1) {
+      const item = started[i]!;
+      const settled = results[i];
+      if (!wasAborted && settled?.status === 'fulfilled') {
+        applyKeyframeStyles(item.element, item.finalFrame);
+      }
+      try {
+        item.anim.cancel?.();
       } catch {
         // Ignore cancellation errors on detached or mocked animations.
       }
@@ -204,8 +242,14 @@ export const animateSwipeElements = async (
   }
 };
 
-const getEventTimeMs = (event: Event): number =>
-  typeof event.timeStamp === 'number' && event.timeStamp > 0 ? event.timeStamp : Date.now();
+const getEventTimeMs = (event: Event): number => {
+  if (typeof event.timeStamp === 'number' && event.timeStamp > 0) {
+    return event.timeStamp;
+  }
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+};
 
 const resolveAxisGeometry = (
   edge: SwipeEdge,
@@ -294,9 +338,15 @@ const abortActiveGesture = () => {
 
 const abortActiveSettle = () => {
   if (!activeSettle) return;
-  const { gesture } = activeSettle;
+  const settle = activeSettle;
   activeSettle = null;
-  cleanupGestureImmediate(gesture);
+  settle.aborted = true;
+  clearTimeout(settle.watchdogId);
+  for (const abort of settle.abortHandlers) {
+    abort();
+  }
+  settle.abortHandlers.clear();
+  cleanupGestureImmediate(settle.gesture);
 };
 
 const abortAll = () => {
@@ -334,6 +384,7 @@ const startGesture = (
       axisSign,
       discreteMinPx,
     }),
+    touchIdentifier: typeof touch.identifier === 'number' ? touch.identifier : undefined,
     axisSign,
     dirSign,
     overlayScope,
@@ -346,6 +397,19 @@ const startGesture = (
   };
 };
 
+const isTrackedTouchEnded = (
+  event: TouchEvent | undefined,
+  touchIdentifier: number | undefined
+): boolean => {
+  if (touchIdentifier === undefined || !event) return true;
+  const changed = event.changedTouches;
+  if (!changed || changed.length === 0) return true;
+  for (let i = 0; i < changed.length; i += 1) {
+    if (changed[i]?.identifier === touchIdentifier) return true;
+  }
+  return false;
+};
+
 const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => {
   if (gesture.entry.zone === 'edge' && event[HANDLED_EVENT_FLAG]) return;
 
@@ -356,6 +420,15 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
 
   const touch = event.touches[0];
   if (!touch) {
+    abortActiveGesture();
+    return;
+  }
+
+  if (
+    gesture.touchIdentifier !== undefined &&
+    typeof touch.identifier === 'number' &&
+    touch.identifier !== gesture.touchIdentifier
+  ) {
     abortActiveGesture();
     return;
   }
@@ -459,7 +532,19 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
   const durationMs = gesture.tracker.settleDurationMs(commit, extent);
   const currentOffset = gesture.tracker.offset;
   const settleToken = ++settleCounter;
-  activeSettle = { token: settleToken, gesture };
+  const watchdogId = setTimeout(() => {
+    if (activeSettle?.token === settleToken) {
+      abortActiveSettle();
+    }
+  }, Math.max(0, durationMs) + SETTLE_WATCHDOG_GRACE_MS);
+
+  activeSettle = {
+    token: settleToken,
+    gesture,
+    watchdogId,
+    abortHandlers: new Set(),
+    aborted: false,
+  };
 
   void (async () => {
     let committed = false;
@@ -470,7 +555,11 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
         committed = true;
         gesture.scene!.commit();
       }
+    } catch {
+      // Swallow settle/commit rejections so they never surface as unhandled rejections;
+      // the finally block always releases activeSettle and runs cleanup.
     } finally {
+      clearTimeout(watchdogId);
       if (activeSettle?.token === settleToken) {
         activeSettle = null;
       }
@@ -483,13 +572,17 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
 };
 
 const handleWindowTouchStart = (event: TouchEventWithFlag) => {
+  if (claimedTouchStartEvents.has(event)) return;
   if (activeGesture) {
     if (event.touches.length !== 1) {
       abortActiveGesture();
+      return;
     }
-    return;
+    // A fresh 1-finger touchstart means any previous gesture's touchend/touchcancel never
+    // arrived (e.g. its touched DOM node was removed mid-drag); clean up and arbitrate normally.
+    abortActiveGesture();
   }
-  if (activeSettle || claimedTouchStartEvents.has(event)) return;
+  if (activeSettle) return;
   if (event[HANDLED_EVENT_FLAG] || event.touches.length !== 1) return;
 
   const touch = event.touches[0];
@@ -498,7 +591,6 @@ const handleWindowTouchStart = (event: TouchEventWithFlag) => {
   const target = event.target as Node | null;
   const dirSign = resolveLogicalDirectionSign();
   const sorted = sortByPriorityDesc(edgeEntries);
-  const blockedEdges = new Set<SwipeEdge>();
   let minAllowedPriority = -Infinity;
 
   for (const entry of sorted) {
@@ -514,13 +606,6 @@ const handleWindowTouchStart = (event: TouchEventWithFlag) => {
       dirSign
     );
     if (!isInEdgeBand(touch.clientX, isPhysicalLeftEdge)) continue;
-
-    if (blockedEdges.has(entry.edge)) continue;
-
-    if (entry.blockStandaloneWebApp && isIOSStandaloneWebApp()) {
-      blockedEdges.add(entry.edge);
-      continue;
-    }
 
     if (hasOpenOverlay(entry.within?.current)) {
       break;
@@ -543,13 +628,15 @@ const handleWindowTouchMove = (event: TouchEventWithFlag) => {
   handleActiveMove(event, activeGesture);
 };
 
-const handleWindowTouchEnd = () => {
+const handleWindowTouchEnd = (event: TouchEvent) => {
   if (!activeGesture || activeGesture.entry.zone !== 'edge') return;
+  if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
   handleActiveEnd(activeGesture, false);
 };
 
-const handleWindowTouchCancel = () => {
+const handleWindowTouchCancel = (event: TouchEvent) => {
   if (!activeGesture || activeGesture.entry.zone !== 'edge') return;
+  if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
   handleActiveEnd(activeGesture, true);
 };
 
@@ -664,6 +751,11 @@ export const useInteractiveSwipe = ({
 }: InteractiveSwipeOptions): void => {
   const onCommitRef = useRef(onCommit);
   const beginRef = useRef(begin);
+  const registrationIdRef = useRef<number | null>(null);
+  if (registrationIdRef.current === null) {
+    registrationIdRef.current = nextRegistrationId++;
+  }
+  const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
 
   useLayoutEffect(() => {
     onCommitRef.current = onCommit;
@@ -671,18 +763,17 @@ export const useInteractiveSwipe = ({
   });
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled || standaloneBlocked) return undefined;
     if (typeof window === 'undefined') return undefined;
 
     const entry: SwipeRegistration = {
-      id: nextRegistrationId++,
+      id: registrationIdRef.current!,
       zone,
       edge,
       direction,
       priority,
       elementRef,
       within,
-      blockStandaloneWebApp,
       cancelCommits,
       onCommitRef,
       beginRef,
@@ -705,13 +796,17 @@ export const useInteractiveSwipe = ({
     if (!panel) return undefined;
 
     const onElementTouchStart = (event: TouchEventWithFlag) => {
+      if (claimedTouchStartEvents.has(event)) return;
       if (activeGesture) {
         if (event.touches.length !== 1) {
           abortActiveGesture();
+          return;
         }
-        return;
+        // A fresh 1-finger touchstart means any previous gesture's touchend/touchcancel never
+        // arrived (e.g. its touched DOM node was removed mid-drag); clean up and arbitrate normally.
+        abortActiveGesture();
       }
-      if (activeSettle || claimedTouchStartEvents.has(event)) return;
+      if (activeSettle) return;
       if (event.touches.length !== 1) return;
 
       const touch = event.touches[0];
@@ -737,13 +832,15 @@ export const useInteractiveSwipe = ({
       handleActiveMove(event, activeGesture);
     };
 
-    const onElementTouchEnd = () => {
+    const onElementTouchEnd = (event: TouchEvent) => {
       if (!activeGesture || activeGesture.entry !== entry) return;
+      if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
       handleActiveEnd(activeGesture, false);
     };
 
-    const onElementTouchCancel = () => {
+    const onElementTouchCancel = (event: TouchEvent) => {
       if (!activeGesture || activeGesture.entry !== entry) return;
+      if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
       handleActiveEnd(activeGesture, true);
     };
 
@@ -770,9 +867,9 @@ export const useInteractiveSwipe = ({
     direction,
     priority,
     enabled,
+    standaloneBlocked,
     elementRef,
     within,
-    blockStandaloneWebApp,
     cancelCommits,
   ]);
 };

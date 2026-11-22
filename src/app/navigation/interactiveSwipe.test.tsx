@@ -12,11 +12,19 @@ import {
   useInteractiveSwipe,
 } from './interactiveSwipe';
 
-type Point = { clientX: number; clientY: number };
+type Point = { clientX: number; clientY: number; identifier?: number };
 
-const createTouchEvent = (type: string, points: Point[], timeStamp?: number) => {
+const createTouchEvent = (
+  type: string,
+  points: Point[],
+  timeStamp?: number,
+  changedTouches?: Point[]
+) => {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'touches', { value: points });
+  if (changedTouches !== undefined) {
+    Object.defineProperty(event, 'changedTouches', { value: changedTouches });
+  }
   if (timeStamp !== undefined) {
     Object.defineProperty(event, 'timeStamp', { value: timeStamp });
   }
@@ -166,13 +174,27 @@ describe('interactiveSwipe', () => {
       expect(drawer).not.toHaveBeenCalled();
     });
 
-    it('prefers later-mounted registration within the same priority tier', () => {
+    it('prefers later-mounted registration within the same priority tier even after enabled toggles', () => {
       const first = vi.fn();
       const second = vi.fn();
 
-      render(
+      const { rerender } = render(
         <>
           <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={first} />
+          <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={second} />
+        </>
+      );
+
+      // Toggle first off then back on: stable registration id preserves original mount order
+      rerender(
+        <>
+          <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={first} enabled={false} />
+          <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={second} />
+        </>
+      );
+      rerender(
+        <>
+          <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={first} enabled />
           <EdgeLayer priority={SWIPE_PRIORITY.PAGE} onCommit={second} />
         </>
       );
@@ -660,6 +682,202 @@ describe('interactiveSwipe', () => {
       expect(elMock.commit).toHaveBeenCalledOnce();
       expect(elMock.cleanup).toHaveBeenCalledWith(true);
     });
+
+    it('recovers from a dropped drag without touchend when a new 1-finger touchstart arrives', async () => {
+      const staleMock = createMockScene(400);
+      const freshMock = createMockScene(400);
+      let callIndex = 0;
+
+      function RecoverHarness() {
+        useInteractiveSwipe({
+          zone: 'edge',
+          edge: 'start',
+          direction: 'inward',
+          priority: SWIPE_PRIORITY.PAGE,
+          enabled: true,
+          onCommit: vi.fn(),
+          begin: () => {
+            callIndex += 1;
+            return callIndex === 1 ? staleMock.scene : freshMock.scene;
+          },
+        });
+        return null;
+      }
+
+      render(<RecoverHarness />);
+
+      // Start first drag and drop it with no touchend/touchcancel (simulates target removed mid-drag)
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent('touchstart', [{ clientX: 10, clientY: 200, identifier: 1 }], 0)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchmove', [{ clientX: 140, clientY: 200, identifier: 1 }], 30)
+        );
+      });
+      expect(staleMock.cleanup).not.toHaveBeenCalled();
+
+      // New 1-finger drag must clean up the stale gesture and arbitrate + commit cleanly
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent('touchstart', [{ clientX: 10, clientY: 200, identifier: 2 }], 100)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchmove', [{ clientX: 260, clientY: 200, identifier: 2 }], 140)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchend', [], 160, [{ clientX: 260, clientY: 200, identifier: 2 }])
+        );
+      });
+
+      await flushMicrotasks();
+      expect(staleMock.cleanup).toHaveBeenCalledWith(false);
+      expect(staleMock.commit).not.toHaveBeenCalled();
+      expect(freshMock.commit).toHaveBeenCalledOnce();
+      expect(freshMock.cleanup).toHaveBeenCalledWith(true);
+    });
+
+    it('ignores touchend for a different touch identifier', async () => {
+      const mock = createMockScene(400);
+      render(<AbortHarness scene={mock.scene} />);
+
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent('touchstart', [{ clientX: 10, clientY: 200, identifier: 7 }], 0)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchmove', [{ clientX: 240, clientY: 200, identifier: 7 }], 30)
+        );
+        // Unrelated finger identifier lifts -> must NOT settle yet
+        window.dispatchEvent(
+          createTouchEvent('touchend', [{ clientX: 240, clientY: 200, identifier: 7 }], 40, [
+            { clientX: 300, clientY: 300, identifier: 99 },
+          ])
+        );
+      });
+
+      expect(mock.settle).not.toHaveBeenCalled();
+
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent('touchend', [], 60, [{ clientX: 240, clientY: 200, identifier: 7 }])
+        );
+      });
+      await flushMicrotasks();
+      expect(mock.commit).toHaveBeenCalledOnce();
+    });
+
+    it('cancels WAAPI animations on mid-settle resize abort and never re-applies finalFrame', async () => {
+      const target = document.createElement('div');
+      const resolvers: Array<() => void> = [];
+      const cancelAnim = vi.fn();
+      target.animate = vi.fn().mockImplementation(() => ({
+        finished: new Promise<void>((resolve) => {
+          resolvers.push(resolve);
+        }),
+        cancel: cancelAnim,
+      }));
+
+      const commit = vi.fn();
+      const cleanupScene = vi.fn(() => {
+        target.style.translate = '';
+      });
+      const scene: InteractiveSwipeScene = {
+        extent: 400,
+        update: (offsetPx) => {
+          target.style.translate = `${offsetPx}px 0`;
+        },
+        settle: (shouldCommit, durationMs, currentOffsetPx) =>
+          animateSwipeElements(
+            [
+              {
+                element: target,
+                keyframes: [
+                  { translate: `${currentOffsetPx}px 0` },
+                  { translate: shouldCommit ? '400px 0' : '0px 0' },
+                ],
+              },
+            ],
+            durationMs
+          ),
+        commit,
+        cleanup: cleanupScene,
+      };
+
+      render(<AbortHarness scene={scene} />);
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 260, clientY: 200 }], 40));
+        window.dispatchEvent(createTouchEvent('touchend', [], 60));
+      });
+
+      expect(target.animate).toHaveBeenCalledOnce();
+      expect(cancelAnim).not.toHaveBeenCalled();
+
+      // Abort mid-settle via resize: must cancel WAAPI immediately and clear inline styles
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(cancelAnim).toHaveBeenCalled();
+      expect(cleanupScene).toHaveBeenCalledWith(false);
+      expect(target.style.translate).toBe('');
+
+      // Even if the animation's finished promise later resolves, finalFrame must NOT be written
+      resolvers.forEach((resolve) => resolve());
+      await flushMicrotasks();
+      expect(target.style.translate).toBe('');
+      expect(commit).not.toHaveBeenCalled();
+    });
+
+    it('aborts a hung settle via watchdog timeout and catches settle rejections cleanly', async () => {
+      vi.useFakeTimers();
+      const hungCleanup = vi.fn();
+      const hungCommit = vi.fn();
+      const hungScene: InteractiveSwipeScene = {
+        extent: 400,
+        update: vi.fn(),
+        settle: () => new Promise<void>(() => undefined),
+        commit: hungCommit,
+        cleanup: hungCleanup,
+      };
+
+      const view = render(<AbortHarness scene={hungScene} />);
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 260, clientY: 200 }], 40));
+        window.dispatchEvent(createTouchEvent('touchend', [], 60));
+      });
+
+      expect(hungCleanup).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(hungCleanup).toHaveBeenCalledWith(false);
+      expect(hungCommit).not.toHaveBeenCalled();
+
+      // Subsequent drag works after watchdog recovery, and rejected settle cleans up cleanly
+      const rejectCleanup = vi.fn();
+      const rejectCommit = vi.fn();
+      const rejectScene: InteractiveSwipeScene = {
+        extent: 400,
+        update: vi.fn(),
+        settle: () => Promise.reject(new Error('settle failed')),
+        commit: rejectCommit,
+        cleanup: rejectCleanup,
+      };
+      view.rerender(<AbortHarness scene={rejectScene} />);
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 200));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 260, clientY: 200 }], 240));
+        window.dispatchEvent(createTouchEvent('touchend', [], 260));
+      });
+      await flushMicrotasks();
+      expect(rejectCommit).not.toHaveBeenCalled();
+      expect(rejectCleanup).toHaveBeenCalledWith(false);
+    });
   });
 
   describe('animateSwipeElements', () => {
@@ -704,7 +922,8 @@ describe('interactiveSwipe', () => {
         )
       ).resolves.toBeUndefined();
 
-      expect(el.style.opacity).toBe('0');
+      // Aborted/rejected animations must not write finalFrame inline
+      expect(el.style.opacity).toBe('');
       expect(cancel).toHaveBeenCalledOnce();
     });
 

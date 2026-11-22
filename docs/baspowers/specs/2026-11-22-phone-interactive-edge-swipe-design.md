@@ -43,7 +43,7 @@ A pure, DOM-free state machine for deterministic unit testing with explicit time
   - Before lock: compute `dx = (x - startX) * axisSign` and `dy = Math.abs(y - startY)`.
   - If `dy > SWIPE_LOCK_SLOP_PX && dy >= Math.abs(dx)`: yield immediately to native vertical scroll (`status = 'yielded'`).
   - If `dx < -SWIPE_LOCK_SLOP_PX`: wrong horizontal direction, yield (`status = 'yielded'`).
-  - If `dx >= SWIPE_LOCK_SLOP_PX && dx > dy`: lock (`status = 'locked'`), record `lockX = x` so visual offset starts smoothly at `0px` with no jump.
+  - If `dx >= SWIPE_LOCK_SLOP_PX && dx > dy`: lock (`status = 'locked'`), record `lockX = startX + SWIPE_LOCK_SLOP_PX * axisSign` so smooth drags start at `0px` with zero jump while single-move synthetic jumps preserve full drag offset.
 - **Clamped offset:** Once locked, `offset = clamp(0, (x - lockX) * axisSign, extent)` and `progress = extent > 0 ? offset / extent : 0`.
 - **Commit evaluation on release:**
   - If `extent <= 0` (no layout / discrete fallback): commit iff `rawDx >= discreteMinPx && maxDriftY <= MAX_VERTICAL_DRIFT`.
@@ -82,7 +82,7 @@ Replaces independent event races with one ordered registration stack and shared 
     - `cleanup(committed: boolean): void` — idempotently removes inline `translate`/`opacity`/`data-swiping`/preview nodes.
 - **Safety & interruptions:**
   - Once locked horizontally, call `event.preventDefault()` on cancelable `touchmove` so iOS stops native scroll takeover, and arm a one-shot capture `click` suppressor cleared on the next macrotask after `touchend` so releasing over a link/card does not trigger a click.
-  - Any 2nd touch (`touches.length !== 1`), `hasOpenOverlay(within?.current)` becoming true mid-drag, window `resize`, `visibilitychange` to `hidden`, or hook unmount immediately cancels the active gesture and calls `cleanup(false)` (animating back for overlay/multi-touch if still mounted; instant cleanup on unmount/resize/hidden).
+  - Any 2nd touch (`touches.length !== 1`), `hasOpenOverlay(within?.current)` becoming true mid-drag, window `resize`, `visibilitychange` to `hidden`, or hook unmount immediately cancels the active gesture (and any in-flight settle animations) and calls `cleanup(false)` synchronously so pinch-zoom and newly opened overlays never fight a stale settle animation.
   - `touchcancel`: for `zone: 'edge'`, reset & `cleanup(false)` immediately (iOS Safari/WKWebView took over its native edge swipe). For `zone: 'element'` (in-panel swipe-away), decide from the last recorded sample so iOS WebKit's cancel-on-fast-flick inside scrollable lists still commits when past threshold (preserving `useSwipeAway.test.tsx`).
 - **Backward compatibility:**
   - `useEdgeSwipe`, `useEdgeSwipeBack`, `useEdgeSwipeForward`, and `useSwipeAway` remain exported with their existing signatures (extended with optional interactive `begin` / `scene` options), and `edgeSwipeBackCountAtom` continues to track active back-swipe registrations.

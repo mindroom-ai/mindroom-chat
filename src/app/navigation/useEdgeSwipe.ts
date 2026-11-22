@@ -8,7 +8,6 @@ import {
 } from './interactiveSwipe';
 import { EDGE_START_MAX_X } from './interactiveSwipeMath';
 import { phoneLayerOpenAtom } from './phoneNavDrawer';
-import { isIOSStandaloneWebApp } from '../native/nativeSso';
 
 export { EDGE_START_MAX_X };
 
@@ -38,7 +37,6 @@ export const useEdgeSwipe = ({
 }): void => {
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
-  const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
   const pageCovered = !within && (imageViewerOpen || phoneLayerOpen);
 
   useInteractiveSwipe({
@@ -46,7 +44,7 @@ export const useEdgeSwipe = ({
     edge: direction === 'back' ? 'start' : 'end',
     direction: 'inward',
     priority: priority ?? (within ? SWIPE_PRIORITY.OVERLAY : SWIPE_PRIORITY.PAGE),
-    enabled: enabled && !standaloneBlocked && !pageCovered,
+    enabled: enabled && !pageCovered,
     within,
     blockStandaloneWebApp,
     onCommit: onSwipe,
