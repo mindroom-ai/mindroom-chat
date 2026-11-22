@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { EventType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  EventType,
+  RelationType,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { MINDROOM_SERVER_EVENT } from '../computer/agentServer';
 import { getPowersLevelFromMatrixEvent } from '../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../matrix/hooks/useRoomCreators';
@@ -11,6 +17,7 @@ import { useStateEventCallback } from '../matrix/hooks/useStateEventCallback';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { addRoomIdToMDirect, getMxIdLocalPart } from '../matrix/matrix';
 import { agentRoomState } from '../matrix/protocol/agentRoomState';
+import { isMindroomOwnerUserId } from '../matrix/protocol/agentIdentity';
 import { getMemberAvatarMxc, getMemberRawDisplayName, getStateEvent } from '../matrix/room';
 import { navigationRoomsAtom } from '../matrix/state/archivedRooms';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -20,9 +27,6 @@ import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
-
-/** MindRoom's router, which routes messages and answers no question itself. */
-const ROUTER = /^mindroom_router(?:_[a-z0-9]{4,32})?$/;
 
 export type HomeAgent = {
   userId: string;
@@ -42,54 +46,70 @@ export type HomeAgent = {
   lastUsedTs: number;
 };
 
+/** Whether the account is in `room`, it has not been replaced, and the account may post in it. */
+const canSendIn = (room: Room): boolean => {
+  if (room.getMyMembership() !== 'join' || getStateEvent(room, StateEvent.RoomTombstone)) {
+    return false;
+  }
+  const create = getStateEvent(room, StateEvent.RoomCreate);
+  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
+  return getRoomPermissionsAPI(create ? getRoomCreators(create) : new Set(), levels).event(
+    'm.room.message',
+    room.myUserId
+  );
+};
+
 /**
  * Whether a question to `agentId` can go to `room`: the account is in it and may send messages, as
  * its room's composer needs (RoomView), the room has not been replaced, and the agent is in it. An
  * agent whose membership is not loaded yet is in it while it publishes its state there.
  */
 export const canAskIn = (room: Room, agentId: string): boolean => {
-  if (room.getMyMembership() !== 'join' || getStateEvent(room, StateEvent.RoomTombstone)) {
-    return false;
-  }
+  if (!canSendIn(room)) return false;
   const agent = room.getMember(agentId);
-  const joined = agent
+  return agent
     ? agent.membership === 'join'
     : agentRoomState(room, MINDROOM_SERVER_EVENT).some((event) => event.getSender() === agentId);
-  const create = getStateEvent(room, StateEvent.RoomCreate);
-  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
-  return (
-    joined &&
-    getRoomPermissionsAPI(create ? getRoomCreators(create) : new Set(), levels).event(
-      'm.room.message',
-      room.myUserId
-    )
-  );
 };
 
-/** The account's direct chat with `agentId`: a joined room `m.direct` lists, of the two alone. */
+/**
+ * The account's direct chat with `agentId`: a writable, non-tombstoned room of the two alone that
+ * `m.direct` lists, preferring one the agent has already joined over a pending invite.
+ */
 const readDirect = (mx: MatrixClient, agentId: string): HomeAgent['direct'] => {
   const listed = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>()[agentId] ?? [];
-  const room = listed
+  const candidates = listed
     .map((roomId) => mx.getRoom(roomId))
-    .find(
-      (candidate) =>
-        candidate?.getMyMembership() === 'join' &&
-        candidate.getJoinedMemberCount() + candidate.getInvitedMemberCount() <= 2 &&
-        ['join', 'invite'].includes(candidate.getMember(agentId)?.membership ?? '')
+    .filter(
+      (candidate): candidate is Room =>
+        candidate !== null &&
+        canSendIn(candidate) &&
+        candidate.getJoinedMemberCount() + candidate.getInvitedMemberCount() <= 2
     );
-  return room ? { roomId: room.roomId, waiting: !canAskIn(room, agentId) } : undefined;
+  const joined = candidates.find((candidate) => canAskIn(candidate, agentId));
+  if (joined) return { roomId: joined.roomId, waiting: false };
+  const invited = candidates.find(
+    (candidate) => candidate.getMember(agentId)?.membership === 'invite'
+  );
+  return invited ? { roomId: invited.roomId, waiting: true } : undefined;
 };
+
+const isAnswerMessage = (event: MatrixEvent, agentId: string): boolean =>
+  event.getSender() === agentId &&
+  event.getType() === 'm.room.message' &&
+  !event.isRedacted() &&
+  event.getRelation()?.rel_type !== RelationType.Replace;
 
 /**
  * When `agentId` last answered in `room`: its newest message the client has loaded there, or the
  * reply the thread index says ends one of the room's threads. Someone else's later message in a
- * thread it answered in does not count.
+ * thread it answered in, or a reaction/redaction/edit, does not count.
  */
 const lastAnswerTs = (room: Room, agentId: string, threads: CrossRoomThreadIndexEntry[]) => {
   let newest = 0;
   const read = (events: MatrixEvent[]) =>
     events.forEach((event) => {
-      if (event.getSender() === agentId && !event.isState()) {
+      if (isAnswerMessage(event, agentId)) {
         newest = Math.max(newest, event.getTs());
       }
     });
@@ -118,7 +138,7 @@ export const readHomeAgents = (
     if (!room || room.isSpaceRoom() || room.getMyMembership() !== 'join') return;
     agentRoomState(room, MINDROOM_SERVER_EVENT).forEach((event) => {
       const agentId = event.getSender()!;
-      if (ROUTER.test(getMxIdLocalPart(agentId) ?? '')) return;
+      if (isMindroomOwnerUserId(agentId)) return;
       roomsByAgent.set(agentId, [...(roomsByAgent.get(agentId) ?? []), room]);
     });
   });

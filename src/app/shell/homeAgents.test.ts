@@ -1,4 +1,10 @@
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import {
+  EventType,
+  RelationType,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import { canAskIn, readHomeAgents, startDirectChat } from './homeAgents';
@@ -7,22 +13,35 @@ const ME = '@robin:example.org';
 const HELPER = '@mindroom_helper:example.org';
 const SCOUT = '@mindroom_scout:example.org';
 const ROUTER = '@mindroom_router:example.org';
+const ROUTER_HELPER = '@mindroom_router_helper:example.org';
+
+type MessageSpec =
+  | [string, number]
+  | { sender: string; ts: number; type?: string; redacted?: boolean; relType?: string };
 
 type RoomSpec = {
   agents?: string[];
-  /** Messages the client has loaded: sender and time. */
-  messages?: [string, number][];
+  /** Events the client has loaded: sender and time, or full event spec. */
+  messages?: MessageSpec[];
   members?: Record<string, string>;
   state?: Record<string, Record<string, unknown>>;
   count?: number;
 };
 
-const event = (sender: string, ts = 0, content: Record<string, unknown> = {}) =>
+const event = (
+  sender: string,
+  ts = 0,
+  content: Record<string, unknown> = {},
+  options: { type?: string; redacted?: boolean; relType?: string } = {}
+) =>
   ({
     getSender: () => sender,
     getStateKey: () => sender,
     getTs: () => ts,
+    getType: () => options.type ?? EventType.RoomMessage,
     isState: () => false,
+    isRedacted: () => options.redacted ?? false,
+    getRelation: () => (options.relType ? { rel_type: options.relType } : null),
     getContent: () => content,
   } as unknown as MatrixEvent);
 
@@ -40,7 +59,12 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
     getInvitedMemberCount: () => 0,
     currentState: { getStateEvents: stateEvents },
     getLiveTimeline: () => ({
-      getEvents: () => messages.map(([sender, ts]) => event(sender, ts)),
+      getEvents: () =>
+        messages.map((entry) =>
+          Array.isArray(entry)
+            ? event(entry[0], entry[1])
+            : event(entry.sender, entry.ts, {}, entry)
+        ),
       getState: () => ({
         getStateEvents: (type: string) =>
           state[type] ? event('@admin:example.org', 0, state[type]) : undefined,
@@ -121,6 +145,50 @@ describe('readHomeAgents', () => {
     const [helper] = readHomeAgents(client(rooms), ids(rooms), []);
     expect(helper?.roomIds).toEqual(['!lobby']);
     expect(canAskIn(readonlyRoom, HELPER)).toBe(false);
+  });
+
+  it('skips tombstoned and unwritable DMs and prefers a joined DM over a pending invite', () => {
+    const rooms = [
+      room('!lobby', { agents: [HELPER, SCOUT] }),
+      room('!dm-tombstoned', {
+        members: { [HELPER]: 'join' },
+        state: { 'm.room.tombstone': { body: 'moved' } },
+        count: 2,
+      }),
+      room('!dm-readonly', {
+        members: { [HELPER]: 'join' },
+        state: { 'm.room.power_levels': { events_default: 50, users: { [HELPER]: 50 } } },
+        count: 2,
+      }),
+      room('!dm-invited', { members: { [HELPER]: 'invite' }, count: 1 }),
+      room('!dm-usable', { members: { [HELPER]: 'join' }, count: 2 }),
+    ];
+    const direct = {
+      [HELPER]: ['!dm-tombstoned', '!dm-readonly', '!dm-invited', '!dm-usable'],
+    };
+    const agents = readHomeAgents(client(rooms, direct), ['!lobby'], []);
+    const helper = agents.find((agent) => agent.userId === HELPER);
+    expect(helper?.direct).toEqual({ roomId: '!dm-usable', waiting: false });
+  });
+
+  it('ignores agent reactions, edits, and redacted messages when ranking rooms, and keeps router_* agents', () => {
+    const rooms = [
+      room('!eng', { agents: [HELPER, ROUTER, ROUTER_HELPER], messages: [[HELPER, 200]] }),
+      room('!lobby', {
+        agents: [HELPER],
+        messages: [
+          [HELPER, 100],
+          { sender: HELPER, ts: 500, type: EventType.Reaction },
+          { sender: HELPER, ts: 600, type: EventType.RoomMessage, relType: RelationType.Replace },
+          { sender: HELPER, ts: 700, type: EventType.RoomMessage, redacted: true },
+        ],
+      }),
+    ];
+    const agents = readHomeAgents(client(rooms), ids(rooms), []);
+    const byId = new Map(agents.map((agent) => [agent.userId, agent]));
+    expect(byId.get(HELPER)).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+    expect(byId.has(ROUTER)).toBe(false);
+    expect(byId.has(ROUTER_HELPER)).toBe(true);
   });
 });
 

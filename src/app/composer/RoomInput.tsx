@@ -253,12 +253,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
-    const draftKey = draftThreadId
-      ? getRoomInputDraftKey(userId, roomId, draftThreadId)
-      : undefined;
     const textKey = ask
       ? getHomeAskDraftKey(userId)
       : getRoomInputDraftKey(userId, roomId, draftThreadId);
+    // Home's ask field scopes paste cleanup to its own draft key, never touching the destination
+    // room's saved pastes.
+    const draftKey = ask
+      ? textKey
+      : draftThreadId
+      ? getRoomInputDraftKey(userId, roomId, draftThreadId)
+      : undefined;
     // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
@@ -345,7 +349,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room, threadingEnabled ? threadId : undefined);
-    const commandList = useMemo(() => Object.values(commands), [commands]);
+    // Home's ask field does not run client slash commands (such as /leave) on an unseen room.
+    const commandList = useMemo(() => (ask ? [] : Object.values(commands)), [ask, commands]);
     const [commandProblem, setCommandProblem] = useState<string>();
 
     useEffect(() => {
@@ -526,20 +531,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const submit = useCallback(
       async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
-        // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
-        // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
-        const unknownCommand = readUnknownCommand(editor.children, commands);
-        if (unknownCommand !== undefined) {
-          setCommandProblem(
-            t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
-          );
-          return;
-        }
-        const acting = readActingCommand(editor.children, commands);
-        if (acting) {
-          if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
-          await runActingCommand(acting);
-          return;
+        if (!ask) {
+          // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
+          // of MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
+          const unknownCommand = readUnknownCommand(editor.children, commands);
+          if (unknownCommand !== undefined) {
+            setCommandProblem(
+              t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
+            );
+            return;
+          }
+          const acting = readActingCommand(editor.children, commands);
+          if (acting) {
+            if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
+            await runActingCommand(acting);
+            return;
+          }
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();

@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import * as idb from 'idb';
+import * as keptPastes from '../keptPastes';
 import { RoomInput } from '../RoomInput';
 import { useCommands } from '../commands/useCommands';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
@@ -18,6 +19,7 @@ import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
   forgetComposerStateOfSession,
+  getHomeAskDraftKey,
   getRoomInputDraftKey,
   IReplyDraft,
   type PendingVoiceSendContext,
@@ -912,6 +914,7 @@ const createRoomInputTree = (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
+    ask?: React.ComponentProps<typeof RoomInput>['ask'];
   }
 ) =>
   React.createElement(
@@ -927,6 +930,7 @@ const createRoomInputTree = (
       threadingEnabled: props?.threadingEnabled,
       onRoomMessageSent: props?.onRoomMessageSent,
       forkFrom: props?.forkFrom,
+      ask: props?.ask,
     })
   );
 
@@ -950,6 +954,7 @@ const renderRoomInput = async (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
+    ask?: React.ComponentProps<typeof RoomInput>['ask'];
   },
   options?: TestRendererOptions
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
@@ -5032,5 +5037,60 @@ describe('RoomInput main-room next-thread model pick', () => {
     expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
     expect(mxState.sendMessage.mock.calls[1]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
     renderer.unmount();
+  });
+
+  it('scopes paste cleanup to the Home draft key, ignores root model draft, and skips acting slash commands in Home ask mode', async () => {
+    const userId = '@me:example.org';
+    const forgetSpy = vi.spyOn(keptPastes, 'forgetPastesOutsideDraft').mockResolvedValue(undefined);
+
+    try {
+      threadModeState.mode = 'thread';
+      modelPickerState.takeRootModelDraft.mockReturnValue(pick);
+      const runLeave = vi.fn(async () => undefined);
+      vi.mocked(useCommands).mockReturnValue({
+        leave: {
+          name: 'leave',
+          description: 'Leave room',
+          run: runLeave,
+        },
+      } as unknown as ReturnType<typeof useCommands>);
+
+      const { renderer } = await renderRoomInput(createStore(), {
+        ask: {
+          agentUserId: '@mindroom_helper:example.org',
+          placeholder: 'Ask Helper anything…',
+          pickers: null,
+          canSend: () => true,
+        },
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(forgetSpy).toHaveBeenCalledWith(userId, getHomeAskDraftKey(userId), new Set());
+      expect(forgetSpy).not.toHaveBeenCalledWith(
+        userId,
+        getRoomInputDraftKey(userId, ROOM_ID),
+        expect.anything()
+      );
+
+      editorOutputState.emptyEditor = false;
+      editorOutputState.plainText = '/leave';
+      customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: '/leave' }] }];
+      await submitComposer();
+
+      expect(runLeave).not.toHaveBeenCalled();
+      expect(modelPickerState.takeRootModelDraft).not.toHaveBeenCalled();
+      expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+      expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+        body: '/leave',
+        'm.mentions': { user_ids: ['@mindroom_helper:example.org'] },
+      });
+      expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+      renderer.unmount();
+    } finally {
+      forgetSpy.mockRestore();
+    }
   });
 });

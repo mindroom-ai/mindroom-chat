@@ -19,7 +19,7 @@ import * as noticeCss from '../account/onboarding/WelcomeNotice.css';
 import * as css from './Home.css';
 
 /** How many threads Home lists. */
-export const HOME_RECENT_THREADS = 4;
+const HOME_RECENT_THREADS = 4;
 
 function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
   const { t } = useTranslation();

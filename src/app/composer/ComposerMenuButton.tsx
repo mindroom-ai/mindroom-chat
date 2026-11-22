@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type MutableRefObject,
+  type ReactNode,
+} from 'react';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
 import { Icon, toRem, type IconSrc, type RectCords } from 'folds';
@@ -25,7 +32,8 @@ type ComposerMenuButtonProps = {
    * label stays its tooltip and the menu's name.
    */
   face?: { content: ReactNode; label: string };
-  disabled?: boolean;
+  /** Ref to the trigger button, for callers that restore focus across a subtree swap. */
+  triggerButtonRef?: MutableRefObject<HTMLButtonElement | null>;
   /** The menu's entries, `MenuEntry` rows that close the menu through the controls. */
   children(controls: ComposerMenuControls): ReactNode;
 };
@@ -41,7 +49,7 @@ export function ComposerMenuButton({
   label,
   icon,
   face,
-  disabled,
+  triggerButtonRef,
   children,
 }: ComposerMenuButtonProps) {
   const [anchor, setAnchor] = useState<RectCords>();
@@ -109,6 +117,7 @@ export function ComposerMenuButton({
           <IconButton
             ref={(element: HTMLButtonElement | null) => {
               buttonRef.current = element;
+              if (triggerButtonRef) triggerButtonRef.current = element;
               triggerRef(element);
             }}
             onClick={(event: MouseEvent<HTMLButtonElement>) =>
@@ -117,7 +126,6 @@ export function ComposerMenuButton({
             aria-label={face?.label ?? label}
             aria-haspopup="menu"
             aria-expanded={anchor !== undefined}
-            disabled={disabled}
             variant="SurfaceVariant"
             radii="300"
             size="300"

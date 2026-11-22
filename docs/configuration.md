@@ -173,10 +173,10 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 |---|---|---|---|
 | `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open) for an account whose rooms have no agent; with one, the page greets the person by name over a field that asks an agent. |
 | `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under that heading; also shown in Settings > About. |
-| `welcome.sourceLabel` | string | `Source Code` | Label of the first welcome button. |
-| `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the button. Settings > About always links to the default. |
-| `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |
-| `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the button. |
+| `welcome.sourceLabel` | string | `Source Code` | Label of the Source Code link in the welcome page footer. |
+| `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the link. Settings > About always links to the default. |
+| `welcome.docsLabel` | string | `Docs` | Label of the Docs link in the welcome page footer. |
+| `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the link. |
 | `welcome.poweredBy` | `{label, url}[]` | MindRoom and Matrix | The "Powered by" links on the welcome page. `[]` hides the line. |
 | `splash.loadingMessages` | string[] | `Loading MindRoom` (with `branding.title` for the name), translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
 | `mindroom.thinkingPlaceholderMessages` | string[] | `Making progress`, `Almost there`, `Boosting the GPUs`, `Checking the thread`, `Composing the reply` | Shown in turn, every 3.6 seconds, while an agent's reply still reads `Thinking...`. Blank and non-string entries are skipped; an empty list means the defaults. |

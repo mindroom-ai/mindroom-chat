@@ -187,11 +187,40 @@ export const moveMessageDraft = (
   store.set(from, []);
 };
 
-// What else a reload keeps, per account and room: the message being replied to, and the names of
-// the staged files, which cannot be kept themselves.
+// What else a reload keeps, per account and room: the message being replied to, the names of the
+// staged files (which cannot be kept themselves), and the destination chosen for Home's ask draft.
 const REPLY_STORAGE_PREFIX = 'roomInputReply:';
 const STAGED_FILES_STORAGE_PREFIX = 'roomInputStagedFiles:';
-const STORAGE_PREFIXES = [DRAFT_STORAGE_PREFIX, REPLY_STORAGE_PREFIX, STAGED_FILES_STORAGE_PREFIX];
+const HOME_ASK_TARGET_STORAGE_PREFIX = 'roomInputHomeAskTarget:';
+const STORAGE_PREFIXES = [
+  DRAFT_STORAGE_PREFIX,
+  REPLY_STORAGE_PREFIX,
+  STAGED_FILES_STORAGE_PREFIX,
+  HOME_ASK_TARGET_STORAGE_PREFIX,
+];
+
+export type HomeAskDestination = {
+  agentId: string;
+  roomId: string | null;
+};
+
+const isHomeAskDestination = (value: unknown): value is HomeAskDestination =>
+  isRecord(value) &&
+  typeof value.agentId === 'string' &&
+  (value.roomId === null || typeof value.roomId === 'string');
+
+/** Reads the agent and room kept with an account's unsent Home ask draft. */
+export const readHomeAskDestination = (userId: string): HomeAskDestination | undefined => {
+  const stored = readStoredJson(`${HOME_ASK_TARGET_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`);
+  return isHomeAskDestination(stored) ? stored : undefined;
+};
+
+/** Keeps the agent and room for an account's Home ask draft, or clears it when `undefined`. */
+export const keepHomeAskDestination = (
+  userId: string,
+  destination: HomeAskDestination | undefined
+): void =>
+  writeStoredJson(`${HOME_ASK_TARGET_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`, destination);
 
 /**
  * Forgets every unsent message of an account, in storage and in memory, with the reply targets,
