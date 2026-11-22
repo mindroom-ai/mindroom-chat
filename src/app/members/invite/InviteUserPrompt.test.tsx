@@ -156,7 +156,12 @@ type MockMemberEvent = {
   getType: () => string;
 };
 
-type MockMember = { userId: string; membership: string; events?: { member?: MockMemberEvent } };
+type MockMember = {
+  userId: string;
+  membership: string;
+  events?: { member?: MockMemberEvent };
+  isOutOfBand?: () => boolean;
+};
 
 type RoomOptions = {
   name?: string;
@@ -451,17 +456,17 @@ const writeNote = (renderer: ReactTestRenderer, value: string) => {
 let memberEventCount = 0;
 
 /**
- * A membership event of /sync, as the SDK applies it: the member takes the event, then
+ * A membership event as the SDK applies it: the member takes the event, then
  * `RoomMember.membership` fires if the membership itself changed, and `RoomState.members` fires
- * always. Without an ID the event is a new one; with the ID of an earlier event, /sync repeats
- * that event. Returns the event's ID.
+ * always. An event of the member list loaded on request marks its member out of band between
+ * the two. Returns the event's ID.
  */
-const emitMembership = (
+const applyMembership = (
   mx: ReturnType<typeof makeMx>,
   room: ReturnType<typeof makeRoom>,
   userId: string,
   membership: string,
-  eventId?: string
+  { eventId, outOfBand = false }: { eventId?: string; outOfBand?: boolean } = {}
 ): string => {
   memberEventCount += 1;
   const id = eventId ?? `$member${memberEventCount}`;
@@ -473,13 +478,41 @@ const emitMembership = (
       getStateKey: () => userId,
       getType: () => 'm.room.member',
     };
-    const member = { roomId: room.roomId, userId, membership, events: { member: event } };
+    let markedOutOfBand = false;
+    const member = {
+      roomId: room.roomId,
+      userId,
+      membership,
+      events: { member: event },
+      isOutOfBand: () => markedOutOfBand,
+    };
     room.state.members = [...room.state.members.filter((entry) => entry.userId !== userId), member];
     if (previous !== membership) mx.emit('RoomMember.membership', event, member, previous);
+    markedOutOfBand = outOfBand;
     mx.emit('RoomState.members', event, {}, member);
   });
   return id;
 };
+
+/**
+ * A membership event of /sync. Without an ID the event is a new one; with the ID of an earlier
+ * event, /sync repeats that event. Returns the event's ID.
+ */
+const emitMembership = (
+  mx: ReturnType<typeof makeMx>,
+  room: ReturnType<typeof makeRoom>,
+  userId: string,
+  membership: string,
+  eventId?: string
+): string => applyMembership(mx, room, userId, membership, { eventId });
+
+/** A member of the list loaded on request (`/members`), which the SDK marks out of band. */
+const hydrateMembership = (
+  mx: ReturnType<typeof makeMx>,
+  room: ReturnType<typeof makeRoom>,
+  userId: string,
+  membership: string
+): string => applyMembership(mx, room, userId, membership, { outOfBand: true });
 
 /** A room summary from /sync, which holds only the counts that changed. */
 const emitSummary = (
@@ -1919,6 +1952,93 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       expect(extractText(getDialog(renderer))).not.toContain('Already invited');
       await pressKeyInSearch(renderer, 'Enter');
       expect(mx.invite).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each([
+    { membership: 'leave', moment: 'after the invite call returned' },
+    { membership: 'knock', moment: 'after the invite call returned' },
+    { membership: 'leave', moment: 'while the invite call is on its way' },
+    { membership: 'knock', moment: 'while the invite call is on its way' },
+  ] as const)(
+    'keeps a fresh invite held back when the member list, loaded $moment, has the invitee as $membership from before',
+    async ({ membership, moment }) => {
+      const maya = '@maya:example.org';
+      let resolveLoad: (loaded: boolean) => void = () => undefined;
+      const { renderer, mx, room } = renderPrompt({
+        membersLoaded: false,
+        loadMembersIfNeeded: () =>
+          new Promise<boolean>((resolve) => {
+            resolveLoad = resolve;
+          }),
+      });
+      // The list arrives: Maya as the room had her when it was asked, before the invite.
+      const finishHydration = async () => {
+        hydrateMembership(mx, room, maya, membership);
+        room.state.membersLoaded = true;
+        await act(async () => {
+          resolveLoad(true);
+          await settle();
+        });
+      };
+
+      if (moment === 'after the invite call returned') {
+        await clickRowInvite(renderer, 'Maya Chen');
+        await finishHydration();
+      } else {
+        const finishInvite = holdNextInvite(mx);
+        await clickRowInvite(renderer, 'Maya Chen');
+        await finishHydration();
+        await finishInvite();
+      }
+      const action = () => getRowActionButton(getRowByText(renderer, 'Maya Chen')!);
+      expect(extractText(action())).toBe('Invited');
+      expect(action().props['aria-disabled']).toBe(true);
+
+      typeSearch(renderer, maya);
+      expect(extractText(getDialog(renderer))).toContain('Already invited');
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(1);
+
+      // /sync answers: the invite, then the decline, which offers the invite again.
+      emitMembership(mx, room, maya, 'invite');
+      expect(extractText(getDialog(renderer))).toContain('Already invited');
+      emitMembership(mx, room, maya, 'leave');
+      expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it.each(['after the invite call returned', 'before the invite call returns'] as const)(
+    'offers the invite again when the invitee declines and knocks, and /sync has only the knock, %s',
+    async (moment) => {
+      const maya = '@maya:example.org';
+      const { renderer, mx, room } = renderPrompt();
+      const action = () => getRowActionButton(getRowByText(renderer, 'Maya Chen')!);
+
+      if (moment === 'after the invite call returned') {
+        await clickRowInvite(renderer, 'Maya Chen');
+        expect(extractText(action())).toBe('Invited');
+        emitMembership(mx, room, maya, 'knock');
+      } else {
+        const finishInvite = holdNextInvite(mx);
+        await clickRowInvite(renderer, 'Maya Chen');
+        emitMembership(mx, room, maya, 'knock');
+        expect(action().props['aria-disabled']).toBe(true);
+        await finishInvite();
+      }
+      // Someone who knocks can be invited: the row says so, and nothing holds her back.
+      expect(extractText(action())).toBe('Invite');
+      expect(action().props['aria-disabled']).toBe(false);
+      typeSearch(renderer, maya);
+      expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+      typeSearch(renderer, '');
+
+      await clickRowInvite(renderer, 'Maya Chen');
+      expect(mx.invite).toHaveBeenCalledTimes(2);
+      expect(mx.invite).toHaveBeenLastCalledWith(room.roomId, maya, undefined);
+      expect(extractText(action())).toBe('Invited');
     }
   );
 

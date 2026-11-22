@@ -483,13 +483,25 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const membersLoaded = room.membersLoaded();
 
   useEffect(() => {
-    // What a membership event of this room says about its user, and about nobody else.
+    // A membership that changed changes who the lists offer, and settles nothing: it fires for
+    // /sync and for the member list loaded on request alike, with nothing to tell them apart.
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
-      if ((event?.getRoomId() ?? member?.roomId) !== room.roomId) return;
-      bumpRoster();
-      const memberId = member?.userId ?? event?.getStateKey();
-      if (!memberId) return;
-      const eventId = event?.getId() ?? member?.events.member?.getId();
+      if ((event?.getRoomId() ?? member?.roomId) === room.roomId) bumpRoster();
+    };
+    // What a membership event of this room's state says about its user, and about nobody else.
+    // `RoomState.members` fires for every such event, also where the membership stays as it was
+    // (someone who had left, is invited again and declines at once goes from `leave` to `leave`
+    // in one /sync), which `RoomMember.membership` passes over.
+    const onStateMember = (event: MatrixEvent, _state: RoomState, member: RoomMember) => {
+      if (event.getRoomId() !== room.roomId) return;
+      // It also fires with the power levels event for a member whose level changed: no word on
+      // their membership.
+      if (event.getType() !== (EventType.RoomMember as string)) return;
+      // A member loaded on request (out of band, while the lazy-loaded list fills) is the room as
+      // it was when it was asked, perhaps before the invite: only /sync answers an invite.
+      if (member.isOutOfBand()) return;
+      const memberId = member.userId;
+      const eventId = event.getId();
       const submission = submissionsRef.current.get(memberId);
       const pending = pendingSyncRef.current;
       // The event the room already had when the invite started (a /sync repeats known state)
@@ -500,21 +512,15 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       // is still on its way.
       if (submission) submission.membershipSeen = true;
       if (pending.has(memberId)) updatePendingSync(withoutPending(pending, memberId));
-      if (room.getMember(memberId)?.membership === KnownMembership.Leave) {
-        // The invitee declined or was removed: the row offers the invite again.
+      if (!isReflectedMembership(member.membership)) {
+        // The invitee declined or was removed, and may knock since: the row offers the invite
+        // again.
         setAttempts((current) =>
           current.byUser[memberId]?.state.status === 'invited'
             ? { ...current, byUser: withoutAttempt(current.byUser, memberId) }
             : current
         );
       }
-    };
-    // `RoomMember.membership` fires only when the membership itself changes. Someone who had
-    // left, is invited again and declines at once goes from `leave` to `leave` in one /sync:
-    // only `RoomState.members` tells of the new event. It also fires for a member whose power
-    // level changed, with the power levels event, which is no word on their membership.
-    const onStateMember = (event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (event.getType() === (EventType.RoomMember as string)) onMembership(event, member);
     };
     // Invariant: a room summary is for display only. It re-renders the header's joined and invited
     // counts and settles nobody. Who can be invited (`pendingSyncInvited` and the rows' attempts)
@@ -877,16 +883,13 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       // Only an invite the room state has not answered yet is tracked here. Once a membership
       // event for the invitee arrived (the invite, or already their answer to it), the room state
       // is the truth, and tracking a decline as pending would block a new invite.
-      if (
-        !submission.membershipSeen &&
-        !isReflectedMembership(room.getMember(targetId)?.membership)
-      ) {
+      const reflected = isReflectedMembership(room.getMember(targetId)?.membership);
+      if (!submission.membershipSeen && !reflected) {
         updatePendingSync(new Map(pendingSyncRef.current).set(targetId, submission.priorEventId));
       }
-      const departed =
-        submission.membershipSeen && room.getMember(targetId)?.membership === KnownMembership.Leave;
-      if (departed) {
-        // Invited and already declined or removed: the row offers the invite again.
+      if (submission.membershipSeen && !reflected) {
+        // Invited and already declined or removed (and perhaps knocking since): the row offers
+        // the invite again.
         setAttempts((current) => ({
           ...current,
           byUser: withoutAttempt(current.byUser, targetId),
