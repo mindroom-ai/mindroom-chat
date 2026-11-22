@@ -321,7 +321,30 @@ it('leaves discovery to its frames when a scroll changes nothing in view', () =>
   expect(view.dataset.complete).toBe('true');
 });
 
-it('keeps the measured heights of the rooms last shown, and lets the oldest go', () => {
+it('places a Back in its first commit after nine other rooms were shown', () => {
+  const memory: ScrollAnchorMemory = new Map();
+  const { container: before, unmount } = render(<List memory={memory} roomId="!deep" />);
+  tick(12);
+  const left = before.querySelector<HTMLElement>('[data-view]')!;
+  act(() => {
+    left.scrollTop = 30 * 199.25;
+    left.dispatchEvent(new Event('scroll'));
+  });
+  unmount();
+  memory.set('!deep', { scrollTop: 30 * 199.25, anchors: [{ key: '$row60', offset: 0 }] });
+  for (let room = 0; room < 9; room += 1) {
+    const other = render(<List memory={memory} roomId={`!room${room}`} />);
+    tick(12);
+    other.unmount();
+  }
+  const { container } = render(<List memory={memory} roomId="!deep" />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  expect(view.dataset.ready).toBe('true');
+  expect(view.dataset.complete).toBe('true');
+  expect(view.querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
+});
+
+it('keeps the measured heights of the rooms last shown, and lets the oldest without a place go', () => {
   const memory = new Map();
   const visit = (roomId: string) => {
     const { container, unmount } = render(<List memory={memory} roomId={roomId} />);

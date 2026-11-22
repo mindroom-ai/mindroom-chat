@@ -19,14 +19,16 @@ type Geometry = {
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
-// The rooms last shown keep their heights: the oldest of more than eight is let go.
+// Heights last as long as the place to go back to. Of the rooms without one, the last shown
+// keep theirs: the oldest of more than eight rooms is let go.
 const getGeometry = (memory: ScrollAnchorMemory, roomId: string): Geometry => {
   const cache = rooms.get(memory) ?? new Map<string, Geometry>();
   rooms.set(memory, cache);
   const kept = cache.get(roomId) ?? { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
   cache.delete(roomId);
   cache.set(roomId, kept);
-  if (cache.size > 8) cache.delete(cache.keys().next().value);
+  const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
+  if (idle.length > 7) cache.delete(idle[0]!);
   return kept;
 };
 
