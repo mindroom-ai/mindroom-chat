@@ -531,10 +531,12 @@ describe('streaming replies on thread cards', () => {
     ],
   ])(
     'shows the thread Working by a live edit of the reply it lacks: %s',
-    async (_name, arrival, options) => {
+    async (name, arrival, options) => {
       const now = Date.now();
       const s = await relaunchMidStream(now, options?.(now));
       const { f, thread, workflow } = s;
+      // A card's check asks the server after a moment: one case waits to see that none asks.
+      const afterDelay = name === 'a live streaming edit' ? afterCheckDelay : settle;
       const shown = { preview: f.card().preview, replies: thread.length };
       let announced = false;
       f.room().on(ThreadEvent.Update, (updated) => {
@@ -553,7 +555,7 @@ describe('streaming replies on thread cards', () => {
       expect(thread.findEventById(replyId)).toBeUndefined();
       expect(thread.initialEventsFetched).toBe(false);
       expect(workflow()).toBe('working');
-      await afterCheckDelay();
+      await afterDelay();
       expect(workflow()).toBe('working');
       expect(f.replyRequests()).toBe(1);
       expect({ preview: f.card().preview, replies: thread.length }).toEqual(shown);
@@ -564,7 +566,7 @@ describe('streaming replies on thread cards', () => {
       await f.deliver([s.ending(now + 1)]);
       expect(hinted(s)).toBe(false);
       expect(workflow()).toBe('needsYou');
-      await afterCheckDelay();
+      await afterDelay();
       // One request per live batch, each the SDK's to place its edit.
       expect(f.replyRequests()).toBe(3);
       expect(f.requested('/relations/')).toBe(0);
@@ -649,6 +651,15 @@ describe('streaming replies on thread cards', () => {
         return { newest: active, live: [[active]] };
       },
       () => ({ sender: readerId }),
+    ],
+    [
+      // By the reply's sender, of its type and with its status, but no edit of it.
+      'a reference to the reply that says it streams',
+      (s, now) => {
+        const active = s.streaming(now - 1_000);
+        active.content['m.relates_to'] = { rel_type: 'm.reference', event_id: replyId };
+        return { live: [[active]] };
+      },
     ],
     [
       'a reaction to a reply the server bundles a streaming edit with',
