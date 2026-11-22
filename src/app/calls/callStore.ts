@@ -297,6 +297,15 @@ const settleWithin = <T>(promise: Promise<T>, ms: number): Promise<T | typeof TI
     );
   });
 
+/** Loads room members within `MEMBERS_LOAD_TIMEOUT_MS`, throwing on timeout or failure. */
+export const loadMembersWithin = async (room: Room): Promise<void> => {
+  // While the SDK's members request hangs, a retry waits on the same in-flight request
+  // (`room.membersPromise`) and fails again after the bound until it settles.
+  if ((await settleWithin(room.loadMembersIfNeeded(), MEMBERS_LOAD_TIMEOUT_MS)) === TIMED_OUT) {
+    throw new Error('Room member load timed out');
+  }
+};
+
 /** The newest event's server time in a room's loaded live timeline. */
 const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
@@ -368,12 +377,9 @@ export const useCallActions = (mx: MatrixClient) => {
           return giveUp('failed');
         }
       }
-      if (
-        (await settleWithin(
-          room.loadMembersIfNeeded().catch(() => undefined),
-          MEMBERS_LOAD_TIMEOUT_MS
-        )) === TIMED_OUT
-      ) {
+      try {
+        await loadMembersWithin(room);
+      } catch {
         return giveUp('failed');
       }
       // A retry reuses the in-flight import() until it settles.
