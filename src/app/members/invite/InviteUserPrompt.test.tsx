@@ -522,7 +522,7 @@ describe('InviteUserPrompt', () => {
 
   it('defaults moderator rights OFF while members are still loading, then flips ON once loaded', async () => {
     let resolveLoad: (loaded: boolean) => void = () => undefined;
-    const { renderer, room } = renderPrompt({ membersLoaded: false });
+    const { renderer, mx, room } = renderPrompt({ membersLoaded: false });
     room.loadMembersIfNeeded.mockImplementation(
       () => new Promise<boolean>((resolve) => (resolveLoad = resolve))
     );
@@ -538,7 +538,7 @@ describe('InviteUserPrompt', () => {
     });
     // Emit a membership refresh as useRoomMembers does once loadMembersIfNeeded resolves.
     act(() => {
-      room.client.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
     });
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
   });
