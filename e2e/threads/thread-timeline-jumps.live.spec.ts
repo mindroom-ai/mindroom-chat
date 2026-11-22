@@ -821,8 +821,12 @@ const openAndRun = async (
       viewMode: 'compact',
       filterState: createDefaultThreadFilterState(),
     });
-    await body(page);
-    await context.close();
+    try {
+      await body(page);
+    } finally {
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => undefined);
+      await context.close().catch(() => undefined);
+    }
   } finally {
     await browser.close();
   }
@@ -853,8 +857,12 @@ test.describe('thread timeline jumps reproducers', () => {
 
       await openAndRun(setup, baseURL, fixture, async (page) => {
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(350);
-          await route.continue();
+          try {
+            await wait(350);
+            await route.continue();
+          } catch {
+            // Page closed while media request was delayed.
+          }
         });
         await page.route('**/relations/**', async (route) => {
           if (route.request().url().includes('from=')) await wait(350);
@@ -910,27 +918,35 @@ test.describe('thread timeline jumps reproducers', () => {
         let relationsDone = false;
         const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(350);
-          await route.continue();
+          try {
+            await wait(350);
+            await route.continue();
+          } catch {
+            // Page closed while media request was delayed.
+          }
         });
         await page.route('**/relations/**', async (route) => {
-          const url = new URL(route.request().url());
-          if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
-            url.searchParams.set('limit', '25');
-            await wait(450);
-            const response = await route.fetch({ url: url.toString() });
-            const body = await response.text();
-            relationsPages += 1;
-            try {
-              const parsed = JSON.parse(body) as { next_batch?: string };
-              if (!parsed.next_batch) relationsDone = true;
-            } catch {
-              // Ignore non-JSON error responses.
+          try {
+            const url = new URL(route.request().url());
+            if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
+              url.searchParams.set('limit', '25');
+              await wait(450);
+              const response = await route.fetch({ url: url.toString() });
+              const body = await response.text();
+              relationsPages += 1;
+              try {
+                const parsed = JSON.parse(body) as { next_batch?: string };
+                if (!parsed.next_batch) relationsDone = true;
+              } catch {
+                // Ignore non-JSON error responses.
+              }
+              await route.fulfill({ response, body });
+              return;
             }
-            await route.fulfill({ response, body });
-            return;
+            await route.continue();
+          } catch {
+            // Page closed while an in-flight background /relations request was delayed.
           }
-          await route.continue();
         });
 
         await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
@@ -968,6 +984,8 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: report.jumps.slice(0, 12),
           coldFramesSample: report.coldFrames.slice(0, 25),
         });
+        // eslint-disable-next-line no-console
+        console.log(`[COLD-PINNED ${setup.engine} ${setup.viewport}]`, summary);
         expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
         expect(report.visibleFrames, 'recorded visible cold-open frames').toBeGreaterThan(20);
         expect(
@@ -1004,27 +1022,35 @@ test.describe('thread timeline jumps reproducers', () => {
         let relationsDone = false;
         const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(350);
-          await route.continue();
+          try {
+            await wait(350);
+            await route.continue();
+          } catch {
+            // Page closed while media request was delayed.
+          }
         });
         await page.route('**/relations/**', async (route) => {
-          const url = new URL(route.request().url());
-          if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
-            url.searchParams.set('limit', '25');
-            await wait(450);
-            const response = await route.fetch({ url: url.toString() });
-            const body = await response.text();
-            relationsPages += 1;
-            try {
-              const parsed = JSON.parse(body) as { next_batch?: string };
-              if (!parsed.next_batch) relationsDone = true;
-            } catch {
-              // Ignore non-JSON error responses.
+          try {
+            const url = new URL(route.request().url());
+            if (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) {
+              url.searchParams.set('limit', '25');
+              await wait(450);
+              const response = await route.fetch({ url: url.toString() });
+              const body = await response.text();
+              relationsPages += 1;
+              try {
+                const parsed = JSON.parse(body) as { next_batch?: string };
+                if (!parsed.next_batch) relationsDone = true;
+              } catch {
+                // Ignore non-JSON error responses.
+              }
+              await route.fulfill({ response, body });
+              return;
             }
-            await route.fulfill({ response, body });
-            return;
+            await route.continue();
+          } catch {
+            // Page closed while an in-flight background /relations request was delayed.
           }
-          await route.continue();
         });
 
         await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
@@ -1089,6 +1115,8 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: report.jumps.slice(0, 12),
           coldFramesSample: report.coldFrames.slice(0, 25),
         });
+        // eslint-disable-next-line no-console
+        console.log(`[COLD-MIDTHREAD ${setup.engine} ${setup.viewport}]`, summary);
         expect(scrolledUp.ok, `failed to scroll mid-thread: ${summary}`).toBe(true);
         expect(relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
         expect(report.visibleFrames, 'recorded visible mid-thread frames').toBeGreaterThan(20);
@@ -1121,8 +1149,12 @@ test.describe('thread timeline jumps reproducers', () => {
 
       await openAndRun(setup, baseURL, fixture, async (page) => {
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(350);
-          await route.continue();
+          try {
+            await wait(350);
+            await route.continue();
+          } catch {
+            // Page closed while media request was delayed.
+          }
         });
         await page.route('**/relations/**', async (route) => {
           if (route.request().url().includes('from=')) await wait(650);
