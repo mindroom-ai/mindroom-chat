@@ -237,6 +237,17 @@ final class RoomRouteReloadTests: XCTestCase {
             let termination = events.first { $0["name"] as? String == "webview.terminated" }
             XCTAssertNotNil(termination)
             let terminationSequence = termination?["sequence"] as? Int ?? Int.max
+            let reason = events.first { $0["name"] as? String == "webview.termination_reason" }
+            let reasonData = reason?["data"] as? [String: Any]
+            XCTAssertEqual(reasonData?["terminationReason"] as? String, "crash")
+#if !targetEnvironment(macCatalyst)
+            let availableMemoryBytes = reasonData?["availableMemoryBytes"] as? Int
+            XCTAssertNotNil(availableMemoryBytes)
+            if let availableMemoryBytes {
+                XCTAssertGreaterThanOrEqual(availableMemoryBytes, 0)
+            }
+#endif
+            XCTAssertLessThan(reason?["sequence"] as? Int ?? Int.max, terminationSequence)
             XCTAssertTrue(events.contains {
                 $0["name"] as? String == "navigation.finished" && ($0["sequence"] as? Int ?? 0) > terminationSequence
             })

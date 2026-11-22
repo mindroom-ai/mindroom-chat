@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { appUrl, getAppBasePath } from '../lib/basePath';
 
 declare global {
@@ -7,9 +8,11 @@ declare global {
 }
 
 // Links to users go to matrix.to, which every Matrix client understands. Links to rooms and
-// events open this app on the current origin (`<origin><base>/<room>/<event>?via=...`), so a
-// copied link brings the reader straight back to the message; without a page (no `location`)
-// they go to matrix.to as well.
+// events open this app on the current web origin (`<origin><base>/<room>/<event>?via=...`), so a
+// copied link brings the reader straight back to the message; on native Capacitor shells (iOS
+// `capacitor://localhost`, Android `https://localhost`) or without an `http:`/`https:` page
+// origin (such as `file:` or no `location`), they fall back to matrix.to so the link stays
+// portable.
 
 const MATRIX_TO_ORIGIN = 'https://matrix.to';
 
@@ -23,7 +26,14 @@ const viaQuery = (viaServers?: string[]): string =>
     : '';
 
 const appLink = (path: string): string => {
-  const origin = globalThis.location?.origin;
+  if (Capacitor.isNativePlatform()) return `${MATRIX_TO_ORIGIN}/#/${path}`;
+  const location = globalThis.location;
+  const origin =
+    (location?.protocol === 'http:' || location?.protocol === 'https:') &&
+    location.origin &&
+    location.origin !== 'null'
+      ? location.origin
+      : undefined;
   return origin ? `${origin}${appUrl(path)}` : `${MATRIX_TO_ORIGIN}/#/${path}`;
 };
 
