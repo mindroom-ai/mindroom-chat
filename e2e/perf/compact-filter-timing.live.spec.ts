@@ -627,7 +627,7 @@ test.describe('compact filter timing', () => {
                 timeChange(
                   page,
                   round % 2 === 0
-                    ? { hidden: RESOLVED, selector: UNRESOLVED_ON }
+                    ? { hidden: RESOLVED, resolved: 0, selector: UNRESOLVED_ON }
                     : { hidden: 0, selector: UNRESOLVED_OFF },
                   clickIn(unresolved)
                 )
