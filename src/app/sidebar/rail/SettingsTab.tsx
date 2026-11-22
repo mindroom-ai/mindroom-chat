@@ -314,7 +314,6 @@ export function SettingsTab({
             <FocusTrap
               focusTrapOptions={{
                 clickOutsideDeactivates: true,
-                initialFocus: false,
                 onDeactivate: closeLeaving,
               }}
             >

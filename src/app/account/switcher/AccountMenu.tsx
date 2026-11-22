@@ -90,6 +90,21 @@ export function AccountMenu({
   const othersHeadingId = useId();
   const entries = useMenuBehaviour<HTMLDivElement>('menu', undefined, undefined);
   const anchorRect = useMemo(() => anchor.getBoundingClientRect(), [anchor]);
+  const maxBlockSize = useMemo(() => {
+    const viewportCap =
+      'calc(100dvh - 1rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))';
+    const viewportHeight =
+      typeof window !== 'undefined'
+        ? document.documentElement.clientHeight || window.innerHeight
+        : 0;
+    if (viewportHeight <= 0) return viewportCap;
+    // Leave room for PopOut's 8 px offset (when opening below/above) and an 8 px viewport margin.
+    const available = below
+      ? Math.max(viewportHeight - anchorRect.bottom, anchorRect.top) - 16
+      : Math.max(anchorRect.bottom, viewportHeight - anchorRect.top) - 8;
+    if (available <= 0) return viewportCap;
+    return `min(${Math.floor(available)}px, ${viewportCap})`;
+  }, [anchorRect, below]);
   const onAnchor = (target: EventTarget | null) =>
     target instanceof Node && anchor.contains(target);
   const closeThen = (action: () => void) => () => {
@@ -109,7 +124,7 @@ export function AccountMenu({
         allowOutsideClick: (event) => onAnchor(event.target),
       }}
     >
-      <Menu role="none" className={css.MenuSurface}>
+      <Menu role="none" className={css.MenuSurface} style={{ maxBlockSize }}>
         <div
           role="menu"
           tabIndex={-1}
@@ -118,105 +133,107 @@ export function AccountMenu({
           onKeyDown={entries.onKeyDown}
           className={css.MenuBody}
         >
-          <div className={css.HeaderCard}>
-            <AccountAvatar
-              userId={active.userId}
-              name={active.displayName}
-              src={active.avatarUrl}
-              size="500"
-            />
-            <Text id={nameId} size="H5" truncate className={css.HeaderName} {...ownDirectionLine}>
-              {active.displayName}
-            </Text>
-            <Text
-              id={userIdId}
-              size="T200"
-              priority="300"
-              truncate
-              className={css.HeaderUserId}
-              {...ownDirectionLine}
-            >
-              {active.userId}
-            </Text>
-            <button
-              type="button"
-              role="menuitem"
-              className={css.SettingsPill}
-              {...shortcutAttributes('settings')}
-              onClick={closeThen(onOpenSettings)}
-            >
-              <Icon size="100" src={Icons.Setting} className={css.IconShrink} />
-              <Text as="span" size="B300" truncate>
-                {t('settings.title')}
+          <div className={css.MenuScrollBody}>
+            <div className={css.HeaderCard}>
+              <AccountAvatar
+                userId={active.userId}
+                name={active.displayName}
+                src={active.avatarUrl}
+                size="500"
+              />
+              <Text id={nameId} size="H5" truncate className={css.HeaderName} {...ownDirectionLine}>
+                {active.displayName}
               </Text>
-              <ShortcutHint id="settings" />
-            </button>
+              <Text
+                id={userIdId}
+                size="T200"
+                priority="300"
+                truncate
+                className={css.HeaderUserId}
+                {...ownDirectionLine}
+              >
+                {active.userId}
+              </Text>
+              <button
+                type="button"
+                role="menuitem"
+                className={css.SettingsPill}
+                {...shortcutAttributes('settings')}
+                onClick={closeThen(onOpenSettings)}
+              >
+                <Icon size="100" src={Icons.Setting} className={css.IconShrink} />
+                <Text as="span" size="B300" truncate>
+                  {t('settings.title')}
+                </Text>
+                <ShortcutHint id="settings" />
+              </button>
+            </div>
+            {others.length > 0 && (
+              <>
+                <Line variant="Surface" size="300" role="separator" />
+                <div role="group" aria-labelledby={othersHeadingId} className={css.AccountWell}>
+                  <div className={css.AccountWellHead}>
+                    <Text
+                      as="span"
+                      id={othersHeadingId}
+                      size="O400"
+                      priority="300"
+                      className={css.WellHeading}
+                    >
+                      {t('featureUi.accountMenu.otherAccounts')}
+                    </Text>
+                    {onManageAccounts && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={css.ManageButton}
+                        onClick={closeThen(onManageAccounts)}
+                      >
+                        <Text as="span" size="T200">
+                          {t('featureUi.accountMenu.manage')}
+                        </Text>
+                      </button>
+                    )}
+                  </div>
+                  <div className={css.AccountWellList}>
+                    {others.map((account) => (
+                      <MenuItem
+                        key={account.session.sessionId}
+                        role="menuitem"
+                        size="400"
+                        radii="300"
+                        variant="SurfaceVariant"
+                        className={css.AccountRow}
+                        aria-label={t('accountsRail.switchAria', {
+                          name: account.displayName,
+                          userId: account.session.userId,
+                        })}
+                        before={
+                          <AccountAvatar
+                            userId={account.session.userId}
+                            name={account.displayName}
+                            src={account.avatarUrl}
+                            size="200"
+                          />
+                        }
+                        onClick={closeThen(() => onSwitchAccount(account.session))}
+                      >
+                        <Box as="span" direction="Column" className={css.TextColumn}>
+                          <Text as="span" size="T300" truncate {...ownDirectionLine}>
+                            {account.displayName}
+                          </Text>
+                          <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
+                            {account.session.userId}
+                          </Text>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-          {others.length > 0 && (
-            <>
-              <Line variant="Surface" size="300" role="separator" />
-              <div role="group" aria-labelledby={othersHeadingId} className={css.AccountWell}>
-                <div className={css.AccountWellHead}>
-                  <Text
-                    as="span"
-                    id={othersHeadingId}
-                    size="O400"
-                    priority="300"
-                    className={css.WellHeading}
-                  >
-                    {t('featureUi.accountMenu.otherAccounts')}
-                  </Text>
-                  {onManageAccounts && (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className={css.ManageButton}
-                      onClick={closeThen(onManageAccounts)}
-                    >
-                      <Text as="span" size="T200">
-                        {t('featureUi.accountMenu.manage')}
-                      </Text>
-                    </button>
-                  )}
-                </div>
-                <div className={css.AccountWellList}>
-                  {others.map((account) => (
-                    <MenuItem
-                      key={account.session.sessionId}
-                      role="menuitem"
-                      size="400"
-                      radii="300"
-                      variant="SurfaceVariant"
-                      className={css.AccountRow}
-                      aria-label={t('accountsRail.switchAria', {
-                        name: account.displayName,
-                        userId: account.session.userId,
-                      })}
-                      before={
-                        <AccountAvatar
-                          userId={account.session.userId}
-                          name={account.displayName}
-                          src={account.avatarUrl}
-                          size="200"
-                        />
-                      }
-                      onClick={closeThen(() => onSwitchAccount(account.session))}
-                    >
-                      <Box as="span" direction="Column" className={css.TextColumn}>
-                        <Text as="span" size="T300" truncate {...ownDirectionLine}>
-                          {account.displayName}
-                        </Text>
-                        <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
-                          {account.session.userId}
-                        </Text>
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-          <Line variant="Surface" size="300" role="separator" />
+          <Line variant="Surface" size="300" role="separator" className={css.Divider} />
           <div className={css.SplitFooter}>
             <button
               type="button"
@@ -225,7 +242,7 @@ export function AccountMenu({
               onClick={closeThen(onAddAccount)}
             >
               <Icon size="100" src={Icons.Plus} className={css.IconShrink} />
-              <Text as="span" size="B300" truncate>
+              <Text as="span" size="B300" className={css.FooterLabel}>
                 {t('accountsRail.addAccount')}
               </Text>
             </button>
@@ -236,7 +253,7 @@ export function AccountMenu({
               onClick={closeThen(onSignOut)}
             >
               <Icon size="100" src={Icons.Power} className={css.IconShrink} />
-              <Text as="span" size="B300" truncate>
+              <Text as="span" size="B300" className={css.FooterLabel}>
                 {t('featureUi.accountMenu.signOut')}
               </Text>
             </button>

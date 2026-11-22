@@ -182,4 +182,62 @@ describe('AccountMenu', () => {
       document.querySelector('[data-popout-position]')?.getAttribute('data-popout-position')
     ).toBe('Bottom');
   });
+
+  it('caps menu height to available viewport space for short windows', () => {
+    const originalClientHeight = Object.getOwnPropertyDescriptor(
+      document.documentElement,
+      'clientHeight'
+    );
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      configurable: true,
+      value: 320,
+    });
+    try {
+      const anchor = document.createElement('button');
+      anchor.getBoundingClientRect = () =>
+        ({ top: 268, bottom: 308, left: 10, right: 50, width: 40, height: 40 } as DOMRect);
+      document.body.append(anchor);
+      render(
+        <AccountMenu
+          anchor={anchor}
+          active={{ userId: '@alice:mindroom.chat', displayName: 'Alice' }}
+          others={[BOB, CAROL]}
+          onOpenSettings={vi.fn()}
+          onSwitchAccount={vi.fn()}
+          onAddAccount={vi.fn()}
+          onSignOut={vi.fn()}
+          onManageAccounts={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      const surface = screen.getByRole('menu').parentElement as HTMLElement;
+      expect(surface.style.maxBlockSize).toMatch(/^min\(300px,/);
+      cleanup();
+
+      anchor.getBoundingClientRect = () =>
+        ({ top: 6, bottom: 46, left: 340, right: 380, width: 40, height: 40 } as DOMRect);
+      render(
+        <AccountMenu
+          anchor={anchor}
+          active={{ userId: '@alice:mindroom.chat', displayName: 'Alice' }}
+          others={[BOB, CAROL]}
+          below
+          onOpenSettings={vi.fn()}
+          onSwitchAccount={vi.fn()}
+          onAddAccount={vi.fn()}
+          onSignOut={vi.fn()}
+          onManageAccounts={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      const phoneSurface = screen.getByRole('menu').parentElement as HTMLElement;
+      expect(phoneSurface.style.maxBlockSize).toMatch(/^min\(258px,/);
+    } finally {
+      if (originalClientHeight) {
+        Object.defineProperty(document.documentElement, 'clientHeight', originalClientHeight);
+      } else {
+        delete (document.documentElement as unknown as Record<string, unknown>).clientHeight;
+      }
+    }
+  });
 });

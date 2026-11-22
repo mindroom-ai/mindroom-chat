@@ -4,12 +4,29 @@ import { color, config, toRem } from 'folds';
 export const MenuSurface = style({
   inlineSize: toRem(272),
   maxInlineSize: 'calc(100vw - 5rem)',
+  maxBlockSize:
+    'calc(100dvh - 1rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+  display: 'flex',
+  flexDirection: 'column',
   overflow: 'hidden',
 });
 
 export const MenuBody = style({
   display: 'flex',
   flexDirection: 'column',
+  flex: '1 1 auto',
+  minBlockSize: 0,
+});
+
+export const MenuScrollBody = style({
+  flex: '1 1 auto',
+  minBlockSize: 0,
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+});
+
+export const Divider = style({
+  flexShrink: 0,
 });
 
 export const HeaderCard = style({
@@ -140,8 +157,10 @@ export const TextColumn = style({
 });
 
 export const SplitFooter = style({
+  flexShrink: 0,
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+  alignItems: 'stretch',
 });
 
 export const SplitFooterButton = style({
@@ -151,7 +170,7 @@ export const SplitFooterButton = style({
   gap: toRem(6),
   minInlineSize: 0,
   minBlockSize: toRem(38),
-  paddingBlock: toRem(10),
+  paddingBlock: toRem(8),
   paddingInline: config.space.S200,
   border: 0,
   backgroundColor: 'transparent',
@@ -170,6 +189,14 @@ export const SplitFooterButton = style({
       outlineOffset: `-${config.borderWidth.B400}`,
     },
   },
+});
+
+export const FooterLabel = style({
+  minInlineSize: 0,
+  whiteSpace: 'normal',
+  overflowWrap: 'break-word',
+  lineHeight: 1.25,
+  textAlign: 'start',
 });
 
 export const SplitFooterSignOut = style({
