@@ -140,6 +140,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -356,5 +357,43 @@ describe('RoomModelSettingTile', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.click(defaultRow());
     expect(client.sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  it('places the menu again when the list that arrives makes it taller', () => {
+    // Near the bottom edge the short menu fits under the button and the full one does not.
+    const resized: Array<() => void> = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resized.push(callback);
+        }
+
+        observe = () => undefined;
+
+        disconnect = () => undefined;
+      }
+    );
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(600);
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(800);
+    let height = 60;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
+      this: HTMLElement
+    ) {
+      return this === trigger() ? new DOMRect(600, 500, 150, 30) : new DOMRect(0, 0, 240, height);
+    });
+    const { rerender } = renderTile(MODEL_DEF, createCatalog({ ...NO_CATALOG, loading: true }));
+    const dialog = open();
+    const placed = dialog.parentElement!.parentElement!;
+    expect(placed.style.top).toBe('535px');
+    expect(placed.style.bottom).not.toBe('70px');
+
+    height = 344;
+    rerender(tile(MODEL_DEF, createCatalog()));
+    act(() => resized.forEach((callback) => callback()));
+    // Beside the button now, their bottom edges level, so every row is on screen.
+    expect(placed.style.bottom).toBe('70px');
+    expect(screen.getByRole('dialog', { name: 'Model' })).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
   });
 });
