@@ -229,13 +229,6 @@ export const EXPAND_ALL_START_COLUMN = `calc(${config.space.S400} + ${toRem(68)}
   config.space.S200
 })`;
 
-/**
- * Holds a thread's banner. The banner ends 20 px before the scroll area's content edge (its own
- * 12 px margin plus this 8), so the message times reach a little past its end, as in the
- * original.
- */
-export const threadBannerSlotStyle: CSSProperties = { paddingInlineEnd: config.space.S200 };
-
 /** What a thread shows above its rows while they load: a failure, Load older, or a spinner. */
 export function ThreadLoadingLines({
   loadError,
