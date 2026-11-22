@@ -131,6 +131,28 @@ final class RoomTrustTests: XCTestCase {
         XCTAssertEqual(trust.resolved, [])
     }
 
+    func testAThreadResolvedHereIsNotReopenedByAReadThatBeganBefore() async {
+        let trust = RoomTrust()
+        let underWay = expectation(description: "a read is under way")
+        // An open thread, or a notification, reads the room's state...
+        let older = Task {
+            await trust.refresh {
+                await withCheckedContinuation { self.finishOlder = $0; underWay.fulfill() }
+                return self.state()
+            }
+        }
+        await fulfillment(of: [underWay], timeout: 5)
+        // ...the person marks a thread done, which the server takes...
+        trust.resolve("$done")
+        // ...and the answer from before the tag comes in.
+        finishOlder?.resume()
+        await older.value
+        XCTAssertEqual(trust.resolved, ["$done"])
+        // A read that begins after says what the room says: a thread opened again elsewhere is open here.
+        await trust.refresh { self.state() }
+        XCTAssertEqual(trust.resolved, [])
+    }
+
     func testAJoiningCallerWaitsForTheReadUnderWayAndReadsWhenThereIsNone() async {
         let trust = RoomTrust()
         let underWay = expectation(description: "a read is under way")

@@ -732,6 +732,67 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(ThreadSnapshot.kept((voiceRoot, [reply] + parts + [card("$card", 11)] + cardEdits)))
     }
 
+    /// The thread from all of its events, and from what is kept of them for another trust.
+    private func wholeAndKept(_ related: [JSON], file: StaticString = #filePath, line: UInt = #line) throws -> [ThreadSnapshot] {
+        let kept = try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, related)), file: file, line: line)
+        return [(voiceRoot, related), kept].map {
+            ThreadSnapshot.build(root: $0.root, related: $0.related, ownUserId: me, now: now, trustedAccounts: [agent])
+        }
+    }
+
+    func testAnEchoTakesWhatItsNewestEditLeavesOutFromTheSendersOlderEdits() throws {
+        let fallback = "com.mindroom.voice_raw_audio_fallback", source = "com.mindroom.voice_source_event_id"
+        let flagged: JSON = ["msgtype": "m.text", "body": "🎤 [Attached voice message]", "com.mindroom.visible_router_voice_echo": true]
+        let edit = { (id: String, ts: Int, extra: JSON) in
+            event(id, ts, ["m.new_content": flagged.merging(extra) { $1 }, "m.relates_to": ["rel_type": "m.replace", "event_id": "$echo"] as JSON])
+        }
+        let first = echo("$echo", 3, of: "$root", VoiceEcho.placeholder)
+        // As the web client's `getEditedEvent`: an edit says transcription failed, and the next one repeats the
+        // flag and the voice message but not that. It is still the fallback, a row of its own.
+        let failed = [first, edit("$failed", 4, [source: "$root", fallback: true]), edit("$later", 5, [source: "$root"])]
+        for snapshot in try wholeAndKept(failed) {
+            XCTAssertEqual(snapshot.title, "Voice message")
+            XCTAssertEqual(ids(snapshot), ["$root", "$echo"])
+        }
+        // What is kept is the edit shown with what it took from the older ones, not every edit.
+        XCTAssertEqual(try XCTUnwrap(ThreadSnapshot.kept((voiceRoot, failed))).related.count, 2)
+        // What the newest edit says itself wins.
+        for snapshot in try wholeAndKept([first, edit("$failed", 4, [source: "$root", fallback: true]), edit("$later", 5, [source: "$root", fallback: false])]) {
+            XCTAssertEqual(ids(snapshot), ["$root"])
+        }
+        // The voice message an older edit names stands when the newest names none.
+        let again = event("$again", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice-2.m4a", "url": "mxc://x/again",
+                                                             "org.matrix.msc3245.voice": [:] as JSON]))
+        for snapshot in try wholeAndKept([again, first, edit("$moved", 4, [source: "$again"]), edit("$later", 5, [:])]) {
+            XCTAssertEqual(ids(snapshot), ["$root", "$again"])
+            XCTAssertEqual(snapshot.title, "Voice message")
+        }
+    }
+
+    func testEditsOfTheSameMillisecondCountByTheGreaterEventId() throws {
+        // As the web client's `isEventOrderedAfter`, in whatever order the server gives them.
+        let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "…"]))
+        let edits = ["$a", "$b"].map { id in
+            event(id, 5, ["m.new_content": ["msgtype": "m.text", "body": "From \(id)"] as JSON, "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        }
+        for edits in [edits, edits.reversed()] {
+            for snapshot in try wholeAndKept([echo("$echo", 2, of: "$root", "🎤 Hi"), reply] + edits) {
+                XCTAssertEqual(snapshot.reply?.text, "From $b")
+            }
+        }
+    }
+
+    func testAnApprovalCardIsNeverAVoiceEcho() {
+        // A card with an echo's marks stays a card: what a notification shows of it without the room's trust
+        // is what the thread shows with it.
+        let marked = card("$card", 3, sender: agent, extra: ["com.mindroom.visible_router_voice_echo": true,
+                                                             "com.mindroom.voice_source_event_id": "$root"])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [marked], ownUserId: me, now: now, trustedAccounts: [agent])
+        XCTAssertEqual(snapshot.pendingApproval?.eventId, "$card")
+        XCTAssertEqual(snapshot.title, "Voice message")
+        XCTAssertNil(ThreadSnapshot.kept((voiceRoot, [marked])))
+    }
+
     func testAVoiceMessageWhoseShownVersionNamesNoKindTakesNoTranscript() {
         // As the web client: the version shown is audio by its own `msgtype`, not by the first version's.
         let voice = event("$voice", 2, sender: me, inThread(["msgtype": "m.audio", "body": "voice.m4a", "url": "mxc://x/v",
