@@ -26,13 +26,26 @@ const directUsersMock = vi.hoisted(() => ({
   users: [] as string[],
 }));
 
+/** How many folds icon buttons have mounted: a button that stays in place adds none. */
+const iconButtonMounts = vi.hoisted(() => ({ count: 0 }));
+
 vi.mock('folds', async () => {
   const actual = await vi.importActual<typeof import('folds')>('folds');
   const Wrapper = ({ children, className }: { children?: React.ReactNode; className?: string }) =>
     React.createElement('div', { className }, children);
 
+  const IconButton = React.forwardRef(
+    (props: React.ComponentProps<typeof actual.IconButton>, ref: React.Ref<HTMLButtonElement>) => {
+      React.useEffect(() => {
+        iconButtonMounts.count += 1;
+      }, []);
+      return React.createElement(actual.IconButton, { ...props, ref });
+    }
+  );
+
   return {
     ...actual,
+    IconButton,
     Overlay: ({ children, backdrop }: { children?: React.ReactNode; backdrop?: React.ReactNode }) =>
       React.createElement(React.Fragment, null, backdrop, children),
     OverlayBackdrop: Wrapper,
@@ -136,6 +149,15 @@ const readyCache = (
   ownerKey: '@me:example.org|https://example.org',
 });
 
+type MockMemberEvent = {
+  getId: () => string;
+  getRoomId: () => string;
+  getStateKey: () => string;
+  getType: () => string;
+};
+
+type MockMember = { userId: string; membership: string; events?: { member?: MockMemberEvent } };
+
 type RoomOptions = {
   name?: string;
   isSpace?: boolean;
@@ -144,7 +166,7 @@ type RoomOptions = {
   powerLevelTags?: Record<string, unknown>;
   createContent?: Record<string, unknown>;
   createSender?: string;
-  members?: { userId: string; membership: string }[];
+  members?: MockMember[];
   joinedCount?: number;
   invitedCount?: number;
   membersLoaded?: boolean;
@@ -220,7 +242,7 @@ const makeMx = (getRoom: (roomId: string) => Room | null) => {
 
 const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
   const state = {
-    members: [...(options.members ?? [])],
+    members: [...(options.members ?? [])] as MockMember[],
     membersLoaded: options.membersLoaded ?? true,
     powerLevels: options.powerLevels ?? defaultPowerLevels(),
     joinedCount: options.joinedCount ?? 2,
@@ -255,7 +277,10 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
     membersLoaded: () => state.membersLoaded,
     getJoinedMemberCount: () => state.joinedCount,
     getInvitedMemberCount: () => state.invitedCount,
-    getMember: (userId: string) => state.members.find((member) => member.userId === userId) ?? null,
+    getMember: (userId: string) => {
+      const member = state.members.find((entry) => entry.userId === userId);
+      return member ? { ...member, events: member.events ?? {} } : null;
+    },
     getMembers: vi.fn(() => state.members),
     loadMembersIfNeeded: vi.fn(options.loadMembersIfNeeded ?? (async () => true)),
     getLiveTimeline: () => ({
@@ -423,19 +448,37 @@ const writeNote = (renderer: ReactTestRenderer, value: string) => {
   });
 };
 
+let memberEventCount = 0;
+
+/**
+ * A membership event of /sync, as the SDK applies it: the member takes the event, then
+ * `RoomMember.membership` fires if the membership itself changed, and `RoomState.members` fires
+ * always. Without an ID the event is a new one; with the ID of an earlier event, /sync repeats
+ * that event. Returns the event's ID.
+ */
 const emitMembership = (
   mx: ReturnType<typeof makeMx>,
   room: ReturnType<typeof makeRoom>,
   userId: string,
-  membership: string
-) => {
+  membership: string,
+  eventId?: string
+): string => {
+  memberEventCount += 1;
+  const id = eventId ?? `$member${memberEventCount}`;
   act(() => {
-    room.state.members = [
-      ...room.state.members.filter((member) => member.userId !== userId),
-      { userId, membership },
-    ];
-    mx.emit('RoomMember.membership', undefined, { roomId: room.roomId, userId });
+    const previous = room.getMember(userId)?.membership;
+    const event: MockMemberEvent = {
+      getId: () => id,
+      getRoomId: () => room.roomId,
+      getStateKey: () => userId,
+      getType: () => 'm.room.member',
+    };
+    const member = { roomId: room.roomId, userId, membership, events: { member: event } };
+    room.state.members = [...room.state.members.filter((entry) => entry.userId !== userId), member];
+    if (previous !== membership) mx.emit('RoomMember.membership', event, member, previous);
+    mx.emit('RoomState.members', event, {}, member);
   });
+  return id;
 };
 
 /** A room summary from /sync, which holds only the counts that changed. */
@@ -1099,13 +1142,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     await clickRowInvite(renderer, 'Maya Chen');
     expect(mx.invite).toHaveBeenCalledTimes(2);
-    act(() => {
-      room.state.members.push({ userId: '@maya:example.org', membership: 'invite' });
-      mx.emit('RoomMember.membership', undefined, {
-        roomId: room.roomId,
-        userId: '@maya:example.org',
-      });
-    });
+    emitMembership(mx, room, '@maya:example.org', 'invite');
     const sentRow = getRowByText(renderer, 'Maya Chen')!;
     expect(extractText(getRowActionButton(sentRow))).toBe('Invited');
     expect(getRowActionButton(sentRow).props['aria-disabled']).toBe(true);
@@ -1117,13 +1154,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Maya Chen');
     expect(textContentByRole(renderer, 'alert')).toContain('Temporary failure');
 
-    act(() => {
-      room.state.members.push({ userId: '@maya:example.org', membership: 'join' });
-      mx.emit('RoomMember.membership', undefined, {
-        roomId: room.roomId,
-        userId: '@maya:example.org',
-      });
-    });
+    emitMembership(mx, room, '@maya:example.org', 'join');
     expect(getRowByText(renderer, 'Maya Chen')).toBeUndefined();
     expect(textContentByRole(renderer, 'alert')).toBe('');
   });
@@ -1490,6 +1521,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       mx.emit('RoomMember.membership', undefined, {
         roomId: room.roomId,
         userId: '@mindroom_helper:example.org',
+        events: {},
       });
       return { event_id: '$pl1' };
     });
@@ -1497,13 +1529,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     await clickRowInvite(renderer, 'Helper');
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
 
-    act(() => {
-      room.state.members = [{ userId: '@mindroom_helper:example.org', membership: 'leave' }];
-      mx.emit('RoomMember.membership', undefined, {
-        roomId: room.roomId,
-        userId: '@mindroom_helper:example.org',
-      });
-    });
+    emitMembership(mx, room, '@mindroom_helper:example.org', 'leave');
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
   });
 
@@ -1815,6 +1841,117 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
   });
 
+  it('offers the invite again when someone who had left is invited and declines in one /sync, which only RoomState.members tells of', async () => {
+    const maya = '@maya:example.org';
+    const { renderer, mx, room } = renderPrompt();
+    emitMembership(mx, room, maya, 'leave');
+    const membershipChanged = vi.fn();
+    mx.on('RoomMember.membership' as never, membershipChanged as never);
+
+    await clickRowInvite(renderer, 'Maya Chen');
+    const action = () => getRowActionButton(getRowByText(renderer, 'Maya Chen')!);
+    expect(extractText(action())).toBe('Invited');
+    expect(action().props['aria-disabled']).toBe(true);
+
+    // The invite and its decline arrive as the state after one /sync: a new `leave` event, and
+    // the membership is `leave` as before.
+    emitMembership(mx, room, maya, 'leave');
+    expect(membershipChanged).not.toHaveBeenCalled();
+    expect(extractText(action())).toBe('Invite');
+    expect(action().props['aria-disabled']).toBe(false);
+
+    // Not held back in another view either.
+    typeSearch(renderer, maya);
+    expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+    expect(membershipChanged).not.toHaveBeenCalled();
+  });
+
+  it.each(['after the invite call returned', 'while the invite call is on its way'] as const)(
+    'keeps someone who had left held back when /sync repeats their old leave event %s',
+    async (moment) => {
+      const helper = '@mindroom_helper:example.org';
+      const { renderer, mx, room } = renderPrompt();
+      const oldLeave = emitMembership(mx, room, helper, 'leave');
+      // No grant: this is about the invite alone.
+      act(() => {
+        findModeratorCheckbox(renderer)!.props.onClick();
+      });
+
+      if (moment === 'after the invite call returned') {
+        await clickRowInvite(renderer, 'Helper');
+        expect(emitMembership(mx, room, helper, 'leave', oldLeave)).toBe(oldLeave);
+      } else {
+        const finishInvite = holdNextInvite(mx);
+        await clickRowInvite(renderer, 'Helper');
+        emitMembership(mx, room, helper, 'leave', oldLeave);
+        await finishInvite();
+      }
+      const action = () => getRowActionButton(getRowByText(renderer, 'Helper')!);
+      expect(extractText(action())).toBe('Invited');
+      expect(action().props['aria-disabled']).toBe(true);
+
+      // A change of the member's power level fires RoomState.members with the power levels
+      // event: no word on the membership.
+      act(() => {
+        mx.emit(
+          'RoomState.members',
+          {
+            getId: () => '$power_levels',
+            getRoomId: () => room.roomId,
+            getStateKey: () => '',
+            getType: () => 'm.room.power_levels',
+          },
+          {},
+          { roomId: room.roomId, ...room.getMember(helper)! }
+        );
+      });
+      expect(extractText(action())).toBe('Invited');
+
+      typeSearch(renderer, helper);
+      expect(extractText(getDialog(renderer))).toContain('Already invited');
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(1);
+
+      // The decline is a new event: the invite is offered again.
+      emitMembership(mx, room, helper, 'leave');
+      expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('settles only the user a membership event is about, and leaves the others invited here held back', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    await clickRowInvite(renderer, 'Maya Chen');
+    await clickRowInvite(renderer, 'Liam Park');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+
+    // Maya's invite and her decline arrive; nothing about Liam does.
+    emitMembership(mx, room, '@maya:example.org', 'invite');
+    emitMembership(mx, room, '@maya:example.org', 'leave');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Invite');
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Liam Park')!))).toBe('Invited');
+
+    act(() => {
+      getFilterButton(renderer, 'People').props.onClick();
+    });
+    expect(getRowByText(renderer, 'Maya Chen')).toBeDefined();
+    expect(getRowByText(renderer, 'Liam Park')).toBeUndefined();
+    typeSearch(renderer, '@liam:example.org');
+    expect(extractText(getDialog(renderer))).toContain('Already invited');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+
+    // Liam's own event settles him.
+    emitMembership(mx, room, '@liam:example.org', 'leave');
+    expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+    await pressKeyInSearch(renderer, 'Enter');
+    expect(mx.invite).toHaveBeenCalledTimes(3);
+    expect(mx.invite).toHaveBeenLastCalledWith(room.roomId, '@liam:example.org', undefined);
+  });
+
   it('offers the invite again once an invitee declines after the invite call returned', async () => {
     const { renderer, mx, room } = renderPrompt();
     await clickRowInvite(renderer, 'Maya Chen');
@@ -1959,6 +2096,15 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       getFilterButton(renderer, 'Agents').props.onClick();
     });
     expect(getGrantAlerts(renderer).map(extractText)).toEqual([warning]);
+
+    // The strip scrolls, so the keyboard can focus it, as a region its own text names.
+    const strip = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'InviteGrantAlerts'
+    );
+    expect(strip.props.tabIndex).toBe(0);
+    expect(strip.props.role).toBe('region');
+    expect(strip.props.id).toEqual(expect.any(String));
+    expect(strip.props['aria-labelledby']).toBe(strip.props.id);
 
     // The strip sits between the controls and the rows.
     const body = renderer.root.find(
@@ -2374,6 +2520,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(message.props.role).toBe('region');
     expect(message.props['aria-labelledby']).toBe(message.props.id);
     expect(message.props.id).toEqual(expect.any(String));
+    const mountsBefore = iconButtonMounts.count;
 
     act(() => {
       findDismissButtons()[0]!.props.onClick();
@@ -2381,6 +2528,8 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(store.get(detachedGrantErrorAtom)).toHaveLength(1);
     expect(findAlerts().map(extractText)).toEqual([helperFailure]);
     expect(findDismissButtons()).toHaveLength(1);
+    // The card stays, and with it the Dismiss button that had the focus: nothing mounted anew.
+    expect(iconButtonMounts.count).toBe(mountsBefore);
 
     act(() => {
       findDismissButtons()[0]!.props.onClick();

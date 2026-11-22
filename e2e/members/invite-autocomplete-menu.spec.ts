@@ -333,6 +333,20 @@ const scrollsWithRows = (dialog: Locator) =>
       };
     });
 
+/** Puts what scrolls the rows back at its top, where it is when the sheet opens. */
+const scrollSheetToTop = (dialog: Locator) =>
+  dialog
+    .locator('li')
+    .first()
+    .evaluate((row) => {
+      let scroller = row.parentElement;
+      while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) throw new Error('Nothing scrolls the rows');
+      scroller.scrollTop = 0;
+    });
+
 const sheetParts = (dialog: Locator) => ({
   done: dialog.getByRole('button', { name: 'Done', exact: true }),
   search: dialog.getByRole('searchbox'),
@@ -374,10 +388,10 @@ const checkEveryPartReachable = async (dialog: Locator, viewport: Viewport) => {
   expect(await scrollsWithRows(dialog)).toEqual({ search: true, footer: true, title: false });
   expectInside(await box(parts.done), viewport);
   await checkModeratorAboveRows(dialog);
-  // From the top of what scrolls, the checkbox is in sight before the first row is passed.
-  await parts.search.scrollIntoViewIfNeeded();
-  await expectReachable(parts.moderator, viewport);
-  await checkModeratorAboveRows(dialog);
+  // At the top of what scrolls, as the sheet opens, the checkbox is in sight already: nothing
+  // here scrolls to it.
+  await scrollSheetToTop(dialog);
+  await expectInSight(parts.moderator, viewport);
   await expectReachable(parts.rows.first().getByRole('button'), viewport);
   await expectReachable(parts.rows.last().getByRole('button'), viewport);
   await expectReachable(parts.note, viewport);

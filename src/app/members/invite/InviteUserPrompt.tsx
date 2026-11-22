@@ -30,12 +30,15 @@ import {
   Text,
 } from 'folds';
 import {
+  EventType,
   KnownMembership,
   RoomEvent,
   RoomMemberEvent,
+  RoomStateEvent,
   type MatrixEvent,
   type Room,
   type RoomMember,
+  type RoomState,
 } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -118,6 +121,8 @@ type Attempts = {
  * response still count: `/sync` can deliver the invite (and the invitee's answer) first.
  */
 type Submission = {
+  /** The invitee's membership event in the room when the call started; none for a stranger. */
+  priorEventId: string | undefined;
   membershipSeen: boolean;
 };
 
@@ -226,8 +231,14 @@ const isReflectedMembership = (membership: string | undefined): boolean =>
   membership === KnownMembership.Join ||
   membership === KnownMembership.Ban;
 
-const withUser = (users: ReadonlySet<string>, userId: string): ReadonlySet<string> =>
-  users.has(userId) ? users : new Set(users).add(userId);
+/** Users whose invite the room state has not answered yet, each with their `priorEventId`. */
+type PendingSync = ReadonlyMap<string, string | undefined>;
+
+const withoutPending = (pending: PendingSync, userId: string): PendingSync => {
+  const next = new Map(pending);
+  next.delete(userId);
+  return next;
+};
 
 const withoutAttempt = (
   byUser: Readonly<Record<string, Attempt>>,
@@ -396,6 +407,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const moderatorHelpId = useId();
   const directHeadingId = useId();
   const directoryHeadingId = useId();
+  const grantAlertsId = useId();
   const store = useStore();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
@@ -427,10 +439,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [announcements, setAnnouncements] = useState<readonly Announcement[]>([]);
   const [enterHint, setEnterHint] = useState<string>();
   // Invited here and not yet in the synced room state: kept out of the lists, so nobody is invited
-  // twice before /sync.
-  const [pendingSyncInvited, setPendingSyncInvited] = useState<ReadonlySet<string>>(
-    () => new Set()
-  );
+  // twice before /sync. Each comes with the ID of the membership event the room had for them when
+  // their invite started, which says nothing about that invite however often /sync repeats it.
+  const [pendingSyncInvited, setPendingSyncInvited] = useState<PendingSync>(() => new Map());
+  // The same map for the membership listener, which must not wait for a render to see an invite
+  // that has just returned.
+  const pendingSyncRef = useRef(pendingSyncInvited);
+  const updatePendingSync = useCallback((next: PendingSync) => {
+    pendingSyncRef.current = next;
+    setPendingSyncInvited(next);
+  }, []);
   // Grants that failed while the sheet is open, shown above the list until dismissed. They belong
   // to the sheet and to no row: a row can leave (another filter, a decline) and be invited again
   // while its alert is still to be read.
@@ -465,24 +483,24 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const membersLoaded = room.membersLoaded();
 
   useEffect(() => {
+    // What a membership event of this room says about its user, and about nobody else.
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
       if ((event?.getRoomId() ?? member?.roomId) !== room.roomId) return;
-      const memberId = member?.userId ?? event?.getStateKey?.();
+      bumpRoster();
+      const memberId = member?.userId ?? event?.getStateKey();
+      if (!memberId) return;
+      const eventId = event?.getId() ?? member?.events.member?.getId();
+      const submission = submissionsRef.current.get(memberId);
+      const pending = pendingSyncRef.current;
+      // The event the room already had when the invite started (a /sync repeats known state)
+      // says nothing about the invite: the user stays held back.
+      const priorEventId = submission?.priorEventId ?? pending.get(memberId);
+      if (eventId !== undefined && eventId === priorEventId) return;
       // The room state speaks for this user from here on, also when the invite's own response
       // is still on its way.
-      const submission = memberId ? submissionsRef.current.get(memberId) : undefined;
       if (submission) submission.membershipSeen = true;
-      const settle = (current: ReadonlySet<string>): ReadonlySet<string> => {
-        if (current.size === 0) return current;
-        const next = new Set(current);
-        if (memberId) next.delete(memberId);
-        current.forEach((userId) => {
-          if (isReflectedMembership(room.getMember(userId)?.membership)) next.delete(userId);
-        });
-        return next.size === current.size ? current : next;
-      };
-      setPendingSyncInvited(settle);
-      if (memberId && room.getMember(memberId)?.membership === KnownMembership.Leave) {
+      if (pending.has(memberId)) updatePendingSync(withoutPending(pending, memberId));
+      if (room.getMember(memberId)?.membership === KnownMembership.Leave) {
         // The invitee declined or was removed: the row offers the invite again.
         setAttempts((current) =>
           current.byUser[memberId]?.state.status === 'invited'
@@ -490,19 +508,27 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
             : current
         );
       }
-      bumpRoster();
+    };
+    // `RoomMember.membership` fires only when the membership itself changes. Someone who had
+    // left, is invited again and declines at once goes from `leave` to `leave` in one /sync:
+    // only `RoomState.members` tells of the new event. It also fires for a member whose power
+    // level changed, with the power levels event, which is no word on their membership.
+    const onStateMember = (event: MatrixEvent, _state: RoomState, member: RoomMember) => {
+      if (event.getType() === (EventType.RoomMember as string)) onMembership(event, member);
     };
     // Invariant: a room summary is for display only. It re-renders the header's joined and invited
     // counts and settles nobody. Who can be invited (`pendingSyncInvited` and the rows' attempts)
     // settles from that user's own membership event alone, which /sync delivers for a joined
     // room; a summary's counts name no user, and can be stale or about someone else.
     client.on(RoomMemberEvent.Membership, onMembership);
+    client.on(RoomStateEvent.Members, onStateMember);
     room.on(RoomEvent.Summary, bumpRoster);
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
+      client.removeListener(RoomStateEvent.Members, onStateMember);
       room.removeListener(RoomEvent.Summary, bumpRoster);
     };
-  }, [client, room, bumpRoster]);
+  }, [client, room, bumpRoster, updatePendingSync]);
 
   // When the keyboard comes up, the short layout makes the body the scroller, with the focused
   // field (the note, at its foot) out of sight below. The browser scrolled to it on focus, before
@@ -787,7 +813,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
-    const submission: Submission = { membershipSeen: false };
+    const submission: Submission = {
+      priorEventId: room.getMember(targetId)?.events.member?.getId(),
+      membershipSeen: false,
+    };
     submissionsRef.current.set(targetId, submission);
     setEnterHint(undefined);
 
@@ -852,7 +881,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
         !submission.membershipSeen &&
         !isReflectedMembership(room.getMember(targetId)?.membership)
       ) {
-        setPendingSyncInvited((current) => withUser(current, targetId));
+        updatePendingSync(new Map(pendingSyncRef.current).set(targetId, submission.priorEventId));
       }
       const departed =
         submission.membershipSeen && room.getMember(targetId)?.membership === KnownMembership.Leave;
@@ -1067,7 +1096,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
               </div>
 
               {grantAlerts.length > 0 && (
-                <div className={css.GrantAlerts}>
+                <div
+                  id={grantAlertsId}
+                  className={css.GrantAlerts}
+                  role="region"
+                  aria-labelledby={grantAlertsId}
+                  // A stop for Tab, so the keyboard can scroll long warnings where the browser does
+                  // not make a scrolling box focusable itself (Safari). Its text is its name.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                >
                   {grantAlerts.map((alert) => (
                     <div key={alert.id} className={css.GrantAlert}>
                       <Text as="span" size="T200" role="alert" className={css.GrantAlertText}>

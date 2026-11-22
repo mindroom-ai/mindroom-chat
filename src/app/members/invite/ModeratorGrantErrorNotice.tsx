@@ -23,9 +23,10 @@ export function ModeratorGrantErrorNotice() {
 
   const failure = failures[0];
   if (!failure) return null;
+  // One card for the whole queue: a dismissal changes its message and leaves the card, and the
+  // Dismiss button that has the focus, in place.
   const card = (
     <Surface
-      key={failure.id}
       variant="Critical"
       role="alert"
       style={{ ...noticeCard, maxInlineSize: toRem(440), flexShrink: 0 }}
@@ -37,6 +38,8 @@ export function ModeratorGrantErrorNotice() {
           style={{ color: color.Critical.Main, flexShrink: 0 }}
         />
         <Text
+          // A new message starts at its first line.
+          key={failure.id}
           id={messageId}
           size="T300"
           // Focusable, so the keyboard can scroll a long message where the browser does not make
