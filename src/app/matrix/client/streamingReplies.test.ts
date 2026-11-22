@@ -1012,6 +1012,18 @@ describe('streaming replies on thread cards', () => {
     }
   });
 
+  it('keeps Working when the thread’s own timeline starts over', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const resets = vi.fn();
+    s.f.mx.on(RoomEvent.TimelineReset, (_room, timelineSet) => resets(timelineSet));
+    s.thread.timelineSet.resetLiveTimeline();
+    await settle();
+    expect(resets).toHaveBeenCalledWith(s.thread.timelineSet);
+    expect(hinted(s)).toBe(true);
+    expect(s.workflow()).toBe('working');
+  });
+
   it('ends Working at a sync gap of the room, until the next live edit', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);

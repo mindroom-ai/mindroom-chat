@@ -39,11 +39,10 @@ when the reader ignores the sender, when the room turns encryption on, or after 
 After a revision that ended the stream, only a newer edit that says the reply streams brings
 Working back; an edit without a status does not. Once the thread holds the reply, in its timeline
 or as the reply its summary names, only the usual checks of that reply count. Encrypted rooms are
-excluded. Known
-costs: a tool call silent for more than 5 minutes shows Needs you until its next edit, as does a
-stream silent since relaunch; a redaction or a finishing edit that never arrives can leave Working
-for up to 5 minutes; and the thread's details show no tool trace for a reply the thread does not
-hold.
+excluded. Known costs: a tool call silent for more than 5 minutes shows Needs you until its next
+edit, as does a stream silent since relaunch; a redaction or a finishing edit that never arrives
+can leave Working for up to 5 minutes; and the thread's details show no tool trace for a reply the
+thread does not hold.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
