@@ -151,6 +151,8 @@ type PointerAtEnd = 'lifted' | 'held' | 'gone';
 
 type ActiveGesture = {
   pointerId: number;
+  /** A finger, whose lift a phone's web view can report with a touchend alone. */
+  touch: boolean;
   /** Whether a dialog or menu opened since the press, for the wait before the menu opens. */
   overlayOpened: () => boolean;
   startX: number;
@@ -268,7 +270,8 @@ export function useAccountHoldSwitch({
   /**
    * Suppresses the click a pointer leaves behind when it lifts after its hold opened the menu.
    * - `lifted`: for a short while, since a lift off the avatar leaves no click.
-   * - `held`: until the pointer lifts, then for that short while.
+   * - `held`: until the pointer lifts, then for that short while. A finger's lift may come as a
+   *   touchend or touchcancel alone.
    * - `gone`: with no timer and no listener, since the lift may never be seen here. The pointer
    *   may also come back still down and lift on the avatar, and that click is swallowed too.
    *
@@ -277,7 +280,7 @@ export function useAccountHoldSwitch({
    * it before its own click.
    */
   const armSuppressNextClick = useCallback(
-    (pointer: PointerAtEnd, pointerId: number) => {
+    (pointer: PointerAtEnd, { pointerId, touch }: Pick<ActiveGesture, 'pointerId' | 'touch'>) => {
       clearSuppressNextClick();
       suppressNextClickRef.current = true;
       if (pointer === 'gone') return;
@@ -294,6 +297,8 @@ export function useAccountHoldSwitch({
       const stopWaiting = () => {
         window.removeEventListener('pointerup', onEnd);
         window.removeEventListener('pointercancel', onEnd);
+        window.removeEventListener('touchend', onTouchEnd, true);
+        window.removeEventListener('touchcancel', onTouchEnd, true);
         window.removeEventListener('blur', stopWaiting);
         removeSuppressListenersRef.current = undefined;
       };
@@ -302,8 +307,18 @@ export function useAccountHoldSwitch({
         stopWaiting();
         expireSoon();
       }
+      function onTouchEnd(touchEvent: TouchEvent) {
+        if (touchEvent.touches.length > 0) return;
+        stopWaiting();
+        expireSoon();
+      }
       window.addEventListener('pointerup', onEnd);
       window.addEventListener('pointercancel', onEnd);
+      if (touch) {
+        const early = { capture: true, passive: true };
+        window.addEventListener('touchend', onTouchEnd, early);
+        window.addEventListener('touchcancel', onTouchEnd, early);
+      }
       // The window losing focus leaves the pointer `gone`: armed, with nothing waiting.
       window.addEventListener('blur', stopWaiting);
       removeSuppressListenersRef.current = stopWaiting;
@@ -316,10 +331,9 @@ export function useAccountHoldSwitch({
       const current = gestureRef.current;
       if (!current) return;
       const wasOpen = current.open;
-      const { pointerId } = current;
       gestureRef.current = undefined;
       teardownGesture(current);
-      if (wasOpen) armSuppressNextClick(pointer, pointerId);
+      if (wasOpen) armSuppressNextClick(pointer, current);
       setPressing(false);
       setHoldAnchor(undefined);
       setHoveredSessionId(undefined);
@@ -348,6 +362,13 @@ export function useAccountHoldSwitch({
   useEffect(() => {
     if (!enabled) close();
   }, [enabled, close]);
+
+  // Another tab signing an account out or in moves the rows under a pointer that stays where it
+  // is: the row it highlighted is no longer the one its release would take, so the menu closes.
+  const sessionOrderKey = others.map((account) => account.session.sessionId).join('\0');
+  useEffect(() => {
+    if (gestureRef.current?.open) close();
+  }, [sessionOrderKey, close]);
 
   // A wheel or trackpad scrolls the list under a pointer that stays where it is; the highlight
   // follows the rows without waiting for the pointer to move.
@@ -554,6 +575,12 @@ export function useAccountHoldSwitch({
       const onWindowTouchEnd = (touchEvent: TouchEvent) => {
         const current = gestureRef.current;
         if (!current || touchEvent.touches.length > 0 || current.liftTimer !== undefined) return;
+        // A short tap ends at once: left to a timer, its hold could still run out first on a
+        // busy page, opening the menu under a finger that is gone and swallowing the tap's click.
+        if (!current.open) {
+          finishGesture('lifted');
+          return;
+        }
         const lifted = touchEvent.type === 'touchend' ? touchEvent.changedTouches[0] : undefined;
         const liftPoint = lifted && { x: lifted.clientX, y: lifted.clientY };
         current.liftTimer = setTimeout(() => {
@@ -565,7 +592,8 @@ export function useAccountHoldSwitch({
       // In the capture phase: a second finger on a control that keeps its presses to itself (a
       // sidebar row that can be dragged) still cancels.
       window.addEventListener('pointerdown', onWindowPointerDown, true);
-      if (event.pointerType === 'touch') {
+      const touch = event.pointerType === 'touch';
+      if (touch) {
         const early = { capture: true, passive: true };
         window.addEventListener('touchend', onWindowTouchEnd, early);
         window.addEventListener('touchcancel', onWindowTouchEnd, early);
@@ -591,6 +619,7 @@ export function useAccountHoldSwitch({
 
       const gesture: ActiveGesture = {
         pointerId,
+        touch,
         overlayOpened: watchForNewOverlay(),
         startX,
         startY,

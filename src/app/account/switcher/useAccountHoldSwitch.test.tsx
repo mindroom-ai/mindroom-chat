@@ -28,6 +28,10 @@ const DAVE: AccountMenuAccount = {
   session: session('dave', '@dave:example.org', 10),
   displayName: 'Dave',
 };
+const EVE: AccountMenuAccount = {
+  session: session('eve', '@eve:example.org', 5),
+  displayName: 'Eve',
+};
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect => ({
   left,
@@ -1000,6 +1004,61 @@ describe('useAccountHoldSwitch', () => {
     }
   );
 
+  it.each([
+    { change: 'an account is signed out elsewhere', next: [CAROL, DAVE] },
+    { change: 'an account is signed in elsewhere', next: [BOB, CAROL, DAVE, EVE] },
+    { change: 'the accounts change order', next: [CAROL, BOB, DAVE] },
+  ])('cancels without switching when $change while the menu is open', ({ next }) => {
+    const onSwitch = vi.fn();
+    const onClick = vi.fn();
+    const view = render(
+      <Harness others={[BOB, CAROL, DAVE]} onSwitch={onSwitch} onClick={onClick} />
+    );
+    const trigger = screen.getByTestId('trigger');
+    holdOpen(trigger);
+    const { carolRow } = layoutTriggerAndMenu();
+    fireEvent(window, pointerEvent('pointermove', { pointerId: 1, clientX: 120, clientY: 365 }));
+    expect(carolRow?.getAttribute('data-highlighted')).toBe('true');
+
+    // The rows move under the pointer, which does not: Carol's place is another account's now.
+    view.rerender(<Harness others={next} onSwitch={onSwitch} onClick={onClick} />);
+    expect(screen.queryByTestId('quick-menu')).toBeNull();
+    expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+
+    // The release where Carol was switches to nobody, and its click opens nothing.
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 365 }));
+    fireEvent.click(trigger, { detail: 1 });
+    expect(onSwitch).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('keeps the menu when the same accounts arrive again in the same order', () => {
+    const onSwitch = vi.fn();
+    const view = render(<Harness others={[BOB, CAROL]} onSwitch={onSwitch} onClick={vi.fn()} />);
+    holdOpen(screen.getByTestId('trigger'));
+
+    // A new list of new objects, as a profile that loads brings: the rows stay where they are.
+    const renamed = [BOB, CAROL].map((account) => ({ ...account, displayName: 'Renamed' }));
+    view.rerender(<Harness others={renamed} onSwitch={onSwitch} onClick={vi.fn()} />);
+    expect(screen.getByTestId('quick-menu')).toBeTruthy();
+
+    layoutTriggerAndMenu();
+    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 120, clientY: 365 }));
+    expect(onSwitch).toHaveBeenCalledWith(CAROL.session);
+  });
+
+  it('does not end a pending hold when the accounts change before the menu opens', () => {
+    const view = render(<Harness others={[BOB, CAROL]} onSwitch={vi.fn()} onClick={vi.fn()} />);
+    const trigger = screen.getByTestId('trigger');
+    fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+    view.rerender(<Harness others={[CAROL]} onSwitch={vi.fn()} onClick={vi.fn()} />);
+    act(() => {
+      vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+    });
+    expect(screen.getByTestId('quick-menu')).toBeTruthy();
+    expect(screen.queryByTestId('row-bob')).toBeNull();
+  });
+
   it('leaves a Control press of the primary mouse button to the context menu of a Mac', () => {
     const onClick = vi.fn();
     render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
@@ -1218,6 +1277,102 @@ describe('useAccountHoldSwitch', () => {
       });
       expect(vi.getTimerCount()).toBe(0);
       expect(onSwitch).toHaveBeenCalledTimes(2);
+    });
+
+    it('ends a short tap at once, so its hold cannot run out first on a busy page', () => {
+      const onClick = vi.fn();
+      render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      const setPointerCapture = vi.fn();
+      trigger.setPointerCapture = setPointerCapture;
+
+      // The finger lifts before the hold time is up: nothing is left to run, hold timer included.
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 1, clientX: 25, clientY: 420 }));
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS - 5);
+      });
+      touchEnd('touchend', ON_AVATAR);
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+      });
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(1);
+
+      // A busy page hears of the lift only when the hold time is already up, just ahead of the
+      // overdue hold timer (this timer is older, so it runs first at the same instant).
+      setTimeout(() => touchEnd('touchend', ON_AVATAR), ACCOUNT_HOLD_MS);
+      fireEvent(trigger, pointerEvent('pointerdown', { pointerId: 2, clientX: 25, clientY: 420 }));
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+      });
+      expect(trigger.getAttribute('data-quick-switch-pressing')).toBeNull();
+      expect(screen.queryByTestId('quick-menu')).toBeNull();
+      expect(setPointerCapture).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['touchend', 'touchcancel'] as const)(
+      'ends the wait for a finger that was still down when the menu closed (%s)',
+      (type) => {
+        const onClick = vi.fn();
+        render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+        const trigger = screen.getByTestId('trigger');
+        const leftListening = watchWindowListeners();
+        holdOpen(trigger);
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(screen.queryByTestId('quick-menu')).toBeNull();
+
+        // Another finger lifts while the one that held the menu stays: the wait goes on.
+        touchEnd(type, ON_AVATAR, 1);
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(leftListening()).not.toEqual([]);
+
+        // It lifts, with no pointerup: nothing waits any longer, and its click is swallowed.
+        touchEnd(type, ON_AVATAR);
+        expect(leftListening()).toEqual([]);
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).not.toHaveBeenCalled();
+
+        // Without a click the suppression runs out by itself.
+        holdOpen(trigger, 2);
+        fireEvent.keyDown(window, { key: 'Escape' });
+        touchEnd(type, ON_AVATAR);
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(leftListening()).toEqual([]);
+        expect(vi.getTimerCount()).toBe(0);
+        fireEvent.click(trigger, { detail: 1 });
+        expect(onClick).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it('keeps waiting for a mouse that is still down when some touch ends', () => {
+      const onClick = vi.fn();
+      render(<Harness onSwitch={vi.fn()} onClick={onClick} />);
+      const trigger = screen.getByTestId('trigger');
+      fireEvent(
+        trigger,
+        pointerEvent('pointerdown', { pointerId: 1, pointerType: 'mouse', buttons: 1 })
+      );
+      act(() => {
+        vi.advanceTimersByTime(ACCOUNT_HOLD_MS);
+      });
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      touchEnd('touchend', OUTSIDE);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      fireEvent.click(trigger, { detail: 1 });
+      expect(onClick).not.toHaveBeenCalled();
     });
 
     it('ends a pending hold too, and leaves its tap to open the account menu', () => {
