@@ -19,25 +19,38 @@ vi.mock('react-i18next', async (importOriginal) => {
   return { ...(await importOriginal<object>()), useTranslation: () => ({ t: translateFromEn }) };
 });
 type ClientListener = (...args: unknown[]) => void;
-const clientListeners = new Map<string, Set<ClientListener>>();
-const emitClient = (event: string, ...args: unknown[]) => {
-  clientListeners.get(event)?.forEach((listener) => listener(...args));
+type TestClient = {
+  getSafeUserId: () => string;
+  invite: typeof mocks.invite;
+  setPowerLevel: typeof mocks.setPowerLevel;
+  on: ReturnType<typeof vi.fn>;
+  removeListener: ReturnType<typeof vi.fn>;
+  emit: (event: string, ...args: unknown[]) => void;
 };
-const mockClient = {
-  getSafeUserId: () => '@me:example.org',
-  invite: mocks.invite,
-  setPowerLevel: mocks.setPowerLevel,
-  on: vi.fn((event: string, listener: ClientListener) => {
-    const set = clientListeners.get(event) ?? new Set<ClientListener>();
-    set.add(listener);
-    clientListeners.set(event, set);
-    return mockClient;
-  }),
-  removeListener: vi.fn((event: string, listener: ClientListener) => {
-    clientListeners.get(event)?.delete(listener);
-    return mockClient;
-  }),
+const makeClient = (): TestClient => {
+  const listeners = new Map<string, Set<ClientListener>>();
+  const client: TestClient = {
+    getSafeUserId: () => '@me:example.org',
+    invite: mocks.invite,
+    setPowerLevel: mocks.setPowerLevel,
+    on: vi.fn((event: string, listener: ClientListener) => {
+      const set = listeners.get(event) ?? new Set<ClientListener>();
+      set.add(listener);
+      listeners.set(event, set);
+      return client;
+    }),
+    removeListener: vi.fn((event: string, listener: ClientListener) => {
+      listeners.get(event)?.delete(listener);
+      return client;
+    }),
+    emit: (event: string, ...args: unknown[]) => {
+      listeners.get(event)?.forEach((listener) => listener(...args));
+    },
+  };
+  return client;
 };
+let mockClient: TestClient = makeClient();
+const emitClient = (event: string, ...args: unknown[]) => mockClient.emit(event, ...args);
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => mockClient,
 }));
@@ -60,7 +73,9 @@ const roomState = {
 };
 const room = {
   roomId: '!room:example.org',
-  client: mockClient,
+  get client() {
+    return mockClient;
+  },
   isSpaceRoom: () => roomState.isSpace,
   getMember: (userId: string) =>
     memberships[userId] ? { userId, membership: memberships[userId] } : null,
@@ -89,7 +104,7 @@ const inviteButton = (name: string) => screen.getByRole('button', { name: `Invit
 
 describe('MembersInviteSection', () => {
   beforeEach(() => {
-    clientListeners.clear();
+    mockClient = makeClient();
     mocks.search = { suggestions: [marco, mara], isFetching: false };
     mocks.invite.mockReset();
     mocks.setPowerLevel.mockReset();
@@ -457,5 +472,27 @@ describe('MembersInviteSection', () => {
     );
     expect(within(section()).getByRole('button', { name: 'Admin' })).toBeTruthy();
     expect(screen.getByRole('status').textContent).toBe('Gave Admin rights to Helper.');
+  });
+
+  it('skips setPowerLevel without lowering if the agent already holds sufficient power right before writing', async () => {
+    const helper = { userId: '@mindroom_helper:example.org', displayName: 'Helper' };
+    mocks.search = { suggestions: [helper], isFetching: false };
+    mocks.invite.mockResolvedValueOnce({});
+    render(<MembersInviteSection room={room} query="help" />);
+
+    await act(async () => {
+      fireEvent.click(inviteButton('Helper'));
+    });
+    // Another admin promotes Helper to 75 before the click executes.
+    roomState.powerLevels = {
+      ...roomState.powerLevels,
+      users: { '@me:example.org': 100, '@mindroom_helper:example.org': 75 },
+    };
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Make Helper moderator' }));
+    });
+
+    expect(mocks.setPowerLevel).not.toHaveBeenCalled();
+    expect(within(section()).getByRole('button', { name: 'Moderator' })).toBeTruthy();
   });
 });

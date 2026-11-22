@@ -7,6 +7,7 @@ import { config, toRem } from 'folds';
 
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { userDirectoryCacheAtom, type UserDirectoryCacheState } from '../userDirectoryCache';
+import { detachedGrantErrorAtom } from './moderatorInvite';
 import { InviteUserPrompt } from './InviteUserPrompt';
 
 const directUsersMock = vi.hoisted(() => ({
@@ -233,6 +234,7 @@ const renderPrompt = (options: RoomOptions = {}) => {
     renderer: renderer!,
     mx,
     room,
+    store,
   };
 };
 
@@ -714,5 +716,51 @@ describe('InviteUserPrompt', () => {
     // Pasting a different eligible agent ID resets to default (ON).
     typeUserId(renderer, '@mindroom_second:example.org');
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+  });
+
+  it('publishes a non-blocking detached notice when a grant fails after the dialog closed', async () => {
+    let finishInvite: () => void = () => undefined;
+    const { renderer, mx, store } = renderPrompt();
+    vi.mocked(mx.invite).mockImplementationOnce(
+      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
+    );
+    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    act(() => {
+      getForm(renderer).props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+    });
+    act(() => {
+      renderer.unmount();
+    });
+
+    await act(async () => {
+      finishInvite();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(store.get(detachedGrantErrorAtom)?.message).toBe(
+      'Invited @mindroom_helper:example.org, but could not give moderator rights: Forbidden'
+    );
+  });
+
+  it('uses the updated router level if it rises while invite is in flight', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    vi.mocked(mx.invite).mockImplementationOnce(async () => {
+      room.state.powerLevels = {
+        ...room.state.powerLevels,
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
+      };
+      return {} as never;
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    await submitInvite(renderer);
+
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
   });
 });
