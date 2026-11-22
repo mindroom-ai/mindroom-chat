@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { isDesktopApp } from '../lib/nativeShell';
 import { RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { APP_BUILD_VERSION } from '../config/appVersion';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
@@ -132,7 +133,7 @@ export const collectReportEvents = (
 
 const buildClientState = (mx: MatrixClient): BugReport['client'] => ({
   build: APP_BUILD_VERSION,
-  platform: Capacitor.getPlatform(),
+  platform: isDesktopApp() ? 'desktop' : Capacitor.getPlatform(),
   userAgent: navigator.userAgent,
   language: navigator.language,
   timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,

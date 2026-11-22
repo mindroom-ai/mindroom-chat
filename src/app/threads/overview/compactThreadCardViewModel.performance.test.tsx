@@ -168,6 +168,23 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
+  it('keeps access tokens out of desktop avatar URLs and cache keys on capacitor://localhost', () => {
+    state.authenticated = true;
+    vi.stubGlobal('window', {
+      location: { protocol: 'capacitor:' },
+      mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
+    });
+    const r = record('$a');
+    const harness = mount(room, [r]);
+    const firstModel = harness.models[0]!;
+    expect(firstModel.participants[0]!.avatarUrl).not.toContain('access_token');
+
+    state.mx!.setAccessToken('rotated-token');
+    harness.update([r]);
+    expect(harness.models[0]).toBe(firstModel);
+    harness.unmount();
+  });
+
   it('refreshes attention when a snooze expires without a record change', () => {
     vi.useFakeTimers();
     vi.setSystemTime(10000);

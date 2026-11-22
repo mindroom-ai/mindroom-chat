@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../../lib/nativeShell';
 import { Box, Icon, IconButton, Icons, Line, Switch, Text, config } from 'folds';
 import { Modal500 } from '../../ui/Modal500';
 import { settingsAtom } from '../../preferences/settings';
@@ -38,7 +38,7 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const switchId = useId();
   const apple = usesCommandKey();
-  const native = Capacitor.isNativePlatform();
+  const native = isBundledApp();
   const [hintsOn, setHintsOn] = useSetting(settingsAtom, 'shortcutHints');
   const voiceSwitchId = useId();
   const [voiceKeyOn, setVoiceKeyOn] = useSetting(settingsAtom, 'voiceHoldShortcut');

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { isCapacitorApp, isDesktopApp } from '../../lib/nativeShell';
 import type { SpecVersions } from '../cs-api';
 import { supportsAuthenticatedMedia } from '../mediaUrl';
 import { isServiceWorkerEnabled } from '../../config/runtimeConfig';
@@ -12,13 +12,10 @@ const hasServiceWorkerController = (): boolean =>
   typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller;
 
 const hasNativeMediaTransport = (): boolean => {
+  if (isDesktopApp()) return false;
   const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
   if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
+  return isCapacitorApp();
 };
 
 /** Whether some transport can attach the access token to media requests. */

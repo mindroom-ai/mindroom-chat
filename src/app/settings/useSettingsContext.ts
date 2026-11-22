@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -24,7 +24,7 @@ export const useSettingsContext = (): SettingsContext => {
   const serverAdmin = isServerAdmin(useCapabilities());
   const macApp = useOffersMacApp();
   return {
-    native: Capacitor.isNativePlatform(),
+    native: isBundledApp(),
     nativeIOS: isNativeIOS(),
     diagnostics: isNativeIOS() || getDebugModeEnabled(),
     localMindroom,

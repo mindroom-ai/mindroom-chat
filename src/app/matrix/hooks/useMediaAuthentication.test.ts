@@ -17,12 +17,21 @@ vi.mock('../../config/runtimeConfig', () => ({
 
 type MockServiceWorkerContainer = EventTarget & { controller: object | null };
 
+const originalWindow = globalThis.window;
 const originalNavigator = globalThis.navigator;
 let renderer: ReactTestRenderer | undefined;
 
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  if (originalWindow === undefined) {
+    Reflect.deleteProperty(globalThis, 'window');
+  } else {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: originalWindow,
+    });
+  }
   Object.defineProperty(globalThis, 'navigator', {
     configurable: true,
     value: originalNavigator,
@@ -86,6 +95,45 @@ describe('shouldUseMediaAuthentication', () => {
     act(() => {
       serviceWorker.controller = {};
       serviceWorker.dispatchEvent(new Event('controllerchange'));
+    });
+    expect(mediaAuthentication).toBe(true);
+  });
+
+  it('disables native URL media transport in the desktop app on capacitor://localhost', () => {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: { protocol: 'capacitor:' },
+        mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
+      },
+    });
+    let mediaAuthentication = true;
+    const Probe = () => {
+      mediaAuthentication = useMediaAuthentication();
+      return null;
+    };
+
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+    expect(mediaAuthentication).toBe(false);
+  });
+
+  it('keeps native URL media transport on capacitor://localhost without the desktop bridge', () => {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { location: { protocol: 'capacitor:' } },
+    });
+    let mediaAuthentication = false;
+    const Probe = () => {
+      mediaAuthentication = useMediaAuthentication();
+      return null;
+    };
+
+    act(() => {
+      renderer = create(React.createElement(Probe));
     });
     expect(mediaAuthentication).toBe(true);
   });

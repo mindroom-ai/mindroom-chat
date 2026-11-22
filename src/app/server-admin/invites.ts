@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { Method, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -212,7 +212,7 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
 export const invitationUrl = (
   serverName: string,
   hashRouter?: ClientConfig['hashRouter'],
-  native: boolean = Capacitor.isNativePlatform()
+  native: boolean = isBundledApp()
 ): string => (native ? serverName : `${getOriginBaseUrl(hashRouter)}/`);
 
 type Invitation = {
