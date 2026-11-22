@@ -12,7 +12,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
 import { isRoomAlias } from '../matrix/matrix';
-import { getDirectoryViaServers, rememberDirectoryViaServers } from '../matrix/directoryViaServers';
+import { getDirectoryViaServers } from '../matrix/directoryViaServers';
 
 export type RoomSummaryState = AsyncState<RoomSummary, unknown>;
 
@@ -32,13 +32,7 @@ type RoomSummaryLoaderProps = {
 
 const aliasQueryKey = (alias: string | undefined) => ['room-alias', alias] as const;
 
-/** The directory's answer for an alias, with the bounded servers it names for the room. */
-const resolveAlias = (mx: MatrixClient, alias: string) => async () => {
-  const resolved = await mx.getRoomIdForAlias(alias);
-  if (!resolved.servers) return resolved;
-  const servers = rememberDirectoryViaServers(mx, resolved.room_id, resolved.servers);
-  return { ...resolved, servers };
-};
+const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForAlias(alias);
 
 const MSC3266_PREFIX = '/_matrix/client/unstable/im.nheko.summary';
 

@@ -25,6 +25,10 @@ const SPACE_ID = '!ops-space:example.org';
 const SOURCE_ROOM_ID = '!harbor-desk:example.org';
 const CHILD_ROOM_ID = '!field-notes:remote.example.org';
 const INVITED_ROOM_ID = '!invited-desk:remote.example.org';
+// A space the account left, which the client still holds, and a space below it the account is
+// invited to.
+const LEFT_PARENT_ID = '!old-fleet:remote.example.org';
+const INVITED_SUBSPACE_ID = '!dock-crew:remote.example.org';
 
 const makeRoom = (
   roomId: string,
@@ -46,6 +50,8 @@ const rooms = [
     membership: KnownMembership.Invite,
     alias: '#renamed-desk:remote.example.org',
   }),
+  makeRoom(LEFT_PARENT_ID, { membership: KnownMembership.Leave, isSpace: true }),
+  makeRoom(INVITED_SUBSPACE_ID, { membership: KnownMembership.Invite, isSpace: true }),
 ];
 const client = {
   getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
@@ -82,12 +88,12 @@ describe('a room link clicked in a message, for a room that is not joined', () =
     // The space lists the source room, the child room and the invited room as its rooms.
     store.set(roomToParentsAtom, {
       type: 'INITIALIZE',
-      roomToParents: new Map(
-        [SOURCE_ROOM_ID, CHILD_ROOM_ID, INVITED_ROOM_ID].map((roomId) => [
-          roomId,
-          new Set([SPACE_ID]),
-        ])
-      ),
+      roomToParents: new Map([
+        ...[SOURCE_ROOM_ID, CHILD_ROOM_ID, INVITED_ROOM_ID].map(
+          (roomId) => [roomId, new Set([SPACE_ID])] as const
+        ),
+        [INVITED_SUBSPACE_ID, new Set([LEFT_PARENT_ID])],
+      ]),
       chatRooms: new Set<string>(),
     });
     store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
@@ -151,6 +157,18 @@ describe('a room link clicked in a message, for a room that is not joined', () =
       })
     ).toBe('/home/%23elsewhere%3Aremote.example.org');
   });
+
+  it.each([
+    ['Home', '/home/!harbor-desk%3Aexample.org'],
+    ['a space', '/!ops-space%3Aexample.org/!harbor-desk%3Aexample.org'],
+  ])(
+    'opens an invited space on its own space route from %s, not below a space the account left',
+    (_section, from) => {
+      expect(clickFrom(from, { mentionId: INVITED_SUBSPACE_ID, via: 'remote.example.org' })).toBe(
+        '/!dock-crew%3Aremote.example.org?viaServers=remote.example.org'
+      );
+    }
+  );
 
   it('names an invited room by its room ID, not by an alias that may be stale', () => {
     expect(

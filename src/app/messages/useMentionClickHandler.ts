@@ -6,7 +6,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { isJoinedRoom } from '../navigation/routeVisibility';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSpaceOptionally } from '../matrix/hooks/useSpace';
-import { withSearchParam } from '../routes/pathUtils';
+import { getSpacePath, withSearchParam } from '../routes/pathUtils';
 
 const readMention = (pill: HTMLElement) => ({
   id: pill.getAttribute('data-mention-id'),
@@ -28,7 +28,8 @@ const resolveMentionedRoom = (client: MatrixClient, mentionId: string): string |
  * room route (using the known room ID when the client already has it, else the mentioned ID or
  * alias) with `viaServers` intact so `RoomRoute` can resolve the alias and show the join preview.
  * That route is in the section `roomPath` picks, so a room of the selected space stays beside the
- * space's rooms.
+ * space's rooms; a space the client holds, such as one it is invited to, opens on its own space
+ * route when no event is linked.
  */
 export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLElement> => {
   const client = useMatrixClient();
@@ -64,10 +65,16 @@ export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLEl
         return;
       }
 
-      // The room's join page, in the section a joined room would open in: beside the selected
-      // space's rooms when the room is one of them.
+      // The join page. A space the client holds opens on its own space route: `roomPath` would
+      // put it below a space above it, whose join page would then take these servers. A room
+      // opens in the section a joined room would: beside the selected space's rooms when it is
+      // one of them.
+      const targetPath =
+        !mention.eventId && knownRoom?.isSpaceRoom()
+          ? getSpacePath(knownRoom.roomId)
+          : roomPath(knownRoom?.roomId ?? mention.id, mention.eventId);
       navigatePath(
-        withSearchParam(roomPath(knownRoom?.roomId ?? mention.id, mention.eventId), {
+        withSearchParam(targetPath, {
           viaServers: mention.viaServers?.length ? mention.viaServers.join(',') : undefined,
         })
       );

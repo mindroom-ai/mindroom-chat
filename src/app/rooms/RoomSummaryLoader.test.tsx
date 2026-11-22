@@ -198,6 +198,18 @@ describe('RoomSummaryLoader', () => {
       expect(servers).toEqual(['one.example.org', 'two.example.org']);
     });
 
+    it('asks for a room ID through the first five servers of a lookup that named 500', async () => {
+      const named = Array.from({ length: 500 }, (_, index) => `s${index}.example.org`);
+      const getRoomSummary = vi.fn(async () => summary);
+      const mx = { getRoomSummary } as unknown as MatrixClient;
+      rememberDirectoryViaServers(mx, summary.room_id, named);
+
+      const servers = await load(mx, summary.room_id);
+
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, named.slice(0, 5)]]);
+      expect(servers).toEqual(named.slice(0, 5));
+    });
+
     it('asks through the servers the caller names, whatever the directory gave', async () => {
       const getRoomSummary = vi.fn(async () => summary);
       const mx = { getRoomSummary } as unknown as MatrixClient;
@@ -220,18 +232,19 @@ describe('RoomSummaryLoader', () => {
       expect(servers).toBeUndefined();
     });
 
-    it('asks through the first five servers of an alias whose directory answer names 500', async () => {
-      const named = Array.from({ length: 500 }, (_, index) => `s${index}.example.org`);
+    it('asks through every server a fresh lookup of an alias names, and keeps none', async () => {
+      const named = Array.from({ length: 12 }, (_, index) => `s${index}.example.org`);
       const getRoomIdForAlias = vi.fn(async () => ({ room_id: summary.room_id, servers: named }));
-      const getRoomSummary = vi.fn(async () => summary);
+      const getRoomSummary = vi.fn(async (_roomId: string, _via?: string[]) => summary);
       const mx = { getRoomIdForAlias, getRoomSummary } as unknown as MatrixClient;
 
       const servers = await load(mx, '#private:remote.example.org');
 
-      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, named.slice(0, 5)]]);
-      expect(servers).toEqual(named.slice(0, 5));
-      // The room's own page, opened by its ID later, asks through the same servers.
-      expect(getDirectoryViaServers(mx, summary.room_id)).toEqual(named.slice(0, 5));
+      // The directory's own list, the very one: nothing cuts or copies it.
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, named]]);
+      expect(getRoomSummary.mock.calls[0]?.[1]).toBe(named);
+      expect(servers).toBe(named);
+      expect(getDirectoryViaServers(mx, summary.room_id)).toBeUndefined();
     });
   });
 

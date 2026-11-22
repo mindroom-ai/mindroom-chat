@@ -6,7 +6,12 @@ import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { SpaceProvider } from '../matrix/hooks/useSpace';
-import { getHomeRoomPath, getSpaceRoomPath, withSearchParam } from '../routes/pathUtils';
+import {
+  getHomeRoomPath,
+  getSpacePath,
+  getSpaceRoomPath,
+  withSearchParam,
+} from '../routes/pathUtils';
 import { useMentionClickHandler } from './useMentionClickHandler';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -284,6 +289,48 @@ describe('useMentionClickHandler', () => {
       '/!ops-space%3Aexample.org/!field-notes%3Aremote.example.org/%24entry-9?viaServers=remote.example.org'
     );
     expect(mocks.navigateRoom).not.toHaveBeenCalled();
+  });
+
+  it('opens a known space that is not joined on its own space route, or by roomPath with an event', () => {
+    const invitedSpace = makeRoom({
+      roomId: '!dock-crew:remote.example.org',
+      canonicalAlias: '#dock-crew:remote.example.org',
+      membership: KnownMembership.Invite,
+      isSpace: true,
+    });
+    const client = makeClient([invitedSpace]);
+    // Where roomPath would put it: below a space above it.
+    mocks.roomPath.mockImplementation((room, eventId) =>
+      getSpaceRoomPath('!old-fleet:remote.example.org', room, eventId)
+    );
+
+    const spaceClick = renderAndClick(client, {
+      mentionId: '#dock-crew:remote.example.org',
+      via: 'remote.example.org',
+    });
+    expect(spaceClick.event.defaultPrevented).toBe(true);
+    expect(mocks.navigatePath).toHaveBeenCalledWith(
+      withSearchParam(getSpacePath('!dock-crew:remote.example.org'), {
+        viaServers: 'remote.example.org',
+      })
+    );
+    expect(mocks.roomPath).not.toHaveBeenCalled();
+    expect(mocks.navigateSpace).not.toHaveBeenCalled();
+
+    mocks.navigatePath.mockReset();
+    const eventClick = renderAndClick(client, {
+      mentionId: '!dock-crew:remote.example.org',
+      eventId: '$notice-3',
+    });
+    expect(eventClick.event.defaultPrevented).toBe(true);
+    expect(mocks.roomPath).toHaveBeenCalledWith('!dock-crew:remote.example.org', '$notice-3');
+    expect(mocks.navigatePath).toHaveBeenCalledWith(
+      getSpaceRoomPath(
+        '!old-fleet:remote.example.org',
+        '!dock-crew:remote.example.org',
+        '$notice-3'
+      )
+    );
   });
 
   it('routes known non-joined rooms (invite or leave) through navigatePath using knownRoom.roomId and preserving viaServers', () => {
