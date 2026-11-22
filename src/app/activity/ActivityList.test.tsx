@@ -753,7 +753,7 @@ describe('ActivityList', () => {
       expect(loaders.get('!r39:x')).toHaveBeenCalledTimes(1);
       expect(loaders.get('!r40:x')).not.toHaveBeenCalled();
 
-      const sentinel = document.querySelector('[data-activity-sentinel]') as HTMLElement | null;
+      const sentinel = document.querySelector<HTMLElement>('[data-activity-sentinel]');
       expect(sentinel).toBeTruthy();
       expect(sentinel?.getAttribute('aria-hidden')).toBe('true');
       expect(list.contains(sentinel)).toBe(false);
