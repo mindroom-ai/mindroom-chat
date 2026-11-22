@@ -89,6 +89,10 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
     ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
     : undefined;
+// Rows that lead the sorted list's pinned cards and its other cards; no event ID is one.
+const FLAT_PINNED = 'flat:pinned';
+const FLAT_OTHERS = 'flat:others';
+const flatGroupOf = (key: string) => (key === FLAT_PINNED || key === FLAT_OTHERS ? key : undefined);
 const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
 type ThreadActionsMenuState = {
@@ -418,14 +422,17 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows]);
-  // The scroll anchor compares the rows in the order they render: the sorted list leads with its
-  // pinned cards, so a card pinned while the order is held moves there all the same.
+  // The scroll anchor compares the rows in the order they render. The sorted list leads with its
+  // pinned cards, also while the order is held, and a card that is pinned or unpinned moved even
+  // where its neighbours are the same: the two groups are sections to the anchor.
   const anchorRows = useMemo(() => {
+    if (threadSections) return shownRows;
     const pinned = (key: string) => pinning.pinnedEventIds.includes(key);
-    if (threadSections || !shownRows.some(pinned)) return shownRows;
-    return [...shownRows.filter(pinned), ...shownRows.filter((key) => !pinned(key))];
+    const others = shownRows.filter((key) => !pinned(key));
+    return [FLAT_PINNED, ...shownRows.filter(pinned), FLAT_OTHERS, ...others];
   }, [pinning.pinnedEventIds, shownRows, threadSections]);
-  const scrollAnchor = useCompactScrollAnchor(anchorRows, viewRef, sectionOfRow, contentRef);
+  const groupOfRow = threadSections ? sectionOfRow : flatGroupOf;
+  const scrollAnchor = useCompactScrollAnchor(anchorRows, viewRef, groupOfRow, contentRef);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(

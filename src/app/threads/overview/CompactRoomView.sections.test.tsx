@@ -585,7 +585,7 @@ describe('Compact order when the view switches under the pointer', () => {
     const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
     const nextIds = ['$d', '$c'];
     rerender(view(nextIds, false, nextRoom));
-    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
+    expect(fallback.mock.lastCall?.[0].filter((key) => key.startsWith('$'))).toEqual(nextIds);
     expect(rows()).toEqual(['$d', '$c']);
     rerender(view(['$c', '$d'], false, nextRoom));
     expect(rows()).toEqual(['$d', '$c']);
@@ -600,7 +600,27 @@ describe('Compact order when the view switches under the pointer', () => {
     state.pinned = ['$b'];
     rerender(view(ids, false));
     expect(rows()).toEqual(['$b', '$a', '$c']);
-    expect(anchor.mock.lastCall?.[0]).toEqual(rows());
+    expect(anchor.mock.lastCall?.[0].filter((key) => key.startsWith('$'))).toEqual(rows());
+  });
+
+  it('tells the scroll anchor which cards are pinned, so one that is unpinned moved', () => {
+    const anchor = vi.spyOn(scrollAnchor, 'useCompactScrollAnchor');
+    // Each card with its group: the last group row before it.
+    const groups = () => {
+      const [anchorRows, , groupOfRow] = anchor.mock.lastCall!;
+      let group: string | undefined;
+      return anchorRows.flatMap((key) => {
+        group = groupOfRow?.(key) ?? group;
+        return groupOfRow?.(key) ? [] : [`${key} in ${group}`];
+      });
+    };
+    state.pinned = ['$a'];
+    const { rerender } = render(view(['$a', '$b'], false));
+    expect(groups()).toEqual(['$a in flat:pinned', '$b in flat:others']);
+    // Unpinned, the card sorts below its neighbour: the two swap, and only one changed group.
+    state.pinned = [];
+    rerender(view(['$b', '$a'], false));
+    expect(groups()).toEqual(['$b in flat:others', '$a in flat:others']);
   });
 
   it('switches from Sections to flat using only the rows left after folding', () => {
