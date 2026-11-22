@@ -55,8 +55,9 @@ const effectiveLevel = (
   fallback: unknown,
   specDefault: number
 ): number | undefined => {
-  if (isRecord(map) && Object.prototype.hasOwnProperty.call(map, key) && map[key] !== undefined) {
-    return isFiniteLevel(map[key]) ? map[key] : undefined;
+  if (isRecord(map) && Object.prototype.hasOwnProperty.call(map, key)) {
+    const value = map[key];
+    if (value !== undefined) return isFiniteLevel(value) ? value : undefined;
   }
   if (fallback === undefined) return specDefault;
   return isFiniteLevel(fallback) ? fallback : undefined;
@@ -77,8 +78,12 @@ const isEligibleAgent = (userId: string, viewerId: string) =>
   !isMindroomOwnerUserId(userId);
 
 export type ModeratorGrantDecision =
-  | { readonly kind: 'grant' | 'levelRaised'; readonly level: number }
-  | { readonly kind: 'alreadySatisfied' | 'forbidden' | 'ineligible' | 'unreadable' };
+  | { readonly kind: 'grant'; readonly level: number }
+  | { readonly kind: 'levelRaised'; readonly level: number }
+  | { readonly kind: 'alreadySatisfied' }
+  | { readonly kind: 'forbidden' }
+  | { readonly kind: 'ineligible' }
+  | { readonly kind: 'unreadable' };
 
 /** Evaluates whether `viewerId` can grant `targetId` moderator rights using only effective levels. */
 export const evaluateModeratorGrant = (
@@ -129,7 +134,8 @@ export const grantRoleName = (tags: PowerLevelTags, level: number, t: TFunction)
   tags[level]?.name ?? t('sharedUi.powerLevels.team', { power: level });
 
 export type GrantFailure =
-  | { readonly kind: 'forbidden' | 'unreadable' }
+  | { readonly kind: 'forbidden' }
+  | { readonly kind: 'unreadable' }
   | { readonly kind: 'levelRaised'; readonly level: number }
   | { readonly kind: 'failed'; readonly detail: string };
 
@@ -174,12 +180,15 @@ export const formatGrantFailure = (
 ): string => {
   let error: string;
   if (failure.kind === 'forbidden') error = t('errors.forbidden');
-  else if (failure.kind === 'unreadable') error = t('sharedUi.inviteUserPrompt.rolePermissionsUnreadable');
-  else if (failure.kind === 'levelRaised') {
+  else if (failure.kind === 'unreadable') {
+    error = t('sharedUi.inviteUserPrompt.rolePermissionsUnreadable');
+  } else if (failure.kind === 'levelRaised') {
     error = t('sharedUi.inviteUserPrompt.roleRequirementChanged', {
       role: grantRoleName(tags, failure.level, t),
     });
-  } else error = failure.detail || t('errors.unknown');
+  } else {
+    error = failure.detail || t('errors.unknown');
+  }
   return t('sharedUi.inviteUserPrompt.roleFailed', {
     user,
     role: grantRoleName(tags, displayedLevel, t),
