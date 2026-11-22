@@ -25,7 +25,8 @@ describe('iOS incoming call ring resources', () => {
     expect(wav.toString('ascii', 12, 16)).toBe('fmt ');
     expect(wav.readUInt16LE(20)).toBe(1); // PCM
     expect(wav.readUInt16LE(22)).toBe(RING_CHANNELS);
-    expect(wav.readUInt32LE(24)).toBe(RING_SAMPLE_RATE);
+    expect(RING_SAMPLE_RATE).toBe(11_025);
+    expect(wav.readUInt32LE(24)).toBe(11_025);
     expect(wav.readUInt16LE(34)).toBe(RING_BITS_PER_SAMPLE);
     expect(wav.toString('ascii', 36, 40)).toBe('data');
 

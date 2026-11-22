@@ -27,7 +27,7 @@ import {
   type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
-import { chooseCallNotify } from './callRingTrace';
+import { chooseCallNotify } from './callRings';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { KnownMembership, RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
-import type { CallNotifyInputs } from './callRingTrace';
+import type { CallNotifyInputs } from './callRings';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
 import { takeDeviceCallLock } from './callResume';

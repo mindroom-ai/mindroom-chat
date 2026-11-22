@@ -417,6 +417,104 @@ describe('createMatrixClient message sends', () => {
     expect(fetchFn).toHaveBeenCalledTimes(4);
     expect(await outcome).toMatchObject({ name: 'ConnectionError' });
   });
+
+  it('keeps rings in their own queue so an expired ring does not reject a queued text message', async () => {
+    vi.useFakeTimers();
+    let finishFirstText!: () => void;
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/_matrix/client/versions')) throw new TypeError('Load failed');
+      if (url.includes('org.matrix.msc4075.rtc.notification')) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10_000);
+        });
+        throw new TypeError('Load failed');
+      }
+      if (url.endsWith('/txn-text-1')) {
+        await new Promise<void>((resolve) => {
+          finishFirstText = resolve;
+        });
+        return new Response(JSON.stringify({ event_id: '$text-1' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ event_id: '$text-2' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      userId: '@alice:example.org',
+      accessToken: 'token',
+      fetchFn,
+    });
+    const room = new Room('!room:example.org', mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    mx.store.storeRoom(room);
+
+    const ringSending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 30_000,
+        sender_ts: Date.now(),
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      'txn-ring'
+    );
+    const ringOutcome = ringSending.catch((error: Error) => error);
+    const firstText = mx.sendMessage(
+      room.roomId,
+      { msgtype: MsgType.Text, body: 'in flight' },
+      'txn-text-1'
+    );
+    const queuedText = mx.sendMessage(
+      room.roomId,
+      { msgtype: MsgType.Text, body: 'queued behind' },
+      'txn-text-2'
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.QUEUED);
+
+    // Let the ring exhaust its 30 s window and clear its own queue while text-2 is still queued.
+    await vi.advanceTimersByTimeAsync(36_000);
+    expect(await ringOutcome).toMatchObject({ name: 'ConnectionError' });
+    expect(room.getEventForTxnId('txn-ring')?.status).toBe(EventStatus.NOT_SENT);
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.QUEUED);
+
+    finishFirstText();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await firstText).toEqual({ event_id: '$text-1' });
+    expect(await queuedText).toEqual({ event_id: '$text-2' });
+    expect(room.getEventForTxnId('txn-text-2')?.status).toBe(EventStatus.SENT);
+  });
+
+  it('rejects a ring retry at exact expiry', async () => {
+    const { mx, room, fetchFn } = setup(['offline', '$late']);
+    const start = Date.now();
+    const sending = mx.sendEvent(
+      room.roomId,
+      EventType.RTCNotification as never,
+      {
+        notification_type: 'ring',
+        lifetime: 2_000,
+        sender_ts: start,
+        'm.relates_to': { rel_type: RelationType.Reference, event_id: '$membership' },
+      } as never,
+      'txn-ring-exact'
+    );
+    const outcome = sending.catch((error: Error) => error);
+
+    // First attempt fails immediately at t=0; retry backoff is 2_000 ms, landing right at expiry.
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+    expect(room.getEventForTxnId('txn-ring-exact')?.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe('createMatrixClient', () => {

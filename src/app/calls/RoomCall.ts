@@ -26,7 +26,8 @@ import {
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
 import { withdrawOwnMemberships } from './callResume';
-import { startCallRingTrace, type CallNotifyInputs } from './callRingTrace';
+import type { CallNotifyInputs } from './callRings';
+import { startCallRingTrace } from './callRingTrace';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 

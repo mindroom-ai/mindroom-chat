@@ -6,6 +6,7 @@ import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { isRoomMuted } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMemberListSettled } from '../matrix/hooks/useMemberListSettled';
 import { getSenderName } from '../matrix/room';
@@ -70,27 +71,46 @@ function RingAlerts({
   ring,
   line,
   notify,
+  muted,
   onOpen,
 }: {
   ring: IncomingRing;
   line: string;
   notify: boolean;
+  muted: boolean;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
+  const [hiddenOnIOS, setHiddenOnIOS] = useState(
+    () => isNativeIOS() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  );
   const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
   latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
 
+  useEffect(() => {
+    if (!isNativeIOS() || typeof document === 'undefined') return undefined;
+    const syncVisibility = () => setHiddenOnIOS(document.visibilityState === 'hidden');
+    syncVisibility();
+    document.addEventListener('visibilitychange', syncVisibility);
+    return () => document.removeEventListener('visibilitychange', syncVisibility);
+  }, []);
+
   useEffect(
-    () => (sound && !ring.silent ? startRingtone() : undefined),
-    [sound, ring.eventId, ring.silent]
+    () => (sound && !muted && !hiddenOnIOS ? startRingtone() : undefined),
+    [sound, muted, hiddenOnIOS, ring.eventId]
   );
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
-    if (!notify || !desktop || SystemNotification?.permission !== 'granted' || windowHasFocus()) {
+    if (
+      muted ||
+      !notify ||
+      !desktop ||
+      SystemNotification?.permission !== 'granted' ||
+      windowHasFocus()
+    ) {
       return undefined;
     }
     const note = new SystemNotification(latest.current.title, {
@@ -107,13 +127,16 @@ function RingAlerts({
       latest.current.onOpen();
     };
     return () => note.close();
-  }, [notify, desktop, ring.eventId, ring.roomId]);
+  }, [muted, notify, desktop, ring.eventId, ring.roomId]);
 
   return null;
 }
 
 export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const direct = useAtomValue(mDirectAtom).has(room.roomId);
+  const muted = !direct && isRoomMuted(mx.pushRules, room.roomId);
   const { caller, line } = useRingLine(room, ring);
   // A system notification cannot change its text once shown, so a ring's waits for the member
   // list, as a message's does, and names the caller the way the ring card does once the list is
@@ -127,7 +150,13 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
       aria-describedby={`incoming-call-${ring.eventId}`}
       data-incoming-call={room.roomId}
     >
-      <RingAlerts ring={ring} line={line(caller)} notify={membersSettled} onOpen={onOpen} />
+      <RingAlerts
+        ring={ring}
+        line={line(caller)}
+        notify={membersSettled}
+        muted={muted}
+        onOpen={onOpen}
+      />
       <Box alignItems="Center" gap="300">
         <CallMemberAvatar room={room} userId={ring.sender} size="400" />
         <Box direction="Column" style={{ minWidth: 0 }}>
@@ -182,30 +211,11 @@ export function IncomingCalls() {
   const { startCall } = useCallActions(mx);
   const { navigateRoom } = useRoomNavigate();
   const [ring, setRing] = useState<IncomingRing>();
-  // On native iOS, the sound owner (web ringtone vs APNs) is fixed the first time a ring event is
-  // seen so coming to the front does not start the web ringtone on top of APNs for the same event.
-  const soundOwners = useRef<Map<string, 'web' | 'apns'>>(new Map());
 
   useEffect(
     () =>
       watchRings(mx, {
-        onRing: (incoming) => {
-          let owner = soundOwners.current.get(incoming.eventId);
-          if (!owner) {
-            owner =
-              isNativeIOS() &&
-              (incoming.silent === true ||
-                (typeof document !== 'undefined' && document.visibilityState !== 'visible'))
-                ? 'apns'
-                : 'web';
-            soundOwners.current.set(incoming.eventId, owner);
-            if (soundOwners.current.size > 64) {
-              const oldest = soundOwners.current.keys().next().value;
-              if (oldest !== undefined) soundOwners.current.delete(oldest);
-            }
-          }
-          setRing(owner === 'apns' ? { ...incoming, silent: true } : incoming);
-        },
+        onRing: setRing,
         // Rejected on another of this account's devices: this one stops ringing too.
         onDeclined: (declined) =>
           setRing((current) => (current?.eventId === declined ? undefined : current)),

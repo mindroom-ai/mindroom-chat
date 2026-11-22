@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Synthesizes `ios/App/App/ring.wav`: 16-bit PCM mono, 22.05 kHz, 28.6 s (11 cycles of the bell
+ * Synthesizes `ios/App/App/ring.wav`: 16-bit PCM mono, 11.025 kHz, 28.6 s (11 cycles of the bell
  * pattern in `src/app/calls/ringtone.ts`), strictly under iOS's 30 s APNs custom sound limit.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const RING_SAMPLE_RATE = 22_050;
+export const RING_SAMPLE_RATE = 11_025;
 export const RING_CHANNELS = 1;
 export const RING_BITS_PER_SAMPLE = 16;
 export const RING_CYCLE_SECONDS = 2.6;

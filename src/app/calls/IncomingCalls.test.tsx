@@ -3,6 +3,8 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IPushRules } from 'matrix-js-sdk';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import type { IncomingRing } from './callRings';
 import { callPanelRoomAtom, callStartProblemAtom, type StartCallResult } from './callStore';
 import { IncomingCalls } from './IncomingCalls';
@@ -13,9 +15,14 @@ const calls = vi.hoisted(() => ({
   ring: undefined as ((ring: IncomingRing) => void) | undefined,
   /** What Answer's start resolves with; a test answers it after switching accounts. */
   answer: undefined as ((result: StartCallResult) => void) | undefined,
+  settings: false,
+  nativeIOS: false,
+  stopRingtone: vi.fn(),
+  startRingtone: vi.fn(),
 }));
 const client = vi.hoisted(() => ({
   clientRunning: true,
+  pushRules: undefined as IPushRules | undefined,
   getRoom: (roomId: string) => ({ roomId, getMember: () => null, membersLoaded: () => true }),
   getSafeUserId: () => '@me:calls.test',
   matrixRTC: { getRoomSession: () => ({}) },
@@ -26,7 +33,14 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: vi.fn() }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Maya' }));
-vi.mock('../preferences/useSetting', () => ({ useSetting: () => [false] }));
+vi.mock('../preferences/useSetting', () => ({ useSetting: () => [calls.settings] }));
+vi.mock('../native/nativeSso', () => ({ isNativeIOS: () => calls.nativeIOS }));
+vi.mock('./ringtone', () => ({
+  startRingtone: () => {
+    calls.startRingtone();
+    return calls.stopRingtone;
+  },
+}));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('./callRings', () => ({
   watchRings: (_mx: unknown, { onRing }: { onRing: (ring: IncomingRing) => void }) => {
@@ -101,8 +115,16 @@ const answerRing = (store: ReturnType<typeof createStore>): ReactTestRenderer =>
 
 afterEach(() => {
   client.clientRunning = true;
+  client.pushRules = undefined;
   calls.ring = undefined;
   calls.answer = undefined;
+  calls.settings = false;
+  calls.nativeIOS = false;
+  calls.startRingtone.mockClear();
+  calls.stopRingtone.mockClear();
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('IncomingCalls Answer', () => {
@@ -132,5 +154,104 @@ describe('IncomingCalls Answer', () => {
 
     expect(store.get(callStartProblemAtom)).toBeUndefined();
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
+  });
+});
+
+const mountAndRing = (store: ReturnType<typeof createStore>, eventId = '$ring') => {
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      <Provider store={store}>
+        <IncomingCalls />
+      </Provider>
+    );
+  });
+  act(() => {
+    calls.ring?.({
+      roomId: ROOM_ID,
+      eventId,
+      sender: '@maya:calls.test',
+      video: false,
+      expiresAt: Date.now() + 30_000,
+    });
+  });
+  return renderer;
+};
+
+describe('IncomingCalls ring alerts', () => {
+  it('stops the web ringtone on native iOS when the app becomes hidden', () => {
+    calls.settings = true;
+    calls.nativeIOS = true;
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+
+    const renderer = mountAndRing(createStore());
+    expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+    expect(calls.stopRingtone).not.toHaveBeenCalled();
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.stopRingtone).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(calls.startRingtone).toHaveBeenCalledTimes(2);
+
+    act(() => renderer.unmount());
+  });
+
+  it('silences ringtone and desktop alert for a muted non-m.direct room while keeping the card visible', () => {
+    calls.settings = true;
+    const notifications: string[] = [];
+    class RecordedNotification {
+      static permission = 'granted';
+
+      onclick: (() => void) | null = null;
+
+      constructor(title: string) {
+        notifications.push(title);
+      }
+
+      close() {}
+    }
+    vi.stubGlobal('Notification', RecordedNotification);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+
+    client.pushRules = {
+      global: {
+        override: [
+          {
+            rule_id: ROOM_ID,
+            default: false,
+            enabled: true,
+            conditions: [{ kind: 'event_match', key: 'room_id', pattern: ROOM_ID }],
+            actions: [],
+          },
+        ],
+      },
+    } as unknown as IPushRules;
+
+    // Non-m.direct muted room: card renders, no ringtone and no desktop notification.
+    const nonDirectStore = createStore();
+    const mutedRenderer = mountAndRing(nonDirectStore, '$muted-ring');
+    expect(
+      mutedRenderer.root
+        .findAllByType('section')
+        .filter((node) => node.props['data-incoming-call'] === ROOM_ID)
+    ).toHaveLength(1);
+    expect(calls.startRingtone).not.toHaveBeenCalled();
+    expect(notifications).toEqual([]);
+    act(() => mutedRenderer.unmount());
+
+    // An m.direct room keeps ringing.
+    const directStore = createStore();
+    directStore.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
+    const directRenderer = mountAndRing(directStore, '$direct-ring');
+    expect(calls.startRingtone).toHaveBeenCalledTimes(1);
+    expect(notifications).toHaveLength(1);
+    act(() => directRenderer.unmount());
   });
 });

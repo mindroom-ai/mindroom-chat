@@ -74,19 +74,21 @@ export const createMatrixFetchFn =
 
 const MESSAGE_RETRY_WINDOW_MS = 60_000;
 const DEFAULT_RING_RETRY_WINDOW_MS = 30_000;
+const RING_QUEUE_NAME = 'call-ring';
 const queuedAt = new WeakMap<MatrixEvent, number>();
+
+const isRingNotification = (event: MatrixEvent): boolean =>
+  matchesEnum(event.getType(), EventType.RTCNotification) &&
+  event.getContent().notification_type === 'ring';
 
 const ringRetryBounds = (
   event: MatrixEvent,
   startedAt: number
-): { startMs: number; windowMs: number } => {
-  if (!matchesEnum(event.getType(), EventType.RTCNotification)) {
-    return { startMs: startedAt, windowMs: MESSAGE_RETRY_WINDOW_MS };
+): { startMs: number; windowMs: number; ring: boolean } => {
+  if (!isRingNotification(event)) {
+    return { startMs: startedAt, windowMs: MESSAGE_RETRY_WINDOW_MS, ring: false };
   }
   const content = event.getContent();
-  if (content.notification_type !== 'ring') {
-    return { startMs: startedAt, windowMs: MESSAGE_RETRY_WINDOW_MS };
-  }
   const lifetime = content.lifetime;
   const windowMs =
     typeof lifetime === 'number' && Number.isFinite(lifetime) && lifetime > 0
@@ -97,20 +99,26 @@ const ringRetryBounds = (
     typeof senderTs === 'number' && Number.isFinite(senderTs)
       ? Math.min(senderTs, startedAt)
       : startedAt;
-  return { startMs, windowMs };
+  return { startMs, windowMs, ring: true };
 };
 
 const isPastRetryWindow = (event: MatrixEvent | null, delayMs = 0): boolean => {
   const startedAt = event ? queuedAt.get(event) : undefined;
   if (startedAt === undefined || !event) return false;
-  const { startMs, windowMs } = ringRetryBounds(event, startedAt);
-  return Date.now() + delayMs - startMs > windowMs;
+  const { startMs, windowMs, ring } = ringRetryBounds(event, startedAt);
+  const elapsed = Date.now() + delayMs - startMs;
+  return ring ? elapsed >= windowMs : elapsed > windowMs;
 };
 
 const retryMessageSend: MatrixScheduler['retryAlgorithm'] = (event, attempts, err) => {
   const delayMs = calculateRetryBackoff(err, attempts, true);
   return delayMs >= 0 && !isPastRetryWindow(event, delayMs) ? delayMs : -1;
 };
+
+// Keep call rings off the shared `message` queue so an expired ring's clearQueue cannot reject
+// unrelated queued text messages; everything else keeps the SDK's default queue algorithm.
+const queueMessageSend: MatrixScheduler['queueAlgorithm'] = (event) =>
+  isRingNotification(event) ? RING_QUEUE_NAME : MatrixScheduler.QUEUE_MESSAGES(event);
 
 // Receiving the server's copy through /sync clears the local echo's status.
 const isConfirmedBySync = (event: MatrixEvent): boolean => event.status === null;
@@ -125,7 +133,7 @@ const isConfirmedBySync = (event: MatrixEvent): boolean => event.status === null
  */
 class MessageSendScheduler extends MatrixScheduler {
   public constructor() {
-    super(retryMessageSend);
+    super(retryMessageSend, queueMessageSend);
   }
 
   // Runs once for each send and each user retry; automatic retries do not queue again.
