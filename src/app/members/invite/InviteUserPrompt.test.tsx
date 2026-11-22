@@ -511,8 +511,9 @@ const hydrateMembership = (
   mx: ReturnType<typeof makeMx>,
   room: ReturnType<typeof makeRoom>,
   userId: string,
-  membership: string
-): string => applyMembership(mx, room, userId, membership, { outOfBand: true });
+  membership: string,
+  eventId?: string
+): string => applyMembership(mx, room, userId, membership, { eventId, outOfBand: true });
 
 /** A room summary from /sync, which holds only the counts that changed. */
 const emitSummary = (
@@ -2010,6 +2011,61 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     }
   );
 
+  it.each(['after the invite call returned', 'while the invite call is on its way'] as const)(
+    'takes the event of a member loaded %s for what the room had before the invite, also when /sync repeats it',
+    async (moment) => {
+      const maya = '@maya:example.org';
+      let resolveLoad: (loaded: boolean) => void = () => undefined;
+      const { renderer, mx, room } = renderPrompt({
+        membersLoaded: false,
+        loadMembersIfNeeded: () =>
+          new Promise<boolean>((resolve) => {
+            resolveLoad = resolve;
+          }),
+      });
+      // The room does not know Maya when the invite starts. The list then has her knock, from
+      // before the invite.
+      const finishHydration = async () => {
+        hydrateMembership(mx, room, maya, 'knock', '$old');
+        room.state.membersLoaded = true;
+        await act(async () => {
+          resolveLoad(true);
+          await settle();
+        });
+      };
+      if (moment === 'after the invite call returned') {
+        await clickRowInvite(renderer, 'Maya Chen');
+        await finishHydration();
+      } else {
+        const finishInvite = holdNextInvite(mx);
+        await clickRowInvite(renderer, 'Maya Chen');
+        await finishHydration();
+        await finishInvite();
+      }
+      const action = () => getRowActionButton(getRowByText(renderer, 'Maya Chen')!);
+      expect(extractText(action())).toBe('Invited');
+      expect(action().props['aria-disabled']).toBe(true);
+
+      // /sync repeats the same event, in band: still no word on the invite.
+      expect(emitMembership(mx, room, maya, 'knock', '$old')).toBe('$old');
+      expect(extractText(action())).toBe('Invited');
+      expect(action().props['aria-disabled']).toBe(true);
+      typeSearch(renderer, maya);
+      expect(extractText(getDialog(renderer))).toContain('Already invited');
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(1);
+
+      // A new knock is one: she declined and knocks again, and can be invited.
+      emitMembership(mx, room, maya, 'knock', '$new');
+      expect(extractText(getDialog(renderer))).not.toContain('Already invited');
+      expect(extractText(action())).toBe('Invite');
+      expect(action().props['aria-disabled']).toBe(false);
+      await pressKeyInSearch(renderer, 'Enter');
+      expect(mx.invite).toHaveBeenCalledTimes(2);
+      expect(mx.invite).toHaveBeenLastCalledWith(room.roomId, maya, undefined);
+    }
+  );
+
   it.each(['after the invite call returned', 'before the invite call returns'] as const)(
     'offers the invite again when the invitee declines and knocks, and /sync has only the knock, %s',
     async (moment) => {
@@ -2290,7 +2346,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(textContentByRole(renderer, 'alert')).toBe('');
   });
 
-  it('scrolls the focused field into view when a short viewport makes the body the scroller', () => {
+  it('scrolls the focused field into view when the body, which scrolls what does not fit, changes its size', () => {
     const observers: { run: () => void; observed: unknown[]; connected: boolean }[] = [];
     class FakeResizeObserver {
       private readonly entry: (typeof observers)[number];
@@ -2312,10 +2368,8 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     const button = { tagName: 'BUTTON', scrollIntoView: vi.fn() };
     const page = { activeElement: field as unknown };
     const body = { contains: (node: unknown) => node === field || node === button };
-    let overflowY = 'visible';
     vi.stubGlobal('ResizeObserver', FakeResizeObserver);
     vi.stubGlobal('document', page);
-    vi.stubGlobal('getComputedStyle', () => ({ overflowY }));
     bodyNode = body;
 
     try {
@@ -2324,12 +2378,8 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       const observer = observers[0]!;
       expect(observer.observed).toEqual([body]);
 
-      // A tall viewport: only the rows scroll, and the fields are in sight.
-      observer.run();
-      expect(field.scrollIntoView).not.toHaveBeenCalled();
-
-      // The keyboard comes up: the body is the scroller now.
-      overflowY = 'auto';
+      // The keyboard comes up: the field goes to the nearest place in sight, which is where it
+      // is if it is in sight already.
       observer.run();
       expect(field.scrollIntoView).toHaveBeenCalledTimes(1);
       expect(field.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });

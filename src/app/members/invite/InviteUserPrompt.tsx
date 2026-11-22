@@ -497,13 +497,25 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       // It also fires with the power levels event for a member whose level changed: no word on
       // their membership.
       if (event.getType() !== (EventType.RoomMember as string)) return;
-      // A member loaded on request (out of band, while the lazy-loaded list fills) is the room as
-      // it was when it was asked, perhaps before the invite: only /sync answers an invite.
-      if (member.isOutOfBand()) return;
       const memberId = member.userId;
       const eventId = event.getId();
       const submission = submissionsRef.current.get(memberId);
       const pending = pendingSyncRef.current;
+      if (member.isOutOfBand()) {
+        // A member loaded on request (out of band, while the lazy-loaded list fills) is the room
+        // as it was when it was asked, perhaps before the invite: only /sync answers an invite.
+        // For an invite that started before the room knew this member, their event is what the
+        // room had then, which a /sync can repeat like any other.
+        if (eventId) {
+          if (submission && submission.priorEventId === undefined) {
+            submission.priorEventId = eventId;
+          }
+          if (pending.has(memberId) && pending.get(memberId) === undefined) {
+            updatePendingSync(new Map(pending).set(memberId, eventId));
+          }
+        }
+        return;
+      }
       // The event the room already had when the invite started (a /sync repeats known state)
       // says nothing about the invite: the user stays held back.
       const priorEventId = submission?.priorEventId ?? pending.get(memberId);
@@ -536,17 +548,15 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     };
   }, [client, room, bumpRoster, updatePendingSync]);
 
-  // When the keyboard comes up, the short layout makes the body the scroller, with the focused
-  // field (the note, at its foot) out of sight below. The browser scrolled to it on focus, before
-  // the viewport shrank, and does not again.
+  // When the keyboard comes up, the body scrolls what no longer fits, with the focused field (the
+  // note, at its foot) out of sight below. The browser scrolled to it on focus, before the
+  // viewport shrank, and does not again. A field that is in sight stays where it is.
   useEffect(() => {
     const body = bodyRef.current;
     if (!body || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
       const focused = document.activeElement;
       if (focused?.tagName !== 'INPUT' || !body.contains(focused)) return;
-      // On a tall viewport only the rows scroll, and the fields are always in sight.
-      if (getComputedStyle(body).overflowY === 'visible') return;
       focused.scrollIntoView({ block: 'nearest' });
     });
     observer.observe(body);

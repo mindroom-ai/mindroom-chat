@@ -15,7 +15,8 @@ import {
 // inside Safari's visual viewport when the virtual keyboard shrinks the screen: on a phone held
 // upright and on one held sideways, which is as wide as a tablet. Where that leaves too little
 // height to keep the search and the footer in place around the rows, they scroll together. The
-// moderator checkbox sits above the first row at every height, never in the footer.
+// moderator checkbox sits above the first row at every height, never in the footer. In a window
+// just too high for that, the rows keep a least height under an open note and a strip of alerts.
 // Checked with classic scrollbars in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set INVITE_MENU_SHOTS=<directory> to save screenshots.
 const SHOTS = process.env.INVITE_MENU_SHOTS;
@@ -30,6 +31,13 @@ const SHORT_PORTRAIT_HEIGHT = 280;
 const SHORT_LANDSCAPE_HEIGHT = 240;
 /** How far Safari pans the visual viewport down the page in the sideways check. */
 const LANDSCAPE_OFFSET_TOP = 60;
+/**
+ * Window heights from just above where everything scrolls as one to where it all fits with room
+ * to spare: the rows have a box of their own, which an open note and alerts could squeeze.
+ */
+const LOW_WINDOW_HEIGHTS = [490, 481, 540] as const;
+/** What the rows keep of it, whatever stands above and below them. */
+const LEAST_ROWS_HEIGHT = 160;
 const LONG_ID_LENGTH = 60;
 /** In no directory, so its row has the ID for a name. */
 const UNLISTED_ID = `@${'visiting.researcher.'.repeat(3)}guest:another-homeserver.example.org`;
@@ -489,6 +497,56 @@ const checkDesktopFraming = async (page: Page, dialog: Locator) => {
   await checkModeratorAboveRows(dialog);
 };
 
+// A window a little too high for the short layout, with the note open and a failed grant's alert
+// above the rows: the rows keep their least height, the body scrolls the rest, and an Invite
+// button can still be reached and pressed. Runs last: it invites people of the seeded room.
+const checkLowWindowKeepsRows = async (page: Page, seeded: Seed) => {
+  await page.route('**/state/m.room.power_levels**', (route) =>
+    route.request().method() === 'PUT'
+      ? route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({ errcode: 'M_FORBIDDEN', error: 'Not allowed in this room' }),
+        })
+      : route.continue()
+  );
+  // The centered dialog, which also leaves a margin above and below itself.
+  await page.setViewportSize({ width: DESKTOP.width, height: LOW_WINDOW_HEIGHTS[0] });
+  const dialog = await openInvite(page, seeded);
+  const parts = sheetParts(dialog);
+  await expect(parts.rows).toHaveCount(8, { timeout: 30_000 });
+  await parts.noteToggle.click();
+  await expect(parts.note).toBeVisible();
+  await expect(parts.moderatorCheckbox).toBeChecked();
+  await rowByName(dialog, 'Helper agent').getByRole('button').click();
+  await expect(dialog.getByRole('alert')).toHaveCount(1, { timeout: 15_000 });
+  await expect(dialog.getByRole('alert')).toContainText('could not give');
+
+  const people = ['Alice Adams', 'Bea Novak', 'Carlos Mendes'];
+  for (const [index, height] of LOW_WINDOW_HEIGHTS.entries()) {
+    await page.setViewportSize({ width: DESKTOP.width, height });
+    const viewport = { top: 0, height };
+    await expect(dialog.getByRole('alert')).toHaveCount(1);
+    expectInside(await box(dialog), viewport);
+    // Not the short layout: the rows scroll in a box of their own.
+    expect(await scrollsWithRows(dialog)).toEqual({ search: false, footer: false, title: false });
+    const rowsBox = await box(parts.rows.first().locator('xpath=ancestor::ul/..'));
+    expect(rowsBox.height).toBeGreaterThanOrEqual(LEAST_ROWS_HEIGHT - 1);
+
+    const action = rowByName(dialog, people[index] ?? '').getByRole('button');
+    await expectReachable(action, viewport);
+    await action.click();
+    await expect(action).toContainText('Invited');
+    await expectReachable(parts.note, viewport);
+    await expectReachable(parts.moderator, viewport);
+    await expectReachable(parts.search, viewport);
+    await shoot(page, `low-window-${height}`);
+  }
+
+  await parts.done.click();
+  await expect(dialog).toBeHidden();
+};
+
 const exercise = async (page: Page, engine: string) => {
   test.setTimeout(300_000);
   const seeded = await seed(engine);
@@ -540,6 +598,9 @@ const exercise = async (page: Page, engine: string) => {
     await expect(dialog).toBeHidden();
   }
   expect(inset[1]).toBeCloseTo(inset[0] ?? Number.NaN, 0);
+
+  await page.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
+  await checkLowWindowKeepsRows(page, seeded);
 };
 
 test('the invite directory sheet renders inline rows and mirrors cleanly (Chromium)', async ({

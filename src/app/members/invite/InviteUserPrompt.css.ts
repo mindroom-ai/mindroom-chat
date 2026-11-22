@@ -78,15 +78,16 @@ export const FilterChip = style({
 
 // Everything below the title. On a tall viewport the search, the filters, the moderator checkbox
 // and the footer stay in place and only the rows scroll; on a short one they scroll together, so
-// the search field, the checkbox, every row and the note can all be reached, in that order.
+// the search field, the checkbox, every row and the note can all be reached, in that order. At
+// every height the body scrolls what does not fit: between the two, an open note under a strip
+// of alerts leaves the rows their least height (`ListArea`) and the body scrolls the rest.
 export const Body = style({
   flexGrow: 1,
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column',
-  '@container': {
-    [shortViewport]: { overflowY: 'auto', overscrollBehavior: 'contain' },
-  },
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
 });
 
 // Moderator grants that failed, between the controls and the rows. A long error or a row of them
@@ -124,15 +125,18 @@ export const GrantAlertText = style({
   overflowWrap: 'anywhere',
 });
 
+// The rows scroll in a box of their own that never gets lower than two and a half of them,
+// whatever stands above and below it. On a short viewport they are as high as they are and
+// scroll with the rest: one scroller, never one inside another.
 export const ListArea = style({
   flexGrow: 1,
-  minHeight: 0,
+  minBlockSize: toRem(160),
   overflowY: 'auto',
   overscrollBehavior: 'contain',
   paddingInline: config.space.S200,
   paddingBlockEnd: config.space.S200,
   '@container': {
-    [shortViewport]: { flexShrink: 0, overflowY: 'visible' },
+    [shortViewport]: { flexShrink: 0, minBlockSize: 0, overflowY: 'visible' },
   },
 });
 
