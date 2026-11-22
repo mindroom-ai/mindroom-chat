@@ -383,6 +383,10 @@ def main() -> int:
                 return "the refresh did not finish"
             if not lines[done].endswith("rows=13"):
                 return "the refresh did not end with the room's 13 rows (the list's second page)"
+            # The second page is a request of its own, after the first rows and before the refresh ends: a page of
+            # 10 roots, as main reads the list.
+            if not any((found := read(line)) and found[:2] == ("GET", "threads") for line in lines[painted:done]):
+                return "the list's second page was not read after the first rows showed"
             all_reads = [found for line in lines[first:done] if (found := read(line))]
             print(f"  long_thread: first rows after {(at(painted) - at(first)).total_seconds() * 1000:.0f} ms, "
                   f"{requests} request(s), {size} bytes; every thread read after "
