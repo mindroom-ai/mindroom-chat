@@ -24,7 +24,7 @@ enum PushedEvent {
         // The room's state is read beside the events when that is due, or the read under way is waited for: the
         // thread's screen folds voice echoes with the same trust, and what the push is must be the same there
         // and here. When it cannot be read, the trust the app last read stands, or none (nothing is hidden).
-        let trust = RoomTrust.of(roomId, cached: ResolvedCache.get(userId: userId, roomId: roomId))
+        let trust = RoomTrust.of(roomId, userId: userId, cached: ResolvedCache.get(userId: userId, roomId: roomId))
         let trustRead = Task { await trust.refresh { await roomState(client, roomId: roomId) } }
         var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: pushedId)
         // A room's newer keys reach the watch only through sync, which runs while the app is in front: when
@@ -49,13 +49,14 @@ enum PushedEvent {
         let rootId = ThreadSnapshot.threadRootId(of: event)
         let threadJsons = rootId == eventId ? jsons : (try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId)) ?? []
         if let events = threadEvents(threadJsons) {
+            let accounts = trust.accounts
             var pushed = threadSnapshot(events, trust: trust, userId: userId).pushed(eventId: eventId)
             // A card is the same with any trust: it shows, and Approve and Deny act, without the room's state.
             // Whether a question is still the thread's open one can turn on a voice echo, so in a thread with
-            // one that waits for the read.
-            if case .approval = pushed {} else if ThreadSnapshot.kept(events) != nil {
+            // one that waits for the read, and is built again when the read changed whom the room trusts.
+            if case .approval = pushed {} else if ThreadSnapshot.hasEcho(events) {
                 await trustRead.value
-                pushed = threadSnapshot(events, trust: trust, userId: userId).pushed(eventId: eventId)
+                if trust.accounts != accounts { pushed = threadSnapshot(events, trust: trust, userId: userId).pushed(eventId: eventId) }
             }
             switch pushed {
             case let .approval(card, actionable): return .approval(card, actionable: actionable, roomId: roomId)

@@ -226,14 +226,17 @@ func mediaSource(_ content: JSON) -> String? {
 public typealias ThreadEvents = (root: JSON, related: [JSON])
 
 extension ThreadSnapshot {
-    /// What to keep of a thread's events to build it again when the room's trust changes. Nothing when no
-    /// message is marked as a voice echo: no trust changes such a thread. Else the events with, of each
-    /// message's edits, only the one `build` shows (`shownEdits`; a streamed reply has an edit for each step,
-    /// with all of the text so far). A card's edits all stay: a card reads each of them.
+    /// Whether a message of the thread is marked as a voice echo: no trust changes a thread without one.
+    public static func hasEcho(_ events: ThreadEvents) -> Bool {
+        events.related.contains { $0["type"] as? String == "m.room.message" && jsonBool($0.content[VoiceEcho.flag]) == true }
+    }
+
+    /// What to keep of a thread's events to build it again when the room's trust changes. Nothing when it has
+    /// no voice echo (`hasEcho`). Else the events with, of each message's edits, only the one `build` shows
+    /// (`shownEdits`; a streamed reply has an edit for each step, with all of the text so far). A card's edits
+    /// all stay: a card reads each of them.
     public static func kept(_ events: ThreadEvents) -> ThreadEvents? {
-        guard events.related.contains(where: {
-            $0["type"] as? String == "m.room.message" && jsonBool($0.content[VoiceEcho.flag]) == true
-        }) else { return nil }
+        guard hasEcho(events) else { return nil }
         let isEdit = { (event: JSON) in event.replacedEventId != nil && event["type"] as? String != ApprovalCard.eventType }
         let others = events.related.filter { !isEdit($0) }
         return (events.root, others + shownEdits(of: [events.root] + others, among: events.related.filter(isEdit)).values)

@@ -63,10 +63,6 @@ final class RoomModel: ObservableObject {
     /// The list's root of each thread whose row is still what the list says (`ThreadListEntry`): the row is
     /// made again from it when the room's trust changes.
     private var unread: [String: JSON] = [:]
-    /// Whether this model writes `ResolvedCache`: the default room's, which the app shows, does, until another
-    /// takes its place (a read of the state may still be under way then). The background refresh's own model
-    /// and the model of a room a notification opened only read it, so that none overwrites what another resolved.
-    var persistsResolved: Bool
     private var stateRead: Task<Void, Never>?
     /// The thread rows by root, kept when the list cannot be read (offline): what the list says of a thread
     /// (`ThreadListEntry`) until the thread has been read, then its snapshot's row.
@@ -77,12 +73,17 @@ final class RoomModel: ObservableObject {
     private var sentHere: Set<String> = []
     private let client: Client
 
+    /// `persistsResolved`: whether the room's trust writes `ResolvedCache` from now on, with what it already
+    /// read. The default room's model, which the app shows, asks for that, until another takes its place. The
+    /// background refresh's own model and the model of a room a notification opened only read the cache.
     init(room: Room, userId: String, client: Client, persistsResolved: Bool = false) {
         self.room = room
         self.userId = userId
         self.client = client
-        self.persistsResolved = persistsResolved
-        trust = RoomTrust.of(room.id(), cached: ResolvedCache.get(userId: userId, roomId: room.id()))
+        let roomId = room.id()
+        let trust = RoomTrust.of(roomId, userId: userId, cached: ResolvedCache.get(userId: userId, roomId: roomId))
+        if persistsResolved { trust.persist = { ResolvedCache.set($0, userId: userId, roomId: roomId) } }
+        self.trust = trust
         roomName = room.displayName() ?? room.id()
         weak var model: RoomModel?
         feed = TimelineFeed { model?.scheduleRefresh() }
@@ -128,7 +129,6 @@ final class RoomModel: ObservableObject {
             _ = try await room.sendStateEventRaw(eventType: ThreadTags.eventType, stateKey: ThreadTags.resolvedStateKey(root: rootId),
                                                  content: String(decoding: data, as: UTF8.self))
             trust.resolve(rootId)
-            if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
             threadRows[rootId] = nil
             unanswered.removeAll { $0.rootId == rootId }
             // Shows the rows without it now, and reads the room's state again: a read that began before the tag
@@ -152,7 +152,6 @@ final class RoomModel: ObservableObject {
     /// rows that changed (a model that has read no list has none, and leaves the last counts as they are).
     private func stateChanged() {
         let before = threadRows
-        if persistsResolved { ResolvedCache.set(resolved.roots, userId: userId, roomId: room.id()) }
         threadRows = threadRows.filter { !resolved.roots.contains($0.key) }
         for (rootId, events) in keptEvents {
             let snapshot = threadSnapshot(events, trust: trust, userId: userId)

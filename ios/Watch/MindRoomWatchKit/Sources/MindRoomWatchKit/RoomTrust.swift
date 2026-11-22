@@ -7,14 +7,15 @@ import Foundation
 /// read succeeds.
 @MainActor
 public final class RoomTrust {
-    private static var rooms: [String: RoomTrust] = [:]
+    private static var rooms: [[String]: RoomTrust] = [:]
 
-    /// The room's trust, the same object for as long as the app runs. `cached`: the resolved threads it starts
-    /// with, asked for only when it is made.
-    public static func of(_ roomId: String, cached: @autoclosure () -> Set<String>) -> RoomTrust {
-        if let trust = rooms[roomId] { return trust }
+    /// The room's trust for the account signed in, the same object for as long as the app runs. Another account
+    /// has its own: what the last one read, or still reads, is not this one's. `cached`: the resolved threads
+    /// it starts with, asked for only when it is made.
+    public static func of(_ roomId: String, userId: String, cached: @autoclosure () -> Set<String>) -> RoomTrust {
+        if let trust = rooms[[userId, roomId]] { return trust }
         let trust = RoomTrust(resolved: cached())
-        rooms[roomId] = trust
+        rooms[[userId, roomId]] = trust
         return trust
     }
 
@@ -23,12 +24,18 @@ public final class RoomTrust {
     /// Sends once a read changed `accounts` or the resolved threads: what was built with the old ones is built
     /// again.
     public let changed = PassthroughSubject<Void, Never>()
+    /// Keeps the resolved threads for the next launch; the one that writes them sets it (the default room's
+    /// model). It is given them then, as a read before it came may have changed them, and at each change after.
+    public var persist: ((Set<String>) -> Void)? { didSet { persist?(resolved.roots) } }
     private var reading: Task<Void, Never>?
 
     public init(resolved: Set<String> = []) { self.resolved = ResolvedRoots(resolved) }
 
     /// A thread was resolved from this watch: a read that began before does not open it again (`ResolvedRoots`).
-    public func resolve(_ rootId: String) { resolved.resolve(rootId) }
+    public func resolve(_ rootId: String) {
+        resolved.resolve(rootId)
+        persist?(resolved.roots)
+    }
 
     /// The room came to the front: the next `refresh` reads its state.
     public func expire() { resolved.expire() }
@@ -44,6 +51,7 @@ public final class RoomTrust {
                 let before = (accounts, resolved.roots)
                 resolved.endRead(state.map(ThreadTags.resolvedRoots(state:)))
                 if let state { accounts = TrustedAccounts.inRoom(state: state) }
+                if resolved.roots != before.1 { persist?(resolved.roots) }
                 if (accounts, resolved.roots) != before { changed.send() }
             }
         }
