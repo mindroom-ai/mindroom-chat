@@ -26,8 +26,10 @@ vi.mock('folds', async (original) => ({
     </div>
   ),
 }));
+// Like the real one: a picture when the account has one, else its fallback.
 vi.mock('../../avatars/UserAvatar', () => ({
-  UserAvatar: ({ alt }: { alt: string }) => <span data-avatar={alt} />,
+  UserAvatar: ({ alt, src }: { alt: string; src?: string }) =>
+    src ? <img data-avatar={alt} alt={alt} src={src} /> : <span data-avatar={alt} />,
 }));
 // jsdom lays nothing out, so every element counts as shown for the trap.
 vi.mock('focus-trap-react', async (original) => {
@@ -62,7 +64,7 @@ const CAROL: AccountMenuAccount = {
 
 const open = (
   others: AccountMenuAccount[],
-  options?: { withManage?: boolean; below?: boolean }
+  options?: { withManage?: boolean; below?: boolean; avatarUrl?: string }
 ) => {
   const withManage = options?.withManage ?? others.length > 0;
   const anchor = document.createElement('button');
@@ -80,7 +82,11 @@ const open = (
   render(
     <AccountMenu
       anchor={anchor}
-      active={{ userId: '@alice:mindroom.chat', displayName: 'Alice' }}
+      active={{
+        userId: '@alice:mindroom.chat',
+        displayName: 'Alice',
+        avatarUrl: options?.avatarUrl,
+      }}
       others={others}
       below={options?.below}
       {...props}
@@ -159,6 +165,21 @@ describe('AccountMenu', () => {
     expect(bob.querySelector('[data-avatar="Bob"]')).toBeTruthy();
   });
 
+  it('keeps account pictures out of the accessibility tree, where a menu holds only its items', () => {
+    open([{ ...BOB, avatarUrl: 'blob:bob-picture' }], { avatarUrl: 'blob:alice-picture' });
+    const menu = screen.getByRole('menu');
+    // Both pictures are drawn, the signed-in account's in the header and Bob's in his row.
+    expect(menu.querySelector('img[data-avatar="Alice"]')).toBeTruthy();
+    expect(menu.querySelector('img[data-avatar="Bob"]')).toBeTruthy();
+    expect(within(menu).queryAllByRole('img')).toEqual([]);
+    // The names they would have read out are still there: the menu's and the row's.
+    expect(menu.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(screen.getByText('Alice')).toBeTruthy();
+    expect(
+      screen.getByRole('menuitem', { name: 'Switch to account Bob (@bob:matrix.org)' })
+    ).toBeTruthy();
+  });
+
   it('names Manage by its visible label and describes it with the Other accounts heading', () => {
     open([BOB]);
     // Voice control speaks the visible word, so the name is that word in every language.
@@ -190,15 +211,30 @@ describe('AccountMenu', () => {
 
   it('closes before opening Settings, managing accounts, adding an account or signing out', () => {
     const { onClose, onOpenSettings, onManageAccounts, onAddAccount, onSignOut } = open([BOB]);
+    const calls: string[] = [];
+    const record = (name: string) => () => {
+      calls.push(name);
+    };
+    onClose.mockImplementation(record('close'));
+    onOpenSettings.mockImplementation(record('settings'));
+    onManageAccounts?.mockImplementation(record('manage'));
+    onAddAccount.mockImplementation(record('add account'));
+    onSignOut.mockImplementation(record('logout'));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Manage' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add Account' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Logout' }));
-    expect(onClose).toHaveBeenCalledTimes(4);
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
-    expect(onManageAccounts).toHaveBeenCalledTimes(1);
-    expect(onAddAccount).toHaveBeenCalledTimes(1);
-    expect(onSignOut).toHaveBeenCalledTimes(1);
+    // Each press closes the menu first, then acts, so what opens next finds the menu gone.
+    expect(calls).toEqual([
+      'close',
+      'settings',
+      'close',
+      'manage',
+      'close',
+      'add account',
+      'close',
+      'logout',
+    ]);
   });
 
   it('walks every actionable item in visual order with the arrow keys and closes on Escape', async () => {
@@ -212,7 +248,7 @@ describe('AccountMenu', () => {
     expect(document.activeElement).toBe(anchor);
     const arrow = (key: 'ArrowDown' | 'ArrowUp', keyCode: number) =>
       fireEvent.keyDown(document.activeElement ?? document.body, { key, keyCode, which: keyCode });
-    // Settings -> Manage -> Bob -> Carol -> Add Account -> Sign out -> wraps to Settings
+    // Settings -> Manage -> Bob -> Carol -> Add Account -> Logout -> wraps to Settings
     for (const item of items) {
       arrow('ArrowDown', 40);
       expect(document.activeElement).toBe(item);

@@ -50,8 +50,10 @@ function AccountAvatar({
   src?: string;
   size: '200' | '500';
 }) {
+  // Decoration: the name beside it, or the row's label, already says whose picture it is, and a
+  // menu may hold nothing but its items, so the picture stays out of the accessibility tree.
   return (
-    <Avatar size={size} radii="Pill">
+    <Avatar size={size} radii="Pill" aria-hidden="true">
       <UserAvatar
         userId={userId}
         src={src}
@@ -67,7 +69,7 @@ function AccountAvatar({
 /**
  * The menu of the rail's account button: a centered header card for the signed-in account with a
  * Settings pill, an "Other accounts" well with Manage when more than one account is signed in,
- * and a split Add Account / Sign out footer. It opens beside the button; arrow keys walk every
+ * and a split Add Account / Logout footer. It opens beside the button; arrow keys walk every
  * actionable item in visual order, and Escape or a press elsewhere closes it. Like the app's
  * other menus it leaves keyboard focus to `installOverlayFocus`: opened with Enter or Space it
  * focuses Settings, and a key that closes it gives focus back to the button. On a short window

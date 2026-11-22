@@ -167,7 +167,7 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
       React.createElement('button', { 'aria-label': 'Settings', onClick: onOpenSettings }),
       onManageAccounts &&
         React.createElement('button', {
-          'aria-label': 'Manage accounts',
+          'aria-label': 'Manage',
           onClick: onManageAccounts,
         }),
       others.map((account) =>
@@ -281,22 +281,22 @@ describe('SettingsTab', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('shows the Manage accounts trigger only when multiple sessions exist', () => {
+  it('shows the Manage trigger only when multiple sessions exist', () => {
     const { renderer: multiSessionRenderer } = renderSettingsTab();
     openAccountMenu(multiSessionRenderer);
-    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage accounts')).toBeDefined();
+    expect(findButtonByAriaLabel(multiSessionRenderer, 'Manage')).toBeDefined();
 
     const { renderer: singleSessionRenderer } = renderSettingsTab([activeSession]);
     openAccountMenu(singleSessionRenderer);
-    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage accounts')).toBeUndefined();
+    expect(findButtonByAriaLabel(singleSessionRenderer, 'Manage')).toBeUndefined();
   });
 
-  it('opens the account switcher from the Manage accounts trigger', async () => {
+  it('opens the account switcher from the Manage trigger', async () => {
     const { renderer, store } = renderSettingsTab();
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
     });
 
     expect(
@@ -377,7 +377,7 @@ describe('SettingsTab', () => {
     const { renderer } = renderSettingsTab();
     openAccountMenu(renderer);
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage')!.props.onClick();
     });
     const dialogs = () =>
       renderer.root.findAll(
