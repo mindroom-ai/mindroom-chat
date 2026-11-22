@@ -1,18 +1,16 @@
 import { useAtomValue } from 'jotai';
-import { type RefObject, useEffect, useRef } from 'react';
+import { type RefObject } from 'react';
 import { imageViewerOpenAtom } from './imageViewerState';
+import {
+  type InteractiveSwipeBegin,
+  SWIPE_PRIORITY,
+  useInteractiveSwipe,
+} from './interactiveSwipe';
+import { EDGE_START_MAX_X } from './interactiveSwipeMath';
 import { phoneLayerOpenAtom } from './phoneNavDrawer';
-import { hasOpenOverlay } from '../lib/openOverlay';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 
-export const EDGE_START_MAX_X = 28;
-const MIN_SWIPE_DISTANCE_X = 72;
-const MAX_VERTICAL_DRIFT = 64;
-const HANDLED_EVENT_FLAG = '__mindroomEdgeSwipeHandled';
-
-type TouchEventWithFlag = TouchEvent & {
-  [HANDLED_EVENT_FLAG]?: boolean;
-};
+export { EDGE_START_MAX_X };
 
 export type EdgeSwipeDirection = 'back' | 'forward';
 
@@ -22,6 +20,8 @@ export const useEdgeSwipe = ({
   enabled = true,
   onSwipe,
   within,
+  priority,
+  begin,
 }: {
   blockStandaloneWebApp?: boolean;
   direction: EdgeSwipeDirection;
@@ -33,97 +33,23 @@ export const useEdgeSwipe = ({
    * dialog open over its layer, or opening before the finger lifts, takes the touch.
    */
   within?: RefObject<Element>;
+  priority?: number;
+  begin?: InteractiveSwipeBegin;
 }): void => {
-  const onSwipeRef = useRef(onSwipe);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
   const pageCovered = !within && (imageViewerOpen || phoneLayerOpen);
 
-  useEffect(() => {
-    onSwipeRef.current = onSwipe;
-  }, [onSwipe]);
-
-  useEffect(() => {
-    if (!enabled || standaloneBlocked || pageCovered) return;
-    if (typeof window === 'undefined') return;
-
-    let tracking = false;
-    // Far enough to go back or forward when the finger lifts. The swipe acts on the lift, not
-    // mid-move: a navigation while the finger still moves leaves the rest of the touch to the
-    // browser, which takes it as its own back or forward gesture and steps a second time.
-    let armed = false;
-    let startX = 0;
-    let startY = 0;
-    const covered = () => hasOpenOverlay(within?.current);
-    const blocked = (event: TouchEvent) =>
-      (!!within && !within.current?.contains(event.target as Node | null)) || covered();
-    const reset = () => {
-      tracking = false;
-      armed = false;
-      startX = 0;
-      startY = 0;
-    };
-
-    const handleTouchStart = (event: TouchEventWithFlag) => {
-      if (event[HANDLED_EVENT_FLAG] || event.touches.length !== 1) {
-        reset();
-        return;
-      }
-
-      const touch = event.touches[0]!;
-      const startsAtEdge =
-        direction === 'back'
-          ? touch.clientX <= EDGE_START_MAX_X
-          : touch.clientX >= window.innerWidth - EDGE_START_MAX_X;
-      // The edge first: most touches start away from it, and the layer check scans the document.
-      if (!startsAtEdge || blocked(event)) {
-        reset();
-        return;
-      }
-
-      tracking = true;
-      startX = touch.clientX;
-      startY = touch.clientY;
-    };
-
-    const handleTouchMove = (event: TouchEventWithFlag) => {
-      if (!tracking || event[HANDLED_EVENT_FLAG]) return;
-      if (covered() || event.touches.length !== 1) {
-        reset();
-        return;
-      }
-
-      const touch = event.touches[0]!;
-      const directionMultiplier = direction === 'back' ? 1 : -1;
-      const distanceX = (touch.clientX - startX) * directionMultiplier;
-      const driftY = Math.abs(touch.clientY - startY);
-      if (driftY > MAX_VERTICAL_DRIFT && driftY > Math.abs(distanceX)) {
-        reset();
-        return;
-      }
-
-      if (distanceX > 8 && driftY <= MAX_VERTICAL_DRIFT) event.preventDefault();
-      armed = distanceX >= MIN_SWIPE_DISTANCE_X && driftY <= MAX_VERTICAL_DRIFT;
-      if (armed) event[HANDLED_EVENT_FLAG] = true;
-    };
-
-    const handleTouchEnd = () => {
-      const swiped = tracking && armed && !covered();
-      reset();
-      if (swiped) onSwipeRef.current();
-    };
-
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', reset, { passive: true });
-
-    return () => {
-      window.removeEventListener('touchstart', handleTouchStart);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchcancel', reset);
-    };
-  }, [direction, enabled, pageCovered, standaloneBlocked, within]);
+  useInteractiveSwipe({
+    zone: 'edge',
+    edge: direction === 'back' ? 'start' : 'end',
+    direction: 'inward',
+    priority: priority ?? (within ? SWIPE_PRIORITY.OVERLAY : SWIPE_PRIORITY.PAGE),
+    enabled: enabled && !standaloneBlocked && !pageCovered,
+    within,
+    blockStandaloneWebApp,
+    onCommit: onSwipe,
+    begin,
+  });
 };
