@@ -52,6 +52,7 @@ export function useCompactBlocks(options: Options) {
       saved: memory.get(roomId),
       checked: false,
       placed: false,
+      occupied: [] as string[],
       gesture: undefined as { id: string; pointer?: number } | undefined,
     }),
     [memory, roomId]
@@ -99,6 +100,9 @@ export function useCompactBlocks(options: Options) {
       : geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS
       ? seed
       : band(visible.slice(0, 1));
+  // Keep the visible rows in place while a partial restore discovers its new prefix.
+  const [occupiedFirst, occupiedLast] = band(state.occupied);
+  const keepOccupied = back && indexPending && state.occupied.some((id) => index.has(id));
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
@@ -113,7 +117,12 @@ export function useCompactBlocks(options: Options) {
     const group: CompactBlockRow[] = [];
     let gapIndex = 0;
     for (let slot = start; slot < end; slot += 1) {
-      const inBand = slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS;
+      const inBand =
+        (slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS) ||
+        (keepOccupied &&
+          slot >= occupiedFirst &&
+          slot <= occupiedLast &&
+          (occupiedLast - occupiedFirst <= BUFFER_BLOCKS || slot === occupiedFirst));
       const seeking = targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS;
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
@@ -190,7 +199,11 @@ export function useCompactBlocks(options: Options) {
           edge = next + measuredGap;
         }
       }
-      if (back && !state.placed) return changed;
+      if (back && !state.placed) {
+        if (settle && indexPending && view.scrollTop > 0 && visible.length)
+          state.occupied = visible;
+        return changed;
+      }
       if (visible.length) geometry.visible = visible;
       geometry.order = order;
       const [start, end] = band(geometry.visible);
@@ -220,6 +233,7 @@ export function useCompactBlocks(options: Options) {
     };
     document.fonts?.addEventListener('loadingdone', fontsChanged);
     const track = (event: Event) => {
+      if (event.type === 'wheel') state.placed = true;
       const pointer: number | undefined = (event as Partial<PointerEvent>).pointerId;
       if (event.type === 'pointerdown' || event.type === 'dragstart') {
         const node = event.target;
@@ -235,12 +249,14 @@ export function useCompactBlocks(options: Options) {
     const events = ['pointerdown', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'blur'];
     events.forEach((event) => window.addEventListener(event, track, true));
     view.addEventListener('scroll', scroll, { passive: true });
+    view.addEventListener('wheel', track, { passive: true });
     return () => {
       observer?.disconnect();
       events.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
+      view.removeEventListener('wheel', track);
     };
   });
 

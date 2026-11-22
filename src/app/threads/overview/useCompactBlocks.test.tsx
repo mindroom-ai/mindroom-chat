@@ -199,18 +199,18 @@ it('does not insert a stale probe above the reader after a late font change', ()
 });
 
 it('retains a saved card when the partial index clamps the restore', () => {
-  const id = '$row10';
+  const id = '$row23';
   const memory: ScrollAnchorMemory = new Map([
     ['!room', { scrollTop: 1, anchors: [{ key: id, offset: 160 }] }],
   ]);
   const { container, rerender } = render(
-    <List memory={memory} shown={{ cards: ids.slice(0, 11) }} indexPending />
+    <List memory={memory} shown={{ cards: ids.slice(0, 24) }} indexPending />
   );
   const view = container.querySelector<HTMLElement>('[data-view]')!;
-  Object.defineProperty(view, 'scrollHeight', { configurable: true, value: 1030 });
-  view.scrollTop = 550;
+  Object.defineProperty(view, 'scrollHeight', { configurable: true, value: 1130 });
+  view.scrollTop = 650;
   // Insets can increase the native range before the anchor lands.
-  Object.defineProperty(view, 'scrollHeight', { value: 1080 });
+  Object.defineProperty(view, 'scrollHeight', { value: 1180 });
   tick(1);
   rerender(
     <List
@@ -219,7 +219,31 @@ it('retains a saved card when the partial index clamps the restore', () => {
       indexPending
     />
   );
-  expect(view.querySelector('[data-scroll-anchor="$row10"]')).not.toBeNull();
+  expect(view.querySelector('[data-scroll-anchor="$row23"]')).not.toBeNull();
+  // Discover the reordered prefix without dropping the rows at the current offset.
+  expect(view.querySelector('[data-scroll-anchor="$row6"]')).not.toBeNull();
+});
+
+it('lets a wheel take over a clamped pending restore', () => {
+  const id = '$row38';
+  const memory: ScrollAnchorMemory = new Map([
+    ['!room', { scrollTop: 1, anchors: [{ key: id, offset: 160 }] }],
+  ]);
+  const { container } = render(
+    <List memory={memory} shown={{ cards: ids.slice(0, 40) }} indexPending />
+  );
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(6);
+  act(() => {
+    view.scrollTop = 3400;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  act(() => {
+    view.dispatchEvent(new WheelEvent('wheel', { deltaY: -3400 }));
+    view.scrollTop = 0;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  expect(view.querySelector('[data-scroll-anchor="$row0"]')).not.toBeNull();
 });
 
 it('can place a warm Back while occupied spacer heights await a font refresh', () => {
