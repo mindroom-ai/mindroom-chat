@@ -146,17 +146,17 @@ export const useCompactScrollFallback = (
   const compensate = useCallback(
     (view: HTMLElement, nextRows: readonly string[], rowSection?: SectionOfRow) => {
       const before = cardsInViewRef.current;
-      if (pausedRef?.current && (!before || before.order === nextRows || keepsOrder(before.order, nextRows))) {
+      if (
+        pausedRef?.current &&
+        (!before || before.order === nextRows || keepsOrder(before.order, nextRows))
+      ) {
         pendingDeltaRef.current = 0;
         readerScrolledRef.current = false;
         cardsInViewRef.current = cardsInView(view, nextRows);
         return;
       }
       const webkitReset =
-        !!before &&
-        view.scrollTop === 0 &&
-        before.order !== nextRows &&
-        !readerScrolledRef.current;
+        !!before && view.scrollTop === 0 && before.order !== nextRows && !readerScrolledRef.current;
       const inScroll = scrollingRef.current && view.scrollTop > 0;
       if (
         before &&
@@ -165,7 +165,9 @@ export const useCompactScrollFallback = (
       ) {
         const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
         const stationary =
-          before.order === nextRows ? undefined : stationaryRows(before.order, nextRows, rowSection);
+          before.order === nextRows
+            ? undefined
+            : stationaryRows(before.order, nextRows, rowSection);
         const anchor = before.cards
           .filter(({ rootId }) => stationary?.has(rootId) ?? true)
           .map(({ rootId, top }) => ({
@@ -224,7 +226,8 @@ export const useCompactScrollFallback = (
         scrollingRef.current = false;
         const delta = pendingDeltaRef.current;
         pendingDeltaRef.current = 0;
-        if (!pausedRef?.current && view.scrollTop > 0 && Math.abs(delta) >= 0.5) view.scrollTop += delta;
+        if (!pausedRef?.current && view.scrollTop > 0 && Math.abs(delta) >= 0.5)
+          view.scrollTop += delta;
         cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
       }, SCROLL_SETTLE_MS);
     };

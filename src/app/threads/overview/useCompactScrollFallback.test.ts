@@ -203,7 +203,7 @@ describe('useCompactScrollFallback', () => {
     expect(view.scrollTop).toBe(0);
   });
 
-    it('compensates card height growth outside a parent commit via ResizeObserver', () => {
+  it('compensates card height growth outside a parent commit via ResizeObserver', () => {
     withoutScrollAnchoring();
     let onResize: (() => void) | undefined;
     vi.stubGlobal(
@@ -221,7 +221,9 @@ describe('useCompactScrollFallback', () => {
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);
     const content = document.createElement('div');
-    renderHook(() => useCompactScrollFallback(ids, { current: view }, undefined, { current: content }));
+    renderHook(() =>
+      useCompactScrollFallback(ids, { current: view }, undefined, { current: content })
+    );
     // Card above grows by 100 px without re-rendering the parent.
     show(['$d', ...ids]);
     expect(writes).toEqual([]);
@@ -309,7 +311,7 @@ describe('useCompactScrollFallback', () => {
     expect(view.scrollTop).toBe(150);
   });
 
-    it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
+  it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);

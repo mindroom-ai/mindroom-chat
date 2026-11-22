@@ -88,12 +88,7 @@ export const installListRecorder = (page: Page) =>
         take: () => frames.splice(0),
       };
       const findView = (target: Element) => target.closest(selector());
-      const record = (
-        target: Element,
-        method: string,
-        call: () => unknown,
-        requested?: number
-      ) => {
+      const record = (target: Element, method: string, call: () => unknown, requested?: number) => {
         const view = findView(target);
         if (
           !view ||

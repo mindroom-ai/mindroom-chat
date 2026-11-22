@@ -317,7 +317,10 @@ describe('useScrollAnchorMemory', () => {
   it('stops following on touch, scroll keys and scrollbar thumb drag', () => {
     const cases: [string, (view: HTMLElement) => void][] = [
       ['touchstart', (view) => view.dispatchEvent(new Event('touchstart'))],
-      ['ArrowDown', (view) => view.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))],
+      [
+        'ArrowDown',
+        (view) => view.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' })),
+      ],
       [
         'scrollbar thumb',
         (view) => {
@@ -340,7 +343,7 @@ describe('useScrollAnchorMemory', () => {
     }
   });
 
-    it('stops following once the reader scrolls, even back to the same place', () => {
+  it('stops following once the reader scrolls, even back to the same place', () => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);
     leaveAt(memory, keys, 300);

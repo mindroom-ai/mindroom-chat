@@ -126,7 +126,10 @@ const seedLongCompactRoom = async (
   await page.addInitScript(
     ({ user, threadLayout }) => {
       localStorage.setItem('mindroom.threadColumn.layout', JSON.stringify(threadLayout));
-      localStorage.setItem(`compactRoomSections:${user}`, JSON.stringify({ on: false, folded: [] }));
+      localStorage.setItem(
+        `compactRoomSections:${user}`,
+        JSON.stringify({ on: false, folded: [] })
+      );
     },
     { user: reader.userId, threadLayout: layout }
   );
@@ -369,9 +372,9 @@ test.describe('Compact scroll jump regressions', () => {
     expect(padBounceJumps, `[${browserName}] uncompensated header/filter inset jumps`).toEqual([]);
     expect(
       anchorShift,
-      `[${browserName}] topmost visible card shifted ${anchorShift.toFixed(1)}px on narrow (${anchor.top.toFixed(
+      `[${browserName}] topmost visible card shifted ${anchorShift.toFixed(
         1
-      )}->${narrowAnchor?.top.toFixed(1) ?? 'OFFSCREEN'})`
+      )}px on narrow (${anchor.top.toFixed(1)}->${narrowAnchor?.top.toFixed(1) ?? 'OFFSCREEN'})`
     ).toBeLessThanOrEqual(2);
   });
 
@@ -403,9 +406,8 @@ test.describe('Compact scroll jump regressions', () => {
     const frames = [before, ...(await takeFrames(page))];
     const after = frames.at(-1)!;
 
-    expect(
-      after.y,
-      `[${browserName}] scrollTop jumped ${before.y}->${after.y}`
-    ).toBeGreaterThan(before.y - 200);
+    expect(after.y, `[${browserName}] scrollTop jumped ${before.y}->${after.y}`).toBeGreaterThan(
+      before.y - 200
+    );
   });
 });

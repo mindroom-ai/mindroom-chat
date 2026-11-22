@@ -1,4 +1,11 @@
-import { type MutableRefObject, type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type MutableRefObject,
+  type RefObject,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 const SCROLL_ANCHOR_ATTRIBUTE = 'data-scroll-anchor';
 const SCROLL_ANCHOR_SELECTOR = `[${SCROLL_ANCHOR_ATTRIBUTE}]`;
