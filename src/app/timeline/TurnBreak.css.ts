@@ -6,7 +6,7 @@ import { color, config, toRem } from 'folds';
 
 export const TurnBreak = style({
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+  gridTemplateColumns: 'minmax(12px, 1fr) minmax(0, auto) minmax(12px, 1fr)',
   alignItems: 'center',
   columnGap: config.space.S200,
   padding: `${config.space.S200} ${config.space.S400}`,
@@ -21,6 +21,7 @@ export const Pill = style({
   alignItems: 'center',
   gap: config.space.S200,
   minHeight: toRem(26),
+  minWidth: 0,
   maxWidth: '100%',
   padding: `0 ${config.space.S300}`,
   borderRadius: config.radii.Pill,
@@ -42,6 +43,17 @@ export const Pill = style({
       outlineOffset: '2px',
     },
   },
+});
+
+export const PillLabel = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
+export const Chevron = style({
+  flexShrink: 0,
 });
 
 /** The dots on each side of a folded turn's count, which a screen reader skips. */

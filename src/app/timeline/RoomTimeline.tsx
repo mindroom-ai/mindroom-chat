@@ -198,6 +198,7 @@ import {
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
 import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
+import { useMembershipFoldRowMeasurements, useMembershipFolds } from './useMembershipFolds';
 import {
   isTimelineRowHidden,
   renderTimelineTiles,
@@ -1061,6 +1062,25 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pinnedIds: turnPinnedIds,
     backgroundState: threadId ? threadIndex.threadBackgroundStates.get(threadId) : undefined,
   });
+  // Consecutive room membership events fold behind a centered divider pill; rows opened via the
+  // route or a jump stay revealed so jump-to-event always highlights its target row.
+  const membershipRevealedRef = useRef(new Set<string>());
+  const membershipPinnedIds = useMemo(() => {
+    if (threadId) return EMPTY_IDS;
+    if (eventId) membershipRevealedRef.current.add(eventId);
+    if (focusEventId) membershipRevealedRef.current.add(focusEventId);
+    return membershipRevealedRef.current.size === 0
+      ? EMPTY_IDS
+      : new Set(membershipRevealedRef.current);
+  }, [eventId, focusEventId, threadId]);
+  const membershipFolds = useMembershipFolds({
+    enabled: !threadId,
+    events: roomRows,
+    windowEvents: roomWindowRows,
+    isSkipped: isHiddenBeforeFolding,
+    pinnedIds: membershipPinnedIds,
+  });
+  const membershipFoldsRef = useLatestRef(membershipFolds.view);
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
   // last row still while the rows above it measure, so a view whose newest row is its first
@@ -1159,6 +1179,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeRangeRef,
     threadRecordMapRef,
     turnFolds: turnFolds.view,
+    membershipFoldsRef,
   });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
@@ -1277,6 +1298,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
   useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
+  useMembershipFoldRowMeasurements(virtualizer, roomWindowRows, membershipFolds.view, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -2001,6 +2023,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     forkDivider,
     forkingDivider,
     turnFolds,
+    membershipFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
     ledgerPxAtRender: ledger.ledgerPxAtRender,

@@ -1046,7 +1046,9 @@ export const useTimelineScrollLedgerController = ({
       )
         return undefined;
       const items = virtualizer.getVirtualItems();
-      if (items.some((item) => !virtualizer.itemSizeCache.has(item.key))) return undefined;
+      // Zero-sized rows (such as folded membership rows) mount no tile to measure.
+      if (items.some((item) => item.size > 0 && !virtualizer.itemSizeCache.has(item.key)))
+        return undefined;
       return `${root.clientHeight}|${root.scrollTop}|${root.scrollHeight}|${items
         .map((item) => `${item.key}:${item.start}:${item.size}`)
         .join(',')}`;

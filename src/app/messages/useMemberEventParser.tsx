@@ -44,7 +44,7 @@ const readMemberContent = (content: unknown): MemberContent => {
 };
 
 /** A membership change, named like its sentence in `sharedUi.memberEvents`. */
-type MemberEventKind =
+export type MemberEventKind =
   | 'joined'
   | 'invited'
   | 'acceptedRequest'
@@ -143,6 +143,16 @@ const getMemberEventKind = (
     return 'kicked';
   }
   return 'broken';
+};
+
+/** Classifies an `m.room.member` event by its Matrix membership transition. */
+export const getMemberEventKindForEvent = (event: MatrixEvent): MemberEventKind => {
+  const current = readMemberContent(event.getContent());
+  const previous = readMemberContent(event.getPrevContent());
+  const senderId = event.getSender();
+  const targetId = event.getStateKey() ?? undefined;
+  const selfChange = !!senderId && senderId === targetId;
+  return getMemberEventKind(current, previous, selfChange);
 };
 
 const nameOf = (userId: string | undefined, displayName: string | undefined): string =>

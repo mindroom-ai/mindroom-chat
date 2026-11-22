@@ -13,6 +13,8 @@ vi.mock('./TurnBreak.css', () => ({
   TurnBreak: 'TurnBreak',
   Line: 'Line',
   Pill: 'Pill',
+  PillLabel: 'PillLabel',
+  Chevron: 'Chevron',
   Dots: 'Dots',
 }));
 

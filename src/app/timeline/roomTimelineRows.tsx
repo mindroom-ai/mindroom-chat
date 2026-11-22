@@ -38,6 +38,8 @@ import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes
 import { foldTimelineRowContexts } from './timelineRowFold';
 import type { ThreadTurnFold, ThreadTurnFoldView } from './threadTurnFolds';
 import { TurnBreak } from './TurnBreak';
+import type { MembershipFold, MembershipFoldView } from './membershipFolds';
+import { MembershipBreak } from './MembershipBreak';
 
 /**
  * The rows of the room timeline: which events the room shows, what each row is priced at until it
@@ -187,6 +189,7 @@ export const timelineRowSizing = ({
   activeRangeRef,
   threadRecordMapRef,
   turnFolds,
+  membershipFoldsRef,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -199,23 +202,35 @@ export const timelineRowSizing = ({
   threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
   /** The open thread's folded turns: a break adds its height to its row, which it alone fills. */
   turnFolds?: ThreadTurnFoldView;
+  /** The room's folded membership runs, read through a ref so paginator folds price accurately. */
+  membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
 }) => {
   const estimateSize = (index?: number): number => {
     if (!threadId) {
-      if (compactLayout) return ROOM_ROW_ESTIMATE_PX.compact;
       const rows = roomRowsRef.current;
       const position = index === undefined ? undefined : activeRangeRef.current.start + index;
       const event = position === undefined ? undefined : rows[position];
-      if (!event || position === undefined) {
-        return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
+      const eventId = event?.getId() ?? '';
+      const membershipView = eventId ? membershipFoldsRef?.current : undefined;
+      if (membershipView?.hiddenIds.has(eventId)) return 0;
+      const membershipBreak = membershipView?.breaks.get(eventId);
+      // Offset by ROOM_ROW_UNMEASURED_PX so a 42 px break row still records in virtual-core's
+      // itemSizeCache and lets the opening room automatic fill reveal the timeline.
+      if (membershipBreak?.open === false) return TURN_BREAK_ESTIMATE_PX + ROOM_ROW_UNMEASURED_PX;
+      let normal: number;
+      if (compactLayout) {
+        normal = ROOM_ROW_ESTIMATE_PX.compact;
+      } else if (!event || position === undefined) {
+        normal = ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
+      } else {
+        // The threaded view shows a badge under each message that starts a thread with replies.
+        const threadBadge =
+          !showThreadRepliesInRoom && hasThreadReplies(threadRecordMapRef.current.get(eventId));
+        normal =
+          estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) +
+          ROOM_ROW_UNMEASURED_PX;
       }
-      // The threaded view shows a badge under each message that starts a thread with replies.
-      const threadBadge =
-        !showThreadRepliesInRoom &&
-        hasThreadReplies(threadRecordMapRef.current.get(event.getId() ?? ''));
-      return (
-        estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) + ROOM_ROW_UNMEASURED_PX
-      );
+      return membershipBreak ? normal + TURN_BREAK_ESTIMATE_PX : normal;
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {
@@ -351,6 +366,7 @@ export const renderTimelineTiles = ({
   forkDivider,
   forkingDivider,
   turnFolds,
+  membershipFolds,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -390,6 +406,8 @@ export const renderTimelineTiles = ({
   forkingDivider?: { index: number; node: ReactNode };
   /** The open thread's folded turns (`threadTurnFolds.ts`) and what their breaks do on a click. */
   turnFolds?: { view: ThreadTurnFoldView; toggle: (fold: ThreadTurnFold) => void };
+  /** The room's folded membership runs (`membershipFolds.ts`) and what their breaks do on a click. */
+  membershipFolds?: { view: MembershipFoldView; toggle: (fold: MembershipFold) => void };
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
@@ -403,6 +421,8 @@ export const renderTimelineTiles = ({
     return (
       !!turnFolds?.view.hiddenIds.has(id) ||
       turnFolds?.view.breaks.get(id)?.open === false ||
+      !!membershipFolds?.view.hiddenIds.has(id) ||
+      membershipFolds?.view.breaks.get(id)?.open === false ||
       messageData.threadSummaryTimeline.hiddenEventIds.has(id) ||
       messageData.secretRequestTimeline.hiddenEventIds.has(id) ||
       isTimelineRowHidden(event, {
@@ -435,20 +455,32 @@ export const renderTimelineTiles = ({
     // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
     // its tile mounted until measuring corrects it.
     const id = event.getId() ?? '';
-    // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
-    if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.view.hiddenIds.has(id))) {
+    // So has a row a fold hides, once sized as nothing; the row that draws its break stays.
+    if (
+      item.size === 0 &&
+      (reactionOrEditEvent(event) ||
+        turnFolds?.view.hiddenIds.has(id) ||
+        membershipFolds?.view.hiddenIds.has(id))
+    ) {
       return null;
     }
     const context = rowContexts.get(item.index);
-    // Outside the row's boundary, so the break keeps its focus when its turn opens or folds.
+    // Outside the row's boundary, so the break keeps its focus when its fold opens or closes.
     const turnBreak = turnFolds?.view.breaks.get(id);
-    const breakNode = turnBreak && (
+    const membershipBreak = membershipFolds?.view.breaks.get(id);
+    const breakNode = turnBreak ? (
       <TurnBreak
         count={turnBreak.fold.count}
         open={turnBreak.open}
         onToggle={() => turnFolds?.toggle(turnBreak.fold)}
       />
-    );
+    ) : membershipBreak ? (
+      <MembershipBreak
+        summary={membershipBreak.fold.summary}
+        open={membershipBreak.open}
+        onToggle={() => membershipFolds?.toggle(membershipBreak.fold)}
+      />
+    ) : undefined;
     let content: ReactNode = null;
     // A quiet marker folded into the run's first row, which shows it, renders nothing.
     if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
