@@ -119,7 +119,6 @@ export function useCompactBlocks(options: Options) {
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
     const group: CompactBlockRow[] = [];
-    let gapIndex = 0;
     for (let slot = start; slot < end; slot += 1) {
       // A band's cards mount with or without a height: only cards outside wait for the probe.
       const inBand =
@@ -140,7 +139,9 @@ export function useCompactBlocks(options: Options) {
             tail.ids.push(id);
             tail.height += height + gap;
           } else {
-            const spacer = { key: `${groupKey}:${gapIndex++}`, height, ids: [id] };
+            // Keyed by the card before it: React then moves no mounted card around a spacer,
+            // which would drop the card's focus and, with it, the place in the list.
+            const spacer = { key: `${groupKey}:${tail ?? ''}`, height, ids: [id] };
             spacers.set(spacer.key, spacer.ids);
             group.push(spacer);
           }

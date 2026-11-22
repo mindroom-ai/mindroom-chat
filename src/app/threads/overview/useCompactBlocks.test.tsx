@@ -146,18 +146,46 @@ it('measures the tail in blocks, then remounts evicted rows without shifting the
     expect(view.scrollTop).toBe(originally);
   };
   // One short + one tall + two gaps occupy exactly 199.25px.
-  const space = view.querySelector('[data-compact-spacer="cards:0"]');
-  expect(space).not.toBeNull();
   around('$row60', 30 * 199.25);
-  expect(view.querySelector('[data-compact-spacer="cards:0"]')).toBe(space);
+  // The spacer above the window keeps its node while the window moves under it.
+  const space = view.querySelector('[data-compact-spacer="cards:"]');
+  expect(space).not.toBeNull();
   act(() => {
     resize();
     vi.advanceTimersByTime(17);
   });
   around('$row24', 12 * 199.25);
-  expect(view.querySelector('[data-compact-spacer="cards:0"]')).toBe(space);
+  expect(view.querySelector('[data-compact-spacer="cards:"]')).toBe(space);
   around('$row0', 0);
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
+});
+
+it('slides the window without taking the cards that stay out of the page', () => {
+  const { container } = render(<List memory={new Map()} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  for (let frame = 0; frame < 12; frame += 1) {
+    act(() => {
+      vi.advanceTimersByTime(17);
+    });
+  }
+  const stays = view.querySelector('[data-scroll-anchor="$row12"]');
+  expect(view.firstElementChild?.firstElementChild?.hasAttribute('data-scroll-anchor')).toBe(true);
+  const observer = new MutationObserver(() => {});
+  observer.observe(view.firstElementChild!, { childList: true });
+  // The first spacer above the window appears: a card put back in the page loses the focus, and
+  // the browser the place it scrolled to.
+  act(() => {
+    view.scrollTop = 15 * 199.25;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  expect(view.firstElementChild?.firstElementChild?.hasAttribute('data-compact-spacer')).toBe(true);
+  expect(view.querySelector('[data-scroll-anchor="$row12"]')).toBe(stays);
+  const moved = observer
+    .takeRecords()
+    .flatMap((record) => [...record.removedNodes])
+    .filter((node) => node.isConnected);
+  observer.disconnect();
+  expect(moved).toEqual([]);
 });
 
 const tick = (frames: number) => {
@@ -384,7 +412,7 @@ it('does not render again when a mounted card resizes, and spaces it by its new 
     view.dispatchEvent(new Event('scroll'));
   });
   const first = ids.slice(0, 48).reduce((sum, id) => sum + height(id) + gap, -gap);
-  expect(view.querySelector<HTMLElement>('[data-compact-spacer="cards:0"]')?.style.height).toBe(
+  expect(view.querySelector<HTMLElement>('[data-compact-spacer="cards:"]')?.style.height).toBe(
     `${first}px`
   );
 });
