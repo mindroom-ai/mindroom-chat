@@ -196,6 +196,7 @@ describe('returnToken', () => {
     ['two loginTokens', () => get(`${PATH}?${QUERY}&loginToken=tok_ok&loginToken=tok_second`)],
     ['no loginToken', () => get(`${PATH}?${QUERY}`)],
     ['no query', () => get(PATH)],
+    ['a doubled query mark', () => get(`${PATH}??${QUERY}&loginToken=tok_ok`)],
     ['an empty loginToken', () => get(`${PATH}?${QUERY}&loginToken=`)],
     ['a blank loginToken', () => get(`${PATH}?${QUERY}&loginToken=%20`)],
   ])('refuses %s', (_label, run) => {
@@ -367,6 +368,9 @@ describe('createAuthCallback', () => {
     expect(await open(cb, a.signInUrl)).toBe(true);
 
     expect((await rawRequest(port, { path: '/wrong' })).status).toBe(404);
+    expect(
+      (await rawRequest(port, { host: a.redirect.host, path: path.replace('?', '??') })).status
+    ).toBe(404);
     expect((await rawRequest(port, { method: 'POST', host: a.redirect.host, path })).status).toBe(
       404
     );
@@ -462,6 +466,19 @@ describe('createAuthCallback', () => {
     now += HALF_HOUR - 1;
     expect(await c.sendReturn()).toBe(200);
     now += 1;
+    expect(cb.take()).toBeUndefined();
+  });
+
+  it('refuses a start that close() overtakes while it waits for the bound port', async () => {
+    const { cb } = make();
+    await begin(cb, 'a');
+    cb.noteGesture();
+    const late = cb.start({
+      homeserver: 'https://b.example',
+      callback: '/login/b.example/?ssoNonce=b',
+    });
+    cb.close();
+    await expect(late).rejects.toThrow();
     expect(cb.take()).toBeUndefined();
   });
 

@@ -28,7 +28,7 @@ const SSO_ROUTE = /^\/_matrix\/client\/(?:v3|r0)\/login\/sso\/redirect(?:\/[^/]+
 // An encoded dot or backslash, or a `.`/`..` segment between slashes, plain or encoded (`%2f`).
 const UNSAFE_CALLBACK_PATH = /%(?:2e|5c)|(?:^|\/|%2f)\.\.?(?:\/|%2f|$)/i;
 const DONE_HTML =
-  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>MindRoom</title></head><body><p>Sign-in complete. You can close this tab and return to MindRoom.</p></body></html>';
+  '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>MindRoom</title></head><body><p>Return to MindRoom to finish signing in. You can close this tab.</p></body></html>';
 const DONE_HEADERS = {
   'Content-Type': 'text/html; charset=utf-8',
   'Cache-Control': 'no-store',
@@ -87,7 +87,8 @@ export const returnToken = (
   // eslint-disable-next-line no-control-regex
   if (queryAt < 0 || /[#\0-\x1f\x7f]/.test(url)) return undefined;
   if (url.slice(0, queryAt) !== expected.pathname) return undefined;
-  const query = new URLSearchParams(url.slice(queryAt + 1));
+  // Keep the `?`: URLSearchParams drops exactly one, so `??a=1` stays a key named `?a`.
+  const query = new URLSearchParams(url.slice(queryAt));
   const tokens = query.getAll('loginToken');
   query.delete('loginToken');
   // The stored query has no key twice, so an equal sorted query has none twice either.
@@ -160,7 +161,7 @@ export const createAuthCallback = (notify: () => void, focus: () => void) => {
       attempt = undefined;
       listening ??= listen();
       const port = await listening;
-      if (port === undefined) throw new Error('Auth callback listener is closed');
+      if (closed || port === undefined) throw new Error('Auth callback listener is closed');
       const random = crypto.randomBytes(16).toString('hex');
       const redirectUrl = `http://127.0.0.1:${port}/auth/${random}${request.callback}`;
       const pending = { homeserver: request.homeserver, redirectUrl };
