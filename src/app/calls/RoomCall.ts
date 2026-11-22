@@ -257,6 +257,9 @@ export class RoomCall {
   /** Wake the steps that wait until the page shows (`shown`). */
   private readonly shownWaiters = new Set<() => void>();
 
+  /** Ends the wait for a leftover membership to go (`withdrawLeftover`); the teardown runs it. */
+  private endLeftoverWait?: () => void;
+
   constructor(options: RoomCallOptions) {
     this.options = options;
     this.releaseDeviceLock = options.releaseDeviceLock;
@@ -721,15 +724,15 @@ export class RoomCall {
     await new Promise<void>((resolve) => {
       let timer = 0;
       const check = () => {
-        if (listed()) return;
+        if (!listed()) this.endLeftoverWait?.();
+      };
+      this.endLeftoverWait = () => {
         window.clearTimeout(timer);
         this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
+        this.endLeftoverWait = undefined;
         resolve();
       };
-      timer = window.setTimeout(() => {
-        this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
-        resolve();
-      }, timeout);
+      timer = window.setTimeout(this.endLeftoverWait, timeout);
       this.session.on(MatrixRTCSessionEvent.MembershipsChanged, check);
       check();
     });
@@ -987,6 +990,7 @@ export class RoomCall {
     window.clearTimeout(rejoin?.timer);
     const media = this.detachMedia();
     this.wakeShownWaiters();
+    this.endLeftoverWait?.();
     const participants = this.readParticipants();
     if (this.state.microphoneTrack || !sameParticipants(participants, this.state.participants)) {
       this.update({ microphoneTrack: undefined, participants });

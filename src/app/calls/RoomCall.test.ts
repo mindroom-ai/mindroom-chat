@@ -2069,6 +2069,29 @@ describe('RoomCall rejoin after background disconnect', () => {
     }
   });
 
+  it('ends the wait for the old membership to go when the user hangs up', async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, session } = setup();
+      await call.join();
+      session.memberships = [membership(ME, DEVICE)];
+
+      setVisibility('hidden');
+      onlyMediaRoom().emit('Disconnected');
+      setVisibility('visible');
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(call.getState().phase).toBe('reconnecting');
+
+      await call.leave();
+      expect(call.getState()).toMatchObject({ phase: 'ended', problem: undefined });
+      expect(session.listenerCount(MatrixRTCSessionEvent.MembershipsChanged)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(session.join).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('rejoins once the session drops the old membership, also later than the leftover wait of a first join', async () => {
     vi.useFakeTimers();
     try {
