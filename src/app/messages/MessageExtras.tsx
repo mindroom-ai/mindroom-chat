@@ -6,6 +6,7 @@ import parse, {
   Element as HtmlElement,
   type HTMLReactParserOptions,
 } from 'html-react-parser';
+import { isDesktopApp } from '../lib/nativeShell';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
@@ -44,6 +45,8 @@ type MessageExtrasProps = {
   toolRows: boolean;
 };
 
+// Desktop app only: a link there opens through the preload, so a misleading one is asked about
+// first. Everywhere else the anchor stays as it is.
 const extraHtmlParserOptions: HTMLReactParserOptions = {
   replace(node) {
     if (!(node instanceof HtmlElement) || node.name !== 'a' || !node.attribs.href) return undefined;
@@ -80,7 +83,11 @@ const renderSectionContent = (
 
     if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
       const sanitizedHtml = sanitizeMessageExtraHtml(content);
-      return <div className={css.Html}>{parse(sanitizedHtml, extraHtmlParserOptions)}</div>;
+      return (
+        <div className={css.Html}>
+          {parse(sanitizedHtml, isDesktopApp() ? extraHtmlParserOptions : undefined)}
+        </div>
+      );
     }
   } catch {
     return null;

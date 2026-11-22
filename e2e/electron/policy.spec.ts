@@ -354,34 +354,39 @@ test.describe('Electron script policy and canvas frame', () => {
       const unsandboxedResult = await page.evaluate(async () => {
         const frame = document.createElement('iframe');
         // Deliberately NO sandbox attribute: CANVAS_FRAME_POLICY header must still sandbox it.
-        const result = new Promise<{ origin: string; hasBridge: boolean; messageOrigin: string }>(
-          (resolve, reject) => {
-            const timer = setTimeout(
-              () => reject(new Error('canvas-frame probe timed out')),
-              5_000
-            );
-            const onMessage = (event: MessageEvent) => {
-              if (event.source !== frame.contentWindow) return;
-              if (event.data === 'canvas-frame-ready') {
-                frame.contentWindow?.postMessage(
-                  `<!doctype html><script>window.parent.postMessage({ type: 'probe', origin: window.origin, hasBridge: 'mindroomDesktop' in window }, 'capacitor://localhost');</script>`,
-                  '*'
-                );
-                return;
-              }
-              if (event.data?.type === 'probe') {
-                clearTimeout(timer);
-                window.removeEventListener('message', onMessage);
-                resolve({
-                  origin: event.data.origin,
-                  hasBridge: event.data.hasBridge,
-                  messageOrigin: event.origin,
-                });
-              }
-            };
-            window.addEventListener('message', onMessage);
-          }
-        );
+        const result = new Promise<{
+          origin: string;
+          hasBridge: boolean;
+          parentBlocked: boolean;
+          messageOrigin: string;
+        }>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('canvas-frame probe timed out')), 5_000);
+          const onMessage = (event: MessageEvent) => {
+            if (event.source !== frame.contentWindow) return;
+            if (event.data === 'canvas-frame-ready') {
+              frame.contentWindow?.postMessage(
+                `<!doctype html><script>
+                    let parentBlocked = false;
+                    try { void window.parent.mindroomDesktop; } catch { parentBlocked = true; }
+                    window.parent.postMessage({ type: 'probe', origin: window.origin, hasBridge: 'mindroomDesktop' in window, parentBlocked }, 'capacitor://localhost');
+                  </script>`,
+                '*'
+              );
+              return;
+            }
+            if (event.data?.type === 'probe') {
+              clearTimeout(timer);
+              window.removeEventListener('message', onMessage);
+              resolve({
+                origin: event.data.origin,
+                hasBridge: event.data.hasBridge,
+                parentBlocked: event.data.parentBlocked,
+                messageOrigin: event.origin,
+              });
+            }
+          };
+          window.addEventListener('message', onMessage);
+        });
         frame.src = '/canvas-frame.html';
         document.body.append(frame);
         const value = await result;
@@ -391,6 +396,7 @@ test.describe('Electron script policy and canvas frame', () => {
       expect(unsandboxedResult).toEqual({
         origin: 'null',
         hasBridge: false,
+        parentBlocked: true,
         messageOrigin: 'null',
       });
     } finally {
