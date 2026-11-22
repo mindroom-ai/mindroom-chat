@@ -11,6 +11,7 @@ import {
   roomHaveUnread,
   trimReplyFromBody,
 } from './room';
+import { isAiRunStreaming } from './protocol/aiRun';
 import { cpuNow } from '../../test/utils/cpuNow';
 
 const makeMessageEvent = (
@@ -832,6 +833,52 @@ describe('the finish of a stream an edit borrows its status from', () => {
       relationsOf(finish, manual, rerun, later)
     );
     expect(getEditStreamFinishTs(editedEvent!)).toBe(15000);
+  });
+
+  // A regenerated reply's first edit read as finished by the run before it, whose `completed` it
+  // borrowed, and the thread showed no spinner for the retry.
+  it('is not borrowed by an edit whose own run status says the run is under way', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const trace = { version: 2, events: [] };
+    const finish = statusEdit('$finish', 2000, 'completed');
+    Object.assign(finish.getContent()['m.new_content'], { 'io.mindroom.tool_trace': trace });
+    const retry = statusEdit('$retry', 5000);
+    Object.assign(retry.getContent()['m.new_content'], {
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+
+    const editedEvent = getEditedEvent('$target', targetEvent, relationsOf(finish, retry));
+    const content = getLatestMessageContent(targetEvent, editedEvent);
+    expect(editedEvent).toBe(retry);
+    expect(content['io.mindroom.stream_status']).toBeUndefined();
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(5000);
+    expect(isAiRunStreaming(content)).toBe(true);
+    // The rest it lacks it borrows as before.
+    expect(content['io.mindroom.tool_trace']).toEqual(trace);
+  });
+
+  it('is borrowed with the run by an edit that states neither, and the status wins', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const progress = statusEdit('$progress', 2000);
+    Object.assign(progress.getContent()['m.new_content'], {
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+    const stopNote = statusEdit('$stop-note', 3000, 'cancelled');
+    // The stop note borrows the streaming run of the edit before it.
+    const stopped = getEditedEvent('$target', targetEvent, relationsOf(progress, stopNote));
+    expect(isAiRunStreaming(getLatestMessageContent(targetEvent, stopped))).toBe(false);
+
+    const manual = statusEdit('$manual', 9000);
+    const editedEvent = getEditedEvent(
+      '$target',
+      targetEvent,
+      relationsOf(progress, stopNote, manual)
+    );
+    const content = getLatestMessageContent(targetEvent, editedEvent);
+    expect(editedEvent).toBe(manual);
+    expect(content['io.mindroom.stream_status']).toBe('cancelled');
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(3000);
+    expect(isAiRunStreaming(content)).toBe(false);
   });
 
   it('is the time of the newest edit itself when that edit finished it', () => {

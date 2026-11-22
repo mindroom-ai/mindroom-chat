@@ -20,7 +20,11 @@ import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './e
 import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
-import { hasTerminalStreamMetadata, STREAM_STATUS_KEY } from './protocol/aiRun';
+import {
+  hasActiveAiRunStatus,
+  hasTerminalStreamMetadata,
+  STREAM_STATUS_KEY,
+} from './protocol/aiRun';
 import { COMPACTIONS_CONTENT_KEY } from './protocol/compactions';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
@@ -425,13 +429,15 @@ const getBorrowableMetadata = (
  * a sidecar), so the newest edit borrows MindRoom metadata it lacks from the sender's older edits,
  * newest first (`getBorrowableMetadata`). What the newest edit's wrapper carries already stays as
  * it is. A borrowed stream status remembers when the edit that carries it was sent
- * (`getEditStreamFinishTs`).
+ * (`getEditStreamFinishTs`). An edit whose own run status says the run is under way borrows no
+ * stream status: the first edit of a regenerated reply would read as finished by the run before.
  */
 const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): void => {
   const newContent = getNewContent(latest);
   if (!newContent || older.length === 0) return;
   const borrowed = getBorrowableMetadata(older.map((edit) => edit.getContent()));
   const wrapper = latest.getContent();
+  if (hasActiveAiRunStatus(wrapper)) delete borrowed[STREAM_STATUS_KEY];
   Object.entries(borrowed).forEach(([key, value]) => {
     if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
     newContent[key] = value;

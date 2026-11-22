@@ -7,6 +7,7 @@ import {
   hasTerminalStreamMetadata,
   readStreamStatus,
 } from '../../matrix/protocol/aiRun';
+import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
 import {
   getShallowSerializedReplacementEvent,
@@ -89,22 +90,28 @@ export const isEventStreaming = (
 ): boolean => {
   const { content, latestEdit } = resolvePreferredEvent(mEvent, timelineSet);
   const streamStatus = readStreamStatus(content);
+  const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
+  const saysItStreams =
+    aiRunStatus === 'streaming' || (!!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus));
+  // Only an edit that says itself that the reply streams starts a finished reply again: not a
+  // correction of the text, nor the stream status one borrows from an older edit.
+  const restart =
+    saysItStreams && content[STREAM_STATUS_TS_KEY] === undefined ? latestEdit : undefined;
   const finishingEdit = getFinishingEdit(mEvent);
   const finishedByEdit =
-    !!finishingEdit && (!latestEdit || !isEventOrderedAfter(latestEdit, finishingEdit));
+    !!finishingEdit && !(restart && isEventOrderedAfter(restart, finishingEdit));
   // hasTerminalStreamMetadata owns both the ai_run terminal set (which
   // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) and string- or
   // record-form terminal stream statuses. A device without the room's keys
   // reads the finishing edit's status in the clear, and a redacted finishing
   // edit still ended the stream — unless a newer revision has started streaming.
   const terminalMetadata =
-    hasTerminalStreamMetadata(content) || finishedByEdit || hasStreamEnded(mEvent, latestEdit);
+    hasTerminalStreamMetadata(content) || finishedByEdit || hasStreamEnded(mEvent, restart);
 
   if (terminalMetadata || streamStatus === 'approval_pending') {
     return false;
   }
 
-  const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
   if (aiRunStatus === 'streaming') {
     return true;
   }

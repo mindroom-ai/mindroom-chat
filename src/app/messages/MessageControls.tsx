@@ -112,9 +112,10 @@ export function AiRunControls({ info, eventId, forwardedRef, children }: AiRunCo
   const [open, setOpen] = useState(false);
   const openDetails = useCallback(() => setOpen(true), []);
   const closeDetails = useCallback(() => setOpen(false), []);
+  const hasDetails = !!renderableInfo;
   useEffect(() => {
-    if (!renderableInfo) setOpen(false);
-  }, [renderableInfo]);
+    if (!hasDetails) setOpen(false);
+  }, [hasDetails]);
   const controls = useMemo(
     () => ({ open, openDetails, closeDetails }),
     [open, openDetails, closeDetails]

@@ -58,9 +58,16 @@ const keepNewest = <Value>(map: Map<string, Value>, messageId: string, value: Va
 // By message ID, which no two rooms or accounts share for different events.
 const newestEdits = new Map<string, MatrixEvent>();
 const finishingEdits = new Map<string, MatrixEvent>();
-/** Per message, the sender and time of the newest edit that finished it; kept after a redaction. */
-const finishes = new Map<string, { sender: string | undefined; ts: number }>();
+type Finish = { sender: string | undefined; ts: number; eventId: string };
+/** Per message, the newest edit that finished it; kept after a redaction. */
+const finishes = new Map<string, Finish>();
 let client: MatrixClient | undefined;
+
+/** Whether `edit` comes after `finish`, in the order `isEventOrderedAfter` (room.ts) gives edits. */
+const isAfterFinish = (edit: MatrixEvent, finish: Finish): boolean => {
+  const ts = edit.getTs();
+  return ts !== finish.ts ? ts > finish.ts : (edit.getId() ?? '') > finish.eventId;
+};
 
 /**
  * Whether the room of `edit` took a redaction of it while it knew the edit only from its message's
@@ -129,16 +136,16 @@ export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => 
 };
 
 /**
- * Whether the reply's stream ended: an edit by its sender finished it, and the reply shows no
- * revision since. Redacting that edit takes the reply back to the one before, which still says it
- * streams, but the stream is over all the same (P3-webkit-cards-F004).
+ * Whether the reply's stream ended: an edit by its sender finished it, and `restart`, the revision
+ * that says the reply streams again, does not come after that edit. Redacting the edit takes the
+ * reply back to the one before, which still says it streams, but the stream is over all the same
+ * (P3-webkit-cards-F004).
  */
-export const hasStreamEnded = (reply: MatrixEvent, latestEdit?: MatrixEvent): boolean => {
+export const hasStreamEnded = (reply: MatrixEvent, restart?: MatrixEvent): boolean => {
   const replyId = reply.getId();
   const finish = replyId ? finishes.get(replyId) : undefined;
   if (!finish || finish.sender !== reply.getSender()) return false;
-  const shown = latestEdit ?? reply.replacingEvent?.() ?? reply;
-  return finish.ts >= shown.getTs();
+  return !restart || !isAfterFinish(restart, finish);
 };
 
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
@@ -164,8 +171,12 @@ export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
     if (!isFinishingEdit(event)) return;
     keepNewer(finishingEdits, relation.event_id, event);
     const known = finishes.get(relation.event_id);
-    if (known && known.ts >= event.getTs()) return;
-    keepNewest(finishes, relation.event_id, { sender: event.getSender(), ts: event.getTs() });
+    if (known && !isAfterFinish(event, known)) return;
+    keepNewest(finishes, relation.event_id, {
+      sender: event.getSender(),
+      ts: event.getTs(),
+      eventId: event.getId() ?? '',
+    });
   };
   // A room the account forgets goes with its record of redacted edits, so its newest kept edits
   // go too.
