@@ -41,10 +41,11 @@ for (const theme of ['light', 'dark']) {
   }) => {
     await page.setViewportSize({ width: 390, height: 1800 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
-    await page.getByRole('button', { name: 'Pause voice recording' }).click();
-    await expect(page.getByRole('button', { name: 'Resume voice recording' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Resume voice recording' }).click();
-    await expect(page.getByRole('button', { name: 'Pause voice recording' })).toBeEnabled();
+    const recording = page.getByTestId('recording');
+    await recording.getByRole('button', { name: 'Pause voice recording' }).click();
+    await expect(recording.getByRole('button', { name: 'Resume voice recording' })).toBeEnabled();
+    await recording.getByRole('button', { name: 'Resume voice recording' }).click();
+    await expect(recording.getByRole('button', { name: 'Pause voice recording' })).toBeEnabled();
     const disclosure = page.getByTestId('disclosure').getByRole('button');
     await disclosure.click();
     await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
@@ -718,4 +719,23 @@ test('custom thread popups receive shared material and retain keyboard actions',
   await expect(workingTab).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(overview.locator('output')).toHaveText('Tab: working');
+});
+
+// A long label such as "Recovered recording · 0:42" squeezed the bar's side buttons into tall
+// slivers with shrunken icons on iPhone, as WebKit let them shrink below their icon.
+test('voice recording bar keeps its side buttons square beside a long label @webkit', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 1800 });
+  await page.goto('/e2e/fixtures/glass-surfaces.html?controls&theme=dark');
+  for (const id of ['recording', 'recovered-recording']) {
+    const buttons = page.getByTestId(id).getByRole('button');
+    await expect(buttons).toHaveCount(2);
+    for (const button of await buttons.all()) {
+      const box = (await button.boundingBox())!;
+      const icon = (await button.locator('svg').boundingBox())!;
+      expect.soft(Math.abs(box.width - box.height), `${id} button is square`).toBeLessThan(0.5);
+      expect.soft(icon.width, `${id} icon keeps its size`).toBeCloseTo(16, 0);
+    }
+  }
 });
