@@ -747,7 +747,7 @@
           "defaultDescription": "Bu oda için MindRoom yapılandırmasındaki varsayılanı izle.",
           "unknown": "Bilinmeyen model: \"{{value}}\" bu odanın model listesinde yok.",
           "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz.",
-          "storedRaw": "Yapılandırılmış değer: {{value}}"
+          "storedRaw": "Oda ayarı: {{value}}"
         },
         "threadMode": {
           "label": "Konu modu",

@@ -760,7 +760,7 @@
           "defaultDescription": "Seguir o padrão configurado no MindRoom para esta sala.",
           "unknown": "Modelo desconhecido: \"{{value}}\" não está na lista de modelos desta sala.",
           "catalogUnavailable": "Nenhuma lista de modelos está disponível no momento. Você ainda pode redefinir para o padrão configurado.",
-          "storedRaw": "Valor configurado: {{value}}"
+          "storedRaw": "Definição da sala: {{value}}"
         },
         "threadMode": {
           "label": "Modo de tópico",

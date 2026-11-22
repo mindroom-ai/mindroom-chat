@@ -747,7 +747,7 @@
           "defaultDescription": "Volg de in MindRoom geconfigureerde standaard voor deze ruimte.",
           "unknown": "Onbekend model: \"{{value}}\" staat niet in de modellijst van deze ruimte.",
           "catalogUnavailable": "Er is momenteel geen modellijst beschikbaar. Je kunt nog steeds terugzetten naar de geconfigureerde standaard.",
-          "storedRaw": "Geconfigureerde waarde: {{value}}"
+          "storedRaw": "Kamerinstelling: {{value}}"
         },
         "threadMode": {
           "label": "Threadmodus",

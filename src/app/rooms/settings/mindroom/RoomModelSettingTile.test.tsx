@@ -402,7 +402,7 @@ describe('RoomModelSettingTile', () => {
     renderTile(MODEL_DEF, catalog);
 
     expect(trigger().textContent).toBe('saved-model');
-    expect(screen.getByText('Configured value: saved-model')).toBeTruthy();
+    expect(screen.getByText('Room setting: saved-model')).toBeTruthy();
     expect(screen.queryByText(/Unknown model:/)).toBeNull();
 
     fireEvent.click(trigger());

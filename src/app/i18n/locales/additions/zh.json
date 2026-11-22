@@ -734,7 +734,7 @@
           "defaultDescription": "遵循 MindRoom 为此房间配置的默认值。",
           "unknown": "未知模型：“{{value}}”不在此房间的模型列表中。",
           "catalogUnavailable": "当前没有可用的模型列表。你仍可重置为配置的默认值。",
-          "storedRaw": "当前配置值：{{value}}"
+          "storedRaw": "房间设置：{{value}}"
         },
         "threadMode": {
           "label": "话题模式",

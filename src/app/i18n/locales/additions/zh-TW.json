@@ -734,7 +734,7 @@
           "defaultDescription": "遵循 MindRoom 為此房間設定的預設值。",
           "unknown": "未知模型：「{{value}}」不在此房間的模型清單中。",
           "catalogUnavailable": "目前沒有可用的模型清單。你仍可重設為設定的預設值。",
-          "storedRaw": "目前設定值：{{value}}"
+          "storedRaw": "聊天室設定：{{value}}"
         },
         "threadMode": {
           "label": "討論串模式",
