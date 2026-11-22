@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "Kapat",
-      "invited": "{{user}} davet edildi."
+      "invited": "{{user}} davet edildi.",
+      "giveModeratorRights": "Moderatör yetkisi ver",
+      "giveModeratorRightsHelp": "Ajanın sesli mesaj dökümlerini daraltmasına ve zamanlamalar ile oda ayarlarını yönetmesine olanak tanır.",
+      "moderatorFailed": "Moderatör yetkisi verilemedi: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Kapat",
@@ -600,7 +603,10 @@
         "notInRoom": "Bu odada değil",
         "inviteUser": "{{user}} kişisini davet et",
         "inviteSent": "Davet edildi",
-        "noMatchingMembers": "Eşleşen üye yok"
+        "noMatchingMembers": "Eşleşen üye yok",
+        "makeModerator": "Moderatör yap",
+        "makeModeratorUser": "{{user}} kişisini moderatör yap",
+        "madeModerator": "{{user}} kişisine moderatör yetkisi verildi."
       }
     },
     "accountMenu": {

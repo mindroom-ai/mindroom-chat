@@ -91,7 +91,10 @@
     },
     "inviteUserPrompt": {
       "close": "關閉",
-      "invited": "已邀請 {{user}}。"
+      "invited": "已邀請 {{user}}。",
+      "giveModeratorRights": "授予版主權限",
+      "giveModeratorRightsHelp": "讓代理摺疊語音轉錄，並管理排程與聊天室設定。",
+      "moderatorFailed": "無法授予版主權限：{{error}}"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -587,7 +590,10 @@
         "notInRoom": "不在此聊天室",
         "inviteUser": "邀請 {{user}}",
         "inviteSent": "已邀請",
-        "noMatchingMembers": "沒有符合的成員"
+        "noMatchingMembers": "沒有符合的成員",
+        "makeModerator": "設為版主",
+        "makeModeratorUser": "將 {{user}} 設為版主",
+        "madeModerator": "已授予 {{user}} 版主權限。"
       }
     },
     "accountMenu": {

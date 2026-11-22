@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "बंद करें",
-      "invited": "{{user}} को आमंत्रित किया गया।"
+      "invited": "{{user}} को आमंत्रित किया गया।",
+      "giveModeratorRights": "मध्यस्थ अधिकार दें",
+      "giveModeratorRightsHelp": "एजेंट को वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने देता है।",
+      "moderatorFailed": "मध्यस्थ अधिकार नहीं दिए जा सके: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -600,7 +603,10 @@
         "notInRoom": "इस रूम में नहीं",
         "inviteUser": "{{user}} को आमंत्रित करें",
         "inviteSent": "आमंत्रित",
-        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं"
+        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं",
+        "makeModerator": "मध्यस्थ बनाएं",
+        "makeModeratorUser": "{{user}} को मध्यस्थ बनाएं",
+        "madeModerator": "{{user}} को मध्यस्थ अधिकार दिए गए।"
       }
     },
     "accountMenu": {

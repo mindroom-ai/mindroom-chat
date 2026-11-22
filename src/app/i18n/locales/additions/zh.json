@@ -91,7 +91,10 @@
     },
     "inviteUserPrompt": {
       "close": "关闭",
-      "invited": "已邀请 {{user}}。"
+      "invited": "已邀请 {{user}}。",
+      "giveModeratorRights": "授予版主权限",
+      "giveModeratorRightsHelp": "允许智能体折叠语音转写，并管理定时任务和房间设置。",
+      "moderatorFailed": "无法授予版主权限：{{error}}"
     },
     "joinAddressPrompt": {
       "close": "关闭",
@@ -587,7 +590,10 @@
         "notInRoom": "不在此聊天室",
         "inviteUser": "邀请 {{user}}",
         "inviteSent": "已邀请",
-        "noMatchingMembers": "没有匹配的成员"
+        "noMatchingMembers": "没有匹配的成员",
+        "makeModerator": "设为版主",
+        "makeModeratorUser": "将 {{user}} 设为版主",
+        "madeModerator": "已授予 {{user}} 版主权限。"
       }
     },
     "accountMenu": {

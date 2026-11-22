@@ -91,7 +91,10 @@
     },
     "inviteUserPrompt": {
       "close": "닫기",
-      "invited": "{{user}} 님을 초대했습니다."
+      "invited": "{{user}} 님을 초대했습니다.",
+      "giveModeratorRights": "중재자 권한 부여",
+      "giveModeratorRightsHelp": "에이전트가 음성 기록을 접고 일정과 방 설정을 관리할 수 있게 합니다.",
+      "moderatorFailed": "중재자 권한을 부여할 수 없습니다: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "닫기",
@@ -587,7 +590,10 @@
         "notInRoom": "이 방에 없는 사람",
         "inviteUser": "{{user}} 초대",
         "inviteSent": "초대됨",
-        "noMatchingMembers": "일치하는 멤버 없음"
+        "noMatchingMembers": "일치하는 멤버 없음",
+        "makeModerator": "중재자로 지정",
+        "makeModeratorUser": "{{user}} 님을 중재자로 지정",
+        "madeModerator": "{{user}} 님에게 중재자 권한을 부여했습니다."
       }
     },
     "accountMenu": {

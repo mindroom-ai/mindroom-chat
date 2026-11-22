@@ -97,7 +97,10 @@
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
-      "invited": "{{user}} è stato invitato."
+      "invited": "{{user}} è stato invitato.",
+      "giveModeratorRights": "Assegna i permessi di moderatore",
+      "giveModeratorRightsHelp": "Consente all'agente di comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
+      "moderatorFailed": "Impossibile assegnare i permessi di moderatore: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",
@@ -613,7 +616,10 @@
         "notInRoom": "Non in questa stanza",
         "inviteUser": "Invita {{user}}",
         "inviteSent": "Invitato",
-        "noMatchingMembers": "Nessun membro corrispondente"
+        "noMatchingMembers": "Nessun membro corrispondente",
+        "makeModerator": "Rendi moderatore",
+        "makeModeratorUser": "Rendi {{user}} moderatore",
+        "madeModerator": "Permessi di moderatore assegnati a {{user}}."
       }
     },
     "accountMenu": {

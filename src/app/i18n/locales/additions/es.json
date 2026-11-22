@@ -97,7 +97,10 @@
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
-      "invited": "Se invitó a {{user}}."
+      "invited": "Se invitó a {{user}}.",
+      "giveModeratorRights": "Dar permisos de moderador",
+      "giveModeratorRightsHelp": "Permite al agente plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
+      "moderatorFailed": "No se pudieron dar permisos de moderador: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -613,7 +616,10 @@
         "notInRoom": "No están en esta sala",
         "inviteUser": "Invitar a {{user}}",
         "inviteSent": "Invitado",
-        "noMatchingMembers": "Ningún miembro coincide"
+        "noMatchingMembers": "Ningún miembro coincide",
+        "makeModerator": "Hacer moderador",
+        "makeModeratorUser": "Hacer moderador a {{user}}",
+        "madeModerator": "Se dieron permisos de moderador a {{user}}."
       }
     },
     "accountMenu": {

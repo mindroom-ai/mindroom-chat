@@ -91,7 +91,10 @@
     },
     "inviteUserPrompt": {
       "close": "閉じる",
-      "invited": "{{user}} を招待しました。"
+      "invited": "{{user}} を招待しました。",
+      "giveModeratorRights": "モデレータ権限を付与",
+      "giveModeratorRightsHelp": "エージェントが音声の文字起こしを折りたたみ、スケジュールやルーム設定を管理できるようになります。",
+      "moderatorFailed": "モデレータ権限を付与できませんでした: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "閉じる",
@@ -587,7 +590,10 @@
         "notInRoom": "このルームにいない人",
         "inviteUser": "{{user}} を招待する",
         "inviteSent": "招待済み",
-        "noMatchingMembers": "一致するメンバーはいません"
+        "noMatchingMembers": "一致するメンバーはいません",
+        "makeModerator": "モデレータにする",
+        "makeModeratorUser": "{{user}} をモデレータにする",
+        "madeModerator": "{{user}} にモデレータ権限を付与しました。"
       }
     },
     "accountMenu": {

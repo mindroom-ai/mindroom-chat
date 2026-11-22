@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "Schließen",
-      "invited": "{{user}} wurde eingeladen."
+      "invited": "{{user}} wurde eingeladen.",
+      "giveModeratorRights": "Moderatorrechte erteilen",
+      "giveModeratorRightsHelp": "Ermöglicht dem Agenten, Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "moderatorFailed": "Moderatorrechte konnten nicht erteilt werden: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Schließen",
@@ -600,7 +603,10 @@
         "notInRoom": "Nicht in diesem Raum",
         "inviteUser": "{{user}} einladen",
         "inviteSent": "Eingeladen",
-        "noMatchingMembers": "Keine passenden Mitglieder"
+        "noMatchingMembers": "Keine passenden Mitglieder",
+        "makeModerator": "Zum Moderator machen",
+        "makeModeratorUser": "{{user}} zum Moderator machen",
+        "madeModerator": "{{user}} hat Moderatorrechte erhalten."
       }
     },
     "accountMenu": {

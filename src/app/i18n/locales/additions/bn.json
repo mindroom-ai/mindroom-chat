@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",
-      "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।"
+      "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।",
+      "giveModeratorRights": "মডারেটরের অধিকার দিন",
+      "giveModeratorRightsHelp": "এজেন্টকে ভয়েস ট্রান্সক্রিপ্ট ভাঁজ করতে এবং সময়সূচি ও রুমের সেটিংস পরিচালনা করতে দেয়।",
+      "moderatorFailed": "মডারেটরের অধিকার দেওয়া যায়নি: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "বন্ধ করুন",
@@ -600,7 +603,10 @@
         "notInRoom": "এই রুমে নেই",
         "inviteUser": "{{user}}-কে আমন্ত্রণ জানান",
         "inviteSent": "আমন্ত্রিত",
-        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই"
+        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই",
+        "makeModerator": "মডারেটর করুন",
+        "makeModeratorUser": "{{user}}-কে মডারেটর করুন",
+        "madeModerator": "{{user}}-কে মডারেটরের অধিকার দেওয়া হয়েছে।"
       }
     },
     "accountMenu": {

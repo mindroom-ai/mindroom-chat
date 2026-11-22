@@ -106,7 +106,10 @@
     },
     "inviteUserPrompt": {
       "close": "إغلاق",
-      "invited": "تمت دعوة ⁨{{user}}⁩."
+      "invited": "تمت دعوة ⁨{{user}}⁩.",
+      "giveModeratorRights": "منح صلاحيات المراقب",
+      "giveModeratorRightsHelp": "يتيح للوكيل طي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
+      "moderatorFailed": "تعذر منح صلاحيات المراقب: ⁨{{error}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -652,7 +655,10 @@
         "notInRoom": "ليسوا في هذه الغرفة",
         "inviteUser": "دعوة ⁨{{user}}⁩",
         "inviteSent": "تمت الدعوة",
-        "noMatchingMembers": "لا يوجد أعضاء مطابقون"
+        "noMatchingMembers": "لا يوجد أعضاء مطابقون",
+        "makeModerator": "تعيين كمراقب",
+        "makeModeratorUser": "تعيين ⁨{{user}}⁩ كمراقب",
+        "madeModerator": "تم منح صلاحيات المراقب إلى ⁨{{user}}⁩."
       }
     },
     "accountMenu": {

@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
-      "invited": "{{user}} is uitgenodigd."
+      "invited": "{{user}} is uitgenodigd.",
+      "giveModeratorRights": "Moderatorrechten geven",
+      "giveModeratorRightsHelp": "Laat de agent spraaktranscripties inklappen en schema's en ruimte-instellingen beheren.",
+      "moderatorFailed": "Kan geen moderatorrechten geven: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",
@@ -600,7 +603,10 @@
         "notInRoom": "Niet in deze ruimte",
         "inviteUser": "{{user}} uitnodigen",
         "inviteSent": "Uitgenodigd",
-        "noMatchingMembers": "Geen overeenkomende leden"
+        "noMatchingMembers": "Geen overeenkomende leden",
+        "makeModerator": "Moderator maken",
+        "makeModeratorUser": "{{user}} moderator maken",
+        "madeModerator": "Moderatorrechten gegeven aan {{user}}."
       }
     },
     "accountMenu": {

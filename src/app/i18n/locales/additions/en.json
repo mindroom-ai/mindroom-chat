@@ -94,7 +94,10 @@
     },
     "inviteUserPrompt": {
       "close": "Close",
-      "invited": "Invited {{user}}."
+      "invited": "Invited {{user}}.",
+      "giveModeratorRights": "Give moderator rights",
+      "giveModeratorRightsHelp": "Lets the agent fold voice transcripts and manage schedules and room settings.",
+      "moderatorFailed": "Could not give moderator rights: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -600,7 +603,10 @@
         "notInRoom": "Not in this room",
         "inviteUser": "Invite {{user}}",
         "inviteSent": "Invited",
-        "noMatchingMembers": "No matching members"
+        "noMatchingMembers": "No matching members",
+        "makeModerator": "Make moderator",
+        "makeModeratorUser": "Make {{user}} moderator",
+        "madeModerator": "Gave moderator rights to {{user}}."
       }
     },
     "accountMenu": {

@@ -100,7 +100,10 @@
     },
     "inviteUserPrompt": {
       "close": "Закрыть",
-      "invited": "Приглашение отправлено: {{user}}."
+      "invited": "Приглашение отправлено: {{user}}.",
+      "giveModeratorRights": "Выдать права модератора",
+      "giveModeratorRightsHelp": "Позволяет агенту сворачивать расшифровки голосовых сообщений и управлять расписаниями и настройками комнаты.",
+      "moderatorFailed": "Не удалось выдать права модератора: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Закрыть",
@@ -626,7 +629,10 @@
         "notInRoom": "Не в этой комнате",
         "inviteUser": "Пригласить {{user}}",
         "inviteSent": "Приглашён",
-        "noMatchingMembers": "Нет подходящих участников"
+        "noMatchingMembers": "Нет подходящих участников",
+        "makeModerator": "Сделать модератором",
+        "makeModeratorUser": "Сделать {{user}} модератором",
+        "madeModerator": "Пользователю {{user}} выданы права модератора."
       }
     },
     "accountMenu": {

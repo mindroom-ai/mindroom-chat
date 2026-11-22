@@ -91,7 +91,10 @@
     },
     "inviteUserPrompt": {
       "close": "Tutup",
-      "invited": "{{user}} telah diundang."
+      "invited": "{{user}} telah diundang.",
+      "giveModeratorRights": "Berikan hak moderator",
+      "giveModeratorRightsHelp": "Memungkinkan agen melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
+      "moderatorFailed": "Tidak dapat memberikan hak moderator: {{error}}"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -587,7 +590,10 @@
         "notInRoom": "Tidak ada di ruangan ini",
         "inviteUser": "Undang {{user}}",
         "inviteSent": "Diundang",
-        "noMatchingMembers": "Tidak ada anggota yang cocok"
+        "noMatchingMembers": "Tidak ada anggota yang cocok",
+        "makeModerator": "Jadikan moderator",
+        "makeModeratorUser": "Jadikan {{user}} moderator",
+        "madeModerator": "Hak moderator diberikan kepada {{user}}."
       }
     },
     "accountMenu": {
