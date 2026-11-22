@@ -30,16 +30,10 @@ const BOOLEAN_DATA_KEYS = new Set([
   'opaque',
   'transparent',
 ]);
-const NUMBER_DATA_KEYS = new Set([
-  'applicationState',
-  'availableMemoryBytes',
-  'errorCode',
-  'msSinceMemoryWarning',
-  'progress',
-  'sceneState',
-]);
+const NUMBER_DATA_KEYS = new Set(['applicationState', 'errorCode', 'progress', 'sceneState']);
+const NON_NEGATIVE_INTEGER_DATA_KEYS = new Set(['availableMemoryBytes', 'msSinceMemoryWarning']);
 const TERMINATION_REASON =
-  /^(memory|cpu|client|crash|shared_process_crash_limit|unknown\(-?\d{1,10}\))$/;
+  /^(memory|cpu|client|crash|shared_process_crash_limit|unknown\(-?\d{1,19}\))$/;
 
 type NativeDiagnosticData = {
   applicationState?: number;
@@ -127,6 +121,11 @@ const normalizeData = (value: unknown): NativeDiagnosticData | undefined => {
     } else if (NUMBER_DATA_KEYS.has(key)) {
       if (typeof item !== 'number' || !Number.isFinite(item)) {
         throw new Error('invalid native diagnostic number');
+      }
+      safeData[key] = item;
+    } else if (NON_NEGATIVE_INTEGER_DATA_KEYS.has(key)) {
+      if (!isNonNegativeInteger(item)) {
+        throw new Error('invalid native diagnostic non-negative integer');
       }
       safeData[key] = item;
     } else if (key === 'errorDomain') {

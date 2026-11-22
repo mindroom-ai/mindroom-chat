@@ -134,7 +134,12 @@ describe('native diagnostics reader', () => {
       name: 'webview.termination_reason',
       data: { terminationReason, availableMemoryBytes: 1024, msSinceMemoryWarning: 50 },
     });
-    const validEvents = [event(1, 'memory'), event(2, 'unknown(7)'), event(3, 'unknown(-1)')];
+    const validEvents = [
+      event(1, 'memory'),
+      event(2, 'unknown(7)'),
+      event(3, 'unknown(-1)'),
+      event(4, 'unknown(9223372036854775807)'),
+    ];
     nativePlugin.read.mockResolvedValue({
       schemaVersion: 1,
       status: 'available',
@@ -149,7 +154,7 @@ describe('native diagnostics reader', () => {
     });
   });
 
-  it.each(['secret free text', 'unknown(12345678901)'])(
+  it.each(['secret free text', 'unknown(12345678901234567890)'])(
     'rejects invalid WebContent termination reason %s',
     async (terminationReason) => {
       vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
@@ -175,6 +180,40 @@ describe('native diagnostics reader', () => {
       await expect(readDiagnostics()).resolves.toMatchObject({ status: 'invalid' });
     }
   );
+
+  it.each([
+    { availableMemoryBytes: -1 },
+    { availableMemoryBytes: 1.5 },
+    { msSinceMemoryWarning: -1 },
+    { msSinceMemoryWarning: 1.5 },
+  ])('rejects invalid memory headroom data %o', async (invalidField) => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    nativePlugin.read.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: sessionId,
+      events: [
+        {
+          at: 1,
+          monotonicMs: 1,
+          sequence: 1,
+          sessionId,
+          name: 'webview.termination_reason',
+          data: {
+            terminationReason: 'memory',
+            availableMemoryBytes: 1024,
+            msSinceMemoryWarning: 50,
+            ...invalidField,
+          },
+        },
+      ],
+      droppedEventCount: 0,
+    });
+
+    await expect(readDiagnostics()).resolves.toMatchObject({ status: 'invalid' });
+  });
 
   it('accepts every event name declared by the Swift diagnostics store', async () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');

@@ -99,8 +99,28 @@ struct MindRoomDiagnosticState: Codable, Equatable {
             terminationReason == nil && availableMemoryBytes == nil && msSinceMemoryWarning == nil
     }
 
+    static func isValidTerminationReason(_ value: String) -> Bool {
+        switch value {
+        case "memory", "cpu", "client", "crash", "shared_process_crash_limit":
+            return true
+        default:
+            guard value.hasPrefix("unknown("), value.hasSuffix(")") else {
+                return false
+            }
+            var inner = value.dropFirst("unknown(".count).dropLast()
+            if inner.first == "-" {
+                inner = inner.dropFirst()
+            }
+            return (1...19).contains(inner.count) && inner.allSatisfy { $0.isASCII && $0.isNumber }
+        }
+    }
+
     var isValid: Bool {
-        progress?.isFinite ?? true
+        let safeRange = 0...MindRoomDiagnosticsStore.maximumSafeInteger
+        return (progress?.isFinite ?? true) &&
+            (terminationReason.map(Self.isValidTerminationReason) ?? true) &&
+            (availableMemoryBytes.map(safeRange.contains) ?? true) &&
+            (msSinceMemoryWarning.map(safeRange.contains) ?? true)
     }
 }
 

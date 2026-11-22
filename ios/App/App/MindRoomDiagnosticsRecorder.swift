@@ -50,15 +50,23 @@ final class MindRoomDiagnosticsRecorder {
         }
     }
 
+    // WebKit invokes _webView:webContentProcessDidTerminateWithReason: on the main thread,
+    // matching recordMemoryWarning's access to lastMemoryWarningUptime.
     func recordTerminationReason(_ reason: Int, webView: WKWebView) {
         let names = ["memory", "cpu", "client", "crash", "shared_process_crash_limit"]
         var data = webViewState(webView)
         data.terminationReason = names.indices.contains(reason) ? names[reason] : "unknown(\(reason))"
 #if !targetEnvironment(macCatalyst)
-        data.availableMemoryBytes = Int(clamping: os_proc_available_memory())
+        data.availableMemoryBytes = min(
+            Int(clamping: os_proc_available_memory()),
+            MindRoomDiagnosticsStore.maximumSafeInteger
+        )
 #endif
         data.msSinceMemoryWarning = lastMemoryWarningUptime.map {
-            max(0, Int((ProcessInfo.processInfo.systemUptime - $0) * 1_000))
+            min(
+                max(0, Int((ProcessInfo.processInfo.systemUptime - $0) * 1_000)),
+                MindRoomDiagnosticsStore.maximumSafeInteger
+            )
         }
         store.record(name: .webViewTerminationReason, data: data)
     }
@@ -134,6 +142,7 @@ final class MindRoomDiagnosticsRecorder {
 // _WKProcessTerminationReason before reload. When a delegate implements this selector, WebKit invokes
 // it instead of webViewWebContentProcessDidTerminate: (NavigationState::processDidTerminate), so
 // forward to Capacitor's handler to preserve its bridge reset, reload, and webview.terminated event.
+// Re-check when upgrading Capacitor in case WebViewDelegationHandler implements this selector itself.
 extension WebViewDelegationHandler {
     @objc(_webView:webContentProcessDidTerminateWithReason:)
     func mindRoomWebView(_ webView: WKWebView, webContentProcessDidTerminateWithReason reason: Int) {
