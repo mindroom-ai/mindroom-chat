@@ -100,8 +100,12 @@ class CompactSpacer extends React.Component<SpacerProps> {
 
   override getSnapshotBeforeUpdate({ row }: SpacerProps): null {
     const height = this.props.row.height;
-    // Transfer measured height before React removes the shells; WebKit clamps during removal.
-    if (this.node.current && height > row.height) this.node.current.style.height = `${height}px`;
+    const node = this.node.current;
+    // Commit the larger measured gap to WebKit's layout before React removes the shells.
+    if (node && height > row.height && !globalThis.CSS?.supports?.('overflow-anchor', 'auto')) {
+      node.style.height = `${height}px`;
+      node.getBoundingClientRect();
+    }
     return null;
   }
 

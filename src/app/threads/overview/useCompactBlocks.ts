@@ -109,10 +109,6 @@ export function useCompactBlocks(options: Options) {
       : geometry.order === order || seed[1] - seed[0] <= BUFFER_BLOCKS
       ? seed
       : band(visible.slice(0, 1));
-  // Keep the visible rows in place while a partial restore discovers its new prefix.
-  const [occupiedFirst, occupiedEnd] = band(state.occupied);
-  const occupiedLast = occupiedEnd - occupiedFirst <= BUFFER_BLOCKS ? occupiedEnd : occupiedFirst;
-  const keepOccupied = back && indexPending && state.occupied.some((id) => index.has(id));
   // A stale offscreen probe can split a gap and clamp a deep scroll offset in WebKit.
   // Refresh occupied heights at the top, or measure the shells as they enter the window.
   const probe =
@@ -120,16 +116,16 @@ export function useCompactBlocks(options: Options) {
       ? missing
       : blocks.findIndex((block) => block.some((id) => !fresh.has(id)));
   const focused = cardId(contentRef.current?.querySelector?.(':focus'));
-  const retained = new Set([focused, protectedId, state.gesture?.id]);
+  // Keep the visible rows while a partial restore discovers its new prefix.
+  const occupied = back && indexPending ? state.occupied : [];
+  const retained = new Set([focused, protectedId, state.gesture?.id, ...occupied]);
   const liveIds: string[] = [];
   const spacers = new Map<string, string[]>();
   const rows = grouped.map(({ key: groupKey, start, end }) => {
     const group: CompactBlockRow[] = [];
     let gapIndex = 0;
     for (let slot = start; slot < end; slot += 1) {
-      const inBand =
-        (slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS) ||
-        (keepOccupied && slot >= occupiedFirst && slot <= occupiedLast);
+      const inBand = slot >= first - BUFFER_BLOCKS && slot <= last + BUFFER_BLOCKS;
       const seeking = targetReady && Math.abs(slot - targetSlot!) <= BUFFER_BLOCKS;
       for (const id of blocks[slot]!) {
         const height = heights.get(id);
