@@ -1,5 +1,6 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { isDesktopApp } from '../lib/nativeShell';
 import { getConnectPath } from '../routes/pathUtils';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
@@ -87,7 +88,8 @@ export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
 export const isNativeApp = (): boolean =>
-  Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform());
+  isDesktopApp() ||
+  (Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform()));
 
 const isIOSWebPlatform = (): boolean => {
   if (typeof window === 'undefined') return false;

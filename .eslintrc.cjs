@@ -171,6 +171,26 @@ module.exports = {
     // Physical sides in styles (scripts/eslint-shared.cjs).
     ...logicalSidesOverrides('src/', TESTS),
     {
+      // Only nativeShell.ts reads the Electron preload bridge.
+      files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
+      excludedFiles: ['src/app/lib/nativeShell.ts', ...TESTS],
+      rules: {
+        'no-restricted-properties': [
+          'error',
+          {
+            object: 'window',
+            property: 'mindroomDesktop',
+            message: 'Use desktopBridge or isDesktopApp from src/app/lib/nativeShell instead.',
+          },
+          {
+            object: 'globalThis',
+            property: 'mindroomDesktop',
+            message: 'Use desktopBridge or isDesktopApp from src/app/lib/nativeShell instead.',
+          },
+        ],
+      },
+    },
+    {
       // Domain layers (LAYERS above). Zones resolve from this directory, so the
       // rule does not depend on the directory ESLint runs in.
       files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],

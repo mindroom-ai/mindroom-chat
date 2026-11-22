@@ -144,6 +144,18 @@ describe('nativeSso', () => {
     expect(isNativeApp()).toBe(false);
   });
 
+  it('treats the desktop bridge as a native app while Capacitor reports web', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) } },
+    });
+
+    expect(isNativeApp()).toBe(true);
+    expect(isNativeIOS()).toBe(false);
+  });
+
   it('detects iOS standalone web apps from display mode and navigator.standalone', () => {
     setWindow(
       {

@@ -44,6 +44,20 @@ describe('authUi', () => {
     );
   });
 
+  it('uses the native redirect scheme in the desktop app while Capacitor reports web', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    vi.stubGlobal('window', { mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) } });
+
+    try {
+      expect(getAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
+        'mindroom://auth/login?addAccount=1'
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   describe('getDeviceDisplayName', () => {
     afterEach(() => {
       vi.unstubAllGlobals();
@@ -73,5 +87,14 @@ describe('authUi', () => {
         expect(getDeviceDisplayName()).toBe(name);
       }
     );
+
+    it('names a session of the desktop app "MindRoom Desktop"', () => {
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+      vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+      vi.stubGlobal('navigator', { userAgent: MAC_APP, platform: 'MacIntel', maxTouchPoints: 0 });
+      vi.stubGlobal('window', { mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) } });
+
+      expect(getDeviceDisplayName()).toBe('MindRoom Desktop');
+    });
   });
 });
