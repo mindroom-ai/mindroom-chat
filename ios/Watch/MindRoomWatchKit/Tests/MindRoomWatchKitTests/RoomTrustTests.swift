@@ -149,9 +149,57 @@ final class RoomTrustTests: XCTestCase {
     }
 
     func testARoomHasOneTrustWhichStartsWithTheCachedResolvedThreads() {
-        let trust = RoomTrust.of("!a:x", cached: ["$cached"])
-        XCTAssertTrue(trust === RoomTrust.of("!a:x", cached: []))
+        let trust = RoomTrust.of("!a:x", userId: "@bas:x", cached: ["$cached"])
+        XCTAssertTrue(trust === RoomTrust.of("!a:x", userId: "@bas:x", cached: []))
         XCTAssertEqual(trust.resolved.roots, ["$cached"])
-        XCTAssertFalse(trust === RoomTrust.of("!b:x", cached: []))
+        XCTAssertFalse(trust === RoomTrust.of("!b:x", userId: "@bas:x", cached: []))
+    }
+
+    func testAnotherAccountHasItsOwnTrustOfTheSameRoom() async {
+        let annas = RoomTrust.of("!shared:x", userId: "@anna:x", cached: ["$annas"])
+        // Anna's read of the room's state is under way when she signs out and Bas signs in on the same watch.
+        let underWay = await suspendedRead(annas, state(roster: [helper]) + [resolvedTag("$done")])
+        let mine = RoomTrust.of("!shared:x", userId: "@bas:x", cached: ["$mine"])
+        XCTAssertFalse(mine === annas)
+        XCTAssertTrue(mine === RoomTrust.of("!shared:x", userId: "@bas:x", cached: []))
+        XCTAssertEqual(mine.resolved.roots, ["$mine"])
+        // He does not wait for her read: his own begins, and fails.
+        var reads = 0
+        await mine.refresh { reads += 1; return nil }
+        XCTAssertEqual(reads, 1)
+        // What her read says goes to her trust: he trusts nobody yet, and has the resolved threads he had.
+        finishRead?.resume()
+        await underWay.value
+        XCTAssertEqual(annas.accounts, [router, helper])
+        XCTAssertEqual(annas.resolved.roots, ["$done"])
+        XCTAssertEqual(mine.accounts, [])
+        XCTAssertEqual(mine.resolved.roots, ["$mine"])
+    }
+
+    func testTheResolvedThreadsAreKeptForTheNextLaunchFromWhenSomeoneKeepsThem() async {
+        // The last launch kept a thread as resolved that was opened again elsewhere since.
+        var kept: Set<String> = ["$reopened"]
+        var writes = 0
+        let trust = RoomTrust(resolved: kept)
+        // A notification reads the room's state before the default room's model is there: nobody keeps it.
+        await read(trust, state() + [resolvedTag("$done")])
+        XCTAssertEqual(kept, ["$reopened"])
+        // The model comes: what the trust says by then is kept, once...
+        trust.persist = { kept = $0; writes += 1 }
+        XCTAssertEqual(kept, ["$done"])
+        // ...a read that says the same writes nothing, and the next launch starts with the threads as they are.
+        await read(trust, state(roster: [helper]) + [resolvedTag("$done")])
+        XCTAssertEqual(writes, 1)
+        XCTAssertEqual(RoomTrust(resolved: kept).resolved.roots, ["$done"])
+        // From then on each change is kept: a read's, and a thread resolved here.
+        await read(trust, state() + [resolvedTag("$done"), resolvedTag("$more")])
+        XCTAssertEqual(kept, ["$done", "$more"])
+        trust.resolve("$here")
+        XCTAssertEqual(kept, ["$done", "$more", "$here"])
+        // Until the model gives way to another room's.
+        trust.persist = nil
+        await read(trust, state())
+        XCTAssertEqual(kept, ["$done", "$more", "$here"])
+        XCTAssertEqual(writes, 3)
     }
 }
