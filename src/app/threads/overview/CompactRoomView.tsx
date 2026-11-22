@@ -8,7 +8,6 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -80,6 +79,13 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
+  /**
+   * Set when the active workflow tab filters the list to one bucket (`needsYou`, `working`,
+   * `later`, `done` — not `all` or Simple mode). That section stays open with a plain
+   * non-collapsible header without changing its stored fold, so switching to Done still shows
+   * Done threads immediately.
+   */
+  singleBucketTab?: ThreadWorkflowBucket;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
@@ -89,7 +95,6 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
     ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
     : undefined;
-const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
 type ThreadActionsMenuState = {
   roomId: string;
@@ -328,6 +333,7 @@ export function CompactRoomView({
   focusRequest,
   filterBarShown = false,
   sectionsNow,
+  singleBucketTab,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -368,31 +374,16 @@ export function CompactRoomView({
       ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
       : threadSections;
   }, [orderHeld, roomId, threadSections]);
-  // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back. If another section appears, such as Working below Needs you,
-  // the original stays open until the hold lets go or the reader folds it.
-  const soleSection = heldSections?.length === 1;
-  const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
-  const [, showFolds] = useReducer((count: number) => count + 1, 0);
-  const heldOpen = soleSection
-    ? heldSections?.[0]?.id
-    : orderHeld && heldOpenRef.current?.roomId === room.roomId
-    ? heldOpenRef.current.id
-    : undefined;
-  useLayoutEffect(() => {
-    heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
-  }, [heldOpen, room.roomId]);
+  // Under a single-bucket workflow tab (such as Done), that section stays open without
+  // changing its stored fold, so switching to Done still shows Done threads immediately.
   const folded = useMemo(
-    () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
-    [heldOpen, sectionsChoice.folded, soleSection]
+    () =>
+      singleBucketTab
+        ? sectionsChoice.folded.filter((id) => id !== singleBucketTab)
+        : sectionsChoice.folded,
+    [sectionsChoice.folded, singleBucketTab]
   );
   const toggleFold = (id: ThreadWorkflowBucket) => {
-    // A section held open shows open, so its header folds it, stored as folded once.
-    if (id === heldOpen) {
-      heldOpenRef.current = undefined;
-      showFolds();
-      if (sectionsChoice.folded.includes(id)) return;
-    }
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
@@ -635,12 +626,13 @@ export function CompactRoomView({
 
   const renderSectionHeader = (id: ThreadWorkflowBucket) => {
     const key = sectionRowKey(id);
+    const fixedOpen = id === singleBucketTab;
     const closed = folded.includes(id);
     const count = sectionCounts.get(id) ?? 0;
     const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
       <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {soleSection ? (
+        {fixedOpen ? (
           <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
             {label}
           </Button>
