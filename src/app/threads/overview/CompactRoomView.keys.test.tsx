@@ -69,7 +69,11 @@ vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
+  useTranslation: () => ({
+    i18n: { language: 'en' },
+    t: (key: string, options?: { count?: number }) =>
+      options?.count === undefined ? key : `${key} ${options.count}`,
+  }),
 }));
 
 const list = (
@@ -276,6 +280,19 @@ describe('the thread keys on the compact thread list', () => {
       header.querySelector('button')!.focus();
       tabTo(header.previousElementSibling);
       expect(document.activeElement).toBe(more('$card47'));
+    });
+
+    it('names a spacer for assistive technology, and shows its first card when activated', () => {
+      render(list('!tab:example.org', ids));
+      settle();
+      scrollTo(6000);
+      const spacer = shell('$card48').previousElementSibling as HTMLElement;
+      expect(spacer.hasAttribute('aria-hidden')).toBe(false);
+      expect(spacer.getAttribute('aria-label')).toBe('threadNav.moreThreads 48');
+      // A screen reader activates a button without moving the focus to it first.
+      fireEvent.click(spacer);
+      settle();
+      expect(document.activeElement).toBe(card('$card0'));
     });
 
     it('leaves a pointer press on a spacer where it is', () => {

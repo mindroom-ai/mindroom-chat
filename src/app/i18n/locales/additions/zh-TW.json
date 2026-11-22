@@ -1645,6 +1645,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "另有 {{count}} 個討論串",
     "forMe": "與我相關",
     "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
     "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",

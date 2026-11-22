@@ -1845,6 +1845,12 @@
     }
   },
   "threadNav": {
+    "moreThreads_zero": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_one": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_two": "سلسلتا محادثة أخريان (⁨{{count}}⁩)",
+    "moreThreads_few": "⁨{{count}}⁩ سلاسل محادثة أخرى",
+    "moreThreads_many": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_other": "⁨{{count}}⁩ سلسلة محادثة أخرى",
     "forMe": "لي",
     "forMeHint": "سلاسل المحادثات التي تشارك فيها، أو التي نشر فيها وكيل بالنيابة عنك، أو التي ثبّتها أنت فقط",
     "roomForMeHint": "سلاسل المحادثات التي تشارك فيها أو التي نشر فيها وكيل بالنيابة عنك فقط",

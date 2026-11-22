@@ -40,13 +40,6 @@ export const Cards = style({
   position: 'relative',
 });
 
-export const Spacer = style({
-  all: 'unset',
-  flexShrink: 0,
-  overflowAnchor: 'none',
-  transitionProperty: 'none',
-});
-
 // What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
 const hoverTint = createVar();
 
@@ -83,6 +76,16 @@ const focusRing = {
   outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
   outlineOffset: '1px',
 };
+
+// The cards outside the window, as one Tab stop. A pointer passes through it to the list.
+export const Spacer = style({
+  all: 'unset',
+  flexShrink: 0,
+  overflowAnchor: 'none',
+  transitionProperty: 'none',
+  pointerEvents: 'none',
+  selectors: { '&:focus-visible': { ...focusRing, outlineOffset: '-2px' } },
+});
 
 export const Card = style([
   DefaultReset,

@@ -1725,6 +1725,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "Mais {{count}} tópico",
+    "moreThreads_many": "Mais {{count}} de tópicos",
+    "moreThreads_other": "Mais {{count}} tópicos",
     "forMe": "Para mim",
     "forMeHint": "Apenas tópicos em que participa, em que um agente publicou em seu nome ou que fixou",
     "roomForMeHint": "Apenas tópicos em que participa ou em que um agente publicou em seu nome",

@@ -1685,6 +1685,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} more thread",
+    "moreThreads_other": "{{count}} more threads",
     "forMe": "For me",
     "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
     "roomForMeHint": "Only threads you take part in or that an agent posted for you",

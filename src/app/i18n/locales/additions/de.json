@@ -1685,6 +1685,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} weiterer Thread",
+    "moreThreads_other": "{{count}} weitere Threads",
     "forMe": "Für mich",
     "forMeHint": "Nur Threads, an denen du teilnimmst, in denen ein Agent für dich gepostet hat oder die du angepinnt hast",
     "roomForMeHint": "Nur Threads, an denen du teilnimmst oder in denen ein Agent für dich gepostet hat",
