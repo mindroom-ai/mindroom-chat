@@ -77,6 +77,15 @@ const othersEdit = (body: string, ts: number, status: string): IEvent => ({
   ...edit(body, ts, status),
   sender: readerId,
 });
+/** `event` putting `newContent` on its reply, with `beside` in place of its stream status. */
+const editWith = (
+  event: IEvent,
+  newContent: Record<string, unknown>,
+  beside: Record<string, unknown> = {}
+): IEvent => {
+  const { 'io.mindroom.stream_status': _status, ...content } = event.content;
+  return { ...event, content: { ...content, ...beside, 'm.new_content': newContent } };
+};
 /** The reply as the server serves it: with its newest edit bundled. */
 const withEdit = (event: IEvent, newest: IEvent): IEvent => ({
   ...event,
@@ -277,6 +286,7 @@ describe('streaming replies on thread cards', () => {
   });
   afterEach(() => {
     clients.splice(0).forEach((mx) => closeClient(mx));
+    vi.useRealTimers();
     [
       Thread.hasServerSideSupport,
       Thread.hasServerSideListSupport,
@@ -423,6 +433,11 @@ describe('streaming replies on thread cards', () => {
     else s.serve(newest);
     for (const batch of live) await s.f.deliver(batch);
   };
+  /** The thread loads its first page: `events`, then the text and the file. */
+  const loadPage = async (s: MidStream, ...events: IEvent[]) => {
+    s.f.setServerThread({ root: s.listed, replies: [...events, s.text, s.file] });
+    await s.thread.initialize();
+  };
   /** Whether a live edit says that the reply the thread lacks streams. */
   const hinted = (s: MidStream) => hasStreamHint(s.f.room(), s.thread);
 
@@ -476,12 +491,8 @@ describe('streaming replies on thread cards', () => {
     [
       'a run that says it streams',
       (s, now) => {
-        const active = s.streaming(now - 1_000);
-        delete active.content['io.mindroom.stream_status'];
-        active.content['m.new_content'] = {
-          body: 'Results',
-          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-        };
+        const run = { 'io.mindroom.ai_run': { version: 1, status: 'streaming' } };
+        const active = editWith(s.streaming(now - 1_000), { body: 'Results', ...run });
         return { newest: active, live: [[active]] };
       },
     ],
@@ -594,10 +605,8 @@ describe('streaming replies on thread cards', () => {
     [
       'a stale edit synced after one that finished the reply at the same time, in record form',
       (s, now) => {
-        const done = s.completed(now);
-        delete done.content['io.mindroom.stream_status'];
         const status = { 'io.mindroom.stream_status': { status: 'completed' } };
-        done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
+        const done = editWith(s.completed(now), { msgtype: 'm.text', body: finished, ...status });
         return { live: [[done], [s.streaming(now)]] };
       },
     ],
@@ -635,12 +644,8 @@ describe('streaming replies on thread cards', () => {
     [
       'a member whose edit nests a stream status below its new content',
       (s, now) => {
-        const active = s.streaming(now - 1_000);
-        delete active.content['io.mindroom.stream_status'];
-        active.content['m.new_content'] = {
-          body: 'Results',
-          'm.new_content': { 'io.mindroom.stream_status': 'streaming' },
-        };
+        const nested = { 'm.new_content': { 'io.mindroom.stream_status': 'streaming' } };
+        const active = editWith(s.streaming(now - 1_000), { body: 'Results', ...nested });
         return { newest: active, live: [[active]] };
       },
       () => ({ sender: readerId }),
@@ -671,9 +676,8 @@ describe('streaming replies on thread cards', () => {
     [
       'a run without a status',
       (s, now) => {
-        const active = s.streaming(now - 1_000);
-        delete active.content['io.mindroom.stream_status'];
-        active.content['m.new_content'] = { body: 'Results', 'io.mindroom.ai_run': { version: 1 } };
+        const run = { 'io.mindroom.ai_run': { version: 1 } };
+        const active = editWith(s.streaming(now - 1_000), { body: 'Results', ...run });
         return { newest: active, live: [[active]] };
       },
     ],
@@ -752,44 +756,39 @@ describe('streaming replies on thread cards', () => {
     return s;
   };
 
-  it('ends Working when the server bundles a newer finishing edit with the reply', async () => {
-    const now = Date.now();
-    const s = await hintMidStream(now);
-    // The finishing edit itself has not come: the reply fetched for an older edit brings it.
-    s.serve(s.ending(now + 1));
-    await s.f.deliver([s.streaming(now, '$b-later')]);
-    expect(hinted(s)).toBe(false);
-    expect(s.workflow()).toBe('needsYou');
-  });
-
-  // The SDK fetches the reply to place a reaction too. A reaction starts no hint, but ends one.
-  it('ends Working when the reply fetched for a reaction bundles a finishing edit', async () => {
-    const now = Date.now();
-    const s = await hintMidStream(now);
-    s.serve(s.ending(now + 1));
-    await s.f.deliver([stopReaction(now + 2)]);
-    expect(s.f.replyRequests()).toBe(2);
-    expect(hinted(s)).toBe(false);
-    expect(s.workflow()).toBe('needsYou');
-  });
-
-  it('ends Working by a finishing edit the server bundles, whoever reacts', async () => {
-    const now = Date.now();
-    const s = await hintMidStream(now);
-    const ignored = '@ignored:example.org';
-    await s.f.deliverAccountData('m.ignored_user_list', { ignored_users: { [ignored]: {} } });
-    expect(s.workflow()).toBe('working');
-    s.serve(s.ending(now + 1));
-    await s.f.deliver([{ ...stopReaction(now + 2), sender: ignored }]);
-    expect(s.f.replyRequests()).toBe(2);
-    expect(s.workflow()).toBe('needsYou');
-  });
+  // The finishing edit itself has not come: the reply the SDK fetches brings it. The SDK fetches
+  // the reply to place a reaction too; a reaction starts no hint, but ends one, whoever reacts.
+  const ignored = '@ignored:example.org';
+  it.each<[string, (s: MidStream, now: number) => IEvent, boolean?]>([
+    ['an older edit', (s, now) => s.streaming(now, '$b-later')],
+    ['a reaction', (_s, now) => stopReaction(now + 2)],
+    [
+      'the reaction of a user the reader ignores',
+      (_s, now) => ({ ...stopReaction(now + 2), sender: ignored }),
+      true,
+    ],
+  ])(
+    'ends Working when the reply fetched for %s bundles a finishing edit',
+    async (_name, live, ignores) => {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      if (ignores) {
+        const users = { ignored_users: { [ignored]: {} } };
+        await s.f.deliverAccountData('m.ignored_user_list', users);
+        expect(s.workflow()).toBe('working');
+      }
+      s.serve(s.ending(now + 1));
+      await s.f.deliver([live(s, now)]);
+      expect(s.f.replyRequests()).toBe(2);
+      expect(hinted(s)).toBe(false);
+      expect(s.workflow()).toBe('needsYou');
+    }
+  );
 
   it('shows Working again by the first streaming edit after a page brought a finishing one', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);
-    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
-    await s.thread.initialize();
+    await loadPage(s, s.ending(now));
     expect(s.workflow()).toBe('needsYou');
 
     const again = s.streaming(now + 1, '$f-again');
@@ -799,35 +798,29 @@ describe('streaming replies on thread cards', () => {
 
   it('keeps no hint by an edit that says the reply streams and that its run completed', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      const now = Date.now();
-      const s = await relaunchMidStream(now);
-      const done = s.streaming(now - 1_000);
-      const newContent = done.content['m.new_content'] as Record<string, unknown>;
-      newContent['io.mindroom.ai_run'] = { version: 1, status: 'completed' };
-      await arrive(s, { newest: done, live: [[done]] });
-      expect(s.workflow()).toBe('needsYou');
-      // No hint waits out its five minutes unseen.
-      const updates = vi.fn();
-      s.thread.on(ThreadEvent.Update, updates);
-      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
-      expect(updates).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    const now = Date.now();
+    const s = await relaunchMidStream(now);
+    const done = s.streaming(now - 1_000);
+    const newContent = done.content['m.new_content'] as Record<string, unknown>;
+    newContent['io.mindroom.ai_run'] = { version: 1, status: 'completed' };
+    await arrive(s, { newest: done, live: [[done]] });
+    expect(s.workflow()).toBe('needsYou');
+    // No hint waits out its five minutes unseen.
+    const updates = vi.fn();
+    s.thread.on(ThreadEvent.Update, updates);
+    await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
+    expect(updates).not.toHaveBeenCalled();
   });
 
   it('stays in Needs you by an edit without a status after a page brought the finishing one', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);
-    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
-    await s.thread.initialize();
+    await loadPage(s, s.ending(now));
     expect(s.workflow()).toBe('needsYou');
 
     // The agent corrects its finished text: the edit carries no stream status.
-    const correction = { ...s.completed(now + 1), event_id: '$d-correction' };
-    delete correction.content['io.mindroom.stream_status'];
-    correction.content['m.new_content'] = { msgtype: 'm.text', body: 'The notes, corrected.' };
+    const corrected = { msgtype: 'm.text', body: 'The notes, corrected.' };
+    const correction = { ...editWith(s.completed(now + 1), corrected), event_id: '$d-correction' };
     await arrive(s, { newest: correction, live: [[correction]] });
     expect(s.workflow()).toBe('needsYou');
     // No later one brings Working back but one that says the reply streams again.
@@ -842,8 +835,7 @@ describe('streaming replies on thread cards', () => {
     const now = Date.now();
     const s = await relaunchMidStream(now);
     // The thread's newest page holds the reply's edits, the finishing one too, but not the reply.
-    s.f.setServerThread({ root: s.listed, replies: [s.completed(now), s.text, s.file] });
-    await s.thread.initialize();
+    await loadPage(s, s.completed(now));
     expect(s.thread.findEventById(replyId)).toBeUndefined();
 
     await arrive(s, { live: [[s.streaming(now - 1_000)]] });
@@ -895,10 +887,8 @@ describe('streaming replies on thread cards', () => {
     async (_name, status, beside) => {
       const now = Date.now();
       const s = await hintMidStream(now);
-      const done = s.completed(now);
-      delete done.content['io.mindroom.stream_status'];
-      Object.assign(done.content, beside);
-      done.content['m.new_content'] = { msgtype: 'm.text', body: finished, ...status };
+      const newContent = { msgtype: 'm.text', body: finished, ...status };
+      const done = editWith(s.completed(now), newContent, beside);
       await arrive(s, { newest: done, live: [[done]] });
       expect(hinted(s)).toBe(false);
       expect(s.workflow()).toBe('needsYou');
@@ -922,8 +912,7 @@ describe('streaming replies on thread cards', () => {
   it('ends Working when a page of the thread brings the finishing edit without the reply', async () => {
     const now = Date.now();
     const s = await hintMidStream(now);
-    s.f.setServerThread({ root: s.listed, replies: [s.ending(now), s.text, s.file] });
-    await s.thread.initialize();
+    await loadPage(s, s.ending(now));
     expect(s.thread.findEventById(replyId)).toBeUndefined();
     expect(hinted(s)).toBe(false);
     expect(s.workflow()).toBe('needsYou');
@@ -967,18 +956,14 @@ describe('streaming replies on thread cards', () => {
     ['the thread is deleted', (s) => s.thread.emit(ThreadEvent.Delete, s.thread)],
   ])('forgets what it knows of the reply, and says nothing more, once %s', async (_name, end) => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      const now = Date.now();
-      const s = await hintMidStream(now);
-      const updates = vi.fn();
-      s.thread.on(ThreadEvent.Update, updates);
-      end(s);
-      expect(hinted(s)).toBe(false);
-      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
-      expect(updates).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const updates = vi.fn();
+    s.thread.on(ThreadEvent.Update, updates);
+    end(s);
+    expect(hinted(s)).toBe(false);
+    await vi.advanceTimersByTimeAsync(STREAM_HINT_MS + 1_000);
+    expect(updates).not.toHaveBeenCalled();
   });
 
   /** A redaction of the edit that hints: it takes the reply's ID off the edit. */
@@ -993,58 +978,49 @@ describe('streaming replies on thread cards', () => {
     const s = await hintMidStream(now);
     await redactHinting(s, now);
     expect(s.workflow()).toBe('working');
-    s.f.setServerThread({ root: s.listed, replies: [s.ending(now + 1), s.text, s.file] });
-    await s.thread.initialize();
+    await loadPage(s, s.ending(now + 1));
     expect(s.workflow()).toBe('needsYou');
   });
 
   it('keeps Working by the edit that follows the redaction of the one before', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      const now = Date.now();
-      const s = await hintMidStream(now);
-      await vi.advanceTimersByTimeAsync(3 * MINUTE);
-      await redactHinting(s, now + 3 * MINUTE);
-      const later = s.streaming(now + 3 * MINUTE, '$b-later');
-      await arrive(s, { newest: later, live: [[later]] });
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    await vi.advanceTimersByTimeAsync(3 * MINUTE);
+    await redactHinting(s, now + 3 * MINUTE);
+    const later = s.streaming(now + 3 * MINUTE, '$b-later');
+    await arrive(s, { newest: later, live: [[later]] });
 
-      // Past the redacted edit's five minutes, within the later one's.
-      await vi.advanceTimersByTimeAsync(3 * MINUTE);
-      expect(s.workflow()).toBe('working');
-    } finally {
-      vi.useRealTimers();
-    }
+    // Past the redacted edit's five minutes, within the later one's.
+    await vi.advanceTimersByTimeAsync(3 * MINUTE);
+    expect(s.workflow()).toBe('working');
   });
 
   it('ends Working five minutes after the last live edit, and says so', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    try {
-      const now = Date.now();
-      const s = await hintMidStream(now);
-      await vi.advanceTimersByTimeAsync(3 * MINUTE);
-      const later = s.streaming(now + 3 * MINUTE, '$b-later');
-      await arrive(s, { newest: later, live: [[later]] });
-      // Past the first edit's five minutes, within the second's.
-      await vi.advanceTimersByTimeAsync(3 * MINUTE);
-      expect(s.workflow()).toBe('working');
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    await vi.advanceTimersByTimeAsync(3 * MINUTE);
+    const later = s.streaming(now + 3 * MINUTE, '$b-later');
+    await arrive(s, { newest: later, live: [[later]] });
+    // Past the first edit's five minutes, within the second's.
+    await vi.advanceTimersByTimeAsync(3 * MINUTE);
+    expect(s.workflow()).toBe('working');
 
-      // Ten seconds short of the second edit's five minutes, a reaction: the SDK fetches the
-      // reply for it, with the streaming edit the server bundles, and that renews nothing.
-      await vi.advanceTimersByTimeAsync(2 * MINUTE - 10_000);
-      await s.f.deliver([stopReaction(now + 5 * MINUTE)]);
-      expect(s.f.replyRequests()).toBe(3);
-      expect(s.workflow()).toBe('working');
-      const updates = vi.fn();
-      s.thread.on(ThreadEvent.Update, updates);
+    // Ten seconds short of the second edit's five minutes, a reaction: the SDK fetches the
+    // reply for it, with the streaming edit the server bundles, and that renews nothing.
+    await vi.advanceTimersByTimeAsync(2 * MINUTE - 10_000);
+    await s.f.deliver([stopReaction(now + 5 * MINUTE)]);
+    expect(s.f.replyRequests()).toBe(3);
+    expect(s.workflow()).toBe('working');
+    const updates = vi.fn();
+    s.thread.on(ThreadEvent.Update, updates);
 
-      // Ten seconds past them.
-      await vi.advanceTimersByTimeAsync(20_000);
-      expect(updates).toHaveBeenCalled();
-      expect(hinted(s)).toBe(false);
-      expect(s.workflow()).toBe('needsYou');
-    } finally {
-      vi.useRealTimers();
-    }
+    // Ten seconds past them.
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(updates).toHaveBeenCalled();
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
   });
 
   it('keeps Working when the thread’s own timeline starts over', async () => {
@@ -1160,13 +1136,9 @@ describe('streaming replies on thread cards', () => {
       const s = await hintMidStream(now);
       const { f, thread, workflow } = s;
       const active = s.streaming(now - 1_000);
-      // The page's copy of the reply is from before it finished.
-      f.setServerThread({
-        root: s.listed,
-        replies: [withEdit(s.placeholder, active), s.text, s.file],
-      });
       s.serve(answer === 'finished' ? s.ending(now) : active);
-      await thread.initialize();
+      // The page's copy of the reply is from before it finished.
+      await loadPage(s, withEdit(s.placeholder, active));
 
       expect(thread.findEventById(replyId)).toBeDefined();
       expect(hinted(s)).toBe(false);
