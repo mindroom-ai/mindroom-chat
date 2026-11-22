@@ -6,8 +6,7 @@ import { color, config } from 'folds';
 export const ThreadMenu = style({
   display: 'flex',
   flexDirection: 'column',
-  maxHeight:
-    'calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+  maxHeight: 'calc(100dvh - 4.5rem - var(--app-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
 });
 
 export const ThreadMenuRows = style({

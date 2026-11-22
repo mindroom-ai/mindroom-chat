@@ -6,6 +6,18 @@
   box-sizing: border-box;
 }
 
+:root {
+  --app-inset-top: env(safe-area-inset-top, 0px);
+}
+
+html[data-shell='desktop'] {
+  --app-inset-top: 28px;
+}
+
+html[data-shell='desktop'][data-fullscreen] {
+  --app-inset-top: 0px;
+}
+
 html {
   height: 100%;
   -webkit-text-size-adjust: 100%;
@@ -61,7 +73,7 @@ body {
   margin-top: var(--app-viewport-offset-top, 0px);
   /* The page reaches under the status bar (viewport-fit=cover) with the theme's background,
      which applyThemeToDom gives html and body; the app itself starts below it. */
-  padding-top: env(safe-area-inset-top, 0px);
+  padding-top: var(--app-inset-top, 0px);
   display: flex;
   flex-direction: column;
 }
