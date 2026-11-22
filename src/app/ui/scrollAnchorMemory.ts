@@ -94,14 +94,21 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
-// The first row in view, and how far below the view's top it starts.
-const firstRowInView = (view: HTMLElement): { row: Element; top: number } | undefined => {
+// The first rows in view, and how far below the view's top each starts. Rows render top to
+// bottom, so the first one in view is found by halving.
+const firstRowsInView = (view: HTMLElement): { row: Element; top: number }[] => {
   const { top } = view.getBoundingClientRect();
-  for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {
-    const rect = row.getBoundingClientRect();
-    if (rect.bottom > top) return { row, top: rect.top - top };
+  const rows = [...view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)];
+  let low = 0;
+  let high = rows.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (rows[middle]!.getBoundingClientRect().bottom > top) high = middle;
+    else low = middle + 1;
   }
-  return undefined;
+  return rows
+    .slice(low, low + 3)
+    .map((row) => ({ row, top: row.getBoundingClientRect().top - top }));
 };
 
 type RestoreState = {
@@ -113,8 +120,8 @@ type RestoreState = {
   /** Every row's key, in order, at the last write. */
   rowOrder: string[];
   lastAppliedScrollTop: number;
-  /** The first row in view at the last write. */
-  rowInView?: ReturnType<typeof firstRowInView>;
+  /** The first rows in view at the last write. */
+  rowsInView?: ReturnType<typeof firstRowsInView>;
 };
 
 type ScrollAnchorMemoryOptions = {
@@ -172,31 +179,40 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-    // A scroll that moved the rows is the reader's, by whatever means, and ends the restore.
-    // One that left them where they show is the browser's scroll anchoring, or code that
-    // scrolls as it does: the list changed around the rows, and the restore goes on from there.
+    // The browser's scroll anchoring scrolls the list and leaves its rows where they show: the
+    // list changed above them. The restore goes on from that offset, and so does the place to
+    // fall back to. Any other scroll moves the rows.
+    const followAnchoring = () => {
+      const shown = state.rowsInView?.find(({ row }) => view.contains(row));
+      const scrolled = view.scrollTop - state.lastAppliedScrollTop;
+      if (!state.snapshot || !shown || scrolled === 0) return;
+      const top = shown.row.getBoundingClientRect().top - view.getBoundingClientRect().top;
+      if (Math.abs(top - shown.top) > 1) return;
+      state.lastAppliedScrollTop = view.scrollTop;
+      state.snapshot = { ...state.snapshot, scrollTop: state.snapshot.scrollTop + scrolled };
+    };
     const handleScroll = () => {
-      if (view.scrollTop === state.lastAppliedScrollTop) return;
-      const { rowInView: shown } = state;
-      const moved =
-        shown && view.contains(shown.row)
-          ? shown.row.getBoundingClientRect().top - view.getBoundingClientRect().top - shown.top
-          : Infinity;
-      if (Math.abs(moved) <= 1) state.lastAppliedScrollTop = view.scrollTop;
-      else stopFollowing();
+      followAnchoring();
+      if (view.scrollTop !== state.lastAppliedScrollTop) stopFollowing();
     };
     const restore = () => {
+      followAnchoring();
       const { snapshot } = state;
       if (!snapshot) return;
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
       // A reader who left at the top stays at the top, where rows that moved
-      // up show; one who scrolled since the last write keeps their place
-      // (`handleScroll`). Late layout moves the placed rows together (the
-      // header padding settling, cards loading above). Rows that move apart
-      // or change order are the list changing under the reader, such as a
-      // card leaving or a thread sorting first, and stay where they land.
-      if (snapshot.scrollTop <= 0 || !placement || !keepsRowOrder(state.rowOrder, rowOrder)) {
+      // up show; one who scrolled since the last write keeps their place.
+      // Late layout moves the placed rows together (the header padding
+      // settling, cards loading above). Rows that move apart or change order
+      // are the list changing under the reader, such as a card leaving or a
+      // thread sorting first, and stay where they land.
+      if (
+        snapshot.scrollTop <= 0 ||
+        view.scrollTop !== state.lastAppliedScrollTop ||
+        !placement ||
+        !keepsRowOrder(state.rowOrder, rowOrder)
+      ) {
         stopFollowing();
         return;
       }
@@ -204,7 +220,7 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
-      state.rowInView = firstRowInView(view);
+      state.rowsInView = firstRowsInView(view);
     };
     restore();
     if (!state.snapshot) return undefined;
