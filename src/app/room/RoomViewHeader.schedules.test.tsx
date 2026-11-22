@@ -7,11 +7,12 @@ import { Node as SlateNode } from 'slate';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
 import { createParagraphElement } from '../editor/utils';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 type CapturedOverlayProps = {
   onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
-  onEditTask?: (task: ParsedScheduledTask) => void;
+  onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
 };
 
 const { perms, sendMessage, navigateRoomThread, setViewMode, overlayCapture } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ const { perms, sendMessage, navigateRoomThread, setViewMode, overlayCapture } = 
   overlayCapture: {
     openTrigger: undefined as (() => void) | undefined,
     props: undefined as CapturedOverlayProps | undefined,
+    mounted: false,
   },
 }));
 
@@ -106,6 +108,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({
   },
   RoomSchedulesMenuEntry: () => null,
   RoomSchedulesOverlay: (props: CapturedOverlayProps) => {
+    overlayCapture.mounted = true;
     overlayCapture.props = props;
     return null;
   },
@@ -143,6 +146,8 @@ afterEach(() => {
   setViewMode.mockClear();
   overlayCapture.openTrigger = undefined;
   overlayCapture.props = undefined;
+  overlayCapture.mounted = false;
+  vi.restoreAllMocks();
 });
 
 const renderAndOpenSchedules = (props: RoomViewHeaderProps = {}) => {
@@ -154,6 +159,7 @@ const renderAndOpenSchedules = (props: RoomViewHeaderProps = {}) => {
       </Provider>
     );
   });
+  overlayCapture.mounted = false;
   act(() => {
     overlayCapture.openTrigger?.();
   });
@@ -168,10 +174,11 @@ describe('RoomViewHeader schedule actions', () => {
     expect(overlayCapture.props?.onEditTask).toBeUndefined();
   });
 
-  it('sends !cancel_schedule to the task thread or open thread when cancelling', async () => {
+  it('sends !cancel_schedule with confirmed threadId, falls back for local IDs, and blocks unsafe task IDs', async () => {
     renderAndOpenSchedules({ openThreadId: '$open-thread' });
+
     await overlayCapture.props!.onCancelTask!(task({ taskId: 'abc', threadId: '$task-thread' }));
-    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', {
+    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', '$task-thread', {
       msgtype: MsgType.Text,
       body: '!cancel_schedule abc',
       'm.relates_to': {
@@ -182,63 +189,89 @@ describe('RoomViewHeader schedule actions', () => {
       },
     });
 
-    await overlayCapture.props!.onCancelTask!(
-      task({ taskId: 'def', threadId: '$ignored', newThread: true })
-    );
-    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', {
+    // Local unconfirmed thread IDs fall back to the room timeline (null threadId).
+    await overlayCapture.props!.onCancelTask!(task({ taskId: 'local-1', threadId: '~local-root' }));
+    expect(sendMessage).toHaveBeenLastCalledWith('!room:example.org', null, {
       msgtype: MsgType.Text,
-      body: '!cancel_schedule def',
-      'm.relates_to': {
-        rel_type: RelationType.Thread,
-        event_id: '$open-thread',
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: '$open-thread' },
-      },
+      body: '!cancel_schedule local-1',
     });
+
+    // Unsafe IDs are rejected before sending.
+    sendMessage.mockClear();
+    await overlayCapture.props!.onCancelTask!(task({ taskId: 'all' }));
+    await overlayCapture.props!.onCancelTask!(task({ taskId: 'bad id' }));
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('populates the target composer draft, avoids duplicating the prefix, and reveals the composer', () => {
-    const store = renderAndOpenSchedules();
-
-    const targetTask = task({ taskId: 'edit-1', threadId: null });
-    act(() => {
-      overlayCapture.props!.onEditTask!(targetTask);
+  it('leaves occupied drafts untouched with draft-busy, prefills empty drafts, and focuses composer', () => {
+    const rafCallbacks: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCallbacks.push(cb);
+      return rafCallbacks.length;
     });
-    const roomDraftAtom = roomIdToMsgDraftAtomFamily(
-      getRoomInputDraftKey('@me:example.org', '!room:example.org', undefined)
-    );
-    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
-      '!edit_schedule edit-1 ',
-    ]);
-    expect(setViewMode).toHaveBeenCalledWith('threaded');
+    const onFocusComposer = vi.fn();
+    const store = renderAndOpenSchedules({ onFocusComposer });
 
-    // Prepend before existing text in a thread and navigate to that thread.
+    // Occupied unrelated draft in thread is preserved and dialog stays open.
     const threadDraftAtom = roomIdToMsgDraftAtomFamily(
       getRoomInputDraftKey('@me:example.org', '!room:example.org', '$thread-9')
     );
     store.set(threadDraftAtom, [createParagraphElement('existing note')]);
+    let busyResult: EditScheduledTaskResult = undefined;
     act(() => {
-      overlayCapture.openTrigger?.();
+      busyResult = overlayCapture.props!.onEditTask!(
+        task({ taskId: 'edit-2', threadId: '$thread-9' })
+      );
     });
-    act(() => {
-      overlayCapture.props!.onEditTask!(task({ taskId: 'edit-2', threadId: '$thread-9' }));
-    });
+    expect(busyResult).toBe('draft-busy');
     expect(store.get(threadDraftAtom).map((node) => SlateNode.string(node))).toEqual([
-      '!edit_schedule edit-2 ',
       'existing note',
     ]);
-    expect(navigateRoomThread).toHaveBeenCalledWith('!room:example.org', '$thread-9');
+    expect(navigateRoomThread).not.toHaveBeenCalled();
+    expect(onFocusComposer).not.toHaveBeenCalled();
 
-    // Calling edit again on the same task does not duplicate the prefix.
+    // Empty room draft gets prefilled, compact view toggles, and composer receives focus.
+    const roomDraftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey('@me:example.org', '!room:example.org', undefined)
+    );
+    let okResult: EditScheduledTaskResult = undefined;
+    act(() => {
+      okResult = overlayCapture.props!.onEditTask!(task({ taskId: 'edit-1', threadId: null }));
+    });
+    expect(okResult).toBe('prefilled');
+    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
+      '!edit_schedule edit-1 ',
+    ]);
+    expect(setViewMode).toHaveBeenCalledWith('threaded');
+    rafCallbacks.forEach((cb) => cb(0));
+    expect(onFocusComposer).toHaveBeenCalledTimes(1);
+
+    // Editing a task whose draft already starts with the same prefix stays idempotent.
     act(() => {
       overlayCapture.openTrigger?.();
     });
     act(() => {
-      overlayCapture.props!.onEditTask!(task({ taskId: 'edit-2', threadId: '$thread-9' }));
+      okResult = overlayCapture.props!.onEditTask!(task({ taskId: 'edit-1', threadId: null }));
     });
-    expect(store.get(threadDraftAtom).map((node) => SlateNode.string(node))).toEqual([
-      '!edit_schedule edit-2 ',
-      'existing note',
+    expect(okResult).toBe('prefilled');
+    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
+      '!edit_schedule edit-1 ',
     ]);
+
+    // Unconfirmed local thread ID falls back to room draft without navigating to a local ID.
+    store.set(roomDraftAtom, []);
+    act(() => {
+      overlayCapture.openTrigger?.();
+    });
+    act(() => {
+      okResult = overlayCapture.props!.onEditTask!(
+        task({ taskId: 'edit-3', threadId: '~local-thread' })
+      );
+    });
+    expect(okResult).toBe('prefilled');
+    expect(store.get(roomDraftAtom).map((node) => SlateNode.string(node))).toEqual([
+      '!edit_schedule edit-3 ',
+    ]);
+    expect(navigateRoomThread).not.toHaveBeenCalled();
   });
 });

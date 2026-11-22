@@ -11,6 +11,7 @@ import {
   formatShortCadence,
   getPendingRoomSchedules,
   getScheduleTimestamp,
+  isCommandSafeTaskId,
   isRecurringTask,
 } from './roomSchedules';
 
@@ -171,5 +172,20 @@ describe('formatShortCadence', () => {
       )
     ).toBe('Recurring');
     expect(formatShortCadence(baseTask({}), mockT)).toBe('Recurring');
+  });
+});
+
+describe('isCommandSafeTaskId', () => {
+  it('accepts safe identifier characters and rejects reserved all or whitespace/punctuation', () => {
+    expect(isCommandSafeTaskId('sched_1-A')).toBe(true);
+    expect(isCommandSafeTaskId('all-tasks')).toBe(true);
+    expect(isCommandSafeTaskId('all')).toBe(false);
+    expect(isCommandSafeTaskId('ALL')).toBe(false);
+    expect(isCommandSafeTaskId('All')).toBe(false);
+    expect(isCommandSafeTaskId('')).toBe(false);
+    expect(isCommandSafeTaskId('task 1')).toBe(false);
+    expect(isCommandSafeTaskId('task\n1')).toBe(false);
+    expect(isCommandSafeTaskId('task;drop')).toBe(false);
+    expect(isCommandSafeTaskId('task/1')).toBe(false);
   });
 });

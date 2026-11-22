@@ -1701,6 +1701,8 @@
     "cancelTask": "取消任務",
     "cancelling": "正在取消...",
     "cancelError": "無法取消任務，請再試一次。",
-    "cancellationSent": "已傳送取消請求"
+    "cancellationSent": "已傳送取消請求",
+    "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
+    "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
   }
 }

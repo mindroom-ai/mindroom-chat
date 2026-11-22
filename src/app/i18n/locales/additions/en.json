@@ -1745,6 +1745,8 @@
     "cancelTask": "Cancel task",
     "cancelling": "Cancelling...",
     "cancelError": "Could not cancel task. Try again.",
-    "cancellationSent": "Cancellation sent"
+    "cancellationSent": "Cancellation sent",
+    "editDraftBusy": "Clear your current draft before editing this schedule.",
+    "copyFailed": "Could not copy. Select the Task ID in Details."
   }
 }

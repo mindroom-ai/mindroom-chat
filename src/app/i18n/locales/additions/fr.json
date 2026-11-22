@@ -1789,6 +1789,8 @@
     "cancelTask": "Annuler la tâche",
     "cancelling": "Annulation...",
     "cancelError": "Impossible d'annuler la tâche. Réessayez.",
-    "cancellationSent": "Annulation envoyée"
+    "cancellationSent": "Annulation envoyée",
+    "editDraftBusy": "Effacez votre brouillon actuel avant de modifier cette tâche planifiée.",
+    "copyFailed": "Impossible de copier. Sélectionnez l'ID de la tâche dans Détails."
   }
 }

@@ -27,7 +27,7 @@ import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
-import { RoomSchedulesDialog } from './RoomSchedulesDialog';
+import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
 import * as css from './roomSchedules.css';
 
 /** Pending tasks from the room's current state, shared by its header, menu and dialog. */
@@ -65,7 +65,7 @@ type RoomSchedulesOverlayProps = {
   onClose: (dismissed?: boolean) => void;
   onOpenThread: (threadId: string) => void;
   onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
-  onEditTask?: (task: ParsedScheduledTask) => void;
+  onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
 };
 
 /** The room's pending scheduled tasks over the room view; it follows the room state while open. */

@@ -1701,6 +1701,8 @@
     "cancelTask": "取消任务",
     "cancelling": "正在取消...",
     "cancelError": "无法取消任务，请重试。",
-    "cancellationSent": "已发送取消请求"
+    "cancellationSent": "已发送取消请求",
+    "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
+    "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
   }
 }

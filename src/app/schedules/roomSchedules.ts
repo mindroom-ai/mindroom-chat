@@ -26,6 +26,10 @@ export const getRoomScheduleCount = (
     ? tasks.length
     : tasks.filter((task) => isScheduleInThread(task, threadId)).length;
 
+/** Whether a task ID can safely be interpolated into a `!cancel_schedule` / `!edit_schedule` command. */
+export const isCommandSafeTaskId = (taskId: string): boolean =>
+  /^[A-Za-z0-9_-]+$/.test(taskId) && taskId.toLowerCase() !== 'all';
+
 export const isRecurringTask = (task: ParsedScheduledTask): boolean =>
   task.scheduleType === 'cron' || !!task.cronExpression || !!task.cronDescription;
 

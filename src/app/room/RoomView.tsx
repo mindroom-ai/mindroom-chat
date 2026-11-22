@@ -337,6 +337,7 @@ export function RoomView({
               hasMindroomAgents={hasMindroomAgents}
               openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
+              onFocusComposer={focusComposer}
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -388,6 +389,7 @@ export function RoomView({
                     hasMindroomAgents={hasMindroomAgents}
                     threadId={openThreadId}
                     threadFilterState={threadState.threadFilterState}
+                    onFocusComposer={focusComposer}
                     {...headerProps}
                   />
                 )}
@@ -427,6 +429,7 @@ export function RoomView({
                             hasMindroomAgents={hasMindroomAgents}
                             threadId={openThreadId}
                             threadFilterState={threadState.threadFilterState}
+                            onFocusComposer={focusComposer}
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

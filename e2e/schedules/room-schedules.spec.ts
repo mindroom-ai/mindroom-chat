@@ -13,9 +13,11 @@ test('Escape closes schedules without marking the room read', async ({ page }) =
   await expect(page.getByLabel('Read receipts sent')).toHaveText('1');
 });
 
-test('room schedule accordion filters, formats prompts, reveals details, and follows live updates', async ({
+test('room schedule accordion filters, formats prompts, reveals details, runs actions, and follows live updates', async ({
   page,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/e2e/fixtures/room-schedules.html');
   const trigger = page.getByRole('button', { name: 'Scheduled tasks (3)', exact: true });
   await trigger.click();
@@ -27,12 +29,13 @@ test('room schedule accordion filters, formats prompts, reveals details, and fol
   await expect(dialog.getByText('Awaiting execution', { exact: true })).toBeVisible();
   await expect(dialog.getByText('New thread', { exact: true })).toBeVisible();
 
-  // Type filter bar switches between All, One-time, and Recurring; single match auto-expands.
+  // Type filter bar switches between All, One-time, and Recurring.
   const filterGroup = dialog.getByRole('group', { name: 'Filter scheduled tasks' });
   await filterGroup.getByRole('button', { name: /^Recurring/ }).click();
   await expect(dialog.getByRole('article')).toHaveCount(1);
 
   const morningCard = dialog.getByRole('article').first();
+  await morningCard.getByRole('button', { name: /Morning inbox/ }).click();
   await expect(morningCard.locator('code')).toHaveText('inbox');
   await expect(morningCard.getByText('@helper', { exact: true })).toBeVisible();
   await expect(morningCard.getByText('Silent', { exact: true })).toBeVisible();
@@ -56,15 +59,30 @@ test('room schedule accordion filters, formats prompts, reveals details, and fol
   const creator = morningDetails.getByRole('link', { name: '@Alice', exact: true });
   await expect(creator).toHaveAttribute('title', '@alice:example.org');
 
-  // Copy ID provides feedback (or opens details if clipboard is unavailable).
+  // Copy ID provides Copied feedback.
   await morningCard.getByRole('button', { name: 'Copy ID', exact: true }).click();
+  await expect(morningCard.getByRole('button', { name: 'Copied', exact: true })).toBeVisible();
 
-  // Switch back to All and inspect a one-time task's details and prompt clamp.
+  // Inline cancel confirmation: Keep returns to idle, Confirm sends cancellation.
+  await morningCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const keepBtn = morningCard.getByRole('button', { name: 'Keep', exact: true });
+  await expect(keepBtn).toBeFocused();
+  await keepBtn.click();
+  await expect(morningCard.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await morningCard.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await morningCard.getByRole('button', { name: 'Cancel task', exact: true }).click();
+  await expect(morningCard.getByText('Cancellation sent', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cancelled morning', { exact: true })).toBeVisible();
+
+  // Switch back to All, inspect one-time task details, Show full prompt / Show less, and Edit.
   await filterGroup.getByRole('button', { name: /^All/ }).click();
   await expect(dialog.getByRole('article')).toHaveCount(3);
   const futureCard = dialog.getByRole('article').filter({ hasText: 'Project review' });
   await futureCard.getByRole('button', { name: /Project review/ }).click();
   await expect(futureCard.getByText('Recent messages: 12', { exact: true })).toBeVisible();
+  await futureCard.getByRole('button', { name: 'Show full prompt', exact: true }).click();
+  await expect(futureCard.getByRole('button', { name: 'Show less', exact: true })).toBeVisible();
+  await futureCard.getByRole('button', { name: 'Show less', exact: true }).click();
   await expect(
     futureCard.getByRole('button', { name: 'Show full prompt', exact: true })
   ).toBeVisible();
@@ -77,7 +95,13 @@ test('room schedule accordion filters, formats prompts, reveals details, and fol
     futureDetails.getByText('From agent, room, or thread settings', { exact: true })
   ).toBeVisible();
 
-  // Open thread closes the dialog and triggers navigation.
+  // Edit closes dialog and invokes callback.
+  await futureCard.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('Editing future', { exact: true })).toBeVisible();
+
+  // Reopen and verify Open thread closes the dialog and triggers navigation.
+  await trigger.click();
   const morningRow = dialog.getByRole('article').filter({ hasText: 'Morning inbox' });
   await morningRow.getByRole('button', { name: /Morning inbox/ }).click();
   await morningRow.getByRole('button', { name: 'Open thread', exact: true }).click();
@@ -110,23 +134,36 @@ test('schedule details wrap on phones in light, dark, and RTL themes', async ({ 
         document.documentElement.dir = 'rtl';
       });
     await expect(dialog).toBeVisible();
+
+    const checkNoHorizontalOverflow = async () => {
+      expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true
+      );
+      for (const card of await dialog.getByRole('article').all()) {
+        expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true
+        );
+      }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+      ).toBe(true);
+    };
+
+    // Expand the long-URL future card and its Details drawer to verify URL wrapping.
+    const futureCard = dialog.getByRole('article').filter({ hasText: 'Project review' });
+    await futureCard.getByRole('button', { name: /Project review/ }).click();
+    await futureCard.getByRole('button', { name: 'Show full prompt', exact: true }).click();
+    await futureCard.getByRole('button', { name: 'Details', exact: true }).click();
+    await expect(futureCard.locator('dl')).toBeVisible();
+    await checkNoHorizontalOverflow();
+
     // Expand the stress-heavy recurring card and its Details drawer to verify wrapping everywhere.
     const stressCard = dialog.getByRole('article').filter({ hasText: 'Morning inbox' });
     await stressCard.getByRole('button', { name: /Morning inbox/ }).click();
     await stressCard.getByRole('button', { name: 'Details', exact: true }).click();
     await expect(stressCard.locator('dl')).toBeVisible();
+    await checkNoHorizontalOverflow();
 
-    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-      true
-    );
-    for (const card of await dialog.getByRole('article').all()) {
-      expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-        true
-      );
-    }
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
-    ).toBe(true);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(dialog).toHaveCount(0);
   }

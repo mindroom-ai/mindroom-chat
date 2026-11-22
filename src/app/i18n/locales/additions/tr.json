@@ -1745,6 +1745,8 @@
     "cancelTask": "Görevi iptal et",
     "cancelling": "İptal ediliyor...",
     "cancelError": "Görev iptal edilemedi. Tekrar deneyin.",
-    "cancellationSent": "İptal gönderildi"
+    "cancellationSent": "İptal gönderildi",
+    "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
+    "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   }
 }

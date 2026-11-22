@@ -15,7 +15,6 @@ import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
 import { MsgType, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/types';
-import { Element as SlateElement, Node as SlateNode, Text as SlateText } from 'slate';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { RestoreHeaderFocus, useHeaderPopup } from '../ui/useHeaderPopup';
@@ -51,10 +50,12 @@ import {
   RoomSchedulesOverlay,
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
-import { getRoomScheduleCount } from '../schedules/roomSchedules';
+import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
+import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
+import { toPlainText } from '../editor/output';
 import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
@@ -96,6 +97,8 @@ export type RoomViewHeaderProps = {
   openThreadId?: string;
   /** The room's thread filters: the filter button marks them while their bar is hidden. */
   threadFilterState?: ThreadFilterState;
+  /** Focuses the active conversation composer after an action closes a header dialog. */
+  onFocusComposer?: () => void;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -215,6 +218,7 @@ export function RoomViewHeader({
   threadId,
   openThreadId = threadId,
   threadFilterState,
+  onFocusComposer,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -397,41 +401,51 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
+  const getScheduleTargetThreadId = (task: ParsedScheduledTask): string | undefined => {
+    const rawTargetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+    return rawTargetThreadId && isConfirmedMatrixEventId(rawTargetThreadId)
+      ? rawTargetThreadId
+      : undefined;
+  };
   const cancelScheduledTask = async (task: ParsedScheduledTask) => {
-    const targetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+    if (!isCommandSafeTaskId(task.taskId)) return;
+    const targetThreadId = getScheduleTargetThreadId(task);
     const relation = getMessageRelation(undefined, undefined, targetThreadId);
     const content = {
       msgtype: MsgType.Text,
       body: `!cancel_schedule ${task.taskId}`,
       ...(relation ? { 'm.relates_to': relation } : {}),
     } as RoomMessageEventContent;
-    await mx.sendMessage(room.roomId, content);
+    await mx.sendMessage(room.roomId, targetThreadId ?? null, content);
   };
-  const editScheduledTask = (task: ParsedScheduledTask) => {
-    const targetThreadId = !task.newThread && task.threadId ? task.threadId : openThreadId;
+  const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
+    if (!isCommandSafeTaskId(task.taskId)) return undefined;
+    const targetThreadId = getScheduleTargetThreadId(task);
     const prefix = `!edit_schedule ${task.taskId} `;
     const draftAtom = roomIdToMsgDraftAtomFamily(
       getRoomInputDraftKey(myUserId, room.roomId, targetThreadId)
     );
     const existing = store.get(draftAtom);
-    const draftEmpty =
-      existing.length === 0 ||
-      existing.every(
-        (node) =>
-          SlateElement.isElement(node) &&
-          node.children.every((child) => SlateText.isText(child) && child.text === '')
-      );
-    if (draftEmpty) {
-      store.set(draftAtom, [createParagraphElement(prefix)]);
-    } else if (!SlateNode.string(existing[0]!).startsWith(prefix)) {
-      store.set(draftAtom, [createParagraphElement(prefix), ...existing]);
+    const existingText = toPlainText(existing, false);
+    const hasContent = existingText.trim().length > 0;
+    if (hasContent && !existingText.startsWith(prefix)) {
+      return 'draft-busy';
     }
+    if (!hasContent) {
+      store.set(draftAtom, [createParagraphElement(prefix)]);
+    }
+    const opener = schedules?.opener;
     setSchedules(undefined);
     if (targetThreadId && targetThreadId !== openThreadId) {
       openScheduledThread(targetThreadId);
     } else if (!targetThreadId && viewSwitch?.compact) {
       viewSwitch.toggle();
     }
+    requestAnimationFrame(() => {
+      if (onFocusComposer) onFocusComposer();
+      else restoreFocusAfterDismiss(opener);
+    });
+    return 'prefilled';
   };
 
   // The header's actions, in the order both the row and the room menu use.

@@ -1789,6 +1789,8 @@
     "cancelTask": "Annulla attività",
     "cancelling": "Annullamento...",
     "cancelError": "Impossibile annullare l'attività. Riprova.",
-    "cancellationSent": "Annullamento inviato"
+    "cancellationSent": "Annullamento inviato",
+    "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
+    "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
   }
 }

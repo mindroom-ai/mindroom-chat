@@ -1789,6 +1789,8 @@
     "cancelTask": "Cancelar tarea",
     "cancelling": "Cancelando...",
     "cancelError": "No se pudo cancelar la tarea. Inténtalo de nuevo.",
-    "cancellationSent": "Cancelación enviada"
+    "cancellationSent": "Cancelación enviada",
+    "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
+    "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
   }
 }

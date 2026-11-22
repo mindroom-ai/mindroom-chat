@@ -1745,6 +1745,8 @@
     "cancelTask": "Aufgabe abbrechen",
     "cancelling": "Wird abgebrochen...",
     "cancelError": "Aufgabe konnte nicht abgebrochen werden. Bitte erneut versuchen.",
-    "cancellationSent": "Abbruch gesendet"
+    "cancellationSent": "Abbruch gesendet",
+    "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
+    "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   }
 }

@@ -1745,6 +1745,8 @@
     "cancelTask": "Taak annuleren",
     "cancelling": "Annuleren...",
     "cancelError": "Kon taak niet annuleren. Probeer opnieuw.",
-    "cancellationSent": "Annulering verzonden"
+    "cancellationSent": "Annulering verzonden",
+    "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
+    "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
   }
 }

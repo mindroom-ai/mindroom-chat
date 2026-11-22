@@ -93,34 +93,37 @@ export const FilterBar = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S100,
+  gap: config.space.S200,
   minWidth: 0,
 });
 
-export const FilterPill = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: toRem(6),
-  paddingBlock: toRem(5),
-  paddingInline: toRem(10),
-  borderRadius: config.radii.Pill,
-  border: solid(config.borderWidth.B300, subtleBorder),
-  backgroundColor: 'transparent',
-  color: color.Surface.OnContainer,
-  fontSize: config.fontSize.T200,
-  fontWeight: config.fontWeight.W500,
-  lineHeight: 1.2,
-  cursor: 'pointer',
-  selectors: {
-    '&:hover': {
-      backgroundColor: hoverSurface,
-    },
-    '&:focus-visible': {
-      outline: `2px solid ${color.Other.FocusRing}`,
-      outlineOffset: '1px',
+export const FilterPill = style([
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: toRem(6),
+    paddingBlock: toRem(5),
+    paddingInline: toRem(10),
+    borderRadius: config.radii.Pill,
+    border: solid(config.borderWidth.B300, subtleBorder),
+    backgroundColor: 'transparent',
+    color: color.Surface.OnContainer,
+    fontSize: config.fontSize.T200,
+    fontWeight: config.fontWeight.W500,
+    lineHeight: 1.2,
+    cursor: 'pointer',
+    selectors: {
+      '&:hover': {
+        backgroundColor: hoverSurface,
+      },
+      '&:focus-visible': {
+        outline: `2px solid ${color.Other.FocusRing}`,
+        outlineOffset: '1px',
+      },
     },
   },
-});
+  touchTarget('4px', '', { blockReach: '8px' }),
+]);
 
 export const FilterPillActive = style({
   backgroundColor: color.Primary.Container,
@@ -134,7 +137,6 @@ export const FilterPillActive = style({
 });
 
 export const FilterCount = style({
-  opacity: 0.75,
   fontVariantNumeric: 'tabular-nums',
 });
 
@@ -160,6 +162,12 @@ export const Item = style({
       transition: 'none',
     },
   },
+});
+
+export const RowHeading = style({
+  margin: 0,
+  font: 'inherit',
+  minWidth: 0,
 });
 
 export const RowHeader = style({
@@ -270,6 +278,7 @@ export const StatusPillWarning = style({
   borderColor: color.Warning.ContainerLine,
 });
 
+// 90% mix preserves >= 5.06:1 contrast even on row hover across all 23 palettes.
 export const RowSubtitle = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -277,11 +286,10 @@ export const RowSubtitle = style({
   columnGap: toRem(6),
   rowGap: toRem(2),
   minWidth: 0,
-  color: `color-mix(in srgb, ${color.Surface.OnContainer} 72%, transparent)`,
+  color: `color-mix(in srgb, ${color.Surface.OnContainer} 90%, transparent)`,
 });
 
 export const SubtitleDot = style({
-  opacity: 0.5,
   userSelect: 'none',
 });
 
@@ -291,7 +299,7 @@ export const Chevron = style({
   justifyContent: 'center',
   flexShrink: 0,
   marginBlockStart: toRem(4),
-  opacity: 0.65,
+  opacity: 0.75,
   transition: 'transform 160ms ease',
   '@media': {
     '(prefers-reduced-motion: reduce)': {
@@ -381,6 +389,7 @@ export const InlineCode = style({
   paddingInline: toRem(4),
   borderRadius: config.radii.R300,
   backgroundColor: `color-mix(in srgb, ${color.Surface.OnContainer} 8%, transparent)`,
+  color: color.Surface.OnContainer,
   overflowWrap: 'anywhere',
   wordBreak: 'break-word',
 });
@@ -393,25 +402,31 @@ export const PromptMention = style({
   fontWeight: config.fontWeight.W500,
 });
 
-export const PromptToggle = style({
-  alignSelf: 'flex-start',
-  paddingBlock: toRem(2),
-  paddingInline: 0,
-  border: 'none',
-  backgroundColor: 'transparent',
-  color: color.Primary.Main,
-  cursor: 'pointer',
-  selectors: {
-    '&:hover': {
-      textDecoration: 'underline',
-    },
-    '&:focus-visible': {
-      outline: `2px solid ${color.Other.FocusRing}`,
-      outlineOffset: '2px',
-      borderRadius: config.radii.R300,
+export const PromptToggle = style([
+  {
+    alignSelf: 'flex-start',
+    paddingBlock: toRem(2),
+    paddingInline: 0,
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: color.Surface.OnContainer,
+    fontWeight: config.fontWeight.W600,
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+    cursor: 'pointer',
+    selectors: {
+      '&:hover': {
+        opacity: 0.85,
+      },
+      '&:focus-visible': {
+        outline: `2px solid ${color.Other.FocusRing}`,
+        outlineOffset: '2px',
+        borderRadius: config.radii.R300,
+      },
     },
   },
-});
+  touchTarget('8px', '', { blockReach: '10px' }),
+]);
 
 export const CancelBar = style({
   display: 'flex',
@@ -434,8 +449,8 @@ export const CancelBarActions = style({
 });
 
 export const CancelError = style({
-  color: color.Critical.Main,
-  fontWeight: config.fontWeight.W500,
+  color: color.Critical.OnContainer,
+  fontWeight: config.fontWeight.W600,
 });
 
 export const CancelSentBar = style({
@@ -444,6 +459,16 @@ export const CancelSentBar = style({
   borderRadius: config.radii.R300,
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
+  minWidth: 0,
+});
+
+export const NoticeBar = style({
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
+  borderRadius: config.radii.R300,
+  backgroundColor: color.Warning.Container,
+  color: color.Warning.OnContainer,
+  border: solid(config.borderWidth.B300, color.Warning.ContainerLine),
   minWidth: 0,
 });
 
@@ -460,7 +485,7 @@ export const ActionsPrimary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S100,
+  gap: config.space.S200,
   minWidth: 0,
 });
 
@@ -468,9 +493,16 @@ export const ActionsSecondary = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S100,
+  gap: config.space.S200,
   marginInlineStart: 'auto',
   minWidth: 0,
+});
+
+export const CompactAction = style([touchTarget('4px', '', { blockReach: '8px' })]);
+
+export const AriaDisabledButton = style({
+  opacity: 0.65,
+  cursor: 'progress',
 });
 
 export const Metadata = style({
@@ -498,8 +530,8 @@ export const TaskId = style([
 ]);
 
 export const Awaiting = style({
-  color: color.Warning.Main,
-  fontWeight: config.fontWeight.W500,
+  color: color.Warning.OnContainer,
+  fontWeight: config.fontWeight.W600,
 });
 
 export const SrOnly = style({

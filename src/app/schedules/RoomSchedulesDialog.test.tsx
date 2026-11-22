@@ -23,6 +23,7 @@ vi.mock('./roomSchedules.css', () => ({
   FilterCount: 'filter-count',
   GroupHeading: 'group-heading',
   Item: 'item',
+  RowHeading: 'row-heading',
   RowHeader: 'row-header',
   IconTile: 'icon-tile',
   IconTilePrimary: 'icon-tile-primary',
@@ -53,9 +54,12 @@ vi.mock('./roomSchedules.css', () => ({
   CancelBarActions: 'cancel-bar-actions',
   CancelError: 'cancel-error',
   CancelSentBar: 'cancel-sent-bar',
+  NoticeBar: 'notice-bar',
   ActionsRow: 'actions-row',
   ActionsPrimary: 'actions-primary',
   ActionsSecondary: 'actions-secondary',
+  CompactAction: 'compact-action',
+  AriaDisabledButton: 'aria-disabled-button',
   Metadata: 'metadata',
   TaskId: 'task-id',
   Awaiting: 'awaiting',
@@ -130,13 +134,18 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('RoomSchedulesDialog destinations', () => {
+describe('RoomSchedulesDialog destinations and heading semantics', () => {
   const threadId = '$orchard:example.org';
-  const local = makeTask({ taskId: 'Check the saplings', threadId });
+  const local = makeTask({ taskId: 'saplings', description: 'Check the saplings', threadId });
   const elsewhere = [
-    makeTask({ taskId: 'Check the seedlings', threadId: null }),
-    makeTask({ taskId: 'Start a new planting log', threadId, newThread: true }),
-    makeTask({ taskId: 'Check the herbs', threadId: '$garden:example.org' }),
+    makeTask({ taskId: 'seedlings', description: 'Check the seedlings', threadId: null }),
+    makeTask({
+      taskId: 'planting-log',
+      description: 'Start a new planting log',
+      threadId,
+      newThread: true,
+    }),
+    makeTask({ taskId: 'herbs', description: 'Check the herbs', threadId: '$garden:example.org' }),
   ];
 
   const headings = (tasks: ParsedScheduledTask[], openThreadId?: string) => {
@@ -147,7 +156,14 @@ describe('RoomSchedulesDialog destinations', () => {
       onClose: vi.fn(),
       onOpenThread: vi.fn(),
     });
-    const result = [...host.querySelectorAll('h3, h4')].map((el) => el.textContent ?? '');
+    // Headings must wrap accordion buttons, never sit inside buttons.
+    expect(host.querySelectorAll('button h3, button h4')).toHaveLength(0);
+    expect(host.querySelectorAll('article > h3 > button, article > h4 > button')).toHaveLength(
+      tasks.length
+    );
+    const result = [...host.querySelectorAll('h3, h4')].map(
+      (el) => el.querySelector('.row-title')?.textContent ?? el.textContent ?? ''
+    );
     unmount();
     return result;
   };
@@ -164,7 +180,7 @@ describe('RoomSchedulesDialog destinations', () => {
   });
 
   it.each([true, false])(
-    'keeps a card button focused when the other group arrives (local first: %s)',
+    'keeps a single auto-expanded card open and Open thread focused when the other group arrives (local first: %s)',
     (localFirst) => {
       const first = localFirst ? local : elsewhere[2]!;
       const next = localFirst ? elsewhere[2]! : local;
@@ -176,12 +192,20 @@ describe('RoomSchedulesDialog destinations', () => {
       };
       const { host, rerender, unmount } = mountDialog({ ...base, tasks: [first] });
       try {
-        const button = host.querySelector<HTMLButtonElement>('article button')!;
-        button.focus();
-        expect(document.activeElement).toBe(button);
+        const openThreadBtn = findButtonByText(host, 'Open thread')!;
+        expect(openThreadBtn).toBeDefined();
+        openThreadBtn.focus();
+        expect(document.activeElement).toBe(openThreadBtn);
+
         rerender({ ...base, tasks: [first, next] });
         expect(host.textContent).toContain('Elsewhere in this room');
-        expect(document.activeElement).toBe(button);
+        expect(document.activeElement).toBe(openThreadBtn);
+        expect(
+          openThreadBtn
+            .closest('article')
+            ?.querySelector<HTMLButtonElement>('button.row-header')
+            ?.getAttribute('aria-expanded')
+        ).toBe('true');
       } finally {
         unmount();
       }
@@ -191,12 +215,12 @@ describe('RoomSchedulesDialog destinations', () => {
   it('omits group headings outside threads or when only one group has tasks', () => {
     expect(headings([elsewhere[0]!, local])).toEqual(['Check the seedlings', 'Check the saplings']);
     expect(headings([local], threadId)).toEqual(['Check the saplings']);
-    expect(headings(elsewhere, threadId)).toEqual(elsewhere.map(({ taskId }) => taskId));
+    expect(headings(elsewhere, threadId)).toEqual(elsewhere.map(({ description }) => description));
   });
 });
 
 describe('RoomSchedulesDialog accordion and filters', () => {
-  it('auto-expands a single task and collapses multiple tasks by default', async () => {
+  it('auto-expands a single initial task, collapses multiple tasks, and sets aria-controls only when open', async () => {
     const first = makeTask({ taskId: 'one', description: 'First task', message: 'First prompt' });
     const second = makeTask({
       taskId: 'two',
@@ -213,7 +237,10 @@ describe('RoomSchedulesDialog accordion and filters', () => {
     try {
       const headerBtn = single.host.querySelector<HTMLButtonElement>('article button.row-header')!;
       expect(headerBtn.getAttribute('aria-expanded')).toBe('true');
+      expect(headerBtn.getAttribute('aria-controls')).toBeTruthy();
       expect(single.host.textContent).toContain('First prompt');
+      const detailsBtn = findButtonByText(single.host, 'Details')!;
+      expect(detailsBtn.getAttribute('aria-controls')).toBeNull();
     } finally {
       single.unmount();
     }
@@ -230,21 +257,24 @@ describe('RoomSchedulesDialog accordion and filters', () => {
       ];
       expect(headers).toHaveLength(2);
       expect(headers.map((btn) => btn.getAttribute('aria-expanded'))).toEqual(['false', 'false']);
+      expect(headers.map((btn) => btn.getAttribute('aria-controls'))).toEqual([null, null]);
       expect(multi.host.querySelector('.drawer')).toBeNull();
 
       await click(headers[1]!);
       expect(headers[0]!.getAttribute('aria-expanded')).toBe('false');
       expect(headers[1]!.getAttribute('aria-expanded')).toBe('true');
+      expect(headers[1]!.getAttribute('aria-controls')).toBeTruthy();
       expect(multi.host.textContent).toContain('Second prompt');
 
       await click(headers[1]!);
       expect(headers[1]!.getAttribute('aria-expanded')).toBe('false');
+      expect(headers[1]!.getAttribute('aria-controls')).toBeNull();
     } finally {
       multi.unmount();
     }
   });
 
-  it('shows type filter pills only when both types exist and resets to All if the active category empties', async () => {
+  it('persists filter reset when a category empties and returns, and recovers focus from unmounting filter bar', async () => {
     const onceTask = makeTask({
       taskId: 'once-1',
       description: 'One-off check',
@@ -257,18 +287,6 @@ describe('RoomSchedulesDialog accordion and filters', () => {
       cronDescription: 'Every Monday',
     });
 
-    const singleType = mountDialog({
-      roomId: '!room:example.org',
-      tasks: [onceTask],
-      onClose: vi.fn(),
-      onOpenThread: vi.fn(),
-    });
-    try {
-      expect(singleType.host.querySelector('.filter-bar')).toBeNull();
-    } finally {
-      singleType.unmount();
-    }
-
     const base = {
       roomId: '!room:example.org',
       onClose: vi.fn(),
@@ -277,25 +295,31 @@ describe('RoomSchedulesDialog accordion and filters', () => {
     const mixed = mountDialog({ ...base, tasks: [onceTask, cronTask] });
     try {
       const filterBar = mixed.host.querySelector('.filter-bar')!;
-      expect(filterBar).not.toBeNull();
       const pills = [...filterBar.querySelectorAll<HTMLButtonElement>('button')];
       expect(pills.map((btn) => btn.textContent)).toEqual(['All2', 'One-time1', 'Recurring1']);
-      expect(pills.map((btn) => btn.getAttribute('aria-pressed'))).toEqual([
+
+      pills[2]!.focus();
+      await click(pills[2]!);
+      expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
+      expect(mixed.host.textContent).toContain('Weekly digest');
+
+      // Live sync removes the recurring task: filter resets to All and focus recovers to Close.
+      mixed.rerender({ ...base, tasks: [onceTask] });
+      expect(mixed.host.querySelector('.filter-bar')).toBeNull();
+      expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
+      expect(document.activeElement).toBe(findButtonByAriaLabel(mixed.host, 'Close'));
+
+      // When a recurring task returns later, the persisted reset keeps All active.
+      mixed.rerender({ ...base, tasks: [onceTask, cronTask] });
+      const returnedPills = [
+        ...mixed.host.querySelectorAll<HTMLButtonElement>('.filter-bar button'),
+      ];
+      expect(returnedPills.map((btn) => btn.getAttribute('aria-pressed'))).toEqual([
         'true',
         'false',
         'false',
       ]);
-
-      await click(pills[2]!);
-      expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
-      expect(mixed.host.textContent).toContain('Weekly digest');
-      expect(mixed.host.textContent).not.toContain('One-off check');
-
-      // When live sync removes the recurring task, effective filter resets to All.
-      mixed.rerender({ ...base, tasks: [onceTask] });
-      expect(mixed.host.querySelector('.filter-bar')).toBeNull();
-      expect(mixed.host.querySelectorAll('article')).toHaveLength(1);
-      expect(mixed.host.textContent).toContain('One-off check');
+      expect(mixed.host.querySelectorAll('article')).toHaveLength(2);
     } finally {
       mixed.unmount();
     }
@@ -303,7 +327,7 @@ describe('RoomSchedulesDialog accordion and filters', () => {
 });
 
 describe('RoomSchedulesDialog prompt formatting and details', () => {
-  it('renders inline code and mentions with exact textContent and clamps long prompts', async () => {
+  it('names the prompt region, renders code/mentions with exact textContent, and clamps long prompts', async () => {
     const shortTask = makeTask({
       taskId: 'stretch',
       description: 'Stretch reminder',
@@ -316,6 +340,8 @@ describe('RoomSchedulesDialog prompt formatting and details', () => {
       onOpenThread: vi.fn(),
     });
     try {
+      const region = shortView.host.querySelector('[role="region"][aria-label="Prompt"]');
+      expect(region).not.toBeNull();
       const promptEl = shortView.host.querySelector('p.prompt')!;
       expect(promptEl.textContent).toBe('@helper remind me to stretch');
       expect(promptEl.querySelector('.prompt-mention')?.textContent).toBe('@helper');
@@ -378,6 +404,7 @@ describe('RoomSchedulesDialog prompt formatting and details', () => {
       expect(host.querySelector('dl')).toBeNull();
       const detailsBtn = findButtonByText(host, 'Details')!;
       await click(detailsBtn);
+      expect(findButtonByText(host, 'Hide details')?.getAttribute('aria-controls')).toBeTruthy();
 
       const dl = host.querySelector('dl')!;
       expect(dl).not.toBeNull();
@@ -394,8 +421,8 @@ describe('RoomSchedulesDialog prompt formatting and details', () => {
   });
 });
 
-describe('RoomSchedulesDialog actions', () => {
-  it('copies the task ID, shows Copied for 2s, and opens Details if clipboard copy fails', async () => {
+describe('RoomSchedulesDialog actions and keyboard focus', () => {
+  it('copies the task ID, resets after 2s, and opens Details with a status notice on failure', async () => {
     vi.useFakeTimers();
     const task = makeTask({ taskId: 'sched-42', description: 'Copy target' });
     const { host, unmount } = mountDialog({
@@ -405,8 +432,7 @@ describe('RoomSchedulesDialog actions', () => {
       onOpenThread: vi.fn(),
     });
     try {
-      const copyBtn = findButtonByText(host, 'Copy ID')!;
-      await click(copyBtn);
+      await click(findButtonByText(host, 'Copy ID')!);
       expect(mocks.copyToClipboard).toHaveBeenCalledWith('sched-42');
       expect(findButtonByText(host, 'Copied')).toBeDefined();
 
@@ -419,13 +445,61 @@ describe('RoomSchedulesDialog actions', () => {
       expect(host.querySelector('dl')).toBeNull();
       await click(findButtonByText(host, 'Copy ID')!);
       expect(host.querySelector('dl')).not.toBeNull();
+      expect(host.textContent).toContain('Could not copy. Select the Task ID in Details.');
     } finally {
       unmount();
     }
   });
 
-  it('supports inline cancel confirmation, pending state, error retry, and edit callback', async () => {
-    const task = makeTask({ taskId: 'sched-99', description: 'Actionable task' });
+  it('hides Cancel and Edit buttons for unsafe task IDs and shows draft-busy notice on Edit', async () => {
+    const unsafe = makeTask({ taskId: 'all', description: 'Reserved keyword ID' });
+    const unsafeView = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [unsafe],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onCancelTask: vi.fn(async () => undefined),
+      onEditTask: vi.fn(),
+    });
+    try {
+      expect(findButtonByAriaLabel(unsafeView.host, 'Edit')).toBeUndefined();
+      expect(findButtonByAriaLabel(unsafeView.host, 'Cancel')).toBeUndefined();
+    } finally {
+      unsafeView.unmount();
+    }
+
+    const safe = makeTask({ taskId: 'sched_7', description: 'Editable task' });
+    const onEditTask = vi.fn(() => 'draft-busy' as const);
+    const safeView = mountDialog({
+      roomId: '!room:example.org',
+      tasks: [safe],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+      onEditTask,
+    });
+    try {
+      await click(findButtonByAriaLabel(safeView.host, 'Edit')!);
+      expect(onEditTask).toHaveBeenCalledWith(safe);
+      expect(safeView.host.textContent).toContain(
+        'Clear your current draft before editing this schedule.'
+      );
+    } finally {
+      safeView.unmount();
+    }
+  });
+
+  it('manages cancel focus, keeps aria-disabled focus during pending, survives filter remount, and auto-clears sent status', async () => {
+    vi.useFakeTimers();
+    const onceTask = makeTask({
+      taskId: 'sched-99',
+      description: 'Actionable task',
+      scheduleType: 'once',
+    });
+    const cronTask = makeTask({
+      taskId: 'cron-1',
+      description: 'Weekly task',
+      scheduleType: 'cron',
+    });
     let resolveCancel: (() => void) | undefined;
     const onCancelTask = vi
       .fn<(t: ParsedScheduledTask) => Promise<void>>()
@@ -436,46 +510,67 @@ describe('RoomSchedulesDialog actions', () => {
             resolveCancel = resolve;
           })
       );
-    const onEditTask = vi.fn();
 
     const { host, unmount } = mountDialog({
       roomId: '!room:example.org',
-      tasks: [task],
+      tasks: [onceTask, cronTask],
       onClose: vi.fn(),
       onOpenThread: vi.fn(),
       onCancelTask,
-      onEditTask,
     });
     try {
-      const editBtn = findButtonByAriaLabel(host, 'Edit')!;
-      await click(editBtn);
-      expect(onEditTask).toHaveBeenCalledWith(task);
+      const rowToggle = host.querySelector<HTMLButtonElement>('article button.row-header')!;
+      await click(rowToggle);
 
+      // Opening cancel moves focus to Keep; Keep returns focus to Cancel.
       const cancelIcon = findButtonByAriaLabel(host, 'Cancel')!;
       await click(cancelIcon);
-      expect(host.textContent).toContain('Cancel this scheduled task?');
+      const keepBtn = findButtonByText(host, 'Keep')!;
+      expect(document.activeElement).toBe(keepBtn);
 
-      // Clicking Keep dismisses confirmation without calling onCancelTask.
-      await click(findButtonByText(host, 'Keep')!);
+      await click(keepBtn);
       expect(host.textContent).not.toContain('Cancel this scheduled task?');
-      expect(onCancelTask).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(cancelIcon);
 
-      // Re-open and confirm -> first attempt fails and displays inline error.
+      // Re-open -> first attempt fails and displays error.
       await click(cancelIcon);
       await click(findButtonByText(host, 'Cancel task')!);
       expect(onCancelTask).toHaveBeenCalledTimes(1);
       expect(host.textContent).toContain('Could not cancel task. Try again.');
 
-      // Retry -> shows pending disabled state, then Cancellation sent on resolve.
+      // Retry -> button uses aria-disabled (not HTML disabled) so focus stays on it.
       const retryBtn = findButtonByText(host, 'Cancel task')!;
+      retryBtn.focus();
       await click(retryBtn);
       const pendingBtn = findButtonByText(host, 'Cancelling...')!;
-      expect(pendingBtn.disabled).toBe(true);
+      expect(pendingBtn.getAttribute('aria-disabled')).toBe('true');
+      expect(pendingBtn.disabled).toBe(false);
+      expect(document.activeElement).toBe(pendingBtn);
 
+      // Switching filter away and back remounts the row, but lifted pending state still blocks double-submit.
+      const filterButtons = [...host.querySelectorAll<HTMLButtonElement>('.filter-bar button')];
+      await click(filterButtons[2]!); // Recurring (hides onceTask)
+      await click(filterButtons[0]!); // All (remounts onceTask, still expanded)
+      const stillPending = findButtonByText(host, 'Cancelling...')!;
+      expect(stillPending.getAttribute('aria-disabled')).toBe('true');
+      await click(stillPending);
+      expect(onCancelTask).toHaveBeenCalledTimes(2);
+
+      // Resolving cancel closes confirmation bar, moves focus to row toggle, and shows Cancellation sent.
       await act(async () => {
         resolveCancel?.();
       });
       expect(host.textContent).toContain('Cancellation sent');
+      expect(document.activeElement).toBe(
+        host.querySelector<HTMLButtonElement>('article button.row-header')
+      );
+
+      // Sent status auto-clears after 6 seconds so Cancel is usable again if backend rejected it.
+      act(() => {
+        vi.advanceTimersByTime(6_000);
+      });
+      expect(host.textContent).not.toContain('Cancellation sent');
+      expect(findButtonByAriaLabel(host, 'Cancel')?.getAttribute('aria-disabled')).toBeNull();
     } finally {
       unmount();
     }

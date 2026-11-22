@@ -1701,6 +1701,8 @@
     "cancelTask": "タスクをキャンセル",
     "cancelling": "キャンセル中...",
     "cancelError": "タスクをキャンセルできませんでした。もう一度お試しください。",
-    "cancellationSent": "キャンセルを送信しました"
+    "cancellationSent": "キャンセルを送信しました",
+    "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
+    "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
   }
 }

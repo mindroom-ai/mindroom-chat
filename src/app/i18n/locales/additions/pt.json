@@ -1789,6 +1789,8 @@
     "cancelTask": "Cancelar tarefa",
     "cancelling": "Cancelando...",
     "cancelError": "Não foi possível cancelar a tarefa. Tente novamente.",
-    "cancellationSent": "Cancelamento enviado"
+    "cancellationSent": "Cancelamento enviado",
+    "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
+    "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
   }
 }

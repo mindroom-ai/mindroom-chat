@@ -1701,6 +1701,8 @@
     "cancelTask": "Batalkan tugas",
     "cancelling": "Membatalkan...",
     "cancelError": "Tidak dapat membatalkan tugas. Coba lagi.",
-    "cancellationSent": "Pembatalan dikirim"
+    "cancellationSent": "Pembatalan dikirim",
+    "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
+    "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
   }
 }

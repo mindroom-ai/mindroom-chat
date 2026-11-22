@@ -55,6 +55,32 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
+  it('supports Matrix IDs with ports, +, =, and / while stripping trailing sentence punctuation', () => {
+    const { host, cleanup } = renderPrompt(
+      'Notify @bot+ops=1/2:matrix.example.org:8448. Also @helper: check status!'
+    );
+    try {
+      const mentions = [...host.querySelectorAll('.prompt-mention')].map((el) => el.textContent);
+      expect(mentions).toEqual(['@bot+ops=1/2:matrix.example.org:8448', '@helper']);
+      expect(host.textContent).toBe(
+        'Notify @bot+ops=1/2:matrix.example.org:8448. Also @helper: check status!'
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('leaves escaped backticks and multi-backtick fences verbatim without splitting or stripping', () => {
+    const prompt = 'Escaped \\`not code\\`, double ``raw`` and fence:\n```ts\nconst x = 1;\n```';
+    const { host, cleanup } = renderPrompt(prompt);
+    try {
+      expect(host.querySelectorAll('code.inline-code')).toHaveLength(0);
+      expect(host.textContent).toBe(prompt);
+    } finally {
+      cleanup();
+    }
+  });
+
   it('ignores email addresses, multi-line backticks, and handles glued to closing backticks', () => {
     const { host, cleanup } = renderPrompt(
       'Email user@example.org, `cmd`@glued then (@helper)\n`open\nclose`'
