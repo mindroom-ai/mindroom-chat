@@ -43,12 +43,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let voiceFile: String?
     /// The whole thread in order: the root and every reply, without folded voice echoes, relays and titles,
     /// and each approval card that was decided or is the one waiting for this person (`pendingApproval`).
-    public let entries: [Entry]
+    public private(set) var entries: [Entry]
     /// The newest reply from anyone else, not a relay.
     public let reply: Message?
-    public let approvals: [ApprovalCard]
+    public private(set) var approvals: [ApprovalCard]
     /// The newest card from an agent that waits for this person's decision.
-    public let pendingApproval: ApprovalCard?
+    public private(set) var pendingApproval: ApprovalCard?
     public let openQuestion: Question?
     /// Milliseconds since the epoch of the newest message or its newest edit: a reply streams on in edits.
     public let latestTs: Int
@@ -237,6 +237,23 @@ extension ThreadSnapshot {
         let isEdit = { (event: JSON) in event.replacedEventId != nil && event["type"] as? String != ApprovalCard.eventType }
         let others = events.related.filter { !isEdit($0) }
         return (events.root, others + shownEdits(of: [events.root] + others, among: events.related.filter(isEdit)).values)
+    }
+}
+
+extension ThreadSnapshot {
+    /// The snapshot as it reads at `now`, with nothing read again: a card whose deadline passed since is expired,
+    /// and no expired card waits for the person. A thread that opens from a snapshot read before asks this, and
+    /// Approve and Deny before they send: the network may not answer.
+    public func at(_ now: Date) -> ThreadSnapshot {
+        let current = { (card: ApprovalCard) in card.applying(edits: [], now: now) }
+        var snapshot = self
+        snapshot.approvals = approvals.map(current)
+        snapshot.entries = entries.map { entry in
+            if case let .approval(card) = entry { return .approval(current(card)) }
+            return entry
+        }
+        if let pendingApproval, current(pendingApproval).status != .pending { snapshot.pendingApproval = nil }
+        return snapshot
     }
 }
 

@@ -42,7 +42,8 @@ final class ThreadModel: ObservableObject {
         self.trust = trust
         self.events = events
         self.refreshTrust = refreshTrust
-        snapshot = initial
+        // A card the list saw waiting may be past its deadline by now.
+        snapshot = initial?.at(Date())
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
         trustChanges = trust.changed.sink { model?.trustChanged() }
@@ -141,6 +142,8 @@ final class ThreadModel: ObservableObject {
     /// Approve or deny a tool call, as the web client does. A card answered elsewhere first is not pending
     /// any more, so the buttons are gone and nothing is sent.
     func approve(_ card: ApprovalCard, _ yes: Bool) async {
+        // The card's deadline may have passed since the thread was read: then it shows as expired, and nothing is sent.
+        snapshot = snapshot?.at(Date())
         guard snapshot?.pendingApproval?.eventId == card.eventId, !answered.contains(card.eventId),
               card.approvable || !yes else { return }
         error = nil
