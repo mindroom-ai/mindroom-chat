@@ -290,19 +290,20 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   };
   /** Room state or account data changed, as when a room turns encryption on: the cards hear of it. */
   const onBarred = () => dropHints(({ thread, edit }) => barred(thread.room, edit.getSender()));
-  const onDeleteRoom = (roomId: string) =>
-    dropHints(({ thread }) => thread.roomId === roomId, true);
   const onDeleteThread = (gone: Thread) => dropHints(({ thread }) => thread === gone, true);
   const onRoom = (room: Room) => {
     room.on(ThreadEvent.Delete, onDeleteThread);
-    return () => room.removeListener(ThreadEvent.Delete, onDeleteThread);
+    // Once the account forgets the room, or the watch stops.
+    return () => {
+      room.removeListener(ThreadEvent.Delete, onDeleteThread);
+      dropHints(({ thread }) => thread.room === room, true);
+    };
   };
 
   const stopRooms = watchRoomThreads(mx, { onThread: consider, onRoom });
   mx.on(ClientEvent.Sync, onSync);
   mx.on(ClientEvent.Event, onEvent);
   mx.on(RoomEvent.TimelineReset, onReset);
-  mx.on(ClientEvent.DeleteRoom, onDeleteRoom);
   mx.on(RoomStateEvent.Events, onBarred);
   mx.on(ClientEvent.AccountData, onBarred);
 
@@ -312,7 +313,6 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     mx.removeListener(ClientEvent.Sync, onSync);
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(RoomEvent.TimelineReset, onReset);
-    mx.removeListener(ClientEvent.DeleteRoom, onDeleteRoom);
     mx.removeListener(RoomStateEvent.Events, onBarred);
     mx.removeListener(ClientEvent.AccountData, onBarred);
     dropHints(() => true, true);
