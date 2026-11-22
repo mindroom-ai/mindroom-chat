@@ -1,5 +1,6 @@
 import { FormEvent, RefObject, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
   Box,
@@ -21,10 +22,19 @@ import type { Room } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { InviteUserAutocomplete } from './InviteUserAutocomplete';
 import {
+  MODERATOR_LEVEL,
+  ModeratorGrantError,
   canOfferModeratorGrant,
+  detachedGrantErrorAtom,
+  getRawPowerLevels,
+  grantRoleName,
   hasModeratorMindroomAgent,
   moderatorGrantLevel,
+  nextDetachedGrantFailure,
+  runRoomModeratorGrant,
+  useRoomModeratorGrantState,
 } from './moderatorInvite';
+import { usePowerLevelTags } from '../usePowerLevelTags';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
@@ -86,11 +96,15 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const { t } = useTranslation();
   const reasonId = useId();
   const moderatorHelpId = useId();
+  const store = useStore();
   const client = useMatrixClient();
   const alive = useAlive();
   const levels = usePowerLevels(room);
+  const rawLevels = getRawPowerLevels(room);
   const creators = useRoomCreators(room);
   const members = useRoomMembers(client, room.roomId);
+  const tags = usePowerLevelTags(room);
+  const { hasPendingGrant } = useRoomModeratorGrantState(client, room.roomId);
   const me = client.getSafeUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [userId, setUserId] = useState('');
@@ -98,13 +112,19 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [error, setError] = useState<string>();
   // The last person invited: the dialog stays open for the next one.
   const [invited, setInvited] = useState<string>();
-  const [grantModeratorOverride, setGrantModeratorOverride] = useState<boolean>();
-  const [grantedModeratorInSession, setGrantedModeratorInSession] = useState(false);
+  const [grantOverride, setGrantOverride] = useState<{ target: string; checked: boolean }>();
 
-  const offerModerator = canOfferModeratorGrant(room, userId.trim(), me, levels, creators);
+  const trimmedTarget = userId.trim();
+  const offerModerator = canOfferModeratorGrant(room, trimmedTarget, me, levels, creators, rawLevels);
+  const grantLevel = moderatorGrantLevel(levels);
+  const roleName = grantRoleName(tags, grantLevel, t);
+  const membersLoaded = typeof room.membersLoaded === 'function' ? room.membersLoaded() : false;
   const defaultModerator =
-    !grantedModeratorInSession && !hasModeratorMindroomAgent(members, me, levels, creators);
-  const grantModerator = grantModeratorOverride ?? defaultModerator;
+    membersLoaded &&
+    !hasPendingGrant &&
+    !hasModeratorMindroomAgent(members, me, levels, creators, rawLevels);
+  const grantModerator =
+    grantOverride?.target === trimmedTarget ? grantOverride.checked : defaultModerator;
 
   useEffect(() => {
     if (invited && !inviting) inputRef.current?.focus();
@@ -114,9 +134,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     setError(undefined);
     setInvited(undefined);
     setUserId(value);
-    if (!canOfferModeratorGrant(room, value.trim(), me, levels, creators)) {
-      setGrantModeratorOverride(undefined);
-    }
   };
 
   const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
@@ -129,7 +146,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
     const form = evt.target as InviteFormTarget;
     const reason = form.reasonInput?.value.trim() || undefined;
-    const levelToGrant = offerModerator && grantModerator ? moderatorGrantLevel(levels) : undefined;
+    const shouldGrant = offerModerator && grantModerator;
 
     setInviting(true);
     setError(undefined);
@@ -146,29 +163,58 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       setInviting(false);
       return;
     }
-    if (!alive()) return;
-    setUserId('');
-    if (form.reasonInput) form.reasonInput.value = '';
-    setGrantModeratorOverride(undefined);
-    setInvited(target);
+    if (alive()) {
+      setUserId('');
+      if (form.reasonInput) form.reasonInput.value = '';
+      setGrantOverride(undefined);
+      setInvited(target);
+    }
 
-    if (levelToGrant !== undefined) {
+    // Finish the submitted grant even if the user closed the dialog while invite was in flight.
+    if (shouldGrant) {
       try {
-        await client.setPowerLevel(room.roomId, target, levelToGrant);
-        if (!alive()) return;
-        setGrantedModeratorInSession(true);
+        await runRoomModeratorGrant(client, room, target);
       } catch (powerError) {
-        if (!alive()) return;
+        const failedLevel =
+          powerError instanceof ModeratorGrantError ? powerError.level : grantLevel;
+        const failedRole = grantRoleName(tags, failedLevel, t);
         const detail =
           powerError instanceof Error && powerError.message
             ? powerError.message
             : String(powerError);
-        setError(t('sharedUi.inviteUserPrompt.moderatorFailed', { error: detail }));
+        if (alive()) {
+          setError(
+            failedLevel > MODERATOR_LEVEL
+              ? t('sharedUi.inviteUserPrompt.roleFailed', { role: failedRole, error: detail })
+              : t('sharedUi.inviteUserPrompt.moderatorFailed', { error: detail })
+          );
+        } else if (client.clientRunning !== false) {
+          const detachedMessage =
+            failedLevel > MODERATOR_LEVEL
+              ? t('sharedUi.inviteUserPrompt.roleFailedDetached', {
+                  user: target,
+                  role: failedRole,
+                  error: detail,
+                })
+              : t('sharedUi.inviteUserPrompt.moderatorFailedDetached', {
+                  user: target,
+                  error: detail,
+                });
+          store.set(detachedGrantErrorAtom, nextDetachedGrantFailure(detachedMessage));
+        }
       }
     }
-    if (!alive()) return;
-    setInviting(false);
+    if (alive()) setInviting(false);
   };
+
+  const checkboxLabel =
+    grantLevel > MODERATOR_LEVEL
+      ? t('sharedUi.inviteUserPrompt.giveRoleRights', { role: roleName })
+      : t('sharedUi.inviteUserPrompt.giveModeratorRights');
+  const checkboxHelp =
+    grantLevel > MODERATOR_LEVEL
+      ? t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })
+      : t('sharedUi.inviteUserPrompt.giveModeratorRightsHelp');
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
@@ -233,12 +279,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         aria-describedby={moderatorHelpId}
                         // folds leaves onChange out of its Checkbox type; the click toggles the choice.
                         readOnly
-                        onClick={() => setGrantModeratorOverride(!grantModerator)}
+                        onClick={() =>
+                          setGrantOverride({ target: trimmedTarget, checked: !grantModerator })
+                        }
                       />
-                      <Text size="T300">{t('sharedUi.inviteUserPrompt.giveModeratorRights')}</Text>
+                      <Text size="T300">{checkboxLabel}</Text>
                     </Box>
                     <Text id={moderatorHelpId} size="T200" priority="300">
-                      {t('sharedUi.inviteUserPrompt.giveModeratorRightsHelp')}
+                      {checkboxHelp}
                     </Text>
                   </Box>
                 )}

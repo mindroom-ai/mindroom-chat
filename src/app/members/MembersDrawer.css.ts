@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { noticeCard, noticeCardOnPage } from '../ui/noticeSlots.css';
 
 // Measured from the members panel of docs/design/reference/room-light.png (1x): the header is
 // folds Header size 600 (54 px) with the count 12 px in; the filter and sort row, the search
@@ -221,4 +222,11 @@ export const VisuallyHidden = style({
   overflow: 'hidden',
   clip: 'rect(0, 0, 0, 0)',
   whiteSpace: 'nowrap',
+});
+
+/** Non-blocking alert shown in the page notice slot if a grant fails after the dialog closed. */
+export const GrantErrorNotice = style({
+  ...noticeCard,
+  ...noticeCardOnPage,
+  maxInlineSize: toRem(440),
 });
