@@ -40,23 +40,40 @@ const closingTrap = (onClose: () => void): TrapOptions => ({
   onDeactivate: onClose,
 });
 
+/** A settings card's heading names its group of settings, never the dialog. */
+const HEADING = 'h1, h2, h3:not([data-settings-heading]), [role="heading"]';
+
 /**
  * Names the dialog after the element marked `data-dialog-title` (the "Settings" of a settings
- * page's title bar), or else the first heading inside it (a room's name), which changes as its
- * pages do.
+ * page's title bar), or else the first heading inside it (a room's name), or else the page named
+ * in a settings title bar (`data-page-title`): a phone shows a room's settings page without the
+ * menu that holds the room's name. The name follows what the dialog shows.
  */
 const useNamedByHeading = () => {
   const ref = useRef<HTMLDivElement>(null);
   const fallbackId = useId();
   useLayoutEffect(() => {
     const dialog = ref.current;
-    const heading =
-      dialog?.querySelector?.<HTMLElement>('[data-dialog-title]') ??
-      dialog?.querySelector?.<HTMLElement>('h1, h2, h3, [role="heading"]');
-    if (!dialog || !heading) return;
-    if (!heading.id) heading.id = `${fallbackId}-title`;
-    dialog.setAttribute('aria-labelledby', heading.id);
-  });
+    if (!dialog) return undefined;
+    const name = () => {
+      const heading =
+        dialog.querySelector?.<HTMLElement>('[data-dialog-title]') ??
+        dialog.querySelector?.<HTMLElement>(HEADING) ??
+        dialog.querySelector?.<HTMLElement>('[data-page-title]');
+      if (!heading) return;
+      if (!heading.id) {
+        // The element named before may still show, further down.
+        document.getElementById(`${fallbackId}-title`)?.removeAttribute('id');
+        heading.id = `${fallbackId}-title`;
+      }
+      dialog.setAttribute('aria-labelledby', heading.id);
+    };
+    name();
+    if (typeof MutationObserver === 'undefined') return undefined;
+    const observer = new MutationObserver(name);
+    observer.observe(dialog, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [fallbackId]);
   return ref;
 };
 
