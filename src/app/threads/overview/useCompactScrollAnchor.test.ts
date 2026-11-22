@@ -41,6 +41,10 @@ describe('useCompactScrollAnchor', () => {
           const row = document.createElement('div');
           const isHeader = sectionOfRow(id) !== undefined;
           if (!isHeader) row.setAttribute('data-scroll-anchor', id);
+          else {
+            row.setAttribute('data-compact-section', id);
+            row.setAttribute('data-motion-row', id);
+          }
           const height = isHeader ? SECTION_HEADER : CARD;
           const start = rowTop;
           rowTop += height;
@@ -157,6 +161,39 @@ describe('useCompactScrollAnchor', () => {
     rerender(order, () => show(order));
     expect(topOfB()).toBe(-10);
     expect(writes).toEqual([SECTION_HEADER + 10]);
+  });
+
+  it('holds the header that leads the view when its section opens under it', () => {
+    const later = ['#later', '$c', '$d', '$e', '$f'];
+    const ids = ['#needsYou', '$a', '$b', '#working', ...later];
+    // The folded section's header is the topmost row in view.
+    const { view, show, writes, rerender } = list(ids, SECTION_HEADER + 2 * CARD);
+    const open = ['#needsYou', '$a', '$b', '#working', '$w1', '$w2', ...later];
+    rerender(open, () => show(open));
+    expect(writes).toEqual([]);
+    expect(view.querySelector('[data-scroll-anchor="$w1"]')!.getBoundingClientRect().top).toBe(
+      SECTION_HEADER
+    );
+  });
+
+  it('reads a header that glides where the layout has it', () => {
+    const ids = ['#needsYou', '$a', '#working', '$b', '$c', '$d', '$e'];
+    const { view, writes, resize } = list(ids, SECTION_HEADER + CARD);
+    // The header is 30 px into a glide when the reader's scroll reads the rows.
+    const header = view.querySelector<HTMLElement>('[data-compact-section="#working"]')!;
+    let glide = 30;
+    const layoutRect = header.getBoundingClientRect.bind(header);
+    header.getBoundingClientRect = () => {
+      const { top, bottom } = layoutRect();
+      return { top: top + glide, bottom: bottom + glide } as DOMRect;
+    };
+    vi.stubGlobal('getComputedStyle', (row: Element) => ({
+      translate: row === header && glide ? `0px ${glide}px` : 'none',
+    }));
+    view.dispatchEvent(new Event('scroll'));
+    glide = 0;
+    resize();
+    expect(writes).toEqual([]);
   });
 
   it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {
