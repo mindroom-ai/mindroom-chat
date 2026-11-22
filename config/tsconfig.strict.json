@@ -7,5 +7,14 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true
-  }
+  },
+  "include": [
+    "../src",
+    "../e2e",
+    "../electron",
+    "../vite.config.js",
+    "../vitest.config.ts",
+    "../playwright.config.ts",
+    "../playwright.electron.config.ts"
+  ]
 }

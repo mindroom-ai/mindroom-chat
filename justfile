@@ -31,6 +31,18 @@ format *paths:
 dev *args:
     npx vite {{args}}
 
+# Build the bundled web app and the Electron desktop shell (npm run build:desktop).
+build-desktop:
+    npm run build:desktop
+
+# Launch the Electron desktop shell against dist/ (run build-desktop first).
+desktop:
+    npm run desktop
+
+# Run the Electron desktop shell Playwright specs (playwright.electron.config.ts).
+e2e-desktop *args:
+    npm run e2e:desktop -- {{args}}
+
 # Production build into dist/; docs/deployment.md "Build" lists what it holds. The npm dependencies' THIRD_PARTY_NOTICES.txt in public/licenses/ comes from scripts/third-party-notices.mjs. While MINDROOM_CLIENT_PLUGINS is unset, it builds in the client plugins bundled-plugins.txt pins (scripts/build.sh, which `npm run build:ios` runs too, so the iOS and Mac apps ship them); `MINDROOM_CLIENT_PLUGINS= just build` builds none.
 build:
     scripts/build.sh

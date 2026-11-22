@@ -14,14 +14,17 @@ const {
 // program; text linted under a made-up path (as surfaceImports.test.ts does) gets the other rules
 // only.
 function typeScriptFiles() {
-  const sources = ['src', 'e2e'].flatMap((dir) =>
+  const sources = ['src', 'e2e', 'electron'].flatMap((dir) =>
     fs
       .readdirSync(path.join(__dirname, dir), { recursive: true })
       .map((file) => path.posix.join(dir, String(file).split(path.sep).join('/')))
   );
-  return [...sources, 'vitest.config.ts', 'playwright.config.ts'].filter((file) =>
-    /\.tsx?$/.test(file)
-  );
+  return [
+    ...sources,
+    'vitest.config.ts',
+    'playwright.config.ts',
+    'playwright.electron.config.ts',
+  ].filter((file) => /\.tsx?$/.test(file));
 }
 
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface

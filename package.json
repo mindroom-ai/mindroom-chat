@@ -5,6 +5,7 @@
   "description": "Apache-2.0 MindRoom client on matrix-js-sdk with Rust crypto",
   "license": "Apache-2.0",
   "type": "module",
+  "main": "build/electron/main.cjs",
   "engines": {
     "node": ">=24"
   },
@@ -20,8 +21,11 @@
     "appstore:screenshots": "scripts/appstore-screenshots.sh",
     "typecheck": "tsc --noEmit -p config/tsconfig.app.json",
     "test": "vitest run",
-    "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs",
-    "postinstall": "patch-package --error-on-fail"
+    "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs electron playwright.electron.config.ts",
+    "postinstall": "patch-package --error-on-fail",
+    "build:desktop": "npm run build:ios && node electron/build.mjs",
+    "desktop": "node electron/build.mjs && electron .",
+    "e2e:desktop": "playwright test -c playwright.electron.config.ts"
   },
   "dependencies": {
     "@basnijholt/particular-drift": "0.2.0",

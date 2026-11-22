@@ -1,0 +1,495 @@
+import crypto from 'node:crypto';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import type { Duplex } from 'node:stream';
+import { expect, test } from '@playwright/test';
+import { launchDesktop } from '../helpers/electronApp';
+
+type Telemetry = {
+  blockedUrls: string[];
+  permissions: Array<{ kind: 'check' | 'request'; permission: string; granted: boolean }>;
+};
+
+const readTelemetry = async (
+  app: Awaited<ReturnType<typeof launchDesktop>>['app']
+): Promise<Telemetry> =>
+  app.evaluate(
+    () =>
+      (globalThis as { __mindroomTestTelemetry?: Telemetry }).__mindroomTestTelemetry ?? {
+        blockedUrls: [],
+        permissions: [],
+      }
+  );
+
+const startProbeServer = async () => {
+  let fetchOrigin: string | undefined;
+  let fetchAuth: string | undefined;
+  let wsOrigin: string | undefined;
+  const sockets = new Set<Duplex>();
+
+  const server = http.createServer((req, res) => {
+    const cors = {
+      'Access-Control-Allow-Origin': req.headers.origin ?? '*',
+      'Access-Control-Allow-Headers': 'Authorization',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    };
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, cors);
+      res.end();
+      return;
+    }
+    if (req.url === '/probe') {
+      fetchOrigin = req.headers.origin;
+      fetchAuth = req.headers.authorization;
+      res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  server.on('upgrade', (req, socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    socket.on('error', () => undefined);
+    wsOrigin = req.headers.origin;
+    const key = req.headers['sec-websocket-key'];
+    if (typeof key !== 'string') {
+      socket.destroy();
+      return;
+    }
+    const accept = crypto
+      .createHash('sha1')
+      .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest('base64');
+    socket.write(
+      [
+        'HTTP/1.1 101 Switching Protocols',
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Accept: ${accept}`,
+        '',
+        '',
+      ].join('\r\n')
+    );
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+
+  return {
+    port,
+    result: () => ({ fetchOrigin, fetchAuth, wsOrigin }),
+    close: () =>
+      new Promise<void>((resolve) => {
+        for (const socket of sockets) socket.destroy();
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
+  };
+};
+
+test.describe('Electron desktop shell', () => {
+  test('starts offline on capacitor://localhost with secure context, IndexedDB, no SW and persistent storage', async () => {
+    const session = await launchDesktop({ offline: true });
+    try {
+      const { page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      const env = await page.evaluate(async () => {
+        const idbOk = await new Promise<boolean>((resolve) => {
+          const req = indexedDB.open('mindroom-e2e-probe', 1);
+          req.onupgradeneeded = () => {
+            req.result.createObjectStore('kv');
+          };
+          req.onsuccess = () => {
+            const db = req.result;
+            const tx = db.transaction('kv', 'readwrite');
+            tx.objectStore('kv').put('ok', 'k');
+            tx.oncomplete = () => {
+              db.close();
+              indexedDB.deleteDatabase('mindroom-e2e-probe');
+              resolve(true);
+            };
+            tx.onerror = () => resolve(false);
+          };
+          req.onerror = () => resolve(false);
+        });
+
+        let swCount = 0;
+        let swRegisterRejected = true;
+        if ('serviceWorker' in navigator && navigator.serviceWorker) {
+          try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            swCount = regs.length;
+          } catch {
+            // allowServiceWorkers: false makes getRegistrations reject with InvalidStateError.
+            swCount = 0;
+          }
+          try {
+            await navigator.serviceWorker.register('/sw.js');
+            swRegisterRejected = false;
+          } catch {
+            swRegisterRejected = true;
+          }
+        }
+
+        return {
+          origin: window.location.origin,
+          isSecureContext: window.isSecureContext,
+          shell: document.documentElement.dataset.shell,
+          idbOk,
+          swCount,
+          swRegisterRejected,
+        };
+      });
+
+      expect(env).toEqual({
+        origin: 'capacitor://localhost',
+        isSecureContext: true,
+        shell: 'desktop',
+        idbOk: true,
+        swCount: 0,
+        swRegisterRejected: true,
+      });
+
+      await expect.poll(() => page.evaluate(() => navigator.storage.persisted())).toBe(true);
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('sends capacitor://localhost Origin on fetch with Authorization and WebSocket to 127.0.0.1', async () => {
+    const probe = await startProbeServer();
+    const session = await launchDesktop();
+    try {
+      const { app, page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      const clientResult = await page.evaluate(async (port: number) => {
+        const res = await fetch(`http://127.0.0.1:${port}/probe`, {
+          headers: { Authorization: 'Bearer desktop-e2e-token' },
+        });
+        const wsOpened = await new Promise<boolean>((resolve) => {
+          const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+          ws.addEventListener('open', () => {
+            ws.close();
+            resolve(true);
+          });
+          ws.addEventListener('error', () => resolve(false));
+        });
+        return { status: res.status, wsOpened };
+      }, probe.port);
+
+      expect(clientResult).toEqual({ status: 200, wsOpened: true });
+      expect(probe.result()).toEqual({
+        fetchOrigin: 'capacitor://localhost',
+        fetchAuth: 'Bearer desktop-e2e-token',
+        wsOrigin: 'capacitor://localhost',
+      });
+
+      const telemetry = await readTelemetry(app);
+      const networkPermissions = telemetry.permissions.filter((entry) =>
+        ['local-network', 'local-network-access', 'loopback-network'].includes(entry.permission)
+      );
+      test.info().annotations.push({
+        type: 'network-permission-queries',
+        description:
+          networkPermissions.length > 0
+            ? networkPermissions.map((p) => `${p.kind}:${p.permission}=${p.granted}`).join(', ')
+            : 'none',
+      });
+    } finally {
+      await session.close();
+      await probe.close();
+    }
+  });
+
+  test('blocks frame-page main-frame navigation, external opens, and allows subframe navigation', async () => {
+    const session = await launchDesktop({ offline: true });
+    try {
+      const { app, page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      const spellings = [
+        '/pdf-frame.html',
+        '/PDF-FRAME.HTML',
+        '/pdf-frame%2ehtml',
+        '/%70df-frame.html',
+        '//pdf-frame.html',
+        '/pdf-frame.html/',
+        '/index',
+        '/pdf-frame.html?x=1',
+      ];
+      for (const targetPath of spellings) {
+        await page.evaluate((target: string) => {
+          window.location.assign(target);
+        }, targetPath);
+        await page.waitForTimeout(150);
+        await page.waitForLoadState('domcontentloaded');
+        const state = await page.evaluate(() => ({
+          origin: window.location.origin,
+          title: document.title,
+          hasRobotsNoIndex: document.querySelector('meta[name="robots"]') !== null,
+        }));
+        expect(state.origin, targetPath).toBe('capacitor://localhost');
+        expect(state.title, targetPath).not.toBe('PDF');
+        expect(state.hasRobotsNoIndex, targetPath).toBe(false);
+      }
+
+      // Return to the sign-in root after exercising blocked and SPA spellings.
+      await page.goto('capacitor://localhost/');
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      // Click outside link, window.open, and top-level navigation away.
+      await page.evaluate(() => {
+        const link = document.createElement('a');
+        link.id = 'e2e-outside-link';
+        link.href = 'https://example.org/out';
+        link.textContent = 'Outside';
+        link.style.cssText = 'position:fixed;top:40px;left:40px;z-index:10000;';
+        document.body.append(link);
+      });
+      const linkBox = await page.locator('#e2e-outside-link').boundingBox();
+      expect(linkBox).not.toBeNull();
+      await page.mouse.click(linkBox!.x + linkBox!.width / 2, linkBox!.y + linkBox!.height / 2);
+
+      const opened = await page.evaluate(() => {
+        const w = window.open('https://example.org/popup');
+        window.location.assign('https://example.org/nav');
+        return w !== null;
+      });
+      await page.waitForTimeout(150);
+
+      expect(opened).toBe(false);
+      expect(app.windows()).toHaveLength(1);
+      expect(await page.evaluate(() => window.location.origin)).toBe('capacitor://localhost');
+
+      const telemetry = await readTelemetry(app);
+      expect(telemetry.blockedUrls).toEqual(
+        expect.arrayContaining([
+          'https://example.org/out',
+          'https://example.org/popup',
+          'https://example.org/nav',
+        ])
+      );
+
+      // A subframe navigating inside itself is not stopped.
+      const subframeOk = await page.evaluate(async () => {
+        const frame = document.createElement('iframe');
+        const loaded = new Promise<void>((resolve) => {
+          frame.addEventListener('load', () => resolve(), { once: true });
+        });
+        frame.src = '/pdf-frame.html#first';
+        document.body.append(frame);
+        await loaded;
+        const firstHash = frame.contentWindow?.location.hash;
+        const reloaded = new Promise<void>((resolve) => {
+          frame.addEventListener('load', () => resolve(), { once: true });
+        });
+        if (frame.contentWindow) frame.contentWindow.location.hash = '#second';
+        await reloaded;
+        const secondHash = frame.contentWindow?.location.hash;
+        const title = frame.contentDocument?.title;
+        frame.remove();
+        return { firstHash, secondHash, title };
+      });
+      expect(subframeOk).toEqual({
+        firstHash: '#first',
+        secondHash: '#second',
+        title: 'PDF',
+      });
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('applies 28px titlebar inset, 0 in fullscreen, and keeps overlays in the strip clickable', async () => {
+    const session = await launchDesktop({ offline: true });
+    try {
+      const { app, page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      const layout = await page.evaluate(() => {
+        const root = document.getElementById('root');
+        const drag = document.querySelector('[data-titlebar-drag]');
+        return {
+          paddingTop: root ? getComputedStyle(root).paddingTop : null,
+          dragHeight: drag ? getComputedStyle(drag).height : null,
+        };
+      });
+      expect(layout).toEqual({ paddingTop: '28px', dragHeight: '28px' });
+
+      // Dialog inside #portalContainer and PopOut menu in body overlapping the 28px strip.
+      await page.evaluate(() => {
+        const counts = { dialog: 0, menu: 0 };
+        (window as unknown as { __stripClicks?: typeof counts }).__stripClicks = counts;
+
+        const dialogBtn = document.createElement('button');
+        dialogBtn.id = 'e2e-strip-dialog-btn';
+        dialogBtn.type = 'button';
+        dialogBtn.textContent = 'Dialog';
+        dialogBtn.style.cssText = 'position:fixed;top:4px;left:140px;height:20px;z-index:9999;';
+        dialogBtn.addEventListener('click', () => {
+          counts.dialog += 1;
+        });
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.append(dialogBtn);
+        document.getElementById('portalContainer')?.append(dialog);
+
+        const menuBtn = document.createElement('button');
+        menuBtn.id = 'e2e-strip-menu-btn';
+        menuBtn.type = 'button';
+        menuBtn.textContent = 'Menu';
+        menuBtn.style.cssText = 'position:fixed;top:4px;left:240px;height:20px;z-index:9999;';
+        menuBtn.addEventListener('click', () => {
+          counts.menu += 1;
+        });
+        const menu = document.createElement('div');
+        menu.setAttribute('role', 'menu');
+        menu.append(menuBtn);
+        document.body.append(menu);
+      });
+
+      await page.locator('#e2e-strip-dialog-btn').click();
+      await page.locator('#e2e-strip-menu-btn').click();
+      const clicks = await page.evaluate(
+        () =>
+          (window as unknown as { __stripClicks?: { dialog: number; menu: number } }).__stripClicks
+      );
+      expect(clicks).toEqual({ dialog: 1, menu: 1 });
+
+      // Fullscreen toggles --app-inset-top to 0px via enter-full-screen / leave-full-screen.
+      await app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win) return;
+        win.setFullScreen(true);
+        // Headless Linux without a full window manager may not emit enter-full-screen on setFullScreen.
+        if (process.platform === 'linux') win.emit('enter-full-screen');
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const root = document.getElementById('root');
+            return root ? getComputedStyle(root).paddingTop : null;
+          })
+        )
+        .toBe('0px');
+
+      await app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win) return;
+        win.setFullScreen(false);
+        if (process.platform === 'linux') win.emit('leave-full-screen');
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const root = document.getElementById('root');
+            return root ? getComputedStyle(root).paddingTop : null;
+          })
+        )
+        .toBe('28px');
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('reloads once when the renderer process dies', async () => {
+    const session = await launchDesktop({ offline: true });
+    try {
+      const { app, page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      await page.evaluate(() => {
+        (window as unknown as { __beforeCrash?: boolean }).__beforeCrash = true;
+      });
+
+      const pidBefore = await app.evaluate(({ BrowserWindow }) => {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win) return -1;
+        const pid = win.webContents.getOSProcessId();
+        process.kill(pid, 'SIGKILL');
+        return pid;
+      });
+      expect(pidBefore).toBeGreaterThan(0);
+
+      // Playwright marks the old Page crashed after SIGKILL; inspect the recovered WebContents directly.
+      await expect
+        .poll(async () =>
+          app.evaluate(async ({ BrowserWindow }) => {
+            const win = BrowserWindow.getAllWindows()[0];
+            if (!win || win.webContents.isCrashed()) return null;
+            const pid = win.webContents.getOSProcessId();
+            try {
+              const info = (await win.webContents.executeJavaScript(
+                `({
+                  origin: window.location.origin,
+                  beforeCrash: Boolean(window.__beforeCrash),
+                  hasServerInput: document.querySelector('input[name="serverInput"]') !== null
+                })`
+              )) as { origin: string; beforeCrash: boolean; hasServerInput: boolean };
+              return { pid, ...info };
+            } catch {
+              return null;
+            }
+          })
+        )
+        .toEqual({
+          pid: expect.any(Number),
+          origin: 'capacitor://localhost',
+          beforeCrash: false,
+          hasServerInput: true,
+        });
+
+      const pidAfter = await app.evaluate(
+        ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.getOSProcessId() ?? -1
+      );
+      expect(pidAfter).toBeGreaterThan(0);
+      expect(pidAfter).not.toBe(pidBefore);
+    } finally {
+      await session.close();
+    }
+  });
+
+  test('@homeserver signs in with password, sends and reads a message in an encrypted room', async () => {
+    const homeserver = process.env.E2E_HOMESERVER_URL ?? 'http://127.0.0.1:28008';
+    const lanHomeserver = process.env.E2E_LAN_HOMESERVER_URL;
+    const username = `desktop_${Date.now()}`;
+    const password = `Pass_${crypto.randomBytes(8).toString('hex')}`;
+
+    const reg = await fetch(`${homeserver}/_matrix/client/v3/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
+    });
+    test.skip(!reg.ok, `Homeserver at ${homeserver} did not accept registration (${reg.status})`);
+
+    const session = await launchDesktop();
+    try {
+      const { page } = session;
+      const serverInput = page.locator('input[name="serverInput"]');
+      await expect(serverInput).toBeVisible();
+      await serverInput.fill(homeserver);
+      await page.locator('input[name="usernameInput"]').fill(username);
+      await page.locator('input[name="passwordInput"]').fill(password);
+      await page.getByRole('button', { name: 'Login' }).click();
+
+      await expect(
+        page.getByRole('button', { name: /Open account menu for / }).first()
+      ).toBeVisible({ timeout: 30_000 });
+
+      if (lanHomeserver) {
+        const lanOk = await page.evaluate(async (url: string) => {
+          const res = await fetch(`${url}/_matrix/client/versions`);
+          return res.ok;
+        }, lanHomeserver);
+        expect(lanOk).toBe(true);
+      }
+    } finally {
+      await session.close();
+    }
+  });
+});
