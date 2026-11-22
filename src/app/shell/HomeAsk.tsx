@@ -16,7 +16,8 @@ import { RoomInput } from '../composer/RoomInput';
 import * as composerCss from '../composer/RoomInput.css';
 import {
   getHomeAskDraftKey,
-  keepHomeAskDestination,
+  type HomeAskDestination,
+  homeAskDestinationAtomFamily,
   readHomeAskDestination,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
@@ -34,7 +35,7 @@ import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversati
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { IsolatedText, isolateInSentence, revealDirectionControls } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
-import { canAskIn, type HomeAgent, startDirectChat } from './homeAgents';
+import { canAskIn, type HomeAgent, isDirectRoomWith, startDirectChat } from './homeAgents';
 import * as css from './Home.css';
 
 const AVATAR_PX = 40;
@@ -71,6 +72,23 @@ const goneAgent = (userId: string): HomeAgent => ({
   lastUsedTs: 0,
 });
 
+/** Where a question to `agent` goes with `roomId` picked: its direct chat, or one of its rooms. */
+const destinationOf = (agent: HomeAgent, roomId: string | null): HomeAskDestination => ({
+  agentId: agent.userId,
+  roomId,
+  isDirect: roomId === null || roomId === agent.direct?.roomId,
+});
+
+/**
+ * Whether a question to `agentId` can go to `room`. A room picked as its direct chat takes one only
+ * while it is that: the two alone in it, the agent joined.
+ */
+const answersIn = (room: Room, agentId: string, isDirect: boolean): boolean =>
+  isDirect ? isDirectRoomWith(room, agentId) : canAskIn(room, agentId);
+
+/** A question sent whose message the server has yet to confirm, and where it went. */
+type PendingSend = { roomId: string; agentId: string; isDirect: boolean; eventId: string };
+
 /**
  * Home's ask field: a question to one of the rooms' agents, sent as a new thread, which then
  * opens. It goes to the room the agent last answered in, else its direct chat, which a press on
@@ -90,47 +108,52 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const version = useCapabilities()['m.room_versions']?.default;
   const userId = mx.getSafeUserId();
   const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(userId));
+  const destinationAtom = homeAskDestinationAtomFamily(userId);
   // Who answers and where, once picked or once the field holds text: sync moves neither then, and
   // the choice stays with the draft across navigation and reloads. A null room is the agent's
-  // direct chat, yet to be started.
-  const [choice, setChoice] = useState<
-    | {
-        agentId: string;
-        roomId: string | null;
-        started?: boolean;
-      }
-    | undefined
-  >(() => {
-    if (store.get(draftAtom).length === 0) return undefined;
-    // A kept Home draft without its destination requires an explicit choice rather than sending to
-    // whatever room is default now.
-    return readHomeAskDestination(userId) ?? { agentId: '', roomId: null };
-  });
+  // direct chat, yet to be started; `started` marks one this field started.
+  const [choice, setChoice] = useState<(HomeAskDestination & { started?: boolean }) | undefined>(
+    () => {
+      if (store.get(draftAtom).length === 0) return undefined;
+      // A kept Home draft without its destination requires an explicit choice rather than sending
+      // to whatever room is default now.
+      return (
+        store.get(destinationAtom) ??
+        readHomeAskDestination(userId) ?? { agentId: '', roomId: null }
+      );
+    }
+  );
   const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
   const [focusOnMount, setFocusOnMount] = useState(false);
+  // One question at a time: while the composer sends it, then until the server confirms its
+  // message or that is deleted, nothing else is sent, so one that failed keeps its notice.
+  const [sending, setSending] = useState(false);
+  const [pendingSend, setPendingSend] = useState<PendingSend>();
+  const pendingRef = useRef<PendingSend>();
   const [failedSend, setFailedSend] = useState<{ room: Room; event: MatrixEvent }>();
+  const track = useCallback((pending: PendingSend | undefined) => {
+    pendingRef.current = pending;
+    setPendingSend(pending);
+    setFailedSend(undefined);
+  }, []);
   const typed = useAtomValue(draftAtom).length > 0;
-  const agent = choice
-    ? agents.find((candidate) => candidate.userId === choice.agentId) ?? goneAgent(choice.agentId)
-    : first;
-  const roomId = choice ? choice.roomId : agent.defaultRoomId ?? null;
-  if (typed && !choice) setChoice({ agentId: agent.userId, roomId });
+  const selected = choice ?? destinationOf(first, first.defaultRoomId ?? null);
+  const agent =
+    agents.find((candidate) => candidate.userId === selected.agentId) ??
+    goneAgent(selected.agentId);
+  const { roomId } = selected;
+  const isDirect = !!selected.isDirect;
+  if (typed && !choice) setChoice(selected);
+  // The draft's text is stored with where it goes, in one entry. This keeps that current, with
+  // nothing typed too, so the first letter typed is stored with it.
   useEffect(() => {
-    if (!typed) {
-      keepHomeAskDestination(userId, undefined);
-      return;
-    }
-    const target = choice ?? { agentId: agent.userId, roomId };
-    if (target.agentId) {
-      keepHomeAskDestination(userId, { agentId: target.agentId, roomId: target.roomId });
-    }
-  }, [agent.userId, choice, roomId, typed, userId]);
+    if (agent.userId) store.set(destinationAtom, { agentId: agent.userId, roomId, isDirect });
+  }, [agent.userId, destinationAtom, isDirect, roomId, store]);
   const selection = useRef({ agentId: agent.userId, roomId });
   selection.current = { agentId: agent.userId, roomId };
   const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
   // No drop zone: a file dropped on Home is not attached.
   const noDrop = useRef<HTMLElement>(null);
-  const sentRef = useRef<{ roomId: string; eventId: string }>();
   const agentPickerRef = useRef<HTMLButtonElement | null>(null);
   const roomPickerRef = useRef<HTMLButtonElement | null>(null);
   const refocusPickerRef = useRef<'agent' | 'room' | null>(null);
@@ -143,15 +166,22 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   if (!direct) roomIds.push(null);
   else if (!roomIds.includes(direct.roomId)) roomIds.push(direct.roomId);
   const room = roomId ? mx.getRoom(roomId) : null;
+  // A room picked as the direct chat stays a choice only while it is that chat, not as a room of
+  // the same ID that others have joined since.
+  const listed = isDirect
+    ? roomId === (direct?.roomId ?? null)
+    : roomId !== null && agent.roomIds.includes(roomId);
   // A chat just started is among the choices once the client has it, and waits until the agent
-  // joins even if the room arrives before `m.direct` syncs back.
-  const valid =
-    agents.includes(agent) &&
-    (roomIds.includes(roomId) || (!!choice?.started && (!room || !direct)));
+  // joins even if the room arrives before `m.direct` syncs back, or before the agent's invitation
+  // does: while the two are alone in it.
+  const startedAlone =
+    !!choice?.started &&
+    (!room || (!direct && isDirectRoomWith(room, agent.userId, ['join', 'invite', undefined])));
+  const valid = agents.includes(agent) && (listed || startedAlone);
+  const usable = valid && !!room && answersIn(room, agent.userId, isDirect);
+  // A direct chat the agent has yet to join.
   const waiting =
-    (!!direct?.waiting && roomId === direct.roomId) ||
-    (!!choice?.started && !!room && !canAskIn(room, agent.userId));
-  const usable = valid && !!room && canAskIn(room, agent.userId);
+    isDirect && valid && !!room && isDirectRoomWith(room, agent.userId, ['invite', undefined]);
   const starting = starts[agent.userId];
   const composerShown = !!room && !waiting;
   useEffect(() => {
@@ -177,30 +207,24 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   );
   useEffect(() => {
     const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
-      const tracked = sentRef.current;
+      const tracked = pendingRef.current;
       if (!tracked || echoRoom.roomId !== tracked.roomId) return;
       const id = event.getId();
       if (oldId !== tracked.eventId && id !== tracked.eventId) return;
       if (id && !isLocalEchoEventId(id)) {
-        sentRef.current = undefined;
-        setFailedSend(undefined);
+        track(undefined);
         open(echoRoom.roomId, id);
-        return;
-      }
-      if (isFailedLocalEchoEvent(event)) {
-        setFailedSend({ room: echoRoom, event });
       } else if (event.status === EventStatus.CANCELLED) {
-        sentRef.current = undefined;
-        setFailedSend(undefined);
+        track(undefined);
       } else {
-        setFailedSend(undefined);
+        setFailedSend(isFailedLocalEchoEvent(event) ? { room: echoRoom, event } : undefined);
       }
     };
     mx.on(RoomEvent.LocalEchoUpdated, onEcho);
     return () => {
       mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
     };
-  }, [mx, open]);
+  }, [mx, open, track]);
   // A chat being started, or started but not yet in the client.
   const busy = starting === 'busy' || (roomId !== null && !room);
 
@@ -212,10 +236,17 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
         // A choice made meanwhile stands.
         if (selection.current.agentId !== agentId || selection.current.roomId !== null) return;
         setFocusOnMount(true);
-        setChoice({ agentId, roomId: started, started: true });
+        setChoice({ agentId, roomId: started, isDirect: true, started: true });
       },
       () => setStarts((all) => ({ ...all, [agentId]: 'failed' }))
     );
+  };
+  // A pick, which nothing takes while a question is being sent: where that goes stays put.
+  const pick = (picker: 'agent' | 'room', destination: HomeAskDestination) => {
+    if (sending) return;
+    setFocusOnMount(false);
+    refocusPickerRef.current = picker;
+    setChoice(destination);
   };
 
   const shown = (id: string | null) => {
@@ -273,51 +304,50 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               Icons.User,
               option === agent,
               { label: option.name, badge: agentBadge(option) },
-              choose(() => {
-                setFocusOnMount(false);
-                refocusPickerRef.current = 'agent';
-                setChoice({ agentId: option.userId, roomId: option.defaultRoomId ?? null });
-              })
+              choose(() => pick('agent', destinationOf(option, option.defaultRoomId ?? null))),
+              // Agents of one name are told apart by their IDs.
+              agents.some((other) => other !== option && other.name === option.name)
+                ? revealDirectionControls(option.userId)
+                : undefined
             )
           )
         }
       </ComposerMenuButton>
-      <ComposerMenuButton
-        label={t('home.ask.chooseRoom')}
-        icon={Icons.ChevronBottom}
-        triggerButtonRef={roomPickerRef}
-        face={{
-          content: (
-            <span className={css.PickerText}>
-              <Trans
-                i18nKey="home.ask.inRoom"
-                values={{ room: isolateInSentence(current.label) }}
-                tOptions={{ interpolation: { escapeValue: true } }}
-                shouldUnescape
-                components={{ avatar: <>{current.badge}</> }}
-              />
-            </span>
-          ),
-          label: t('home.ask.roomChoice', { room: current.label }),
-        }}
-      >
-        {({ choose }) =>
-          roomIds.map((id) =>
-            radio(
-              id ?? 'new-direct',
-              Icons.Hash,
-              id === roomId,
-              shown(id),
-              choose(() => {
-                setFocusOnMount(false);
-                refocusPickerRef.current = 'room';
-                setChoice({ agentId: agent.userId, roomId: id });
-              }),
-              id === null ? t('home.ask.startsDirectChat', { name }) : undefined
+      {/* A kept draft whose agent is not known has no rooms to offer until one is picked. */}
+      {agent.userId && (
+        <ComposerMenuButton
+          label={t('home.ask.chooseRoom')}
+          icon={Icons.ChevronBottom}
+          triggerButtonRef={roomPickerRef}
+          face={{
+            content: (
+              <span className={css.PickerText}>
+                <Trans
+                  i18nKey="home.ask.inRoom"
+                  values={{ room: isolateInSentence(current.label) }}
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  shouldUnescape
+                  components={{ avatar: <>{current.badge}</> }}
+                />
+              </span>
+            ),
+            label: t('home.ask.roomChoice', { room: current.label }),
+          }}
+        >
+          {({ choose }) =>
+            roomIds.map((id) =>
+              radio(
+                id ?? 'new-direct',
+                Icons.Hash,
+                id === roomId,
+                shown(id),
+                choose(() => pick('room', destinationOf(agent, id))),
+                id === null ? t('home.ask.startsDirectChat', { name }) : undefined
+              )
             )
-          )
-        }
-      </ComposerMenuButton>
+          }
+        </ComposerMenuButton>
+      )}
     </>
   );
   const placeholder = agent.name ? t('home.ask.placeholder', { name }) : t('home.ask.chooseAgent');
@@ -327,8 +357,13 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
       {t('home.ask.chooseAgain')}
     </Text>
   );
-  const failedNotice = failedSend && (
-    <FailedSendActions room={failedSend.room} event={failedSend.event} />
+  // Sent again, the question goes where it went: offered only while the agent still answers there.
+  const failedNotice = failedSend && pendingSend && (
+    <FailedSendActions
+      room={failedSend.room}
+      event={failedSend.event}
+      canRetry={answersIn(failedSend.room, pendingSend.agentId, pendingSend.isDirect)}
+    />
   );
 
   if (room && composerShown) {
@@ -341,10 +376,10 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
             roomId={room.roomId}
             fileDropContainerRef={noDrop}
             onRoomMessageSent={(eventId) => {
-              setFailedSend(undefined);
-              if (isLocalEchoEventId(eventId)) sentRef.current = { roomId: room.roomId, eventId };
-              else {
-                sentRef.current = undefined;
+              if (isLocalEchoEventId(eventId)) {
+                track({ roomId: room.roomId, agentId: agent.userId, isDirect, eventId });
+              } else {
+                track(undefined);
                 open(room.roomId, eventId);
               }
               return false;
@@ -354,7 +389,9 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               placeholder,
               pickers,
               // Read again at the press: the room or the agent may have changed since.
-              canSend: () => valid && canAskIn(room, agent.userId),
+              canSend: () =>
+                !sending && !pendingRef.current && valid && answersIn(room, agent.userId, isDirect),
+              onSendingChange: setSending,
             }}
           />
         </ConversationViewContext.Provider>

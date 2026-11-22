@@ -7,7 +7,7 @@ import {
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
-import { canAskIn, readHomeAgents, startDirectChat } from './homeAgents';
+import { canAskIn, isDirectRoomWith, readHomeAgents, startDirectChat } from './homeAgents';
 
 const ME = '@robin:example.org';
 const HELPER = '@mindroom_helper:example.org';
@@ -23,7 +23,10 @@ type RoomSpec = {
   agents?: string[];
   /** Events the client has loaded: sender and time, or full event spec. */
   messages?: MessageSpec[];
-  members?: Record<string, string>;
+  /** The threads whose events the client has loaded, by root. */
+  threads?: Record<string, MessageSpec[]>;
+  /** Membership by user, or the membership and the display name the room knows. */
+  members?: Record<string, string | { membership: string; rawDisplayName: string }>;
   state?: Record<string, Record<string, unknown>>;
   count?: number;
 };
@@ -46,47 +49,58 @@ const event = (
   } as unknown as MatrixEvent);
 
 const room = (roomId: string, spec: RoomSpec = {}) => {
-  const { agents = [], messages = [], members = {}, state = {}, count = 3 } = spec;
+  const { agents = [], messages = [], threads = {}, members = {}, state = {}, count = 3 } = spec;
   const stateEvents = (type: string) =>
     type === 'io.mindroom.server' ? agents.map((agent) => event(agent)) : [];
+  const events = (entries: MessageSpec[]) =>
+    entries.map((entry) =>
+      Array.isArray(entry) ? event(entry[0], entry[1]) : event(entry.sender, entry.ts, {}, entry)
+    );
+  const member = (userId: string) => {
+    const known = members[userId];
+    if (!known) return null;
+    return typeof known === 'string'
+      ? { membership: known }
+      : { ...known, getMxcAvatarUrl: () => null };
+  };
   return {
     roomId,
     myUserId: ME,
     isSpaceRoom: () => false,
     getMyMembership: () => 'join',
-    getMember: (userId: string) => (members[userId] ? { membership: members[userId] } : null),
+    getMember: member,
     getJoinedMemberCount: () => count,
     getInvitedMemberCount: () => 0,
     currentState: { getStateEvents: stateEvents },
     getLiveTimeline: () => ({
-      getEvents: () =>
-        messages.map((entry) =>
-          Array.isArray(entry)
-            ? event(entry[0], entry[1])
-            : event(entry.sender, entry.ts, {}, entry)
-        ),
+      getEvents: () => events(messages),
       getState: () => ({
         getStateEvents: (type: string) =>
           state[type] ? event('@admin:example.org', 0, state[type]) : undefined,
       }),
     }),
-    getThreads: () => [],
+    getThreads: () => Object.values(threads).map((entries) => ({ events: events(entries) })),
+    getThread: (rootId: string) => {
+      const loaded = threads[rootId];
+      return loaded ? { events: events(loaded) } : null;
+    },
   } as unknown as Room;
 };
 
-const client = (rooms: Room[], direct: Record<string, string[]> = {}) =>
+const client = (rooms: Room[], direct: unknown = {}) =>
   ({
     getRoom: (roomId: string) => rooms.find((candidate) => candidate.roomId === roomId) ?? null,
     getAccountData: () => ({ getContent: () => direct }),
   } as unknown as MatrixClient);
 
-/** A thread whose newest message is `lastSenderId`'s, at `ts`. */
-const thread = (roomId: string, lastSenderId: string, ts: number, participants = [HELPER]) =>
+/** A thread of the index whose newest message is `lastSenderId`'s, at `ts`. */
+const thread = (roomId: string, lastSenderId: string, ts: number, threadRootId = '$unloaded') =>
   ({
     roomId,
+    threadRootId,
     lastActivityTs: ts,
     threadRecord: {
-      presentation: { lastSenderId, latestReplyTs: ts, replyParticipantIds: participants },
+      presentation: { lastSenderId, latestReplyTs: ts, replyParticipantIds: [HELPER] },
     },
   } as unknown as CrossRoomThreadIndexEntry);
 
@@ -189,6 +203,87 @@ describe('readHomeAgents', () => {
     expect(byId.get(HELPER)).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
     expect(byId.has(ROUTER)).toBe(false);
     expect(byId.has(ROUTER_HELPER)).toBe(true);
+  });
+
+  it('ranks a loaded thread by when its answer was sent, which a later edit leaves', () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: {
+          // An old answer, edited just now.
+          $old: [
+            [ME, 90],
+            [HELPER, 100],
+            { sender: HELPER, ts: 900, relType: RelationType.Replace },
+          ],
+        },
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    // The index gives the edit's time for the loaded thread, and all it has for one not loaded.
+    const index = [thread('!lobby', HELPER, 900, '$old')];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), index);
+    expect(helper).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+
+    const [later] = readHomeAgents(client(rooms), ids(rooms), [
+      ...index,
+      thread('!lobby', HELPER, 300, '$unloaded'),
+    ]);
+    expect(later).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 300 });
+  });
+
+  it('counts the answers in a joined direct chat where the agent publishes no state', () => {
+    const rooms = [
+      room('!lobby', { agents: [HELPER, SCOUT], messages: [[HELPER, 100]] }),
+      room('!dm-helper', { members: { [HELPER]: 'join' }, count: 2, messages: [[HELPER, 500]] }),
+      room('!dm-scout', { members: { [SCOUT]: 'invite' }, count: 1, messages: [[SCOUT, 900]] }),
+    ];
+    const direct = { [HELPER]: ['!dm-helper'], [SCOUT]: ['!dm-scout'] };
+    const agents = readHomeAgents(client(rooms, direct), ['!lobby'], []);
+    // Helper's newest answer is in its direct chat; a chat Scout has yet to join counts nothing.
+    expect(agents.map((agent) => agent.userId)).toEqual([HELPER, SCOUT]);
+    expect(agents[0]).toMatchObject({
+      defaultRoomId: '!dm-helper',
+      lastUsedTs: 500,
+      roomIds: ['!lobby'],
+    });
+    expect(agents[1]).toMatchObject({ defaultRoomId: '!dm-scout', lastUsedTs: 0 });
+  });
+
+  it('takes no room for a direct chat on the state an agent left in it', () => {
+    // Listed in `m.direct`, two in it, the agent's state still there: but its membership is not
+    // known (it left; the other is someone else).
+    const stale = room('!stale', { agents: [HELPER], count: 2 });
+    const rooms = [room('!lobby', { agents: [HELPER] }), stale];
+    const [helper] = readHomeAgents(client(rooms, { [HELPER]: ['!stale'] }), ['!lobby'], []);
+    expect(canAskIn(stale, HELPER)).toBe(true);
+    expect(isDirectRoomWith(stale, HELPER)).toBe(false);
+    expect(helper?.direct).toBeUndefined();
+    expect(helper?.defaultRoomId).toBeUndefined();
+  });
+
+  it.each([
+    ['no list', { [HELPER]: '!dm' }],
+    ['a list of other things', { [HELPER]: [5, null, { roomId: '!dm' }] }],
+    ['no object', 'direct'],
+  ])('reads malformed `m.direct` content (%s) as listing no chat', (_name, direct) => {
+    const rooms = [
+      room('!lobby', { agents: [HELPER] }),
+      room('!dm', { members: { [HELPER]: 'join' }, count: 2 }),
+    ];
+    const [helper] = readHomeAgents(client(rooms, direct), ['!lobby'], []);
+    expect(helper?.direct).toBeUndefined();
+  });
+
+  it("writes out the direction controls of an agent's name", () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER],
+        members: { [HELPER]: { membership: 'join', rawDisplayName: 'Helper\u202Etuocs' } },
+      }),
+    ];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), []);
+    expect(helper?.name).toBe('Helper<U+202E>tuocs');
   });
 });
 

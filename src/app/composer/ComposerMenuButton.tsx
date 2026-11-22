@@ -106,8 +106,20 @@ export function ComposerMenuButton({
             },
           }}
         >
-          <Menu role="menu" aria-label={label} style={{ minWidth: toRem(200) }}>
-            <MenuGroup>{children(controls)}</MenuGroup>
+          {/* A long list scrolls inside the menu's rim, which stays put around it. */}
+          <Menu
+            role="menu"
+            aria-label={label}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: toRem(200),
+              maxHeight: 'min(20rem, 50vh)',
+            }}
+          >
+            <div style={{ minHeight: 0, overflowY: 'auto' }}>
+              <MenuGroup>{children(controls)}</MenuGroup>
+            </div>
           </Menu>
         </FocusTrap>
       }

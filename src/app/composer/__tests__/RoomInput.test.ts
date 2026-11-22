@@ -21,6 +21,7 @@ import {
   forgetComposerStateOfSession,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
+  homeAskDestinationAtomFamily,
   IReplyDraft,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
@@ -85,6 +86,7 @@ const {
             clipboardData: DataTransfer;
             preventDefault: () => void;
           }) => void | Promise<void>;
+          onDrop?: (evt: { preventDefault: () => void }) => void;
           onChange?: () => void;
           onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
           onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
@@ -275,6 +277,7 @@ vi.mock('../../editor/Editor', () => ({
     onKeyDown,
     onKeyUp,
     onPaste,
+    onDrop,
     placeholder,
   }: {
     style?: React.CSSProperties;
@@ -286,8 +289,9 @@ vi.mock('../../editor/Editor', () => ({
     onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
     onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
+    onDrop?: (evt: { preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, placeholder };
+    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, onDrop, placeholder };
     return React.createElement(
       'div',
       { style },
@@ -797,6 +801,12 @@ const createEditor = () => {
       editor.children[0]?.children.push({ text });
       return text;
     },
+    // As Slate's: the plain text of the data and nothing else of it.
+    insertTextData: (data: DataTransfer) => {
+      const text = data.getData('text/plain');
+      if (text) editor.insertText(text);
+      return !!text;
+    },
   };
   customEditorState.editor = editor;
   return editor as never;
@@ -978,6 +988,7 @@ const updateRoomInput = async (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
+    ask?: React.ComponentProps<typeof RoomInput>['ask'];
   }
 ) => {
   await act(async () => {
@@ -5092,5 +5103,165 @@ describe('RoomInput main-room next-thread model pick', () => {
     } finally {
       forgetSpy.mockRestore();
     }
+  });
+});
+
+describe("RoomInput as Home's ask field", () => {
+  const USER_ID = '@me:example.org';
+  const HELPER = '@mindroom_helper:example.org';
+  const homeDraft = () => roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(USER_ID));
+  const roomDraft = (roomId: string) =>
+    roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(USER_ID, roomId));
+  const askProps = (
+    overrides: Partial<NonNullable<React.ComponentProps<typeof RoomInput>['ask']>> = {}
+  ) => ({
+    agentUserId: HELPER,
+    placeholder: 'Ask Helper anything…',
+    pickers: null,
+    canSend: () => true,
+    ...overrides,
+  });
+  // Too large for one event: its long-text file is uploaded before anything is sent.
+  const LONG_QUESTION = 'A long question. '.repeat(3000);
+
+  it('takes the plain text of a paste, and nothing of a file or a paste chip copied with it', async () => {
+    const readPastes = vi.spyOn(keptPastes, 'readKeptPasteTexts');
+    try {
+      const { renderer, store } = await renderRoomInput(createStore(), { ask: askProps() });
+      const fragmentsBefore = vi.mocked(Transforms.insertFragment).mock.calls.length;
+      const paste = {
+        clipboardData: {
+          files: { length: 1, 0: new File(['secret'], 'mindroom-paste-abc123.txt') },
+          types: ['Files', 'text/plain', 'application/x-slate-fragment'],
+          getData: (type: string) => (type === 'text/plain' ? 'Only these words' : 'a paste chip'),
+        },
+        preventDefault: vi.fn(),
+      };
+      await act(async () => {
+        await customEditorState.props!.onPaste?.(paste as never);
+      });
+
+      // Slate's own paste, which would insert the copied chip, is prevented.
+      expect(paste.preventDefault).toHaveBeenCalledTimes(1);
+      expect(editorMocks.insertText.mock.calls).toEqual([['Only these words']]);
+      expect(editorMocks.insertNode).not.toHaveBeenCalled();
+      expect(vi.mocked(Transforms.insertFragment).mock.calls).toHaveLength(fragmentsBefore);
+      expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+      // A chip that got into the draft some other way is not turned back into a file at Send.
+      editorOutputState.emptyEditor = false;
+      editorOutputState.plainText = 'Only these words';
+      customEditorState.editor!.children = [
+        {
+          type: 'paragraph',
+          children: [
+            { text: 'Only these words' },
+            {
+              type: 'paste-marker',
+              fileName: 'mindroom-paste-abc123.txt',
+              children: [{ text: '' }],
+            },
+          ],
+        },
+      ];
+      await submitComposer();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(readPastes).not.toHaveBeenCalled();
+      expect(mxState.uploadContent).not.toHaveBeenCalled();
+      expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+      expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+        msgtype: 'm.text',
+        body: 'Only these words',
+      });
+      renderer.unmount();
+    } finally {
+      readPastes.mockRestore();
+    }
+  });
+
+  it("refuses a drop, which a room's composer leaves to the editor", async () => {
+    const { renderer } = await renderRoomInput(createStore(), { ask: askProps() });
+    const drop = { preventDefault: vi.fn() };
+    customEditorState.props!.onDrop?.(drop);
+    expect(drop.preventDefault).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+
+    const room = await renderRoomInput();
+    expect(customEditorState.props!.onDrop).toBeUndefined();
+    room.renderer.unmount();
+  });
+
+  /** Sends a long question from Home to ROOM_ID; its upload is still on its way. */
+  const sendLongQuestion = async (onSendingChange?: (sending: boolean) => void) => {
+    const store = createStore();
+    store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: ROOM_ID });
+    const { renderer } = await renderRoomInput(store, { ask: askProps({ onSendingChange }) });
+    stageComposerText(LONG_QUESTION);
+    resetEditorOnNextSend();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+    const fail = () =>
+      act(async () => {
+        upload.reject(new Error('offline'));
+        await sending.catch(() => undefined);
+      });
+    return { store, renderer, fail };
+  };
+  const question = [{ type: 'paragraph', children: [{ text: LONG_QUESTION }] }];
+
+  it("puts a question whose upload failed into no other room's draft once Home goes elsewhere", async () => {
+    const { store, renderer, fail } = await sendLongQuestion();
+    // Home moves on to another room, as its picker would, before the upload fails.
+    store.set(homeAskDestinationAtomFamily(USER_ID), { agentId: HELPER, roomId: OTHER_ROOM_ID });
+    await updateRoomInput(renderer, store, { roomId: OTHER_ROOM_ID, ask: askProps() });
+    await fail();
+
+    // Neither Home's draft, which goes to the other room now, nor that room's draft takes it.
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(store.get(homeDraft())).toEqual([]);
+    expect(store.get(roomDraft(OTHER_ROOM_ID))).toEqual([]);
+    expect(store.get(roomDraft(ROOM_ID))).toEqual(question);
+    renderer.unmount();
+    store.set(roomDraft(ROOM_ID), []);
+  });
+
+  it("returns a question whose upload failed after Home went to Home's draft, with where it was going", async () => {
+    const { store, renderer, fail } = await sendLongQuestion();
+    renderer.unmount();
+    await fail();
+
+    expect(store.get(homeDraft())).toEqual(question);
+    expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
+      agentId: HELPER,
+      roomId: ROOM_ID,
+    });
+    expect(store.get(roomDraft(ROOM_ID))).toEqual([]);
+    store.set(homeDraft(), []);
+  });
+
+  it('says while a send is on its way, and that it is over as the composer goes', async () => {
+    const onSendingChange = vi.fn();
+    const { renderer, fail } = await sendLongQuestion(onSendingChange);
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
+    await fail();
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    onSendingChange.mockClear();
+    stageComposerText(LONG_QUESTION);
+    mxState.uploadContent.mockReturnValueOnce(createDeferred<{ content_uri: string }>().promise);
+    await act(async () => {
+      void getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+    renderer.unmount();
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
   });
 });

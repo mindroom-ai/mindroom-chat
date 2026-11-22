@@ -87,6 +87,14 @@ export const getRoomInputDraftKey = (userId: string, roomId: string, threadId?: 
 /** The key of Home's ask field draft: one per account, whichever room it is to go to. */
 export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([userId]);
 
+/** Where Home's ask draft goes: the agent and the room, null for a direct chat yet to start. */
+export type HomeAskDestination = {
+  agentId: string;
+  roomId: string | null;
+  /** The room was chosen as the agent's direct chat: the question goes only while it is one. */
+  isDirect?: boolean;
+};
+
 /** The account, room and thread a draft key names. */
 const parseDraftKey = (draftKey: string): unknown[] => {
   try {
@@ -116,15 +124,28 @@ const isDescendant = (node: unknown): boolean => {
 const isElement = (node: unknown): boolean =>
   isRecord(node) && !isTextNode(node) && isDescendant(node);
 
-const readDraft = (storageKey: string): Descendant[] => {
-  const raw = getStorageItemSafe(getSafeLocalStorage(), storageKey);
-  if (raw === null) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.every(isElement) ? (parsed as Descendant[]) : [];
-  } catch {
-    return [];
-  }
+const asDraft = (stored: unknown): Descendant[] =>
+  Array.isArray(stored) && stored.every(isElement) ? (stored as Descendant[]) : [];
+
+const isHomeAskDestination = (value: unknown): value is HomeAskDestination =>
+  isRecord(value) &&
+  typeof value.agentId === 'string' &&
+  (value.roomId === null || typeof value.roomId === 'string') &&
+  (value.isDirect === undefined || typeof value.isDirect === 'boolean');
+
+/**
+ * Home's ask draft as stored: its text and where it goes in one entry, written at once, so a write
+ * from another tab never leaves this tab's text with that tab's room.
+ */
+const readHomeAskEntry = (
+  storageKey: string
+): { draft: Descendant[]; destination?: HomeAskDestination } => {
+  const stored = readStoredJson(storageKey);
+  if (!isRecord(stored)) return { draft: [] };
+  return {
+    draft: asDraft(stored.draft),
+    destination: isHomeAskDestination(stored.destination) ? stored.destination : undefined,
+  };
 };
 
 // Clearing an account's drafts revokes the atoms it created: a component still holding one
@@ -137,11 +158,14 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
   const storageKey = `${DRAFT_STORAGE_PREFIX}${draftKey}`;
   const userId = getDraftUserId(draftKey);
   const generation = getDraftGeneration(userId);
+  const homeAsk = userId !== undefined && draftKey === getHomeAskDraftKey(userId);
   const valueAtom = atom<Descendant[] | undefined>(undefined);
 
   return atom<Descendant[], [Descendant[]], void>(
-    (get) => get(valueAtom) ?? readDraft(storageKey),
-    (_get, set, draft) => {
+    (get) =>
+      get(valueAtom) ??
+      (homeAsk ? readHomeAskEntry(storageKey).draft : asDraft(readStoredJson(storageKey))),
+    (get, set, draft) => {
       set(valueAtom, draft);
       if (getDraftGeneration(userId) !== generation) return;
       const storage = getSafeLocalStorage();
@@ -149,7 +173,11 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
         removeStorageItemSafe(storage, storageKey);
         return;
       }
-      setStorageItemSafe(storage, storageKey, JSON.stringify(draft));
+      // Home's draft goes to disk with where this session sends it, both in the one entry.
+      const stored = homeAsk
+        ? { draft, destination: get(homeAskDestinationAtomFamily(userId)) }
+        : draft;
+      setStorageItemSafe(storage, storageKey, JSON.stringify(stored));
     }
   );
 };
@@ -160,6 +188,27 @@ export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 /** Whether a draft is kept under `draftKey`, read without creating its atom. */
 export const hasKeptDraft = (draftKey: string): boolean =>
   getStorageItemSafe(getSafeLocalStorage(), `${DRAFT_STORAGE_PREFIX}${draftKey}`) !== null;
+
+/**
+ * The agent and room this session's Home sends its ask draft to, also after Home has gone. Set, it
+ * is stored again with the draft's text, as every write of that text stores it too.
+ */
+export const homeAskDestinationAtomFamily = atomFamily((userId: string) => {
+  const valueAtom = atom<HomeAskDestination | undefined>(undefined);
+  return atom(
+    (get) => get(valueAtom),
+    (get, set, destination: HomeAskDestination | undefined) => {
+      set(valueAtom, destination);
+      const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(userId));
+      const draft = get(draftAtom);
+      if (draft.length > 0) set(draftAtom, draft);
+    }
+  );
+});
+
+/** The destination stored with an account's Home ask draft, as a reload finds it. */
+export const readHomeAskDestination = (userId: string): HomeAskDestination | undefined =>
+  readHomeAskEntry(`${DRAFT_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`).destination;
 
 /** Puts text back into the stored draft `draftKey`, after any text typed there since. */
 export const restoreTextToDraft = (
@@ -187,40 +236,11 @@ export const moveMessageDraft = (
   store.set(from, []);
 };
 
-// What else a reload keeps, per account and room: the message being replied to, the names of the
-// staged files (which cannot be kept themselves), and the destination chosen for Home's ask draft.
+// What else a reload keeps, per account and room: the message being replied to, and the names of
+// the staged files (which cannot be kept themselves).
 const REPLY_STORAGE_PREFIX = 'roomInputReply:';
 const STAGED_FILES_STORAGE_PREFIX = 'roomInputStagedFiles:';
-const HOME_ASK_TARGET_STORAGE_PREFIX = 'roomInputHomeAskTarget:';
-const STORAGE_PREFIXES = [
-  DRAFT_STORAGE_PREFIX,
-  REPLY_STORAGE_PREFIX,
-  STAGED_FILES_STORAGE_PREFIX,
-  HOME_ASK_TARGET_STORAGE_PREFIX,
-];
-
-export type HomeAskDestination = {
-  agentId: string;
-  roomId: string | null;
-};
-
-const isHomeAskDestination = (value: unknown): value is HomeAskDestination =>
-  isRecord(value) &&
-  typeof value.agentId === 'string' &&
-  (value.roomId === null || typeof value.roomId === 'string');
-
-/** Reads the agent and room kept with an account's unsent Home ask draft. */
-export const readHomeAskDestination = (userId: string): HomeAskDestination | undefined => {
-  const stored = readStoredJson(`${HOME_ASK_TARGET_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`);
-  return isHomeAskDestination(stored) ? stored : undefined;
-};
-
-/** Keeps the agent and room for an account's Home ask draft, or clears it when `undefined`. */
-export const keepHomeAskDestination = (
-  userId: string,
-  destination: HomeAskDestination | undefined
-): void =>
-  writeStoredJson(`${HOME_ASK_TARGET_STORAGE_PREFIX}${getHomeAskDraftKey(userId)}`, destination);
+const STORAGE_PREFIXES = [DRAFT_STORAGE_PREFIX, REPLY_STORAGE_PREFIX, STAGED_FILES_STORAGE_PREFIX];
 
 /**
  * Forgets every unsent message of an account, in storage and in memory, with the reply targets,
@@ -233,6 +253,7 @@ export const clearRoomInputDrafts = (userId: string): void => {
     (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
   );
   roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+  homeAskDestinationAtomFamily.remove(userId);
 
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage).forEach((storageKey) => {

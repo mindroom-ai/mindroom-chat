@@ -3,7 +3,10 @@ import { type CSSProperties, type ReactNode } from 'react';
 import { Box, Chip, color, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { discardFailedLocalEcho, isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
+import {
+  discardFailedLocalEcho,
+  isFailedLocalEchoEvent,
+} from '../matrix/protocol/pendingLocalEcho';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
 
@@ -13,9 +16,17 @@ type FailedSendActionsProps = {
   style?: CSSProperties;
   /** Replaces the default "Not sent" text, for example to name the message. */
   message?: ReactNode;
+  /** False where the message can no longer go where it was sent: it offers Delete alone. */
+  canRetry?: boolean;
 };
 
-export function FailedSendActions({ room, event, style, message }: FailedSendActionsProps) {
+export function FailedSendActions({
+  room,
+  event,
+  style,
+  message,
+  canRetry = true,
+}: FailedSendActionsProps) {
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const handleRetry = (): void => {
@@ -35,16 +46,18 @@ export function FailedSendActions({ room, event, style, message }: FailedSendAct
         <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
           {message ?? t('mindroomUi.messages.pendingSendIndicator.notSent')}
         </Text>
-        <Chip
-          as="button"
-          type="button"
-          variant="Critical"
-          radii="Pill"
-          outlined
-          onClick={handleRetry}
-        >
-          <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
-        </Chip>
+        {canRetry && (
+          <Chip
+            as="button"
+            type="button"
+            variant="Critical"
+            radii="Pill"
+            outlined
+            onClick={handleRetry}
+          >
+            <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
+          </Chip>
+        )}
         <Chip
           as="button"
           type="button"

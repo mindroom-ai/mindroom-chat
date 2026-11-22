@@ -7,7 +7,10 @@ import {
   composerUploadItemsAtom,
   pendingVoiceSendDraftAtom,
   threadViewVoiceComposersAtom,
+  getHomeAskDraftKey,
   getRoomInputDraftKey,
+  homeAskDestinationAtomFamily,
+  readHomeAskDestination,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
@@ -92,6 +95,87 @@ describe('message draft persistence', () => {
       expect(createStore().get(roomIdToMsgDraftAtomFamily(KEY))).toEqual([]);
     }
   );
+
+  describe("Home's ask draft", () => {
+    const ROBIN = '@robin:example.org';
+    const HOME_KEY = getHomeAskDraftKey(ROBIN);
+    // Read anew for each test: clearing the account's drafts revokes the atoms it had.
+    let homeDraft: ReturnType<typeof roomIdToMsgDraftAtomFamily>;
+    let destination: ReturnType<typeof homeAskDestinationAtomFamily>;
+    const text = (words: string) => [{ type: 'paragraph' as const, children: [{ text: words }] }];
+    const toDirect = { agentId: '@mindroom_helper:example.org', roomId: '!direct', isDirect: true };
+    const toShared = { agentId: '@mindroom_helper:example.org', roomId: '!shared' };
+    const stored = () => JSON.parse(values.get(`roomInputDraft:${HOME_KEY}`) ?? 'null') as unknown;
+
+    beforeEach(() => {
+      clearRoomInputDrafts(ROBIN);
+      homeDraft = roomIdToMsgDraftAtomFamily(HOME_KEY);
+      destination = homeAskDestinationAtomFamily(ROBIN);
+    });
+
+    it('stores the text and where it goes in one entry, which no other tab can split', () => {
+      // Two tabs of the account, each a store of its own over the one storage.
+      const tabA = createStore();
+      const tabB = createStore();
+      tabA.set(destination, toDirect);
+      tabA.set(homeDraft, text('Private note'));
+      expect(stored()).toEqual({ draft: text('Private note'), destination: toDirect });
+
+      // The other tab shows the stored draft, sends it to a shared room and types on.
+      expect(tabB.get(homeDraft)).toEqual(text('Private note'));
+      tabB.set(destination, toShared);
+      tabB.set(homeDraft, text('For everyone'));
+      expect(stored()).toEqual({ draft: text('For everyone'), destination: toShared });
+
+      // Typing on in the first tab stores its text with its own destination, never the other's.
+      tabA.set(homeDraft, text('Private note, longer'));
+      expect(stored()).toEqual({ draft: text('Private note, longer'), destination: toDirect });
+      expect(values.size).toBe(1);
+      // What a reload of either tab finds is that pair.
+      roomIdToMsgDraftAtomFamily.remove(HOME_KEY);
+      expect(createStore().get(roomIdToMsgDraftAtomFamily(HOME_KEY))).toEqual(
+        text('Private note, longer')
+      );
+      expect(readHomeAskDestination(ROBIN)).toEqual(toDirect);
+    });
+
+    it('stores a changed destination with the text its own tab shows', () => {
+      createStore().set(homeDraft, text('Kept over a reload'));
+      // A tab opens on the stored draft, then another tab stores a draft of its own.
+      const tab = createStore();
+      expect(tab.get(homeDraft)).toEqual(text('Kept over a reload'));
+      const other = createStore();
+      other.set(destination, toShared);
+      other.set(homeDraft, text('For everyone'));
+
+      tab.set(destination, toDirect);
+      expect(stored()).toEqual({ draft: text('Kept over a reload'), destination: toDirect });
+      // A destination alone stores nothing: an emptied draft leaves no entry.
+      tab.set(homeDraft, []);
+      tab.set(destination, toShared);
+      expect(values.size).toBe(0);
+    });
+
+    it('reads a stored draft whose destination is missing or corrupt as having none', () => {
+      const entry = `roomInputDraft:${HOME_KEY}`;
+      values.set(entry, JSON.stringify({ draft: text('Orphaned'), destination: { roomId: 5 } }));
+      expect(createStore().get(homeDraft)).toEqual(text('Orphaned'));
+      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+      values.set(entry, JSON.stringify(text('An array, as a room draft is stored')));
+      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+    });
+
+    it("is cleared with the account's other drafts, in storage and in memory", () => {
+      const store = createStore();
+      store.set(destination, toDirect);
+      store.set(homeDraft, text('Private note'));
+      expect(values.size).toBe(1);
+      clearRoomInputDrafts(ROBIN);
+      expect(values.size).toBe(0);
+      expect(readHomeAskDestination(ROBIN)).toBeUndefined();
+      expect(store.get(homeAskDestinationAtomFamily(ROBIN))).toBeUndefined();
+    });
+  });
 });
 
 describe('restoreTextToDraft', () => {

@@ -1,4 +1,6 @@
 import React, {
+  ClipboardEvent,
+  DragEvent,
   forwardRef,
   KeyboardEvent,
   ReactNode,
@@ -54,6 +56,7 @@ import { useSetting } from '../preferences/useSetting';
 import {
   getHomeAskDraftKey,
   getRoomInputDraftKey,
+  homeAskDestinationAtomFamily,
   type IReplyDraft,
   keepReplyDraft,
   restoreTextToDraft,
@@ -134,15 +137,21 @@ export type RoomInputProps = {
   /**
    * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
    * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
-   * take the row's controls' place. Nothing sends while `canSend` says no.
+   * take the row's controls' place. Nothing sends while `canSend` says no, and `onSendingChange`
+   * hears while a send is on its way.
    */
   ask?: {
     agentUserId: string;
     placeholder: string;
     pickers: ReactNode;
     canSend: () => boolean;
+    onSendingChange?: (sending: boolean) => void;
   };
 };
+
+// Home's ask field takes text only: nothing dropped goes in, neither a file nor a paste chip
+// dragged out of a room's composer.
+const refuseDrop = (event: DragEvent<HTMLElement>) => event.preventDefault();
 
 const isEnter = isKeyHotkey('enter');
 
@@ -258,11 +267,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       : getRoomInputDraftKey(userId, roomId, draftThreadId);
     // Home's ask field scopes paste cleanup to its own draft key, never touching the destination
     // room's saved pastes.
-    const draftKey = ask
-      ? textKey
-      : draftThreadId
-      ? getRoomInputDraftKey(userId, roomId, draftThreadId)
-      : undefined;
+    const draftKey = ask || draftThreadId ? textKey : undefined;
     // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
@@ -302,6 +307,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       []
     );
     const [submitPending, setSubmitPending] = useState(false);
+    const onSendingChange = ask?.onSendingChange;
+    useEffect(() => {
+      if (!submitPending || !onSendingChange) return undefined;
+      onSendingChange(true);
+      // Also as the composer goes: Home is not held by a send it can no longer follow.
+      return () => onSendingChange(false);
+    }, [onSendingChange, submitPending]);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
@@ -398,15 +410,23 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store, userId, view]
     );
 
+    const askedAgent = ask?.agentUserId;
     const restoreComposerFallbackForRoom = useCallback(
-      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) =>
+      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) => {
+        // Home's question returns to Home's draft only while that still goes to the agent and room
+        // the question went to, as it does once Home has gone. A draft that goes elsewhere by now
+        // never takes it: the question waits in its room's own draft.
+        const kept =
+          askedAgent === undefined ? undefined : store.get(homeAskDestinationAtomFamily(userId));
+        const toHome = !!kept && kept.agentId === askedAgent && kept.roomId === fallbackRoomId;
         // After any text typed there since: a failed caption is never dropped.
         restoreTextToDraft(
           store,
-          ask ? textKey : getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+          toHome ? textKey : getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
           fragment
-        ),
-      [ask, store, textKey, userId]
+        );
+      },
+      [askedAgent, store, textKey, userId]
     );
 
     const rootModelContext = useLatestRef({ roomId, newThread });
@@ -487,7 +507,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Every text message says what MindRoom does with it should it arrive while an agent replies
     // in its thread; the send session keeps it on the message for a retry. A question asked from
     // Home mentions its agent, so that agent answers in a room with several.
-    const askedAgent = ask?.agentUserId;
     const buildTextContent = useCallback(
       (mode: MidTurnMode): IContent | undefined => {
         const content = composeTextMessage(
@@ -549,7 +568,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
-        const settled = settlePastes();
+        // Home's ask field restores and stages none.
+        const settled = ask ? true : settlePastes();
         // Sending the text answers the notices of files and pastes a reload lost.
         const takeText = () => {
           const content = buildTextContent(mode);
@@ -689,6 +709,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, editor, saveDraft, sendTypingStatus, store, textKey]);
+
+    // Home's ask field takes text only: of a paste, the plain text, split in lines as Slate
+    // pastes it, never a file or a paste chip copied from a room's composer.
+    const pasteTextOnly = useCallback(
+      (event: ClipboardEvent<HTMLElement>) => {
+        event.preventDefault();
+        editor.insertTextData(event.clipboardData);
+      },
+      [editor]
+    );
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
@@ -892,8 +922,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
-          // Home's ask field takes text only: a pasted file is not attached.
-          onPaste={ask ? undefined : attachments.onPaste}
+          onPaste={ask ? pasteTextOnly : attachments.onPaste}
+          onDrop={ask ? refuseDrop : undefined}
           top={
             <>
               {replyDraft ? (
