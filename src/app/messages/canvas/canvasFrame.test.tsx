@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,8 +102,9 @@ describe('useCanvasFrame', () => {
     const onLoad = vi.fn();
     const harness = renderHarness({ doc: '<p>hello</p>', onLoad });
 
-    expect(harness.result().generation).toBe(0);
-    expect('src' in harness.result() ? harness.result().src : undefined).toBe('/canvas-frame.html');
+    const res = harness.result();
+    expect(res.generation).toBe(0);
+    expect('src' in res ? res.src : undefined).toBe('/canvas-frame.html');
     const first = harness.frame();
     expect(first.getAttribute('src')).toBe('/canvas-frame.html');
     expect(first.getAttribute('srcdoc')).toBeNull();

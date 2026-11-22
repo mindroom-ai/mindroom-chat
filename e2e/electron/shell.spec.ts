@@ -649,6 +649,8 @@ test.describe('Electron desktop shell', () => {
         return res.ok;
       }, lanHomeserver!);
       expect(lanOk).toBe(true);
+      expect(aliceSession.violations).toEqual([]);
+      expect(bobSession.violations).toEqual([]);
     } finally {
       await aliceSession.close();
       await bobSession.close();
