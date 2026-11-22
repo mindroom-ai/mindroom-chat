@@ -361,9 +361,7 @@ export const runRoomModeratorGrant = (
 
     let response: { event_id?: string } | undefined;
     try {
-      response = (await client.setPowerLevel(room.roomId, targetUserId, liveLevel)) as
-        | { event_id?: string }
-        | undefined;
+      response = await client.setPowerLevel(room.roomId, targetUserId, liveLevel);
     } catch (error) {
       finishAll();
       throw new ModeratorGrantError(error, liveLevel);
