@@ -118,10 +118,12 @@ export const canonicalizeSessionPathname = (mx: MatrixClient, pathname: string):
 /**
  * The pathname and search with room IDs for the visible route: like `canonicalizeSessionPathname`,
  * and aliases the client does not know are looked up in the homeserver's room directory, all at
- * once. When the target room or space resolves through the directory with routing servers and the
- * account is not already joined to it, those servers are preserved in `viaServers` unless `search`
- * already provides `viaServers` or `via`. A failed lookup keeps its alias, so the promise rejects
- * only when the client itself throws.
+ * once. The routing servers the directory gave for the room or space whose join page the route
+ * shows are preserved in `viaServers`, unless `search` already provides `viaServers` or `via`.
+ * That is the space while the account has not joined it, since its join page comes before the
+ * room's, else the room while the account has not joined it. Only its own servers count: a space
+ * named by its room ID never borrows the servers of the room below it. A failed lookup keeps its
+ * alias, so the promise rejects only when the client itself throws.
  */
 export const resolveCanonicalizedRoute = async (
   mx: MatrixClient,
@@ -140,12 +142,20 @@ export const resolveCanonicalizedRoute = async (
     })
   );
   const resolvedPathname = buildPathname(route.pattern, segments);
-  const target =
+  // Only a directory answer brings servers: a route without one reads no membership.
+  if (segments.every((segment) => segment.servers.length === 0)) {
+    return { pathname: resolvedPathname, search };
+  }
+  const namedRoom = (name: string) =>
     segments.find(
-      (segment) =>
-        segment.name === 'roomIdOrAlias' && (isRoomId(segment.text) || isRoomAlias(segment.text))
-    ) ?? segments.find((segment) => segment.name === 'spaceIdOrAlias');
-  if (target && target.servers.length > 0 && !isAlreadyJoined(mx, target.text)) {
+      (segment) => segment.name === name && (isRoomId(segment.text) || isRoomAlias(segment.text))
+    );
+  const spaceSegment = namedRoom('spaceIdOrAlias');
+  const roomSegment = namedRoom('roomIdOrAlias');
+  let target: typeof spaceSegment;
+  if (spaceSegment && !isAlreadyJoined(mx, spaceSegment.text)) target = spaceSegment;
+  else if (roomSegment && !isAlreadyJoined(mx, roomSegment.text)) target = roomSegment;
+  if (target && target.servers.length > 0) {
     const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
     if (!hasExplicitVia(params)) {
       params.set('viaServers', target.servers.join(','));

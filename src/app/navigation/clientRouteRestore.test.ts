@@ -161,38 +161,108 @@ describe('clientRouteRestore', () => {
     });
   });
 
-  it('uses the target room servers rather than space servers on space room routes', async () => {
-    const mx = makeMatrixClient({
-      resolvedAliases: {
-        '#harbor-space:space.example.org': {
-          room_id: '!harbor-space:space.example.org',
-          servers: ['space.example.org'],
-        },
-        '#field-notes:remote.example.org': {
-          room_id: '!field-notes:remote.example.org',
-          servers: ['remote.example.org'],
-        },
+  describe('on a space room route', () => {
+    // Disjoint servers, so each answer shows whose servers the route carries.
+    const resolvedAliases = {
+      '#space:space.example.org': {
+        room_id: '!space:space.example.org',
+        servers: ['space.example.org'],
       },
+      '#room:room.example.org': {
+        room_id: '!room:room.example.org',
+        servers: ['room.example.org'],
+      },
+    };
+
+    it("carries the space's own servers while neither the space nor the room is joined", async () => {
+      const mx = makeMatrixClient({ resolvedAliases });
+
+      // The space's join page comes first, so the servers are the ones that reach the space.
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual({
+        pathname: '/!space%3Aspace.example.org/!room%3Aroom.example.org',
+        search: '?viaServers=space.example.org',
+      });
     });
 
-    await expect(
-      resolveCanonicalizedRoute(
-        mx,
-        '/%23harbor-space%3Aspace.example.org/%23field-notes%3Aremote.example.org/'
-      )
-    ).resolves.toEqual({
-      pathname: '/!harbor-space%3Aspace.example.org/!field-notes%3Aremote.example.org',
-      search: '?viaServers=remote.example.org',
+    it("never lends the room's servers to an unjoined space named by its room ID", async () => {
+      const mx = makeMatrixClient({ resolvedAliases });
+
+      await expect(
+        resolveCanonicalizedRoute(mx, '/!space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual({
+        pathname: '/!space%3Aspace.example.org/!room%3Aroom.example.org',
+        search: '',
+      });
+      expect(mx.getRoomIdForAlias).toHaveBeenCalledTimes(1);
+      expect(mx.getRoomIdForAlias).toHaveBeenCalledWith('#room:room.example.org');
     });
 
-    await expect(
-      resolveCanonicalizedRoute(
-        mx,
-        '/%23harbor-space%3Aspace.example.org/!direct-room%3Aexample.org/'
-      )
-    ).resolves.toEqual({
-      pathname: '/!harbor-space%3Aspace.example.org/!direct-room%3Aexample.org',
-      search: '',
+    it("never lends the room's servers to an unjoined space whose alias lookup failed", async () => {
+      const mx = makeMatrixClient({
+        resolvedAliases: { '#room:room.example.org': resolvedAliases['#room:room.example.org'] },
+      });
+
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual({
+        pathname: '/%23space%3Aspace.example.org/!room%3Aroom.example.org',
+        search: '',
+      });
+    });
+
+    it("carries the room's servers once the space is joined", async () => {
+      // By the space's room ID, and by an alias the directory resolves to the joined space.
+      const mx = makeMatrixClient({
+        rooms: [makeRoom('!space:space.example.org', undefined, KnownMembership.Join)],
+        resolvedAliases,
+      });
+      const expected = {
+        pathname: '/!space%3Aspace.example.org/!room%3Aroom.example.org',
+        search: '?viaServers=room.example.org',
+      };
+
+      await expect(
+        resolveCanonicalizedRoute(mx, '/!space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual(expected);
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual(expected);
+    });
+
+    it('carries no servers when the space and the room are both joined', async () => {
+      const mx = makeMatrixClient({
+        rooms: [
+          makeRoom('!space:space.example.org', undefined, KnownMembership.Join),
+          makeRoom('!room:room.example.org', undefined, KnownMembership.Join),
+        ],
+        resolvedAliases,
+      });
+
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/%23room%3Aroom.example.org/')
+      ).resolves.toEqual({
+        pathname: '/!space%3Aspace.example.org/!room%3Aroom.example.org',
+        search: '',
+      });
+    });
+
+    it("carries the space's servers on its own route and on its lobby", async () => {
+      const mx = makeMatrixClient({ resolvedAliases });
+
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/')
+      ).resolves.toEqual({
+        pathname: '/!space%3Aspace.example.org',
+        search: '?viaServers=space.example.org',
+      });
+      await expect(
+        resolveCanonicalizedRoute(mx, '/%23space%3Aspace.example.org/lobby/')
+      ).resolves.toEqual({
+        pathname: '/!space%3Aspace.example.org/lobby',
+        search: '?viaServers=space.example.org',
+      });
     });
   });
 });

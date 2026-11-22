@@ -19,6 +19,8 @@ import {
 
 // Clicking an unjoined room alias or room-ID+event mention link in a message opens the room's
 // join preview page in-app (preserving viaServers and eventId) instead of silently doing nothing.
+// The linked event lies many messages above the room's newest one, so the room showing it after
+// Join means the event ID outlived the join: a room opened without one shows its newest messages.
 // On a phone viewport, Back returns to the source room, and tapping Join from the preview enters
 // the room and displays its timeline. Set UNJOINED_LINK_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'unjoined-room-mention-link-password';
@@ -35,8 +37,10 @@ const PHONE: BrowserContextOptions = {
 const SOURCE_ROOM = 'Harbor desk';
 const TARGET_ROOM = 'Field notes';
 const TARGET_TOPIC = 'Weekly trail logs and weather readings from the ridge station.';
-const TARGET_OLDER_MESSAGE = 'Earlier ridge check: visibility clear across the valley.';
+const TARGET_LINKED_MESSAGE = 'Earlier ridge check: visibility clear across the valley.';
 const TARGET_MESSAGE = 'North ridge barometer steady at 1014 hPa.';
+/** Messages between the linked one and the newest: several screens of them. */
+const TARGET_MESSAGES_BETWEEN = 60;
 
 test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
@@ -72,10 +76,18 @@ const seed = async (label: string) => {
     })
   ).room_id;
 
-  const olderEventId = await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
+  const linkedEventId = await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
     msgtype: 'm.text',
-    body: TARGET_OLDER_MESSAGE,
+    body: TARGET_LINKED_MESSAGE,
   });
+
+  for (let reading = 1; reading <= TARGET_MESSAGES_BETWEEN; reading += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
+      msgtype: 'm.text',
+      body: `Hourly ridge log ${reading}: wind steady, no change at the station.`,
+    });
+  }
 
   await sendRoomMessage(HOMESERVER, owner.accessToken, targetRoomId, {
     msgtype: 'm.text',
@@ -93,7 +105,7 @@ const seed = async (label: string) => {
     formatted_body: `Check <a href="https://matrix.to/#/${alias}">${alias}</a> for the latest ridge readings.`,
   });
 
-  const eventHref = `https://matrix.to/#/${targetRoomId}/${olderEventId}?via=${server}`;
+  const eventHref = `https://matrix.to/#/${targetRoomId}/${linkedEventId}?via=${server}`;
   await sendRoomMessage(HOMESERVER, reader.accessToken, sourceRoomId, {
     msgtype: 'm.text',
     body: `See the earlier ridge reading: ${eventHref}`,
@@ -101,7 +113,7 @@ const seed = async (label: string) => {
     formatted_body: `See <a href="${eventHref}">the earlier ridge reading</a> for context.`,
   });
 
-  return { username, sourceRoomId, targetRoomId, olderEventId, alias, server };
+  return { username, sourceRoomId, targetRoomId, linkedEventId, alias, server };
 };
 
 const messageRow = (page: Page, text: string) =>
@@ -154,7 +166,7 @@ test.describe('desktop', () => {
     const eventRow = messageRow(page, 'the earlier ridge reading');
     await expect(eventRow).toBeVisible({ timeout: 30_000 });
     const eventLink = eventRow.locator(
-      `a[data-mention-id="${seeded.targetRoomId}"][data-mention-event-id="${seeded.olderEventId}"]`
+      `a[data-mention-id="${seeded.targetRoomId}"][data-mention-event-id="${seeded.linkedEventId}"]`
     );
     await expect(eventLink).toBeVisible();
     await eventLink.click();
@@ -164,16 +176,19 @@ test.describe('desktop', () => {
     await expect(main.getByText(TARGET_TOPIC, { exact: true })).toBeVisible();
     const previewUrl = new URL(page.url());
     expect(decodeURIComponent(previewUrl.pathname)).toContain(seeded.targetRoomId);
-    expect(decodeURIComponent(previewUrl.pathname)).toContain(seeded.olderEventId);
+    expect(decodeURIComponent(previewUrl.pathname)).toContain(seeded.linkedEventId);
     expect(previewUrl.searchParams.get('viaServers')).toBe(seeded.server);
 
-    // Joining opens the target room and renders the linked older event alongside the newer message.
+    // Joining opens the target room at the linked event, screens above its newest message. A
+    // join that dropped the event ID would open the room on that newest message instead.
     await joinButton.click();
-    await expect(main.locator(`[data-message-id="${seeded.olderEventId}"]`)).toBeVisible({
-      timeout: 60_000,
-    });
-    await expect(main.getByText(TARGET_OLDER_MESSAGE, { exact: true })).toBeVisible();
-    await expect(main.getByText(TARGET_MESSAGE, { exact: true })).toBeVisible();
+    const linkedRow = main.locator(`[data-message-id="${seeded.linkedEventId}"]`);
+    await expect(linkedRow).toBeInViewport({ timeout: 60_000 });
+    await expect(linkedRow).toContainText(TARGET_LINKED_MESSAGE);
+    await expect(main.getByText(TARGET_MESSAGE, { exact: true })).not.toBeInViewport();
+    const joinedPathname = decodeURIComponent(new URL(page.url()).pathname);
+    expect(joinedPathname).toContain(seeded.linkedEventId);
+    await saveShot(page, testInfo, 'joined-desktop.png');
     expect(decodeURIComponent(new URL(page.url()).pathname)).toContain(seeded.targetRoomId);
     expect(page.context().pages()).toHaveLength(1);
   });

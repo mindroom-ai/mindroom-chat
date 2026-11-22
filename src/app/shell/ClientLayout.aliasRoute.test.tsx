@@ -20,10 +20,11 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { RoomRoute } from '../room/RoomRoute';
+import { SpaceRouteProvider } from '../sidebar/space/Space';
 import { ClientLayout } from './ClientLayout';
 import { putSession } from '../matrix/session/sessions';
 import { isReturnToRoom, RETURN_TO_ROOM_STATE } from '../routes/historyStack';
-import { HOME_ROOM_PATH } from '../routes/paths';
+import { HOME_ROOM_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
 // The notice places are tested in ui/noticeSlots.test.tsx.
@@ -346,6 +347,23 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
                         </RoomRoute>
                       }
                     />
+                    <Route
+                      path={SPACE_PATH}
+                      element={
+                        <SpaceRouteProvider>
+                          <Outlet />
+                        </SpaceRouteProvider>
+                      }
+                    >
+                      <Route
+                        path={SPACE_ROOM_PATH}
+                        element={
+                          <RoomRoute>
+                            <div data-joined-room />
+                          </RoomRoute>
+                        }
+                      />
+                    </Route>
                   </Routes>
                 </ClientLayout>
               </MemoryRouter>
@@ -445,5 +463,89 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
 
     act(() => renderer.unmount());
     queryClient.clear();
+  });
+
+  describe('on a space room route whose space and room live on different servers', () => {
+    const SPACE_ID = '!space:space.example.org';
+    const ROOM_ID = '!room:room.example.org';
+    const NESTED_ALIAS_ROUTE = '/%23space%3Aspace.example.org/%23room%3Aroom.example.org';
+    const directory: Record<string, { room_id: string; servers: string[] }> = {
+      '#space:space.example.org': { room_id: SPACE_ID, servers: ['space.example.org'] },
+      '#room:room.example.org': { room_id: ROOM_ID, servers: ['room.example.org'] },
+    };
+    const answerDirectoryAndSummaries = () => {
+      mockClientState.getRoomIdForAlias.mockImplementation(async (alias: string) => {
+        const answer = directory[alias];
+        if (!answer) throw new Error('M_NOT_FOUND');
+        return answer;
+      });
+      mockClientState.getRoomSummary.mockImplementation(async (roomId: string) => ({
+        room_id: roomId,
+        name: roomId === SPACE_ID ? 'Harbor' : 'Field notes',
+        join_rule: JoinRule.Public,
+        num_joined_members: 4,
+        ...(roomId === SPACE_ID ? { room_type: 'm.space' } : {}),
+      }));
+      mockClientState.joinRoom.mockImplementation(async (roomId: string) => ({ roomId }));
+    };
+    const clickJoin = async (renderer: ReactTestRenderer) => {
+      const joinButton = renderer.root
+        .findAllByType('button')
+        .find((button) => textOf(button) === 'Join');
+      expect(joinButton).toBeDefined();
+      await act(async () => {
+        (joinButton?.props.onClick as () => void)?.();
+        await flush();
+      });
+    };
+
+    it("asks for and joins an unjoined space through the space's servers, never the room's", async () => {
+      signIn();
+      answerDirectoryAndSummaries();
+
+      const { renderer, queryClient } = await renderWithRoomRoute(NESTED_ALIAS_ROUTE);
+
+      // The space's join page comes before the room's: only the space is asked about.
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([
+        [SPACE_ID, ['space.example.org']],
+      ]);
+
+      await clickJoin(renderer);
+
+      expect(mockClientState.joinRoom.mock.calls).toEqual([
+        [SPACE_ID, { viaServers: ['space.example.org'] }],
+      ]);
+
+      act(() => renderer.unmount());
+      queryClient.clear();
+    });
+
+    it("asks for and joins an unjoined room of a joined space through the room's servers", async () => {
+      signIn();
+      answerDirectoryAndSummaries();
+      mockClientState.rooms = [
+        defaultRoom,
+        {
+          roomId: SPACE_ID,
+          getMyMembership: () => KnownMembership.Join,
+          getCanonicalAlias: () => null,
+          getAltAliases: () => [],
+          isSpaceRoom: () => true,
+        } as unknown as Room,
+      ];
+
+      const { renderer, queryClient } = await renderWithRoomRoute(NESTED_ALIAS_ROUTE);
+
+      expect(mockClientState.getRoomSummary.mock.calls).toEqual([[ROOM_ID, ['room.example.org']]]);
+
+      await clickJoin(renderer);
+
+      expect(mockClientState.joinRoom.mock.calls).toEqual([
+        [ROOM_ID, { viaServers: ['room.example.org'] }],
+      ]);
+
+      act(() => renderer.unmount());
+      queryClient.clear();
+    });
   });
 });
