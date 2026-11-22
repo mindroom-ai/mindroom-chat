@@ -6,10 +6,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { config, toRem } from 'folds';
 
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import {
-  userDirectoryCacheAtom,
-  type UserDirectoryCacheState,
-} from '../userDirectoryCache';
+import { userDirectoryCacheAtom, type UserDirectoryCacheState } from '../userDirectoryCache';
 import { InviteUserPrompt } from './InviteUserPrompt';
 
 const directUsersMock = vi.hoisted(() => ({
@@ -362,7 +359,9 @@ describe('InviteUserPrompt', () => {
   const textContent = (renderer: ReactTestRenderer, role: string) =>
     renderer.root
       .findAll((node) => node.props.role === role)
-      .map((node) => (Array.isArray(node.children) ? node.children.join('') : String(node.children)))
+      .map((node) =>
+        Array.isArray(node.children) ? node.children.join('') : String(node.children)
+      )
       .join(' ');
 
   it('defaults moderator rights ON for a MindRoom agent when none holds moderator power, and invites before granting', async () => {
@@ -386,11 +385,7 @@ describe('InviteUserPrompt', () => {
 
     expect(calls).toEqual(['invite', 'setPowerLevel']);
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(
-      room.roomId,
-      '@mindroom_helper:example.org',
-      50
-    );
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
   });
 
   it('defaults moderator rights OFF when a MindRoom agent in the room already holds moderator power', async () => {
@@ -447,11 +442,7 @@ describe('InviteUserPrompt', () => {
 
     await submitInvite(renderer);
 
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(
-      room.roomId,
-      '@mindroom_helper:example.org',
-      75
-    );
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
   });
 
   it.each([
@@ -497,11 +488,7 @@ describe('InviteUserPrompt', () => {
     await submitInvite(renderer);
 
     expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(
-      room.roomId,
-      '@mindroom_helper:example.org',
-      50
-    );
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
     expect(getInput(renderer).props.value).toBe('');
     expect(textContent(renderer, 'status')).toContain('@mindroom_helper:example.org');
     expect(textContent(renderer, 'alert')).toContain('Forbidden');

@@ -260,13 +260,7 @@ type InviteListProps = {
 };
 
 /** The section itself: its title after a line, then the rows, or nothing when there are none. */
-function InviteList({
-  rows,
-  isFetching,
-  canPromote,
-  onInvite,
-  onMakeModerator,
-}: InviteListProps) {
+function InviteList({ rows, isFetching, canPromote, onInvite, onMakeModerator }: InviteListProps) {
   const { t } = useTranslation();
   const headingId = useId();
   if (rows.length === 0 && !isFetching) return null;

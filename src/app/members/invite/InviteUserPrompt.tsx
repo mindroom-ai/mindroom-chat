@@ -129,8 +129,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
     const form = evt.target as InviteFormTarget;
     const reason = form.reasonInput?.value.trim() || undefined;
-    const levelToGrant =
-      offerModerator && grantModerator ? moderatorGrantLevel(levels) : undefined;
+    const levelToGrant = offerModerator && grantModerator ? moderatorGrantLevel(levels) : undefined;
 
     setInviting(true);
     setError(undefined);
