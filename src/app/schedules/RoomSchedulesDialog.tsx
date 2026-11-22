@@ -3,6 +3,7 @@ import {
   Fragment,
   type ReactNode,
   forwardRef,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -39,7 +40,10 @@ import {
   isScheduleInThread,
 } from './roomSchedules';
 import { renderSchedulePrompt } from './schedulePrompt';
+import { useScheduleCancelState, type ScheduleCancelState } from './useScheduleCancelState';
 import * as css from './roomSchedules.css';
+
+export { useScheduleCancelState, type ScheduleCancelState } from './useScheduleCancelState';
 
 export type EditScheduledTaskResult = 'prefilled' | 'draft-busy' | void;
 
@@ -48,7 +52,6 @@ type ScheduleFilter = 'all' | 'once' | 'recurring';
 const LONG_PROMPT_CHAR_LIMIT = 180;
 const LONG_PROMPT_LINE_LIMIT = 3;
 const COPY_FEEDBACK_MS = 2_000;
-const CANCEL_SENT_CLEAR_MS = 6_000;
 const IMMINENT_COUNTDOWN_WINDOW_MS = 120_000;
 
 const isLongPrompt = (prompt: string): boolean =>
@@ -135,7 +138,7 @@ function ScheduleAccordionItem({
     }
   }, [confirmingCancel, onCancelTask, open]);
 
-  const showCancelBar = confirmingCancel || isCancelling || cancelError;
+  const showCancelBar = Boolean(onCancelTask && (confirmingCancel || isCancelling || cancelError));
 
   useEffect(() => {
     if (confirmingCancel && !prevConfirmingRef.current) {
@@ -687,330 +690,271 @@ export const RoomSchedulesDialog = forwardRef<
     onOpenThread: (threadId: string) => void;
     onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;
     onEditTask?: (task: ParsedScheduledTask) => EditScheduledTaskResult;
+    cancelState?: ScheduleCancelState;
   }
->(({ roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask }, ref) => {
-  const { t, i18n } = useTranslation();
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const lastFocusedRef = useRef<HTMLElement | null>(null);
-  const [now, setNow] = useState(Date.now);
-  const [filter, setFilter] = useState<ScheduleFilter>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(() =>
-    tasks.length === 1 ? tasks[0]!.taskId : null
-  );
-  const [pendingCancelIds, setPendingCancelIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [cancelSentIds, setCancelSentIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [cancelErrors, setCancelErrors] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const cancelSentTimersRef = useRef<Map<string, number>>(new Map());
-  const mountedRef = useRef(true);
-
-  const setModalRef = (node: HTMLDivElement | null) => {
-    dialogRef.current = node;
-    if (typeof ref === 'function') ref(node);
-    else if (ref) ref.current = node;
-  };
-
-  const locale = i18n.resolvedLanguage ?? i18n.language;
-  const formatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
-    [locale]
-  );
-
-  let onceCount = 0;
-  let recurringCount = 0;
-  tasks.forEach((task) => {
-    if (isRecurringTask(task)) recurringCount += 1;
-    else onceCount += 1;
-  });
-
-  const showFilterBar = onceCount > 0 && recurringCount > 0;
-  const effectiveFilter: ScheduleFilter =
-    (filter === 'once' && onceCount === 0) || (filter === 'recurring' && recurringCount === 0)
-      ? 'all'
-      : filter;
-
-  const filteredTasks = useMemo(
-    () =>
-      effectiveFilter === 'all'
-        ? tasks
-        : tasks.filter((task) =>
-            effectiveFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
-          ),
-    [effectiveFilter, tasks]
-  );
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const timers = cancelSentTimersRef.current;
-    return () => {
-      mountedRef.current = false;
-      timers.forEach((timerId) => window.clearTimeout(timerId));
-      timers.clear();
-    };
-  }, []);
-
-  // Clear expandedId only when the expanded task itself leaves the list.
-  useEffect(() => {
-    if (expandedId !== null && !tasks.some((task) => task.taskId === expandedId)) {
-      setExpandedId(null);
-    }
-  }, [expandedId, tasks]);
-
-  // Persist the filter reset so a returning category does not silently re-activate an old filter.
-  useEffect(() => {
-    if (!showFilterBar && filter !== 'all') {
-      setFilter('all');
-    }
-  }, [filter, showFilterBar]);
-
-  // Recover focus inside the dialog only when the previously focused element unmounted.
-  useLayoutEffect(() => {
-    const modal = dialogRef.current;
-    const lastFocused = lastFocusedRef.current;
-    if (!modal || !lastFocused || lastFocused.isConnected) return;
-    const doc = modal.ownerDocument;
-    if (doc.activeElement && doc.activeElement !== doc.body) return;
-    lastFocusedRef.current = null;
-    const firstToggle = modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
-    if (firstToggle) firstToggle.focus();
-    else closeButtonRef.current?.focus();
-  }, [filteredTasks, showFilterBar]);
-
-  const threadTasks: ParsedScheduledTask[] = [];
-  const elsewhereTasks: ParsedScheduledTask[] = [];
-  filteredTasks.forEach((task) => {
-    if (openThreadId !== undefined && isScheduleInThread(task, openThreadId))
-      threadTasks.push(task);
-    else elsewhereTasks.push(task);
-  });
-  const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
-  const groups = [
-    { id: 'thread', heading: 'roomSchedules.thisThread', tasks: threadTasks },
-    { id: 'elsewhere', heading: 'roomSchedules.elsewhereInRoom', tasks: elsewhereTasks },
-  ] as const;
-
-  const hasImminentTask = tasks.some((task) => {
-    if (isRecurringTask(task)) return false;
-    const executionTime = getScheduleTimestamp(task);
-    return (
-      executionTime !== undefined &&
-      executionTime > now &&
-      executionTime - now <= IMMINENT_COUNTDOWN_WINDOW_MS
+>(
+  (
+    { roomId, tasks, openThreadId, onClose, onOpenThread, onCancelTask, onEditTask, cancelState },
+    ref
+  ) => {
+    const { t, i18n } = useTranslation();
+    const titleId = useId();
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const lastFocusedRef = useRef<HTMLElement | null>(null);
+    const [now, setNow] = useState(Date.now);
+    const [filter, setFilter] = useState<ScheduleFilter>('all');
+    const [expandedId, setExpandedId] = useState<string | null>(() =>
+      tasks.length === 1 ? tasks[0]!.taskId : null
     );
-  });
+    const internalCancelState = useScheduleCancelState(
+      roomId,
+      cancelState ? undefined : onCancelTask
+    );
+    const { pendingCancelIds, cancelSentIds, cancelErrors, handleCancelTask, clearCancelError } =
+      cancelState ?? internalCancelState;
 
-  useEffect(() => {
-    const intervalMs = hasImminentTask ? 1_000 : 10_000;
-    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(timer);
-  }, [hasImminentTask]);
+    const setModalRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        dialogRef.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref]
+    );
 
-  const handleSelectFilter = (nextFilter: ScheduleFilter) => {
-    setFilter(nextFilter);
-    const nextFiltered =
-      nextFilter === 'all'
-        ? tasks
-        : tasks.filter((task) =>
-            nextFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
-          );
-    if (nextFiltered.length === 1) {
-      setExpandedId(nextFiltered[0]!.taskId);
-    }
-  };
+    const locale = i18n.resolvedLanguage ?? i18n.language;
+    const formatter = useMemo(
+      () => new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'long' }),
+      [locale]
+    );
 
-  const handleConfirmCancel = async (task: ParsedScheduledTask): Promise<boolean> => {
-    if (!onCancelTask || pendingCancelIds.has(task.taskId)) return false;
-    setPendingCancelIds((prev) => {
-      const next = new Set(prev);
-      next.add(task.taskId);
-      return next;
+    let onceCount = 0;
+    let recurringCount = 0;
+    tasks.forEach((task) => {
+      if (isRecurringTask(task)) recurringCount += 1;
+      else onceCount += 1;
     });
-    setCancelErrors((prev) => {
-      if (!prev.has(task.taskId)) return prev;
-      const next = new Map(prev);
-      next.delete(task.taskId);
-      return next;
-    });
-    try {
-      await onCancelTask(task);
-      if (!mountedRef.current) return true;
-      setPendingCancelIds((prev) => {
-        const next = new Set(prev);
-        next.delete(task.taskId);
-        return next;
-      });
-      setCancelSentIds((prev) => {
-        const next = new Set(prev);
-        next.add(task.taskId);
-        return next;
-      });
-      const existingTimer = cancelSentTimersRef.current.get(task.taskId);
-      if (existingTimer !== undefined) window.clearTimeout(existingTimer);
-      const timerId = window.setTimeout(() => {
-        cancelSentTimersRef.current.delete(task.taskId);
-        if (!mountedRef.current) return;
-        setCancelSentIds((prev) => {
-          if (!prev.has(task.taskId)) return prev;
-          const next = new Set(prev);
-          next.delete(task.taskId);
-          return next;
-        });
-      }, CANCEL_SENT_CLEAR_MS);
-      cancelSentTimersRef.current.set(task.taskId, timerId);
-      return true;
-    } catch {
-      if (!mountedRef.current) return false;
-      setPendingCancelIds((prev) => {
-        const next = new Set(prev);
-        next.delete(task.taskId);
-        return next;
-      });
-      setCancelErrors((prev) => {
-        const next = new Map(prev);
-        next.set(task.taskId, true);
-        return next;
-      });
-      return false;
-    }
-  };
 
-  const clearCancelError = (taskId: string) => {
-    setCancelErrors((prev) => {
-      if (!prev.has(taskId)) return prev;
-      const next = new Map(prev);
-      next.delete(taskId);
-      return next;
-    });
-  };
+    const showFilterBar = onceCount > 0 && recurringCount > 0;
+    const effectiveFilter: ScheduleFilter =
+      (filter === 'once' && onceCount === 0) || (filter === 'recurring' && recurringCount === 0)
+        ? 'all'
+        : filter;
 
-  return (
-    <Modal
-      ref={setModalRef}
-      size="400"
-      flexHeight
-      className={css.Dialog}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onFocusCapture={(event: FocusEvent<HTMLDivElement>) => {
-        if (event.target instanceof HTMLElement) {
-          lastFocusedRef.current = event.target;
-        }
-      }}
-      onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
-        const next = event.relatedTarget;
-        if (next instanceof Node && dialogRef.current && !dialogRef.current.contains(next)) {
-          lastFocusedRef.current = null;
-        }
-      }}
-    >
-      <PageScroll
-        header={
-          <Header size="500" className={css.Header}>
-            <Box grow="Yes" alignItems="Center" gap="200">
-              <Icon size="200" src={Icons.Clock} />
-              <Text as="h2" id={titleId} size="H4">
-                {t('roomSchedules.title')}
-              </Text>
-              <span className={css.HeaderCount}>{tasks.length}</span>
-            </Box>
-            <IconButton
-              ref={closeButtonRef}
-              size="300"
-              radii="300"
-              aria-label={t('roomSchedules.close')}
-              onClick={onClose}
-            >
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Header>
-        }
+    const filteredTasks = useMemo(
+      () =>
+        effectiveFilter === 'all'
+          ? tasks
+          : tasks.filter((task) =>
+              effectiveFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
+            ),
+      [effectiveFilter, tasks]
+    );
+
+    // Clear expandedId only when the expanded task itself leaves the list.
+    useEffect(() => {
+      if (expandedId !== null && !tasks.some((task) => task.taskId === expandedId)) {
+        setExpandedId(null);
+      }
+    }, [expandedId, tasks]);
+
+    // Persist the filter reset so a returning category does not silently re-activate an old filter.
+    useEffect(() => {
+      if (!showFilterBar && filter !== 'all') {
+        setFilter('all');
+      }
+    }, [filter, showFilterBar]);
+
+    const hasCancelAction = Boolean(onCancelTask);
+    const hasEditAction = Boolean(onEditTask);
+
+    // Recover focus inside the dialog only when the previously focused element unmounted.
+    useLayoutEffect(() => {
+      const modal = dialogRef.current;
+      const lastFocused = lastFocusedRef.current;
+      if (!modal || !lastFocused || lastFocused.isConnected) return;
+      const doc = modal.ownerDocument;
+      if (doc.activeElement && doc.activeElement !== doc.body) return;
+      lastFocusedRef.current = null;
+      const fallbackToggle =
+        modal.querySelector<HTMLButtonElement>(
+          '[data-expanded="true"] button[data-schedule-toggle]'
+        ) ?? modal.querySelector<HTMLButtonElement>('button[data-schedule-toggle]');
+      if (fallbackToggle) fallbackToggle.focus();
+      else closeButtonRef.current?.focus();
+    }, [filteredTasks, hasCancelAction, hasEditAction, showFilterBar]);
+
+    const threadTasks: ParsedScheduledTask[] = [];
+    const elsewhereTasks: ParsedScheduledTask[] = [];
+    filteredTasks.forEach((task) => {
+      if (openThreadId !== undefined && isScheduleInThread(task, openThreadId))
+        threadTasks.push(task);
+      else elsewhereTasks.push(task);
+    });
+    const grouped = threadTasks.length > 0 && elsewhereTasks.length > 0;
+    const groups = [
+      { id: 'thread', heading: 'roomSchedules.thisThread', tasks: threadTasks },
+      { id: 'elsewhere', heading: 'roomSchedules.elsewhereInRoom', tasks: elsewhereTasks },
+    ] as const;
+
+    const hasImminentTask = tasks.some((task) => {
+      if (isRecurringTask(task)) return false;
+      const executionTime = getScheduleTimestamp(task);
+      return (
+        executionTime !== undefined &&
+        executionTime > now &&
+        executionTime - now <= IMMINENT_COUNTDOWN_WINDOW_MS
+      );
+    });
+
+    useEffect(() => {
+      const intervalMs = hasImminentTask ? 1_000 : 10_000;
+      const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
+      return () => window.clearInterval(timer);
+    }, [hasImminentTask]);
+
+    const handleSelectFilter = (nextFilter: ScheduleFilter) => {
+      setFilter(nextFilter);
+      const nextFiltered =
+        nextFilter === 'all'
+          ? tasks
+          : tasks.filter((task) =>
+              nextFilter === 'recurring' ? isRecurringTask(task) : !isRecurringTask(task)
+            );
+      if (nextFiltered.length === 1) {
+        setExpandedId(nextFiltered[0]!.taskId);
+      }
+    };
+
+    return (
+      <Modal
+        ref={setModalRef}
+        size="400"
+        flexHeight
+        className={css.Dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onFocusCapture={(event: FocusEvent<HTMLDivElement>) => {
+          if (event.target instanceof HTMLElement) {
+            lastFocusedRef.current = event.target;
+          }
+        }}
+        onBlurCapture={(event: FocusEvent<HTMLDivElement>) => {
+          const next = event.relatedTarget;
+          if (next instanceof Node && dialogRef.current && !dialogRef.current.contains(next)) {
+            lastFocusedRef.current = null;
+          }
+        }}
       >
-        <Box direction="Column" gap="300" className={css.Content}>
-          {tasks.length === 0 ? (
-            <Box direction="Column" gap="200" className={css.Empty}>
-              <Text size="T400">{t('roomSchedules.empty')}</Text>
-              <Text size="T300" priority="300">
-                {t('roomSchedules.emptyHint')}
-              </Text>
-            </Box>
-          ) : (
-            <>
-              {showFilterBar && (
-                <div
-                  role="group"
-                  aria-label={t('roomSchedules.filterLabel')}
-                  className={css.FilterBar}
-                >
-                  {(
-                    [
-                      { id: 'all', label: t('roomSchedules.filterAll'), count: tasks.length },
-                      { id: 'once', label: t('roomSchedules.once'), count: onceCount },
-                      {
-                        id: 'recurring',
-                        label: t('roomSchedules.recurring'),
-                        count: recurringCount,
-                      },
-                    ] as const
-                  ).map((option) => {
-                    const active = effectiveFilter === option.id;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        aria-pressed={active}
-                        className={classNames(css.FilterPill, active && css.FilterPillActive)}
-                        onClick={() => handleSelectFilter(option.id)}
-                      >
-                        {active && <Icon size="50" src={Icons.Check} aria-hidden />}
-                        <span>{option.label}</span>
-                        <span className={css.FilterCount}>{option.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              <Box direction="Column" gap="200">
-                {groups.map(({ id, heading, tasks: groupTasks }) => (
-                  <Fragment key={id}>
-                    {grouped && (
-                      <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
-                        {t(heading)}
-                      </Text>
-                    )}
-                    {groupTasks.map((task) => {
-                      const open = expandedId === task.taskId;
+        <PageScroll
+          header={
+            <Header size="500" className={css.Header}>
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Icon size="200" src={Icons.Clock} />
+                <Text as="h2" id={titleId} size="H4">
+                  {t('roomSchedules.title')}
+                </Text>
+                <span className={css.HeaderCount}>{tasks.length}</span>
+              </Box>
+              <IconButton
+                ref={closeButtonRef}
+                size="300"
+                radii="300"
+                aria-label={t('roomSchedules.close')}
+                onClick={onClose}
+              >
+                <Icon src={Icons.Cross} />
+              </IconButton>
+            </Header>
+          }
+        >
+          <Box direction="Column" gap="300" className={css.Content}>
+            {tasks.length === 0 ? (
+              <Box direction="Column" gap="200" className={css.Empty}>
+                <Text size="T400">{t('roomSchedules.empty')}</Text>
+                <Text size="T300" priority="300">
+                  {t('roomSchedules.emptyHint')}
+                </Text>
+              </Box>
+            ) : (
+              <>
+                {showFilterBar && (
+                  <div
+                    role="group"
+                    aria-label={t('roomSchedules.filterLabel')}
+                    className={css.FilterBar}
+                  >
+                    {(
+                      [
+                        { id: 'all', label: t('roomSchedules.filterAll'), count: tasks.length },
+                        { id: 'once', label: t('roomSchedules.once'), count: onceCount },
+                        {
+                          id: 'recurring',
+                          label: t('roomSchedules.recurring'),
+                          count: recurringCount,
+                        },
+                      ] as const
+                    ).map((option) => {
+                      const active = effectiveFilter === option.id;
                       return (
-                        <ScheduleAccordionItem
-                          key={task.taskId}
-                          roomId={roomId}
-                          task={task}
-                          now={now}
-                          locale={locale}
-                          formatter={formatter}
-                          grouped={grouped}
-                          open={open}
-                          isCancelling={pendingCancelIds.has(task.taskId)}
-                          cancelSent={cancelSentIds.has(task.taskId)}
-                          cancelError={cancelErrors.get(task.taskId) === true}
-                          onToggle={() => setExpandedId(open ? null : task.taskId)}
-                          onOpenThread={onOpenThread}
-                          onCancelTask={onCancelTask}
-                          onConfirmCancel={() => handleConfirmCancel(task)}
-                          onClearCancelError={() => clearCancelError(task.taskId)}
-                          onEditTask={onEditTask}
-                        />
+                        <button
+                          key={option.id}
+                          type="button"
+                          aria-pressed={active}
+                          className={classNames(css.FilterPill, active && css.FilterPillActive)}
+                          onClick={() => handleSelectFilter(option.id)}
+                        >
+                          {active && <Icon size="50" src={Icons.Check} aria-hidden />}
+                          <span>{option.label}</span>
+                          <span className={css.FilterCount}>{option.count}</span>
+                        </button>
                       );
                     })}
-                  </Fragment>
-                ))}
-              </Box>
-            </>
-          )}
-        </Box>
-      </PageScroll>
-    </Modal>
-  );
-});
+                  </div>
+                )}
+
+                <Box direction="Column" gap="200">
+                  {groups.map(({ id, heading, tasks: groupTasks }) => (
+                    <Fragment key={id}>
+                      {grouped && (
+                        <Text as="h3" size="T300" priority="300" className={css.GroupHeading}>
+                          {t(heading)}
+                        </Text>
+                      )}
+                      {groupTasks.map((task) => {
+                        const open = expandedId === task.taskId;
+                        return (
+                          <ScheduleAccordionItem
+                            key={task.taskId}
+                            roomId={roomId}
+                            task={task}
+                            now={now}
+                            locale={locale}
+                            formatter={formatter}
+                            grouped={grouped}
+                            open={open}
+                            isCancelling={pendingCancelIds.has(task.taskId)}
+                            cancelSent={cancelSentIds.has(task.taskId)}
+                            cancelError={cancelErrors.get(task.taskId) === true}
+                            onToggle={() => setExpandedId(open ? null : task.taskId)}
+                            onOpenThread={onOpenThread}
+                            onCancelTask={onCancelTask}
+                            onConfirmCancel={() => handleCancelTask(task)}
+                            onClearCancelError={() => clearCancelError(task.taskId)}
+                            onEditTask={onEditTask}
+                          />
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </Box>
+              </>
+            )}
+          </Box>
+        </PageScroll>
+      </Modal>
+    );
+  }
+);

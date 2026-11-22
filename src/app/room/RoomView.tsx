@@ -345,7 +345,10 @@ export function RoomView({
               openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
-              canEditSchedule={!(openThreadId && (forkAt || threadState.threadNotFound))}
+              canEditSchedule={
+                composerShown &&
+                (openThreadId ? !forkAt && !threadState.threadNotFound && !behindPanel : !hidden)
+              }
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -438,7 +441,7 @@ export function RoomView({
                             threadId={openThreadId}
                             threadFilterState={threadState.threadFilterState}
                             onFocusComposer={focusScheduleComposer}
-                            canEditSchedule={!(openThreadId && forkAt)}
+                            canEditSchedule={composerShown && !forkAt && !behindPanel}
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

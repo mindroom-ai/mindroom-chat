@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
-import { RoomSchedulesDialog } from './RoomSchedulesDialog';
+import { RoomSchedulesDialog, useScheduleCancelState } from './RoomSchedulesDialog';
 
 const mocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(async () => true),
@@ -810,6 +810,160 @@ describe('RoomSchedulesDialog actions and keyboard focus', () => {
       );
     } finally {
       unmount();
+    }
+  });
+
+  it('hides the cancel error bar and restores focus to the row toggle when onCancelTask disappears', async () => {
+    const task = makeTask({ taskId: 'revoke-err', description: 'Revoked during error' });
+    const base = {
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+    const { host, rerender, unmount } = mountDialog({
+      ...base,
+      onCancelTask: vi.fn(async () => {
+        throw new Error('network failed');
+      }),
+    });
+    try {
+      await click(findButtonByAriaLabel(host, 'Cancel')!);
+      const cancelTaskBtn = findButtonByText(host, 'Cancel task')!;
+      cancelTaskBtn.focus();
+      await click(cancelTaskBtn);
+
+      expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+        'Could not cancel task. Try again.'
+      );
+      expect(document.activeElement).toBe(cancelTaskBtn);
+
+      rerender({ ...base, onCancelTask: undefined });
+      expect(host.querySelector('[role="alert"]')).toBeNull();
+      expect(findButtonByText(host, 'Cancel task')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+    } finally {
+      unmount();
+    }
+  });
+
+  it('recovers focus to the row toggle when onEditTask disappears while Edit has focus', async () => {
+    const task = makeTask({ taskId: 'revoke-edit', description: 'Revoked edit task' });
+    const base = {
+      roomId: '!room:example.org',
+      tasks: [task],
+      onClose: vi.fn(),
+      onOpenThread: vi.fn(),
+    };
+    const { host, rerender, unmount } = mountDialog({
+      ...base,
+      onEditTask: vi.fn(),
+    });
+    try {
+      const editBtn = findButtonByAriaLabel(host, 'Edit')!;
+      act(() => {
+        editBtn.focus();
+      });
+      expect(document.activeElement).toBe(editBtn);
+
+      rerender({ ...base, onEditTask: undefined });
+      expect(findButtonByAriaLabel(host, 'Edit')).toBeUndefined();
+      expect(document.activeElement).toBe(
+        host.querySelector<HTMLButtonElement>('button[data-schedule-toggle]')
+      );
+    } finally {
+      unmount();
+    }
+  });
+
+  it('keeps the forwarded modal ref stable across 1-second countdown ticks', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T12:00:00Z'));
+    const refSpy = vi.fn();
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      act(() => {
+        root.render(
+          <RoomSchedulesDialog
+            ref={refSpy}
+            roomId="!room:example.org"
+            tasks={[
+              makeTask({
+                taskId: 'tick-1',
+                description: 'Imminent task',
+                executeAt: '2026-11-21T12:00:30Z',
+              }),
+            ]}
+            onClose={vi.fn()}
+            onOpenThread={vi.fn()}
+          />
+        );
+      });
+      expect(refSpy).toHaveBeenCalledTimes(1);
+      expect(refSpy.mock.calls[0]?.[0]).toBeInstanceOf(HTMLDivElement);
+
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(refSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it('resets cancel state on roomId change and ignores late completion from the previous room', async () => {
+    let rejectRoomA!: (error: Error) => void;
+    const onCancel = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectRoomA = reject;
+        })
+    );
+    let latestState: ReturnType<typeof useScheduleCancelState> | undefined;
+
+    function Harness({ roomId }: { roomId: string }) {
+      latestState = useScheduleCancelState(roomId, onCancel);
+      return null;
+    }
+
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      act(() => {
+        root.render(<Harness roomId="!room-a:example.org" />);
+      });
+
+      let cancelPromise!: Promise<boolean>;
+      act(() => {
+        cancelPromise = latestState!.handleCancelTask(makeTask({ taskId: 'shared-id' }));
+      });
+      expect(latestState!.pendingCancelIds.has('shared-id')).toBe(true);
+
+      act(() => {
+        root.render(<Harness roomId="!room-b:example.org" />);
+      });
+      expect(latestState!.pendingCancelIds.size).toBe(0);
+      expect(latestState!.cancelErrors.size).toBe(0);
+
+      await act(async () => {
+        rejectRoomA(new Error('stale room failure'));
+        await cancelPromise;
+      });
+      expect(latestState!.cancelErrors.size).toBe(0);
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      vi.unstubAllGlobals();
     }
   });
 

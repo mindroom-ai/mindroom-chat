@@ -3,105 +3,125 @@ import * as css from './roomSchedules.css';
 
 const MENTION_SOURCE = '(^|[\\s(])(@[A-Za-z0-9._=/+-]+(?::[A-Za-z0-9.-]+(?::\\d+)?)?)';
 
+type PromptSegment = {
+  kind: 'fence' | 'text';
+  text: string;
+  offset: number;
+};
+
 type PromptToken = {
   kind: 'text' | 'code' | 'verbatim';
   value: string;
   offset: number;
 };
 
-const isStartOfLine = (text: string, index: number): boolean => {
-  let pos = index - 1;
-  while (pos >= 0 && (text[pos] === ' ' || text[pos] === '\t')) {
-    pos -= 1;
-  }
-  return pos < 0 || text[pos] === '\n' || text[pos] === '\r';
-};
+/**
+ * Pass 1: splits the prompt line-by-line into fenced code blocks and plain text segments.
+ * A line whose leading spaces/tabs are followed by >= 3 backticks opens a fence and closes only
+ * on a subsequent line whose leading spaces/tabs are followed by at least that many backticks and
+ * optional trailing spaces/tabs/CR (or runs to EOF if unclosed).
+ */
+const splitFenceSegments = (prompt: string): PromptSegment[] => {
+  const segments: PromptSegment[] = [];
+  let textStart = 0;
+  let inFence = false;
+  let fenceStart = 0;
+  let fenceRunLen = 0;
+  let pos = 0;
 
-const findFenceBlockEnd = (prompt: string, openRunEnd: number, runLen: number): number => {
-  const firstNewline = prompt.indexOf('\n', openRunEnd);
-  if (firstNewline === -1) return prompt.length;
+  while (pos < prompt.length) {
+    const nl = prompt.indexOf('\n', pos);
+    const lineContentEnd = nl === -1 ? prompt.length : nl;
+    const nextPos = nl === -1 ? prompt.length : nl + 1;
 
-  let lineStart = firstNewline + 1;
-  while (lineStart < prompt.length) {
-    const nextNewline = prompt.indexOf('\n', lineStart);
-    const lineEnd = nextNewline === -1 ? prompt.length : nextNewline;
-
-    let pos = lineStart;
-    while (pos < lineEnd && (prompt[pos] === ' ' || prompt[pos] === '\t')) {
-      pos += 1;
+    let cursor = pos;
+    while (cursor < lineContentEnd && (prompt[cursor] === ' ' || prompt[cursor] === '\t')) {
+      cursor += 1;
     }
-    let ticksEnd = pos;
-    while (ticksEnd < lineEnd && prompt[ticksEnd] === '`') {
+    let ticksEnd = cursor;
+    while (ticksEnd < lineContentEnd && prompt[ticksEnd] === '`') {
       ticksEnd += 1;
     }
-    if (ticksEnd - pos >= runLen) {
+    const runLen = ticksEnd - cursor;
+
+    if (!inFence) {
+      if (runLen >= 3) {
+        if (pos > textStart) {
+          segments.push({ kind: 'text', text: prompt.slice(textStart, pos), offset: textStart });
+        }
+        inFence = true;
+        fenceStart = pos;
+        fenceRunLen = runLen;
+      }
+    } else if (runLen >= fenceRunLen) {
       let tail = ticksEnd;
       while (
-        tail < lineEnd &&
+        tail < lineContentEnd &&
         (prompt[tail] === ' ' || prompt[tail] === '\t' || prompt[tail] === '\r')
       ) {
         tail += 1;
       }
-      if (tail === lineEnd) {
-        return lineEnd;
+      if (tail === lineContentEnd) {
+        segments.push({
+          kind: 'fence',
+          text: prompt.slice(fenceStart, nextPos),
+          offset: fenceStart,
+        });
+        inFence = false;
+        fenceRunLen = 0;
+        textStart = nextPos;
       }
     }
 
-    if (nextNewline === -1) break;
-    lineStart = nextNewline + 1;
+    pos = nextPos;
   }
 
-  return prompt.length;
+  if (inFence) {
+    segments.push({ kind: 'fence', text: prompt.slice(fenceStart), offset: fenceStart });
+  } else if (textStart < prompt.length) {
+    segments.push({ kind: 'text', text: prompt.slice(textStart), offset: textStart });
+  }
+
+  return segments;
 };
 
 /**
- * Splits only clean single-backtick inline spans on a single line.
- * Escaped backticks (`\``), fenced code blocks, and multi-backtick spans stay verbatim.
+ * Pass 2: splits only clean single-backtick inline spans on a single line within a non-fence text
+ * segment. Escaped backticks (`\``) and multi-backtick spans stay verbatim.
  */
-const tokenizeInlineCode = (prompt: string): PromptToken[] => {
+const tokenizeInlineCode = (segment: string): PromptToken[] => {
   const tokens: PromptToken[] = [];
   let textStart = 0;
   let i = 0;
 
-  while (i < prompt.length) {
-    if (prompt[i] === '\\' && prompt[i + 1] === '`') {
+  while (i < segment.length) {
+    if (segment[i] === '\\' && segment[i + 1] === '`') {
       i += 2;
       continue;
     }
 
-    if (prompt[i] !== '`') {
+    if (segment[i] !== '`') {
       i += 1;
       continue;
     }
 
     let runEnd = i;
-    while (runEnd < prompt.length && prompt[runEnd] === '`') {
+    while (runEnd < segment.length && segment[runEnd] === '`') {
       runEnd += 1;
     }
     const runLen = runEnd - i;
 
-    if (runLen >= 3 && isStartOfLine(prompt, i)) {
-      const verbatimEnd = findFenceBlockEnd(prompt, runEnd, runLen);
-      if (i > textStart) {
-        tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
-      }
-      tokens.push({ kind: 'verbatim', value: prompt.slice(i, verbatimEnd), offset: i });
-      i = verbatimEnd;
-      textStart = i;
-      continue;
-    }
-
     if (runLen >= 2) {
       let k = runEnd;
       let matchedEnd = -1;
-      while (k < prompt.length) {
-        if (prompt[k] === '\\' && prompt[k + 1] === '`') {
+      while (k < segment.length) {
+        if (segment[k] === '\\' && segment[k + 1] === '`') {
           k += 2;
           continue;
         }
-        if (prompt[k] === '`') {
+        if (segment[k] === '`') {
           let closeEnd = k;
-          while (closeEnd < prompt.length && prompt[closeEnd] === '`') {
+          while (closeEnd < segment.length && segment[closeEnd] === '`') {
             closeEnd += 1;
           }
           if (closeEnd - k === runLen) {
@@ -116,9 +136,9 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
 
       const verbatimEnd = matchedEnd === -1 ? runEnd : matchedEnd;
       if (i > textStart) {
-        tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
+        tokens.push({ kind: 'text', value: segment.slice(textStart, i), offset: textStart });
       }
-      tokens.push({ kind: 'verbatim', value: prompt.slice(i, verbatimEnd), offset: i });
+      tokens.push({ kind: 'verbatim', value: segment.slice(i, verbatimEnd), offset: i });
       i = verbatimEnd;
       textStart = i;
       continue;
@@ -126,14 +146,14 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
 
     let closeIndex = -1;
     let j = i + 1;
-    while (j < prompt.length && prompt[j] !== '\n') {
-      if (prompt[j] === '\\' && prompt[j + 1] === '`') {
+    while (j < segment.length && segment[j] !== '\n') {
+      if (segment[j] === '\\' && segment[j + 1] === '`') {
         j += 2;
         continue;
       }
-      if (prompt[j] === '`') {
+      if (segment[j] === '`') {
         let closeRunEnd = j;
-        while (closeRunEnd < prompt.length && prompt[closeRunEnd] === '`') {
+        while (closeRunEnd < segment.length && segment[closeRunEnd] === '`') {
           closeRunEnd += 1;
         }
         if (closeRunEnd - j > 1) {
@@ -149,9 +169,9 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
 
     if (closeIndex !== -1) {
       if (i > textStart) {
-        tokens.push({ kind: 'text', value: prompt.slice(textStart, i), offset: textStart });
+        tokens.push({ kind: 'text', value: segment.slice(textStart, i), offset: textStart });
       }
-      tokens.push({ kind: 'code', value: prompt.slice(i + 1, closeIndex), offset: i });
+      tokens.push({ kind: 'code', value: segment.slice(i + 1, closeIndex), offset: i });
       i = closeIndex + 1;
       textStart = i;
     } else {
@@ -159,8 +179,8 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
     }
   }
 
-  if (textStart < prompt.length) {
-    tokens.push({ kind: 'text', value: prompt.slice(textStart), offset: textStart });
+  if (textStart < segment.length) {
+    tokens.push({ kind: 'text', value: segment.slice(textStart), offset: textStart });
   }
 
   return tokens;
@@ -168,7 +188,7 @@ const tokenizeInlineCode = (prompt: string): PromptToken[] => {
 
 const renderPlainSegment = (
   segment: string,
-  segmentOffset: number,
+  tokenOffset: number,
   keyPrefix: string
 ): ReactNode[] => {
   if (!segment) return [];
@@ -184,7 +204,7 @@ const renderPlainSegment = (
     const matchStart = match.index;
 
     // Do not highlight a handle glued directly after a closing backtick.
-    if (matchStart === 0 && leading === '' && segmentOffset > 0) {
+    if (matchStart === 0 && leading === '' && tokenOffset > 0) {
       match = pattern.exec(segment);
       continue;
     }
@@ -218,26 +238,36 @@ const renderPlainSegment = (
 
 /**
  * Formats a scheduled task prompt into pure React nodes: single-line inline code spans and
- * highlighted `@handle` mentions, preserving newlines and exact textContent for plain mentions.
+ * highlighted `@handle` mentions, preserving fenced code blocks, newlines, and exact textContent.
  */
 export const renderSchedulePrompt = (prompt: string): ReactNode => {
   if (!prompt) return prompt;
 
   const nodes: ReactNode[] = [];
-  const tokens = tokenizeInlineCode(prompt);
+  const segments = splitFenceSegments(prompt);
 
-  tokens.forEach((token, index) => {
-    if (token.kind === 'code') {
-      nodes.push(
-        <code key={`c-${token.offset}`} className={css.InlineCode}>
-          {token.value}
-        </code>
-      );
-    } else if (token.kind === 'verbatim') {
-      nodes.push(token.value);
-    } else {
-      nodes.push(...renderPlainSegment(token.value, token.offset, `s${index}`));
+  segments.forEach((segment, segmentIndex) => {
+    if (segment.kind === 'fence') {
+      nodes.push(segment.text);
+      return;
     }
+
+    const tokens = tokenizeInlineCode(segment.text);
+    tokens.forEach((token, tokenIndex) => {
+      if (token.kind === 'code') {
+        nodes.push(
+          <code key={`c-${segment.offset + token.offset}`} className={css.InlineCode}>
+            {token.value}
+          </code>
+        );
+      } else if (token.kind === 'verbatim') {
+        nodes.push(token.value);
+      } else {
+        nodes.push(
+          ...renderPlainSegment(token.value, token.offset, `s${segmentIndex}-${tokenIndex}`)
+        );
+      }
+    });
   });
 
   return nodes.length === 1 ? nodes[0] : nodes;

@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FocusEvent,
@@ -13,7 +14,14 @@ import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
-import { MsgType, type Room } from 'matrix-js-sdk';
+import {
+  MsgType,
+  RoomMemberEvent,
+  RoomStateEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+} from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/types';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -54,12 +62,16 @@ import {
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
+import { useScheduleCancelState } from '../schedules/useScheduleCancelState';
+import { isMindroomOwnerUserId } from '../matrix/protocol/agentIdentity';
+import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
   composerOfferAtom,
   getRoomInputDraftKey,
+  pendingVoiceSendDraftAtom,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
@@ -264,11 +276,62 @@ export function RoomViewHeader({
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const store = useStore();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const roomCreators = useRoomCreators(room);
+  const powerLevels = usePowerLevelsContext();
+  const permissions = useRoomPermissions(roomCreators, powerLevels);
   const myUserId = mx.getSafeUserId();
   const canSendMessages = permissions.event('m.room.message', myUserId);
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const canManageSchedules = canSendMessages && !tombstone;
+  const routerBindingEvent = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const routerBinding =
+    typeof routerBindingEvent?.isRedacted === 'function' && !routerBindingEvent.isRedacted()
+      ? routerBindingEvent
+      : undefined;
+  const rawPowerLevelsEvent = useStateEvent(room, StateEvent.RoomPowerLevels);
+  const rawPowerLevels =
+    typeof rawPowerLevelsEvent?.getContent === 'function'
+      ? rawPowerLevelsEvent.getContent()
+      : undefined;
+  const boundRouterId = useMemo(
+    () => trustedRouterUserId(routerBinding, powerLevels, roomCreators, rawPowerLevels),
+    [routerBinding, powerLevels, roomCreators, rawPowerLevels]
+  );
+  const [membershipRevision, setMembershipRevision] = useState(0);
+  useEffect(() => {
+    if (typeof mx.on !== 'function' || typeof mx.removeListener !== 'function') return undefined;
+    let disposed = false;
+    const refresh = () => {
+      if (!disposed) setMembershipRevision((rev) => rev + 1);
+    };
+    const onMember = (event: MatrixEvent | undefined, member?: RoomMember) => {
+      const eventRoomId = event?.getRoomId?.() ?? member?.roomId;
+      if (eventRoomId === room.roomId) refresh();
+    };
+    const onStateMembers = (_event: MatrixEvent, state: { roomId?: string }) => {
+      if (state?.roomId === room.roomId) refresh();
+    };
+    mx.on(RoomMemberEvent.Membership, onMember);
+    mx.on(RoomStateEvent.Members, onStateMembers);
+    if (typeof room.loadMembersIfNeeded === 'function') {
+      room.loadMembersIfNeeded().then(refresh, () => undefined);
+    }
+    return () => {
+      disposed = true;
+      mx.removeListener(RoomMemberEvent.Membership, onMember);
+      mx.removeListener(RoomStateEvent.Members, onStateMembers);
+    };
+  }, [mx, room]);
+  const hasJoinedRouter = useMemo(() => {
+    void membershipRevision;
+    const joinedMembers =
+      typeof room.getJoinedMembers === 'function' ? room.getJoinedMembers() : [];
+    const joinedIds = new Set(joinedMembers.map((member) => member.userId));
+    return (
+      (!!boundRouterId && joinedIds.has(boundRouterId)) ||
+      joinedMembers.some((member) => isMindroomOwnerUserId(member.userId))
+    );
+  }, [boundRouterId, membershipRevision, room]);
+  const canManageSchedules = canSendMessages && !tombstone && hasJoinedRouter;
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -438,9 +501,18 @@ export function RoomViewHeader({
       throw error;
     }
   };
+  const scheduleCancelState = useScheduleCancelState(
+    room.roomId,
+    canManageSchedules ? cancelScheduledTask : undefined
+  );
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
-    if (store.get(liveVoiceRecordingAtom) !== undefined) return 'draft-busy';
+    if (
+      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(pendingVoiceSendDraftAtom)?.recovered
+    ) {
+      return 'draft-busy';
+    }
     const targetThreadId = openThreadId;
     const prefix = `!edit_schedule ${task.taskId} `;
     const draftKey = getRoomInputDraftKey(myUserId, room.roomId, targetThreadId);
@@ -845,6 +917,7 @@ export function RoomViewHeader({
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
           onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
+          cancelState={scheduleCancelState}
         />
       )}
       {dialog}

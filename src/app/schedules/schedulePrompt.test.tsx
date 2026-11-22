@@ -145,6 +145,32 @@ describe('renderSchedulePrompt', () => {
     }
   });
 
+  it('prevents an unclosed inline backtick run before a fenced block from corrupting the fence or trailing code', () => {
+    const prompt = '``unclosed before\n```\n``inside`` `code`\n```\n`after`';
+    const { host, cleanup } = renderPrompt(prompt);
+    try {
+      const codes = [...host.querySelectorAll('code.inline-code')].map((el) => el.textContent);
+      expect(codes).toEqual(['after']);
+      expect(host.textContent).toBe('``unclosed before\n```\n``inside`` `code`\n```\nafter');
+    } finally {
+      cleanup();
+    }
+
+    const mentionAfterFence = '```\nconst x = 1;\n```\n@helper check `status`';
+    const second = renderPrompt(mentionAfterFence);
+    try {
+      expect(
+        [...second.host.querySelectorAll('.prompt-mention')].map((el) => el.textContent)
+      ).toEqual(['@helper']);
+      expect(
+        [...second.host.querySelectorAll('code.inline-code')].map((el) => el.textContent)
+      ).toEqual(['status']);
+      expect(second.host.textContent).toBe('```\nconst x = 1;\n```\n@helper check status');
+    } finally {
+      second.cleanup();
+    }
+  });
+
   it('preserves newlines across plain text and multiple mentions', () => {
     const { host, cleanup } = renderPrompt('Line one with @alpha\nLine two with @beta');
     try {
