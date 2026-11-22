@@ -10,6 +10,8 @@ type InsetScrollbarProps = {
   className: string;
   /** Composite widgets retain their own arrow-key focus order. */
   tabIndex?: 0 | -1;
+  /** Runs before End reads the extent: a list that mounts a window of its rows shows its end. */
+  beforeEnd?: () => void;
 };
 
 /** Keep native scrolling, with an indicator bounded by the unobscured viewport. */
@@ -19,6 +21,7 @@ export function InsetScrollbar({
   label,
   className,
   tabIndex = 0,
+  beforeEnd,
 }: InsetScrollbarProps) {
   const id = useId();
   const trackRef = useRef<HTMLDivElement>(null);
@@ -123,6 +126,7 @@ export function InsetScrollbar({
       reveal();
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'End') beforeEnd?.();
       const { maximum } = geometry();
       const page = track.clientHeight;
       const positions: Record<string, number> = {
@@ -164,7 +168,7 @@ export function InsetScrollbar({
       track.removeEventListener('keydown', onKeyDown);
       if (!previousId && scroll.id === id) scroll.removeAttribute('id');
     };
-  }, [scrollRef, contentRef, id, tabIndex]);
+  }, [scrollRef, contentRef, id, tabIndex, beforeEnd]);
 
   return (
     <div

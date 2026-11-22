@@ -819,6 +819,7 @@ export function CompactRoomView({
         contentRef={contentRef}
         className={overlay.Scrollbar}
         label={t('threadNav.messages')}
+        beforeEnd={blocks.prepareEnd}
       />
       <ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />
       {menu && menuModel && (

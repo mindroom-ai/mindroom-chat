@@ -167,6 +167,35 @@ describe('InsetScrollbar', () => {
     expect(scroll.scrollTop).toBe(300);
   });
 
+  it('lets a windowed list show its end before End reads the extent', () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const contentRef = createRef<HTMLDivElement>();
+    // The end mounts taller than its cached heights said.
+    const beforeEnd = vi.fn(() => {
+      contentHeight = 2100;
+    });
+    act(() =>
+      root.render(
+        <div ref={scrollRef}>
+          <div ref={contentRef} />
+          <InsetScrollbar
+            scrollRef={scrollRef}
+            contentRef={contentRef}
+            label="Messages"
+            className="placement"
+            beforeEnd={beforeEnd}
+          />
+        </div>
+      )
+    );
+    key('PageDown');
+    key('Home');
+    expect(beforeEnd).not.toHaveBeenCalled();
+    key('End');
+    expect(beforeEnd).toHaveBeenCalledTimes(1);
+    expect(scrollRef.current!.scrollTop).toBe(1600);
+  });
+
   it.each([0, -1] as const)('preserves composite focus when tabIndex is %s', (tabIndex) => {
     const scrollRef = createRef<HTMLDivElement>();
     const contentRef = createRef<HTMLDivElement>();
