@@ -248,7 +248,10 @@ export const useTimelineScrollLedgerController = ({
   // room's read as shrink, and the end clamp pulled a reader at the newest row up by them while
   // a splitter's drag wrapped the rows above anew. They wait in `droppedRowFoldPxRef`
   // until the render that paints their margin, so the margin and this part change together.
-  // The content above a thread's rows is left out: it is outside the list.
+  // The content above a thread's rows (Load Older, a load error) counts too. It is outside the
+  // list, and its margin lifts the list by what it pushed it down: the list's end stays where it
+  // was. Left out, a Load Older line that showed as a thread opened read as 40 px of shrink, the
+  // end clamp pulled the reader that far above the end, and the opening pin put them back.
   const rowFoldPxRef = useRef(0);
   const droppedRowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
@@ -335,7 +338,10 @@ export const useTimelineScrollLedgerController = ({
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
       rowFoldPxRef.current +=
-        threadLedgerRenderPlan.foldPx + roomLedgerAddedPx + roomFoldPxAtRender;
+        threadLedgerRenderPlan.foldPx +
+        roomLedgerAddedPx +
+        roomFoldPxAtRender +
+        (threadId ? leadingFoldPx : 0);
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -350,6 +356,7 @@ export const useTimelineScrollLedgerController = ({
     roomLedgerAddedPx,
     roomLedgerFoldPx,
     leadingFoldPx,
+    threadId,
     threadLedgerRenderPlan,
   ]);
 
@@ -579,6 +586,7 @@ export const useTimelineScrollLedgerController = ({
     if (leadingHeld && leadingPx !== leadingRenderPx) {
       // Applied by a synchronous re-render, before this commit paints.
       scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
+      if (threadId) rowFoldPxRef.current += leadingPx - leadingRenderPx;
       ledgerSettleWantedRef.current = true;
       setLedgerCommitTick((tick) => tick + 1);
     }

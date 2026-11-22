@@ -579,6 +579,7 @@ describe('useTimelineScrollLedgerController', () => {
     // Row measurement refs fire inside the commit, before the parent's layout effects.
     let measureInCommit: (() => void) | undefined;
     let holdBanner: (deltaPx: number, scrollTop: number) => void = () => undefined;
+    let readRowFoldPx = () => 0;
     const MeasuredRow = () => {
       useLayoutEffect(() => measureInCommit?.());
       return null;
@@ -609,6 +610,7 @@ describe('useTimelineScrollLedgerController', () => {
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
       holdBanner = controller.holdThreadBannerResize;
+      readRowFoldPx = controller.readRowFoldPx;
       return React.createElement(MeasuredRow);
     };
     let renderer: ReturnType<typeof create>;
@@ -645,6 +647,9 @@ describe('useTimelineScrollLedgerController', () => {
       // A load error appears.
       show('error', 40);
       expect(latestLedgerPx()).toBe(-56);
+      // It lies above the list, whose end it leaves where it is: none of that margin is room the
+      // list will give up, and the end clamp reads no shrink in it.
+      expect(readRowFoldPx()).toBe(-56);
     });
 
     it('lets a reader looking at it see it go', () => {
