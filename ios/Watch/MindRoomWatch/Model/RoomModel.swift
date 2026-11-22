@@ -277,9 +277,9 @@ final class RoomModel: ObservableObject {
         }
         await stateRead?.value
         show()
-        // The complications count the room's open threads as their own reads found them.
+        // The complications count the room's open threads as their own reads found them, from a whole list only.
         let settled = resolved.roots == resolvedBefore
-        if settled { publishWidgetSnapshot() }
+        if complete, settled { publishWidgetSnapshot() }
         #if DEBUG
         E2EHooks.trace("refresh done rows=\(rows.count)")
         #endif
