@@ -27,23 +27,24 @@ final class ThreadModel: ObservableObject {
     private let trust: RoomTrust
     private var trustChanges: AnyCancellable?
     private let refreshTrust: @MainActor () -> Void
-    /// The thread's events as last read: its root, then every event related to it.
-    private var events: [String]?
+    /// What is kept of the thread's events as last read, when it has a voice echo (`ThreadSnapshot.kept`): the
+    /// thread is built again from them when the room's trust changes. No trust changes a thread without one.
+    private var events: ThreadEvents?
 
-    /// `initial`: the thread's events as the threads list last read them. `refreshTrust` asks the room to read
-    /// its trust again and does not wait for it (`RoomModel.refreshTrust`).
-    init(room: Room, rootId: String, userId: String, initial: [String]?, refreshTrust: @escaping @MainActor () -> Void) {
-        let trust = RoomTrust.of(room.id())
+    /// `initial` and `events`: the thread as the threads list last read it, and what that kept of its events.
+    /// `refreshTrust` asks the room to read its trust again and does not wait for it (`RoomModel.refreshTrust`).
+    init(room: Room, rootId: String, userId: String, initial: ThreadSnapshot?, events: ThreadEvents?,
+         refreshTrust: @escaping @MainActor () -> Void) {
         self.room = room
         self.rootId = rootId
         self.userId = userId
-        self.trust = trust
+        self.events = events
         self.refreshTrust = refreshTrust
-        events = initial
-        snapshot = initial.flatMap { threadSnapshot($0, trust: trust, userId: userId) }
+        trust = RoomTrust.of(room.id())
+        snapshot = initial
         weak var model: ThreadModel?
         feed = TimelineFeed { model?.update() }
-        trustChanges = trust.changed.sink { model?.show() }
+        trustChanges = trust.changed.sink { model?.trustChanged() }
         model = self
     }
 
@@ -112,15 +113,18 @@ final class ThreadModel: ObservableObject {
     }
 
     private func fetch() async {
-        guard let read = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId) else { return }
-        events = read
-        show()
+        guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
+              let read = threadEvents(jsons) else { return }
+        events = ThreadSnapshot.kept(read)
+        show(threadSnapshot(read, trust: trust, userId: userId))
     }
 
-    /// Shows the thread as the events last read give it with the room's trust as it is now: after each read,
-    /// and when the trust changed, for which nothing is read again.
-    private func show() {
-        guard let next = events.flatMap({ threadSnapshot($0, trust: trust, userId: userId) }) else { return }
+    /// The room's trust changed: the thread is built again from the events kept, and nothing is read for it.
+    private func trustChanged() {
+        if let events { show(threadSnapshot(events, trust: trust, userId: userId)) }
+    }
+
+    private func show(_ next: ThreadSnapshot) {
         // A haptic when an agent's answer finishes while the thread is open.
         if snapshot?.reply?.run == .streaming, next.reply?.run == .finished {
             WKInterfaceDevice.current().play(.success)
