@@ -39,6 +39,7 @@ const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
 };
 
 const PASSWORD = 'thread-timeline-jumps-password';
+const THREAD_ROWS_SELECTOR = '[data-timeline-rows][data-thread-count]';
 
 const inThread = (rootId: string, replyTo: string) => ({
   'm.relates_to': {
@@ -114,8 +115,9 @@ const longCollapsibleText = (turn: number): string =>
   ].join('\n');
 
 const longAgentAnswer = (turn: number) => {
+  const extraCode = turn % 2 === 0 ? 36 : 16;
   const codeLines = Array.from(
-    { length: 24 },
+    { length: extraCode },
     (_, i) =>
       `const step_${turn}_${i} = computeAnchorOffset(rows[${i}], scrollTop + inset - listTop);`
   ).join('\n');
@@ -177,8 +179,10 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   const imgSized = await uploadPng(agent.accessToken, 800, 520, 40);
   const imgUnsized = await uploadPng(agent.accessToken, 720, 480, 160);
 
-  // Thread 1: Realistic long thread (~125 events, 14 finished turns with folded intermediate steps,
-  // long agent replies with tool traces + code blocks + tables, collapsible user pastes, images).
+  // Thread 1: Realistic long thread (~220+ primary events, 34 finished turns with folded
+  // intermediate steps, long agent replies with tool traces + code blocks + tables,
+  // collapsible user pastes, images with and without dimensions) -> requires multiple
+  // real /relations back-pagination pages beyond the initial open!
   const longThreadRootId = await send(reader, roomId, 'm.room.message', {
     msgtype: 'm.text',
     body: `Investigate thread timeline jumps (${tag})`,
@@ -186,8 +190,7 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
   let lastId = longThreadRootId;
   let eventCount = 1;
 
-  for (let turn = 1; turn <= 14; turn += 1) {
-    // User prompt (every 3rd turn is a long collapsible paste)
+  for (let turn = 1; turn <= 34; turn += 1) {
     const userBody =
       turn % 3 === 0
         ? longCollapsibleText(turn)
@@ -212,9 +215,9 @@ const buildFixtureWorld = async (): Promise<FixtureWorld> => {
       eventCount += 1;
     }
 
-    // Occasional image (alternating with/without w/h info!)
-    if (turn % 4 === 0) {
-      const hasDims = turn % 8 === 0;
+    // Images with and without w/h metadata
+    if (turn % 3 === 1) {
+      const hasDims = turn % 2 === 0;
       lastId = await send(agent, roomId, 'm.room.message', {
         msgtype: 'm.image',
         body: `screenshot-turn-${turn}.png`,
@@ -321,6 +324,7 @@ type WriteEntry = {
 type JumpFrame = {
   t: number;
   frame: number;
+  mag: number;
   reasons: string[];
   scrollTop: number;
   dScroll: number;
@@ -357,14 +361,8 @@ type ProbeReport = {
   maxSpreadPx: number;
   maxReversalPx: number;
   maxBottomGapJumpPx: number;
-  error?: string;
 };
 
-/**
- * Installs a per-frame thread timeline observer + Element.prototype scroll write probe.
- * Tracks every visible row, scrollTop write (with JS stack), marginTop, listHeight,
- * threadCount, banner height, and classifies jumps cleanly.
- */
 const installThreadJumpProbe = () => {
   type RowSnap = { top: number; h: number; idx: string };
   const probe = {
@@ -394,7 +392,7 @@ const installThreadJumpProbe = () => {
     prevBottomGap: Number.NaN,
     hasVisibleBaseline: false,
     findScroller(): HTMLElement | null {
-      const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+      const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
       if (!inner) return null;
       let node = inner.parentElement;
       while (node) {
@@ -459,7 +457,7 @@ const installThreadJumpProbe = () => {
     const from = probe.scroller.scrollTop;
     const delta = value - from;
     probe.writeDelta += delta;
-    if (probe.writes.length < 300) {
+    if (probe.writes.length < 400) {
       probe.writes.push({
         kind,
         from: Math.round(from),
@@ -514,7 +512,7 @@ const installThreadJumpProbe = () => {
         probe.scroller = probe.findScroller();
       }
       const scroller = probe.scroller;
-      const inner = scroller?.querySelector<HTMLElement>('[data-thread-count]') ?? null;
+      const inner = scroller?.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ?? null;
       if (scroller && inner) {
         probe.totalFrames += 1;
         const hidden = getComputedStyle(inner).visibility === 'hidden';
@@ -621,10 +619,11 @@ const installThreadJumpProbe = () => {
                       inputAge > 350 ? Math.abs(median) : 0
                     );
               if (jumpMag > probe.maxJumpPx) probe.maxJumpPx = jumpMag;
-              if (probe.jumps.length < 120) {
+              if (probe.jumps.length < 150) {
                 probe.jumps.push({
                   t: Math.round(now),
                   frame: probe.visibleFrames,
+                  mag: Math.round(jumpMag),
                   reasons,
                   scrollTop: Math.round(scrollTop),
                   dScroll: Math.round(dScroll),
@@ -680,13 +679,9 @@ const stopProbe = (page: Page): Promise<ProbeReport> =>
     ).__threadJumpProbe.stop()
   );
 
-const scrollUpFast = async (
-  page: Page,
-  cdp: CDPSession | undefined,
-  setup: Setup
-) => {
+const scrollUpFast = async (page: Page, cdp: CDPSession | undefined, setup: Setup) => {
   const center = await page.evaluate(() => {
-    const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+    const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
     let scroller = inner?.parentElement ?? null;
     while (scroller) {
       const { overflowY } = getComputedStyle(scroller);
@@ -699,35 +694,37 @@ const scrollUpFast = async (
 
   if (setup.viewport === 'desktop') {
     await page.mouse.move(center.x, center.y);
-    for (let burst = 0; burst < 10; burst += 1) {
-      for (let notch = 0; notch < 14; notch += 1) {
-        await page.mouse.wheel(0, -140);
+    // Sustained fast bursts with varying pauses (including 0ms continuous and 220ms/450ms pauses
+    // to exercise quiescence settles, back-pagination commits, and boundary settles!)
+    for (let burst = 0; burst < 18; burst += 1) {
+      for (let notch = 0; notch < 16; notch += 1) {
+        await page.mouse.wheel(0, -180);
         await page.waitForTimeout(16);
       }
-      await page.waitForTimeout(450);
+      await page.waitForTimeout(burst % 3 === 0 ? 500 : 180);
     }
-    await page.waitForTimeout(1_000);
+    await page.waitForTimeout(1_200);
     return;
   }
 
   if (setup.engine === 'chromium' && cdp) {
-    for (let burst = 0; burst < 10; burst += 1) {
+    for (let burst = 0; burst < 18; burst += 1) {
       await cdp.send('Input.synthesizeScrollGesture', {
         x: Math.round(center.x),
         y: Math.round(center.y),
-        yDistance: 1200,
-        speed: 3200,
+        yDistance: 1600,
+        speed: 3800,
         gestureSourceType: 'touch',
         preventFling: false,
       });
-      await page.waitForTimeout(550);
+      await page.waitForTimeout(burst % 3 === 0 ? 550 : 200);
     }
-    await page.waitForTimeout(1_000);
+    await page.waitForTimeout(1_200);
     return;
   }
 
-  // WebKit phone: simulated touch drag bursts
-  for (let burst = 0; burst < 10; burst += 1) {
+  // WebKit phone: fast touch drag bursts
+  for (let burst = 0; burst < 18; burst += 1) {
     await page.evaluate(() =>
       new Promise<void>((resolve) => {
         const probe = (
@@ -758,10 +755,10 @@ const scrollUpFast = async (
           );
         };
         touch('touchstart');
-        let left = 1400;
+        let left = 2200;
         let last = performance.now();
         const step = (now: number) => {
-          const move = Math.min(left, Math.max(1, (now - last) * 2.8));
+          const move = Math.min(left, Math.max(1, (now - last) * 3.5));
           last = now;
           left -= move;
           probe.driving = true;
@@ -779,14 +776,17 @@ const scrollUpFast = async (
         requestAnimationFrame(step);
       })
     );
-    await page.waitForTimeout(550);
+    await page.waitForTimeout(burst % 3 === 0 ? 550 : 200);
   }
-  await page.waitForTimeout(1_000);
+  await page.waitForTimeout(1_200);
 };
 
 const summarize = (label: string, report: ProbeReport) => {
-  const sampleJumps = report.jumps.slice(0, 12);
-  const sampleWrites = report.writes.slice(0, 12);
+  const biggest = [...report.jumps].sort((a, b) => b.mag - a.mag).slice(0, 8);
+  const biggestTimes = new Set(biggest.map((j) => j.t));
+  const nearWrites = report.writes
+    .filter((w) => Array.from(biggestTimes).some((t) => Math.abs(w.t - t) <= 80))
+    .slice(0, 25);
   // eslint-disable-next-line no-console
   console.log(
     `JUMP-PROBE[${label}] ${JSON.stringify({
@@ -803,8 +803,8 @@ const summarize = (label: string, report: ProbeReport) => {
       maxReversalPx: report.maxReversalPx,
       maxBottomGapJumpPx: report.maxBottomGapJumpPx,
       writeCount: report.writes.length,
-      sampleJumps,
-      sampleWrites,
+      biggestJumps: biggest,
+      nearWrites,
     })}`
   );
 };
@@ -812,11 +812,11 @@ const summarize = (label: string, report: ProbeReport) => {
 test.use({ trace: 'off', video: 'off' });
 
 test.describe('thread timeline jumps investigation', () => {
-  test.setTimeout(6 * 60_000);
+  test.setTimeout(8 * 60_000);
   let world: FixtureWorld | undefined;
 
   test.beforeAll(async () => {
-    test.setTimeout(3 * 60_000);
+    test.setTimeout(4 * 60_000);
     if (!(await disposableHomeserverIsUp())) return;
     world = await buildFixtureWorld();
   });
@@ -826,7 +826,10 @@ test.describe('thread timeline jumps investigation', () => {
       baseURL,
     }) => {
       test.skip(!world, 'disposable homeserver is not running');
-      test.skip(setup.engine === 'webkit' && !WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+      test.skip(
+        setup.engine === 'webkit' && !WEBKIT_EXECUTABLE,
+        'PLAYWRIGHT_WEBKIT_EXECUTABLE not set'
+      );
       const fixture = world!;
 
       const browser =
@@ -862,16 +865,16 @@ test.describe('thread timeline jumps investigation', () => {
 
         // Add realistic latency to media downloads and /relations continuations
         await page.route('**/_matrix/client/v1/media/**', async (route) => {
-          await wait(300);
+          await wait(350);
           await route.continue();
         });
         await page.route('**/_matrix/media/**', async (route) => {
-          await wait(300);
+          await wait(350);
           await route.continue();
         });
         await page.route('**/relations/**', async (route) => {
           if (route.request().url().includes('from=')) {
-            await wait(250);
+            await wait(300);
           }
           await route.continue();
         });
@@ -886,7 +889,7 @@ test.describe('thread timeline jumps investigation', () => {
         // --- SCENARIO 1: Open realistic long thread from Compact view (cold open, phone slides!) ---
         await startProbe(page, 'open');
         await longCard.click();
-        await expect(page.locator('[data-thread-count]')).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(2_500);
         const openReport = await stopProbe(page);
         summarize(`${setup.engine}-${setup.viewport}-open-cold`, openReport);
@@ -905,7 +908,6 @@ test.describe('thread timeline jumps investigation', () => {
         await expect(streamCard).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(500);
 
-        // Start a streaming agent reply right as we click to open the thread!
         const liveReplyId = await send(fixture.agent, fixture.roomId, 'm.room.message', {
           msgtype: 'm.text',
           body: 'Thinking...',
@@ -920,7 +922,8 @@ test.describe('thread timeline jumps investigation', () => {
             await wait(160);
             const paras = Array.from(
               { length: i * 2 },
-              (_, p) => `<p>Streaming paragraph ${p + 1}: live tokens arriving during thread open.</p>`
+              (_, p) =>
+                `<p>Streaming paragraph ${p + 1}: live tokens arriving during thread open.</p>`
             ).join('\n');
             const content = {
               msgtype: 'm.text',
@@ -940,7 +943,7 @@ test.describe('thread timeline jumps investigation', () => {
 
         await startProbe(page, 'open');
         await streamCard.click();
-        await expect(page.locator('[data-thread-count]')).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(2_500);
         streamRunning = false;
         await streamTask;
