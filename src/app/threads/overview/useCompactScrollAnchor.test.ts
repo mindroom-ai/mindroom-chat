@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MOUSE_REST_HOLD_MS,
   SCROLL_SETTLE_MS,
-  useCompactScrollFallback,
+  useCompactScrollAnchor,
   usePointerOverCards,
-} from './useCompactScrollFallback';
+} from './useCompactScrollAnchor';
 
-describe('useCompactScrollFallback', () => {
+describe('useCompactScrollAnchor', () => {
   const CARD = 100;
 
   const SECTION_HEADER = 32;
@@ -71,7 +71,7 @@ describe('useCompactScrollFallback', () => {
       createElement(
         Fragment,
         null,
-        useCompactScrollFallback(order, viewRef, sectionOfRow),
+        useCompactScrollAnchor(order, viewRef, sectionOfRow),
         createElement(Commit, { run: commit })
       );
     const { rerender } = render(createElement(List, { order: ids }));

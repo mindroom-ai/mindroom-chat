@@ -94,9 +94,6 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
-// What a reader scrolls with. A scroll alone need not be theirs: the browser's scroll anchoring
-// and other code that keeps the rows in place scroll the list too.
-const READER_INPUT = ['wheel', 'pointerdown', 'keydown'];
 const CAPTURED = { capture: true, passive: true };
 
 type RestoreState = {
@@ -158,10 +155,18 @@ export function useScrollAnchorMemory({
     const state = restoreRef.current;
 
     let observer: ResizeObserver | undefined;
+    // What the reader scrolls the list with: a wheel or a pointer on it, or a key anywhere (the
+    // thread keys focus a row from outside the list). A scroll alone need not be theirs: the
+    // browser's scroll anchoring and other code that keeps the rows in place scroll it too.
+    const inputs = [
+      [view, 'wheel'],
+      [view, 'pointerdown'],
+      [window, 'keydown'],
+    ] as const;
     const stopFollowing = () => {
       state.snapshot = undefined;
       observer?.disconnect();
-      READER_INPUT.forEach((type) => view.removeEventListener(type, stopFollowing, CAPTURED));
+      inputs.forEach(([target, type]) => target.removeEventListener(type, stopFollowing, CAPTURED));
     };
     const restore = () => {
       const { snapshot } = state;
@@ -169,7 +174,7 @@ export function useScrollAnchorMemory({
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
       // A reader who left at the top stays at the top, where rows that moved
-      // up show; one who scrolled since (`READER_INPUT`) keeps their place.
+      // up show; one who scrolled since (`inputs`) keeps their place.
       // Late layout moves the placed rows together (the header padding
       // settling, cards loading above). Rows that move apart or change order
       // are the list changing under the reader, such as a card leaving or a
@@ -188,10 +193,10 @@ export function useScrollAnchorMemory({
     observer = new ResizeObserver(restore);
     observer.observe(view);
     if (contentRef.current) observer.observe(contentRef.current);
-    READER_INPUT.forEach((type) => view.addEventListener(type, stopFollowing, CAPTURED));
+    inputs.forEach(([target, type]) => target.addEventListener(type, stopFollowing, CAPTURED));
     return () => {
       observer?.disconnect();
-      READER_INPUT.forEach((type) => view.removeEventListener(type, stopFollowing, CAPTURED));
+      inputs.forEach(([target, type]) => target.removeEventListener(type, stopFollowing, CAPTURED));
     };
   }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 

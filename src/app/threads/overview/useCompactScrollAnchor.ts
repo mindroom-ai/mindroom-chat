@@ -105,20 +105,23 @@ class BeforeCommit extends Component<{ read: () => void }> {
 
 /**
  * A reader at the top of the list sees new cards arrive there. Further down, the cards in view
- * stay where they are, whatever changes around them: the list scrolls so that the topmost card in
- * view that kept its place among the rows shows where it did. One rule holds for every browser
- * and every cause. The cards are read right before a commit (render what the hook returns inside
- * the list) and compared after it, once React has put the focus back: cards that join, grow or
- * sort above the view, a thread that sorts first (React moves every other row for it, at which
- * WebKit scrolls to the top and Chromium's scroll anchoring loses its card), and a focus that
- * scrolls. Chromium's scroll anchoring stays on, and only what it leaves is scrolled. Outside a
- * commit (a card that grows by itself, the header's inset), a resize compares with the cards as
- * the reader's last scroll left them, and only at the scroll offset they were read at: another
- * script that scrolled the list placed it. While the reader scrolls, WebKit scrolls on a thread
- * of its own, which a write sets back: what the list is owed waits until the scrolling settles,
- * unless the commit itself moved the list.
+ * stay where they are whatever changes around them: the list scrolls so that the topmost card in
+ * view that kept its place among the rows shows where it did. That one rule holds in every
+ * browser. Chromium's scroll anchoring stays on, and the rule scrolls by what it leaves.
+ *
+ * In a commit, the cards are read right before React changes the page (render what the hook
+ * returns inside the list) and compared after it, once React has put the focus back. A thread
+ * that sorts first has React move every other row: WebKit then scrolls to the top, Chromium's
+ * scroll anchoring loses its card or follows the thread, and the focus React puts back scrolls to
+ * its card. Outside a commit (a card that grows by itself, the header's inset), a resize compares
+ * with the cards as the last scroll left them, and only at the scroll offset they were read at:
+ * another script that scrolled since has placed the list.
+ *
+ * While the reader scrolls, WebKit scrolls on a thread of its own, and a write sets its scroll
+ * back. What the list is owed then waits until the scrolling settles, unless the commit itself
+ * scrolled the list.
  */
-export const useCompactScrollFallback = (
+export const useCompactScrollAnchor = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
   sectionOfRow?: SectionOfRow,
@@ -157,7 +160,7 @@ export const useCompactScrollFallback = (
     },
     [viewRef]
   );
-  // A reader who scrolled since the cards were read, whose scroll event is still to come.
+  // Before a commit: again, for a reader who scrolled since, whose scroll event is still to come.
   const read = useCallback(() => {
     const view = viewRef.current;
     if (view && view.scrollTop !== cardsInViewRef.current?.scrollTop) {
@@ -174,9 +177,8 @@ export const useCompactScrollFallback = (
     const scrolling = scrollingRef.current;
     const settle = () => {
       scrolling.timer = undefined;
-      if (view.scrollTop > 0) view.scrollTop += scrolling.owed;
+      if (scrolling.owed && view.scrollTop > 0) view.scrollTop += scrolling.owed;
       scrolling.owed = 0;
-      cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     };
     // A wheel or a finger starts the reader's scrolling and each scroll within the settle time
     // carries it on (momentum). A scroll of the list's own starts none.

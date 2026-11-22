@@ -314,14 +314,20 @@ describe('useScrollAnchorMemory', () => {
     expect(observers.size).toBe(1);
   });
 
-  it.each(['wheel', 'pointerdown', 'keydown'])('stops following at a %s of the reader', (input) => {
+  it.each([
+    ['wheel on a row', 'wheel', true],
+    ['pointer on a row', 'pointerdown', true],
+    // The thread keys focus a row, which scrolls to it, from outside the list.
+    ['key anywhere', 'keydown', false],
+  ])('stops following at a %s', (_label, input, onRow) => {
     const memory: ScrollAnchorMemory = new Map();
     const keys = rowKeys(20);
     leaveAt(memory, keys, 300);
     const layout = createLayout(keys);
     mount(memory, layout);
-    // On a row: the list hears it first, also if the row keeps it to itself.
-    layout.view.querySelector('[data-scroll-anchor]')!.dispatchEvent(new Event(input));
+    // The list hears its rows' input first, also if a row keeps it to itself.
+    const target = onRow ? layout.view.querySelector('[data-scroll-anchor]')! : document.body;
+    target.dispatchEvent(new Event(input));
     expect(observers.size).toBe(0);
   });
 

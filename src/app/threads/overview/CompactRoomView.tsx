@@ -33,7 +33,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useCompactScrollFallback, usePointerOverCards } from './useCompactScrollFallback';
+import { useCompactScrollAnchor, usePointerOverCards } from './useCompactScrollAnchor';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -418,7 +418,7 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows]);
-  const scrollAnchor = useCompactScrollFallback(shownRows, viewRef, sectionOfRow, contentRef);
+  const scrollAnchor = useCompactScrollAnchor(shownRows, viewRef, sectionOfRow, contentRef);
   // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
   // always has its header, and the headers take none of the cards' budget.
   const shownRootIds = useMemo(
@@ -483,8 +483,8 @@ export function CompactRoomView({
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
-  // in and one that left fades out. Run after the fallback so it measures the cards where
-  // they settled, even in browsers that do not anchor the scroll.
+  // in and one that left fades out. Run after the scroll anchor so it measures the cards where
+  // that left them.
   const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
     models.map((model) => model.id.threadRootId).join(',');
   const listMotion = useListMotion(

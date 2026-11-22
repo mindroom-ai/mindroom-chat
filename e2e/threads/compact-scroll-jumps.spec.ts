@@ -404,5 +404,12 @@ test.describe('Compact scroll jump regressions', () => {
     expect(after.y, `[${browserName}] scrollTop jumped ${before.y}->${after.y}`).toBeGreaterThan(
       before.y - 200
     );
+    const beforeMap = new Map(before.visible.map((r) => [r.key, r]));
+    const kept = after.visible.find((r) => beforeMap.has(r.key));
+    const shift = kept ? Math.abs(kept.top - beforeMap.get(kept.key)!.top) : 9999;
+    expect(
+      shift,
+      `[${browserName}] visible card moved ${shift.toFixed(1)}px (y: ${before.y}->${after.y})`
+    ).toBeLessThanOrEqual(2);
   });
 });

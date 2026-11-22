@@ -495,6 +495,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
 
 // The compact overview measures its cards when it saves its position; these
 // tests render none, so it saves the plain offset.
+vi.stubGlobal('getComputedStyle', () => ({}));
 const createCompactScrollElement = () => ({
   scrollTop: 0,
   getBoundingClientRect: () => ({ top: 0, bottom: 0 }),

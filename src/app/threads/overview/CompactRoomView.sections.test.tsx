@@ -9,7 +9,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
-import * as scrollFallback from './useCompactScrollFallback';
+import * as scrollAnchor from './useCompactScrollAnchor';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -576,7 +576,7 @@ describe('Compact order when the view switches under the pointer', () => {
   };
 
   it('starts a flat room in its live order and holds that order on the next update', () => {
-    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const fallback = vi.spyOn(scrollAnchor, 'useCompactScrollAnchor');
     const { rerender } = render(view(['$a', '$b'], false));
     hold();
     rerender(view(['$b', '$a'], false));
@@ -607,7 +607,7 @@ describe('Compact order when the view switches under the pointer', () => {
   });
 
   it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
-    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const fallback = vi.spyOn(scrollAnchor, 'useCompactScrollAnchor');
     state.sections = [
       { id: 'needsYou', rootIds: ['$a'] },
       { id: 'done', rootIds: ['$done'] },

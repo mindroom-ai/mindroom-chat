@@ -326,8 +326,9 @@ describe('CompactRoomView', () => {
         }
       }
     );
-    // The scroll element these tests give the view has no style to read.
+    // The scroll element these tests give the view has no style to read, and no window around it.
     vi.stubGlobal('getComputedStyle', () => ({}));
+    vi.stubGlobal('window', { addEventListener: () => {}, removeEventListener: () => {} });
     vi.clearAllMocks();
     useCompactThreadCardViewModelsMock.mockReturnValue([]);
     useToggleThreadResolutionMock.mockReturnValue({
