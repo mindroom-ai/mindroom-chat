@@ -198,13 +198,26 @@ describe('renderSchedulePrompt', () => {
   });
 
   it('does not treat a same-line triple-backtick span as a fenced block opener', () => {
-    const prompt = '```status```\n```sh\necho `date`\n```\nRun `check`';
+    const prompt = '```status```\n```\necho `date`\n```\nRun `check`';
     const { host, cleanup } = renderPrompt(prompt);
     try {
       expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
         'check',
       ]);
-      expect(host.textContent).toBe('```status```\n```sh\necho `date`\n```\nRun check');
+      expect(host.textContent).toBe('```status```\n```\necho `date`\n```\nRun check');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('preserves tilde-fenced code blocks verbatim', () => {
+    const prompt = '~~~sh\necho `date`\n~~~\nThen run `ok`';
+    const { host, cleanup } = renderPrompt(prompt);
+    try {
+      expect([...host.querySelectorAll('code.inline-code')].map((el) => el.textContent)).toEqual([
+        'ok',
+      ]);
+      expect(host.textContent).toBe('~~~sh\necho `date`\n~~~\nThen run ok');
     } finally {
       cleanup();
     }

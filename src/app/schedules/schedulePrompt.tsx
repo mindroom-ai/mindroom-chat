@@ -17,15 +17,16 @@ type PromptToken = {
 
 /**
  * Pass 1: splits the prompt line-by-line into fenced code blocks and plain text segments.
- * A line whose leading spaces/tabs are followed by >= 3 backticks opens a fence and closes only
- * on a subsequent line whose leading spaces/tabs are followed by at least that many backticks and
- * optional trailing spaces/tabs/CR (or runs to EOF if unclosed).
+ * A line whose leading spaces/tabs are followed by >= 3 backticks or tildes opens a fence and
+ * closes only on a subsequent line whose leading spaces/tabs are followed by at least that many of
+ * the same fence character and optional trailing spaces/tabs/CR (or runs to EOF if unclosed).
  */
 const splitFenceSegments = (prompt: string): PromptSegment[] => {
   const segments: PromptSegment[] = [];
   let textStart = 0;
   let inFence = false;
   let fenceStart = 0;
+  let fenceChar: '`' | '~' | '' = '';
   let fenceRunLen = 0;
   let pos = 0;
 
@@ -38,24 +39,33 @@ const splitFenceSegments = (prompt: string): PromptSegment[] => {
     while (cursor < lineContentEnd && (prompt[cursor] === ' ' || prompt[cursor] === '\t')) {
       cursor += 1;
     }
-    let ticksEnd = cursor;
-    while (ticksEnd < lineContentEnd && prompt[ticksEnd] === '`') {
-      ticksEnd += 1;
+    const ch = prompt[cursor];
+    const isMarker = ch === '`' || ch === '~';
+    let markerEnd = cursor;
+    if (isMarker) {
+      while (markerEnd < lineContentEnd && prompt[markerEnd] === ch) {
+        markerEnd += 1;
+      }
     }
-    const runLen = ticksEnd - cursor;
+    const runLen = markerEnd - cursor;
 
     if (!inFence) {
       // CommonMark §4.5: a backtick fence opener's info string cannot contain backticks.
-      if (runLen >= 3 && !prompt.slice(ticksEnd, lineContentEnd).includes('`')) {
+      if (
+        isMarker &&
+        runLen >= 3 &&
+        (ch === '~' || !prompt.slice(markerEnd, lineContentEnd).includes('`'))
+      ) {
         if (pos > textStart) {
           segments.push({ kind: 'text', text: prompt.slice(textStart, pos), offset: textStart });
         }
         inFence = true;
         fenceStart = pos;
+        fenceChar = ch;
         fenceRunLen = runLen;
       }
-    } else if (runLen >= fenceRunLen) {
-      let tail = ticksEnd;
+    } else if (ch === fenceChar && runLen >= fenceRunLen) {
+      let tail = markerEnd;
       while (
         tail < lineContentEnd &&
         (prompt[tail] === ' ' || prompt[tail] === '\t' || prompt[tail] === '\r')
@@ -69,6 +79,7 @@ const splitFenceSegments = (prompt: string): PromptSegment[] => {
           offset: fenceStart,
         });
         inFence = false;
+        fenceChar = '';
         fenceRunLen = 0;
         textStart = nextPos;
       }

@@ -94,7 +94,8 @@ export const FilterBar = style({
   display: 'flex',
   alignItems: 'center',
   flexWrap: 'wrap',
-  gap: config.space.S200,
+  rowGap: config.space.S300,
+  columnGap: config.space.S200,
   minWidth: 0,
 });
 
@@ -102,6 +103,7 @@ export const FilterPill = style([
   {
     display: 'inline-flex',
     alignItems: 'center',
+    minHeight: toRem(32),
     gap: toRem(6),
     paddingBlock: toRem(5),
     paddingInline: toRem(10),
@@ -123,7 +125,8 @@ export const FilterPill = style([
       },
     },
   },
-  touchTarget('4px', '', { blockReach: '10px' }),
+  // 32 px + 2 * 6 px = 44 px tall; 6 + 6 <= 12 px rowGap and 4 + 4 <= 8 px columnGap (zero overlap).
+  touchTarget('4px', '', { blockReach: '6px' }),
 ]);
 
 export const FilterPillActive = style({
@@ -420,7 +423,7 @@ export const PromptToggle = style([
     cursor: 'pointer',
     selectors: {
       '&:hover': {
-        opacity: 0.85,
+        textDecorationThickness: '2px',
       },
       '&:focus-visible': {
         outline: `2px solid ${color.Surface.OnContainer}`,
