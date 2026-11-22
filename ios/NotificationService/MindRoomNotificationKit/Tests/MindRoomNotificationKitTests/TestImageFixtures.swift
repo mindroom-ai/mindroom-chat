@@ -9,6 +9,8 @@ enum TestImageFixtures {
     static let sampleGIF: Data = makeImage(width: 1, height: 1, type: UTType.gif.identifier as CFString)
     static let sampleWebP: Data = Data(base64Encoded: "UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=")!
     static let large512PNG: Data = makeImage(width: 512, height: 512, type: UTType.png.identifier as CFString)
+    /// One pixel wider than `NotificationAvatarStore.maxImageDimension`.
+    static let wide2049PNG: Data = makeImage(width: 2049, height: 1, type: UTType.png.identifier as CFString)
 
     /// Minimal valid-header PNG claiming 5000x5000 pixel dimensions (decompression bomb header).
     static let bomb5000x5000PNG = Data([

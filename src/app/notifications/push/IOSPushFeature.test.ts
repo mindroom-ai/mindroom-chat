@@ -2,20 +2,28 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { KnownMembership, RoomMemberEvent, RoomStateEvent, UserEvent } from 'matrix-js-sdk';
+import {
+  KnownMembership,
+  RoomMemberEvent,
+  RoomStateEvent,
+  UserEvent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import {
   clearNativeNotificationAccount,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
 } from '../../native/nativeNotifications';
 import {
+  checkIOSPushPermission,
   disableIOSPushPusher,
   getOrCreateIOSPushProfileTag,
   registerIOSPush,
   setIOSPushEnabled,
   upsertIOSPushPusher,
+  type NativePushPermission,
 } from './iosPush';
-import { NativeIOSPushFeature } from './IOSPushFeature';
+import { collectJoinedMemberAvatars, NativeIOSPushFeature } from './IOSPushFeature';
 
 type RoomMemberStub = {
   userId: string;
@@ -24,33 +32,50 @@ type RoomMemberStub = {
 };
 
 type RoomStub = {
+  roomId: string;
   getMyMembership: () => string;
+  getLastActiveTimestamp?: () => number;
   getJoinedMembers: () => RoomMemberStub[];
 };
+
+type PushConfigStub = { appId: string; format: 'full' | 'event_id_only'; profileTag?: string };
+
+const joinedMember = (userId: string, mxcUrl: string | null = null): RoomMemberStub => ({
+  userId,
+  membership: KnownMembership.Join,
+  getMxcAvatarUrl: () => mxcUrl,
+});
 
 const state = vi.hoisted(() => {
   const listeners = new Map<string, Set<() => void>>();
   const storedTags = new Map<string, string>();
-  const pushConfig:
-    | { appId: string; format: 'full' | 'event_id_only'; profileTag?: string }
-    | undefined = {
-    appId: 'chat.example',
-    format: 'full',
-    profileTag: 'shared-deployment-profile-tag',
-  };
   const activeSession: { sessionId: string; accessToken?: string } | undefined = {
     sessionId: 's1',
     accessToken: 'session-token-v1',
   };
+  // Typed wider than their first values, which tests replace.
+  const push: { pushConfig: PushConfigStub | undefined; permission: NativePushPermission } = {
+    pushConfig: {
+      appId: 'chat.example',
+      format: 'full',
+      profileTag: 'shared-deployment-profile-tag',
+    },
+    permission: 'granted',
+  };
   return {
+    ...push,
     signInRequired: true,
     pushAllowed: true,
     pushEnabled: true,
-    pushConfig,
     hasCloudflareAccess: false,
     hasCompletedInitialSync: false,
     activeSession,
+    // A permission check that has not answered yet.
+    permissionPending: undefined as Promise<void> | undefined,
+    // Storage that is full or blocked: a new tag is handed out but not kept.
+    tagStorageFails: false,
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
+    onAppStateChange: undefined as ((appState: { isActive: boolean }) => void) | undefined,
     rooms: [] as RoomStub[],
     users: new Map<string, { avatarUrl?: string }>(),
     storedTags,
@@ -78,6 +103,17 @@ const state = vi.hoisted(() => {
   };
 });
 
+vi.mock('@capacitor/app', () => ({
+  App: {
+    addListener: vi.fn(
+      async (event: string, listener: (appState: { isActive: boolean }) => void) => {
+        if (event === 'appStateChange') state.onAppStateChange = listener;
+        return { remove: vi.fn(async () => undefined) };
+      }
+    ),
+  },
+}));
+
 vi.mock('@capacitor/push-notifications', () => ({
   PushNotifications: {
     addListener: vi.fn(async (event: string, listener: (token: { value: string }) => void) => {
@@ -88,7 +124,10 @@ vi.mock('@capacitor/push-notifications', () => ({
 }));
 
 vi.mock('./iosPush', () => ({
-  checkIOSPushPermission: vi.fn(async () => 'granted'),
+  checkIOSPushPermission: vi.fn(async () => {
+    await state.permissionPending;
+    return state.permission;
+  }),
   disableIOSPushPusher: vi.fn(async () => undefined),
   getStoredIOSPushProfileTag: vi.fn((sessionId?: string) =>
     sessionId ? state.storedTags.get(sessionId) : undefined
@@ -98,7 +137,7 @@ vi.mock('./iosPush', () => ({
     const existing = state.storedTags.get(key);
     if (existing) return existing;
     const tag = `tag-${key}`;
-    state.storedTags.set(key, tag);
+    if (!state.tagStorageFails) state.storedTags.set(key, tag);
     return tag;
   }),
   isNativeIOSPlatform: () => true,
@@ -129,6 +168,14 @@ vi.mock('../../matrix/session/useSessionStore', () => ({
 }));
 vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
+const agentRoom = (): RoomStub => ({
+  roomId: '!agents:private.example',
+  getMyMembership: () => KnownMembership.Join,
+  getJoinedMembers: () => [
+    joinedMember('@agent:private.example', 'mxc://private.example/agent-v1'),
+  ],
+});
+
 const mount = async () => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -153,7 +200,11 @@ describe('NativeIOSPushFeature', () => {
     state.hasCloudflareAccess = false;
     state.hasCompletedInitialSync = false;
     state.activeSession = { sessionId: 's1', accessToken: 'session-token-v1' };
+    state.permission = 'granted';
+    state.permissionPending = undefined;
+    state.tagStorageFails = false;
     state.onRegistration = undefined;
+    state.onAppStateChange = undefined;
     state.rooms = [];
     state.users.clear();
     state.storedTags.clear();
@@ -281,18 +332,7 @@ describe('NativeIOSPushFeature', () => {
   it('gates credential and avatar sync on push eligibility, clears on disable without minting a tag, and re-syncs when re-enabled', async () => {
     state.signInRequired = false;
     state.hasCompletedInitialSync = true;
-    state.rooms = [
-      {
-        getMyMembership: () => KnownMembership.Join,
-        getJoinedMembers: () => [
-          {
-            userId: '@agent:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => 'mxc://private.example/agent-v1',
-          },
-        ],
-      },
-    ];
+    state.rooms = [agentRoom()];
 
     // Push unconfigured with no stored tag: neither syncs nor mints a tag nor clears
     state.pushConfig = undefined;
@@ -328,48 +368,164 @@ describe('NativeIOSPushFeature', () => {
     renderer.unmount();
   });
 
+  it.each(['denied', 'prompt'] as const)(
+    'shares nothing with the notification extension while the iOS permission is %s, and clears what it has',
+    async (permission) => {
+      state.signInRequired = false;
+      state.hasCompletedInitialSync = true;
+      state.rooms = [agentRoom()];
+      state.permission = permission;
+      state.storedTags.set('s1', 'tag-s1');
+
+      const renderer = await mount();
+
+      expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+      expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+      renderer.unmount();
+    }
+  );
+
+  it('leaves the native account alone until the first permission check answers', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.storedTags.set('s1', 'tag-s1');
+    let answer: () => void = () => undefined;
+    state.permissionPending = new Promise((resolve) => {
+      answer = resolve;
+    });
+
+    const renderer = await mount();
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+
+    await act(async () => answer());
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it('shares nothing for event_id_only pushes, which name no sender, and clears what it has', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.pushConfig = { appId: 'chat.example', format: 'event_id_only' };
+    state.storedTags.set('s1', 'tag-s1');
+
+    const renderer = await mount();
+
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+
+    // Full pushes again: the account and its avatars are shared.
+    vi.mocked(clearNativeNotificationAccount).mockClear();
+    state.pushConfig = { appId: 'chat.example', format: 'full' };
+    await rerender(renderer);
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('follows the iOS permission when the app becomes active again', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.permission = 'prompt';
+
+    const renderer = await mount();
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+
+    // Allowed in iOS Settings (or in the system prompt) while the app was not active.
+    state.permission = 'granted';
+    const checksBefore = vi.mocked(checkIOSPushPermission).mock.calls.length;
+    await act(async () => state.onAppStateChange?.({ isActive: false }));
+    expect(checkIOSPushPermission).toHaveBeenCalledTimes(checksBefore);
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(syncNativeNotificationAccount).toHaveBeenCalledWith({
+      accountTag: 'tag-s1',
+      homeserverUrl: 'https://private.example',
+      userId: '@me:private.example',
+      accessToken: 'session-token-v1',
+    });
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
+      accountTag: 'tag-s1',
+      avatars: [
+        {
+          roomId: '!agents:private.example',
+          sender: '@agent:private.example',
+          mxcUrl: 'mxc://private.example/agent-v1',
+        },
+      ],
+    });
+
+    // Withdrawn in iOS Settings: the account and its avatars go.
+    vi.mocked(syncNativeNotificationAccount).mockClear();
+    vi.mocked(syncNativeNotificationAvatars).mockClear();
+    vi.mocked(clearNativeNotificationAccount).mockClear();
+    state.permission = 'denied';
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+
+    // Allowed once more: both are shared again, the avatars although they did not change.
+    state.permission = 'granted';
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it('shares nothing under a tag that storage did not keep, which sign-out could not clear', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.pushConfig = { appId: 'chat.example', format: 'full' };
+    state.tagStorageFails = true;
+
+    const renderer = await mount();
+
+    expect(getOrCreateIOSPushProfileTag).toHaveBeenCalledWith('s1');
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
   it('syncs joined member avatars after initial sync and debounces membership, room-state member, and avatar updates', async () => {
     vi.useFakeTimers();
     state.signInRequired = false;
     state.rooms = [
       {
+        roomId: '!one:private.example',
         getMyMembership: () => KnownMembership.Join,
         getJoinedMembers: () => [
-          {
-            userId: '@me:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => 'mxc://private.example/me',
-          },
-          {
-            userId: '@agent:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => null,
-          },
-          {
-            userId: '@bob:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => null,
-          },
+          joinedMember('@me:private.example', 'mxc://private.example/me'),
+          joinedMember('@agent:private.example'),
+          joinedMember('@bob:private.example'),
         ],
       },
       {
+        roomId: '!two:private.example',
         getMyMembership: () => KnownMembership.Join,
         getJoinedMembers: () => [
-          {
-            userId: '@agent:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => 'mxc://private.example/agent-v1',
-          },
+          joinedMember('@agent:private.example', 'mxc://private.example/agent-v1'),
         ],
       },
       {
+        roomId: '!left:private.example',
         getMyMembership: () => KnownMembership.Leave,
         getJoinedMembers: () => [
-          {
-            userId: '@left:private.example',
-            membership: KnownMembership.Join,
-            getMxcAvatarUrl: () => 'mxc://private.example/left',
-          },
+          joinedMember('@left:private.example', 'mxc://private.example/left'),
         ],
       },
     ];
@@ -380,13 +536,22 @@ describe('NativeIOSPushFeature', () => {
     state.hasCompletedInitialSync = true;
     await rerender(renderer);
 
+    // The agent's avatar in room two is not its avatar in room one, where it has none.
+    const agentInTwo = {
+      roomId: '!two:private.example',
+      sender: '@agent:private.example',
+      mxcUrl: 'mxc://private.example/agent-v1',
+    };
+    const agentInOne = {
+      roomId: '!one:private.example',
+      sender: '@agent:private.example',
+      mxcUrl: null,
+    };
+    const bobInOne = { roomId: '!one:private.example', sender: '@bob:private.example' };
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [
-        { sender: '@agent:private.example', mxcUrl: 'mxc://private.example/agent-v1' },
-        { sender: '@bob:private.example', mxcUrl: null },
-      ],
+      avatars: [agentInTwo, agentInOne, { ...bobInOne, mxcUrl: null }],
     });
 
     // Unchanged event should not re-invoke syncNativeNotificationAvatars
@@ -407,10 +572,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [
-        { sender: '@agent:private.example', mxcUrl: 'mxc://private.example/agent-v1' },
-        { sender: '@bob:private.example', mxcUrl: 'mxc://private.example/bob-v1' },
-      ],
+      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v1' }, agentInTwo, agentInOne],
     });
 
     // Avatar-only update emitted as RoomStateEvent.Members also triggers a debounced sync
@@ -423,12 +585,90 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [
-        { sender: '@agent:private.example', mxcUrl: 'mxc://private.example/agent-v1' },
-        { sender: '@bob:private.example', mxcUrl: 'mxc://private.example/bob-v2' },
-      ],
+      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v2' }, agentInTwo, agentInOne],
     });
 
     renderer.unmount();
+  });
+});
+
+describe('collectJoinedMemberAvatars', () => {
+  const collect = (rooms: RoomStub[]) =>
+    collectJoinedMemberAvatars({
+      getUserId: () => '@me:private.example',
+      getRooms: () => rooms,
+      getUser: () => null,
+    } as unknown as MatrixClient);
+
+  const room = (roomId: string, lastActive: number, members: RoomMemberStub[]): RoomStub => ({
+    roomId,
+    getMyMembership: () => KnownMembership.Join,
+    getLastActiveTimestamp: () => lastActive,
+    getJoinedMembers: () => members,
+  });
+
+  it('keeps the avatar a member has in each room, the most recently active room first', () => {
+    const avatars = collect([
+      room('!quiet:private.example', 100, [
+        joinedMember('@agent:private.example', 'mxc://private.example/agent-quiet'),
+      ]),
+      room('!busy:private.example', 300, [
+        joinedMember('@zoe:private.example', 'mxc://private.example/zoe'),
+        joinedMember('@agent:private.example', 'mxc://private.example/agent-busy'),
+        joinedMember('@me:private.example', 'mxc://private.example/me'),
+        joinedMember('@plain:private.example'),
+      ]),
+    ]);
+
+    expect(avatars).toEqual([
+      {
+        roomId: '!busy:private.example',
+        sender: '@agent:private.example',
+        mxcUrl: 'mxc://private.example/agent-busy',
+      },
+      {
+        roomId: '!busy:private.example',
+        sender: '@zoe:private.example',
+        mxcUrl: 'mxc://private.example/zoe',
+      },
+      {
+        roomId: '!quiet:private.example',
+        sender: '@agent:private.example',
+        mxcUrl: 'mxc://private.example/agent-quiet',
+      },
+      { roomId: '!busy:private.example', sender: '@plain:private.example', mxcUrl: null },
+    ]);
+  });
+
+  it('caps the list at 200 entries, keeping avatars of active rooms over the rest', () => {
+    const members = (prefix: string, count: number, withAvatar: boolean) =>
+      Array.from({ length: count }, (_, index) => {
+        const name = `${prefix}${String(index).padStart(3, '0')}`;
+        return joinedMember(
+          `@${name}:private.example`,
+          withAvatar ? `mxc://private.example/${name}` : null
+        );
+      });
+
+    const avatars = collect([
+      room('!older:private.example', 100, members('older', 120, true)),
+      room('!newer:private.example', 200, [
+        ...members('newer', 150, true),
+        ...members('plain', 100, false),
+      ]),
+      room('!oldest:private.example', 50, members('oldest', 10, true)),
+    ]);
+
+    expect(avatars).toHaveLength(200);
+    expect(avatars.every((avatar) => avatar.mxcUrl !== null)).toBe(true);
+    expect(avatars.filter((avatar) => avatar.roomId === '!newer:private.example')).toHaveLength(
+      150
+    );
+    expect(avatars.slice(150).map((avatar) => avatar.sender)).toEqual(
+      Array.from(
+        { length: 50 },
+        (_, index) => `@older${String(index).padStart(3, '0')}:private.example`
+      )
+    );
   });
 });

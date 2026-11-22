@@ -180,17 +180,17 @@ export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
   };
 };
 
-/**
- * The account's random push tag on this device. It is the pusher's `profile_tag` unless the
- * deployment configures one, and every push of the account carries it under
- * `IOS_PUSH_ACCOUNT_KEY`.
- */
 /** Reads the account's stored push tag without generating one if absent. */
 export const getStoredIOSPushProfileTag = (sessionId?: string): string | undefined => {
   const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
   return trimConfigValue(readStorage(storageKey));
 };
 
+/**
+ * The account's random push tag on this device. It is the pusher's `profile_tag` unless the
+ * deployment configures one, and every push of the account carries it under
+ * `IOS_PUSH_ACCOUNT_KEY`.
+ */
 export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
   const stored = getStoredIOSPushProfileTag(sessionId);
   if (stored) return stored;

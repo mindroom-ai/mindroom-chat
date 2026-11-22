@@ -7,7 +7,9 @@ export type NativeNotificationAccount = {
   accessToken?: string;
 };
 
+/** A member's avatar in one room, where it can differ from the member's avatar elsewhere. */
 export type NativeNotificationAvatarEntry = {
+  roomId: string;
   sender: string;
   mxcUrl: string | null;
 };

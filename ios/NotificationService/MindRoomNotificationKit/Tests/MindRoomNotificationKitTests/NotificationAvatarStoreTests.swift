@@ -45,8 +45,13 @@ final class NotificationAvatarStoreTests: XCTestCase {
         let truncatedPNG = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x01])
         XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@trunc:x", mxcUrl: "mxc://x/3", data: truncatedPNG))
 
-        // Decompression bomb header (5000x5000 exceeds 4096 max dimension / 16M pixels)
+        // Decompression bomb header (5000x5000 exceeds 2048 max dimension / 4M pixels)
         XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@bomb:x", mxcUrl: "mxc://x/4", data: TestImageFixtures.bomb5000x5000PNG))
+
+        // One pixel wider than the largest picture the extension may decode
+        XCTAssertEqual(TestImageFixtures.imageDimensions(of: TestImageFixtures.wide2049PNG)?.width, 2049)
+        XCTAssertFalse(NotificationAvatarStore.isValidImageData(TestImageFixtures.wide2049PNG))
+        XCTAssertFalse(store.storeAvatar(accountTag: "acct", sender: "@wide:x", mxcUrl: "mxc://x/6", data: TestImageFixtures.wide2049PNG))
 
         var oversized = TestImageFixtures.samplePNG
         oversized.append(Data(repeating: 0x00, count: NotificationAvatarStore.maxAvatarBytes))
@@ -57,6 +62,37 @@ final class NotificationAvatarStoreTests: XCTestCase {
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@trunc:x"))
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@bomb:x"))
         XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@big:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: "@wide:x"))
+    }
+
+    func testKeepsAMemberAvatarPerRoom() {
+        let store = NotificationAvatarStore(baseDirectory: tempDir)
+        let sender = "@agent:x"
+
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!a:x", sender: sender, mxcUrl: "mxc://x/in-a", data: TestImageFixtures.samplePNG))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!b:x", sender: sender, mxcUrl: "mxc://x/in-b", data: TestImageFixtures.sampleJPEG))
+
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: sender), TestImageFixtures.samplePNG)
+        XCTAssertEqual(store.cachedMxcUrl(accountTag: "acct", roomId: "!a:x", sender: sender), "mxc://x/in-a")
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", roomId: "!b:x", sender: sender), TestImageFixtures.sampleJPEG)
+        XCTAssertEqual(store.cachedMxcUrl(accountTag: "acct", roomId: "!b:x", sender: sender), "mxc://x/in-b")
+
+        // Another room, and a caller that names no room, get neither room's avatar.
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!c:x", sender: sender))
+        XCTAssertNil(store.cachedMxcUrl(accountTag: "acct", roomId: "!c:x", sender: sender))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", sender: sender))
+        XCTAssertNil(store.cachedMxcUrl(accountTag: "acct", sender: sender))
+
+        // The room and the sender do not run into each other.
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x@agent", sender: ":x"))
+
+        store.removeAvatar(accountTag: "acct", roomId: "!a:x", sender: sender)
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: sender))
+        XCTAssertNil(store.cachedMxcUrl(accountTag: "acct", roomId: "!a:x", sender: sender))
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", roomId: "!b:x", sender: sender), TestImageFixtures.sampleJPEG)
+
+        store.clearAccount(accountTag: "acct")
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!b:x", sender: sender))
     }
 
     func testDownsamplesLargeValidImageToMaxStoredPixelSize() throws {

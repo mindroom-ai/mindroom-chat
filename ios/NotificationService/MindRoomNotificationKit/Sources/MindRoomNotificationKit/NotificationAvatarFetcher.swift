@@ -2,55 +2,21 @@ import Foundation
 
 public typealias NotificationHTTPTransport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
-/// URLSession delegate that blocks redirects to any different origin so Bearer tokens never leak.
-public final class SameOriginRedirectDelegate: NSObject, URLSessionTaskDelegate, Sendable {
-    public override init() {
-        super.init()
-    }
-
-    public func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        guard let originalURL = task.originalRequest?.url,
-              let newURL = request.url,
-              NotificationAvatarFetcher.hasSameOrigin(originalURL, newURL) else {
-            completionHandler(nil)
-            return
-        }
-        completionHandler(request)
-    }
-}
-
 /// Fetches sender avatars from a Matrix homeserver for iOS Communication Notifications.
 public struct NotificationAvatarFetcher: Sendable {
     public static let defaultThumbnailSize = 128
     public static let maxProfileBytes = 64 * 1024
     public static let maxImageBytes = NotificationAvatarStore.maxAvatarBytes
 
-    private static let defaultSession: URLSession = {
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 6
-        config.timeoutIntervalForResource = 10
-        config.httpShouldSetCookies = false
-        config.httpCookieAcceptPolicy = .never
-        config.urlCache = nil
-        return URLSession(
-            configuration: config,
-            delegate: SameOriginRedirectDelegate(),
-            delegateQueue: nil
-        )
-    }()
-
     public static let shared = NotificationAvatarFetcher()
 
-    private static let pathSegmentAllowed = CharacterSet.alphanumerics
-        .union(CharacterSet(charactersIn: "-._~"))
-    private static let serverSegmentAllowed = CharacterSet.alphanumerics
-        .union(CharacterSet(charactersIn: "-._~:"))
+    // The unreserved characters of a URL, in ASCII only. `CharacterSet.alphanumerics` also holds the
+    // letters of every other script, which would stay unescaped, and `URLComponents` raises an
+    // exception on a `percentEncodedPath` that holds one.
+    private static let pathSegmentAllowed = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+    )
+    private static let serverSegmentAllowed = pathSegmentAllowed.union(CharacterSet(charactersIn: ":"))
 
     private let allowInsecureLocalhost: Bool
     private let customTransport: NotificationHTTPTransport?
@@ -176,6 +142,33 @@ public struct NotificationAvatarFetcher: Sendable {
         return (mxcUrl: mxcUrl, data: thumbnail)
     }
 
+    /// `fetchSenderAvatar` that gives up once `deadlineNanoseconds` have passed and cancels its
+    /// requests, so a slow homeserver holds a notification back no longer than that.
+    public func fetchSenderAvatar(
+        homeserverUrl: String,
+        accessToken: String,
+        sender: String,
+        deadlineNanoseconds: UInt64
+    ) async -> (mxcUrl: String, data: Data)? {
+        await withTaskGroup(of: Optional<(mxcUrl: String, data: Data)>.self) { group in
+            group.addTask {
+                await self.fetchSenderAvatar(
+                    homeserverUrl: homeserverUrl,
+                    accessToken: accessToken,
+                    sender: sender
+                )
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: deadlineNanoseconds)
+                return nil
+            }
+            // The first to end decides: the fetch (an avatar or none), or the deadline.
+            let first: (mxcUrl: String, data: Data)? = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+    }
+
     private func executeBounded(request: URLRequest, maxBytes: Int) async -> Data? {
         if let customTransport {
             guard let (data, response) = try? await customTransport(request),
@@ -187,39 +180,7 @@ public struct NotificationAvatarFetcher: Sendable {
             }
             return data
         }
-        return try? await Self.readBounded(request: request, maxBytes: maxBytes)
-    }
-
-    /// Streams the HTTP response incrementally and aborts as soon as `maxBytes` would be exceeded.
-    private static func readBounded(request: URLRequest, maxBytes: Int) async throws -> Data? {
-        let (bytes, response) = try await defaultSession.bytes(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            bytes.task.cancel()
-            return nil
-        }
-        if httpResponse.expectedContentLength > Int64(maxBytes) {
-            bytes.task.cancel()
-            return nil
-        }
-
-        let initialCapacity: Int
-        if httpResponse.expectedContentLength > 0 {
-            initialCapacity = min(Int(httpResponse.expectedContentLength), maxBytes)
-        } else {
-            initialCapacity = min(8 * 1024, maxBytes)
-        }
-
-        var buffer = Data()
-        buffer.reserveCapacity(initialCapacity)
-        for try await byte in bytes {
-            if buffer.count >= maxBytes {
-                bytes.task.cancel()
-                return nil
-            }
-            buffer.append(byte)
-        }
-        return buffer
+        return await NotificationHTTPClient.shared.data(for: request, maxBytes: maxBytes)
     }
 
     private struct ProfileAvatarResponse: Decodable {
@@ -275,9 +236,11 @@ public struct NotificationAvatarFetcher: Sendable {
         if !allowAtSign && segment.contains("@") {
             return false
         }
-        return !segment.unicodeScalars.contains { scalar in
-            CharacterSet.whitespacesAndNewlines.contains(scalar)
-                || CharacterSet.controlCharacters.contains(scalar)
+        // A Matrix server name and media ID are ASCII.
+        return segment.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII
+                && !CharacterSet.whitespacesAndNewlines.contains(scalar)
+                && !CharacterSet.controlCharacters.contains(scalar)
         }
     }
 

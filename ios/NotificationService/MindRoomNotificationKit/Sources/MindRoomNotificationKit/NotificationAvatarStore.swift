@@ -9,8 +9,9 @@ public final class NotificationAvatarStore: @unchecked Sendable {
     public static let appGroupId = "group.chat.mindroom.app"
     public static let maxAvatarBytes = 512 * 1024
     public static let maxEntriesPerAccount = 250
-    public static let maxImageDimension = 4096
-    public static let maxImagePixels = 16_777_216
+    // Far above any avatar. The extension has 24 MB in all, and a decoded pixel takes 4 bytes.
+    public static let maxImageDimension = 2048
+    public static let maxImagePixels = 4_194_304
     public static let maxStoredPixelSize = 256
 
     public static let shared = NotificationAvatarStore()
@@ -95,10 +96,15 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         return nil
     }
 
-    public func cachedAvatar(accountTag: String, sender: String) -> Data? {
+    // A member can have another avatar in each room, so an avatar is kept per account, room and
+    // sender: one room's avatar never shows on another room's notification. A caller that knows no
+    // room passes none, and reads only what was stored without one.
+
+    public func cachedAvatar(accountTag: String, roomId: String? = nil, sender: String) -> Data? {
         guard !accountTag.isEmpty, !sender.isEmpty else { return nil }
+        let key = Self.entryKey(roomId: roomId, sender: sender)
         return queue.sync {
-            let fileURL = avatarFileURL(accountTag: accountTag, sender: sender)
+            let fileURL = avatarFileURL(accountTag: accountTag, key: key)
             guard let data = try? Data(contentsOf: fileURL), Self.isValidImageData(data) else {
                 return nil
             }
@@ -106,21 +112,23 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         }
     }
 
-    public func cachedMxcUrl(accountTag: String, sender: String) -> String? {
+    public func cachedMxcUrl(accountTag: String, roomId: String? = nil, sender: String) -> String? {
         guard !accountTag.isEmpty, !sender.isEmpty else { return nil }
+        let key = Self.entryKey(roomId: roomId, sender: sender)
         return queue.sync {
-            let fileURL = avatarFileURL(accountTag: accountTag, sender: sender)
+            let fileURL = avatarFileURL(accountTag: accountTag, key: key)
             guard FileManager.default.fileExists(atPath: fileURL.path) else {
                 return nil
             }
             let manifest = loadManifest(accountTag: accountTag)
-            return manifest[sender]?.mxcUrl
+            return manifest[key]?.mxcUrl
         }
     }
 
     @discardableResult
     public func storeAvatar(
         accountTag: String,
+        roomId: String? = nil,
         sender: String,
         mxcUrl: String,
         data: Data
@@ -131,6 +139,7 @@ public final class NotificationAvatarStore: @unchecked Sendable {
               let sanitized = Self.validatedImageData(data) else {
             return false
         }
+        let key = Self.entryKey(roomId: roomId, sender: sender)
         return queue.sync {
             let accountDir = accountDirectory(for: accountTag)
             do {
@@ -138,15 +147,15 @@ public final class NotificationAvatarStore: @unchecked Sendable {
                     at: accountDir,
                     withIntermediateDirectories: true
                 )
-                let fileURL = avatarFileURL(accountTag: accountTag, sender: sender)
+                let fileURL = avatarFileURL(accountTag: accountTag, key: key)
                 try sanitized.write(to: fileURL, options: .atomic)
 
                 var manifest = loadManifest(accountTag: accountTag)
-                manifest[sender] = ManifestEntry(mxcUrl: mxcUrl, updatedAt: now())
+                manifest[key] = ManifestEntry(mxcUrl: mxcUrl, updatedAt: now())
 
                 if manifest.count > maxEntriesPerAccount {
                     let overflow = manifest.count - maxEntriesPerAccount
-                    let evictedSenders = manifest
+                    let evictedKeys = manifest
                         .sorted { lhs, rhs in
                             if lhs.value.updatedAt != rhs.value.updatedAt {
                                 return lhs.value.updatedAt < rhs.value.updatedAt
@@ -156,9 +165,9 @@ public final class NotificationAvatarStore: @unchecked Sendable {
                         .prefix(overflow)
                         .map(\.key)
 
-                    for evicted in evictedSenders {
+                    for evicted in evictedKeys {
                         manifest.removeValue(forKey: evicted)
-                        let evictedURL = avatarFileURL(accountTag: accountTag, sender: evicted)
+                        let evictedURL = avatarFileURL(accountTag: accountTag, key: evicted)
                         try? FileManager.default.removeItem(at: evictedURL)
                     }
                 }
@@ -171,14 +180,15 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         }
     }
 
-    public func removeAvatar(accountTag: String, sender: String) {
+    public func removeAvatar(accountTag: String, roomId: String? = nil, sender: String) {
         guard !accountTag.isEmpty, !sender.isEmpty else { return }
+        let key = Self.entryKey(roomId: roomId, sender: sender)
         queue.sync {
-            let fileURL = avatarFileURL(accountTag: accountTag, sender: sender)
+            let fileURL = avatarFileURL(accountTag: accountTag, key: key)
             try? FileManager.default.removeItem(at: fileURL)
 
             var manifest = loadManifest(accountTag: accountTag)
-            if manifest.removeValue(forKey: sender) != nil {
+            if manifest.removeValue(forKey: key) != nil {
                 try? saveManifest(manifest, accountTag: accountTag)
             }
         }
@@ -281,9 +291,16 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         baseDirectory.appendingPathComponent(Self.sha256Hex(accountTag), isDirectory: true)
     }
 
-    private func avatarFileURL(accountTag: String, sender: String) -> URL {
+    /// The name of an avatar's file and of its manifest entry. No Matrix ID holds a NUL, so the
+    /// room and the sender cannot run into each other.
+    private static func entryKey(roomId: String?, sender: String) -> String {
+        let room = roomId ?? ""
+        return sha256Hex("\(room)\0\(sender)")
+    }
+
+    private func avatarFileURL(accountTag: String, key: String) -> URL {
         accountDirectory(for: accountTag)
-            .appendingPathComponent("\(Self.sha256Hex(sender)).img", isDirectory: false)
+            .appendingPathComponent("\(key).img", isDirectory: false)
     }
 
     private func manifestFileURL(accountTag: String) -> URL {

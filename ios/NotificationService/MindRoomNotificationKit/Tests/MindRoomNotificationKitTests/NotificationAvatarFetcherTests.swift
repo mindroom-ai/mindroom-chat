@@ -28,6 +28,9 @@ final class NotificationAvatarFetcherTests: XCTestCase {
             "mxc://mindroom.chat/abc def",
             "mxc://mindroom.chat/abc%2fdef",
             "mxc://evil@mindroom.chat/abc",
+            "mxc://mindroom.chat/é",
+            "mxc://mindroom.chat/中",
+            "mxc://mïndroom.chat/abc",
         ]
         for uri in invalidUris {
             XCTAssertNil(NotificationAvatarFetcher.parseMxcUri(uri), "Expected invalid mxc URI: \(uri)")
@@ -110,6 +113,86 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         XCTAssertEqual(recorder.requests[1].value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
     }
 
+    func testNonASCIIMxcUrlIsRejectedAndNonASCIISenderIsPercentEncoded() async {
+        final class Recorder: @unchecked Sendable { var requests: [URLRequest] = [] }
+        let recorder = Recorder()
+        let fetcher = NotificationAvatarFetcher(transport: { request in
+            recorder.requests.append(request)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"avatar_url":"mxc://mindroom.chat/é"}"#.utf8), response)
+        })
+
+        // An unescaped letter outside ASCII in `URLComponents.percentEncodedPath` raises an exception.
+        let thumbnail = await fetcher.downloadThumbnail(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            mxcUrl: "mxc://mindroom.chat/é"
+        )
+        XCTAssertNil(thumbnail)
+        XCTAssertTrue(recorder.requests.isEmpty)
+
+        // The sender is escaped as UTF-8, and the avatar URL its profile names is refused.
+        let fetched = await fetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            sender: "@üser:mindroom.chat"
+        )
+        XCTAssertNil(fetched)
+        XCTAssertEqual(recorder.requests.count, 1)
+        let profileURL = recorder.requests.first?.url?.absoluteString
+        XCTAssertEqual(
+            profileURL,
+            "https://matrix.mindroom.chat/_matrix/client/v3/profile/%40%C3%BCser%3Amindroom.chat/avatar_url"
+        )
+        XCTAssertEqual(profileURL?.unicodeScalars.allSatisfy(\.isASCII), true)
+    }
+
+    func testFetchSenderAvatarGivesUpAtItsDeadlineAndCancelsTheRequest() async {
+        final class Flags: @unchecked Sendable { var cancelled = false }
+        let flags = Flags()
+        let slowFetcher = NotificationAvatarFetcher(transport: { request in
+            do {
+                try await Task.sleep(nanoseconds: 30_000_000_000)
+            } catch {
+                flags.cancelled = true
+                throw error
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"avatar_url":"mxc://mindroom.chat/avatar42"}"#.utf8), response)
+        })
+
+        let slowStart = Date()
+        let late = await slowFetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            sender: "@slow:mindroom.chat",
+            deadlineNanoseconds: 100_000_000
+        )
+        XCTAssertNil(late)
+        XCTAssertTrue(flags.cancelled)
+        XCTAssertLessThan(Date().timeIntervalSince(slowStart), 10)
+
+        // An answer before the deadline is returned without waiting the deadline out.
+        let fastFetcher = NotificationAvatarFetcher(transport: { request in
+            let url = request.url!
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            if url.path.contains("/_matrix/client/v3/profile/") {
+                return (Data(#"{"avatar_url":"mxc://mindroom.chat/avatar42"}"#.utf8), response)
+            }
+            return (TestImageFixtures.samplePNG, response)
+        })
+        let fastStart = Date()
+        let inTime = await fastFetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            sender: "@fast:mindroom.chat",
+            deadlineNanoseconds: 30_000_000_000
+        )
+        XCTAssertEqual(inTime?.mxcUrl, "mxc://mindroom.chat/avatar42")
+        XCTAssertEqual(inTime?.data, TestImageFixtures.samplePNG)
+        XCTAssertLessThan(Date().timeIntervalSince(fastStart), 10)
+    }
+
     func testRejectsOversizedProfileOversizedImageDecompressionBombAndNon200() async {
         // Profile JSON exceeding 64 KiB is rejected before downloading thumbnail
         let padded = String(repeating: " ", count: NotificationAvatarFetcher.maxProfileBytes + 1)
@@ -176,7 +259,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         XCTAssertNil(redirectResult)
     }
 
-    func testSameOriginCheckAndRedirectDelegateBlocksCrossOrigin() {
+    func testSameOriginCheckAndRedirectsKeepAuthorizationOnTheSameOriginOnly() {
         let base = URL(string: "https://matrix.mindroom.chat/_matrix/client/v1/media/thumbnail/a/b")!
         let sameOrigin = URL(string: "https://matrix.mindroom.chat:443/other")!
         let diffHost = URL(string: "https://evil.example/steal")!
@@ -188,10 +271,12 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         XCTAssertFalse(NotificationAvatarFetcher.hasSameOrigin(base, diffScheme))
         XCTAssertFalse(NotificationAvatarFetcher.hasSameOrigin(base, diffPort))
 
-        let delegate = SameOriginRedirectDelegate()
+        let delegate = NotificationHTTPSessionDelegate()
         let session = URLSession(configuration: .ephemeral)
         defer { session.invalidateAndCancel() }
-        let task = session.dataTask(with: URLRequest(url: base))
+        var originalRequest = URLRequest(url: base)
+        originalRequest.setValue("Bearer secret-token", forHTTPHeaderField: "Authorization")
+        let task = session.dataTask(with: originalRequest)
         let redirectResponse = HTTPURLResponse(url: base, statusCode: 302, httpVersion: nil, headerFields: nil)!
 
         var allowedCrossOrigin: URLRequest? = URLRequest(url: diffHost)
@@ -221,5 +306,7 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         }
         wait(for: [sameExp], timeout: 2)
         XCTAssertEqual(allowedSameOrigin?.url, sameOrigin)
+        // URLSession drops Authorization from the request it proposes; the same origin gets it back.
+        XCTAssertEqual(allowedSameOrigin?.value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
     }
 }

@@ -78,6 +78,10 @@ private final class DeliverySlot: @unchecked Sendable {
 }
 
 class NotificationService: UNNotificationServiceExtension {
+    /// How long an avatar that is not cached may hold a notification back: 3 seconds for both of
+    /// its requests together, since the notification may be a tool approval that waits for an answer.
+    private static let avatarFetchDeadlineNanoseconds: UInt64 = 3_000_000_000
+
     private let slotLock = NSLock()
     private var activeSlot: DeliverySlot?
 
@@ -163,14 +167,17 @@ class NotificationService: UNNotificationServiceExtension {
         var avatarData: Data?
 
         if let accountTag = resolvedAccount.accountTag {
+            // The sender's avatar in this room, which can differ from the one in another room.
             avatarData = NotificationAvatarStore.shared.cachedAvatar(
                 accountTag: accountTag,
+                roomId: payload.roomId,
                 sender: sender
             )
         }
 
         // On cache miss, fetch for this notification in memory only so the main app remains the sole
         // disk cache writer (prevents cross-process cache resurrection after account sign-out).
+        // Past the deadline the notification goes out without an avatar.
         if avatarData == nil,
            let credentials = resolvedAccount.credentials,
            let accessToken = credentials.accessToken,
@@ -179,7 +186,8 @@ class NotificationService: UNNotificationServiceExtension {
             if let fetched = await NotificationAvatarFetcher.shared.fetchSenderAvatar(
                 homeserverUrl: credentials.homeserverUrl,
                 accessToken: accessToken,
-                sender: sender
+                sender: sender,
+                deadlineNanoseconds: Self.avatarFetchDeadlineNanoseconds
             ) {
                 avatarData = fetched.data
             }

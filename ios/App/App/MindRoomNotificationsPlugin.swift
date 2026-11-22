@@ -3,6 +3,13 @@ import Capacitor
 import Foundation
 import MindRoomNotificationKit
 
+/// One joined member's avatar in one room; `mxcUrl` is nil for a member without one.
+private struct AvatarSyncEntry: Sendable {
+    let roomId: String
+    let sender: String
+    let mxcUrl: String?
+}
+
 /// Serializes per-account avatar sync tasks and generation counters so an in-flight download can
 /// never resurrect an account's cache directory after `clearAccount`.
 private final class AvatarSyncCoordinator: @unchecked Sendable {
@@ -22,7 +29,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
 
     func scheduleSync(
         accountTag: String,
-        entries: [(sender: String, mxcUrl: String?)]
+        entries: [AvatarSyncEntry]
     ) {
         lock.lock()
         let generation = accountGenerations[accountTag] ?? 0
@@ -59,7 +66,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
     private func removeAvatarIfCurrent(
         accountTag: String,
         generation: UInt64,
-        sender: String
+        entry: AvatarSyncEntry
     ) {
         lock.lock()
         defer { lock.unlock() }
@@ -67,13 +74,17 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
               KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
             return
         }
-        NotificationAvatarStore.shared.removeAvatar(accountTag: accountTag, sender: sender)
+        NotificationAvatarStore.shared.removeAvatar(
+            accountTag: accountTag,
+            roomId: entry.roomId,
+            sender: entry.sender
+        )
     }
 
     private func storeAvatarIfCurrent(
         accountTag: String,
         generation: UInt64,
-        sender: String,
+        entries: [AvatarSyncEntry],
         mxcUrl: String,
         data: Data
     ) {
@@ -83,20 +94,26 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
               KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
             return
         }
-        NotificationAvatarStore.shared.storeAvatar(
-            accountTag: accountTag,
-            sender: sender,
-            mxcUrl: mxcUrl,
-            data: data
-        )
+        for entry in entries {
+            NotificationAvatarStore.shared.storeAvatar(
+                accountTag: accountTag,
+                roomId: entry.roomId,
+                sender: entry.sender,
+                mxcUrl: mxcUrl,
+                data: data
+            )
+        }
     }
 
     private func performAvatarSync(
         accountTag: String,
         generation: UInt64,
-        entries: [(sender: String, mxcUrl: String?)]
+        entries: [AvatarSyncEntry]
     ) async {
-        var toDownload: [(sender: String, mxcUrl: String)] = []
+        // A member is listed once for each room, mostly with the same avatar: each avatar is
+        // downloaded once, for all the entries that show it.
+        var toDownload: [(mxcUrl: String, entries: [AvatarSyncEntry])] = []
+        var downloadIndex: [String: Int] = [:]
 
         for entry in entries {
             if Task.isCancelled || !isCurrentGeneration(accountTag: accountTag, generation: generation) {
@@ -106,15 +123,22 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
                 removeAvatarIfCurrent(
                     accountTag: accountTag,
                     generation: generation,
-                    sender: entry.sender
+                    entry: entry
                 )
                 continue
             }
             if NotificationAvatarStore.shared.cachedMxcUrl(
                 accountTag: accountTag,
+                roomId: entry.roomId,
                 sender: entry.sender
-            ) != mxcUrl {
-                toDownload.append((sender: entry.sender, mxcUrl: mxcUrl))
+            ) == mxcUrl {
+                continue
+            }
+            if let index = downloadIndex[mxcUrl] {
+                toDownload[index].entries.append(entry)
+            } else {
+                downloadIndex[mxcUrl] = toDownload.count
+                toDownload.append((mxcUrl: mxcUrl, entries: [entry]))
             }
         }
 
@@ -142,7 +166,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
                         generation: generation,
                         homeserverUrl: homeserverUrl,
                         accessToken: accessToken,
-                        sender: item.sender,
+                        entries: item.entries,
                         mxcUrl: item.mxcUrl
                     )
                 }
@@ -163,7 +187,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
                         generation: generation,
                         homeserverUrl: homeserverUrl,
                         accessToken: accessToken,
-                        sender: item.sender,
+                        entries: item.entries,
                         mxcUrl: item.mxcUrl
                     )
                 }
@@ -176,7 +200,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         generation: UInt64,
         homeserverUrl: String,
         accessToken: String,
-        sender: String,
+        entries: [AvatarSyncEntry],
         mxcUrl: String
     ) async {
         guard !Task.isCancelled,
@@ -194,7 +218,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         storeAvatarIfCurrent(
             accountTag: accountTag,
             generation: generation,
-            sender: sender,
+            entries: entries,
             mxcUrl: mxcUrl,
             data: data
         )
@@ -238,13 +262,14 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         let rawAvatars = call.getArray("avatars") as? [[String: Any]] ?? []
-        var entries: [(sender: String, mxcUrl: String?)] = []
+        var entries: [AvatarSyncEntry] = []
         entries.reserveCapacity(rawAvatars.count)
 
         for item in rawAvatars {
-            guard let sender = Self.trimmedNonEmpty(item["sender"] as? String) else { continue }
+            guard let roomId = Self.trimmedNonEmpty(item["roomId"] as? String),
+                  let sender = Self.trimmedNonEmpty(item["sender"] as? String) else { continue }
             let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String)
-            entries.append((sender: sender, mxcUrl: mxcUrl))
+            entries.append(AvatarSyncEntry(roomId: roomId, sender: sender, mxcUrl: mxcUrl))
         }
 
         coordinator.scheduleSync(accountTag: accountTag, entries: entries)

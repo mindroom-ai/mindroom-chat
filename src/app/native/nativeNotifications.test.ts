@@ -22,7 +22,10 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: vi.fn(() => plugin),
 }));
 
-const setAvailable = (available: boolean, platform: 'ios' | 'web' | 'android' = available ? 'ios' : 'web') => {
+const setAvailable = (
+  available: boolean,
+  platform: 'ios' | 'web' | 'android' = available ? 'ios' : 'web'
+) => {
   vi.mocked(Capacitor.isNativePlatform).mockReturnValue(available);
   vi.mocked(Capacitor.getPlatform).mockReturnValue(platform);
   vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(available);
@@ -51,7 +54,13 @@ describe('native notifications plugin', () => {
     });
     await syncNativeNotificationAvatars({
       accountTag: 'tag-1',
-      avatars: [{ sender: '@dev:mindroom.chat', mxcUrl: 'mxc://mindroom.chat/a1' }],
+      avatars: [
+        {
+          roomId: '!room:mindroom.chat',
+          sender: '@dev:mindroom.chat',
+          mxcUrl: 'mxc://mindroom.chat/a1',
+        },
+      ],
     });
     await clearNativeNotificationAccount('tag-1');
 
@@ -75,8 +84,17 @@ describe('native notifications plugin', () => {
     const avatarSync = {
       accountTag: 'tag-1',
       avatars: [
-        { sender: '@dev:mindroom.chat', mxcUrl: 'mxc://mindroom.chat/a1' },
-        { sender: '@none:mindroom.chat', mxcUrl: null },
+        {
+          roomId: '!room:mindroom.chat',
+          sender: '@dev:mindroom.chat',
+          mxcUrl: 'mxc://mindroom.chat/a1',
+        },
+        {
+          roomId: '!other:mindroom.chat',
+          sender: '@dev:mindroom.chat',
+          mxcUrl: 'mxc://mindroom.chat/a2',
+        },
+        { roomId: '!room:mindroom.chat', sender: '@none:mindroom.chat', mxcUrl: null },
       ],
     };
 
