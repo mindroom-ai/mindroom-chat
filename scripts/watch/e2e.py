@@ -24,6 +24,8 @@ app's log:
            answer in order, and the audio plays to its end (not run in an encrypted room: the script cannot
            encrypt the answer)
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
+  long_thread  a dedicated room with 4 short placeholder threads and 1 long thread (150 replies, each streamed
+           with 3 edits): verifies rows appear on first paint before hydration finishes
 
 It prints one line per scenario, PASS or FAIL with the reason, keeps screenshots in --out, and exits 1 on a failure.
 """
@@ -32,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import secrets
 import subprocess
 import sys
@@ -118,6 +121,13 @@ class Homeserver:
         _, body = self.call("GET", f"/_matrix/client/v3/rooms/{urllib.parse.quote(room)}/state", token=self.token)
         return body if isinstance(body, list) else []
 
+    def create_room(self, name: str, invite: list[str]) -> str:
+        status, body = self.call("POST", "/_matrix/client/v3/createRoom",
+                                 {"name": name, "preset": "private_chat", "invite": invite}, self.token)
+        if status != 200:
+            raise RuntimeError(f"creating room failed: {status} {body}")
+        return body["room_id"]
+
 
 def simctl(*args: str, check: bool = True) -> str:
     env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "DEVELOPER_DIR": DEVELOPER_DIR, "HOME": str(Path.home())}
@@ -170,7 +180,9 @@ def main() -> int:
     parser.add_argument("--room", required=True)
     parser.add_argument("--simulator", default="MindRoom Watch Spike")
     parser.add_argument("--out", default="/tmp/mindroom-watch-e2e")
+    parser.add_argument("--only", help="comma-separated subset of scenarios to run")
     args = parser.parse_args()
+    selected = set(args.only.split(",")) if args.only else None
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     server = Homeserver(args.homeserver, args.user, args.password)
@@ -178,11 +190,14 @@ def main() -> int:
     me = server.login()["user_id"]
     results = []
 
-    def scenario(name: str, hooks: dict[str, str], seconds: int, check, during=None) -> None:
-        before = {event["event_id"] for event in server.events(args.room)}
-        log = run_app(udid, args.app, server.credentials(), args.room, hooks, seconds, out, name,
+    def scenario(name: str, hooks: dict[str, str], seconds: int, check, during=None, room_id: str | None = None) -> None:
+        if selected is not None and name not in selected:
+            return
+        target_room = room_id or args.room
+        before = {event["event_id"] for event in server.events(target_room)}
+        log = run_app(udid, args.app, server.credentials(), target_room, hooks, seconds, out, name,
                       during and (lambda: during(before)))
-        new = [event for event in server.events(args.room) if event["event_id"] not in before]
+        new = [event for event in server.events(target_room) if event["event_id"] not in before]
         problem = check(new, log)
         results.append((name, problem))
         print(f"{'FAIL' if problem else 'PASS'} {name}{': ' + problem if problem else ''}", flush=True)
@@ -281,6 +296,86 @@ def main() -> int:
         scenario("listen", {"MINDROOM_WATCH_E2E_SEND_TEXT": "Tell me aloud", "MINDROOM_WATCH_E2E_OPEN": "newest",
                             "MINDROOM_WATCH_E2E_LISTEN": "voice"}, 90, listen, answer_by_voice)
     scenario("resolve", {"MINDROOM_WATCH_E2E_RESOLVE": "newest"}, 25, resolve)
+
+    if selected is None or "long_thread" in selected:
+        replier, replier_token = server.register(f"watch-e2e-long-{secrets.token_hex(4)}")
+        long_room = server.create_room("Watch Placeholder Room", [replier])
+        status, body = server.call("POST", f"/_matrix/client/v3/join/{urllib.parse.quote(long_room)}", {}, replier_token)
+        if status != 200:
+            raise RuntimeError(f"long_thread replier could not join room: {status} {body}")
+
+        # Seed 4 short placeholder threads + 1 long thread (150 replies, each streamed with 3 edits = 600 events).
+        for idx in range(1, 5):
+            r = server.send(long_room, {"msgtype": "m.text", "body": f"Placeholder topic {idx}"}, server.token)
+            server.send(long_room, {
+                "msgtype": "m.text", "body": f"Placeholder reply for topic {idx}",
+                "m.relates_to": {"rel_type": "m.thread", "event_id": r, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": r}},
+            }, replier_token)
+            server.send(long_room, {
+                "msgtype": "m.notice", "body": f"Sample Topic {idx}",
+                "io.mindroom.thread_summary": {"version": 1, "summary": f"Sample Topic {idx}"},
+                "m.relates_to": {"rel_type": "m.thread", "event_id": r, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": r}},
+            }, replier_token)
+
+        long_root = server.send(long_room, {"msgtype": "m.text", "body": "Long thread placeholder prompt"}, server.token)
+        server.send(long_room, {
+            "msgtype": "m.notice", "body": "Long Streamed Thread",
+            "io.mindroom.thread_summary": {"version": 1, "summary": "Long Streamed Thread"},
+            "m.relates_to": {"rel_type": "m.thread", "event_id": long_root, "is_falling_back": True,
+                             "m.in_reply_to": {"event_id": long_root}},
+        }, replier_token)
+
+        prev = long_root
+        for i in range(1, 151):
+            reply_id = server.send(long_room, {
+                "msgtype": "m.text", "body": f"Placeholder step {i}: starting…",
+                "io.mindroom.stream_status": "streaming",
+                "m.relates_to": {"rel_type": "m.thread", "event_id": long_root, "is_falling_back": True,
+                                 "m.in_reply_to": {"event_id": prev}},
+            }, replier_token)
+            for rev in (1, 2, 3):
+                final = rev == 3
+                body_text = (f"Placeholder step {i} of 150 complete." if final
+                             else f"Placeholder step {i}: draft {rev} with sample streaming text")
+                new_content = {"msgtype": "m.text", "body": body_text,
+                               "io.mindroom.stream_status": "completed" if final else "streaming"}
+                server.send(long_room, {
+                    "msgtype": "m.text", "body": f"* {body_text}",
+                    "m.new_content": new_content,
+                    "m.relates_to": {"rel_type": "m.replace", "event_id": reply_id},
+                }, replier_token)
+            prev = reply_id
+
+        def check_long_thread(_new, log):
+            lines = log.splitlines()
+            fp_idx = next((i for i, l in enumerate(lines) if "refresh first-paint " in l and "rows=5" in l), None)
+            if fp_idx is None:
+                fp_idx = next((i for i, l in enumerate(lines) if "refresh first-paint " in l and not "rows=0" in l), None)
+            if fp_idx is None:
+                return "no refresh first-paint log with rows > 0"
+            done_idx = next((i for i in range(fp_idx + 1, len(lines)) if "refresh done " in lines[i]), None)
+            if done_idx is None:
+                return "no refresh done log after first-paint"
+            fp_m = re.search(r"refresh first-paint (\d+)ms rows=(\d+) reqs=(\d+) bytes=(\d+)", lines[fp_idx])
+            done_m = re.search(r"refresh done (\d+)ms rows=(\d+) hydrated=(\d+) reqs=(\d+) bytes=(\d+)", lines[done_idx])
+            if not fp_m or not done_m:
+                return f"could not parse metrics: {lines[fp_idx]!r} / {lines[done_idx]!r}"
+            fp_ms, fp_rows, fp_reqs, fp_bytes = map(int, fp_m.groups())
+            done_ms, done_rows, done_hyd, done_reqs, done_bytes = map(int, done_m.groups())
+            print(f"  long_thread metrics: first-paint={fp_ms}ms rows={fp_rows} reqs={fp_reqs} bytes={fp_bytes} | "
+                  f"done={done_ms}ms rows={done_rows} hydrated={done_hyd} reqs={done_reqs} bytes={done_bytes}", flush=True)
+            if fp_rows < 5:
+                return f"expected >= 5 rows on first paint, got {fp_rows}"
+            if f"row {long_root} " not in log:
+                return f"long thread row {long_root} never appeared"
+            if fp_ms > done_ms:
+                return f"first paint ({fp_ms}ms) did not precede hydration completion ({done_ms}ms)"
+            return None
+
+        scenario("long_thread", {}, 25, check_long_thread, room_id=long_room)
+
     return 1 if any(problem for _, problem in results) else 0
 
 
