@@ -59,8 +59,8 @@ function List({
           ) : (
             <div
               key={`spacer:${row.key}`}
-              data-compact-spacer={row.key}
-              style={{ height: row.height }}
+              data-compact-spacer={row.height ? row.key : undefined}
+              style={row.height ? { height: row.height } : { height: 0, display: 'none' }}
             />
           )
         )}
@@ -105,7 +105,7 @@ beforeEach(() => {
       row instanceof HTMLElement;
       row = row.previousElementSibling
     ) {
-      top += getHeight(row) + gap;
+      if (row.style.display !== 'none') top += getHeight(row) + gap;
     }
     return new DOMRect(0, top, width, getHeight(this));
   });
@@ -139,17 +139,20 @@ it('measures the tail in blocks, then remounts evicted rows without shifting the
     expect(view.scrollTop).toBe(originally);
   };
   // One short + one tall + two gaps occupy exactly 199.25px.
-  const space = view.querySelector('[data-compact-spacer]');
+  const space = view.querySelector('[data-compact-spacer="cards:0"]');
   expect(space).not.toBeNull();
   around('$row60', 30 * 199.25);
-  // Keep the measured gap in flow during the commit: WebKit clamps the native offset
+  // Keep the measured gaps in flow during the commit: WebKit clamps the native offset
   // if React tears down the old spacer before placing its replacement.
-  expect(view.querySelector('[data-compact-spacer]')).toBe(space);
+  expect(view.querySelector('[data-compact-spacer="cards:0"]')).toBe(space);
+  const lead = view.querySelector('[data-compact-spacer="cards:lead"]');
+  expect(lead).not.toBeNull();
   act(() => {
     resize();
     vi.advanceTimersByTime(17);
   });
   around('$row24', 12 * 199.25);
+  expect(view.querySelector('[data-compact-spacer="cards:lead"]')).toBe(lead);
   around('$row0', 0);
   expect(view.querySelector('[data-scroll-anchor="$row60"]')).toBeNull();
 });
@@ -420,4 +423,19 @@ it('retains a native drag source through pointercancel and evicts it after drage
   first.dispatchEvent(new Event('dragend', { bubbles: true }));
   move(4300);
   expect(first.isConnected).toBe(false);
+});
+
+it('keeps a leading spacer mounted before the first leading eviction in a 3-block group', () => {
+  const memory = new Map();
+  const { container } = render(<List memory={memory} shown={{ cards: ids.slice(0, 36) }} />);
+  const view = container.querySelector<HTMLElement>('[data-view]')!;
+  tick(4);
+  const lead = view.querySelector<HTMLElement>('[style*="display: none"]');
+  expect(lead).not.toBeNull();
+  act(() => {
+    view.scrollTop = 13 * 199.25;
+    view.dispatchEvent(new Event('scroll'));
+  });
+  expect(view.querySelector('[data-compact-spacer="cards:lead"]')).toBe(lead);
+  expect(Number.parseFloat(lead!.style.height)).toBeGreaterThan(0);
 });

@@ -103,12 +103,14 @@ class CompactSpacer extends React.Component<SpacerProps> {
     const node = this.node.current;
     // Commit the larger measured gap to WebKit's layout before React removes the shells.
     if (node && height > row.height && !globalThis.CSS?.supports?.('overflow-anchor', 'auto')) {
+      node.style.display = '';
       node.style.height = `${height}px`;
       node.getBoundingClientRect();
     }
     return null;
   }
 
+  // Required by React so getSnapshotBeforeUpdate runs on updates.
   override componentDidUpdate = () => undefined;
 
   override render() {
@@ -117,9 +119,9 @@ class CompactSpacer extends React.Component<SpacerProps> {
       <div
         ref={this.node}
         aria-hidden
-        data-compact-spacer={key}
+        data-compact-spacer={height ? key : undefined}
         className={css.Spacer}
-        style={{ height }}
+        style={height ? { height } : { height: 0, display: 'none' }}
       />
     );
   }
