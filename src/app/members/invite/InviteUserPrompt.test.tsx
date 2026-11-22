@@ -114,6 +114,7 @@ type RoomOptions = {
   createSender?: string;
   members?: { userId: string; membership: string }[];
   membersLoaded?: boolean;
+  loadMembersIfNeeded?: () => Promise<boolean>;
 };
 
 const defaultPowerLevels = (): Record<string, unknown> => ({
@@ -178,8 +179,8 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
     isSpaceRoom: () => options.isSpace ?? false,
     membersLoaded: () => state.membersLoaded,
     getMember: (userId: string) => state.members.find((member) => member.userId === userId) ?? null,
-    getMembers: () => state.members,
-    loadMembersIfNeeded: vi.fn(async () => true),
+    getMembers: vi.fn(() => state.members),
+    loadMembersIfNeeded: vi.fn(options.loadMembersIfNeeded ?? (async () => true)),
     getLiveTimeline: () => ({
       getState: () => ({
         getStateEvents: (eventType: string) => {
@@ -521,27 +522,80 @@ describe('InviteUserPrompt', () => {
     expect(textContent(renderer, 'alert')).toContain('Forbidden');
   });
 
-  it('defaults moderator rights OFF while members are still loading, then flips ON once loaded', async () => {
+  it.each([
+    { label: 'human target', target: '@alice:example.org', options: {} },
+    { label: 'Space room', target: '@mindroom_helper:example.org', options: { isSpace: true } },
+    {
+      label: 'viewer who cannot grant',
+      target: '@mindroom_helper:example.org',
+      options: {
+        powerLevels: {
+          users: { '@me:example.org': 50 },
+          users_default: 0,
+          state_default: 50,
+          events: { 'm.room.power_levels': 100 },
+        },
+      },
+    },
+  ])('does not load or scan room members for $label', ({ target, options }) => {
+    const { renderer, room } = renderPrompt({ membersLoaded: false, ...options });
+    typeUserId(renderer, target);
+    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(room.getMembers).not.toHaveBeenCalled();
+  });
+
+  it('loads members lazily on eligible agent target, takes one snapshot after loading, and flips ON', async () => {
     let resolveLoad: (loaded: boolean) => void = () => undefined;
-    const { renderer, mx, room } = renderPrompt({ membersLoaded: false });
-    room.loadMembersIfNeeded.mockImplementation(
-      () => new Promise<boolean>((resolve) => (resolveLoad = resolve))
-    );
+    const loadPromise = new Promise<boolean>((resolve) => {
+      resolveLoad = resolve;
+    });
+    const { renderer, mx, room } = renderPrompt({
+      membersLoaded: false,
+      loadMembersIfNeeded: () => loadPromise,
+    });
+
+    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(room.getMembers).not.toHaveBeenCalled();
 
     typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(room.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
 
-    // Re-render after member loading completes with no moderator agent.
+    // Out-of-band membership events during hydration must not scan the roster repeatedly.
+    act(() => {
+      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+    });
+    expect(room.getMembers).not.toHaveBeenCalled();
+
+    // Resolving loadMembersIfNeeded settles the default with a single snapshot.
     room.state.membersLoaded = true;
     await act(async () => {
       resolveLoad(true);
       await Promise.resolve();
     });
-    // Emit a membership refresh as useRoomMembers does once loadMembersIfNeeded resolves.
+    expect(room.getMembers).toHaveBeenCalledTimes(1);
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+  });
+
+  it('allows explicit opt-in while room members are still loading', async () => {
+    const { renderer, mx, room } = renderPrompt({
+      membersLoaded: false,
+      loadMembersIfNeeded: () => new Promise<boolean>(() => undefined),
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    const checkbox = findModeratorCheckbox(renderer);
+    expect(checkbox?.props.checked).toBe(false);
     act(() => {
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
+      checkbox?.props.onClick();
     });
     expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+
+    await submitInvite(renderer);
+
+    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
   });
 
   it('derives the default from live state once a previous grant syncs and that agent leaves', async () => {
@@ -749,7 +803,50 @@ describe('InviteUserPrompt', () => {
     );
   });
 
-  it('uses the updated router level if it rises while invite is in flight', async () => {
+  it('allows granting in a v9 room whose unused string defaults are overridden by numeric levels', async () => {
+    const { renderer, mx, room } = renderPrompt({
+      powerLevels: {
+        state_default: '50',
+        users_default: '0',
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
+        users: { '@me:example.org': 100, '@mindroom_helper:example.org': 0 },
+      },
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
+
+    await submitInvite(renderer);
+
+    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
+  });
+
+  it.each([
+    {
+      label: 'effective string state_default when io.mindroom.router has no override',
+      powerLevels: {
+        state_default: '50',
+        users_default: 0,
+        events: { 'm.room.power_levels': 100 },
+        users: { '@me:example.org': 100 },
+      },
+    },
+    {
+      label: 'present string m.room.power_levels override despite numeric state_default',
+      powerLevels: {
+        state_default: 50,
+        users_default: 0,
+        events: { 'm.room.power_levels': '100', 'io.mindroom.router': 75 },
+        users: { '@me:example.org': 100 },
+      },
+    },
+  ])('still hides the checkbox for $label', ({ powerLevels }) => {
+    const { renderer } = renderPrompt({ powerLevels });
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    expect(findModeratorCheckbox(renderer)).toBeUndefined();
+  });
+
+  it('writes nothing and reports a changed requirement if the router level rises while invite is in flight', async () => {
     const { renderer, mx, room } = renderPrompt();
     vi.mocked(mx.invite).mockImplementationOnce(async () => {
       room.state.powerLevels = {
@@ -762,7 +859,106 @@ describe('InviteUserPrompt', () => {
     typeUserId(renderer, '@mindroom_helper:example.org');
     await submitInvite(renderer);
 
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
+    expect(mx.invite).toHaveBeenCalledTimes(1);
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(textContent(renderer, 'alert')).toContain('Team 75');
+  });
+
+  it('reports a changed requirement in a detached notice if the router level rises after the dialog closes', async () => {
+    let finishInvite: () => void = () => undefined;
+    const { renderer, mx, room, store } = renderPrompt();
+    vi.mocked(mx.invite).mockImplementationOnce(
+      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
+    );
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    act(() => {
+      getForm(renderer).props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+    });
+    act(() => {
+      renderer.unmount();
+    });
+
+    room.state.powerLevels = {
+      ...room.state.powerLevels,
+      events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
+    };
+    await act(async () => {
+      finishInvite();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(store.get(detachedGrantErrorAtom)?.message).toContain('@mindroom_helper:example.org');
+    expect(store.get(detachedGrantErrorAtom)?.message).toContain('Admin');
+  });
+
+  it('reports unreadable live power levels inline and after close instead of skipping silently', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    vi.mocked(mx.invite).mockImplementationOnce(async () => {
+      room.state.powerLevels = {
+        ...room.state.powerLevels,
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': '75' },
+      };
+      return {} as never;
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    await submitInvite(renderer);
+
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(textContent(renderer, 'alert')).toContain('@mindroom_helper:example.org');
+
+    let finishInvite: () => void = () => undefined;
+    const detached = renderPrompt();
+    vi.mocked(detached.mx.invite).mockImplementationOnce(
+      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
+    );
+    typeUserId(detached.renderer, '@mindroom_helper:example.org');
+    act(() => {
+      getForm(detached.renderer).props.onSubmit({
+        preventDefault: vi.fn(),
+        target: { reasonInput: { value: '' } },
+      });
+    });
+    act(() => {
+      detached.renderer.unmount();
+    });
+    detached.room.state.powerLevels = {
+      ...detached.room.state.powerLevels,
+      events: { 'm.room.power_levels': 100, 'io.mindroom.router': '75' },
+    };
+    await act(async () => {
+      finishInvite();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(detached.mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(detached.store.get(detachedGrantErrorAtom)?.message).toContain(
+      '@mindroom_helper:example.org'
+    );
+  });
+
+  it('uses the localized forbidden error if viewer loses permission while invite is in flight', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    vi.mocked(mx.invite).mockImplementationOnce(async () => {
+      room.state.powerLevels = {
+        ...room.state.powerLevels,
+        users: { '@me:example.org': 0 },
+      };
+      return {} as never;
+    });
+
+    typeUserId(renderer, '@mindroom_helper:example.org');
+    await submitInvite(renderer);
+
+    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    expect(textContent(renderer, 'alert')).toContain("You don't have permission to do this.");
   });
 
   it('renders and dismisses a detached grant failure notice', () => {
