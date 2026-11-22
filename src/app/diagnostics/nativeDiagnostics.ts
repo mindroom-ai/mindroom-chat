@@ -18,6 +18,7 @@ const EVENT_NAMES = new Set([
   'scene.foreground',
   'scene.inactive',
   'webview.terminated',
+  'webview.termination_reason',
 ]);
 
 const ERROR_DOMAINS = new Set(['url', 'webkit', 'cocoa', 'other']);
@@ -29,7 +30,16 @@ const BOOLEAN_DATA_KEYS = new Set([
   'opaque',
   'transparent',
 ]);
-const NUMBER_DATA_KEYS = new Set(['applicationState', 'errorCode', 'progress', 'sceneState']);
+const NUMBER_DATA_KEYS = new Set([
+  'applicationState',
+  'availableMemoryBytes',
+  'errorCode',
+  'msSinceMemoryWarning',
+  'progress',
+  'sceneState',
+]);
+const TERMINATION_REASON =
+  /^(memory|cpu|client|crash|shared_process_crash_limit|unknown\(-?\d{1,10}\))$/;
 
 type NativeDiagnosticData = {
   applicationState?: number;
@@ -43,6 +53,9 @@ type NativeDiagnosticData = {
   emptyBounds?: boolean;
   errorDomain?: 'url' | 'webkit' | 'cocoa' | 'other';
   errorCode?: number;
+  terminationReason?: string;
+  availableMemoryBytes?: number;
+  msSinceMemoryWarning?: number;
 };
 
 export type NativeDiagnosticEvent = {
@@ -119,6 +132,11 @@ const normalizeData = (value: unknown): NativeDiagnosticData | undefined => {
     } else if (key === 'errorDomain') {
       if (typeof item !== 'string' || !ERROR_DOMAINS.has(item)) {
         throw new Error('invalid native diagnostic error domain');
+      }
+      safeData[key] = item;
+    } else if (key === 'terminationReason') {
+      if (typeof item !== 'string' || !TERMINATION_REASON.test(item)) {
+        throw new Error('invalid native diagnostic termination reason');
       }
       safeData[key] = item;
     }

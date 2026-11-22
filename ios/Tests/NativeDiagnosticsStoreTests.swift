@@ -374,4 +374,30 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
         XCTAssertFalse(exported.contains("capacitor://"))
         XCTAssertFalse(exported.contains("localizedDescription"))
     }
+
+    func testTerminationReasonStateRoundTripsAndCountsAsNonEmpty() throws {
+        XCTAssertTrue(MindRoomDiagnosticState().isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(terminationReason: "memory").isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(availableMemoryBytes: 1_024).isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(msSinceMemoryWarning: 50).isEmpty)
+
+        let directory = try temporaryDirectory()
+        let firstStore = makeStore(directory: directory, sessionId: firstSession)
+        firstStore.record(
+            name: .webViewTerminationReason,
+            data: MindRoomDiagnosticState(
+                terminationReason: "memory",
+                availableMemoryBytes: 1_024,
+                msSinceMemoryWarning: 50
+            )
+        )
+        _ = firstStore.read()
+
+        let snapshot = makeStore(directory: directory, sessionId: secondSession).read()
+        let event = try XCTUnwrap(snapshot.events.first)
+        XCTAssertEqual(event.name, .webViewTerminationReason)
+        XCTAssertEqual(event.data?.terminationReason, "memory")
+        XCTAssertEqual(event.data?.availableMemoryBytes, 1_024)
+        XCTAssertEqual(event.data?.msSinceMemoryWarning, 50)
+    }
 }

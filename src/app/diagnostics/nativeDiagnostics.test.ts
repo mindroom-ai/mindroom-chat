@@ -122,6 +122,60 @@ describe('native diagnostics reader', () => {
     });
   });
 
+  it('passes valid WebContent termination reasons and memory headroom through', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    const event = (sequence: number, terminationReason: string) => ({
+      at: sequence,
+      monotonicMs: sequence,
+      sequence,
+      sessionId,
+      name: 'webview.termination_reason',
+      data: { terminationReason, availableMemoryBytes: 1024, msSinceMemoryWarning: 50 },
+    });
+    const validEvents = [event(1, 'memory'), event(2, 'unknown(7)'), event(3, 'unknown(-1)')];
+    nativePlugin.read.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: sessionId,
+      events: validEvents,
+      droppedEventCount: 0,
+    });
+
+    await expect(readDiagnostics()).resolves.toMatchObject({
+      status: 'available',
+      events: validEvents,
+    });
+  });
+
+  it.each(['secret free text', 'unknown(12345678901)'])(
+    'rejects invalid WebContent termination reason %s',
+    async (terminationReason) => {
+      vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+      vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+      nativePlugin.read.mockResolvedValue({
+        schemaVersion: 1,
+        status: 'available',
+        currentSessionId: sessionId,
+        events: [
+          {
+            at: 1,
+            monotonicMs: 1,
+            sequence: 1,
+            sessionId,
+            name: 'webview.termination_reason',
+            data: { terminationReason, availableMemoryBytes: 1024, msSinceMemoryWarning: 50 },
+          },
+        ],
+        droppedEventCount: 0,
+      });
+
+      await expect(readDiagnostics()).resolves.toMatchObject({ status: 'invalid' });
+    }
+  );
+
   it('accepts every event name declared by the Swift diagnostics store', async () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
