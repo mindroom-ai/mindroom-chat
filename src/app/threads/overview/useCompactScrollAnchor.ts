@@ -128,7 +128,8 @@ class BeforeCommit extends Component<{ read: () => void }> {
  * scroll anchoring loses its card or follows the thread, and the focus React puts back scrolls to
  * its card. Outside a commit (a card that grows by itself, the header's inset), a resize compares
  * with the cards as the last scroll left them, and only at the scroll offset they were read at:
- * another script that scrolled since has placed the list.
+ * another script that scrolled since has placed the list. Until that scroll's event has come, a
+ * commit leaves the list where the script put it as well.
  *
  * While the reader scrolls, WebKit scrolls on a thread of its own, and a write sets its scroll
  * back: the list is left as it is then, unless the commit itself scrolled it. Nothing is made up
@@ -145,6 +146,10 @@ export const useCompactScrollAnchor = (
   const cardsInViewRef = useRef<CardsInView>();
   // When the reader last scrolled (`performance.now()`).
   const scrolledAtRef = useRef(-Infinity);
+  // A scroll the hook did not make whose scroll event is still to come: the reader's, or another
+  // script's that is placing the list (the list reopening where it was left, which gives up at a
+  // scroll that is not its own).
+  const placedRef = useRef(false);
 
   const keepPlace = useCallback(
     (committed: boolean) => {
@@ -153,6 +158,7 @@ export const useCompactScrollAnchor = (
       const { rows: order, sectionOfRow: sectionOf } = latestRef.current;
       const before = cardsInViewRef.current;
       const stayed = view.scrollTop === before?.scrollTop;
+      if (!committed && !stayed) placedRef.current = true;
       if (before && before.scrollTop > 0 && (committed || stayed)) {
         const cards = [...view.querySelectorAll<HTMLElement>(ROWS)];
         const stationary =
@@ -166,7 +172,8 @@ export const useCompactScrollAnchor = (
           .find(({ card }) => card);
         const moved = anchor?.card ? rowTop(anchor.card) - anchor.top : 0;
         const scrolling = performance.now() - scrolledAtRef.current < SCROLL_SETTLE_MS;
-        if (Math.abs(moved) >= 0.5 && !(stayed && scrolling)) view.scrollTop += moved;
+        const left = stayed && (scrolling || placedRef.current);
+        if (Math.abs(moved) >= 0.5 && !left) view.scrollTop += moved;
       }
       cardsInViewRef.current = cardsInView(view, order);
     },
@@ -176,6 +183,7 @@ export const useCompactScrollAnchor = (
   const read = useCallback(() => {
     const view = viewRef.current;
     if (view && view.scrollTop !== cardsInViewRef.current?.scrollTop) {
+      placedRef.current = true;
       cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
     }
   }, [viewRef]);
@@ -193,6 +201,7 @@ export const useCompactScrollAnchor = (
       if (event.type !== 'scroll') scrolledAtRef.current = now;
       else {
         if (now - scrolledAtRef.current < SCROLL_SETTLE_MS) scrolledAtRef.current = now;
+        placedRef.current = false;
         cardsInViewRef.current = cardsInView(view, latestRef.current.rows);
       }
     };

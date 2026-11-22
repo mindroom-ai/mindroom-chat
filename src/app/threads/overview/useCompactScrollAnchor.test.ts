@@ -208,6 +208,33 @@ describe('useCompactScrollAnchor', () => {
     expect(view.scrollTop).toBe(250);
   });
 
+  it.each(['a commit', 'a resize'])(
+    "leaves the list where another script put it until that scroll's event has come (%s)",
+    (how) => {
+      const ids = ['$c', '$b', '$a'];
+      const { view, show, writes, rerender, resize } = list(ids, 150);
+      const change = (next: string[]) => {
+        if (how === 'a commit') {
+          rerender(next, () => show(next));
+          return;
+        }
+        // A resize before the change as well, as the list that reopens has one of its own.
+        resize();
+        show(next);
+        resize();
+      };
+      // The list reopens where it was left, and a card joins above before the scroll event.
+      view.scrollTop = 250;
+      writes.length = 0;
+      change(['$d', ...ids]);
+      expect(writes).toEqual([]);
+
+      view.dispatchEvent(new Event('scroll'));
+      change(['$e', '$d', ...ids]);
+      expect(writes).toEqual([350]);
+    }
+  );
+
   it.each([
     ['scrolls to the top (WebKit)', 0],
     ['follows the thread that sorted first, or the focus React puts back (Chromium)', 40],
