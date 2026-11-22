@@ -19,6 +19,7 @@ enum MindRoomDiagnosticEventName: String, Codable {
     case navigationFailed = "navigation.failed"
     case navigationProvisionalFailed = "navigation.provisional_failed"
     case webViewTerminated = "webview.terminated"
+    case webViewTerminationReason = "webview.termination_reason"
 }
 
 enum MindRoomDiagnosticErrorDomain: String, Codable {
@@ -40,6 +41,9 @@ struct MindRoomDiagnosticState: Codable, Equatable {
     var emptyBounds: Bool?
     var errorDomain: MindRoomDiagnosticErrorDomain?
     var errorCode: Int?
+    var terminationReason: String?
+    var availableMemoryBytes: Int?
+    var msSinceMemoryWarning: Int?
 
     init(
         applicationState: Int? = nil,
@@ -52,7 +56,10 @@ struct MindRoomDiagnosticState: Codable, Equatable {
         transparent: Bool? = nil,
         emptyBounds: Bool? = nil,
         errorDomain: MindRoomDiagnosticErrorDomain? = nil,
-        errorCode: Int? = nil
+        errorCode: Int? = nil,
+        terminationReason: String? = nil,
+        availableMemoryBytes: Int? = nil,
+        msSinceMemoryWarning: Int? = nil
     ) {
         self.applicationState = applicationState
         self.sceneState = sceneState
@@ -65,6 +72,9 @@ struct MindRoomDiagnosticState: Codable, Equatable {
         self.emptyBounds = emptyBounds
         self.errorDomain = errorDomain
         self.errorCode = errorCode
+        self.terminationReason = terminationReason
+        self.availableMemoryBytes = availableMemoryBytes
+        self.msSinceMemoryWarning = msSinceMemoryWarning
     }
 
     init(error: Error) {
@@ -85,11 +95,32 @@ struct MindRoomDiagnosticState: Codable, Equatable {
     var isEmpty: Bool {
         applicationState == nil && sceneState == nil && loading == nil && progress == nil &&
             attached == nil && hidden == nil && opaque == nil && transparent == nil &&
-            emptyBounds == nil && errorDomain == nil && errorCode == nil
+            emptyBounds == nil && errorDomain == nil && errorCode == nil &&
+            terminationReason == nil && availableMemoryBytes == nil && msSinceMemoryWarning == nil
+    }
+
+    static func isValidTerminationReason(_ value: String) -> Bool {
+        switch value {
+        case "memory", "cpu", "client", "crash", "shared_process_crash_limit":
+            return true
+        default:
+            guard value.hasPrefix("unknown("), value.hasSuffix(")") else {
+                return false
+            }
+            var inner = value.dropFirst("unknown(".count).dropLast()
+            if inner.first == "-" {
+                inner = inner.dropFirst()
+            }
+            return (1...19).contains(inner.count) && inner.allSatisfy { $0.isASCII && $0.isNumber }
+        }
     }
 
     var isValid: Bool {
-        progress?.isFinite ?? true
+        let safeRange = 0...MindRoomDiagnosticsStore.maximumSafeInteger
+        return (progress?.isFinite ?? true) &&
+            (terminationReason.map(Self.isValidTerminationReason) ?? true) &&
+            (availableMemoryBytes.map(safeRange.contains) ?? true) &&
+            (msSinceMemoryWarning.map(safeRange.contains) ?? true)
     }
 }
 
