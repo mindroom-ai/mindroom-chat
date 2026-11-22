@@ -782,6 +782,20 @@ final class ThreadSnapshotTests: XCTestCase {
         }
     }
 
+    func testACardPastItsDeadlineIsNotOfferedFromASnapshotReadBefore() {
+        let expiring = card("$card", 3, sender: agent, extra: ["expires_at": "1970-01-01T00:20:00Z"])
+        let read = ThreadSnapshot.build(root: voiceRoot, related: [expiring], ownUserId: me, now: now)
+        XCTAssertEqual(read.pendingApproval?.eventId, "$card")
+        XCTAssertEqual(read.at(now.addingTimeInterval(199)), read)
+        // The thread opens from the snapshot the list read, after the deadline and with no network: as the
+        // thread read at that time would say, the card is expired and nothing waits for the person.
+        let late = read.at(now.addingTimeInterval(200))
+        XCTAssertNil(late.pendingApproval)
+        XCTAssertEqual(late.approvals.map(\.status), [.expired])
+        XCTAssertNotEqual(late.rowState, .needsYou)
+        XCTAssertEqual(late, ThreadSnapshot.build(root: voiceRoot, related: [expiring], ownUserId: me, now: now.addingTimeInterval(200)))
+    }
+
     func testAnApprovalCardIsNeverAVoiceEcho() {
         // A card with an echo's marks stays a card: what a notification shows of it without the room's trust
         // is what the thread shows with it.
