@@ -166,7 +166,43 @@ describe('useCompactScrollFallback', () => {
     expect(view.scrollTop).toBe(250);
   });
 
-  it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
+  it('restores the cards in view when WebKit resets scrollTop to 0 during a reorder commit', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 250);
+    const { rerender } = renderHook(
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    // $f from below moves to the top, and WebKit resets scrollTop to 0 during React's insertBefore.
+    const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
+    show(live);
+    view.scrollTop = 0;
+    writes.length = 0;
+    rerender({ live });
+    expect(writes).toEqual([350]);
+    expect(view.scrollTop).toBe(350);
+  });
+
+  it('does not undo a reader wheel scroll to 0 just before a reorder commit', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 250);
+    const { rerender } = renderHook(
+      ({ live }) => useCompactScrollFallback(live, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    const live = ['$f', '$a', '$b', '$c', '$d', '$e'];
+    view.dispatchEvent(new Event('wheel'));
+    show(live);
+    view.scrollTop = 0;
+    writes.length = 0;
+    rerender({ live });
+    expect(writes).toEqual([]);
+    expect(view.scrollTop).toBe(0);
+  });
+
+    it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
     const { view, show, writes } = list(ids, 150);

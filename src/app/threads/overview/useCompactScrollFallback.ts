@@ -103,6 +103,9 @@ export const useCompactScrollFallback = (
   // The scroll listener needs the latest committed rows. This ref does not decide their order.
   const latestRowsRef = useRef(rows);
   const cardsInViewRef = useRef<CardsInView>();
+  // True between reader scroll input and the scroll event or commit that records it, so a real
+  // scroll to 0 is kept while WebKit's reset-to-0 during a DOM reorder is compensated.
+  const readerScrolledRef = useRef(false);
   // Every commit: a card's thread that loads above the view changes its height without an order
   // change.
   useLayoutEffect(() => {
@@ -111,7 +114,9 @@ export const useCompactScrollFallback = (
     // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
     if (!view || browserAnchorsScroll()) return;
     const before = cardsInViewRef.current;
-    if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
+    const webkitReset =
+      !!before && view.scrollTop === 0 && before.order !== rows && !readerScrolledRef.current;
+    if (before && before.scrollTop > 0 && (view.scrollTop === before.scrollTop || webkitReset)) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const stationary =
         before.order === rows ? undefined : stationaryRows(before.order, rows, sectionOfRow);
@@ -125,17 +130,34 @@ export const useCompactScrollFallback = (
       const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
       if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
+    readerScrolledRef.current = false;
     cardsInViewRef.current = cardsInView(view, rows);
   });
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || browserAnchorsScroll()) return undefined;
+    const markReaderScroll = () => {
+      readerScrolledRef.current = true;
+    };
     const record = () => {
+      readerScrolledRef.current = false;
       cardsInViewRef.current = cardsInView(view, latestRowsRef.current);
     };
     view.addEventListener('scroll', record, { passive: true });
-    return () => view.removeEventListener('scroll', record);
+    view.addEventListener('wheel', markReaderScroll, { passive: true });
+    view.addEventListener('touchstart', markReaderScroll, { passive: true });
+    view.addEventListener('touchmove', markReaderScroll, { passive: true });
+    view.addEventListener('keydown', markReaderScroll, true);
+    view.addEventListener('pointerdown', markReaderScroll, true);
+    return () => {
+      view.removeEventListener('scroll', record);
+      view.removeEventListener('wheel', markReaderScroll);
+      view.removeEventListener('touchstart', markReaderScroll);
+      view.removeEventListener('touchmove', markReaderScroll);
+      view.removeEventListener('keydown', markReaderScroll, true);
+      view.removeEventListener('pointerdown', markReaderScroll, true);
+    };
   }, [viewRef]);
 };
 
