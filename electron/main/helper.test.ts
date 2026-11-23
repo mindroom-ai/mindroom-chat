@@ -101,8 +101,11 @@ describe('parseFrontOutput', () => {
     expect(parseFrontOutput('{"pid":123,"windowId":null}')).toEqual({ pid: 123, windowId: null });
   });
 
+  it('returns undefined when front reports no frontmost app', () => {
+    expect(parseFrontOutput('{"pid":null,"windowId":null}')).toBeUndefined();
+  });
+
   it.each([
-    '{"pid":null,"windowId":null}',
     '{"pid":0,"windowId":1}',
     '{"pid":-5,"windowId":1}',
     '{"pid":1.5,"windowId":1}',
@@ -112,14 +115,17 @@ describe('parseFrontOutput', () => {
     '[]',
     'null',
     'not-json',
-  ])('rejects invalid front output: %s', (raw) => {
-    expect(parseFrontOutput(raw)).toBeUndefined();
+  ])('returns FAILED for malformed front output: %s', (raw) => {
+    expect(parseFrontOutput(raw)).toBe('FAILED');
   });
 });
 
 describe('mapHelperError', () => {
-  it('maps known exit-2 codes and trims whitespace', () => {
+  it('maps known exit-2 codes from the last line and trims whitespace', () => {
     expect(mapHelperError(2, 'PERMISSION_DENIED\n', false)).toBe('PERMISSION_DENIED');
+    expect(mapHelperError(2, 'framework warning\nPERMISSION_DENIED\n', false)).toBe(
+      'PERMISSION_DENIED'
+    );
     expect(mapHelperError(2, ' NO_WINDOW ', false)).toBe('NO_WINDOW');
     expect(mapHelperError(2, 'UNSUPPORTED', false)).toBe('UNSUPPORTED');
     expect(mapHelperError(2, 'CAPTURE_FAILED', false)).toBe('CAPTURE_FAILED');
@@ -134,7 +140,7 @@ describe('mapHelperError', () => {
 });
 
 describe('createScreenshotHelper', () => {
-  it('reads front target with FRONT_TIMEOUT_MS and returns undefined on failure', async () => {
+  it('reads front target with FRONT_TIMEOUT_MS and returns FAILED on lookup error', async () => {
     const exec = vi.fn<ExecFileFn>().mockResolvedValueOnce(okResult('{"pid":42,"windowId":7}\n'));
     const helper = createScreenshotHelper('/bin/helper', exec);
 
@@ -150,10 +156,20 @@ describe('createScreenshotHelper', () => {
       stderr: '',
       timedOut: false,
     });
-    await expect(helper.readFrontTarget()).resolves.toBeUndefined();
+    await expect(helper.readFrontTarget()).resolves.toBe('FAILED');
 
     exec.mockRejectedValueOnce(new Error('spawn failed'));
-    await expect(helper.readFrontTarget()).resolves.toBeUndefined();
+    await expect(helper.readFrontTarget()).resolves.toBe('FAILED');
+  });
+
+  it('returns CAPTURE_FAILED without spawning when front lookup failed', async () => {
+    const exec = vi.fn<ExecFileFn>();
+    const helper = createScreenshotHelper('/bin/helper', exec);
+    await expect(helper.captureWindow('FAILED')).resolves.toEqual({
+      ok: false,
+      code: 'CAPTURE_FAILED',
+    });
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it('returns NO_WINDOW without spawning when captureWindow has no target or null windowId', async () => {

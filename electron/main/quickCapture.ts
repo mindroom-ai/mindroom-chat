@@ -1,5 +1,5 @@
 import { app, BrowserWindow, screen } from 'electron';
-import type { FrontTarget } from './helper';
+import type { FrontTargetLookup } from './helper';
 import { attachContextMenu } from './mainWindow';
 import { guardWebContents, isQuickCaptureUrl } from './security';
 import {
@@ -30,7 +30,7 @@ export type QuickCaptureOptions = {
   isMainWindowVisible: () => boolean;
   screenshotHelper?: {
     available: boolean;
-    readFrontTarget(): Promise<FrontTarget | undefined>;
+    readFrontTarget(): Promise<FrontTargetLookup>;
   };
 };
 
@@ -39,7 +39,7 @@ export type QuickCaptureHandle = {
   hide(): void;
   contents(): Electron.WebContents | undefined;
   flushState(): void;
-  frontTarget(): FrontTarget | undefined;
+  frontTarget(): FrontTargetLookup;
   displayId(): number | undefined;
 };
 
@@ -48,7 +48,7 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
   let ready = false;
   let pendingShow = false;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
-  let lastFrontTarget: FrontTarget | undefined;
+  let lastFrontTarget: FrontTargetLookup;
   let toggleSeq = 0;
 
   const getWindow = (): BrowserWindow | undefined => (win && !win.isDestroyed() ? win : undefined);
@@ -192,7 +192,7 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
     const seq = ++toggleSeq;
     void helper
       .readFrontTarget()
-      .catch(() => undefined)
+      .catch(() => 'FAILED' as const)
       .then((target) => {
         if (seq !== toggleSeq) return;
         lastFrontTarget = target;

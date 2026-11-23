@@ -40,8 +40,8 @@ build_screenshot_helper() {
   local helper_src="electron/native/helper.swift"
   local helper_out="build/electron/mindroom-screenshot-helper"
   local arm64_bin x64_bin sdk
-  sdk=$(xcrun --show-sdk-path)
-  [[ -n "$sdk" ]] || die "xcrun --show-sdk-path returned an empty SDK path"
+  sdk=$(xcrun --sdk macosx --show-sdk-path)
+  [[ -n "$sdk" ]] || die "xcrun --sdk macosx --show-sdk-path returned an empty SDK path"
   local flags=(
     -O
     -sdk "$sdk"
@@ -54,8 +54,8 @@ build_screenshot_helper() {
   helper_scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-helper-build.XXXXXX")
   arm64_bin="$helper_scratch/helper-arm64"
   x64_bin="$helper_scratch/helper-x64"
-  swiftc "${flags[@]}" -target arm64-apple-macos13.0 "$helper_src" -o "$arm64_bin"
-  swiftc "${flags[@]}" -target x86_64-apple-macos13.0 "$helper_src" -o "$x64_bin"
+  swiftc "${flags[@]}" -target arm64-apple-macosx13.0 "$helper_src" -o "$arm64_bin"
+  swiftc "${flags[@]}" -target x86_64-apple-macosx13.0 "$helper_src" -o "$x64_bin"
   mkdir -p "$(dirname "$helper_out")"
   lipo -create "$arm64_bin" "$x64_bin" -output "$helper_out"
   chmod 755 "$helper_out"

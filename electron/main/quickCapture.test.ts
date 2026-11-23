@@ -246,7 +246,7 @@ describe('createQuickCapture', () => {
     readFrontTarget.mockRejectedValueOnce(new Error('boom'));
     qc.toggle();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(qc.frontTarget()).toBeUndefined();
+    expect(qc.frontTarget()).toBe('FAILED');
     expect(panel.show).toHaveBeenCalledTimes(3);
   });
 });

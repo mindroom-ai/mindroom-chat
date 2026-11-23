@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Result } from './ipc';
 
 export type FrontTarget = { pid: number; windowId: number | null };
+export type FrontTargetLookup = FrontTarget | 'FAILED' | undefined;
 export type ScreenshotTarget = 'window' | 'screen';
 export type ScreenshotErrorCode =
   | 'PERMISSION_DENIED'
@@ -38,8 +39,8 @@ export type ExecFileFn = (
 ) => Promise<ExecFileResult>;
 
 export type ScreenshotHelper = {
-  readFrontTarget(): Promise<FrontTarget | undefined>;
-  captureWindow(target: FrontTarget | undefined): Promise<Result<ScreenshotPayload>>;
+  readFrontTarget(): Promise<FrontTargetLookup>;
+  captureWindow(target: FrontTargetLookup): Promise<Result<ScreenshotPayload>>;
   captureScreen(displayId: number, ownPid: number): Promise<Result<ScreenshotPayload>>;
 };
 
@@ -68,21 +69,22 @@ export const formatScreenshotName = (date = new Date()): string => {
   return `Screenshot ${year}-${month}-${day} ${hour}.${minute}.${second}.png`;
 };
 
-export const parseFrontOutput = (stdout: string): FrontTarget | undefined => {
+export const parseFrontOutput = (stdout: string): FrontTargetLookup => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);
   } catch {
-    return undefined;
+    return 'FAILED';
   }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return 'FAILED';
   const { pid, windowId } = parsed as { pid?: unknown; windowId?: unknown };
-  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return undefined;
+  if (pid === null && windowId === null) return undefined;
+  if (typeof pid !== 'number' || !Number.isInteger(pid) || pid <= 0) return 'FAILED';
   if (
     windowId !== null &&
     (typeof windowId !== 'number' || !Number.isInteger(windowId) || windowId < 0)
   ) {
-    return undefined;
+    return 'FAILED';
   }
   return { pid, windowId };
 };
@@ -93,8 +95,8 @@ export const mapHelperError = (
   timedOut: boolean
 ): ScreenshotErrorCode => {
   if (timedOut || exitCode !== 2) return 'CAPTURE_FAILED';
-  const trimmed = stderr.trim();
-  return ERROR_CODES.find((code) => code === trimmed) ?? 'CAPTURE_FAILED';
+  const lastLine = stderr.trim().split(/\r?\n/).pop()?.trim() ?? '';
+  return ERROR_CODES.find((code) => code === lastLine) ?? 'CAPTURE_FAILED';
 };
 
 const defaultExecFile: ExecFileFn = (file, args, options) =>
@@ -150,19 +152,20 @@ export const createScreenshotHelper = (
   };
 
   return {
-    async readFrontTarget(): Promise<FrontTarget | undefined> {
+    async readFrontTarget(): Promise<FrontTargetLookup> {
       try {
         const res = await exec(helperPath, ['front'], {
           timeout: FRONT_TIMEOUT_MS,
           maxBuffer: 64 * 1024,
         });
-        if (res.timedOut || res.exitCode !== 0) return undefined;
+        if (res.timedOut || res.exitCode !== 0) return 'FAILED';
         return parseFrontOutput(res.stdout.toString('utf8'));
       } catch {
-        return undefined;
+        return 'FAILED';
       }
     },
-    async captureWindow(target: FrontTarget | undefined): Promise<Result<ScreenshotPayload>> {
+    async captureWindow(target: FrontTargetLookup): Promise<Result<ScreenshotPayload>> {
+      if (target === 'FAILED') return { ok: false, code: 'CAPTURE_FAILED' };
       if (!target || target.windowId === null) return { ok: false, code: 'NO_WINDOW' };
       return capture(['window', '--pid', String(target.pid), '--window', String(target.windowId)]);
     },
