@@ -278,6 +278,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   const directUsers = useDirectUsers();
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(new Set<string>());
   const noteRef = useRef('');
@@ -324,6 +325,19 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
       room.removeListener(RoomEvent.Summary, bumpRoster);
     };
   }, [client, room, bumpRoster]);
+
+  // Keep a focused input (e.g. the invite note at the foot) visible when the mobile keyboard shrinks Body.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      const focused = document.activeElement;
+      if (focused?.tagName !== 'INPUT' || !body.contains(focused)) return;
+      focused.scrollIntoView({ block: 'nearest' });
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, []);
 
   const roomGrantOffer = evaluateRoomModeratorGrant(room, me, levels, creators);
   const roomGrantLevel = roomGrantOffer.kind === 'grant' ? roomGrantOffer.level : undefined;
@@ -483,7 +497,10 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   }
   const activeHint = nonInvitableHint ?? enterHint;
   const totalVisibleRows = rowGroups.reduce((sum, g) => sum + g.rows.length, 0);
-  const isDirectoryLoading = !isSearching && cache.status === 'loading' && totalVisibleRows === 0;
+  const isDirectoryLoading =
+    !isSearching &&
+    (cache.status === 'idle' || cache.status === 'loading') &&
+    totalVisibleRows === 0;
   const directoryFailed = !isSearching && cache.status === 'error';
 
   const setAttemptState = (userId: string, state: AttemptState) =>
@@ -665,7 +682,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
               </Button>
             </Header>
 
-            <div className={css.Body}>
+            <div ref={bodyRef} className={css.Body}>
               <div className={css.Controls}>
                 <Input
                   ref={inputRef}

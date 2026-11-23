@@ -221,6 +221,10 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
   const dialog = await openInvite(page, seeded);
   await expect(dialog.locator('li')).toHaveCount(8, { timeout: 30_000 });
 
+  await dialog.getByRole('button', { name: '+ Add invite note' }).click();
+  const noteInput = dialog.getByLabel('Optional invite message');
+  await noteInput.focus();
+
   await page.evaluate(([visible, top]) => window.__setKeyboardViewport?.(visible, top, 'resize'), [
     KEYBOARD_HEIGHT,
     KEYBOARD_OFFSET_TOP,
@@ -234,6 +238,16 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
   const bounds = await box(dialog);
   expect(bounds.y).toBeGreaterThanOrEqual(KEYBOARD_OFFSET_TOP - 1);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(KEYBOARD_OFFSET_TOP + KEYBOARD_HEIGHT + 1);
+  // Focused invite note must scroll back into view when the keyboard shrinks the body.
+  await expect
+    .poll(async () => {
+      const noteBounds = await box(noteInput);
+      return (
+        noteBounds.y >= bounds.y - 1 &&
+        noteBounds.y + noteBounds.height <= bounds.y + bounds.height + 1
+      );
+    })
+    .toBe(true);
 
   await page.evaluate(
     (fullHeight) => window.__setKeyboardViewport?.(fullHeight, 0, 'resize'),
