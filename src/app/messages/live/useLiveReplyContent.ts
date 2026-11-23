@@ -12,6 +12,8 @@ import {
   type ToolTraceEvent,
 } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
+import { parseToolRefText } from '../html/blocks';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
 
@@ -168,16 +170,60 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
 };
 
 /**
- * Whether the streaming durable reply is an earlier state of the live Markdown `md`: its body, or
- * the thinking placeholder, that `md` grew from. Progress edits and frames show the same text.
+ * `text` without its tool marker lines, as the backend takes them out of the text it sends: each
+ * goes with the blank line after it, and the markers that end the text with the one before them.
  */
-const isEarlierState = (event: MatrixEvent, content: IContent, md: string): boolean => {
+const withoutToolMarkerLines = (text: string): string => {
+  const kept: string[] = [];
+  let afterMarker = false;
+  let lastMarkerAt = -1;
+  text.split('\n').forEach((line) => {
+    const marker = line === line.trim() && parseToolRefText(line) !== undefined;
+    if (marker) lastMarkerAt = kept.length;
+    else if (line || !afterMarker) kept.push(line);
+    afterMarker = marker;
+  });
+  if (lastMarkerAt === kept.length && kept[kept.length - 1] === '') kept.pop();
+  return kept.join('\n');
+};
+
+/**
+ * Whether the streaming durable reply is an earlier state of the frame the row showed last: its
+ * text, or the thinking placeholder, that the frame's Markdown grew from. A checkpoint says only
+ * that the reply is no older than it, so the text decides, for the preview of a reply sent as a
+ * sidecar too: holding the frame would keep a preview with more text from loading its sidecar.
+ */
+const isEarlierState = (
+  event: MatrixEvent,
+  content: IContent,
+  shown: { docs: LiveDocs; order: LiveOrder }
+): boolean => {
   const status = getStreamStatusFromContent(content);
   if (event.isRedacted() || !status || !LIVE_DURABLE_STATUSES.has(status)) return false;
+  const { md } = shown.docs;
+  const checkpoint = getLiveCheckpoint(content);
+  // The reply is at least as new as the frame, whatever its text shows.
+  if (checkpoint && compareLiveOrder(shown.order, checkpoint) <= 0) return false;
   const { body } = withWarmupActivity(content);
   if (typeof body !== 'string') return false;
-  if (isThinkingPlaceholderBody(content)) return md.length > 0;
-  return body.length < md.length && md.startsWith(body);
+  const hasSidecar = hasLongTextMetadata(content);
+  if (isThinkingPlaceholderBody(content)) {
+    // A preview of calls alone has their rows in its sidecar, so only live prose is more than it.
+    return hasSidecar ? withoutToolMarkerLines(md).trim().length > 0 : md.length > 0;
+  }
+  if (body.length >= md.length) return false;
+  const bodyHasMarkers = withoutToolMarkerLines(body) !== body;
+  if (hasSidecar && !bodyHasMarkers) {
+    // A marker-free sidecar preview omits its tool calls (they live in the sidecar, even if
+    // edit resolution borrowed an older trace). Hold the frame only when it has more prose.
+    const prose = withoutToolMarkerLines(md);
+    return body.length < prose.length && prose.startsWith(body);
+  }
+  if (md.startsWith(body)) return true;
+  if (bodyHasMarkers) return false;
+  // Marker-free upload-failure fallback (no sidecar): compare prose against marker-free live text.
+  const prose = withoutToolMarkerLines(md);
+  return body.length < prose.length && prose.startsWith(body);
 };
 
 const noSubscription = () => () => undefined;
@@ -216,15 +262,15 @@ export const useLiveReplyContent = (
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
   // grows or pauses.
-  const shownDocs = useRef<LiveDocs>();
-  if (docs) shownDocs.current = docs;
+  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>();
+  if (docs && entry) shownRef.current = { docs, order: { sid: entry.sid, seq: entry.seq } };
   const heldDocs =
     !docs &&
     verdict !== 'wait' &&
     event &&
-    shownDocs.current &&
-    isEarlierState(event, content, shownDocs.current.md)
-      ? shownDocs.current
+    shownRef.current &&
+    isEarlierState(event, content, shownRef.current)
+      ? shownRef.current.docs
       : undefined;
   const liveDocs = docs ?? heldDocs;
   const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);

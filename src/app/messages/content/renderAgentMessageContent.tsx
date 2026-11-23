@@ -91,6 +91,11 @@ const withLiveWrapperContent = (
   return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
 };
 
+const sanitizeAgentSidecar = (downloaded: Record<string, unknown>) =>
+  sanitizeContent(downloaded, true);
+const sanitizeNonAgentSidecar = (downloaded: Record<string, unknown>) =>
+  sanitizeContent(downloaded, false);
+
 const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
   if (!(COMPACTIONS_CONTENT_KEY in content) && !(LIVE_COMPACTIONS_KEY in content)) return content;
   const { [COMPACTIONS_CONTENT_KEY]: _list, [LIVE_COMPACTIONS_KEY]: _live, ...rest } = content;
@@ -408,14 +413,20 @@ export const renderAgentMessageContent = ({
     );
   };
 
+  const transformLongTextContent = fromMindroomAgent
+    ? sanitizeAgentSidecar
+    : sanitizeNonAgentSidecar;
+
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     downloadedContent,
     props,
     metadataStatus
   ) => {
     // A sidecar is downloaded after the event's own content was cleaned, so the agent-only keys
-    // are dropped here too unless an agent sent it.
-    const resolvedContent = sanitizeContent(downloadedContent, fromMindroomAgent);
+    // are dropped here too unless an agent sent it. LongTextText runs transformContent before
+    // MText/MNotice/MEmote compute props; running it again here is idempotent and guards direct
+    // or mocked callers.
+    const resolvedContent = transformLongTextContent(downloadedContent);
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -547,7 +558,8 @@ export const renderAgentMessageContent = ({
     }
 
     const isStreaming = isAiRunStreaming(content);
-    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content)) {
+    const longTextSource = getRenderableLongTextSource(content);
+    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content) && !longTextSource) {
       return (
         <MText
           content={content}
@@ -566,7 +578,6 @@ export const renderAgentMessageContent = ({
       );
     }
 
-    const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       const longText = (
         <LongTextText
@@ -578,6 +589,7 @@ export const renderAgentMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
+          transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
@@ -645,6 +657,7 @@ export const renderAgentMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
+          transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
@@ -717,6 +730,7 @@ export const renderAgentMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
+          transformContent={transformLongTextContent}
           renderBody={renderLongTextBody}
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])

@@ -10,6 +10,7 @@
 	<array>
 		<string>chat.mindroom.open-thread</string>
 		<string>chat.mindroom.quick-capture</string>
+		<string>INSendMessageIntent</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

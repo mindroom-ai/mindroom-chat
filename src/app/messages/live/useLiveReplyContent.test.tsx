@@ -12,6 +12,7 @@ import {
   useLiveReplyContent,
 } from './useLiveReplyContent';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 
 const ROOM = '!room:example';
 const REPLY = '$reply';
@@ -468,6 +469,213 @@ describe('useLiveReplyContent', () => {
       vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
     });
     expect(shown().body).toBe('word1 word2');
+  });
+
+  const SIDECAR = {
+    'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+  };
+  const OLDER = { 'io.mindroom.live_checkpoint': { sid: SID, seq: 5 } };
+  const MARKED = '🔧 `read` [1]\n\nFound it.';
+  /** What the row shows once the frame `md` came in over `content` and then expired. */
+  const afterExpiry = (md: string, content: IContent, seq = 10) => {
+    ingest(snapshot(seq, md));
+    render(content);
+    expect(shown().body).toBe(md);
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    return shown();
+  };
+
+  // The backend sends a sidecar preview without the reply's marker lines, which the frames have.
+  it.each([
+    ['an older checkpoint', OLDER],
+    ['no checkpoint', {}],
+  ])('keeps an expired frame over the sidecar preview it grew from, with %s', (_name, extra) => {
+    const md = `${MARKED} More...`;
+    const preview = durable('streaming', { ...SIDECAR, ...extra, body: 'Found it.' });
+    expect(afterExpiry(md, preview).body).toBe(md);
+    expect(live()).toBe(true);
+  });
+
+  it.each([
+    ['prose', `${MARKED} More...`, MARKED],
+    ['a call', '🔧 `read` [1]\n\n🔧 `shell` [2] ⏳', '🔧 `read` [1]'],
+  ])(
+    'keeps an expired frame that added %s over the preview an older backend sent with its marker lines',
+    (_name, md, body) => {
+      expect(afterExpiry(md, durable('streaming', { ...SIDECAR, body })).body).toBe(md);
+      expect(live()).toBe(true);
+    }
+  );
+
+  // No sidecar and no tool trace: the text is all that says the frame grew from it.
+  it.each([
+    ['without a checkpoint', {}],
+    ['after its checkpoint', OLDER],
+  ])(
+    'keeps an expired frame with more prose over the text sent when the sidecar upload failed, %s',
+    (_name, extra) => {
+      const md = `${MARKED} More...`;
+      const fallback = durable('streaming', { ...extra, body: 'Found it.' });
+      expect(afterExpiry(md, fallback).body).toBe(md);
+      expect(live()).toBe(true);
+    }
+  );
+
+  it.each([
+    ['is not the start of its prose', 'Found it. More...', 'Found that.'],
+    [
+      'was cut short',
+      `${MARKED} More...`,
+      'Found\n\n[Message truncated because the attachment upload failed.]',
+    ],
+    ['has all of its text', MARKED, MARKED],
+    ['has all of its prose', `${MARKED}\n\n🔧 \`shell\` [2] ⏳`, 'Found it.'],
+  ])('returns from an expired frame to a durable reply that %s', (_name, md, body) => {
+    expect(afterExpiry(md, durable('streaming', { body })).body).toBe(body);
+    expect(live()).toBe(false);
+  });
+
+  // Completing a call takes the hourglass off its marker line, and no checkpoint says the edit
+  // is the newer one: the same prose around the call must not make the frame the later state.
+  it.each([
+    [
+      'with its tool trace',
+      {
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [{ ...tool, type: 'tool_call_completed' }],
+        },
+      },
+    ],
+    ['as the sidecar preview of an older backend', SIDECAR],
+  ])(
+    'returns from an expired frame with a running call to the edit that completed it, sent %s',
+    (_name, extra) => {
+      const md = 'Looking.\n\n🔧 `web_search` [1] ⏳\n\nFound it.';
+      const body = 'Looking.\n\n🔧 `web_search` [1]\n\nFound it.';
+      expect(afterExpiry(md, durable('streaming', { ...extra, body })).body).toBe(body);
+      expect(live()).toBe(false);
+    }
+  );
+
+  // A checkpoint is the least the reply holds, so a preview after it can have more than a later
+  // frame, and a held frame would keep its sidecar from loading.
+  it('returns from an expired frame to a sidecar preview with more text and an older checkpoint', () => {
+    const body = 'Found it. More, and then the rest of it.';
+    const checkpoint = { 'io.mindroom.live_checkpoint': { sid: SID, seq: 9 } };
+    const preview = durable('streaming', { ...SIDECAR, ...checkpoint, body });
+    const read = afterExpiry(`${MARKED} More...`, preview, 10);
+    expect(read.body).toBe(body);
+    expect(read['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+    expect(live()).toBe(false);
+  });
+
+  it('yields to a marker-free sidecar preview when the expired frame only adds a trailing pending call', () => {
+    const preview = durable('streaming', { ...SIDECAR, body: 'Looking.' });
+    const read = afterExpiry('Looking.\n\n🔧 `shell` [1] ⏳', preview);
+    expect(read.body).toBe('Looking.');
+    expect(read['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+    expect(live()).toBe(false);
+  });
+
+  it('holds an expired frame with more live prose over a marker-free sidecar preview that borrowed an older tool trace', () => {
+    const reply = replyEvent();
+    const olderTrace = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+    };
+    const editEvent = (eventId: string, ts: number, newContent: Record<string, unknown>) =>
+      new MatrixEvent({
+        type: 'm.room.message',
+        room_id: ROOM,
+        event_id: eventId,
+        sender: AGENT,
+        origin_server_ts: ts,
+        content: {
+          msgtype: 'm.text',
+          body: `* ${String(newContent.body)}`,
+          'm.new_content': newContent,
+          'm.relates_to': { rel_type: 'm.replace', event_id: REPLY },
+        },
+      });
+    const olderEdit = editEvent('$edit1', 2, {
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1]\n\nFound it.',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.tool_trace': olderTrace,
+    });
+    const sidecarEdit = editEvent('$edit2', 3, {
+      msgtype: 'm.file',
+      body: 'Found it.',
+      'io.mindroom.stream_status': 'streaming',
+      ...SIDECAR,
+    });
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: () => ({
+          getRelations: () => [olderEdit, sidecarEdit],
+        }),
+      },
+    } as unknown as Parameters<typeof getEditedEvent>[2];
+
+    const edited = getEditedEvent(REPLY, reply, timelineSet);
+    expect(edited?.getId()).toBe('$edit2');
+    const resolved = getLatestMessageContent(reply, edited);
+    expect(resolved['io.mindroom.tool_trace']).toEqual(olderTrace);
+    expect(resolved['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+
+    const md = '🔧 `shell` [1]\n\nFound it. More...';
+    expect(afterExpiry(md, resolved).body).toBe(md);
+    expect(live()).toBe(true);
+  });
+
+  // A preview of calls alone has its calls in its sidecar, and nothing says which.
+  describe.each([
+    ['without a checkpoint', {}],
+    ['with an older checkpoint', OLDER],
+  ])('a sidecar preview of calls alone %s', (_name, extra) => {
+    const preview = () => durable('streaming', { ...SIDECAR, ...extra, body: 'Thinking...' });
+
+    it('stays under an expired frame with prose', () => {
+      const md = `${MARKED} More...`;
+      expect(afterExpiry(md, preview()).body).toBe(md);
+      expect(live()).toBe(true);
+    });
+
+    it('takes over from an expired frame of calls alone', () => {
+      const read = afterExpiry('🔧 `read` [1] ⏳', preview());
+      expect(read.body).toBe('Thinking...');
+      expect(read['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+      expect(live()).toBe(false);
+    });
+  });
+
+  it('returns from an expired frame to a newer sidecar preview of calls alone', () => {
+    const update = (content: IContent) =>
+      act(() => {
+        renderer?.update(<Harness mx={mx} event={replyEvent()} content={content} />);
+      });
+    ingest(snapshot(5, 'Earlier live text'));
+    render(durable('streaming', { body: 'Thinking...' }));
+    expect(shown().body).toBe('Earlier live text');
+
+    update(
+      durable('streaming', {
+        ...SIDECAR,
+        body: 'Thinking...',
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 10 },
+      })
+    );
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown().body).toBe('Thinking...');
+    expect(shown()['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+    expect(live()).toBe(false);
   });
 
   it('uses a frame stored before the reply rendered', () => {

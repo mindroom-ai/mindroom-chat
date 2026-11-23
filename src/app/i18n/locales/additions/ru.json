@@ -99,13 +99,32 @@
       "wheelZoomHint": "{{key}} + прокрутка для масштабирования"
     },
     "inviteUserPrompt": {
-      "close": "Закрыть",
       "invited": "Приглашение отправлено: {{user}}.",
-      "giveRoleRights": "Выдать права роли «{{role}}»",
       "giveRoleRightsHelp": "В этой комнате для сворачивания расшифровок голосовых сообщений и управления расписаниями и настройками требуются права роли «{{role}}».",
       "roleFailed": "Приглашение отправлено: {{user}}, но не удалось выдать права роли «{{role}}»: {{error}}",
       "roleRequirementChanged": "В этой комнате теперь требуются права роли «{{role}}».",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Пригласить в {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Готово",
+      "searchPlaceholder": "Поиск людей, агентов или @user:server",
+      "filterLabel": "Фильтр по типу",
+      "filterAll": "Все",
+      "filterPeople": "Люди",
+      "filterAgents": "Агенты",
+      "recentAndDirect": "Недавние и личные",
+      "directory": "Каталог",
+      "externalUserId": "Внешний ID Matrix",
+      "noMatches": "Подходящих пользователей нет. Введите полный ID @user:server, чтобы пригласить напрямую.",
+      "emptyDirectory": "Пока нет пользователей для приглашения. Введите полный ID @user:server, чтобы пригласить напрямую.",
+      "addNote": "+ Добавить заметку к приглашению",
+      "hideNote": "− Скрыть заметку к приглашению",
+      "notePlaceholder": "Добавьте заметку к приглашению...",
+      "giveRoleRightsAgents": "Выдать приглашённым агентам права роли «{{role}}»",
+      "alreadyInRoom": "Уже в этой комнате",
+      "alreadyInvited": "Приглашение уже отправлено",
+      "bannedFromRoom": "Заблокирован в этой комнате",
+      "retryUser": "Повторить приглашение для {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Закрыть",
@@ -1927,6 +1946,10 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "Ещё {{count}} ветка",
+    "moreThreads_few": "Ещё {{count}} ветки",
+    "moreThreads_many": "Ещё {{count}} веток",
+    "moreThreads_other": "Ещё {{count}} ветки",
     "forMe": "Для меня",
     "forMeHint": "Только ветки, в которых вы участвуете, в которых агент написал от вашего имени или которые вы закрепили",
     "roomForMeHint": "Только ветки, в которых вы участвуете или в которых агент написал от вашего имени",

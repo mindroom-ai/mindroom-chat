@@ -93,13 +93,32 @@
       "wheelZoomHint": "ज़ूम करने के लिए {{key}} + स्क्रॉल"
     },
     "inviteUserPrompt": {
-      "close": "बंद करें",
       "invited": "{{user}} को आमंत्रित किया गया।",
-      "giveRoleRights": "{{role}} अधिकार दें",
       "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
       "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
       "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "{{room}} में आमंत्रित करें",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "पूर्ण",
+      "searchPlaceholder": "लोग, एजेंट या @user:server खोजें",
+      "filterLabel": "प्रकार के अनुसार फ़िल्टर करें",
+      "filterAll": "सभी",
+      "filterPeople": "लोग",
+      "filterAgents": "एजेंट",
+      "recentAndDirect": "हालिया और सीधे",
+      "directory": "निर्देशिका",
+      "externalUserId": "बाहरी Matrix आईडी",
+      "noMatches": "कोई मिलान उपयोगकर्ता नहीं मिला। सीधे आमंत्रित करने के लिए पूरा @user:server आईडी दर्ज करें।",
+      "emptyDirectory": "अभी आमंत्रित करने के लिए कोई उपयोगकर्ता नहीं है। सीधे आमंत्रित करने के लिए पूरा @user:server आईडी दर्ज करें।",
+      "addNote": "+ आमंत्रण नोट जोड़ें",
+      "hideNote": "− आमंत्रण नोट छिपाएँ",
+      "notePlaceholder": "अपने आमंत्रण में एक नोट जोड़ें...",
+      "giveRoleRightsAgents": "आमंत्रित एजेंटों को {{role}} अधिकार दें",
+      "alreadyInRoom": "पहले से इस रूम में हैं",
+      "alreadyInvited": "पहले से आमंत्रित",
+      "bannedFromRoom": "इस रूम से प्रतिबंधित",
+      "retryUser": "{{user}} को फिर से आमंत्रित करें"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -1815,6 +1834,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} और थ्रेड",
+    "moreThreads_other": "{{count}} और थ्रेड",
     "forMe": "मेरे लिए",
     "forMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं, जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है या जिन्हें आपने पिन किया है",
     "roomForMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं या जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है",

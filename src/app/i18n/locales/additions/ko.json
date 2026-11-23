@@ -90,13 +90,32 @@
       "wheelZoomHint": "{{key}} + 스크롤로 확대/축소"
     },
     "inviteUserPrompt": {
-      "close": "닫기",
       "invited": "{{user}} 님을 초대했습니다.",
-      "giveRoleRights": "{{role}} 권한 부여",
       "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
       "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
       "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "{{room}}에 초대",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "완료",
+      "searchPlaceholder": "사용자, 에이전트 또는 @user:server 검색",
+      "filterLabel": "유형별 필터",
+      "filterAll": "전체",
+      "filterPeople": "사용자",
+      "filterAgents": "에이전트",
+      "recentAndDirect": "최근 및 다이렉트",
+      "directory": "디렉터리",
+      "externalUserId": "외부 Matrix ID",
+      "noMatches": "일치하는 사용자가 없습니다. 직접 초대하려면 전체 @user:server ID를 입력하세요.",
+      "emptyDirectory": "아직 초대할 사용자가 없습니다. 직접 초대하려면 전체 @user:server ID를 입력하세요.",
+      "addNote": "+ 초대 메모 추가",
+      "hideNote": "− 초대 메모 숨기기",
+      "notePlaceholder": "초대에 메모를 추가하세요...",
+      "giveRoleRightsAgents": "초대된 에이전트에 {{role}} 권한 부여",
+      "alreadyInRoom": "이미 이 방에 있습니다",
+      "alreadyInvited": "이미 초대되었습니다",
+      "bannedFromRoom": "이 방에서 차단되었습니다",
+      "retryUser": "{{user}} 초대 다시 시도"
     },
     "joinAddressPrompt": {
       "close": "닫기",
@@ -1759,6 +1778,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "스레드 {{count}}개 더 있음",
     "forMe": "나를 위한 스레드",
     "forMeHint": "내가 참여했거나, 에이전트가 나를 대신해 글을 올렸거나, 내가 고정한 스레드만 표시",
     "roomForMeHint": "내가 참여했거나 에이전트가 나를 대신해 글을 올린 스레드만 표시",

@@ -93,13 +93,32 @@
       "wheelZoomHint": "{{key}} + scroll to zoom"
     },
     "inviteUserPrompt": {
-      "close": "Close",
       "invited": "Invited {{user}}.",
-      "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
       "roleRequirementChanged": "This room now requires {{role}} rights.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invite to {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Done",
+      "searchPlaceholder": "Search people, agents, or @user:server",
+      "filterLabel": "Filter by type",
+      "filterAll": "All",
+      "filterPeople": "People",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Recent & Direct",
+      "directory": "Directory",
+      "externalUserId": "External Matrix ID",
+      "noMatches": "No matching users. Enter a full @user:server ID to invite directly.",
+      "emptyDirectory": "No users to invite yet. Enter a full @user:server ID to invite directly.",
+      "addNote": "+ Add invite note",
+      "hideNote": "− Hide invite note",
+      "notePlaceholder": "Add a note to your invite...",
+      "giveRoleRightsAgents": "Give invited agents {{role}} rights",
+      "alreadyInRoom": "Already in this room",
+      "alreadyInvited": "Already invited",
+      "bannedFromRoom": "Banned from this room",
+      "retryUser": "Retry inviting {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -1815,6 +1834,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} more thread",
+    "moreThreads_other": "{{count}} more threads",
     "forMe": "For me",
     "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
     "roomForMeHint": "Only threads you take part in or that an agent posted for you",

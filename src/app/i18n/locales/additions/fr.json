@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + molette pour zoomer"
     },
     "inviteUserPrompt": {
-      "close": "Fermer",
       "invited": "{{user}} a été invité.",
-      "giveRoleRights": "Donner les droits {{role}}",
       "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
       "roleFailed": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}",
       "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Inviter dans {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Terminé",
+      "searchPlaceholder": "Rechercher des personnes, agents ou @user:server",
+      "filterLabel": "Filtrer par type",
+      "filterAll": "Tous",
+      "filterPeople": "Personnes",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Récents et directs",
+      "directory": "Annuaire",
+      "externalUserId": "Identifiant Matrix externe",
+      "noMatches": "Aucun utilisateur correspondant. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "emptyDirectory": "Aucun utilisateur à inviter pour le moment. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "addNote": "+ Ajouter une note d’invitation",
+      "hideNote": "− Masquer la note d’invitation",
+      "notePlaceholder": "Ajouter une note à votre invitation...",
+      "giveRoleRightsAgents": "Donner les droits {{role}} aux agents invités",
+      "alreadyInRoom": "Déjà dans ce salon",
+      "alreadyInvited": "Déjà invité",
+      "bannedFromRoom": "Banni de ce salon",
+      "retryUser": "Réessayer d’inviter {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Fermer",
@@ -1871,6 +1890,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} autre fil",
+    "moreThreads_many": "{{count}} de fils supplémentaires",
+    "moreThreads_other": "{{count}} autres fils",
     "forMe": "Pour moi",
     "forMeHint": "Uniquement les fils auxquels vous participez, dans lesquels un agent a publié pour vous ou que vous avez épinglés",
     "roomForMeHint": "Uniquement les fils auxquels vous participez ou dans lesquels un agent a publié pour vous",

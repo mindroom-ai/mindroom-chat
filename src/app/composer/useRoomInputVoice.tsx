@@ -64,6 +64,8 @@ import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { isMidTurnMode, type MidTurnMode } from '../preferences/midTurnModes';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
 import type { VoiceComposer } from './voiceHoldShortcut';
@@ -101,13 +103,16 @@ type UseRoomInputVoiceOptions = {
 
 type VoiceFeature = {
   blocksSubmit: () => boolean;
+  /** Whether this composer holds a live recording or parked voice draft ready to send. */
+  hasVoice: boolean;
   /**
    * Takes the voice message for a Send, as it is pressed (see the function). Undefined when
    * there is none here, and the Send goes on without one.
    */
   sendAtPress: (
-    takeText: () => IContent | undefined,
-    pastesMissing: boolean
+    takeText: (mode?: MidTurnMode) => IContent | undefined,
+    pastesMissing: boolean,
+    explicitMode?: MidTurnMode
   ) => Promise<void> | undefined;
   microphone: React.ReactNode;
   microphoneLabel: string;
@@ -122,6 +127,7 @@ type PendingVoiceComposerBundle = {
   roomId: string;
   composerThreadId?: string;
   textContent?: IContent;
+  midTurnMode?: MidTurnMode;
   composerFallback?: Descendant[];
   companionItems: TUploadItem[];
   /** The list they were staged in, which a thread view drops from its family as it closes. */
@@ -149,6 +155,7 @@ export const useRoomInputVoice = ({
   const view = useContext(ConversationViewContext);
   const mediaConfig = useMediaConfig();
   const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
+  const defaultMidTurnModeRef = useLatestRef(useSettingValue(settingsAtom, 'midTurnSend'));
   // The account's recording, which this composer shows while it runs and sends when its Send is
   // pressed (voice/liveVoiceRecording.ts). It is not this composer's until then.
   const liveRecording = useAtomValue(liveVoiceRecordingAtom) !== undefined;
@@ -247,11 +254,15 @@ export const useRoomInputVoice = ({
   // they are then. A failed send parks the audio with this context, so a retry keeps the
   // attempted destination. The session id keeps a parked draft from another account's hands.
   const getVoiceSendContext = useCallback(
-    (): PendingVoiceSendContext =>
-      getRoomInputVoiceSendContext({
+    (): PendingVoiceSendContext => ({
+      ...getRoomInputVoiceSendContext({
         ownerSessionId: mx.getUserId() ?? '',
         ...getContext(),
       }),
+      ...(pendingVoiceComposerBundleRef.current?.midTurnMode !== undefined && {
+        midTurnMode: pendingVoiceComposerBundleRef.current.midTurnMode,
+      }),
+    }),
     [mx, getContext]
   );
   // What the account left on disk comes back with the first composer: a failed send, or a
@@ -373,6 +384,10 @@ export const useRoomInputVoice = ({
         if (isLocalEchoEventId(liveContext.threadId)) {
           throw new Error(t('composer.voiceThreadRootUnsent'));
         }
+        const defaultMidTurnMode = defaultMidTurnModeRef.current;
+        const candidateMidTurnMode =
+          composerBundle?.midTurnMode ?? liveContext.midTurnMode ?? defaultMidTurnMode;
+        const midTurnMode = isMidTurnMode(candidateMidTurnMode) ? candidateMidTurnMode : undefined;
 
         if (
           store.get(voiceAutoSendPendingAtom) &&
@@ -467,6 +482,7 @@ export const useRoomInputVoice = ({
             }
             await startSendSession({
               textContent: composerBundle?.textContent,
+              midTurnMode,
               rootModel: rootModel ?? null,
               batch: {
                 fileItems: readyItems,
@@ -506,7 +522,13 @@ export const useRoomInputVoice = ({
         }
         ensureSameAccount();
         try {
-          sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc, rootModel);
+          sentEventIdToNotify = await sendVoiceItem(
+            liveContext,
+            fileItem,
+            mxc,
+            rootModel,
+            midTurnMode
+          );
         } catch (err) {
           return logAndThrowUploadError(err, 'send');
         }
@@ -527,6 +549,7 @@ export const useRoomInputVoice = ({
     [
       attachmentAccess,
       allowUploadSize,
+      defaultMidTurnModeRef,
       clearConsumedReply,
       createVoiceUploadItems,
       hasActiveSendSession,
@@ -548,16 +571,27 @@ export const useRoomInputVoice = ({
   // (the voice key sends audio only). A send that fails parks its audio at the attempted
   // destination.
   const sendAtPress = useCallback(
-    (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
-      if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
+    (
+      takeText: (mode?: MidTurnMode) => IContent | undefined,
+      pastesMissing: boolean,
+      explicitMode?: MidTurnMode
+    ): Promise<void> | undefined => {
+      const live = store.get(liveVoiceRecordingAtom);
+      if (!live && !ownsPendingVoiceDraft) return undefined;
       const context = getContext();
       // No recording is taken for a thread the server has not confirmed: it stays live, so the
       // next press after confirmation sends it.
       if (isLocalEchoEventId(context.threadId)) return undefined;
       const recorder = voiceRecorderRef.current;
+      const parked = live ? undefined : store.get(pendingVoiceSendDraftAtom);
+      const candidateMode =
+        explicitMode ??
+        (parked && !parked.recovered ? parked.context.midTurnMode : undefined) ??
+        defaultMidTurnModeRef.current;
+      const midTurnMode = isMidTurnMode(candidateMode) ? candidateMode : undefined;
       // Text whose pasted files are not here goes nowhere: its restore reads the editor, which
       // this Send would empty. The audio is taken and parks alone; the text and files stay.
-      const content = pastesMissing ? undefined : takeText();
+      const content = pastesMissing ? undefined : takeText(midTurnMode);
       const staged = pastesMissing ? [] : attachmentAccess.snapshot().staged;
       if (!recorder || hasFailedPasteMarkerInText(content, staged)) return Promise.resolve();
 
@@ -565,6 +599,7 @@ export const useRoomInputVoice = ({
         roomId: context.roomId,
         composerThreadId: context.threadId,
         textContent: content,
+        midTurnMode,
         composerFallback: content ? snapshotText() : undefined,
         companionItems: staged,
         stagedList: composerUploadItemsAtom(context.roomId, view),
@@ -589,7 +624,15 @@ export const useRoomInputVoice = ({
           }
         });
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
+    [
+      attachmentAccess,
+      defaultMidTurnModeRef,
+      getContext,
+      ownsPendingVoiceDraft,
+      snapshotText,
+      store,
+      view,
+    ]
   );
 
   // A confirmed Discard ends the recording at once and deletes its disk copy after: a recorder
@@ -602,6 +645,7 @@ export const useRoomInputVoice = ({
     ownsPendingVoiceDraft ||
     (discarding && recorderWasShown.current);
   recorderWasShown.current = recorderShown;
+  const hasVoice = (liveRecording || ownsPendingVoiceDraft) && !voiceAutoSendPending;
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
     recorderShown ? (
       <VoiceRecorderComposer
@@ -686,6 +730,7 @@ export const useRoomInputVoice = ({
 
   return {
     blocksSubmit,
+    hasVoice,
     sendAtPress,
     microphone,
     microphoneLabel,

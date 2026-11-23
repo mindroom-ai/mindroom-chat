@@ -105,13 +105,32 @@
       "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
-      "close": "إغلاق",
       "invited": "تمت دعوة ⁨{{user}}⁩.",
-      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
       "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
       "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
-      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)"
+      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)",
+      "inviteToRoom": "دعوة إلى ⁨{{room}}⁩",
+      "memberSummary": "⁨{{members}}⁩ · ⁨{{invited}}⁩",
+      "done": "تم",
+      "searchPlaceholder": "ابحث عن الأشخاص أو الوكلاء أو ⁦@user:server⁩",
+      "filterLabel": "تصفية حسب النوع",
+      "filterAll": "الكل",
+      "filterPeople": "الأشخاص",
+      "filterAgents": "الوكلاء",
+      "recentAndDirect": "الأخيرة والمباشرة",
+      "directory": "الدليل",
+      "externalUserId": "معرّف Matrix خارجي",
+      "noMatches": "لا يوجد مستخدمون مطابقون. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "emptyDirectory": "لا يوجد مستخدمون لدعوتهم بعد. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "addNote": "+ إضافة ملاحظة دعوة",
+      "hideNote": "− إخفاء ملاحظة الدعوة",
+      "notePlaceholder": "أضف ملاحظة إلى دعوتك...",
+      "giveRoleRightsAgents": "منح الوكلاء المدعوين صلاحيات ⁨{{role}}⁩",
+      "alreadyInRoom": "موجود بالفعل في هذه الغرفة",
+      "alreadyInvited": "تمت دعوته بالفعل",
+      "bannedFromRoom": "محظور من هذه الغرفة",
+      "retryUser": "إعادة محاولة دعوة ⁨{{user}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -2039,6 +2058,12 @@
     }
   },
   "threadNav": {
+    "moreThreads_zero": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_one": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_two": "سلسلتا محادثة أخريان (⁨{{count}}⁩)",
+    "moreThreads_few": "⁨{{count}}⁩ سلاسل محادثة أخرى",
+    "moreThreads_many": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_other": "⁨{{count}}⁩ سلسلة محادثة أخرى",
     "forMe": "لي",
     "forMeHint": "سلاسل المحادثات التي تشارك فيها، أو التي نشر فيها وكيل بالنيابة عنك، أو التي ثبّتها أنت فقط",
     "roomForMeHint": "سلاسل المحادثات التي تشارك فيها أو التي نشر فيها وكيل بالنيابة عنك فقط",

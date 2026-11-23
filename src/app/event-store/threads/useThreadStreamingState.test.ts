@@ -1,13 +1,17 @@
 import React from 'react';
 import { EventEmitter } from 'events';
-import { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEvent, Room, Thread, type MatrixClient } from 'matrix-js-sdk';
 import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import {
   getThreadStreamingReplies,
   getThreadStreamingState,
+  isEventStreaming,
   useThreadStreamingState,
 } from './useThreadStreamingState';
 
@@ -781,5 +785,332 @@ describe('useThreadStreamingState', () => {
     expect(getSnapshot()).toBe(false);
 
     renderer.unmount();
+  });
+
+  it('tracks the early ai_run edit lifecycle across placeholder, approval pause, resume, and terminal notes', () => {
+    const earlyAiRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+    const relationMap = new Map<string, MockRelations>();
+    const loadedEdits: MatrixEvent[] = [];
+    const stopReaction = makeMessageEvent('$stop-reaction', 205, {
+      'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
+    });
+    const relations = Object.assign(makeRelations(), { getRelations: () => loadedEdits });
+    relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
+    relationMap.set('$reply', relations);
+
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    const thread = makeThread({
+      lastReply: replyEvent,
+      relationMap,
+      timelineEvents: [replyEvent],
+    });
+    const room = makeRoom({
+      rootEventId: '$root',
+      thread,
+      roomTimelineSet: makeTimelineSet(relationMap, () => []),
+    });
+
+    const pushEdit = (id: string, ts: number, newContent: Record<string, unknown>) => {
+      const edit = makeEditEvent(id, ts, '$reply', newContent);
+      loadedEdits.push(edit);
+      replyEvent.makeReplaced(edit);
+    };
+
+    // 1. Placeholder with early ai_run
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 2. Progress edit with early ai_run
+    pushEdit('$edit-progress', 220, {
+      body: 'Working on it...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 3. Approval pause edit (even with a stop reaction still present)
+    pushEdit('$edit-approval', 240, {
+      body: 'Waiting for approval...',
+      'io.mindroom.stream_status': 'approval_pending',
+      'io.mindroom.ai_run': earlyAiRun,
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 4. Resume streaming (including an edit carrying explicit streaming ai_run.status)
+    pushEdit('$edit-resume', 260, {
+      body: 'Resumed...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'streaming' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(true);
+
+    // 5a. Terminal stop note WITHOUT ai_run (borrows ai_run from earlier loaded edit via getEditedEvent)
+    pushEdit('$edit-stop-borrowed', 280, {
+      body: 'Stopped.',
+      'io.mindroom.stream_status': 'cancelled',
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 5b. Terminal error note WITH ai_run
+    pushEdit('$edit-error', 300, {
+      body: 'Failed.',
+      'io.mindroom.stream_status': 'error',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'error' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+
+    // 5c. Terminal restart/interrupted note WITH ai_run
+    pushEdit('$edit-interrupted', 320, {
+      body: 'Interrupted by restart.',
+      'io.mindroom.stream_status': 'cancelled',
+      'io.mindroom.ai_run': { ...earlyAiRun, status: 'interrupted' },
+    });
+    expect(getThreadStreamingState(room, '$root')).toBe(false);
+  });
+
+  it('does not let an older cached finishing edit veto a newer revision whose run status is streaming', () => {
+    const roomStub = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => roomStub,
+    }) as unknown as MatrixClient;
+    const stop = keepSyncedEdits(mx);
+    try {
+      const relationMap = new Map<string, MockRelations>();
+      const timelineSet = makeTimelineSet(relationMap, () => []);
+      const makeSyncedEdit = (
+        id: string,
+        ts: number,
+        targetId: string,
+        content: Record<string, unknown>
+      ) => makeEditEvent(id, ts, targetId, content);
+
+      // Case A: completed synced edit followed by a newer edit with ai_run.status === 'streaming'
+      const replyA = makeThreadReplyEvent('$regen-a', 200, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      const finishA = makeSyncedEdit('$regen-a-done', 300, '$regen-a', {
+        body: 'First answer',
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.ai_run': { version: 1, status: 'completed' },
+      });
+      mx.emit(ClientEvent.Event, finishA);
+      replyA.makeReplaced(finishA);
+      expect(isEventStreaming(replyA, undefined, timelineSet as never)).toBe(false);
+
+      const regenStreamingA = makeSyncedEdit('$regen-a-retry', 400, '$regen-a', {
+        body: 'Retrying...',
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      });
+      mx.emit(ClientEvent.Event, regenStreamingA);
+      replyA.makeReplaced(regenStreamingA);
+      expect(isEventStreaming(replyA, undefined, timelineSet as never)).toBe(true);
+
+      // Case B: redacted finishing edit with no newer edit still returns false
+      const replyC = makeThreadReplyEvent('$redacted-finish', 200, {
+        body: 'Streaming...',
+        'io.mindroom.stream_status': 'streaming',
+      });
+      const finishC = makeSyncedEdit('$redacted-finish-done', 300, '$redacted-finish', {
+        body: 'Done',
+        'io.mindroom.stream_status': 'completed',
+      });
+      mx.emit(ClientEvent.Event, finishC);
+      replyC.makeReplaced(finishC);
+      finishC.makeRedacted(
+        makeMessageEvent('$redaction-c', 310, { redacts: '$redacted-finish-done' }),
+        {} as Parameters<MatrixEvent['makeRedacted']>[1]
+      );
+      replyC.makeReplaced();
+      expect(isEventStreaming(replyC, undefined, timelineSet as never)).toBe(false);
+
+      // Case C: streaming edit followed by terminal edit returns false
+      const replyD = makeThreadReplyEvent('$stream-then-end', 200, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      const streamingD = makeSyncedEdit('$stream-then-end-1', 250, '$stream-then-end', {
+        body: 'Working...',
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+      });
+      mx.emit(ClientEvent.Event, streamingD);
+      replyD.makeReplaced(streamingD);
+      expect(isEventStreaming(replyD, undefined, timelineSet as never)).toBe(true);
+
+      const terminalD = makeSyncedEdit('$stream-then-end-2', 300, '$stream-then-end', {
+        body: 'Stopped.',
+        'io.mindroom.stream_status': 'cancelled',
+      });
+      mx.emit(ClientEvent.Event, terminalD);
+      replyD.makeReplaced(terminalD);
+      expect(isEventStreaming(replyD, undefined, timelineSet as never)).toBe(false);
+    } finally {
+      stop();
+    }
+  });
+});
+
+// `getEditedEvent` lends the edit a reply shows the metadata it lacks from the older edits, so what
+// the edit says itself counts for more than what it borrowed: for the thread's spinner
+// (`isEventStreaming`) as for the reply's own indicator (`isAiRunStreaming` of the shown content).
+// Each reply here has a stale 🛑 unless the test says otherwise.
+describe('a reply whose shown edit borrows metadata from its older edits', () => {
+  const COMPLETED = { 'io.mindroom.stream_status': 'completed' };
+  const STREAMING = { 'io.mindroom.stream_status': 'streaming' };
+  const APPROVAL_PENDING = { 'io.mindroom.stream_status': 'approval_pending' };
+  const EARLY_AI_RUN = { 'io.mindroom.ai_run': { version: 1, model: { config: 'gemini4_neon' } } };
+  const runStatus = (status: string) => ({ 'io.mindroom.ai_run': { version: 1, status } });
+
+  /** A reply, the edits the sync brings it, and those its relations hold. */
+  const setup = (replyId: string, staleStopReaction = true) => {
+    const roomStub = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => roomStub,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    const loaded: MatrixEvent[] = [];
+    const relations = Object.assign(makeRelations(), { getRelations: () => loaded });
+    if (staleStopReaction) {
+      const stopReaction = makeMessageEvent('$stop-reaction', 205, {
+        'm.relates_to': { event_id: replyId, key: '🛑', rel_type: 'm.annotation' },
+      });
+      relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
+    }
+    const timelineSet = makeTimelineSet(new Map([[replyId, relations]]), () => []);
+    const reply = makeThreadReplyEvent(replyId, 200, {
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+    });
+    /** Puts `event` among the reply's loaded relations; the reply shows it. */
+    const load = (event: MatrixEvent) => {
+      loaded.push(event);
+      reply.makeReplaced(event);
+    };
+    /** An edit the sync brings, which the reply's relations load too unless `syncedOnly`. */
+    const edit = (
+      id: string,
+      ts: number,
+      newContent: Record<string, unknown>,
+      syncedOnly = false
+    ) => {
+      const event = makeEditEvent(id, ts, replyId, newContent);
+      mx.emit(ClientEvent.Event, event);
+      if (!syncedOnly) load(event);
+      return event;
+    };
+    const isStreaming = () => isEventStreaming(reply, relations as never, timelineSet as never);
+    /** Whether the reply's shown content says that it streams, as its message row reads it. */
+    const isRunStreaming = () =>
+      isAiRunStreaming(
+        getLatestMessageContent(reply, getEditedEvent(replyId, reply, timelineSet as never))
+      );
+    return { edit, load, isStreaming, isRunStreaming };
+  };
+
+  it('streams again by the run status of a regenerated edit, though the finished edit is loaded', () => {
+    const { edit, isStreaming, isRunStreaming } = setup('$regenerated');
+    edit('$done', 300, { ...COMPLETED, ...runStatus('completed') });
+    expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
+
+    // The retry says that it streams by its run status alone; the `completed` it shows is borrowed.
+    edit('$retry', 400, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+  });
+
+  it('streams again by the run status of a retry after a stop note', () => {
+    const { edit, isStreaming, isRunStreaming } = setup('$retried-after-stop');
+    edit('$stop-note', 300, { body: 'Stopped.', 'io.mindroom.stream_status': 'cancelled' });
+    edit('$retry', 400, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+  });
+
+  it('streams again by the run status of a retry in the same millisecond as the finish', () => {
+    const { edit, isStreaming, isRunStreaming } = setup('$tied');
+    edit('$a-finish', 300, COMPLETED);
+    expect(isStreaming()).toBe(false);
+
+    edit('$z-retry', 300, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+  });
+
+  it('stays stopped by a stop note that borrows the streaming run of the edit before it', () => {
+    const { edit, isStreaming, isRunStreaming } = setup('$stopped');
+    edit('$progress', 300, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+
+    edit('$stop-note', 400, { body: 'Stopped.', 'io.mindroom.stream_status': 'cancelled' });
+    expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
+  });
+
+  it('stays finished through a later correction of its text', () => {
+    const { edit, load, isStreaming } = setup('$corrected');
+    const progress = edit('$progress', 250, { ...STREAMING, ...EARLY_AI_RUN }, true);
+    expect(isStreaming()).toBe(true);
+    // Only the sync knows the edit that finished the reply; its relations never load it.
+    edit('$done', 300, COMPLETED, true);
+    edit('$correction', 400, { body: 'Corrected text' });
+    expect(isStreaming()).toBe(false);
+
+    // Nor does the correction stream by the status it borrows from an edit before the finish.
+    load(progress);
+    expect(isStreaming()).toBe(false);
+  });
+
+  it('pauses for an approval, whichever run the pausing edit carries or borrows', () => {
+    const borrowed = setup('$paused-borrowed-run');
+    borrowed.edit('$progress', 300, { ...STREAMING, ...runStatus('streaming') });
+    expect(borrowed.isStreaming()).toBe(true);
+    borrowed.edit('$pause', 400, APPROVAL_PENDING);
+    expect(borrowed.isStreaming()).toBe(false);
+    expect(borrowed.isRunStreaming()).toBe(false);
+
+    const { edit, isStreaming, isRunStreaming } = setup('$paused');
+    edit('$pause', 300, { ...APPROVAL_PENDING, ...EARLY_AI_RUN });
+    expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
+    // A correction of the text borrows the pause.
+    edit('$correction', 400, { body: 'Corrected text' });
+    expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
+    // A retry that says by its run status that it streams borrows it too, and streams.
+    edit('$retry', 500, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+  });
+
+  // An edit counts as the one that finished its reply by the string form of its status alone. One
+  // in record form was kept as a finish too, and the reply never showed its spinner again.
+  it('streams again after an edit that finished it with a record-form status', () => {
+    const { edit, isStreaming } = setup('$record-form-finish', false);
+    edit('$done', 300, { 'io.mindroom.stream_status': { status: 'completed' } });
+    expect(isStreaming()).toBe(false);
+
+    edit('$retry', 400, { ...STREAMING, ...EARLY_AI_RUN });
+    expect(isStreaming()).toBe(true);
+  });
+
+  it('streams by the stream status that an edit with another run status borrows', () => {
+    const { edit, isStreaming } = setup('$running', false);
+    edit('$progress', 300, STREAMING);
+    edit('$running-run', 400, runStatus('running'));
+    expect(isStreaming()).toBe(true);
   });
 });

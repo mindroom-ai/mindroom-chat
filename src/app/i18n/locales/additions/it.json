@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + scorri per ingrandire"
     },
     "inviteUserPrompt": {
-      "close": "Chiudi",
       "invited": "{{user}} è stato invitato.",
-      "giveRoleRights": "Assegna i permessi di {{role}}",
       "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
       "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
       "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invita in {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Fatto",
+      "searchPlaceholder": "Cerca persone, agenti o @user:server",
+      "filterLabel": "Filtra per tipo",
+      "filterAll": "Tutti",
+      "filterPeople": "Persone",
+      "filterAgents": "Agenti",
+      "recentAndDirect": "Recenti e diretti",
+      "directory": "Elenco",
+      "externalUserId": "ID Matrix esterno",
+      "noMatches": "Nessun utente corrispondente. Inserisci un ID @user:server completo per invitare direttamente.",
+      "emptyDirectory": "Nessun utente da invitare al momento. Inserisci un ID @user:server completo per invitare direttamente.",
+      "addNote": "+ Aggiungi nota di invito",
+      "hideNote": "− Nascondi nota di invito",
+      "notePlaceholder": "Aggiungi una nota al tuo invito...",
+      "giveRoleRightsAgents": "Assegna i permessi di {{role}} agli agenti invitati",
+      "alreadyInRoom": "Già in questa stanza",
+      "alreadyInvited": "Già invitato",
+      "bannedFromRoom": "Bandito da questa stanza",
+      "retryUser": "Riprova a invitare {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",
@@ -1871,6 +1890,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} altro thread",
+    "moreThreads_many": "{{count}} di altri thread",
+    "moreThreads_other": "{{count}} altri thread",
     "forMe": "Per me",
     "forMeHint": "Solo i thread a cui partecipi, in cui un agente ha scritto per te o che hai fissato",
     "roomForMeHint": "Solo i thread a cui partecipi o in cui un agente ha scritto per te",

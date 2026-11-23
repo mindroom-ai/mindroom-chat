@@ -135,8 +135,7 @@ vi.mock('./PasteAttachmentContent', () => ({
 }));
 
 vi.mock('../agent-run/StreamingIndicator', () => ({
-  renderStreamingIndicator: () =>
-    React.createElement('span', { 'data-renderer': 'streaming' }),
+  renderStreamingIndicator: () => React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({
@@ -289,6 +288,48 @@ describe('renderAgentMessageContent', () => {
     expect(rendered).not.toContain('streaming');
 
     renderer.unmount();
+  });
+
+  it('renders ThinkingPlaceholder for a pending placeholder carrying early ai_run model metadata', async () => {
+    const earlyAiRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+    const pendingRenderer = await renderNode({
+      msgType: 'm.text',
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+        'io.mindroom.ai_run': earlyAiRun,
+      },
+    });
+    const pendingRendered = JSON.stringify(pendingRenderer.toJSON());
+    expect(pendingRendered).toContain('thinking-placeholder');
+    expect(pendingRendered).not.toContain('Thinking...');
+    pendingRenderer.unmount();
+
+    for (const nonStreamingStatus of ['approval_pending', 'cancelled']) {
+      const pausedRenderer = await renderNode({
+        msgType: 'm.text',
+        content: {
+          msgtype: 'm.text',
+          body: 'Thinking...',
+          'io.mindroom.stream_status': nonStreamingStatus,
+          'io.mindroom.ai_run': earlyAiRun,
+        },
+      });
+      const pausedRendered = JSON.stringify(pausedRenderer.toJSON());
+      expect(pausedRendered).toContain('Thinking...');
+      expect(pausedRendered).not.toContain('thinking-placeholder');
+      expect(pausedRendered).not.toContain('streaming');
+      pausedRenderer.unmount();
+    }
   });
 
   it('keeps terminal Thinking... messages on the normal text renderer', async () => {
@@ -1009,9 +1050,9 @@ describe('renderAgentMessageContent', () => {
 
     // What Chat's real hydration returns after downloading a file with these bytes.
     const downloaded = async (file: unknown, raw = JSON.stringify(file)) => {
-      const { hydrateLongTextSource } = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-        '../../matrix/protocol/longText'
-      );
+      const { hydrateLongTextSource } = await vi.importActual<
+        typeof import('../../matrix/protocol/longText')
+      >('../../matrix/protocol/longText');
       return hydrateLongTextSource(
         { previewContent: { body: '' }, mxcUri: `mxc://test/${raw.length}`, isV2ContentJson: true },
         async () => raw,

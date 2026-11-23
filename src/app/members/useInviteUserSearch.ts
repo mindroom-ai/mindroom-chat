@@ -42,8 +42,12 @@ const getSelfUserId = (mx: ReturnType<typeof useMatrixClient>): string | undefin
 const getFilteredUsers = (
   users: readonly ServerUserDirectoryUser[],
   room: Room | undefined,
-  selfUserId?: string
-): ServerUserDirectoryUser[] => filterInviteUserCandidates(users, room, selfUserId);
+  selfUserId?: string,
+  predicate?: (user: ServerUserDirectoryUser) => boolean
+): ServerUserDirectoryUser[] => {
+  const candidates = filterInviteUserCandidates(users, room, selfUserId);
+  return predicate ? candidates.filter(predicate) : candidates;
+};
 
 const shouldSearchServer = (
   trimmedQuery: string,
@@ -66,7 +70,8 @@ const shouldSearchServer = (
 // only the current user is excluded from suggestions.
 export const useInviteUserSearch = (
   room: Room | undefined,
-  query: string
+  query: string,
+  predicate?: (user: ServerUserDirectoryUser) => boolean
 ): InviteUserSearchResult => {
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -94,8 +99,8 @@ export const useInviteUserSearch = (
   );
 
   const filteredLocalUsers = useMemo(
-    () => getFilteredUsers(localUsers, room, selfUserId),
-    [localUsers, room, selfUserId]
+    () => getFilteredUsers(localUsers, room, selfUserId, predicate),
+    [localUsers, predicate, room, selfUserId]
   );
 
   const localSuggestions = useMemo(() => {
@@ -226,7 +231,7 @@ export const useInviteUserSearch = (
       return localSuggestions;
     }
 
-    const filteredServerUsers = getFilteredUsers(serverResult.users, room, selfUserId);
+    const filteredServerUsers = getFilteredUsers(serverResult.users, room, selfUserId, predicate);
     return rankUsers(
       mergeUserDirectoryUsers(filteredLocalUsers, filteredServerUsers),
       localSearchTerm,
@@ -237,6 +242,7 @@ export const useInviteUserSearch = (
     filteredLocalUsers,
     localSuggestions,
     localSearchTerm,
+    predicate,
     room,
     selfUserId,
     serverResult,
@@ -247,7 +253,7 @@ export const useInviteUserSearch = (
   // (from this very search, say) would stay. The few suggestions are checked against the room on
   // every render instead; the list keeps its identity while the answer stays the same.
   const kept = suggestions
-    .map((user) => (getFilteredUsers([user], room, selfUserId).length > 0 ? '1' : '0'))
+    .map((user) => (getFilteredUsers([user], room, selfUserId, predicate).length > 0 ? '1' : '0'))
     .join('');
   const currentSuggestions = useMemo(
     () => suggestions.filter((_, index) => kept[index] === '1'),

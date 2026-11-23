@@ -15,7 +15,24 @@ describe('InsetScrollbar', () => {
   let frame: FrameRequestCallback | undefined;
   let trackHeight: number;
   let contentHeight: number;
+  let scrollRef = createRef<HTMLDivElement>();
+  let contentRef = createRef<HTMLDivElement>();
   const disconnect = vi.fn();
+  const mountBar = (beforeEnd?: () => void) =>
+    act(() =>
+      root.render(
+        <div ref={scrollRef}>
+          <div ref={contentRef} />
+          <InsetScrollbar
+            scrollRef={scrollRef}
+            contentRef={contentRef}
+            label="Messages"
+            className="placement"
+            beforeEnd={beforeEnd}
+          />
+        </div>
+      )
+    );
 
   const flush = () => {
     const pending = frame;
@@ -72,21 +89,9 @@ describe('InsetScrollbar', () => {
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
-    const scrollRef = createRef<HTMLDivElement>();
-    const contentRef = createRef<HTMLDivElement>();
-    act(() =>
-      root.render(
-        <div ref={scrollRef}>
-          <div ref={contentRef} />
-          <InsetScrollbar
-            scrollRef={scrollRef}
-            contentRef={contentRef}
-            label="Messages"
-            className="placement"
-          />
-        </div>
-      )
-    );
+    scrollRef = createRef<HTMLDivElement>();
+    contentRef = createRef<HTMLDivElement>();
+    mountBar();
     scroll = scrollRef.current!;
     track = host.querySelector('[role="scrollbar"]')!;
     thumb = track.firstElementChild as HTMLDivElement;
@@ -165,6 +170,39 @@ describe('InsetScrollbar', () => {
     expect(key('End', { ctrlKey: true }).defaultPrevented).toBe(false);
     expect(key('Escape').defaultPrevented).toBe(false);
     expect(scroll.scrollTop).toBe(300);
+  });
+
+  it('runs beforeEnd only on unmodified End and preserves an active drag across prop changes', () => {
+    const beforeEnd = vi.fn(() => {
+      contentHeight = 2100;
+    });
+    mountBar(beforeEnd);
+    key('PageDown');
+    key('Home');
+    expect(beforeEnd).not.toHaveBeenCalled();
+    key('End');
+    expect(beforeEnd).toHaveBeenCalledTimes(1);
+    expect(scroll.scrollTop).toBe(1600);
+    key('End', { ctrlKey: true });
+    expect(beforeEnd).toHaveBeenCalledTimes(1);
+
+    mountBar();
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = vi.fn(() => false);
+    const pointer = (type: string, clientY: number) => {
+      const event = new MouseEvent(type, { button: 0, clientY, bubbles: true, cancelable: true });
+      Object.defineProperties(event, { isPrimary: { value: true }, pointerId: { value: 1 } });
+      track.dispatchEvent(event);
+    };
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    pointer('pointerdown', 100);
+    const pressed = scroll.scrollTop;
+    mountBar(() => {});
+    expect(blocked()).toBe(true);
+    pointer('pointermove', 200);
+    expect(scroll.scrollTop).toBeGreaterThan(pressed);
+    pointer('pointerup', 200);
+    expect(blocked()).toBe(false);
   });
 
   it.each([0, -1] as const)('preserves composite focus when tabIndex is %s', (tabIndex) => {

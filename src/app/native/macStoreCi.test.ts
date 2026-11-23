@@ -144,11 +144,12 @@ describe('isolated Mac Store CI and archive entry points', () => {
     const selected =
       platform === 'macOS'
         ? ['AppStoreMac', 'MindRoomMacSupport']
-        : ['App', 'MindRoomWatch', 'MindRoomWatchWidgets'];
+        : ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService'];
     for (const target of [
       'App',
       'MindRoomWatch',
       'MindRoomWatchWidgets',
+      'MindRoomNotificationService',
       'AppStoreMac',
       'MindRoomMacSupport',
     ]) {

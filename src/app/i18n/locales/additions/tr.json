@@ -93,13 +93,32 @@
       "wheelZoomHint": "Yakınlaştırmak için {{key}} + kaydırma"
     },
     "inviteUserPrompt": {
-      "close": "Kapat",
       "invited": "{{user}} davet edildi.",
-      "giveRoleRights": "{{role}} yetkisi ver",
       "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
       "roleFailed": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}",
       "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "{{room}} odasına davet et",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Bitti",
+      "searchPlaceholder": "Kişi, ajan veya @user:server ara",
+      "filterLabel": "Türe göre filtrele",
+      "filterAll": "Tümü",
+      "filterPeople": "Kişiler",
+      "filterAgents": "Ajanlar",
+      "recentAndDirect": "Son ve Doğrudan",
+      "directory": "Dizin",
+      "externalUserId": "Harici Matrix kimliği",
+      "noMatches": "Eşleşen kullanıcı yok. Doğrudan davet etmek için tam @user:server kimliğini girin.",
+      "emptyDirectory": "Henüz davet edilecek kullanıcı yok. Doğrudan davet etmek için tam @user:server kimliğini girin.",
+      "addNote": "+ Davet notu ekle",
+      "hideNote": "− Davet notunu gizle",
+      "notePlaceholder": "Davetinize bir not ekleyin...",
+      "giveRoleRightsAgents": "Davet edilen ajanlara {{role}} yetkisi ver",
+      "alreadyInRoom": "Zaten bu odada",
+      "alreadyInvited": "Zaten davet edildi",
+      "bannedFromRoom": "Bu odadan yasaklandı",
+      "retryUser": "{{user}} davetini yeniden dene"
     },
     "joinAddressPrompt": {
       "close": "Kapat",
@@ -1815,6 +1834,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} konu daha",
+    "moreThreads_other": "{{count}} konu daha",
     "forMe": "Benim için",
     "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
     "roomForMeHint": "Yalnızca katıldığınız veya bir ajanın sizin adınıza mesaj gönderdiği konular",

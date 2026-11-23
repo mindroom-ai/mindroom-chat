@@ -10,6 +10,7 @@ const nativeCode = (code: string) => {
   if (code === 'zh-TW') return 'zh-Hant';
   return code;
 };
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const readStrings = (code: string, file: string): Record<string, string> => {
   const source = readFileSync(`${appDirectory}${nativeCode(code)}.lproj/${file}.strings`, 'utf8');
@@ -55,12 +56,14 @@ describe('native localization resources', () => {
     });
 
     it(`${code} is included in both Xcode resource groups`, () => {
+      const locale = nativeCode(code);
       ['Localizable', 'InfoPlist'].forEach((file) => {
-        expect(project).toContain(`path = "${nativeCode(code)}.lproj/${file}.strings";`);
+        const expectedPath = escapeRegex(`${locale}.lproj/${file}.strings`);
+        expect(project).toMatch(new RegExp(`path = "?${expectedPath}"?;`));
         expect(project).toContain(`/* ${file}.strings in Resources */`);
       });
       const regions = project.match(/knownRegions = \(([\s\S]*?)\);/)?.[1];
-      expect(regions).toContain(`"${nativeCode(code)}"`);
+      expect(regions).toMatch(new RegExp(`(^|[\\s,])"?${escapeRegex(locale)}"?,`));
     });
   });
 });

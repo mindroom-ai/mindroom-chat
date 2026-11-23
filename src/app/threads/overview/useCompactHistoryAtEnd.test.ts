@@ -101,6 +101,21 @@ describe('useCompactHistoryAtEnd', () => {
     expect(paginateBack).toHaveBeenCalled();
   });
 
+  it('pages on after a page whose new cards are still to be measured', async () => {
+    const { host, view } = mountView(2_000, 1_500);
+    // Each page brings cards the list has not measured: it is pending for a few frames.
+    const paginateBack = vi.fn(async () => {
+      view.setAttribute('data-cards-pending', 'true');
+      setTimeout(() => view.removeAttribute('data-cards-pending'), 60);
+    });
+    render(host, { paginateBack });
+
+    view.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    await settle();
+    await settle();
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_HISTORY_PAGES_PER_APPROACH);
+  });
+
   it('loads nothing once the room has no older history', async () => {
     const { host, view } = mountView(600, 100);
     const paginateBack = vi.fn(async () => undefined);

@@ -42,7 +42,7 @@ describe('the Send button', () => {
     vi.restoreAllMocks();
   });
 
-  const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'auto', hasText = true) => {
+  const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'auto', hasContent = true) => {
     const onSend = vi.fn();
     const store = createStore();
     render(
@@ -52,7 +52,7 @@ describe('the Send button', () => {
         <ComposerSendButton
           label="Send message"
           agentReplying={agentReplying}
-          hasText={() => hasText}
+          hasContent={() => hasContent}
           empty={false}
           defaultMode={defaultMode}
           onSend={onSend}
@@ -164,7 +164,7 @@ describe('the Send button', () => {
     expect(onSend.mock.calls).toEqual([['queue']]);
   });
 
-  it('sends on a hold, as on a tap, without text to send while an agent replies', () => {
+  it('sends on a hold, as on a tap, with nothing to send while an agent replies', () => {
     const { onSend, button } = setup(true, 'auto', false);
     hold(button);
     expect(screen.queryByRole('menu')).toBeNull();
@@ -235,7 +235,7 @@ describe('the Send button', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  it('opens nothing for a resting mouse while no agent replies, or without text', () => {
+  it('opens nothing for a resting mouse while no agent replies, or with nothing to send', () => {
     const first = setup(false);
     enter(first.button);
     wait(1000);
@@ -373,7 +373,7 @@ describe('the Send button', () => {
     const props = {
       label: 'Send message',
       agentReplying: true,
-      hasText: () => true,
+      hasContent: () => true,
       empty: false,
       defaultMode: 'auto' as const,
       onSend: vi.fn(),

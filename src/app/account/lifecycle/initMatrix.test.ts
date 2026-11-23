@@ -2203,6 +2203,114 @@ describe('logoutClient', () => {
     expect(getSessionStore(localStorageMock).sessions).toHaveLength(0);
     expect(reload).toHaveBeenCalledTimes(1);
   });
+
+  describe('what the account shares with the iOS notification extension', () => {
+    const signedInAccount = () => {
+      const { storage: localStorageMock } = createStorageMock();
+      const session = putSession(
+        {
+          baseUrl: 'https://example.com',
+          userId: '@alice:example.com',
+          deviceId: 'DEVICE_A',
+          accessToken: 'token-a',
+        },
+        undefined,
+        localStorageMock
+      );
+      const reload = vi.fn();
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: localStorageMock,
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'indexedDB', {
+        value: { deleteDatabase: createDeleteDatabaseMock() },
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'window', {
+        value: {
+          localStorage: localStorageMock,
+          dispatchEvent: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          location: { reload },
+        },
+        configurable: true,
+      });
+      const clearStores = vi.fn().mockResolvedValue(undefined);
+      const mx = {
+        clearStores,
+        getDeviceId: vi.fn(() => session.deviceId),
+        getHomeserverUrl: vi.fn(() => session.baseUrl),
+        getSafeUserId: vi.fn(() => session.userId),
+        logout: vi.fn().mockResolvedValue(undefined),
+        stopClient: vi.fn(),
+      } as never;
+      return { session, localStorageMock, reload, clearStores, mx };
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('takes the account out of the registry before any teardown, and before the app is asked to remove it', async () => {
+      const { session, localStorageMock, reload, clearStores, mx } = signedInAccount();
+      let registeredAtTeardown: number | undefined;
+      let registeredWhenAsked: number | undefined;
+      clearStores.mockImplementation(async () => {
+        registeredAtTeardown = getSessionStore(localStorageMock).sessions.length;
+      });
+      vi.mocked(clearIOSPushState).mockImplementation(async () => {
+        registeredWhenAsked = getSessionStore(localStorageMock).sessions.length;
+      });
+
+      await logoutClient(mx);
+
+      // The app keeps the accounts of the registry only. A sign-out that is cut off anywhere
+      // after this needs nothing noted down: the next reconcile removes what the account shares.
+      expect(registeredAtTeardown).toBe(0);
+      expect(registeredWhenAsked).toBe(0);
+      expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('reloads after a while although the app never answers its removal', async () => {
+      const { session, reload, mx } = signedInAccount();
+      // A callback of iOS that is never called.
+      vi.mocked(clearIOSPushState).mockReturnValue(new Promise<void>(() => undefined));
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+      let signedOut = false;
+      const signingOut = logoutClient(mx).then(() => {
+        signedOut = true;
+      });
+      await vi.advanceTimersByTimeAsync(4900);
+      expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
+      expect(signedOut).toBe(false);
+      expect(reload).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(200);
+      await signingOut;
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops waiting when the app answers in time', async () => {
+      const { reload, mx } = signedInAccount();
+      const setTimer = vi.spyOn(globalThis, 'setTimeout');
+      const clearTimer = vi.spyOn(globalThis, 'clearTimeout');
+      // The wait is the timer set right after the app is asked.
+      let wait = -1;
+      vi.mocked(clearIOSPushState).mockImplementation(async () => {
+        wait = setTimer.mock.calls.length;
+      });
+
+      await logoutClient(mx);
+
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(setTimer.mock.calls[wait]?.[1]).toBe(5000);
+      expect(clearTimer).toHaveBeenCalledWith(setTimer.mock.results[wait]?.value);
+    });
+  });
 });
 
 describe('removeStoredSession', () => {

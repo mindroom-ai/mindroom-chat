@@ -93,13 +93,32 @@
       "wheelZoomHint": "জুম করতে {{key}} + স্ক্রল"
     },
     "inviteUserPrompt": {
-      "close": "বন্ধ করুন",
       "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।",
-      "giveRoleRights": "{{role}}-এর অধিকার দিন",
       "giveRoleRightsHelp": "ভয়েস ট্রান্সক্রিপ্ট ভাঁজ করতে এবং সময়সূচি ও রুমের সেটিংস পরিচালনা করতে এই রুমে {{role}}-এর অধিকার প্রয়োজন।",
       "roleFailed": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে, তবে {{role}}-এর অধিকার দেওয়া যায়নি: {{error}}",
       "roleRequirementChanged": "এই রুমে এখন {{role}}-এর অধিকার প্রয়োজন।",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "{{room}}-এ আমন্ত্রণ জানান",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "সম্পন্ন",
+      "searchPlaceholder": "মানুষ, এজেন্ট বা @user:server খুঁজুন",
+      "filterLabel": "ধরন অনুযায়ী ফিল্টার করুন",
+      "filterAll": "সব",
+      "filterPeople": "মানুষ",
+      "filterAgents": "এজেন্ট",
+      "recentAndDirect": "সাম্প্রতিক ও সরাসরি",
+      "directory": "ডিরেক্টরি",
+      "externalUserId": "বাহ্যিক Matrix আইডি",
+      "noMatches": "কোনো মিল পাওয়া যায়নি। সরাসরি আমন্ত্রণ জানাতে সম্পূর্ণ @user:server আইডি লিখুন।",
+      "emptyDirectory": "এখনো আমন্ত্রণ জানানোর মতো কোনো ব্যবহারকারী নেই। সরাসরি আমন্ত্রণ জানাতে সম্পূর্ণ @user:server আইডি লিখুন।",
+      "addNote": "+ আমন্ত্রণ নোট যোগ করুন",
+      "hideNote": "− আমন্ত্রণ নোট লুকান",
+      "notePlaceholder": "আপনার আমন্ত্রণে একটি নোট যোগ করুন...",
+      "giveRoleRightsAgents": "আমন্ত্রিত এজেন্টদের {{role}}-এর অধিকার দিন",
+      "alreadyInRoom": "ইতিমধ্যেই এই রুমে আছেন",
+      "alreadyInvited": "ইতিমধ্যেই আমন্ত্রিত",
+      "bannedFromRoom": "এই রুম থেকে নিষিদ্ধ",
+      "retryUser": "{{user}}-কে আবার আমন্ত্রণ জানান"
     },
     "joinAddressPrompt": {
       "close": "বন্ধ করুন",
@@ -1815,6 +1834,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "আরও {{count}}টি থ্রেড",
+    "moreThreads_other": "আরও {{count}}টি থ্রেড",
     "forMe": "আমার জন্য",
     "forMeHint": "শুধু সেই থ্রেডগুলো দেখান যেগুলোতে আপনি অংশ নেন, কোনো এজেন্ট আপনার হয়ে পোস্ট করেছে, বা আপনি পিন করেছেন",
     "roomForMeHint": "শুধু সেই থ্রেডগুলো দেখান যেগুলোতে আপনি অংশ নেন বা কোনো এজেন্ট আপনার হয়ে পোস্ট করেছে",
