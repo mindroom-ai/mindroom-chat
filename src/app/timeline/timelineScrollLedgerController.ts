@@ -12,6 +12,7 @@ import {
 import { flushSync } from 'react-dom';
 import {
   measureElement as measureRowElement,
+  observeElementOffset,
   observeElementRect,
   useVirtualizer,
   type Range,
@@ -48,6 +49,7 @@ import {
   type ThreadLedgerEvent,
 } from './threadScrollLedger';
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
+import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -431,6 +433,19 @@ export const useTimelineScrollLedgerController = ({
     observing = true;
     return stop;
   }, []);
+  // virtual-core's idle report, 150 ms after the last `scroll` event, repeats the offset of that
+  // event. A write to `scrollTop` since then whose own event never came (WebKit can coalesce it
+  // away) left the scroller elsewhere, and the report would move the range back to the old
+  // offset: after the status-bar jump to 0, away from the first rows. So the idle report takes
+  // the offset the scroller has by then.
+  const observeTimelineOffset = useCallback<typeof observeElementOffset>(
+    (instance, onOffset) =>
+      observeElementOffset(instance, (offset, isScrolling) => {
+        const { scrollElement } = instance;
+        onOffset(!isScrolling && scrollElement ? scrollElement.scrollTop : offset, isScrolling);
+      }),
+    []
+  );
 
   // Extraction runs after useVirtualizer returns, against this render's
   // instance/options. A fresh callback invalidates the range cache on resize.
@@ -442,6 +457,7 @@ export const useTimelineScrollLedgerController = ({
     overscan: 10,
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
+    observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
@@ -742,8 +758,8 @@ export const useTimelineScrollLedgerController = ({
     compensationSettleArmedRef.current = true;
     const generation = ledgerGenerationRef.current;
     void waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
-      compensationSettleArmedRef.current = false;
       if (!alive() || ledgerGenerationRef.current !== generation) return;
+      compensationSettleArmedRef.current = false;
       settleScrollCompensation('quiescence');
     });
   }, [alive, getScrollElement, settleScrollCompensation]);
@@ -928,20 +944,64 @@ export const useTimelineScrollLedgerController = ({
         settleScrollCompensation('boundary');
       }
     };
+    // Status-bar tap jumps straight to the top of the loaded rows: drop any unsettled offset
+    // ledger atomically before writing `scrollTop = 0`, so neither the boundary guard at 0 nor
+    // a later quiescence settle shifts `scrollTop` back down by the accumulated positive fold.
+    // Pending room folds are cleared as well so any in-flight room prepend becomes the new top
+    // rather than folding above it.
+    const onStatusBarScrollTop = (event: Event) => {
+      event.preventDefault();
+      const inner = virtualInnerRef.current;
+      const hadLedger =
+        scrollCompensationPxRef.current !== 0 ||
+        rowFoldPxRef.current !== 0 ||
+        droppedRowFoldPxRef.current !== 0 ||
+        pendingRoomFoldPxRef.current !== 0 ||
+        (inner !== null && inner.style.marginTop !== '');
+      ledgerGenerationRef.current += 1;
+      compensationSettleArmedRef.current = false;
+      ledgerSettleWantedRef.current = false;
+      settleDiscardWatchRef.current = undefined;
+      settledScrollTopRef.current = undefined;
+      scrollCompensationPxRef.current = 0;
+      rowFoldPxRef.current = 0;
+      droppedRowFoldPxRef.current = 0;
+      pendingRoomFoldPxRef.current = 0;
+      threadLedgerAnchorRef.current = undefined;
+      roomLedgerAnchorRef.current = undefined;
+      roomLeadingAboveViewRef.current = false;
+      wheelPx = 0;
+      if (inner) inner.style.marginTop = '';
+      if (typeof scrollElement.scrollTo === 'function') {
+        scrollElement.scrollTo({ top: 0 });
+      } else {
+        scrollElement.scrollTop = 0;
+      }
+      const top = scrollElement.scrollTop;
+      ledgerBoundaryScrollTopRef.current = top;
+      if (hadLedger) {
+        virtualizerRef.current.scrollOffset = top;
+        virtualizerRef.current.setOptions({ ...virtualizerRef.current.options, scrollMargin: 0 });
+        flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      }
+    };
     scrollElement.addEventListener('touchstart', onLedgerBoundaryTouchStart, {
       capture: true,
       passive: true,
     });
     scrollElement.addEventListener('wheel', onLedgerBoundaryWheel, { passive: true });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
+    scrollElement.addEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
     return () => {
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
       scrollElement.removeEventListener('wheel', onLedgerBoundaryWheel);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
+      scrollElement.removeEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
     };
   }, [
     getScrollElement,
     handleDroppedCorrection,
+    pendingRoomFoldPxRef,
     settleScrollCompensation,
     threadId,
     threadInitialRenderMode,
