@@ -322,6 +322,7 @@ type ProbeReport = {
   maxUnexplainedPx: number;
   maxSpreadPx: number;
   maxAnchorDriftPx: number;
+  maxBottomOffsetPx: number;
   lostPlaceFrames: number;
   jumps: JumpFrame[];
   coldFrames: ColdFrameSample[];
@@ -367,6 +368,7 @@ const installThreadJumpProbe = () => {
     maxUnexplainedPx: 0,
     maxSpreadPx: 0,
     maxAnchorDriftPx: 0,
+    maxBottomOffsetPx: 0,
     lostPlaceFrames: 0,
     anchorId: '',
     anchorBaseTop: Number.NaN,
@@ -432,6 +434,7 @@ const installThreadJumpProbe = () => {
       this.maxUnexplainedPx = 0;
       this.maxSpreadPx = 0;
       this.maxAnchorDriftPx = 0;
+      this.maxBottomOffsetPx = 0;
       this.lostPlaceFrames = 0;
       this.anchorId = '';
       this.anchorBaseTop = Number.NaN;
@@ -457,6 +460,7 @@ const installThreadJumpProbe = () => {
         maxUnexplainedPx: Math.round(this.maxUnexplainedPx),
         maxSpreadPx: Math.round(this.maxSpreadPx),
         maxAnchorDriftPx: Math.round(this.maxAnchorDriftPx),
+        maxBottomOffsetPx: Math.round(this.maxBottomOffsetPx),
         lostPlaceFrames: this.lostPlaceFrames,
         jumps: this.jumps,
         coldFrames: this.coldFrames,
@@ -617,6 +621,10 @@ const installThreadJumpProbe = () => {
         const bottomGapPx = lastRow
           ? Math.round(view.bottom - lastRow.getBoundingClientRect().bottom)
           : Number.NaN;
+        const bottomOffsetPx = Math.max(0, scroller.scrollHeight - scroller.clientHeight - scrollTop);
+        if (probe.hasVisibleBaseline && bottomOffsetPx > probe.maxBottomOffsetPx) {
+          probe.maxBottomOffsetPx = bottomOffsetPx;
+        }
 
         if (!probe.anchorId && current.size > 0) {
           // Track the newest visible row (last entry in DOM order) as the reader's anchor.
@@ -1005,10 +1013,29 @@ test.describe('thread timeline jumps reproducers', () => {
         await startProbe(page, 'open');
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
+        // Reader taps the timeline at bottom (like tapping to read/focus during the cold load),
+        // which hands anchoring from the open-pin loop to the ledger + useFooterBottomPin.
+        await page.waitForTimeout(250);
+        await page.evaluate(() => {
+          const inner = document.querySelector<HTMLElement>(
+            '[data-timeline-rows][data-thread-count]'
+          );
+          let scroller = inner?.parentElement ?? null;
+          while (scroller) {
+            const { overflowY } = getComputedStyle(scroller);
+            if (overflowY === 'auto' || overflowY === 'scroll') break;
+            scroller = scroller.parentElement;
+          }
+          scroller?.dispatchEvent(
+            new PointerEvent('pointerdown', { bubbles: true, isPrimary: true })
+          );
+        });
         // Once page 1 adds the backward cursor and mounts <ThreadLoadingLines showLoadOlder />
-        // (setting marginTop = -40px without updating rowFoldPxRef), trigger a realistic footer
-        // resize (a newline in the composer) inside the ~150 ms unsettled window so useListEndClamp's
-        // ResizeObserver runs against the miscounted leading fold.
+        // (setting marginTop = -40px without updating rowFoldPxRef), add a line in the composer
+        // inside the ~150 ms unsettled window. useFooterBottomPin keeps the newest row flush above
+        // the composer (bottomOffsetPx = 0), but useListEndClamp misreads the -40px leading fold
+        // as 40px of unrendered shrink and clamps scrollTop up by -40px (pushing the newest row
+        // 40px down behind the composer).
         await expect
           .poll(
             () =>
@@ -1023,8 +1050,10 @@ test.describe('thread timeline jumps reproducers', () => {
           .toBe(true);
         const composer = page.locator('[contenteditable="true"]').last();
         if (await composer.isVisible().catch(() => false)) {
-          await composer.focus();
+          await composer.click();
+          await page.keyboard.type('a');
           await page.keyboard.press('Shift+Enter');
+          await page.keyboard.type('b');
         }
         await expect
           .poll(() => net.relationsDone && net.relationsPages >= 10, { timeout: 60_000 })
@@ -1038,13 +1067,12 @@ test.describe('thread timeline jumps reproducers', () => {
           threadCountEnd: report.threadCountEnd,
           minVisibleCount: report.minVisibleCount,
           maxRowJumpPx: report.maxRowJumpPx,
+          maxBottomOffsetPx: report.maxBottomOffsetPx,
           maxBottomGapJumpPx: report.maxBottomGapJumpPx,
           maxAnchorDriftPx: report.maxAnchorDriftPx,
-          topJumps: report.jumps.slice(0, 12),
-          coldFramesSample: report.coldFrames.slice(0, 30),
+          topJumps: report.jumps.slice(0, 8),
+          coldFramesSample: report.coldFrames.slice(0, 12),
         });
-        // eslint-disable-next-line no-console
-        console.log(`[COLD-PINNED ${setup.engine} ${setup.viewport}]`, summary);
         expect(net.relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
         expect(report.threadCountStart, `expected cold open start: ${summary}`).toBeLessThanOrEqual(40);
         expect(report.threadCountEnd, `expected full thread loaded: ${summary}`).toBeGreaterThanOrEqual(280);
@@ -1053,18 +1081,13 @@ test.describe('thread timeline jumps reproducers', () => {
           report.minVisibleCount,
           `blank screen during cold open (pinned): ${summary}`
         ).toBeGreaterThan(0);
+        // When useListEndClamp does not miscount leadingRef's fold, useFooterBottomPin keeps the
+        // newest row pinned to the bottom (bottomOffsetPx <= 4) across the composer resize and all
+        // 15 slow /relations pages.
         expect(
-          report.maxRowJumpPx,
-          `row jump during cold open (pinned): ${summary}`
+          report.maxBottomOffsetPx,
+          `newest row displaced from bottom during cold open (useListEndClamp miscounted leadingRef fold): ${summary}`
         ).toBeLessThanOrEqual(4);
-        expect(
-          report.maxBottomGapJumpPx,
-          `bottom-gap jump during cold open (pinned): ${summary}`
-        ).toBeLessThanOrEqual(20);
-        expect(
-          report.maxAnchorDriftPx,
-          `anchor drift during cold open (pinned): ${summary}`
-        ).toBeLessThanOrEqual(20);
         },
         (page) => setupColdThreadRoutes(page, fixture, net)
       );
@@ -1149,8 +1172,7 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: report.jumps.slice(0, 12),
           coldFramesSample: report.coldFrames.slice(0, 30),
         });
-        // eslint-disable-next-line no-console
-        console.log(`[COLD-MIDTHREAD ${setup.engine} ${setup.viewport}]`, summary);
+
         expect(scrolledUp.ok, `failed to scroll mid-thread: ${summary}`).toBe(true);
         expect(net.relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
         expect(report.threadCountEnd, `expected full thread loaded: ${summary}`).toBeGreaterThanOrEqual(280);

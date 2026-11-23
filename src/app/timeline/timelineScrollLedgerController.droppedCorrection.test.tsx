@@ -146,6 +146,8 @@ it('reads no shrink when leading content (e.g. Load older messages) mounts above
   const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
   const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+  const origGetVirtualItemForOffset = virtualizer.getVirtualItemForOffset;
+  virtualizer.getVirtualItemForOffset = () => ({ index: 0, start: 0, size: 200 }) as never;
   const scrollElement = document.createElement('div');
   scrollElement.scrollTop = 400;
   const rect = vi
@@ -218,6 +220,7 @@ it('reads no shrink when leading content (e.g. Load older messages) mounts above
     expect(inner.style.marginTop).toBe('-40px');
     expect(listShrinkNotRendered(inner, rows, readRowFoldPx())).toBe(0);
   } finally {
+    virtualizer.getVirtualItemForOffset = origGetVirtualItemForOffset;
     flushSync(() => root.unmount());
     rect.mockRestore();
     reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
