@@ -50,6 +50,8 @@ export interface InteractiveSwipeOptions {
   within?: RefObject<Element>;
   blockStandaloneWebApp?: boolean;
   cancelCommits?: boolean;
+  /** Optional custom blocker; defaults to `hasOpenOverlay(scope)` when omitted. */
+  isBlocked?: () => boolean;
   onCommit: () => void;
   begin?: InteractiveSwipeBegin;
 }
@@ -69,6 +71,7 @@ type SwipeRegistration = {
   elementRef?: RefObject<HTMLElement>;
   within?: RefObject<Element>;
   cancelCommits: boolean;
+  isBlockedRef: MutableRefObject<(() => boolean) | undefined>;
   onCommitRef: MutableRefObject<() => void>;
   beginRef: MutableRefObject<InteractiveSwipeBegin | undefined>;
 };
@@ -423,10 +426,19 @@ const isTrackedTouchEnded = (
   return false;
 };
 
+const isEntryBlocked = (
+  entry: SwipeRegistration,
+  overlayScope: Element | null | undefined
+): boolean => {
+  const customBlocked = entry.isBlockedRef.current;
+  if (customBlocked) return customBlocked();
+  return hasOpenOverlay(overlayScope);
+};
+
 const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => {
   if (gesture.entry.zone === 'edge' && event[HANDLED_EVENT_FLAG]) return;
 
-  if (event.touches.length !== 1 || hasOpenOverlay(gesture.overlayScope)) {
+  if (event.touches.length !== 1 || isEntryBlocked(gesture.entry, gesture.overlayScope)) {
     abortActiveGesture();
     return;
   }
@@ -522,7 +534,7 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: n
     armClickSuppressor();
   }
 
-  if (hasOpenOverlay(gesture.overlayScope)) {
+  if (isEntryBlocked(gesture.entry, gesture.overlayScope)) {
     cleanupGestureImmediate(gesture);
     return;
   }
@@ -564,7 +576,7 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: n
     try {
       await gesture.scene!.settle(commit, durationMs, currentOffset);
       if (activeSettle?.token !== settleToken || gesture.cleanedUp) return;
-      if (commit && !hasOpenOverlay(gesture.overlayScope)) {
+      if (commit && !isEntryBlocked(gesture.entry, gesture.overlayScope)) {
         committed = true;
         gesture.scene!.commit();
       }
@@ -631,7 +643,7 @@ const handleWindowTouchStart = (event: TouchEventWithFlag) => {
     );
     if (!isInEdgeBand(touch.clientX, isPhysicalLeftEdge)) continue;
 
-    if (hasOpenOverlay(entry.within?.current)) {
+    if (isEntryBlocked(entry, entry.within?.current)) {
       break;
     }
 
@@ -770,9 +782,11 @@ export const useInteractiveSwipe = ({
   within,
   blockStandaloneWebApp = false,
   cancelCommits = false,
+  isBlocked,
   onCommit,
   begin,
 }: InteractiveSwipeOptions): void => {
+  const isBlockedRef = useRef(isBlocked);
   const onCommitRef = useRef(onCommit);
   const beginRef = useRef(begin);
   const registrationIdRef = useRef<number | null>(null);
@@ -782,6 +796,7 @@ export const useInteractiveSwipe = ({
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
 
   useLayoutEffect(() => {
+    isBlockedRef.current = isBlocked;
     onCommitRef.current = onCommit;
     beginRef.current = begin;
   });
@@ -799,6 +814,7 @@ export const useInteractiveSwipe = ({
       elementRef,
       within,
       cancelCommits,
+      isBlockedRef,
       onCommitRef,
       beginRef,
     };
@@ -845,7 +861,7 @@ export const useInteractiveSwipe = ({
 
       claimedTouchStartEvents.add(event);
 
-      if (hasOpenOverlay(panel)) return;
+      if (isEntryBlocked(entry, panel)) return;
 
       const dirSign = resolveLogicalDirectionSign(panel);
       const { axisSign } = resolveAxisGeometry(entry.edge, entry.direction, dirSign);

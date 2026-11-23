@@ -12,6 +12,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
 import { isRoomAlias } from '../matrix/matrix';
+import { getDirectoryViaServers } from '../matrix/directoryViaServers';
 
 export type RoomSummaryState = AsyncState<RoomSummary, unknown>;
 
@@ -87,8 +88,9 @@ const fetchRoomSummary = async (
 
 /**
  * Loads a room's summary (MSC3266) for a room the user may not have joined. An alias resolves to
- * a room ID first; its routing servers are used when the caller passed none. The resolved ID and
- * servers stay available when the summary itself fails.
+ * a room ID first; its routing servers are used when the caller passed none, as are the servers
+ * an earlier directory lookup gave for a room ID. The resolved ID and servers stay available when
+ * the summary itself fails.
  */
 export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomSummaryLoaderProps) {
   const mx = useMatrixClient();
@@ -103,13 +105,18 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
     staleTime: Infinity,
   });
 
+  // The caller's servers, else for a room ID the ones the directory gave when an alias resolved
+  // to it. An alias brings its own with the summary request.
+  const given = viaServers && viaServers.length > 0 ? viaServers : undefined;
+  const known = given ?? (alias ? undefined : getDirectoryViaServers(mx, roomIdOrAlias));
+
   const summaryQuery = useQuery({
-    queryKey: ['room-summary', roomIdOrAlias, viaServers],
+    queryKey: ['room-summary', roomIdOrAlias, known],
     // A failed summary is a result the card shows (with its own retry), not a request to repeat.
     retry: false,
     queryFn: async () => {
       let roomId = roomIdOrAlias;
-      let servers = viaServers;
+      let servers = known;
       if (alias) {
         const resolved = await queryClient.fetchQuery({
           queryKey: aliasQueryKey(alias),
@@ -117,14 +124,14 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
           staleTime: Infinity,
         });
         roomId = resolved.room_id;
-        if (!servers || servers.length === 0) servers = resolved.servers;
+        servers ??= resolved.servers;
       }
       return fetchRoomSummary(mx, roomId, servers);
     },
   });
 
   const roomId = alias ? resolvedAlias?.room_id : roomIdOrAlias;
-  const servers = viaServers && viaServers.length > 0 ? viaServers : resolvedAlias?.servers;
+  const servers = known ?? resolvedAlias?.servers;
 
   const { refetch } = summaryQuery;
   const retry = useCallback(() => {

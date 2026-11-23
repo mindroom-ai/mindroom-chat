@@ -205,6 +205,23 @@ describe('useEdgeSwipe under a layer in <body>', () => {
     expect(onSwipe).toHaveBeenCalledOnce();
   });
 
+  it('leaves the page alone while the account quick switcher is open, which has no menu role', () => {
+    const page = renderPage();
+    const QUICK_MENU = '<div role="none" data-quick-account-menu=""></div>';
+    const quickMenu = openLayer(QUICK_MENU);
+    swipe(page, ...FROM_EDGE);
+    quickMenu.remove();
+    // Also when the hold opens it after the touch began, mid-drag or just before the lift.
+    swipe(page, ...FROM_EDGE, { beforeMove: () => openLayer(QUICK_MENU) });
+    document.body.lastElementChild?.remove();
+    swipe(page, ...FROM_EDGE, { beforeLift: () => openLayer(QUICK_MENU) });
+    document.body.lastElementChild?.remove();
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    swipe(page, ...FROM_EDGE);
+    expect(onSwipe).toHaveBeenCalledOnce();
+  });
+
   it('drops a swipe a dialog opens over before the finger lifts', () => {
     const page = renderPage();
     swipe(page, ...FROM_EDGE, { beforeMove: () => openLayer(SETTINGS) });

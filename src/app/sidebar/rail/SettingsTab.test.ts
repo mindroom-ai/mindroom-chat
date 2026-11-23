@@ -182,6 +182,14 @@ vi.mock('../../account/switcher/AccountMenu', () => ({
     ),
 }));
 
+vi.mock('../../account/switcher/QuickAccountMenu', () => ({
+  QuickAccountMenu: () => React.createElement('div', { 'data-testid': 'quick-account-menu' }),
+}));
+
+vi.mock('../../account/switcher/QuickAccountMenu.css', () => ({
+  HoldTrigger: 'quick-account-hold-trigger',
+}));
+
 vi.mock('../../account/switcher/AccountSwitcher', () => ({
   AccountSwitcher: ({
     accounts,

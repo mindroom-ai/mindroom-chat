@@ -1,6 +1,9 @@
 import { hasBlockingPortalOverlay } from './portalOverlay';
 
-const OVERLAY_SELECTOR = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
+// The account quick switcher (`QuickAccountMenu`) is a layer over the page with none of the roles:
+// only the pointer that holds it open uses it.
+export const OVERLAY_SELECTOR =
+  '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"], [data-quick-account-menu]';
 
 /**
  * Whether a menu, listbox or dialog is open over `layer`, the one asking, or over the page without
@@ -9,7 +12,7 @@ const OVERLAY_SELECTOR = '[role="menu"], [role="listbox"], [role="dialog"], [rol
  * `hasBlockingPortalOverlay`, which sees only the portal container: folds portals its overlays and
  * menus into `body`. One left open in an inert page (a popover a drawer came out over) does not
  * count, nor anything inside `layer` or opened before it, under it (a dialog the image viewer
- * opened over). Hover tooltips have none of these roles.
+ * opened over). Hover tooltips have none of these roles. The account quick switcher counts.
  */
 export const hasOpenOverlay = (layer?: Element | null): boolean =>
   hasBlockingPortalOverlay() ||
