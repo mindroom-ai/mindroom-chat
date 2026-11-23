@@ -71,7 +71,6 @@ export type HeadroomOwnerStats = {
   lastHeadroom: number;
   lastAvgRowHeight: number;
   deltas: number[];
-  holdLog?: Array<{ rawLen: number; presLen: number; est: number; req: number; comm: number; avg: number; anchorIdx: number | undefined }>;
 };
 
 declare global {
@@ -129,7 +128,9 @@ export const computeHeadroomBudget = ({
   const safeAvg = Math.max(40, avgRowHeight || DEFAULT_ROW_HEIGHT_PX);
   const perUnmeasured = viewWidth < 600 ? 70 : 20;
   const raw = Math.round(
-    Math.max(0, unloadedReplies) * safeAvg + Math.max(0, unmeasuredLoaded) * perUnmeasured
+    Math.max(0, unloadedReplies) * safeAvg +
+      Math.max(0, unmeasuredLoaded) * perUnmeasured +
+      safeViewH * TOP_UP_LOW_WATER_VIEWPORTS
   );
   return Math.max(raw, Math.round(safeViewH * MIN_HISTORY_BUDGET_VIEWPORTS));
 };
@@ -400,22 +401,10 @@ export const useThreadHeadroomEventsGate = ({
     const insideReserve =
       gate.anchorRef?.current === undefined && gate.committedHeadroomPx > 0;
     const requiredHeadroomPx =
-      !insideReserve && estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx * 1.15) : 0;
+      !insideReserve && estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx) : 0;
     if (gate.heldRawEvents !== undefined || requiredHeadroomPx > gate.committedHeadroomPx) {
       if (gate.heldRawEvents !== rawThreadEvents) {
         gate.stats.heldPages += 1;
-        gate.stats.holdLog = [
-          ...(gate.stats.holdLog ?? []),
-          {
-            rawLen: rawThreadEvents.length,
-            presLen: gate.presentedEvents.length,
-            est: Math.round(estimatedPrependPx),
-            req: requiredHeadroomPx,
-            comm: Math.round(gate.committedHeadroomPx),
-            avg: Math.round(gate.lastAvgRowHeight),
-            anchorIdx: gate.anchorRef?.current?.index,
-          },
-        ];
       }
       gate.heldRawEvents = rawThreadEvents;
       gate.heldPrependEstimatePx = Math.max(gate.heldPrependEstimatePx, estimatedPrependPx);
@@ -890,7 +879,9 @@ export const useThreadHeadroomCommit = ({
             prependExactEstimate + Math.round(viewH * MIN_HISTORY_BUDGET_VIEWPORTS)
           )
         : Math.max(
-            prependExactEstimate + Math.min(unmeasuredAfter * perUnmeasured, 12_000),
+            prependExactEstimate +
+              Math.min(unmeasuredAfter * perUnmeasured, 12_000) +
+              Math.round(viewH * 1.25),
             prependExactEstimate
           );
       const delta = targetHeadroom - gate.committedHeadroomPx;
