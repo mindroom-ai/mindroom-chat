@@ -424,6 +424,12 @@
         "title": "Plugin",
         "description": "Aktifkan atau nonaktifkan plugin bawaan untuk akun Anda di semua perangkat Anda."
       },
+      "storage": {
+        "cacheBudget": "Batas ukuran cache",
+        "cacheBudgetDescription": "Ruang maksimum yang disimpan perangkat ini untuk ruang dan media dalam cache. Ruang lama yang tidak digunakan akan dibersihkan otomatis saat penuh.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Anda",

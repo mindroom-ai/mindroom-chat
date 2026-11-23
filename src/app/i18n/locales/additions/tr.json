@@ -437,6 +437,12 @@
         "title": "Eklentiler",
         "description": "Tüm cihazlarınızda hesabınız için yerleşik eklentileri açın veya kapatın."
       },
+      "storage": {
+        "cacheBudget": "Önbellek boyutu sınırı",
+        "cacheBudgetDescription": "Bu cihazın önbelleğe alınan odalar ve medya için ayırdığı en fazla alan. Dolduğunda kullanılmayan eski odalar otomatik olarak temizlenir.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Siz",

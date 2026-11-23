@@ -450,6 +450,12 @@
         "title": "Complementos",
         "description": "Activa o desactiva los complementos incluidos para tu cuenta en todos tus dispositivos."
       },
+      "storage": {
+        "cacheBudget": "Límite de tamaño de la caché",
+        "cacheBudgetDescription": "Espacio máximo que conserva este dispositivo para salas y archivos multimedia en caché. Las salas más antiguas sin usar se borran automáticamente cuando se llena.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Tú",

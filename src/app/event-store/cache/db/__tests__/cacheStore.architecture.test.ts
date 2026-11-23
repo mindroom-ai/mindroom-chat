@@ -97,6 +97,8 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
         path.resolve(APP_ROOT, 'event-store/engine', 'enginePersistFacade.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'reconciler.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'reconcilerScan.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'prefetchSettings.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'prefetchSettingsStorage.ts'),
       ].map((absPath) => absPath)
     );
 

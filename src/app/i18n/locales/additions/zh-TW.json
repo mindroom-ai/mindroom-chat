@@ -424,6 +424,12 @@
         "title": "外掛程式",
         "description": "在您的所有裝置上為您的帳號開啟或關閉內建外掛程式。"
       },
+      "storage": {
+        "cacheBudget": "快取大小上限",
+        "cacheBudgetDescription": "此裝置為已快取的房間與媒體保留的最大空間。空間用滿時，會自動清除較舊且未使用的房間。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "你",

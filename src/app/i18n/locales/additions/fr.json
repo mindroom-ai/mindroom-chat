@@ -450,6 +450,12 @@
         "title": "Extensions",
         "description": "Activez ou désactivez les extensions intégrées pour votre compte sur tous vos appareils."
       },
+      "storage": {
+        "cacheBudget": "Limite de taille du cache",
+        "cacheBudgetDescription": "Espace maximal que cet appareil conserve pour les salons et médias en cache. Les salons plus anciens non utilisés sont effacés automatiquement lorsqu’il est plein.",
+        "megabytes": "{{size}} Mo",
+        "gigabytes": "{{size}} Go"
+      },
       "menu": {
         "groups": {
           "you": "Vous",

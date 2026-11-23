@@ -450,6 +450,12 @@
         "title": "Plugin",
         "description": "Attiva o disattiva i plugin inclusi per il tuo account su tutti i tuoi dispositivi."
       },
+      "storage": {
+        "cacheBudget": "Limite dimensione cache",
+        "cacheBudgetDescription": "Spazio massimo che questo dispositivo conserva per stanze e media nella cache. Le stanze più vecchie non utilizzate vengono rimosse automaticamente quando è piena.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Tu",

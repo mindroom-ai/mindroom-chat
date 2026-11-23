@@ -424,6 +424,12 @@
         "title": "插件",
         "description": "在您的所有设备上为您的账号开启或关闭内置插件。"
       },
+      "storage": {
+        "cacheBudget": "缓存大小上限",
+        "cacheBudgetDescription": "此设备为已缓存的房间和媒体保留的最大空间。空间占满时，会自动清理较旧且未使用的房间。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "你",

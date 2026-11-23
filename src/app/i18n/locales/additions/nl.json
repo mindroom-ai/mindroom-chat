@@ -437,6 +437,12 @@
         "title": "Plug-ins",
         "description": "Zet meegeleverde plug-ins aan of uit voor je account op al je apparaten."
       },
+      "storage": {
+        "cacheBudget": "Limiet voor cachegrootte",
+        "cacheBudgetDescription": "Maximale ruimte die dit apparaat bewaart voor kamers en media in de cache. Oudere ongebruikte kamers worden automatisch gewist wanneer de cache vol is.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Jij",

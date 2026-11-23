@@ -177,6 +177,7 @@ describe('settings registry', () => {
       'language',
       'computerServer',
       'prefetchScope',
+      'cacheBudget',
       'developerTools',
       'showHiddenEvents',
       'errorReports',

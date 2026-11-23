@@ -437,6 +437,12 @@
         "title": "Plugins",
         "description": "Turn bundled plugins on or off for your account across your devices."
       },
+      "storage": {
+        "cacheBudget": "Cache size limit",
+        "cacheBudgetDescription": "Maximum space this device keeps for cached rooms and media. Older unused rooms are cleared automatically when full.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "You",
