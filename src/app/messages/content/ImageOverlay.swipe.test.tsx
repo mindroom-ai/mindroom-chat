@@ -100,7 +100,7 @@ describe('ImageOverlay interactive edge close', () => {
           width,
           height: 800,
           toJSON: () => ({}),
-        } as DOMRect;
+        };
       }
       return {
         x: 0,
@@ -112,7 +112,7 @@ describe('ImageOverlay interactive edge close', () => {
         width: 400,
         height: 600,
         toJSON: () => ({}),
-      } as DOMRect;
+      };
     });
   };
 
@@ -158,7 +158,7 @@ describe('ImageOverlay interactive edge close', () => {
         resolve();
       }
       return { finished, cancel } as unknown as Animation;
-    }) as typeof Element.prototype.animate;
+    });
 
     historyStack = [{ route: 'room' }];
     historyIndex = 0;
