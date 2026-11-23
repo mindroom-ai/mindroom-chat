@@ -95,12 +95,18 @@ export const isEventStreaming = (
     return true;
   }
 
-  // hasTerminalStreamMetadata owns the ai_run terminal set (which includes 'cached' — NOT in
-  // TERMINAL_STREAM_STATUSES) and the terminal stream statuses, in string or record form.
+  // hasTerminalStreamMetadata owns the ai_run terminal set (which
+  // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
+  // stream statuses; the local check only adds the record-form fallback.
+  // Diverging here wedges a permanent spinner while the stop chip (gated on
+  // the shared helper) is hidden.
   // A device without the room's keys reads the finishing edit's status in the clear, and a
   // redacted finishing edit still ended the stream.
   const terminalMetadata =
-    hasTerminalStreamMetadata(content) || !!getFinishingEdit(mEvent) || hasStreamEnded(mEvent);
+    hasTerminalStreamMetadata(content) ||
+    (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus)) ||
+    !!getFinishingEdit(mEvent) ||
+    hasStreamEnded(mEvent);
 
   if (streamStatus === 'approval_pending' || terminalMetadata) {
     return false;

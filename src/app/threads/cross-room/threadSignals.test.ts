@@ -545,41 +545,57 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(r4, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
   });
 
-  it('uses the borrowed stream finish timestamp so a later text-only edit does not inflate a short run', async () => {
-    const reply = event({ id: '$short-reply', ts: 2000, sender: AGENT });
-    const makeReplace = (id: string, ts: number, newContent: Record<string, unknown>) =>
-      new MatrixEvent({
-        event_id: id,
-        room_id: ROOM_ID,
-        sender: AGENT,
-        type: 'm.room.message',
-        origin_server_ts: ts,
-        content: {
-          msgtype: 'm.text',
-          body: `* ${id}`,
-          'm.new_content': { msgtype: 'm.text', body: id, ...newContent },
-          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$short-reply' },
-        },
+  // A correction of the text long after a run shows the finished status of an older edit, and
+  // remembers when that edit was sent (`STREAM_STATUS_TS_KEY`): the run ended then.
+  describe('a finished reply whose text is corrected later', () => {
+    /** The outcome of a reply sent at 2000, finished at `finishTs` and corrected at `correctionTs`. */
+    const outcomeOf = async (finishTs: number, correctionTs: number) => {
+      const reply = event({ id: '$corrected-reply', ts: 2000, sender: AGENT });
+      const makeReplace = (id: string, ts: number, newContent: Record<string, unknown>) =>
+        new MatrixEvent({
+          event_id: id,
+          room_id: ROOM_ID,
+          sender: AGENT,
+          type: 'm.room.message',
+          origin_server_ts: ts,
+          content: {
+            msgtype: 'm.text',
+            body: `* ${id}`,
+            'm.new_content': { msgtype: 'm.text', body: id, ...newContent },
+            'm.relates_to': { rel_type: RelationType.Replace, event_id: '$corrected-reply' },
+          },
+        });
+      // The run states no status of its own, so the borrowed stream status gives the outcome.
+      const progressEdit = makeReplace('$progress', 4000, {
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.ai_run': { version: 1, model: { display_name: 'Model' } },
       });
+      const completedEdit = makeReplace('$completed', finishTs, {
+        'io.mindroom.stream_status': 'completed',
+      });
+      const textOnlyEdit = makeReplace('$typo-fix', correctionTs, { body: 'Fixed a typo.' });
 
-    const progressEdit = makeReplace('$short-progress', 4000, {
-      'io.mindroom.stream_status': 'streaming',
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const completedEdit = makeReplace('$short-completed', 12_000, {
-      'io.mindroom.stream_status': 'completed',
-    });
-    const textOnlyEdit = makeReplace('$short-typo-fix', 122_000, {
-      body: 'Fixed a typo.',
+      const { room, thread } = await setup(ME, [reply], { opened: true });
+      [progressEdit, completedEdit, textOnlyEdit].forEach((edit) => {
+        thread.timelineSet.addLiveEvent(edit, { addToState: false });
+      });
+      reply.makeReplaced(textOnlyEdit);
+      return readThreadSignals(room, ROOT, ME, NOW).outcome;
+    };
+
+    it('uses the borrowed stream finish timestamp so a later text-only edit does not inflate a short run', async () => {
+      expect(await outcomeOf(12_000, 2000 + 2 * FINISHED_AFTER_MS)).toBeUndefined();
     });
 
-    const { room, thread } = await setup(ME, [reply], { opened: true });
-    [progressEdit, completedEdit, textOnlyEdit].forEach((edit) => {
-      thread.timelineSet.addLiveEvent(edit, { addToState: false });
+    it('finished a long run when its finishing edit was sent, not when its text was corrected', async () => {
+      const finishTs = 2000 + FINISHED_AFTER_MS + 10_000;
+      expect(await outcomeOf(finishTs, finishTs + 10 * FINISHED_AFTER_MS)).toEqual({
+        kind: 'finished',
+        senderId: AGENT,
+        ts: finishTs,
+        durationMs: FINISHED_AFTER_MS + 10_000,
+      });
     });
-    reply.makeReplaced(textOnlyEdit);
-
-    expect(readThreadSignals(room, ROOT, ME, NOW).outcome).toBeUndefined();
   });
 
   // The shown edit of a reply borrows the stream status it lacks from an older edit. What reads

@@ -292,7 +292,7 @@ export const hasTerminalStreamMetadata = (content: Record<string, unknown>): boo
     typeof metadata?.status === 'string' ? metadata.status.toLowerCase() : undefined;
   if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return true;
 
-  const streamStatus = readStreamStatus(content);
+  const streamStatus = getStreamStatusFromContent(content);
   return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 

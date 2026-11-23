@@ -1096,6 +1096,17 @@ describe('a reply whose shown edit borrows metadata from its older edits', () =>
     expect(isRunStreaming()).toBe(true);
   });
 
+  // An edit counts as the one that finished its reply by the string form of its status alone. One
+  // in record form was kept as a finish too, and the reply never showed its spinner again.
+  it('streams again after an edit that finished it with a record-form status', () => {
+    const { edit, isStreaming } = setup('$record-form-finish', false);
+    edit('$done', 300, { 'io.mindroom.stream_status': { status: 'completed' } });
+    expect(isStreaming()).toBe(false);
+
+    edit('$retry', 400, { ...STREAMING, ...EARLY_AI_RUN });
+    expect(isStreaming()).toBe(true);
+  });
+
   it('streams by the stream status that an edit with another run status borrows', () => {
     const { edit, isStreaming } = setup('$running', false);
     edit('$progress', 300, STREAMING);

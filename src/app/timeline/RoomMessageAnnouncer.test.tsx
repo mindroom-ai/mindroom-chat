@@ -336,6 +336,20 @@ describe('RoomMessageAnnouncer', () => {
     expect(logLines(view)).toEqual(['Code: Final answer']);
   });
 
+  it('reads a message that first arrives waiting for an approval at once', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+
+    receive(
+      message(AGENT, {
+        msgtype: 'm.text',
+        body: 'Waiting for your approval',
+        'io.mindroom.stream_status': 'approval_pending',
+      })
+    );
+    expect(logLines(view)).toEqual(['Code: Waiting for your approval']);
+  });
+
   it('reads a canvas notice as its title, not the fallback body for other clients', () => {
     const notice = {
       msgtype: 'm.notice',

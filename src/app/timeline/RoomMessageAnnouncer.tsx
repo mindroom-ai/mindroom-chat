@@ -136,6 +136,7 @@ export function RoomMessageAnnouncer({
       setAnnouncements((previous) => [...previous, { key: id, text }].slice(-KEPT));
     };
 
+    /** Whether an edit leaves a tracked reply unfinished: it streams, or waits for an approval. */
     const isInFlightRun = (content: Content): boolean =>
       isAiRunStreaming(content) ||
       (!hasTerminalStreamMetadata(content) && readStreamStatus(content) === 'approval_pending');
@@ -151,7 +152,8 @@ export function RoomMessageAnnouncer({
       }
       if (!isAnnounceable(event, scope)) return;
       const id = event.getId();
-      if (id && isInFlightRun(event.getContent<Content>())) {
+      // A message that arrives waiting for an approval is read at once: it asks for the reader.
+      if (id && isAiRunStreaming(event.getContent<Content>())) {
         streaming.set(id, event);
         return;
       }

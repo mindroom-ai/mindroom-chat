@@ -229,12 +229,14 @@ describe('isAiRunStreaming', () => {
         'io.mindroom.stream_status': { status: 'cancelled' },
       })
     ).toBe(false);
+    // hasTerminalStreamMetadata reads the string form only. An edit counts by it as the one that
+    // finished its reply, for good, so a record-form status must not make it one.
     expect(
       hasTerminalStreamMetadata({
         'io.mindroom.ai_run': { version: 1, status: 'streaming' },
         'io.mindroom.stream_status': { status: 'cancelled' },
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('handles early status-less ai_run metadata alongside stream_status lifecycle', () => {
