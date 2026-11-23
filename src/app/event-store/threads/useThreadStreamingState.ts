@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useReducer } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
+import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import {
   ACTIVE_STREAM_STATUSES,
   TERMINAL_STREAM_STATUSES,
@@ -14,20 +13,12 @@ import {
   getShallowSerializedReplacementEvent,
   isSameSenderEditEvent,
 } from '../../matrix/editEvent';
+import { useRoomActiveRuns } from '../../matrix/hooks/useRoomActiveRuns';
+import { roomActiveRuns } from '../../matrix/protocol/activeRunsContract';
 import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
-import { useThreadEventRefresh } from './useThreadEventRefresh';
-import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
 import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
-
-type ThreadStreamingSnapshot = {
-  isStreaming: boolean;
-  /** The tail replies that stream, oldest first: agents can stream at once. */
-  replies: MatrixEvent[];
-  trackedEvents: MatrixEvent[];
-  trackedRelations: Relations[];
-};
 
 const getPreferredEventContent = (
   mEvent: MatrixEvent,
@@ -119,85 +110,33 @@ export const isEventStreaming = (
   return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus);
 };
 
-const getThreadStreamingSnapshot = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): ThreadStreamingSnapshot => {
-  const trackedEvents = getThreadStreamingEvents(room, threadRootId);
-  if (!room || !threadRootId || trackedEvents.length === 0) {
-    return { isStreaming: false, replies: [], trackedEvents, trackedRelations: [] };
-  }
-
-  const thread = room.getThread(threadRootId);
-  const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
-  const trackedRelations: Relations[] = [];
-  const replies: MatrixEvent[] = [];
-
-  trackedEvents.forEach((mEvent) => {
-    const eventId = mEvent.getId();
-    const relations = eventId ? getEventReactions(timelineSet, eventId) : undefined;
-    if (relations && !trackedRelations.includes(relations)) {
-      trackedRelations.push(relations);
-    }
-
-    if (isEventStreaming(mEvent, relations, timelineSet) && isStreamingReplyCurrent(room, mEvent)) {
-      replies.push(mEvent);
-    }
-  });
-
-  return { isStreaming: replies.length > 0, replies, trackedEvents, trackedRelations };
-};
-
+/** Whether any agent reports an active run for `threadRootId` in `io.mindroom.active_runs`. */
 export const getThreadStreamingState = (
   room: Room | undefined,
   threadRootId: string | undefined
-): boolean => getThreadStreamingSnapshot(room, threadRootId).isStreaming;
+): boolean => !!room && !!threadRootId && roomActiveRuns(room).threads.has(threadRootId);
 
 /** The replies of the thread's tail that stream now, whose tool traces say what they run. */
 export const getThreadStreamingReplies = (
   room: Room | undefined,
   threadRootId: string | undefined
-): MatrixEvent[] => getThreadStreamingSnapshot(room, threadRootId).replies;
+): MatrixEvent[] => {
+  const trackedEvents = getThreadStreamingEvents(room, threadRootId);
+  if (!room || !threadRootId || trackedEvents.length === 0) return [];
+  const thread = room.getThread(threadRootId);
+  const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
+  return trackedEvents.filter((mEvent) => {
+    const eventId = mEvent.getId();
+    const relations = eventId ? getEventReactions(timelineSet, eventId) : undefined;
+    return isEventStreaming(mEvent, relations, timelineSet);
+  });
+};
 
+/** Live thread-level working state from `io.mindroom.active_runs`. */
 export const useThreadStreamingState = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): boolean => {
-  const thread = room && threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  // The check resolves every edit of the tail's replies, and the SDK sends a thread update for
-  // each event a page of older history adds: a refresh only marks the state stale, and the next
-  // render, which React takes once for a burst of marks, checks again.
-  const [checks, refresh] = useReducer((count: number) => count + 1, 0);
-  const snapshot = useMemo(() => {
-    void checks;
-    return getThreadStreamingSnapshot(room, threadRootId);
-  }, [checks, room, threadRootId]);
-
-  useThreadEventRefresh(thread, snapshot.trackedEvents, refresh);
-
-  useEffect(() => {
-    if (snapshot.trackedRelations.length === 0) return undefined;
-
-    snapshot.trackedRelations.forEach((relations) => {
-      relations.on(RelationsEvent.Add, refresh);
-      relations.on(RelationsEvent.Redaction, refresh);
-      relations.on(RelationsEvent.Remove, refresh);
-    });
-
-    return () => {
-      snapshot.trackedRelations.forEach((relations) => {
-        relations.removeListener(RelationsEvent.Add, refresh);
-        relations.removeListener(RelationsEvent.Redaction, refresh);
-        relations.removeListener(RelationsEvent.Remove, refresh);
-      });
-    };
-  }, [refresh, snapshot.trackedRelations]);
-
-  // The render that switched threads checked the new one before the effects above listen to it;
-  // check once more now that they do.
-  useEffect(() => {
-    refresh();
-  }, [room, threadRootId]);
-
-  return snapshot.isStreaming;
+  const { threads } = useRoomActiveRuns(room ?? null);
+  return !!threadRootId && threads.has(threadRootId);
 };

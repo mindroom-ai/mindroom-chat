@@ -18,6 +18,7 @@ import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
   type StagedList,
+  activeDictationAtom,
   composerUploadItemsAtom,
   getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
@@ -40,6 +41,7 @@ import {
   getRoomInputVoiceSendContext,
   refreshRoomInputVoiceSendContext,
 } from './RoomInputExtensions';
+import { VoiceMessageIcon } from './voice/VoiceMessageIcon';
 import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
@@ -95,6 +97,8 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
   /** False in a composer that takes no recording: it brings none back from disk either. */
   recover?: boolean;
+  /** Use the distinct waveform icon when streaming dictation uses the microphone icon. */
+  distinctIcon?: boolean;
 };
 
 type VoiceFeature = {
@@ -111,6 +115,9 @@ type VoiceFeature = {
     explicitMode?: MidTurnMode
   ) => Promise<void> | undefined;
   microphone: React.ReactNode;
+  microphoneLabel: string;
+  microphoneDisabled: boolean;
+  startRecording: () => boolean;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
   /** What the voice key (⌃⇧Space, Ctrl+Shift+Space) reads and does here. */
   voiceKey: Pick<VoiceComposer, 'active' | 'offersFailed' | 'phase' | 'start'>;
@@ -141,6 +148,7 @@ export const useRoomInputVoice = ({
   takeRootModelDraft,
   onRoomMessageSent,
   recover = true,
+  distinctIcon = false,
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
   const store = useStore();
@@ -151,6 +159,7 @@ export const useRoomInputVoice = ({
   // The account's recording, which this composer shows while it runs and sends when its Send is
   // pressed (voice/liveVoiceRecording.ts). It is not this composer's until then.
   const liveRecording = useAtomValue(liveVoiceRecordingAtom) !== undefined;
+  const activeDictation = useAtomValue(activeDictationAtom);
   // This composer's Send took the recording: its capsule stays, as sending, until that settles.
   // It covers the whole send; the recorder hook's `claimed` (voice/useVoiceRecorder.ts) holds the
   // recording itself for the same time, and is what the capsule draws.
@@ -667,6 +676,8 @@ export const useRoomInputVoice = ({
     (currentSessionId !== undefined && restores.get(currentSessionId) !== null) ||
     store.get(liveVoiceRecordingAtom) !== undefined ||
     store.get(voiceAutoSendPendingAtom) ||
+    store.get(activeDictationAtom) !== undefined ||
+    activeDictation !== undefined ||
     store.get(pendingVoiceSendDraftAtom)?.context.ownerSessionId === currentSessionId;
   const microphoneDisabled = microphoneBlocked();
   const startRecording = (): boolean => {
@@ -711,11 +722,21 @@ export const useRoomInputVoice = ({
           {...shortcutAttributes(voiceShortcut)}
           className={ComposerIconButton}
         >
-          <Icon src={Icons.Mic} />
+          <Icon src={distinctIcon ? VoiceMessageIcon : Icons.Mic} />
         </IconButton>
       )}
     </IconTooltip>
   );
 
-  return { blocksSubmit, hasVoice, sendAtPress, microphone, renderRecorder, voiceKey };
+  return {
+    blocksSubmit,
+    hasVoice,
+    sendAtPress,
+    microphone,
+    microphoneLabel,
+    microphoneDisabled,
+    startRecording,
+    renderRecorder,
+    voiceKey,
+  };
 };

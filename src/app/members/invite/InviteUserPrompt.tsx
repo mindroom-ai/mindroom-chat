@@ -5,11 +5,8 @@ import FocusTrap from 'focus-trap-react';
 import classNames from 'classnames';
 import {
   Avatar,
-  Badge,
   Box,
   Button,
-  Checkbox,
-  Chip,
   Icon,
   Icons,
   Input,
@@ -17,6 +14,7 @@ import {
   OverlayBackdrop,
   OverlayCenter,
   Spinner,
+  Switch,
   Text,
 } from 'folds';
 import {
@@ -27,6 +25,7 @@ import {
   type Room,
   type RoomMember,
 } from 'matrix-js-sdk';
+import { DialogCloseButton, SheetScrollArea } from '../../ui/DialogChrome';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { ErrorDetail } from '../../ui/ErrorDetail';
@@ -63,6 +62,7 @@ import {
   grantRoomModeratorRights,
   hasModeratorMindroomAgent,
 } from './moderatorInvite';
+import * as dialogCss from '../../ui/DialogChrome.css';
 import * as modalCss from '../../ui/Modal500.css';
 import * as css from './InviteUserPrompt.css';
 
@@ -169,9 +169,7 @@ function InviteDirectoryRow({
       <Spinner size="50" variant="Primary" />
     ) : status === 'invited' ? (
       <Icon size="50" src={Icons.Check} />
-    ) : status === 'failed' ? undefined : (
-      <Icon size="50" src={Icons.Plus} />
-    );
+    ) : undefined;
   const label =
     status === 'invited'
       ? t('featureUi.room.membersDrawer.inviteSent')
@@ -205,26 +203,20 @@ function InviteDirectoryRow({
             as="span"
             size="T300"
             truncate={listed}
-            className={listed ? undefined : css.WrapText}
+            className={classNames(css.RowName, !listed && css.WrapText)}
             title={name}
             {...ownDirectionLine}
           >
             {name}
           </Text>
-          {isAgent && (
-            <Badge variant="Primary" fill="Soft" radii="300" style={{ flexShrink: 0 }}>
-              <Text as="span" size="L400">
-                {t('sharedUi.agentCard.agent')}
-              </Text>
-            </Badge>
-          )}
+          {isAgent && <span className={css.AgentTag}>{t('sharedUi.agentCard.agent')}</span>}
         </Box>
         <Text
           as="span"
           id={subtitleId}
           size="T200"
           priority="300"
-          className={css.WrapText}
+          truncate
           title={user.userId}
           {...ownDirectionLine}
         >
@@ -241,9 +233,13 @@ function InviteDirectoryRow({
         type="button"
         size="300"
         variant={variant}
-        fill={status === 'invited' ? 'None' : 'Soft'}
-        radii="300"
-        className={classNames(css.RowAction, status === 'invited' && css.RowActionSent)}
+        fill={status === 'invited' || status === 'failed' ? 'Soft' : 'None'}
+        radii={status === 'invited' ? 'Pill' : '300'}
+        className={classNames(
+          css.RowAction,
+          (!status || status === 'inviting') && dialogCss.SheetRowActionIdle,
+          status === 'invited' && css.RowActionSent
+        )}
         {...{ [ROW_ACTION_ATTR]: '' }}
         aria-disabled={disabled}
         aria-label={ariaLabel}
@@ -264,6 +260,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   const { t } = useTranslation();
   const idPrefix = useId();
   const noteInputId = `${idPrefix}-note`;
+  const moderatorSwitchId = `${idPrefix}-mod-switch`;
   const moderatorHelpId = `${idPrefix}-mod`;
   const store = useStore();
   const client = useMatrixClient();
@@ -289,6 +286,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const [grantOverride, setGrantOverride] = useState<boolean>();
+  const [modInfoOpen, setModInfoOpen] = useState(false);
   const [announcement, setAnnouncement] = useState('');
   const [enterHint, setEnterHint] = useState<string>();
   const [grantError, setGrantError] = useState<string>();
@@ -348,6 +346,10 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
     hasModeratorMindroomAgent(room.getMembers(), me, levels, creators, roomGrantLevel);
   const grantModerator = grantOverride ?? (membersLoaded && !hasAgentModerator);
   const roleName = roomGrantLevel !== undefined ? grantRoleName(tags, roomGrantLevel, t) : '';
+  const moderatorLabel =
+    roomGrantLevel !== undefined
+      ? t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })
+      : '';
   const isInvitable = (userId: string) =>
     filterInviteUserCandidates([{ userId }], room, me).length > 0;
 
@@ -661,8 +663,8 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
             variant="Surface"
             className={classNames(css.Dialog, phone && modalCss.PhoneModal)}
           >
-            <Header size="500" className={css.TitleBar}>
-              <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
+            <Header size="500" className={dialogCss.SheetTitleBar}>
+              <Box direction="Column" grow="Yes" style={{ minInlineSize: 0 }}>
                 <Text as="h2" size="H4" id={TITLE_ID} truncate>
                   {title}
                 </Text>
@@ -670,23 +672,17 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                   {subtitle}
                 </Text>
               </Box>
-              <Button
-                type="button"
-                variant="Primary"
-                fill="None"
-                size="300"
-                radii="300"
+              <DialogCloseButton
+                label={t('sharedUi.joinAddressPrompt.close')}
                 onClick={requestClose}
-              >
-                <Text size="B300">{t('sharedUi.inviteUserPrompt.done')}</Text>
-              </Button>
+              />
             </Header>
 
             <div ref={bodyRef} className={css.Body}>
               <div className={css.Controls}>
                 <Input
                   ref={inputRef}
-                  className={css.SearchField}
+                  className={dialogCss.InsetField}
                   type="search"
                   size="400"
                   variant="Background"
@@ -700,11 +696,12 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                       <IconButton
                         type="button"
                         size="300"
-                        radii="300"
+                        radii="Pill"
+                        className={dialogCss.TouchIcon}
                         aria-label={t('mindroomUi.message-search.searchInput.clear')}
                         onClick={handleClearSearch}
                       >
-                        <Icon size="100" src={Icons.Cross} />
+                        <Icon size="50" src={Icons.Cross} />
                       </IconButton>
                     ) : undefined
                   }
@@ -717,47 +714,23 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                   data-lpignore="true"
                   data-form-type="other"
                 />
-                <Box
+                <div
                   role="group"
                   aria-label={t('sharedUi.inviteUserPrompt.filterLabel')}
-                  alignItems="Center"
-                  wrap="Wrap"
-                  gap="200"
+                  className={css.FilterSegments}
                 >
                   {FILTERS.map((entry) => (
-                    <Chip
+                    <button
                       key={entry}
                       type="button"
-                      className={css.FilterChip}
-                      variant={entry === filter ? 'Primary' : 'SurfaceVariant'}
-                      radii="Pill"
+                      className={css.FilterSegment}
                       aria-pressed={entry === filter}
                       onClick={() => handleFilterChange(entry)}
                     >
-                      <Text size="T200">{t(FILTER_LABEL_KEY[entry])}</Text>
-                    </Chip>
+                      {t(FILTER_LABEL_KEY[entry])}
+                    </button>
                   ))}
-                </Box>
-                {roomGrantLevel !== undefined && (
-                  <Box direction="Column" gap="100">
-                    <label className={css.ModeratorLabel}>
-                      <Checkbox
-                        variant="Primary"
-                        size="200"
-                        checked={grantModerator}
-                        aria-describedby={moderatorHelpId}
-                        readOnly
-                        onClick={() => setGrantOverride(!grantModerator)}
-                      />
-                      <Text as="span" size="T300">
-                        {t('sharedUi.inviteUserPrompt.giveRoleRightsAgents', { role: roleName })}
-                      </Text>
-                    </label>
-                    <Text id={moderatorHelpId} size="T200" priority="300">
-                      {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
-                    </Text>
-                  </Box>
-                )}
+                </div>
               </div>
 
               {grantError && (
@@ -783,9 +756,13 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                 </div>
               )}
 
-              {/* Arrow keys move focus between row actions and the search field. */}
-              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-              <div ref={listRef} className={css.ListArea} onKeyDown={handleListKeyDown}>
+              <SheetScrollArea
+                scrollRef={listRef}
+                chainOverscroll
+                className={css.ListFrame}
+                viewportClassName={css.ListArea}
+                onKeyDown={handleListKeyDown}
+              >
                 <div role="status">
                   {activeHint && (
                     <Text as="p" size="T200" priority="300" className={css.CenteredHint}>
@@ -822,7 +799,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                         id={group.headingId}
                         size="L400"
                         priority="300"
-                        className={css.SectionHeader}
+                        className={dialogCss.SheetSectionLabel}
                       >
                         {group.heading}
                       </Text>
@@ -875,9 +852,53 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                         : t('sharedUi.inviteUserPrompt.emptyDirectory')}
                     </Text>
                   )}
-              </div>
+              </SheetScrollArea>
 
               <div className={css.Footer}>
+                {roomGrantLevel !== undefined && (
+                  <>
+                    <Box
+                      alignItems="Center"
+                      justifyContent="SpaceBetween"
+                      gap="300"
+                      style={{ minInlineSize: 0 }}
+                    >
+                      <Box alignItems="Center" gap="100" style={{ minInlineSize: 0 }}>
+                        <Text
+                          as="label"
+                          htmlFor={moderatorSwitchId}
+                          size="T200"
+                          className={css.ModeratorLabel}
+                        >
+                          {moderatorLabel}
+                        </Text>
+                        <button
+                          type="button"
+                          className={css.InfoButton}
+                          aria-expanded={modInfoOpen}
+                          aria-controls={modInfoOpen ? moderatorHelpId : undefined}
+                          aria-label={t('sharedUi.agentCard.groups.information')}
+                          onClick={() => setModInfoOpen((open) => !open)}
+                        >
+                          <Icon size="50" src={Icons.Info} />
+                        </button>
+                      </Box>
+                      <Switch
+                        id={moderatorSwitchId}
+                        variant="Primary"
+                        className={dialogCss.TouchIcon}
+                        value={grantModerator}
+                        onChange={setGrantOverride}
+                        aria-describedby={modInfoOpen ? moderatorHelpId : undefined}
+                      />
+                    </Box>
+                    {modInfoOpen && (
+                      <Text as="p" id={moderatorHelpId} size="T200" className={css.ModeratorHelp}>
+                        {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
+                      </Text>
+                    )}
+                  </>
+                )}
                 <button
                   type="button"
                   className={css.NoteToggle}
@@ -894,9 +915,10 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                 {noteOpen && (
                   <Input
                     id={noteInputId}
+                    className={dialogCss.InsetField}
                     size="400"
                     variant="Background"
-                    radii="300"
+                    radii="400"
                     value={note}
                     onChange={(evt: ChangeEvent<HTMLInputElement>) => {
                       noteRef.current = evt.target.value;

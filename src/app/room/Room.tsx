@@ -38,6 +38,7 @@ import { RoomPanelEdgeSwipeContext } from '../navigation/roomPanelEdgeSwipeConte
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { MembersDrawer } from '../members/MembersDrawer';
+import { ensureActiveRunsPowerLevel } from '../matrix/createRoom';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
@@ -50,6 +51,7 @@ import {
 import { layoutParentOf, usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { registeredPlugins } from '../plugins/registry';
 import {
   type PluginPanelControls,
@@ -232,6 +234,9 @@ function RoomContent() {
     bumpRecentRoom(roomId);
   }, [roomId]);
   const client = useMatrixClient();
+  useEffect(() => {
+    void ensureActiveRunsPowerLevel(client, room);
+  }, [client, room]);
   const ownUserId = client.getSafeUserId();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const { t } = useTranslation();
@@ -312,8 +317,9 @@ function RoomContent() {
   const transcript = useTranscriptPanel(roomId);
   const subagents = useSubagentsPanel(roomId);
 
-  const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
-  const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
+  const pluginClientConfig = usePluginClientConfig();
+  const pluginPanels = usePluginSidePanels(registeredPlugins, pluginClientConfig);
+  const pluginActions = usePluginHeaderActions(registeredPlugins, pluginClientConfig);
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
   // A plugin's panel belongs to the room it opened in. Over the page the members go away with the

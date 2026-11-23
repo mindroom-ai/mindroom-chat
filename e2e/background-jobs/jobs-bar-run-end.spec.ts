@@ -9,7 +9,13 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { jobsBarChanges, SHELL_JOB, watchJobsBar } from '../helpers/jobsBar';
-import { joinRoom, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import {
+  joinRoom,
+  matrixFetch,
+  publishActiveRuns,
+  sendRoomMessage,
+  sendStateEvent,
+} from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The jobs bar keeps an agent's tool call after it ends while the agent's reply streams, since the
@@ -47,6 +53,7 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
     events: {
       ...(powerLevels.events as Record<string, number>),
       'io.mindroom.background_jobs': 0,
+      'io.mindroom.active_runs': 0,
     },
   });
   const rootId = await sendRoomMessage(HOMESERVER, viewer.accessToken, roomId, {
@@ -60,6 +67,7 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
     [STATUS]: 'streaming',
     'm.relates_to': { ...inThread, 'm.in_reply_to': { event_id: rootId } },
   });
+  await publishActiveRuns(HOMESERVER, agent, roomId, [rootId]);
   const publish = (agentUser: DisposableUser, jobs: Record<string, unknown>[]) =>
     sendStateEvent(
       HOMESERVER,
@@ -117,6 +125,7 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
     },
     'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
   });
+  await publishActiveRuns(HOMESERVER, agent, roomId, []);
   await expect(page.getByText('All release checks passed.').first()).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/jobs-run-end-${label}-finished.png` });
   await expect(bar, 'the bar after the reply finished').toBeHidden({ timeout: 10_000 });

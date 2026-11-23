@@ -1877,8 +1877,26 @@ export {
   isTimelineAtLiveEndMock,
 };
 
-// Background-job subscriptions are exercised by their own hook and real-room e2e tests.
+// Background-job and active-run subscriptions are exercised by their own hook and real-room e2e tests.
 vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => {
   const snapshot = { jobs: [], total: 0 };
   return { useRoomBackgroundJobs: () => snapshot };
+});
+vi.mock('../../matrix/hooks/useRoomActiveRuns', () => {
+  let cachedKey = '';
+  let cachedSnapshot = { runs: [], threads: new Set<string>() };
+  return {
+    useRoomActiveRuns: () => {
+      const activeIds: string[] = [];
+      for (const [id, active] of threadStreamingStateMock) {
+        if (active) activeIds.push(id);
+      }
+      const key = activeIds.join('\0');
+      if (key !== cachedKey) {
+        cachedKey = key;
+        cachedSnapshot = { runs: [], threads: new Set(activeIds) };
+      }
+      return cachedSnapshot;
+    },
+  };
 });

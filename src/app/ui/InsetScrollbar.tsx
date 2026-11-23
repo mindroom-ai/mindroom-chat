@@ -55,14 +55,28 @@ export function InsetScrollbar({
       const position = Math.max(0, Math.min(maximum, scroll.scrollTop));
       return { maximum, thumbHeight, travel, position };
     };
+    let last:
+      | {
+          overflow: boolean;
+          maximum: number;
+          roundedPosition: number;
+          thumbHeight: number;
+          thumbY: number;
+        }
+      | undefined;
     const update = () => {
       frame = 0;
       const { maximum, thumbHeight, travel, position } = geometry();
-      track.dataset.overflow = String(maximum > 0 && travel > 0);
-      track.setAttribute('aria-valuemax', String(maximum));
-      track.setAttribute('aria-valuenow', String(Math.round(position)));
-      thumb.style.height = `${thumbHeight}px`;
-      thumb.style.transform = `translateY(${maximum ? (position / maximum) * travel : 0}px)`;
+      const overflow = maximum > 0 && travel > 0;
+      const roundedPosition = Math.round(position);
+      const thumbY = maximum ? (position / maximum) * travel : 0;
+      if (last?.overflow !== overflow) track.dataset.overflow = String(overflow);
+      if (last?.maximum !== maximum) track.setAttribute('aria-valuemax', String(maximum));
+      if (last?.roundedPosition !== roundedPosition)
+        track.setAttribute('aria-valuenow', String(roundedPosition));
+      if (last?.thumbHeight !== thumbHeight) thumb.style.height = `${thumbHeight}px`;
+      if (last?.thumbY !== thumbY) thumb.style.transform = `translateY(${thumbY}px)`;
+      last = { overflow, maximum, roundedPosition, thumbHeight, thumbY };
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
@@ -148,8 +162,9 @@ export function InsetScrollbar({
       reveal();
     };
 
-    const observer = new ResizeObserver(schedule);
-    [scroll, content, track].forEach((element) => observer.observe(element));
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
+    if (observer) [scroll, content, track].forEach((element) => observer.observe(element));
     scroll.addEventListener('scroll', onScroll, { passive: true });
     track.addEventListener('pointerdown', onPointerDown);
     track.addEventListener('pointermove', onPointerMove);
@@ -160,7 +175,7 @@ export function InsetScrollbar({
     update();
     return () => {
       drag?.unblock();
-      observer.disconnect();
+      observer?.disconnect();
       cancelAnimationFrame(frame);
       clearTimeout(hideTimer);
       scroll.removeEventListener('scroll', onScroll);

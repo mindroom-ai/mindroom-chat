@@ -19,6 +19,7 @@ import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relation
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { ORIGINAL_SENDER_KEY } from '../protocol/originalSender';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
@@ -208,7 +209,7 @@ const fixture = (serverThread: () => IEvent[]) => {
     });
     return {
       preview: record.presentation.latestReplyPreviewText,
-      streaming: record.status.isStreaming,
+      streaming: getThreadStreamingReplies(room(), rootId).length > 0,
     };
   };
   const loadedThread = () => requests.some((path) => path.includes('/relations/'));

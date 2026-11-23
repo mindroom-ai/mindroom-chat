@@ -446,6 +446,10 @@
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
         "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
       },
+      "plugins": {
+        "title": "Extensions",
+        "description": "Activez ou désactivez les extensions intégrées pour votre compte sur tous vos appareils."
+      },
       "menu": {
         "groups": {
           "you": "Vous",
@@ -510,7 +514,9 @@
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
-        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan"
+        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
+        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone",
+        "plugins": "plugins, extensions, modules, intégrations"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -561,7 +567,12 @@
         "playSound": "Lire le son",
         "resize": "Redimensionner le panneau d’appel",
         "screenOf": "Écran de {{name}}",
-        "fullScreen": "Plein écran"
+        "fullScreen": "Plein écran",
+        "screenShareStoppedInBackground": "Le partage d’écran s’est arrêté lorsque vous avez quitté l’application.",
+        "shareAgain": "Partager à nouveau",
+        "microphoneStopped": "Votre microphone s’est arrêté.",
+        "cameraStopped": "Votre caméra s’est arrêtée.",
+        "turnBackOn": "Réactiver"
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
@@ -864,6 +875,12 @@
       "copyCommand": "Copier la commande",
       "copyFailed": "Échec de la copie",
       "keywords": "mac, macos, bureau, app, application, télécharger, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Partager cette application",
+        "stopAppShare": "Arrêter de partager cette application"
+      }
     }
   },
   "mindroomUi": {
@@ -1412,7 +1429,36 @@
     },
     "replyInThread": "Répondre dans le fil…",
     "newThreadIn": "Nouveau fil dans {{room}}…",
-    "newThreadWith": "Nouveau fil avec {{name}}…"
+    "newThreadWith": "Nouveau fil avec {{name}}…",
+    "dictation": {
+      "label": "Dicter",
+      "cancel": "Annuler la dictée",
+      "pause": "Mettre la dictée en pause",
+      "resume": "Reprendre la dictée",
+      "finish": "Terminer la dictée",
+      "retry": "Réessayer",
+      "insertPartial": "Insérer le texte partiel",
+      "discard": "Supprimer",
+      "dismissError": "Fermer l’erreur de dictée",
+      "statusStarting": "Démarrage de la dictée",
+      "statusListening": "Dictée en cours",
+      "statusPaused": "Dictée en pause",
+      "statusFinishing": "Finalisation...",
+      "statusPendingRetry_one": "{{count}} segment en attente de nouvel essai",
+      "statusPendingRetry_many": "{{count}} segments en attente de nouvel essai",
+      "statusPendingRetry_other": "{{count}} segments en attente de nouvel essai",
+      "capReached": "Limite de 5:00 atteinte",
+      "micInterrupted": "Microphone déconnecté. Reprenez ou terminez.",
+      "failedSummary_one": "Impossible de transcrire {{count}} segment.",
+      "failedSummary_many": "Impossible de transcrire {{count}} segments.",
+      "failedSummary_other": "Impossible de transcrire {{count}} segments."
+    },
+    "voiceButton": {
+      "settingTitle": "Bouton microphone sur téléphone",
+      "settingDescription": "Choisissez l’action du bouton microphone dans la zone de saisie sur téléphone. L’autre action reste dans le menu +.",
+      "dictate": "Dicter",
+      "voiceMessage": "Message vocal"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1491,7 +1537,8 @@
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
       "callView": "Aller à l’appel",
-      "voiceRecord": "Maintenir pour enregistrer un message vocal, appuyer pour commencer ou envoyer"
+      "voiceRecord": "Maintenir pour enregistrer un message vocal, appuyer pour commencer ou envoyer",
+      "dictate": "Dicter dans la zone de saisie"
     }
   },
   "thread": {

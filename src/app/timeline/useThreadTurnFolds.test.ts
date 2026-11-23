@@ -96,7 +96,6 @@ describe('turnRowWaits', () => {
   });
 
   it.each(['pending', 'streaming'])('holds a reply that says it is %s', (status) => {
-    // Whether the client could vouch for it yet or not (isStreamingReplyCurrent).
     expect(waits(message('$live', { 'io.mindroom.stream_status': status }))).toBe(true);
   });
 

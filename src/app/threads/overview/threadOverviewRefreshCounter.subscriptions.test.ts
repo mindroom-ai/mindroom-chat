@@ -1,5 +1,5 @@
 import React from 'react';
-import { MatrixEventEvent, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEventEvent, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
@@ -271,6 +271,24 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
       setter?.((value) => value + 1);
     });
     expect(view.counter()).toBe(4);
+
+    await view.unmount();
+  });
+
+  it('ignores io.mindroom.active_runs events so heartbeats do not bump the overview counter', async () => {
+    const room = fakeRoom('!room:example.org');
+    const view = await renderCounter(room);
+    const before = view.counter();
+    const heartbeat = {
+      ...fakeEvent('$active_runs_heartbeat'),
+      getType: () => 'io.mindroom.active_runs',
+    };
+
+    await act(async () => {
+      room.emit(RoomEvent.Timeline, heartbeat, room);
+      room.client.emit(ClientEvent.Event, heartbeat);
+    });
+    expect(view.counter()).toBe(before);
 
     await view.unmount();
   });

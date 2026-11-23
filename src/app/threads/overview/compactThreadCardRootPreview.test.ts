@@ -69,6 +69,7 @@ describe('a compact card without a known reply', () => {
     const names: Record<string, string> = { [READER]: 'Reader', [AGENT]: 'Helper' };
     const room = {
       roomId: '!room:server',
+      currentState: { getStateEvents: () => [] },
       getThread: vi.fn(() => thread),
       findEventById: vi.fn(() => root),
       getUnfilteredTimelineSet: vi.fn(() => ({

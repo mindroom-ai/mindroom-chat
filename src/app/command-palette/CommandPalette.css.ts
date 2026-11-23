@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { SheetFooter } from '../ui/DialogChrome.css';
 import { glassSurface } from '../ui/styles/Glass.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
@@ -161,11 +162,6 @@ export const Tab = style([
 export const ClearSearch = style([Tab, { border: `1px solid ${color.Surface.ContainerLine}` }]);
 
 export const Results = style({
-  flex: '1 1 auto',
-  minHeight: 0,
-  overflowY: 'auto',
-  overscrollBehavior: 'contain',
-  scrollbarGutter: 'stable',
   padding: '8px 10px 12px',
   scrollPaddingBlock: 8,
 });
@@ -372,20 +368,21 @@ export const Key = style({
   boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 6%)',
 });
 
-export const Footer = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: '8px 16px',
-  flexShrink: 0,
-  minHeight: 46,
-  padding: '10px 20px',
-  borderTop: `1px solid ${color.Surface.ContainerLine}`,
-  background: `color-mix(in srgb, ${color.Surface.Container} 20%, transparent)`,
-  color: color.SurfaceVariant.OnContainer,
-  fontSize: 11,
-});
+export const Footer = style([
+  SheetFooter,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '8px 16px',
+    minHeight: 46,
+    paddingBlock: 10,
+    paddingInline: 20,
+    color: color.SurfaceVariant.OnContainer,
+    fontSize: 11,
+  },
+]);
 
 export const KeyboardHints = style({
   display: 'flex',

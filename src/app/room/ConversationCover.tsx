@@ -16,13 +16,12 @@ import type { Room } from 'matrix-js-sdk';
 import { useSetAtom } from 'jotai';
 import { ErrorBoundary } from 'react-error-boundary';
 import { color } from 'folds';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { useInert } from '../lib/hooks/useInert';
 import { tabbablesOf } from '../lib/overlayFocus';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import type { ConversationCover as PluginCover } from '../plugins/conversationCovers';
-import { isPluginEnabled } from '../plugins/pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins } from '../plugins/registry';
 import { isComposingKey } from '../shortcuts/shortcuts';
@@ -206,7 +205,7 @@ export function ConversationCover({
   /** The conversation the cover hides. */
   conversationRef: RefObject<HTMLElement>;
 }) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const enabled = useMemo(
     () =>
       registeredPlugins.flatMap(({ id, tag, conversationCovers }) =>

@@ -1,11 +1,17 @@
 import React from 'react';
 import { EventEmitter } from 'events';
-import { ClientEvent, MatrixEvent, Room, Thread, type MatrixClient } from 'matrix-js-sdk';
-import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
-import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
+import {
+  ClientEvent,
+  createClient,
+  MatrixEvent,
+  Room,
+  Thread,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import {
@@ -279,11 +285,11 @@ describe('useThreadStreamingState', () => {
     const clone = vi.spyOn(globalThis, 'structuredClone');
     try {
       const streamingBundle = JSON.stringify(replyEvent.getUnsigned());
-      expect(getThreadStreamingState(room, '$root')).toBe(true);
+      expect(getThreadStreamingReplies(room, '$root')).toEqual([replyEvent]);
       expect(JSON.stringify(replyEvent.getUnsigned())).toBe(streamingBundle);
       attach('$completed', 400, 'completed');
       const bundle = JSON.stringify(replyEvent.getUnsigned());
-      expect(getThreadStreamingState(room, '$root')).toBe(false);
+      expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
       // Every record rebuild runs this check for each thread's tail.
       expect(clone).not.toHaveBeenCalled();
       expect(JSON.stringify(replyEvent.getUnsigned())).toBe(bundle);
@@ -292,499 +298,150 @@ describe('useThreadStreamingState', () => {
     }
   });
 
-  it('returns true for ai_run streaming metadata', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+  it('uses io.mindroom.active_runs as the single source of truth for thread-level streaming', async () => {
+    vi.useFakeTimers();
+    const START_TS = 1_763_839_200_000;
+    vi.setSystemTime(START_TS);
+    const VIEWER = '@me:example.org';
+    const AGENT = '@mindroom_helper:example.org';
+    const HUMAN = '@alice:example.org';
+    const ROOM_ID = '!room:example.org';
+    let serial = 0;
 
-    const { getSnapshot, renderer } = renderHookHarness(room);
+    const stateEvent = (
+      type: string,
+      stateKey: string,
+      content: Record<string, unknown>,
+      sender = stateKey,
+      ts = Date.now()
+    ) =>
+      new MatrixEvent({
+        event_id: `$st_${++serial}`,
+        room_id: ROOM_ID,
+        sender,
+        state_key: stateKey,
+        type,
+        origin_server_ts: ts,
+        content,
+      });
 
-    expect(getSnapshot()).toBe(true);
+    const activeRuns = (
+      threads: { thread_id: string | null }[],
+      { sender = AGENT, ttlMs = 30_000, ts = Date.now() } = {}
+    ) =>
+      stateEvent(
+        MINDROOM_ACTIVE_RUNS_EVENT,
+        sender,
+        { version: 1, updated_at: ts, ttl_ms: ttlMs, threads },
+        sender,
+        ts
+      );
 
-    renderer.unmount();
+    const room = new Room(
+      ROOM_ID,
+      createClient({ baseUrl: 'http://localhost:1', userId: VIEWER, timelineSupport: true }),
+      VIEWER,
+      { timelineSupport: true }
+    );
+    await room.addLiveEvents(
+      [
+        stateEvent('m.room.member', AGENT, { membership: 'join' }),
+        stateEvent('m.room.member', HUMAN, { membership: 'join' }),
+      ],
+      { addToState: true }
+    );
+
+    const { getSnapshot, renderer } = renderHookHarness(room, '$root');
+    try {
+      expect(getThreadStreamingState(room, '$root')).toBe(false);
+      expect(getSnapshot()).toBe(false);
+
+      // Room-mode runs (thread_id: null) and non-agent senders never mark a thread active.
+      await act(async () => {
+        await room.addLiveEvents(
+          [
+            activeRuns([{ thread_id: null }]),
+            activeRuns([{ thread_id: '$root' }], { sender: HUMAN }),
+          ],
+          { addToState: true }
+        );
+      });
+      expect(getThreadStreamingState(room, '$root')).toBe(false);
+      expect(getSnapshot()).toBe(false);
+
+      // Agent active_runs marks only the listed thread active.
+      await act(async () => {
+        await room.addLiveEvents([activeRuns([{ thread_id: '$root' }], { ttlMs: 30_000 })], {
+          addToState: true,
+        });
+      });
+      expect(getThreadStreamingState(room, '$root')).toBe(true);
+      expect(getThreadStreamingState(room, '$other')).toBe(false);
+      expect(getSnapshot()).toBe(true);
+
+      // Switching threads updates immediately.
+      act(() => {
+        renderer.update(
+          React.createElement(Harness, {
+            room,
+            threadRootId: '$other',
+            onRender: () => undefined,
+          })
+        );
+      });
+      expect(getThreadStreamingState(room, '$other')).toBe(false);
+
+      // Switch back and verify TTL expiry clears the thread.
+      let current = false;
+      act(() => {
+        renderer.update(
+          React.createElement(Harness, {
+            room,
+            threadRootId: '$root',
+            onRender: (value) => {
+              current = value;
+            },
+          })
+        );
+      });
+      expect(current).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime(30_001);
+      });
+      expect(current).toBe(false);
+      expect(getThreadStreamingState(room, '$root')).toBe(false);
+    } finally {
+      act(() => renderer.unmount());
+      vi.useRealTimers();
+    }
   });
 
-  it('returns true when a stop reaction is added to the current last reply', () => {
+  it('evaluates isEventStreaming for stop reactions, terminal statuses, and cached ai_run', () => {
     const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const stopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '⏹', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relationMap.set('$reply', relations);
-
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    act(() => {
-      relations.setGroupedAnnotations([['⏹', new Set([stopReaction])]]);
-      relations.emit(RelationsEvent.Add, stopReaction);
-    });
-
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it("recognizes the backend's current 🛑 stop key as a streaming signal", () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const stopReaction = makeMessageEvent('$reaction', 210, {
+    const timelineSet = makeTimelineSet(relationMap, () => []);
+    const stopReaction = makeMessageEvent('$stop', 210, {
       'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
     });
     const relations = makeRelations();
     relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
     relationMap.set('$reply', relations);
 
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
+    const plain = makeThreadReplyEvent('$reply', 200);
+    expect(isEventStreaming(plain, relations as never, timelineSet as never)).toBe(true);
 
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('ignores a redacted stop reaction shell after reload', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const redactedStopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '⏹', rel_type: 'm.annotation' },
-    });
-    vi.spyOn(redactedStopReaction, 'isRedacted').mockReturnValue(true);
-    const relations = makeRelations();
-    relations.setGroupedAnnotations([['⏹', new Set([redactedStopReaction])]]);
-    relationMap.set('$reply', relations);
-
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('returns false when there is no streaming metadata or stop reaction', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('treats terminal metadata as stronger than a stale stop reaction', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
-      'io.mindroom.ai_run': { version: 1, status: 'completed' },
-    });
-    const stopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '⏹️', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relations.setGroupedAnnotations([['⏹️', new Set([stopReaction])]]);
-    relationMap.set('$reply', relations);
-
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it("treats the 'cached' ai_run terminal status as ending the stream despite a stale 🛑", () => {
-    // 'cached' is terminal only in the ai_run status set — a divergence from
-    // TERMINAL_STREAM_STATUSES here would wedge a permanent spinner while
-    // the stop chip (gated on the shared helper) is hidden.
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+    const cached = makeThreadReplyEvent('$reply', 200, {
       'io.mindroom.ai_run': { version: 1, status: 'cached' },
     });
-    const stopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '🛑', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relations.setGroupedAnnotations([['🛑', new Set([stopReaction])]]);
-    relationMap.set('$reply', relations);
+    expect(isEventStreaming(cached, relations as never, timelineSet as never)).toBe(false);
 
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('reads the tail once for a burst of thread updates, as history loading sends', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const reply = makeThreadReplyEvent('$reply', 200);
-    const thread = makeThread({ lastReply: reply, relationMap, timelineEvents: [reply] });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
-    const lookups = vi.mocked(thread.getUnfilteredTimelineSet().relations.getChildEventsForEvent);
-    lookups.mockClear();
-
-    act(() => {
-      thread.emit(ThreadEvent.Update, thread);
-    });
-    const lookupsForOneUpdate = lookups.mock.calls.length;
-    expect(lookupsForOneUpdate).toBeGreaterThan(0);
-    lookups.mockClear();
-
-    // The SDK sends one update for every event a page of older history adds.
-    act(() => {
-      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
-    });
-    expect(lookups.mock.calls.length).toBe(lookupsForOneUpdate);
-    expect(getSnapshot()).toBe(false);
-
-    // An update the burst carries still shows.
-    const streamingReply = makeThreadReplyEvent('$streaming', 300, {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    act(() => {
-      thread.setTimelineEvents([reply, streamingReply]);
-      thread.setLastReply(streamingReply);
-      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
-    });
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('checks a thread it switches to again once it listens to it', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const first = makeThread({ lastReply: makeThreadReplyEvent('$first-reply', 200), relationMap });
-    const quietReply = makeThreadReplyEvent('$second-reply', 200);
-    const second = makeThread({ lastReply: quietReply, relationMap });
-    const threads: Record<string, MockThread> = { $first: first, $second: second };
-    const room = {
-      getThread: (threadRootId: string) => threads[threadRootId],
-      getUnfilteredTimelineSet: () => roomTimelineSet,
-    } as unknown as Room;
-    let latest: HookValue = false;
-    // A reply of the new thread starts streaming after the switch rendered, before the hook
-    // listens to that thread.
-    function Switching({ threadRootId }: { threadRootId: string }) {
-      latest = useThreadStreamingState(room, threadRootId);
-      React.useLayoutEffect(() => {
-        if (threadRootId !== '$second') return;
-        const streaming = makeThreadReplyEvent('$second-streaming', 300, {
-          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-        });
-        second.setTimelineEvents([quietReply, streaming]);
-        second.setLastReply(streaming);
-        second.emit(ThreadEvent.NewReply, second, streaming);
-      }, [threadRootId]);
-      return null;
-    }
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(React.createElement(Switching, { threadRootId: '$first' }));
-    });
-    expect(latest).toBe(false);
-
-    act(() => renderer!.update(React.createElement(Switching, { threadRootId: '$second' })));
-    expect(latest).toBe(true);
-    act(() => renderer!.unmount());
-  });
-
-  it('updates when the thread switches to a new streaming reply', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const firstReply = makeThreadReplyEvent('$reply-1', 200);
-    const secondReply = makeThreadReplyEvent('$reply-2', 300, {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const thread = makeThread({
-      lastReply: firstReply,
-      relationMap,
-      timelineEvents: [firstReply],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    act(() => {
-      thread.setTimelineEvents([firstReply, secondReply]);
-      thread.setLastReply(secondReply);
-      thread.emit(ThreadEvent.NewReply, thread, secondReply);
-    });
-
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('updates when ai_run streaming metadata arrives via a replacement event', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const streamingEdit = makeEditEvent('$reply-edit', 300, '$reply', {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    act(() => {
-      replyEvent.makeReplaced(streamingEdit);
-    });
-
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('treats completed ai_run metadata on a replacement as stronger than stale raw streaming metadata', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const completedEdit = makeEditEvent('$reply-edit', 300, '$reply', {
-      'io.mindroom.ai_run': { version: 1, status: 'completed' },
-    });
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent, completedEdit],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    act(() => {
-      replyEvent.makeReplaced(completedEdit);
-    });
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('updates when stream_status changes to a terminal state via a replacement event', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
-      'io.mindroom.stream_status': 'active',
-    });
-    const completedEdit = makeEditEvent('$reply-edit', 300, '$reply', {
-      'io.mindroom.stream_status': 'completed',
-    });
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(true);
-
-    act(() => {
-      replyEvent.makeReplaced(completedEdit);
-    });
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('returns true when a non-last reply in the scanned tail is streaming', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const firstReply = makeThreadReplyEvent('$reply-1', 200, {
-      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
-    });
-    const secondReply = makeThreadReplyEvent('$reply-2', 250);
-    const thread = makeThread({
-      lastReply: secondReply,
-      relationMap,
-      timelineEvents: [firstReply, secondReply],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('updates when a stop reaction is added to a non-last reply in the scanned tail', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const firstReply = makeThreadReplyEvent('$reply-1', 200);
-    const secondReply = makeThreadReplyEvent('$reply-2', 250);
-    const stopReaction = makeMessageEvent('$reaction', 260, {
-      'm.relates_to': { event_id: '$reply-1', key: '⏹', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relationMap.set('$reply-1', relations);
-
-    const thread = makeThread({
-      lastReply: secondReply,
-      relationMap,
-      timelineEvents: [firstReply, secondReply],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    act(() => {
-      relations.setGroupedAnnotations([['⏹', new Set([stopReaction])]]);
-      relations.emit(RelationsEvent.Add, stopReaction);
-    });
-
-    expect(getSnapshot()).toBe(true);
-
-    renderer.unmount();
-  });
-
-  it('refreshes when a stop reaction is redacted away', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200);
-    const stopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '⏹', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relations.setGroupedAnnotations([['⏹', new Set([stopReaction])]]);
-    relationMap.set('$reply', relations);
-
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(true);
-
-    act(() => {
-      vi.spyOn(stopReaction, 'isRedacted').mockReturnValue(true);
-      relations.emit(RelationsEvent.Redaction);
-    });
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('ignores streaming metadata on messages older than the last 10 scanned thread messages', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replies = Array.from({ length: 11 }, (_, index) =>
-      makeThreadReplyEvent(
-        `$reply-${index + 1}`,
-        200 + index,
-        index === 0 ? { 'io.mindroom.ai_run': { version: 1, status: 'streaming' } } : {}
-      )
-    );
-    const thread = makeThread({
-      lastReply: replies[replies.length - 1],
-      relationMap,
-      timelineEvents: replies,
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
-  });
-  it('treats cancelled stream_status as terminal (no false positive with stop reaction)', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
-    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+    const cancelled = makeThreadReplyEvent('$reply', 200, {
       'io.mindroom.stream_status': { status: 'cancelled' },
     });
-    const stopReaction = makeMessageEvent('$reaction', 210, {
-      'm.relates_to': { event_id: '$reply', key: '⏹️', rel_type: 'm.annotation' },
-    });
-    const relations = makeRelations();
-    relations.setGroupedAnnotations([['⏹️', new Set([stopReaction])]]);
-    relationMap.set('$reply', relations);
+    expect(isEventStreaming(cancelled, relations as never, timelineSet as never)).toBe(false);
 
-    const thread = makeThread({
-      lastReply: replyEvent,
-      relationMap,
-      timelineEvents: [replyEvent],
-    });
-    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
-
-    const { getSnapshot, renderer } = renderHookHarness(room);
-
-    expect(getSnapshot()).toBe(false);
-
-    renderer.unmount();
+    const emptyRelations = makeRelations();
+    expect(isEventStreaming(plain, emptyRelations as never, timelineSet as never)).toBe(false);
   });
 
   it('tracks the early ai_run edit lifecycle across placeholder, approval pause, resume, and terminal notes', () => {
@@ -829,7 +486,7 @@ describe('useThreadStreamingState', () => {
     };
 
     // 1. Placeholder with early ai_run
-    expect(getThreadStreamingState(room, '$root')).toBe(true);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([replyEvent]);
 
     // 2. Progress edit with early ai_run
     pushEdit('$edit-progress', 220, {
@@ -837,7 +494,7 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.stream_status': 'streaming',
       'io.mindroom.ai_run': earlyAiRun,
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(true);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([replyEvent]);
 
     // 3. Approval pause edit (even with a stop reaction still present)
     pushEdit('$edit-approval', 240, {
@@ -845,7 +502,7 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.stream_status': 'approval_pending',
       'io.mindroom.ai_run': earlyAiRun,
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(false);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
 
     // 4. Resume streaming (including an edit carrying explicit streaming ai_run.status)
     pushEdit('$edit-resume', 260, {
@@ -853,14 +510,14 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.stream_status': 'streaming',
       'io.mindroom.ai_run': { ...earlyAiRun, status: 'streaming' },
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(true);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([replyEvent]);
 
     // 5a. Terminal stop note WITHOUT ai_run (borrows ai_run from earlier loaded edit via getEditedEvent)
     pushEdit('$edit-stop-borrowed', 280, {
       body: 'Stopped.',
       'io.mindroom.stream_status': 'cancelled',
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(false);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
 
     // 5b. Terminal error note WITH ai_run
     pushEdit('$edit-error', 300, {
@@ -868,7 +525,7 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.stream_status': 'error',
       'io.mindroom.ai_run': { ...earlyAiRun, status: 'error' },
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(false);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
 
     // 5c. Terminal restart/interrupted note WITH ai_run
     pushEdit('$edit-interrupted', 320, {
@@ -876,7 +533,7 @@ describe('useThreadStreamingState', () => {
       'io.mindroom.stream_status': 'cancelled',
       'io.mindroom.ai_run': { ...earlyAiRun, status: 'interrupted' },
     });
-    expect(getThreadStreamingState(room, '$root')).toBe(false);
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
   });
 
   it('does not let an older cached finishing edit veto a newer revision whose run status is streaming', () => {

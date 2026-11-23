@@ -37,6 +37,9 @@ import { revealSetting } from './revealSetting';
 import { SettingsSearch } from './SettingsSearch';
 import { useSettingsSearchValues } from './useSettingsSearchValues';
 import type { SettingsPage } from '../navigation/settingsPages';
+import { useClientConfig } from '../config/useClientConfig';
+import { isPluginEnabled } from '../plugins/pluginConfig';
+import { registeredPlugins } from '../plugins/registry';
 import { useSettingsContext } from './useSettingsContext';
 import { About } from './pages/About';
 import { Account } from '../account/settings/Account';
@@ -48,6 +51,7 @@ import { Notifications } from '../notifications/settings/Notifications';
 import { PrivacySecurity } from './pages/PrivacySecurity';
 import { AppleWatch } from '../account/watch/WatchSettings';
 import { Sidebar } from './pages/InterfaceSettings';
+import { Plugins } from './pages/Plugins';
 import { StorageOffline } from './pages/StorageOffline';
 import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
 import {
@@ -90,6 +94,8 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <Chats requestClose={requestClose} />;
     case 'sidebar':
       return <Sidebar requestClose={requestClose} />;
+    case 'plugins':
+      return <Plugins requestClose={requestClose} />;
     case 'language':
       return <LanguageRegion requestClose={requestClose} />;
     case 'connections':
@@ -231,6 +237,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
   const { t } = useTranslation();
   const viewport = useScreenSizeContext();
   const context = useSettingsContext();
+  const clientConfig = useClientConfig();
   const [activePage, setActivePage] = useState<SettingsPageId | undefined>(() =>
     resolveSettingsInitialPage(
       initialPage,
@@ -238,7 +245,8 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       context.localMindroom,
       context.native,
       context.serverAdmin,
-      context.nativeIOS
+      context.nativeIOS,
+      context.hasPlugins
     )
   );
   const [query, setQuery] = useState('');
@@ -247,11 +255,16 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
   );
   const pageRef = useRef<HTMLDivElement>(null);
   const searchValues = useSettingsSearchValues();
+  const enabledPlugins = useMemo(
+    () => registeredPlugins.filter((plugin) => isPluginEnabled(clientConfig, plugin.id)),
+    [clientConfig]
+  );
   const results = searchSettings(
     query,
     getShownSettings(context),
     (key, values) => t(key, values),
-    searchValues
+    searchValues,
+    enabledPlugins
   );
 
   const selectPage = useCallback((page: SettingsPageId) => {
@@ -272,9 +285,17 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
         t,
         context.native,
         context.serverAdmin,
-        context.nativeIOS
+        context.nativeIOS,
+        context.hasPlugins
       ),
-    [context.localMindroom, context.native, context.serverAdmin, context.nativeIOS, t]
+    [
+      context.hasPlugins,
+      context.localMindroom,
+      context.native,
+      context.serverAdmin,
+      context.nativeIOS,
+      t,
+    ]
   );
   const isMobile = viewport === ScreenSize.Mobile;
 

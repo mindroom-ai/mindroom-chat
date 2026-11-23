@@ -236,4 +236,42 @@ describe('liquid glass rendering lifecycle', () => {
     expect(document.querySelectorAll('feImage')).toHaveLength(1);
     expect(document.querySelectorAll('feBlend')).toHaveLength(2);
   });
+
+  it('drops the stale filter during rapid resizes and rasterizes only once after settling', () => {
+    const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
+    cleanup = attachLiquidGlass(element);
+    show(true);
+    toDataURL.mockClear();
+
+    for (const nextWidth of [210, 230, 250, 275]) {
+      width = nextWidth;
+      notifyResize([], {} as ResizeObserver);
+      vi.advanceTimersByTime(40);
+      expect(element.hasAttribute('data-liquid-glass')).toBe(false);
+      expect(document.querySelector('filter')).toBeNull();
+      expect(toDataURL).not.toHaveBeenCalled();
+    }
+
+    vi.advanceTimersByTime(109);
+    expect(document.querySelector('filter')).toBeNull();
+    vi.runAllTimers();
+    expect(element.getAttribute('data-liquid-glass')).toBe('active');
+    expect(document.querySelector('filter')?.getAttribute('width')).toBe('275');
+    expect(toDataURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the active filter when ResizeObserver fires with unchanged dimensions', () => {
+    const toDataURL = vi.mocked(HTMLCanvasElement.prototype.toDataURL);
+    cleanup = attachLiquidGlass(element);
+    show(true);
+    const activeFilter = document.querySelector('filter');
+    toDataURL.mockClear();
+
+    notifyResize([], {} as ResizeObserver);
+    vi.runAllTimers();
+
+    expect(document.querySelector('filter')).toBe(activeFilter);
+    expect(element.getAttribute('data-liquid-glass')).toBe('active');
+    expect(toDataURL).not.toHaveBeenCalled();
+  });
 });

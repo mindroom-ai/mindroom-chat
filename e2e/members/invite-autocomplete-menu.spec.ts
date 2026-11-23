@@ -10,8 +10,8 @@ import {
 } from '../helpers/disposableAccounts';
 
 // Option A Instant Directory Sheet E2E coverage: browse, filter (People/Agents), search,
-// wrapping 60-character and unlisted Matrix IDs, desktop & phone framing, mobile keyboard
-// visual viewport bounds, one-tap invite + retry + note + moderator grant, and RTL mirroring.
+// truncating 60-character listed MXIDs and wrapping unlisted Matrix IDs, desktop & phone framing,
+// mobile keyboard visual viewport bounds, one-tap invite + retry + note + moderator grant, and RTL.
 const SHOTS = process.env.INVITE_MENU_SHOTS;
 const PASSWORD = 'invite-autocomplete-menu-spec-password';
 const QUERY = 'team';
@@ -186,9 +186,9 @@ const checkRows = async (dialog: Locator, seeded: Seed) => {
   await helper.scrollIntoViewIfNeeded();
   const helperId = helper.getByText(seeded.longId, { exact: true });
   await expect(helperId).toBeVisible();
-  expect(await lines(helperId)).toBeGreaterThan(1);
+  expect(await lines(helperId)).toBe(1);
+  expect(await helperId.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
   expect(await sidewaysOverflow(helper)).toBeLessThanOrEqual(0);
-  expect(await sidewaysOverflow(helperId)).toBeLessThanOrEqual(0);
 };
 
 const checkUnlistedId = async (dialog: Locator) => {
@@ -206,14 +206,33 @@ const checkUnlistedId = async (dialog: Locator) => {
 };
 
 const checkDesktopFraming = async (dialog: Locator) => {
+  await expect
+    .poll(async () => {
+      const b = await box(dialog);
+      return Math.abs(b.y + b.height / 2 - DESKTOP.height / 2);
+    })
+    .toBeLessThan(2);
   const bounds = await box(dialog);
   expect(bounds.height).toBeGreaterThan(300);
   expect(bounds.height).toBeLessThanOrEqual(640 + 1);
-  expect(Math.abs(bounds.y + bounds.height / 2 - DESKTOP.height / 2)).toBeLessThan(2);
-  await expect(dialog.getByRole('checkbox')).toBeChecked();
-  const modBox = await box(dialog.getByText(/^Give invited agents .+ rights$/));
+  const modSwitch = dialog.getByRole('switch');
+  await expect(modSwitch).toBeChecked();
+  const modBox = await box(modSwitch);
   const firstActionBox = await box(dialog.locator('li').first().getByRole('button'));
-  expect(modBox.y + modBox.height).toBeLessThanOrEqual(firstActionBox.y);
+  expect(modBox.y).toBeGreaterThanOrEqual(firstActionBox.y);
+  expect(modBox.y + modBox.height).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
+  const listId = await dialog.getByRole('scrollbar').getAttribute('aria-controls');
+  expect(listId).toBeTruthy();
+  const scroller = await dialog.page().evaluate((id) => {
+    const el = id ? document.getElementById(id) : null;
+    if (!el) return null;
+    return {
+      scrollbarWidth: getComputedStyle(el).scrollbarWidth,
+      gutter: el.offsetWidth - el.clientWidth,
+      overscrollBehaviorY: getComputedStyle(el).overscrollBehaviorY,
+    };
+  }, listId);
+  expect(scroller).toEqual({ scrollbarWidth: 'none', gutter: 0, overscrollBehaviorY: 'auto' });
 };
 
 const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
@@ -253,7 +272,7 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
     (fullHeight) => window.__setKeyboardViewport?.(fullHeight, 0, 'resize'),
     PHONE.height
   );
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toBeHidden();
 };
 
@@ -262,9 +281,28 @@ const checkInviteRetryNoteAndGrant = async (page: Page, seeded: Seed) => {
   const dialog = await openInvite(page, seeded);
   await expect(dialog.locator('li')).toHaveCount(8, { timeout: 30_000 });
 
-  // Add an invite note, simulate one transient invite failure, then Retry and succeed.
-  await dialog.locator('button[aria-expanded]').click();
+  // Clicking the moderator label toggles the switch; Info toggles help without flipping the switch.
+  const modLabel = dialog.getByText(/^Give invited agents .+ rights$/);
+  const modSwitch = dialog.getByRole('switch');
+  await expect(modSwitch).toBeChecked();
+  await modLabel.click();
+  await expect(modSwitch).not.toBeChecked();
+  await modLabel.click();
+  await expect(modSwitch).toBeChecked();
+  const infoBtn = dialog.getByRole('button', { name: 'Information', exact: true });
+  await infoBtn.click();
+  await expect(infoBtn).toHaveAttribute('aria-expanded', 'true');
+  await expect(modSwitch).toBeChecked();
+  await infoBtn.click();
+  await expect(infoBtn).toHaveAttribute('aria-expanded', 'false');
+
+  // Opening the note places the input next in Tab order right after the toggle button.
+  const noteToggle = dialog.getByRole('button', { name: '+ Add invite note' });
+  await noteToggle.focus();
+  await noteToggle.press('Enter');
+  await page.keyboard.press('Tab');
   const noteField = dialog.getByPlaceholder('Add a note to your invite...');
+  await expect(noteField).toBeFocused();
   await noteField.fill('Welcome to the studio');
 
   let failOnce = true;
@@ -286,13 +324,13 @@ const checkInviteRetryNoteAndGrant = async (page: Page, seeded: Seed) => {
   await aliceBtn.click();
   await expect(aliceBtn).toContainText('Invited', { timeout: 15_000 });
 
-  // Invite agent with moderator checkbox enabled; verify invite succeeds.
-  await expect(dialog.getByRole('checkbox')).toBeChecked();
+  // Invite agent with moderator switch enabled; verify invite succeeds.
+  await expect(dialog.getByRole('switch')).toBeChecked();
   const helperBtn = rowByName(dialog, 'Helper agent').getByRole('button');
   await helperBtn.click();
   await expect(helperBtn).toContainText('Invited', { timeout: 15_000 });
 
-  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toBeHidden();
 };
 
@@ -335,7 +373,7 @@ const exercise = async (page: Page, engine: string) => {
     await checkRows(dialog, seeded);
     await shoot(page, `${engine}-${theme}-phone`);
     await checkUnlistedId(dialog);
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(dialog).toBeHidden();
 
     await page.setViewportSize(DESKTOP);
@@ -343,7 +381,7 @@ const exercise = async (page: Page, engine: string) => {
     await search(dialog);
     await checkDesktopFraming(dialog);
     await shoot(page, `${engine}-${theme}-desktop`);
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(dialog).toBeHidden();
   }
 
@@ -359,7 +397,7 @@ const exercise = async (page: Page, engine: string) => {
     const dialog = await openInvite(page, seeded);
     await search(dialog);
     inset.push(await checkMirrored(dialog, rightToLeft));
-    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(dialog).toBeHidden();
   }
   expect(inset[1]).toBeCloseTo(inset[0] ?? Number.NaN, 0);

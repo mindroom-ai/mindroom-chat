@@ -54,3 +54,10 @@ func jsonNumber(_ value: Any?) -> Double?? {
           number.doubleValue.isFinite else { return nil }
     return .some(number.doubleValue)
 }
+
+/// Strict JSON exact integer: rejects booleans, non-numbers, non-finite values, and fractional values (e.g. `2.5`).
+func jsonExactInt(_ value: Any?) -> Int? {
+    guard let number = value as? NSNumber,
+          CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+    return Int(exactly: number)
+}

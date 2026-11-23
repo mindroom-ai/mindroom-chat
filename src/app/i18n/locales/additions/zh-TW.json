@@ -420,6 +420,10 @@
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。"
       },
+      "plugins": {
+        "title": "外掛程式",
+        "description": "在您的所有裝置上為您的帳號開啟或關閉內建外掛程式。"
+      },
       "menu": {
         "groups": {
           "you": "你",
@@ -484,7 +488,9 @@
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
-        "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作"
+        "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
+        "dictation": "聽寫, 語音輸入, 語音轉文字, 麥克風, 手機",
+        "plugins": "外掛程式, 插件, 擴充功能, 整合"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -533,7 +539,12 @@
         "playSound": "播放聲音",
         "resize": "調整通話面板大小",
         "screenOf": "{{name}} 的螢幕",
-        "fullScreen": "全螢幕"
+        "fullScreen": "全螢幕",
+        "screenShareStoppedInBackground": "離開應用程式時螢幕分享已停止。",
+        "shareAgain": "再次分享",
+        "microphoneStopped": "你的麥克風已停止。",
+        "cameraStopped": "你的攝影機已停止。",
+        "turnBackOn": "重新開啟"
       },
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
@@ -830,6 +841,12 @@
       "copyCommand": "複製指令",
       "copyFailed": "複製失敗",
       "keywords": "mac, macos, 桌面, 應用程式, 下載, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "分享此應用程式",
+        "stopAppShare": "停止分享此應用程式"
+      }
     }
   },
   "mindroomUi": {
@@ -1322,7 +1339,32 @@
     },
     "replyInThread": "在討論串中回覆…",
     "newThreadIn": "在 {{room}} 中建立新討論串…",
-    "newThreadWith": "與 {{name}} 建立新討論串…"
+    "newThreadWith": "與 {{name}} 建立新討論串…",
+    "dictation": {
+      "label": "聽寫",
+      "cancel": "取消聽寫",
+      "pause": "暫停聽寫",
+      "resume": "繼續聽寫",
+      "finish": "完成聽寫",
+      "retry": "重試",
+      "insertPartial": "插入部分文字",
+      "discard": "捨棄",
+      "dismissError": "關閉聽寫錯誤",
+      "statusStarting": "正在啟動聽寫",
+      "statusListening": "正在聽寫",
+      "statusPaused": "聽寫已暫停",
+      "statusFinishing": "正在完成...",
+      "statusPendingRetry_other": "{{count}} 個片段等待重試",
+      "capReached": "已達到 5:00 上限",
+      "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
+      "failedSummary_other": "無法轉寫 {{count}} 個片段。"
+    },
+    "voiceButton": {
+      "settingTitle": "手機麥克風按鈕",
+      "settingDescription": "選擇手機上輸入框麥克風按鈕的功能。另一項操作保留在 + 選單中。",
+      "dictate": "聽寫",
+      "voiceMessage": "語音訊息"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1401,7 +1443,8 @@
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
       "callView": "前往通話",
-      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送"
+      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送",
+      "dictate": "聽寫到輸入框"
     }
   },
   "thread": {

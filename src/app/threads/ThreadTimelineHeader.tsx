@@ -37,9 +37,10 @@ export function ThreadTimelineHeader({
       // rows move only here, before a layout. Read the offset first: at the
       // bottom, a layout of the shrunk header clamps it.
       const next = content.offsetHeight;
+      if (height !== undefined && next === height) return;
       const { scrollTop } = scroll;
       header.style.height = `${next}px`;
-      if (height !== undefined && next !== height) onResize(next - height, scrollTop);
+      if (height !== undefined) onResize(next - height, scrollTop);
       height = next;
       scroll.style.scrollPaddingTop = `calc(${headerInset} + ${next}px)`;
       scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);

@@ -255,6 +255,78 @@ final class PlainTextTests: XCTestCase {
         XCTAssertEqual(result.tools, 0)
         XCTAssertEqual(result.text, "🔧 `x` [1]")
     }
+
+    func testWithToolDetailsExtractsNamesAndSplitsWorkAndAnswer() {
+        let split = PlainText.withToolDetails("Checking options.\n🔧 `web_search` [1]\nComparing times.\n🔧 `calendar` [2] ⏳\n**Booked** for 10:00.")
+        XCTAssertEqual(split.markers, [PlainText.ToolMarker(index: 1, name: "web_search"), PlainText.ToolMarker(index: 2, name: "calendar")])
+        XCTAssertEqual(split.workText, "Checking options.\nComparing times.")
+        XCTAssertEqual(split.answerText, "Booked for 10:00.")
+        XCTAssertEqual(split.text, "Checking options.\nComparing times.\nBooked for 10:00.")
+
+        // No prose before tool line: no split.
+        let noBefore = PlainText.withToolDetails("🔧 `calendar` [1]\nBooked for 10:00.")
+        XCTAssertEqual(noBefore.markers.map(\.name), ["calendar"])
+        XCTAssertNil(noBefore.workText)
+        XCTAssertEqual(noBefore.answerText, "Booked for 10:00.")
+
+        // No prose after tool line: no split.
+        let noAfter = PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]")
+        XCTAssertEqual(noAfter.markers.map(\.name), ["calendar"])
+        XCTAssertNil(noAfter.workText)
+        XCTAssertEqual(noAfter.answerText, "Checking calendar...")
+
+        // Divider-only tail or prefix is not substantive prose.
+        let dividerTail = PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]\n---")
+        XCTAssertNil(dividerTail.workText)
+        let dividerPrefix = PlainText.withToolDetails("***\n🔧 `calendar` [1]\nBooked for 10:00.")
+        XCTAssertNil(dividerPrefix.workText)
+
+        // In a block quote too, where a spaced one is no list item.
+        for divider in ["> - - -", "> * * *", "> _ _ _", ">---", "> > - - -"] {
+            XCTAssertNil(PlainText.withToolDetails("Checking calendar...\n🔧 `calendar` [1]\n\(divider)").workText, divider)
+            XCTAssertNil(PlainText.withToolDetails("\(divider)\n🔧 `calendar` [1]\nBooked for 10:00.").workText, divider)
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "Checking calendar...\n\(divider)", atLFLine: 1), divider)
+            XCTAssertNil(PlainText.splitFinishedWork(markdown: "\(divider)\nBooked for 10:00.", atLFLine: 1), divider)
+        }
+        XCTAssertEqual(PlainText.of(markdown: "Before\n> - - -\nAfter"), "Before\n- - -\nAfter")
+        XCTAssertEqual(PlainText.of(markdown: "> - one\n> - two"), "• one\n• two")
+
+        // Fenced "---" inside code block remains substantive.
+        let fencedDivider = PlainText.withToolDetails("Checking config.\n🔧 `read_file` [1]\n```\n---\n```")
+        XCTAssertEqual(fencedDivider.workText, "Checking config.")
+        XCTAssertEqual(fencedDivider.answerText, "---")
+    }
+}
+
+final class PlainTextEdgesTests: XCTestCase {
+    func testFullTextTrimsLeadingWhitespaceWhileSplitHalvesKeepCodeIndent() {
+        XCTAssertEqual(PlainText.of(markdown: "  Hello there"), "Hello there")
+        XCTAssertEqual(PlainText.of(markdown: "\tTabbed"), "Tabbed")
+        let split = PlainText.withToolDetails("Checking.\n🔧 `shell` [1]\n```\n    x = 1\n    y = 2\n```")
+        XCTAssertEqual(split.workText, "Checking.")
+        XCTAssertEqual(split.answerText, "    x = 1\n    y = 2")
+    }
+
+    func testEmptyNestedQuotesDoNotCountAsSubstantive() {
+        XCTAssertNil(PlainText.withToolDetails("Done.\n🔧 `shell` [1]\n> >").workText)
+        XCTAssertNil(PlainText.splitFinishedWork(markdown: "Done.\n\n> >", atLFLine: 2))
+        XCTAssertEqual(PlainText.of(markdown: "> > Real reply"), "Real reply")
+    }
+
+    func testBlankLinesAroundTheTextAndTheSpacesThatEndItGo() {
+        XCTAssertEqual(PlainText.of(markdown: "\n \t\n\nHello  \n\n\n\nWorld \t\n  \n\n"), "Hello  \n\nWorld")
+        XCTAssertEqual(PlainText.of(markdown: " \n\t\n"), "")
+        XCTAssertEqual(PlainText.of(markdown: ""), "")
+    }
+
+    func testALinkReferenceDefinitionStaysInTheText() {
+        XCTAssertEqual(PlainText.of(markdown: "See [1].\n\n[1]: https://example.org"), "See [1].\n\n[1]: https://example.org")
+        let details = PlainText.withToolDetails("See [1].\n\n🔧 `shell` [1]\n\n[1]: https://example.org")
+        XCTAssertEqual(details.markers, [PlainText.ToolMarker(index: 1, name: "shell")])
+        XCTAssertNil(details.workText)
+        XCTAssertEqual(details.answerText, "See [1].\n\n[1]: https://example.org")
+        XCTAssertNil(PlainText.splitFinishedWork(markdown: "See [1].\n\n[1]: https://example.org", atLFLine: 2))
+    }
 }
 
 final class WaveformTests: XCTestCase {

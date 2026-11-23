@@ -222,6 +222,13 @@ const DEFINITIONS = {
     field: 'always',
     local: true,
   },
+  dictate: {
+    keys: 'mod+shift+d',
+    labelKey: 'shortcuts.actions.dictate',
+    group: 'composer',
+    field: 'always',
+    local: true,
+  },
   bold: {
     keys: 'mod+b',
     labelKey: 'sharedUi.toolbar.bold',

@@ -1,7 +1,7 @@
 import { canvasesEnabled } from '../config/canvases';
 import { useClientConfig } from '../config/useClientConfig';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
-import type { AccountSettings } from '../preferences/accountSettings';
+import type { BooleanAccountSetting } from '../preferences/accountSettings';
 import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 /** The icon rail buttons each person can hide in Settings. */
@@ -16,7 +16,7 @@ export type RailButton =
 export type RailButtons = Record<RailButton, boolean>;
 
 /** The `io.mindroom.settings` switch that shows or hides each button. */
-export const RAIL_BUTTON_SETTING: Record<RailButton, keyof AccountSettings> = {
+export const RAIL_BUTTON_SETTING: Record<RailButton, BooleanAccountSetting> = {
   threads: 'showThreadsInSidebar',
   canvases: 'showCanvasesInSidebar',
   explore: 'showExploreInSidebar',

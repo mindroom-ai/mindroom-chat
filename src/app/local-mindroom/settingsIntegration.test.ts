@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type TFunction } from 'i18next';
 import { ScreenSize } from '../lib/hooks/useScreenSize';
 import { SettingsPages } from '../navigation/settingsPages';
-import {
-  getSettingsMenuItems,
-  resolveSettingsInitialPage,
-} from '../settings/settingsMenu';
+import { getSettingsMenuItems, resolveSettingsInitialPage } from '../settings/settingsMenu';
 import { translateFromEn } from '../../test/utils/i18n';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from './settingsPage';
 
@@ -61,6 +58,24 @@ describe('getSettingsMenuItems', () => {
 
     expect(items.some((item) => item.page === SettingsPages.ConnectionsPage)).toBe(false);
   });
+
+  it('shows Plugins under app between Sidebar and Language when hasPlugins is true', () => {
+    const withoutPlugins = getSettingsMenuItems(false, t, false, false, false, false);
+    expect(withoutPlugins.some((item) => item.page === SettingsPages.PluginsPage)).toBe(false);
+
+    const withPlugins = getSettingsMenuItems(false, t, false, false, false, true);
+    const pages = withPlugins.map((item) => item.page);
+    expect(withPlugins.find((item) => item.page === SettingsPages.PluginsPage)).toMatchObject({
+      name: 'Plugins',
+      group: 'app',
+    });
+    expect(pages.indexOf(SettingsPages.PluginsPage)).toBe(
+      pages.indexOf(SettingsPages.SidebarPage) + 1
+    );
+    expect(pages.indexOf(SettingsPages.LanguagePage)).toBe(
+      pages.indexOf(SettingsPages.PluginsPage) + 1
+    );
+  });
 });
 
 describe('resolveSettingsInitialPage', () => {
@@ -91,6 +106,31 @@ describe('resolveSettingsInitialPage', () => {
 
     expect(open(true)).toBe('server-accounts');
     expect(open(false)).toBe(SettingsPages.AppearancePage);
+  });
+
+  it('opens Plugins only when hasPlugins is true', () => {
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.PluginsPage,
+        ScreenSize.Desktop,
+        false,
+        false,
+        false,
+        false,
+        true
+      )
+    ).toBe(SettingsPages.PluginsPage);
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.PluginsPage,
+        ScreenSize.Desktop,
+        false,
+        false,
+        false,
+        false,
+        false
+      )
+    ).toBe(SettingsPages.AppearancePage);
   });
 
   it('keeps mobile settings closed when no initial page is requested', () => {

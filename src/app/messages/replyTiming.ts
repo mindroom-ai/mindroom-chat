@@ -3,9 +3,11 @@ import {
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../matrix/protocol/aiRun';
-import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
 import { getEditStreamFinishTs } from '../matrix/room';
 import { formatDurationParts, formatNow, inSameDay, timeHourMinute } from '../lib/time';
+
+/** A reply without a revision for this long is treated as no longer streaming when showing timing. */
+export const STREAM_IDLE_LIMIT_MS = 30 * 60_000;
 
 /**
  * When an agent reply started, and when it finished or that it still streams; a streaming reply

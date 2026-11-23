@@ -104,13 +104,23 @@ export const useRoomThreadList = (
           room,
           createPreferLiveEventMapper(room, mx.getEventMapper())
         );
-        restoreCachedRoomThreads(
-          room,
-          roots.map(({ rootEvent, latestReply }) => ({
-            rootEvent: mapper(rootEvent),
-            latestReply: latestReply && mapper(latestReply),
-          }))
-        );
+        const restored = roots.map(({ rootEvent, latestReply }) => ({
+          cached: rootEvent,
+          rootEvent: mapper(rootEvent),
+          latestReply: latestReply && mapper(latestReply),
+        }));
+        restoreCachedRoomThreads(room, restored);
+        // A root the SDK now holds as the cache had it is saved already: the server's list saves
+        // the roots it adds or changes, not these again. A new Room (after an account switch)
+        // knew of none, and the first page saved every restored root in a transaction of its own,
+        // 791 of them at once, which held up every other read of the cache for seconds.
+        const saved = getSavedRootRevisions(room, engine.persist.forRoom(room).isCurrent);
+        restored.forEach(({ cached, rootEvent }) => {
+          const id = rootEvent.getId();
+          if (id && rootEvent.event === cached && room.getThread(id)?.rootEvent === rootEvent) {
+            saved.set(id, getRootRevision(room, rootEvent));
+          }
+        });
         setVersion((current) => current + 1);
       })
       .catch(() => {
@@ -119,7 +129,7 @@ export const useRoomThreadList = (
     return () => {
       cancelled = true;
     };
-  }, [enabled, engine.sessionId, mx, room]);
+  }, [enabled, engine.persist, engine.sessionId, mx, room]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);

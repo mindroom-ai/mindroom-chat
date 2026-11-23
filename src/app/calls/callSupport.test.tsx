@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getLivekitServiceUrl } from './rtcFocus';
-import { useCallSupport, type CallSupport } from './callSupport';
+import { screenShareIsInAppOnly, useCallSupport, type CallSupport } from './callSupport';
 
 vi.mock('./rtcFocus', () => ({ getLivekitServiceUrl: vi.fn() }));
 
@@ -67,5 +67,24 @@ describe('useCallSupport', () => {
     expect(later.seen.at(-1)).toBe('supported');
     expect(getLivekitServiceUrl).toHaveBeenCalledTimes(2);
     later.unmount();
+  });
+});
+
+describe('screenShareIsInAppOnly', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['iPhone', { userAgent: 'iPhone OS 18_0', platform: 'iPhone', maxTouchPoints: 5 }, true],
+    [
+      'iPadOS desktop mode',
+      { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 5 },
+      true,
+    ],
+    ['macOS desktop', { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 0 }, false],
+  ])('detects %s', (_label, nav, expected) => {
+    vi.stubGlobal('navigator', nav);
+    expect(screenShareIsInAppOnly()).toBe(expected);
   });
 });

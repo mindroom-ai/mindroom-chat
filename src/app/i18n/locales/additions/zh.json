@@ -420,6 +420,10 @@
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
       },
+      "plugins": {
+        "title": "插件",
+        "description": "在您的所有设备上为您的账号开启或关闭内置插件。"
+      },
       "menu": {
         "groups": {
           "you": "你",
@@ -484,7 +488,9 @@
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
-        "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务"
+        "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
+        "dictation": "听写, 语音输入, 语音转文字, 麦克风, 手机",
+        "plugins": "插件, 扩展, 附加组件, 集成"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -533,7 +539,12 @@
         "playSound": "播放声音",
         "resize": "调整通话面板大小",
         "screenOf": "{{name}} 的屏幕",
-        "fullScreen": "全屏"
+        "fullScreen": "全屏",
+        "screenShareStoppedInBackground": "离开应用时屏幕共享已停止。",
+        "shareAgain": "重新共享",
+        "microphoneStopped": "你的麦克风已停止。",
+        "cameraStopped": "你的摄像头已停止。",
+        "turnBackOn": "重新开启"
       },
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
@@ -830,6 +841,12 @@
       "copyCommand": "复制命令",
       "copyFailed": "复制失败",
       "keywords": "mac, macos, 桌面, 应用, 下载, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "共享此应用",
+        "stopAppShare": "停止共享此应用"
+      }
     }
   },
   "mindroomUi": {
@@ -1322,7 +1339,32 @@
     },
     "replyInThread": "在讨论串中回复…",
     "newThreadIn": "在 {{room}} 中新建讨论串…",
-    "newThreadWith": "与 {{name}} 新建讨论串…"
+    "newThreadWith": "与 {{name}} 新建讨论串…",
+    "dictation": {
+      "label": "听写",
+      "cancel": "取消听写",
+      "pause": "暂停听写",
+      "resume": "继续听写",
+      "finish": "完成听写",
+      "retry": "重试",
+      "insertPartial": "插入部分文本",
+      "discard": "放弃",
+      "dismissError": "关闭听写错误",
+      "statusStarting": "正在启动听写",
+      "statusListening": "正在听写",
+      "statusPaused": "听写已暂停",
+      "statusFinishing": "正在完成...",
+      "statusPendingRetry_other": "{{count}} 个片段等待重试",
+      "capReached": "已达到 5:00 上限",
+      "micInterrupted": "麦克风已断开。请继续或完成。",
+      "failedSummary_other": "无法转写 {{count}} 个片段。"
+    },
+    "voiceButton": {
+      "settingTitle": "手机麦克风按钮",
+      "settingDescription": "选择手机上输入框麦克风按钮的功能。另一项操作保留在 + 菜单中。",
+      "dictate": "听写",
+      "voiceMessage": "语音消息"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1401,7 +1443,8 @@
       "editLast": "编辑你的最后一条消息（输入框为空时）",
       "inlineCode": "行内代码",
       "callView": "转到通话",
-      "voiceRecord": "按住录制语音消息，轻点开始或发送"
+      "voiceRecord": "按住录制语音消息，轻点开始或发送",
+      "dictate": "听写到输入框"
     }
   },
   "thread": {

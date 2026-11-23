@@ -6,8 +6,9 @@ import { isEventStreaming } from '../event-store/threads/useThreadStreamingState
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
 import { getEventReactions, reactionOrEditEvent } from '../matrix/room';
 import { CHAT_UI_ACTION_KEY } from '../matrix/protocol/chatUiProtocol';
-import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
+import type { ClientConfig } from '../config/useClientConfig';
 import { pickRenderer } from '../plugins/messageRenderers';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { getAiRunInfo } from '../matrix/protocol/aiRun';
 import {
   readInteractiveQuestion,
@@ -55,8 +56,7 @@ export const turnRowWaits = (
     if (request && effectiveSecretRequestStatus(request, now) === 'pending') return true;
   }
   if (author !== 'agent') return false;
-  // A reply that says it streams has not finished, also while the client has yet to vouch for it
-  // (isStreamingReplyCurrent): its turn folds once it says it ended.
+  // A reply that says it streams has not finished: its turn folds once it says it ended.
   // One whose writer died mid-stream keeps holding: its turn shows whole, as without folds.
   if (isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet)) return true;
   // A question waits until a reaction answers it, as its card reads it (QuestionCard), whatever
@@ -178,7 +178,7 @@ export const useThreadTurnFolds = ({
   toggle: (fold: ThreadTurnFold) => void;
 } => {
   const pendingApprovalIds = useThreadApprovals()?.pendingEventIds;
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   // A reply streaming in the newest turn holds it from its own row (`holdsTurn`).
   const lastTurnBusy =
     !!backgroundState?.hasBackgroundJob || !!backgroundState?.hasBackgroundApproval;

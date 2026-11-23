@@ -1,5 +1,6 @@
+import classNames from 'classnames';
 import { Icon, IconButton, Icons, Text } from 'folds';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
@@ -10,7 +11,9 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
 import { getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
-import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
+import { useRoomActiveRuns } from '../../matrix/hooks/useRoomActiveRuns';
+import type { ActiveRun } from '../../matrix/protocol/activeRunsContract';
+import { roomTrustedAgents, useAgentRoomState } from '../../matrix/protocol/agentRoomState';
 import {
   MINDROOM_BACKGROUND_JOBS_EVENT,
   parseBackgroundJobsStateEvent,
@@ -22,7 +25,6 @@ import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../../matrix/thread';
 import {
   getThreadStreamingEvents,
   isEventStreaming,
-  useThreadStreamingState,
 } from '../../event-store/threads/useThreadStreamingState';
 import * as css from './RoomViewTyping.css';
 
@@ -33,25 +35,21 @@ type RoomViewTypingProps = {
 };
 
 /**
- * The senders whose reply in the thread still streams, or undefined outside a thread. A typing
- * notice is the room's and names no thread (an agent keeps one for all its replies in a room), so
- * in a thread only these show as typing.
+ * The agents with an active run in `threadId`, or undefined outside a thread. A typing notice is
+ * the room's and names no thread (an agent keeps one for all its replies in a room), so in a
+ * thread only these show as typing.
  */
-const useThreadStreamingSenders = (room: Room, threadId: string | undefined) => {
-  // Re-renders whenever the thread's latest replies change.
-  useThreadStreamingState(room, threadId);
+const useThreadStreamingSenders = (
+  room: Room,
+  threadId: string | undefined
+): ReadonlySet<string> | undefined => {
+  const { runs } = useRoomActiveRuns(room);
   if (!threadId) return undefined;
-  const timelineSet =
-    room.getThread(threadId)?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
-  return new Set(
-    getThreadStreamingEvents(room, threadId)
-      .filter((event) => {
-        const eventId = event.getId();
-        const reactions = eventId ? getEventReactions(timelineSet, eventId) : undefined;
-        return isEventStreaming(event, reactions, timelineSet);
-      })
-      .map((event) => event.getSender())
-  );
+  const senders = new Set<string>();
+  runs.forEach((run: ActiveRun) => {
+    if (run.threadId === threadId) senders.add(run.agentId);
+  });
+  return senders;
 };
 
 /** Whether part of the timeline row of `eventId` shows on screen, inside every scrolling area. */
@@ -194,7 +192,12 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const myUserId = mx.getUserId();
   const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
   const streaming = useThreadStreamingSenders(room, threadId);
-  const isAgent = (userId: string) => isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined);
+  let trustedAgents: ReadonlySet<string> | undefined;
+  const isAgent = (userId: string) => {
+    if (isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined)) return true;
+    trustedAgents ??= roomTrustedAgents(room);
+    return trustedAgents.has(userId);
+  };
   const members = useRoomTypingMember(room.roomId).filter(
     (receipt) =>
       receipt.userId !== myUserId &&
@@ -211,8 +214,16 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
       .join(' ')
   );
   const typing = members.filter(({ userId }) => !onScreen.has(userId));
+  const scope = `${room.roomId}\0${threadId ?? ''}`;
+  const emptyInScopeRef = useRef<string>();
+  const isEmpty = typing.length === 0;
+  const animateArrive = emptyInScopeRef.current === scope;
+  useEffect(() => {
+    if (isEmpty) emptyInScopeRef.current = scope;
+    else if (emptyInScopeRef.current !== scope) emptyInScopeRef.current = undefined;
+  }, [isEmpty, scope]);
 
-  if (typing.length === 0) return null;
+  if (isEmpty) return null;
 
   const names = typing.map(
     ({ userId }) => getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId
@@ -224,7 +235,11 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
     typing.forEach(({ userId }) => updateTyping({ type: 'DELETE', roomId: room.roomId, userId }));
 
   return (
-    <div className={css.TypingStrip} role="status" aria-live="polite">
+    <div
+      className={classNames(css.TypingStrip, animateArrive && css.TypingStripArriving)}
+      role="status"
+      aria-live="polite"
+    >
       <TypingDots />
       <Text className={css.TypingText} size="T200" priority="300" truncate>
         {message}

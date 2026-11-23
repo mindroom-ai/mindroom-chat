@@ -446,6 +446,10 @@
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Ative ou desative os plugins incluídos para a sua conta em todos os seus dispositivos."
+      },
       "menu": {
         "groups": {
           "you": "Você",
@@ -510,7 +514,9 @@
         "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
-        "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano"
+        "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
+        "dictation": "ditar, ditado, voz para texto, microfone, telefone",
+        "plugins": "plugins, extensões, complementos, integrações"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -561,7 +567,12 @@
         "playSound": "Reproduzir som",
         "resize": "Redimensionar o painel da chamada",
         "screenOf": "Tela de {{name}}",
-        "fullScreen": "Tela cheia"
+        "fullScreen": "Tela cheia",
+        "screenShareStoppedInBackground": "A partilha de ecrã parou quando saiu da aplicação.",
+        "shareAgain": "Partilhar novamente",
+        "microphoneStopped": "O seu microfone parou.",
+        "cameraStopped": "A sua câmara parou.",
+        "turnBackOn": "Voltar a ligar"
       },
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
@@ -864,6 +875,12 @@
       "copyCommand": "Copiar comando",
       "copyFailed": "Falha ao copiar",
       "keywords": "mac, macos, desktop, app, aplicativo, baixar, download, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Partilhar esta aplicação",
+        "stopAppShare": "Parar de partilhar esta aplicação"
+      }
     }
   },
   "mindroomUi": {
@@ -1412,7 +1429,36 @@
     },
     "replyInThread": "Responder no tópico…",
     "newThreadIn": "Novo tópico em {{room}}…",
-    "newThreadWith": "Novo tópico com {{name}}…"
+    "newThreadWith": "Novo tópico com {{name}}…",
+    "dictation": {
+      "label": "Ditar",
+      "cancel": "Cancelar ditado",
+      "pause": "Pausar ditado",
+      "resume": "Retomar ditado",
+      "finish": "Concluir ditado",
+      "retry": "Tentar novamente",
+      "insertPartial": "Inserir texto parcial",
+      "discard": "Descartar",
+      "dismissError": "Fechar erro de ditado",
+      "statusStarting": "Iniciando ditado",
+      "statusListening": "Ditando",
+      "statusPaused": "Ditado pausado",
+      "statusFinishing": "Finalizando...",
+      "statusPendingRetry_one": "{{count}} segmento aguardando nova tentativa",
+      "statusPendingRetry_many": "{{count}} segmentos aguardando nova tentativa",
+      "statusPendingRetry_other": "{{count}} segmentos aguardando nova tentativa",
+      "capReached": "Limite de 5:00 atingido",
+      "micInterrupted": "Microfone desconectado. Retome ou conclua.",
+      "failedSummary_one": "Não foi possível transcrever {{count}} segmento.",
+      "failedSummary_many": "Não foi possível transcrever {{count}} segmentos.",
+      "failedSummary_other": "Não foi possível transcrever {{count}} segmentos."
+    },
+    "voiceButton": {
+      "settingTitle": "Botão do microfone no telemóvel",
+      "settingDescription": "Escolha o que o botão do microfone no editor faz em telemóveis. A outra ação fica no menu +.",
+      "dictate": "Ditar",
+      "voiceMessage": "Mensagem de voz"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1491,7 +1537,8 @@
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
       "inlineCode": "Código em linha",
       "callView": "Ir para a chamada",
-      "voiceRecord": "Mantenha pressionado para gravar uma mensagem de voz; toque para iniciar ou enviar"
+      "voiceRecord": "Mantenha pressionado para gravar uma mensagem de voz; toque para iniciar ou enviar",
+      "dictate": "Ditar no campo de mensagem"
     }
   },
   "thread": {

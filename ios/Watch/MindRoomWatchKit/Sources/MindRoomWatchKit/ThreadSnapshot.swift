@@ -13,6 +13,36 @@ public struct ThreadSnapshot: Equatable, Sendable {
         public let audio: String?
         public let tools: Int
         public let run: RunState
+        public let toolNames: [String]
+        public let durationSeconds: Int?
+        public let workText: String?
+        public let answerText: String
+
+        public init(
+            eventId: String,
+            sender: String,
+            isOwn: Bool,
+            text: String,
+            audio: String?,
+            tools: Int,
+            run: RunState,
+            toolNames: [String] = [],
+            durationSeconds: Int? = nil,
+            workText: String? = nil,
+            answerText: String? = nil
+        ) {
+            self.eventId = eventId
+            self.sender = sender
+            self.isOwn = isOwn
+            self.text = text
+            self.audio = audio
+            self.tools = tools
+            self.run = run
+            self.toolNames = toolNames
+            self.durationSeconds = durationSeconds
+            self.workText = workText
+            self.answerText = answerText ?? text
+        }
 
         /// Audio with no words to show: there is only the sound.
         public var isVoiceOnly: Bool { audio != nil && text.isEmpty }
@@ -150,16 +180,55 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let message = { (event: JSON) -> Message in
             let id = event.eventId ?? ""
             let sender = event["sender"] as? String ?? ""
-            let content = effectiveContent(event, latestEdit: edit(event))
-            var plain = PlainText.withToolCount(content["body"] as? String ?? "")
+            let isOwn = sender == ownUserId
+            let latestEdit = edit(event)
+            let content = effectiveContent(event, latestEdit: latestEdit)
+            let body = content["body"] as? String ?? ""
+            // A run's state only of an agent on this person's homeserver, as its tools and work: anyone can put
+            // a stream status on a message, and it would show Live and count as running on the home screen.
+            let trustedAgent = !isOwn && !event.isRedacted && isAgent(sender)
+            let run = trustedAgent ? RunState.of(event, latestEdit: latestEdit) : .none
+            let audio = isAudio(event)
+            if audio {
+                let spoken = transcripts[id] ?? AudioCaption.of(content) ?? ""
+                return Message(eventId: id, sender: sender, isOwn: isOwn, text: spoken,
+                               audio: mediaSource(content) ?? mediaSource(event.content),
+                               tools: 0, run: run, toolNames: [], durationSeconds: nil,
+                               workText: nil, answerText: spoken)
+            }
+            let details = PlainText.withToolDetails(body)
             // The calls whose lines MindRoom left out of the text, of an agent on any homeserver: main counted
             // those lines whoever sent them, and a count shows no call and trusts no one.
-            if MindRoomAgent.hasAgentName(sender) { plain.tools += toolCallsOutOfText(content) }
-            let audio = isAudio(event)
-            if audio { plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0) }
-            return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
-                           audio: audio ? mediaSource(content) ?? mediaSource(event.content) : nil,
-                           tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
+            let trace = MindRoomAgent.hasAgentName(sender) ? toolTraceOutOfText(content) : (names: [String](), maxBodyLine: nil as Int?)
+            let totalTools = details.markers.count + trace.names.count
+            var toolNames: [String] = []
+            var workText: String?
+            var answerText = details.text
+            var durationSeconds: Int?
+            if trustedAgent {
+                let verifiedV2 = !details.markers.isEmpty && v2MarkersMatchTrace(details.markers, in: content)
+                toolNames = (verifiedV2 ? details.markers.map(\.name) : []) + trace.names
+                let isFinished = isFinishedWork(content: content, run: run)
+                if isFinished {
+                    var splitWork = verifiedV2 ? details.workText : nil
+                    var splitAnswer = verifiedV2 ? details.answerText : details.text
+                    if splitWork == nil, let maxBodyLine = trace.maxBodyLine,
+                       let split = PlainText.splitFinishedWork(markdown: body, atLFLine: maxBodyLine) {
+                        splitWork = split.workText
+                        splitAnswer = split.answerText
+                    }
+                    workText = splitWork
+                    answerText = workText != nil ? splitAnswer : details.text
+                    if let latestEdit, event.timestamp > 0, latestEdit.timestamp > 0 {
+                        let (delta, overflow) = latestEdit.timestamp.subtractingReportingOverflow(event.timestamp)
+                        if !overflow && delta >= 1000 { durationSeconds = delta / 1000 }
+                    }
+                }
+            }
+            return Message(eventId: id, sender: sender, isOwn: isOwn, text: details.text,
+                           audio: nil, tools: totalTools, run: run,
+                           toolNames: toolNames, durationSeconds: durationSeconds,
+                           workText: workText, answerText: answerText)
         }
         let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
         let cards = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: .distantPast) }
@@ -199,18 +268,54 @@ public struct ThreadSnapshot: Equatable, Sendable {
     }
 }
 
+/// Verifies that every parsed v2 inline tool marker (`🔧 \`name\` [n]`) has a strictly increasing, unique 1-based
+/// index matching its entry in `io.mindroom.tool_trace` (version 2), so literal or quoted markers are never folded.
+func v2MarkersMatchTrace(_ markers: [PlainText.ToolMarker], in content: JSON) -> Bool {
+    guard !markers.isEmpty,
+          let trace = content["io.mindroom.tool_trace"] as? JSON,
+          jsonExactInt(trace["version"]) == 2,
+          let calls = trace["events"] as? [Any] else { return false }
+    var previousIndex = 0
+    for marker in markers {
+        guard marker.index > previousIndex,
+              marker.index <= calls.count,
+              let call = calls[marker.index - 1] as? JSON,
+              let name = call["tool_name"] as? String,
+              name == marker.name else { return false }
+        previousIndex = marker.index
+    }
+    return true
+}
+
+/// True only when the reply is a finished, non-truncated run whose work may be folded and timed.
+func isFinishedWork(content: JSON, run: RunState) -> Bool {
+    if content["io.mindroom.long_text"] is JSON { return false }
+    return run == .finished
+}
+
 /// The tool calls whose marker lines are not in the content's text: MindRoom sends a reply without the line
 /// "🔧 `tool_name` [n]" of each call, and with the number of lines before it on the call instead (`body_line`
 /// in a tool trace of version 3, as the web client's `toolPositions.ts` reads it). A call without that number
 /// had no line. A version-2 trace has every line in the text, where `PlainText` counts them.
-func toolCallsOutOfText(_ content: JSON) -> Int {
-    guard let trace = content["io.mindroom.tool_trace"] as? JSON, trace["version"] as? Int == 3,
-          let calls = trace["events"] as? [Any] else { return 0 }
-    return calls.filter { call in
-        guard let call = call as? JSON, let name = call["tool_name"] as? String, !name.isEmpty,
-              let line = call["body_line"] as? Int else { return false }
-        return line >= 0
-    }.count
+func toolTraceOutOfText(_ content: JSON) -> (names: [String], maxBodyLine: Int?) {
+    guard let trace = content["io.mindroom.tool_trace"] as? JSON,
+          jsonExactInt(trace["version"]) == 3,
+          let calls = trace["events"] as? [Any] else { return ([], nil) }
+    var names: [String] = []
+    var maxLine: Int?
+    var canSplit = true
+    for case let call as JSON in calls {
+        guard let name = call["tool_name"] as? String, !name.isEmpty else { continue }
+        guard let rawLine = call["body_line"] else { continue }
+        guard let line = jsonExactInt(rawLine), line >= 0 else {
+            canSplit = false
+            continue
+        }
+        names.append(name)
+        if let prev = maxLine, line < prev { canSplit = false }
+        maxLine = max(maxLine ?? line, line)
+    }
+    return (names, canSplit ? maxLine : nil)
 }
 
 /// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an

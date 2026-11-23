@@ -40,6 +40,15 @@ export const Track = style({
       boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}`,
     },
   },
+  '@media': {
+    // Keep overflowing scrollbars visible in forced-colors mode where native bars are hidden.
+    '(forced-colors: active)': {
+      opacity: 1,
+      selectors: {
+        '&:focus-visible': { outline: '2px solid Highlight' },
+      },
+    },
+  },
 });
 
 export const Thumb = style({
@@ -53,5 +62,13 @@ export const Thumb = style({
   transition: 'width 120ms ease',
   selectors: {
     [`${Track}:hover &, ${Track}[data-active="true"] &`]: { width: toRem(6) },
+  },
+  '@media': {
+    '(forced-colors: active)': {
+      forcedColorAdjust: 'none',
+      boxSizing: 'border-box',
+      backgroundColor: 'ButtonText',
+      border: '2px solid ButtonText',
+    },
   },
 });

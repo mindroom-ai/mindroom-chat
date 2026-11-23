@@ -485,6 +485,10 @@
         "localMindroom": "إظهار Local MindRoom في الشريط الجانبي",
         "localMindroomDescription": "يقرن MindRoom الذي يعمل على حاسوبك. عند إخفائه، يبقى هنا في الإعدادات ضمن Local MindRoom."
       },
+      "plugins": {
+        "title": "الإضافات",
+        "description": "فعّل الإضافات المدمجة أو أوقفها لحسابك على جميع أجهزتك."
+      },
       "menu": {
         "groups": {
           "you": "أنت",
@@ -549,7 +553,9 @@
         "emoji": "الرموز التعبيرية، الملصقات، الحزم، رموز تعبيرية مخصصة",
         "errorReports": "أخطاء، تعطل، خلل، تشخيص، قياس عن بعد، خصوصية",
         "midTurn": "توجيه، انتظار، تلقائي، وكيل، رد، مقاطعة",
-        "usage": "الرموز، التكلفة، السعر، النموذج، استدعاءات الأدوات، الوكلاء الفرعيون، المهام في الخلفية"
+        "usage": "الرموز، التكلفة، السعر، النموذج، استدعاءات الأدوات، الوكلاء الفرعيون، المهام في الخلفية",
+        "dictation": "إملاء، تحويل الصوت إلى نص، الكتابة بالصوت، ميكروفون، هاتف",
+        "plugins": "الإضافات، الملحقات، إضافات، تكاملات"
       },
       "errorReports": {
         "title": "إرسال تقارير الأخطاء",
@@ -603,7 +609,12 @@
         "playSound": "تشغيل الصوت",
         "resize": "تغيير حجم لوحة المكالمة",
         "screenOf": "شاشة ⁨{{name}}⁩",
-        "fullScreen": "ملء الشاشة"
+        "fullScreen": "ملء الشاشة",
+        "screenShareStoppedInBackground": "توقفت مشاركة الشاشة عند مغادرتك التطبيق.",
+        "shareAgain": "المشاركة مرة أخرى",
+        "microphoneStopped": "توقف الميكروفون.",
+        "cameraStopped": "توقفت الكاميرا.",
+        "turnBackOn": "تشغيل مرة أخرى"
       },
       "problems": {
         "service": "تعذر الوصول إلى خدمة المكالمات. حاول لاحقًا.",
@@ -915,6 +926,12 @@
       "copyCommand": "نسخ الأمر",
       "copyFailed": "تعذّر النسخ",
       "keywords": "mac, macos, سطح المكتب, تطبيق, تنزيل, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "مشاركة هذا التطبيق",
+        "stopAppShare": "إيقاف مشاركة هذا التطبيق"
+      }
     }
   },
   "mindroomUi": {
@@ -1547,7 +1564,42 @@
     },
     "replyInThread": "الرد في سلسلة المحادثة…",
     "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
-    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…",
+    "dictation": {
+      "label": "إملاء",
+      "cancel": "إلغاء الإملاء",
+      "pause": "إيقاف الإملاء مؤقتًا",
+      "resume": "استئناف الإملاء",
+      "finish": "إنهاء الإملاء",
+      "retry": "إعادة المحاولة",
+      "insertPartial": "إدراج الجزء المنسوخ",
+      "discard": "تجاهل",
+      "dismissError": "إغلاق خطأ الإملاء",
+      "statusStarting": "جارٍ بدء الإملاء",
+      "statusListening": "جارٍ الإملاء",
+      "statusPaused": "تم إيقاف الإملاء مؤقتًا",
+      "statusFinishing": "جارٍ الإنهاء…",
+      "statusPendingRetry_zero": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
+      "statusPendingRetry_one": "مقطع واحد (⁨{{count}}⁩) بانتظار إعادة المحاولة",
+      "statusPendingRetry_two": "مقطعان (⁨{{count}}⁩) بانتظار إعادة المحاولة",
+      "statusPendingRetry_few": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
+      "statusPendingRetry_many": "⁨{{count}}⁩ مقطعًا بانتظار إعادة المحاولة",
+      "statusPendingRetry_other": "⁨{{count}}⁩ مقطع بانتظار إعادة المحاولة",
+      "capReached": "تم بلوغ حد 5:00 دقائق",
+      "micInterrupted": "انقطع اتصال الميكروفون. يمكنك الاستئناف أو الإنهاء.",
+      "failedSummary_zero": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
+      "failedSummary_one": "تعذّر نسخ مقطع واحد (⁨{{count}}⁩).",
+      "failedSummary_two": "تعذّر نسخ مقطعين (⁨{{count}}⁩).",
+      "failedSummary_few": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
+      "failedSummary_many": "تعذّر نسخ ⁨{{count}}⁩ مقطعًا.",
+      "failedSummary_other": "تعذّر نسخ ⁨{{count}}⁩ مقطع."
+    },
+    "voiceButton": {
+      "settingTitle": "زر الميكروفون على الهاتف",
+      "settingDescription": "اختر وظيفة زر الميكروفون في محرر الرسائل على الهواتف. يبقى الإجراء الآخر في قائمة +.",
+      "dictate": "إملاء",
+      "voiceMessage": "رسالة صوتية"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1626,7 +1678,8 @@
       "editLast": "تعديل آخر رسالة لك (في مربع كتابة فارغ)",
       "inlineCode": "شيفرة ضمن السطر",
       "callView": "الانتقال إلى المكالمة",
-      "voiceRecord": "اضغط مطولًا لتسجيل رسالة صوتية، أو انقر للبدء أو الإرسال"
+      "voiceRecord": "اضغط مطولًا لتسجيل رسالة صوتية، أو انقر للبدء أو الإرسال",
+      "dictate": "الإملاء في محرر الرسائل"
     }
   },
   "thread": {

@@ -159,17 +159,24 @@ it('measures in blocks, slides without detaching staying cards, and remounts evi
 it.each(['width', 'font'] as const)(
   'remeasures evicted cards on a %s change without shrinking or probing above a deep reader',
   (kind) => {
-    const { view, rerender } = mount();
+    const onIds = vi.fn();
+    const { view, rerender } = mount({ onIds });
     tick(12);
     expect(spacerHeight(view)).toBe(7168.75);
     if (kind === 'width') {
-      width = 320;
-      layout.resize();
+      const rendersBeforeResize = onIds.mock.calls.length;
+      for (const nextWidth of [370, 350, 330, 320]) {
+        width = nextWidth;
+        layout.resize();
+        tick(2);
+        expect(onIds.mock.calls.length).toBe(rendersBeforeResize);
+        expect(spacerHeight(view)).toBe(7168.75);
+      }
     } else {
       fontSize = 24;
       rerender();
+      expect(spacerHeight(view)).toBe(7168.75);
     }
-    expect(spacerHeight(view)).toBe(7168.75);
     tick(12);
     expect(spacerHeight(view)).toBe(10602.25);
     if (kind === 'font') {

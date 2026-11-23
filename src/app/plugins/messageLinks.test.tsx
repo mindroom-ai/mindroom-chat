@@ -22,6 +22,7 @@ const plugin = (
 ): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
+  displayName: id,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],

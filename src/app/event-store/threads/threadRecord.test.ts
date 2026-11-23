@@ -45,6 +45,7 @@ const makeRoom = ({
 } = {}): Room =>
   ({
     roomId: '!room:server',
+    currentState: { getStateEvents: () => [] },
     getThread: vi.fn(() => thread),
     findEventById: vi.fn(() => rootEvent),
     getUnfilteredTimelineSet: vi.fn(() => ({
@@ -557,6 +558,7 @@ describe('buildThreadRecord', () => {
   it('carries snoozedUntilTs and snoozedAtTs from the tag, without listing it as a tag', () => {
     const room = {
       roomId: '!room:server',
+      currentState: { getStateEvents: () => [] },
       name: 'Room',
       getThread: () => null,
       findEventById: () => undefined,

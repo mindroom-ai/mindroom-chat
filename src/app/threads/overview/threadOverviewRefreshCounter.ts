@@ -25,6 +25,7 @@ import {
 } from '../../event-store/threads/threadRecord';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
 import { onSeenThreadRootsChange } from '../../matrix/seenThreadRoots';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
@@ -91,10 +92,9 @@ export type ThreadOverviewRefresh = {
  * shows of the room: every event a timeline of the room takes or loses and every event the client
  * hears of the room (the edits kept from the sync are in by then), an edit put on or taken off an
  * event, a local echo's progress, a redaction, a timeline that starts over, every read receipt of
- * the room, every thread that is created, updated, deleted or gets a new reply (a reply that stops
- * streaming by the clock, or that the streaming checks forget, comes as such an update:
- * streamingReplies.ts), a member's new name or membership, the room's encryption, a message
- * whose kept edits a full store drops (`onSyncedEditForgotten`), and a root of the room this
+ * the room, every thread that is created, updated, deleted or gets a new reply, a member's new
+ * name or membership, the room's encryption, a message whose kept edits a full store drops
+ * (`onSyncedEditForgotten`), and a root of the room this
  * device takes for read or forgets (`onSeenThreadRootsChange`). It goes up once when the listeners
  * start, for what the room heard before them. An event that decrypts later
  * counts too, once per batch: until then a card can only show an older reply, and WebKit often
@@ -145,8 +145,12 @@ const useThreadOverviewRefresh = (
     // records shown, or while a thread was open. A list that waits for them has built none, and
     // builds on this count.
     mark();
-    const markEvent = (mEvent: MatrixEvent) =>
+    const markEvent = (mEvent: MatrixEvent) => {
+      // `useRoomActiveRuns` tracks `io.mindroom.active_runs` directly so heartbeats do not bump
+      // the overview or rebuild base thread records.
+      if (mEvent.getType() === MINDROOM_ACTIVE_RUNS_EVENT) return;
       changedThreadIds(room, mEvent).forEach((id) => mark(id));
+    };
     // Also a message outside any thread: it may be the event a receipt names, which moves how far
     // that receipt reads in every thread once the room holds it (`receiptEventsVersion`).
     const handleTimeline = (mEvent: MatrixEvent, eventRoom: Room | undefined) => {
