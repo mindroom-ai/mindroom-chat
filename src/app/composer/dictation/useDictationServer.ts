@@ -40,10 +40,10 @@ export const isDictationSupported = (): boolean =>
  * Resolves the MindRoom server for dictation and probes `/api/dictation/v1/status` using the
  * shared TTL cache:
  * - Waits until `useRoomMindroomServer` settles (`!pending`) before choosing a fallback.
- * - In a room with a joined agent, uses the room's MindRoom server.
- * - Outside agent rooms (human DMs, Home), only falls back to an explicitly configured deployment
- *   or personal server, or a discovered server explicitly listed in `trustedApiUrls`. Never sends
- *   private DM audio to an unchecked third-room advertised origin.
+ * - Only uses origins explicitly trusted via the deployment `mindroom.computers.apiUrl`,
+ *   `mindroom.computers.trustedApiUrls`, or the user's personal server setting (for both
+ *   room-advertised servers and non-room fallbacks). Never sends microphone audio to an unchecked
+ *   advertised origin.
  * - After a transient 503/network status failure (30 s TTL), schedules a one-shot retry after the
  *   TTL and also retries on window `online`/`focus` once stale.
  */
@@ -55,18 +55,21 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
   const preference = useAtomValue(computerServicePreferenceAtom);
   const discoveredUrls = useAgentServerUrls();
   const configured = resolveComputerApiUrl(computers?.apiUrl);
+  const personal = preference ? resolveComputerApiUrl(preference) : undefined;
   const trusted = useMemo(() => trustedServerOrigins(computers), [computers]);
+  const isTrustedOrigin = (url: string): boolean =>
+    url === personal || url === configured || Boolean(trusted?.has(url));
 
   let apiUrl: string | undefined;
   if (supported && !roomServer.pending) {
-    if (roomServer.apiUrl) {
+    if (roomServer.apiUrl && isTrustedOrigin(roomServer.apiUrl)) {
       apiUrl = roomServer.apiUrl;
     } else {
       const explicit = resolveComputerServiceUrl(preference, configured);
       apiUrl =
         explicit ??
         (preference === null && trusted
-          ? discoveredUrls.find((url) => trusted.has(url))
+          ? discoveredUrls.find((url) => isTrustedOrigin(url))
           : undefined);
     }
   }

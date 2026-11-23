@@ -441,4 +441,69 @@ describe('createDictationSession', () => {
     );
     expect(track.stop).toHaveBeenCalled();
   });
+
+  it('stops mic tracks and closes AudioContext immediately when discarded during pending addModule', async () => {
+    const track = {
+      stop: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaStreamTrack;
+    const close = vi.fn(async () => undefined);
+    let addModuleCalled!: () => void;
+    const addModuleStarted = new Promise<void>((resolve) => {
+      addModuleCalled = resolve;
+    });
+    const fakeContext = {
+      state: 'running',
+      sampleRate: 48_000,
+      destination: {},
+      onstatechange: null,
+      resume: vi.fn(async () => undefined),
+      close,
+      createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+      createGain: vi.fn(() => ({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() })),
+      audioWorklet: {
+        addModule: vi.fn(() => {
+          addModuleCalled();
+          return new Promise<void>(() => undefined);
+        }),
+      },
+    } as unknown as AudioContext;
+
+    const prevWorkletNode = globalThis.AudioWorkletNode;
+    Object.defineProperty(globalThis, 'AudioWorkletNode', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    try {
+      const session = createDictationSession({
+        client: { transcribe: vi.fn() },
+        getUserMedia: async () =>
+          ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+        createAudioContext: () => fakeContext,
+        loadVad: async () => makeVad(),
+      });
+
+      const startPromise = session.start();
+      await addModuleStarted;
+      expect(track.stop).not.toHaveBeenCalled();
+
+      session.discard();
+      expect(track.stop).toHaveBeenCalledTimes(1);
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(session.getSnapshot().phase).toBe('idle');
+      void startPromise;
+    } finally {
+      Object.defineProperty(globalThis, 'AudioWorkletNode', {
+        configurable: true,
+        value: prevWorkletNode,
+      });
+    }
+  });
 });

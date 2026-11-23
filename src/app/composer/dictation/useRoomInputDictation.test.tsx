@@ -196,13 +196,29 @@ describe('insertDictatedText', () => {
     insertDictatedText(editor, '世界', editor.selection);
     expect(readText(editor)).toBe('你好世界。');
   });
+
+  it('reads trailing spacing from the end block on multi-block replacements', () => {
+    const editor = withHistory(withReact(createEditor()));
+    editor.children = [
+      { type: 'paragraph', children: [{ text: 'First' }] },
+      { type: 'paragraph', children: [{ text: 'second' }] },
+    ] as never;
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 0 },
+      focus: { path: [1, 0], offset: 0 },
+    });
+
+    expect(insertDictatedText(editor, 'replacement', editor.selection)).toBe(true);
+    expect(readText(editor)).toBe('replacement second');
+  });
 });
 
 describe('useRoomInputDictation', () => {
   const renderHarness = (
     editor: Editor,
     store: ReturnType<typeof createStore>,
-    session: DictationSession
+    session: DictationSession,
+    extraChild?: React.ReactNode
   ) => {
     let latest!: RoomInputDictationFeature;
     function Harness() {
@@ -217,6 +233,7 @@ describe('useRoomInputDictation', () => {
       return (
         <div ref={rootRef}>
           <input data-testid="editor-focus" />
+          {extraChild}
           {latest.capsule}
           {latest.button}
         </div>
@@ -351,5 +368,69 @@ describe('useRoomInputDictation', () => {
       fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
     });
     expect(readText(editor)).toBe('Hey Hello dictated words world');
+  });
+
+  it('lets an inline AutocompleteMenu listbox consume Escape before dictation', async () => {
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    renderHarness(editor, store, session, <div role="listbox" data-testid="autocomplete" />);
+    const input = screen.getByTestId('editor-focus');
+    input.focus();
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+    });
+    expect(session.start).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'Escape' });
+    });
+    expect(session.discard).not.toHaveBeenCalled();
+  });
+
+  it('pauses active dictation when its mounted composer collapses to 0x0', async () => {
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+    let resizeCb: ResizeObserverCallback | undefined;
+    const prevResizeObserver = globalThis.ResizeObserver;
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        resizeCb = cb;
+      }
+
+      observe = vi.fn();
+
+      disconnect = vi.fn();
+
+      unobserve = vi.fn();
+    }
+    Object.defineProperty(globalThis, 'ResizeObserver', {
+      configurable: true,
+      value: FakeResizeObserver,
+    });
+
+    try {
+      renderHarness(editor, store, session);
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+      });
+      expect(resizeCb).toBeDefined();
+
+      act(() => {
+        resizeCb?.(
+          [{ contentRect: { width: 0, height: 0 } } as ResizeObserverEntry],
+          {} as ResizeObserver
+        );
+      });
+      expect(session.pause).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(globalThis, 'ResizeObserver', {
+        configurable: true,
+        value: prevResizeObserver,
+      });
+    }
   });
 });

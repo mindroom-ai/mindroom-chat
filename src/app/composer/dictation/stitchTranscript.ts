@@ -4,10 +4,14 @@ export type StitchSegmentInput = {
 };
 
 const MAX_OVERLAP_WORDS = 6;
+const MIN_CJK_OVERLAP_CHARS = 2;
+const MAX_CJK_OVERLAP_CHARS = 12;
 const GLUED_LEADING_PUNCTUATION = /^[,.;:!?…)\]}>。、，！？：；」』】）]/;
-const OPENING_NO_SPACE = /[([{"'「『【（]$/;
+const OPENING_NO_SPACE = /[([{\u201c\u2018「『【（]$/;
+const OPENING_ASCII_QUOTE = /(?:^|\s)["']$/;
 const CJK_CLOSING_PUNCTUATION = /[。、，！？：；」』】）]$/;
 const CJK_CHAR = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+const PURE_CJK_RUN = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+$/u;
 
 type WordSpan = {
   norm: string;
@@ -48,7 +52,13 @@ export const needsSpaceBetween = (left: string, right: string): boolean => {
   const firstChar = right.slice(0, 1);
   if (/\s/.test(lastChar) || /\s/.test(firstChar)) return false;
   if (GLUED_LEADING_PUNCTUATION.test(firstChar)) return false;
-  if (OPENING_NO_SPACE.test(lastChar) || CJK_CLOSING_PUNCTUATION.test(lastChar)) return false;
+  if (
+    OPENING_NO_SPACE.test(lastChar) ||
+    OPENING_ASCII_QUOTE.test(left) ||
+    CJK_CLOSING_PUNCTUATION.test(lastChar)
+  ) {
+    return false;
+  }
   if (CJK_CHAR.test(lastChar) && CJK_CHAR.test(firstChar)) return false;
   return true;
 };
@@ -98,6 +108,21 @@ const deduplicateOverlap = (left: string, right: string): string => {
       const keepUntil = leftWords[leftWords.length - k]?.start ?? 0;
       const prefix = left.slice(0, keepUntil).trimEnd();
       return joinTranscriptParts(prefix, right);
+    }
+  }
+  if (CJK_CHAR.test(left) && CJK_CHAR.test(right)) {
+    const leftTrimmed = left.trimEnd().replace(/[。、，！？.,!?]+$/, '');
+    const rightTrimmed = right.trimStart();
+    const leftChars = Array.from(leftTrimmed);
+    const rightChars = Array.from(rightTrimmed);
+    const maxChars = Math.min(MAX_CJK_OVERLAP_CHARS, leftChars.length, rightChars.length);
+    for (let k = maxChars; k >= MIN_CJK_OVERLAP_CHARS; k -= 1) {
+      const suffix = leftChars.slice(leftChars.length - k).join('');
+      const prefix = rightChars.slice(0, k).join('');
+      if (suffix === prefix && PURE_CJK_RUN.test(suffix)) {
+        const kept = leftChars.slice(0, leftChars.length - k).join('');
+        return joinTranscriptParts(kept, rightTrimmed);
+      }
     }
   }
   return joinTranscriptParts(left, right);

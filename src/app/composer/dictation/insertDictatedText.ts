@@ -26,20 +26,19 @@ const withSmartSpacing = (editor: Editor, text: string): string => {
   if (!selection) return text;
 
   const [start, end] = SlateRange.edges(selection);
-  const blockEntry = SlateEditor.above(editor, {
-    at: start,
-    match: (node) => SlateElement.isElement(node) && SlateEditor.isBlock(editor, node),
-  });
-  if (!blockEntry) return text;
-  const [, blockPath] = blockEntry;
+  const isBlock = (node: SlateNode) =>
+    SlateElement.isElement(node) && SlateEditor.isBlock(editor, node);
+  const startBlock = SlateEditor.above(editor, { at: start, match: isBlock });
+  const endBlock = SlateEditor.above(editor, { at: end, match: isBlock });
+  if (!startBlock || !endBlock) return text;
 
   const beforeText = SlateEditor.string(editor, {
-    anchor: SlateEditor.start(editor, blockPath),
+    anchor: SlateEditor.start(editor, startBlock[1]),
     focus: start,
   });
   const afterText = SlateEditor.string(editor, {
     anchor: end,
-    focus: SlateEditor.end(editor, blockPath),
+    focus: SlateEditor.end(editor, endBlock[1]),
   });
 
   const leadingSpace = needsSpaceBetween(beforeText, text) ? ' ' : '';

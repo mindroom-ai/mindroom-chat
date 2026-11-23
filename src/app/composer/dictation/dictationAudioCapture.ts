@@ -24,6 +24,7 @@ export type DictationCaptureHandle = {
 export type DictationCaptureFactory = (callbacks: {
   onFrame: (frame: Float32Array) => void;
   onTrackEnded: () => void;
+  signal?: AbortSignal;
 }) => Promise<DictationCaptureHandle>;
 
 export type DictationAudioCaptureOptions = {
@@ -74,7 +75,8 @@ const requestMicrophone = async (
  */
 export const createBrowserCaptureFactory =
   (options: DictationAudioCaptureOptions): DictationCaptureFactory =>
-  async ({ onFrame, onTrackEnded }) => {
+  async ({ onFrame, onTrackEnded, signal }) => {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const makeContext =
       options.createAudioContext ??
       (() => {
@@ -93,9 +95,11 @@ export const createBrowserCaptureFactory =
     let stoppedResolve: (() => void) | undefined;
     let disposed = false;
 
+    const onAbort = () => cleanup();
     const cleanup = () => {
       if (disposed) return;
       disposed = true;
+      signal?.removeEventListener('abort', onAbort);
       stoppedResolve?.();
       stoppedResolve = undefined;
       detachTrackEnded?.();
@@ -115,9 +119,15 @@ export const createBrowserCaptureFactory =
       workletNode = undefined;
       void context.close().catch(() => undefined);
     };
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     try {
-      stream = await requestMicrophone(options.getUserMedia);
+      const acquired = await requestMicrophone(options.getUserMedia);
+      if (disposed || signal?.aborted) {
+        acquired.getTracks().forEach((track) => track.stop());
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      stream = acquired;
       const [audioTrack] = stream.getAudioTracks();
       if (audioTrack) {
         audioTrack.addEventListener('ended', onTrackEnded);
@@ -145,6 +155,7 @@ export const createBrowserCaptureFactory =
           throw new Error('AudioWorklet unavailable');
         }
         await context.audioWorklet.addModule(workletUrl);
+        if (disposed || signal?.aborted) throw new DOMException('Aborted', 'AbortError');
         const node = new AudioWorkletNode(context, 'dictation-capture-processor', {
           channelCount: 1,
           channelCountMode: 'explicit',
@@ -167,7 +178,8 @@ export const createBrowserCaptureFactory =
         sourceNode.connect(node);
         node.connect(silentGain);
         workletNode = node;
-      } catch {
+      } catch (error) {
+        if (disposed || signal?.aborted) throw error;
         throw new DictationCaptureError('Could not initialize dictation audio capture.');
       }
 

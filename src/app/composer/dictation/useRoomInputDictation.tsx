@@ -220,23 +220,12 @@ export const useRoomInputDictation = ({
     session?.clearError();
   }, [session]);
 
-  // Keyboard shortcuts: Escape cancels while recording/paused; Mod+Shift+D starts or finishes.
+  // Keyboard shortcuts: Mod+Shift+D starts/finishes (capture); Escape cancels in bubble phase
+  // only when no overlay or inline AutocompleteMenu listbox is open to consume it first.
   useEffect(() => {
     if (!available) return undefined;
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onCaptureKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isComposingKey(event)) return;
-      if (
-        event.key === 'Escape' &&
-        (snapshot.phase === 'recording' || snapshot.phase === 'paused') &&
-        rootRef.current?.contains(document.activeElement) &&
-        openOverlay() === 'none' &&
-        !computerOwnsKeyboardEvent(event)
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        handleDiscard();
-        return;
-      }
       if (!matchesShortcut(event, 'dictate')) return;
       if (computerOwnsKeyboardEvent(event) || openOverlay() !== 'none') return;
 
@@ -248,9 +237,43 @@ export const useRoomInputDictation = ({
         start();
       }
     };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
+    const onBubbleKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.defaultPrevented || isComposingKey(event)) return;
+      if (
+        event.key === 'Escape' &&
+        (snapshot.phase === 'recording' || snapshot.phase === 'paused') &&
+        rootRef.current?.contains(document.activeElement) &&
+        rootRef.current.querySelector('[role="listbox"]') === null &&
+        openOverlay() === 'none' &&
+        !computerOwnsKeyboardEvent(event)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleDiscard();
+      }
+    };
+    window.addEventListener('keydown', onCaptureKeyDown, true);
+    window.addEventListener('keydown', onBubbleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onCaptureKeyDown, true);
+      window.removeEventListener('keydown', onBubbleKeyDown);
+    };
   }, [available, handleDiscard, handleFinish, rootRef, snapshot.phase, start]);
+
+  // Pause active recording if the mounted composer collapses or hides (e.g. folded thread panel).
+  useEffect(() => {
+    if (snapshot.phase !== 'recording' || !session || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const node = rootRef.current;
+    if (!node) return undefined;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[entries.length - 1]?.contentRect;
+      if (rect && rect.width === 0 && rect.height === 0) void session.pause();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [rootRef, session, snapshot.phase]);
 
   const active = snapshot.phase !== 'idle';
   const blocksSubmit = active;

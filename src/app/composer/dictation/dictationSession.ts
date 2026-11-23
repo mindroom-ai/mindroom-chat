@@ -410,6 +410,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
             void pauseWithReason('interrupted');
           }
         },
+        signal: sessionAbort?.signal,
       });
       if (generation !== activeGen) {
         handle.dispose();

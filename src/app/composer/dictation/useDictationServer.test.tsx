@@ -95,6 +95,7 @@ afterEach(() => {
 describe('useDictationServer', () => {
   it('hides Dictate and makes zero requests when navigator.mediaDevices is undefined (Mac Catalyst)', async () => {
     installMediaCapabilities(false);
+    state.computers = { apiUrl: 'https://mr.example' };
     state.roomServer = { apiUrl: 'https://mr.example', pending: false };
     expect(isDictationSupported()).toBe(false);
 
@@ -114,6 +115,20 @@ describe('useDictationServer', () => {
     state.discoveredUrls = ['https://evil-third-room.example'];
 
     const { result } = renderServerHook('!dm:example.org');
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.apiUrl).toBeUndefined();
+    expect(result.current.available).toBe(false);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('never probes or uses an unchecked room-advertised server without explicit trust', async () => {
+    state.roomServer = { apiUrl: 'https://untrusted-room-agent.example', pending: false };
+    state.computers = undefined;
+
+    const { result } = renderServerHook('!room:example.org');
     await act(async () => {
       await Promise.resolve();
     });
@@ -171,6 +186,7 @@ describe('useDictationServer', () => {
   it('recovers after a transient 503 status failure once the 30 s TTL expires', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    state.computers = { apiUrl: 'https://mr.example' };
     state.roomServer = { apiUrl: 'https://mr.example', pending: false };
     state.send
       .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
