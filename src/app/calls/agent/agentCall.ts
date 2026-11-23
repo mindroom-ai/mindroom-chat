@@ -197,18 +197,17 @@ export const prepareAgentCallRoom = async (
   // A call room made before agents could publish background jobs and active runs gains those power
   // levels before the agent hears of the call, so its first writes are not refused; best effort.
   const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  if (powerLevels && powerLevels.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] === undefined) {
+  const missingLevels = Object.entries(AGENT_JOBS_EVENT_LEVEL).filter(
+    ([type]) => powerLevels?.events?.[type] === undefined
+  );
+  if (powerLevels && missingLevels.length > 0) {
     await mx
       .sendStateEvent(
         room.roomId,
         StateEvent.RoomPowerLevels as never,
         {
           ...powerLevels,
-          events: {
-            ...AGENT_JOBS_EVENT_LEVEL,
-            ...powerLevels.events,
-            [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
-          },
+          events: { ...powerLevels.events, ...Object.fromEntries(missingLevels) },
         } as never,
         ''
       )

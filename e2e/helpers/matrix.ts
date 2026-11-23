@@ -448,6 +448,49 @@ export const sendStateEvent = async (
 };
 
 /** The content of a room's state event, or undefined while the room has none of that type and key. */
+/** Allows level-0 members (agents) to publish `io.mindroom.active_runs` state in `roomId`. */
+export const allowActiveRunsState = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string
+): Promise<void> => {
+  const powerLevels = await matrixFetch<Record<string, unknown>>(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/state/m.room.power_levels`,
+    { accessToken }
+  );
+  await sendStateEvent(homeserver, accessToken, roomId, 'm.room.power_levels', '', {
+    ...powerLevels,
+    events: {
+      ...(powerLevels.events as Record<string, number> | undefined),
+      'io.mindroom.active_runs': 0,
+    },
+  });
+};
+
+/** Publishes a simulated agent's `io.mindroom.active_runs` state for `threadIds` (`[]` clears). */
+export const publishActiveRuns = async (
+  homeserver: string,
+  agent: { accessToken: string; userId: string },
+  roomId: string,
+  threadIds: Array<string | null>,
+  ttlMs = 180_000
+): Promise<void> => {
+  await sendStateEvent(
+    homeserver,
+    agent.accessToken,
+    roomId,
+    'io.mindroom.active_runs',
+    agent.userId,
+    {
+      version: 1,
+      updated_at: Date.now(),
+      ttl_ms: ttlMs,
+      threads: threadIds.map((thread_id) => ({ thread_id })),
+    }
+  );
+};
+
 export const getStateEvent = async (
   homeserver: string,
   accessToken: string,

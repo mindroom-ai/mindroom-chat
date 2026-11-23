@@ -5,7 +5,6 @@ import {
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import {
-  type ActiveRunsSnapshot,
   MINDROOM_ACTIVE_RUNS_EVENT,
   roomActiveRuns,
 } from '../../matrix/protocol/activeRunsContract';
@@ -220,9 +219,7 @@ export const useCrossRoomThreadIndex = () => {
     if (!userId) return undefined;
 
     const lastBackgroundJobs = new WeakMap<Room, ReturnType<typeof roomThreadBackgroundJobs>>();
-    const lastActiveRuns = new WeakMap<Room, ActiveRunsSnapshot>();
-    const activeRunsExpiryByRoom = new Map<string, number>();
-    let activeRunsExpiryTimer: ReturnType<typeof setTimeout> | undefined;
+    const activeRunsRefreshers = new Map<string, () => void>();
     let disposed = false;
     let idleHandle: number | undefined;
     const effectSessionId = activeSession?.sessionId;
@@ -415,55 +412,6 @@ export const useCrossRoomThreadIndex = () => {
       }
     };
 
-    const scheduleActiveRunsExpiry = () => {
-      clearTimeout(activeRunsExpiryTimer);
-      activeRunsExpiryTimer = undefined;
-      const earliest = Math.min(...activeRunsExpiryByRoom.values());
-      if (!Number.isFinite(earliest)) return;
-      activeRunsExpiryTimer = setTimeout(() => {
-        const now = Date.now();
-        Array.from(activeRunsExpiryByRoom).forEach(([roomId, ts]) => {
-          if (ts > now) return;
-          const room = mx.getRoom(roomId);
-          if (room && roomDisposers.has(roomId)) refreshActiveRuns(room);
-          else activeRunsExpiryByRoom.delete(roomId);
-        });
-        scheduleActiveRunsExpiry();
-      }, Math.max(0, Math.min(earliest - Date.now(), MAX_ACTIVE_RUNS_TIMEOUT_MS)));
-    };
-
-    const refreshActiveRuns = (room: Room) => {
-      const next = roomActiveRuns(room);
-      const nextExpiryTs = next.threads.size > 0 ? next.nextExpiryTs : undefined;
-      const prevExpiry = activeRunsExpiryByRoom.get(room.roomId);
-      const lapsed = prevExpiry !== undefined && prevExpiry <= Date.now();
-      if (nextExpiryTs !== prevExpiry) {
-        if (nextExpiryTs === undefined) activeRunsExpiryByRoom.delete(room.roomId);
-        else activeRunsExpiryByRoom.set(room.roomId, nextExpiryTs);
-        scheduleActiveRunsExpiry();
-      }
-      const previous = lastActiveRuns.get(room);
-      if (previous === next && !lapsed) return;
-      lastActiveRuns.set(room, next);
-      if (!previous) return;
-      // Read the live Jotai index so active_runs updates existing entries only (never creates 0-reply ones).
-      const indexed = store.get(crossRoomThreadIndexAtom).entries;
-      if (lapsed) {
-        next.threads.forEach((id) => {
-          const entry = indexed.get(getCrossRoomThreadIndexKey(room.roomId, id));
-          if (entry && !entry.threadRecord.status.isStreaming) enqueueThread(room.roomId, id);
-        });
-      }
-      if (previous.threads === next.threads) return;
-      const diff = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
-        a.forEach((id) => {
-          if (!b.has(id) && indexed.has(getCrossRoomThreadIndexKey(room.roomId, id)))
-            enqueueThread(room.roomId, id);
-        });
-      diff(previous.threads, next.threads);
-      diff(next.threads, previous.threads);
-    };
-
     const addRoomListeners = (room: Room) => {
       if (roomDisposers.has(room.roomId)) return;
 
@@ -527,8 +475,34 @@ export const useCrossRoomThreadIndex = () => {
         }
       };
 
-      refreshActiveRuns(room);
-      const handleActiveRunsRoomChange = () => refreshActiveRuns(room);
+      let activeRunsTimer: ReturnType<typeof setTimeout> | undefined;
+      let armedExpiryTs: number | undefined;
+      const syncActiveRuns = (reconcileEntries: boolean) => {
+        const next = roomActiveRuns(room);
+        const nextExpiryTs = next.threads.size > 0 ? next.nextExpiryTs : undefined;
+        if (nextExpiryTs !== armedExpiryTs || (nextExpiryTs !== undefined && !activeRunsTimer)) {
+          clearTimeout(activeRunsTimer);
+          armedExpiryTs = nextExpiryTs;
+          activeRunsTimer =
+            nextExpiryTs === undefined
+              ? undefined
+              : setTimeout(() => {
+                  activeRunsTimer = armedExpiryTs = undefined;
+                  if (roomDisposers.has(room.roomId)) syncActiveRuns(true);
+                }, Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_ACTIVE_RUNS_TIMEOUT_MS)));
+        }
+        if (!reconcileEntries) return;
+        // Reconcile existing indexed entries only so active_runs never creates phantom 0-reply ones.
+        store.get(crossRoomThreadIndexAtom).entries.forEach((entry) => {
+          if (entry.roomId !== room.roomId) return;
+          if (entry.threadRecord.status.isStreaming !== next.threads.has(entry.threadRootId)) {
+            enqueueThread(room.roomId, entry.threadRootId);
+          }
+        });
+      };
+      syncActiveRuns(false);
+      const handleActiveRunsRoomChange = () => syncActiveRuns(true);
+      activeRunsRefreshers.set(room.roomId, handleActiveRunsRoomChange);
       room.on(RoomEvent.CurrentStateUpdated, handleActiveRunsRoomChange);
       room.on(RoomEvent.Redaction, handleActiveRunsRoomChange);
       room.on(RoomEvent.Receipt, handleReceipt);
@@ -569,9 +543,10 @@ export const useCrossRoomThreadIndex = () => {
         : undefined;
 
       roomDisposers.set(room.roomId, () => {
+        clearTimeout(activeRunsTimer);
+        activeRunsRefreshers.delete(room.roomId);
         room.removeListener(RoomEvent.CurrentStateUpdated, handleActiveRunsRoomChange);
         room.removeListener(RoomEvent.Redaction, handleActiveRunsRoomChange);
-        if (activeRunsExpiryByRoom.delete(room.roomId)) scheduleActiveRunsExpiry();
         room.removeListener(RoomEvent.Receipt, handleReceipt);
         room.removeListener(RoomEvent.Timeline, handleTimeline);
         room.removeListener(RoomEvent.LocalEchoUpdated, handleTimeline);
@@ -678,7 +653,7 @@ export const useCrossRoomThreadIndex = () => {
       const room = roomState.roomId ? mx.getRoom(roomState.roomId) : undefined;
       if (room && roomDisposers.has(room.roomId)) {
         refreshBackgroundJobs(room);
-        refreshActiveRuns(room);
+        activeRunsRefreshers.get(room.roomId)?.();
       }
     };
 
@@ -720,7 +695,7 @@ export const useCrossRoomThreadIndex = () => {
       } else if (jobsChanged) {
         refreshBackgroundJobs(room);
       } else if (activeRunsChanged) {
-        refreshActiveRuns(room);
+        activeRunsRefreshers.get(room.roomId)?.();
       } else if (pinsChanged) {
         handlePinChange(room);
       } else {
@@ -757,7 +732,6 @@ export const useCrossRoomThreadIndex = () => {
 
     return () => {
       disposed = true;
-      if (activeRunsExpiryTimer !== undefined) clearTimeout(activeRunsExpiryTimer);
       if (idleHandle !== undefined) cancelIdle(idleHandle);
       coalescer.clear();
       unsubscribePendingPins();

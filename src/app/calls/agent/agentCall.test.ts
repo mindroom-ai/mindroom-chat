@@ -217,6 +217,28 @@ describe('MindRoom agent calls', () => {
     );
   });
 
+  it('adds io.mindroom.active_runs to a reused call room that already has background_jobs, preserving explicit levels', async () => {
+    const powerLevels = {
+      users: { [ALICE]: 100 },
+      events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 50 },
+    };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.RoomPowerLevels,
+      {
+        users: { [ALICE]: 100 },
+        events: {
+          'org.matrix.msc3401.call.member': 0,
+          'io.mindroom.background_jobs': 50,
+          'io.mindroom.active_runs': 0,
+        },
+      },
+      ''
+    );
+  });
+
   it('starts the call only once an older call room lets the agent publish its jobs', async () => {
     let land: () => void = () => undefined;
     sendStateEvent.mockImplementation((_roomId: string, type: string) =>
@@ -289,7 +311,9 @@ describe('MindRoom agent calls', () => {
   });
 
   it('leaves the power levels of a call room that already allows it alone', async () => {
-    const powerLevels = { events: { 'io.mindroom.background_jobs': 0 } };
+    const powerLevels = {
+      events: { 'io.mindroom.background_jobs': 0, 'io.mindroom.active_runs': 0 },
+    };
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
     await prepareAgentCallRoom(mx, room, HELPER, origin);
     expect(sendStateEvent).not.toHaveBeenCalledWith(

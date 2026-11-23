@@ -13,6 +13,7 @@ import {
 import { getReleasableEdits } from '../../matrix/room';
 import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
+import { restoreCachedReplies } from '../../event-store/sdk/restoreCachedReplies';
 import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
 import {
   type ClientBootstrapSession,
@@ -340,6 +341,7 @@ export const initClient = async (
     markStartup?.('store.startup.done');
     const sync = store.backend?.syncAccumulator;
     if (sync) dropSettledScheduledTasks(sync);
+    return restoreCachedReplies(mx);
   });
   const cryptoInit = mx.initRustCrypto({
     cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),
