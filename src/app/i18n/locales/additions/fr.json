@@ -452,7 +452,7 @@
       },
       "storage": {
         "cacheBudget": "Limite de taille du cache",
-        "cacheBudgetDescription": "Espace maximal que cet appareil conserve pour les salons et médias en cache. Les salons plus anciens non utilisés sont effacés automatiquement lorsqu’il est plein.",
+        "cacheBudgetDescription": "Taille cible par compte pour les salons et médias en cache. Les salons récemment ouverts et épinglés sont conservés même au-delà de cette limite.",
         "megabytes": "{{size}} Mo",
         "gigabytes": "{{size}} Go"
       },

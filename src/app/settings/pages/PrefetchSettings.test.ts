@@ -149,9 +149,11 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
       renderer = create(React.createElement(SelectPrefetchScope));
     });
 
-    const labels = renderer!.root
-      .findAllByType('button')
-      .map((button) => button.findByType('span').children.join(''));
+    const buttons = renderer!.root.findAllByType('button');
+    expect(buttons[0]!.props['aria-description']).toBe('Prefetch scope');
+    expect(buttons[0]!.props['aria-haspopup']).toBe('menu');
+    expect(buttons[0]!.props['aria-expanded']).toBe(false);
+    const labels = buttons.map((button) => button.findByType('span').children.join(''));
     expect(labels).toEqual(['All rooms', 'Current room only', 'All rooms']);
   });
 
@@ -195,16 +197,27 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
     const popout = () => renderer!.root.findByProps({ 'data-testid': 'popout' });
     expect(popout().props['data-open']).toBe(false);
 
-    const [trigger, ...items] = renderer!.root.findAllByType('button');
-    expect(trigger!.findByType('span').children.join('')).toBe('2 GB');
-    expect(items.map((item) => item.findByType('span').children.join(''))).toEqual([
+    const trigger = () => renderer!.root.findAllByType('button')[0]!;
+    const items = () => renderer!.root.findAllByType('button').slice(1);
+    expect(trigger().findByType('span').children.join('')).toBe('2 GB');
+    expect(trigger().props['aria-description']).toBe('Cache size limit');
+    expect(trigger().props['aria-haspopup']).toBe('menu');
+    expect(trigger().props['aria-expanded']).toBe(false);
+    expect(items().map((item) => item.findByType('span').children.join(''))).toEqual([
       '512 MB',
       '1 GB',
       '2 GB',
       '4 GB',
       '8 GB',
     ]);
-    expect(items.map((item) => item.props['aria-checked'])).toEqual([
+    expect(items().map((item) => item.props.role)).toEqual([
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+    ]);
+    expect(items().map((item) => item.props['aria-checked'])).toEqual([
       false,
       false,
       true,
@@ -213,17 +226,18 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
     ]);
 
     act(() => {
-      trigger!.props.onClick({
+      trigger().props.onClick({
         currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 80, height: 32 }) },
       });
     });
     expect(popout().props['data-open']).toBe(true);
+    expect(trigger().props['aria-expanded']).toBe(true);
 
-    const fourGbItem = items[3];
     act(() => {
-      fourGbItem!.props.onClick();
+      items()[3]!.props.onClick();
     });
     expect(state.setCacheBudgetBytes).toHaveBeenCalledWith(4 * 1_073_741_824);
     expect(popout().props['data-open']).toBe(false);
+    expect(trigger().props['aria-expanded']).toBe(false);
   });
 });

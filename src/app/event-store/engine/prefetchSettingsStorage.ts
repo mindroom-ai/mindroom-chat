@@ -19,7 +19,7 @@ import {
 
 export { CACHE_BYTE_BUDGET_PRESETS, type CacheByteBudgetPreset };
 
-const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
+export const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
 
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 const MINDROOM_SETTINGS_STORE_VERSION = 2;

@@ -439,7 +439,7 @@
       },
       "storage": {
         "cacheBudget": "Cache-Größenlimit",
-        "cacheBudgetDescription": "Maximaler Speicherplatz, den dieses Gerät für zwischengespeicherte Räume und Medien nutzt. Ältere ungenutzte Räume werden automatisch entfernt, wenn er voll ist.",
+        "cacheBudgetDescription": "Zielgröße pro Konto für zwischengespeicherte Räume und Medien. Kürzlich geöffnete und angeheftete Räume bleiben auch über diesem Limit erhalten.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

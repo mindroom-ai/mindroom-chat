@@ -426,7 +426,7 @@
       },
       "storage": {
         "cacheBudget": "Batas ukuran cache",
-        "cacheBudgetDescription": "Ruang maksimum yang disimpan perangkat ini untuk ruang dan media dalam cache. Ruang lama yang tidak digunakan akan dibersihkan otomatis saat penuh.",
+        "cacheBudgetDescription": "Ukuran target per akun untuk ruang dan media dalam cache. Ruang yang baru dibuka dan disematkan tetap disimpan meski melebihi batas ini.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

@@ -439,7 +439,7 @@
       },
       "storage": {
         "cacheBudget": "Cache size limit",
-        "cacheBudgetDescription": "Maximum space this device keeps for cached rooms and media. Older unused rooms are cleared automatically when full.",
+        "cacheBudgetDescription": "Target size per account for cached rooms and media. Recently opened and pinned rooms stay even above this limit.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

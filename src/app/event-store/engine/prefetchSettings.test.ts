@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -222,5 +223,77 @@ describe('MindRoom local settings storage', () => {
     expect(getCacheStoreByteBudget()).toBe(123);
     __setCacheStoreByteBudgetForTests(undefined);
     expect(getCacheStoreByteBudget()).toBe(largest);
+  });
+
+  it('syncs cross-tab storage updates before subscribers and keeps them on writes', async () => {
+    const { getCacheStoreByteBudget } = await import('../cache/db');
+    const { MINDROOM_SETTINGS_STORAGE_KEY } = await import('./prefetchSettingsStorage');
+    const { prefetchSettingsAtom } = await import('./prefetchSettings');
+
+    const store = createStore();
+    const observedBudgets: number[] = [];
+    const unsubscribe = store.sub(prefetchSettingsAtom, () => {
+      observedBudgets.push(getCacheStoreByteBudget());
+    });
+    try {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'other' }));
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: MINDROOM_SETTINGS_STORAGE_KEY,
+          storageArea: window.sessionStorage,
+        })
+      );
+      expect(observedBudgets).toEqual([]);
+
+      values.set(
+        MINDROOM_SETTINGS_STORAGE_KEY,
+        JSON.stringify({
+          v: 2,
+          prefetchScope: 'current-room-only',
+          prefetchDepth: 10000,
+          cacheBudgetBytes: 4 * DEFAULT_BUDGET,
+        })
+      );
+      window.dispatchEvent(new StorageEvent('storage', { key: MINDROOM_SETTINGS_STORAGE_KEY }));
+
+      expect(observedBudgets).toEqual([4 * DEFAULT_BUDGET]);
+      expect(store.get(prefetchSettingsAtom).cacheBudgetBytes).toBe(4 * DEFAULT_BUDGET);
+      expect(getCacheStoreByteBudget()).toBe(4 * DEFAULT_BUDGET);
+      expect(localStorage.setItem).not.toHaveBeenCalled();
+
+      store.set(prefetchSettingsAtom, {
+        ...store.get(prefetchSettingsAtom),
+        prefetchScope: 'all-rooms',
+      });
+
+      expect(JSON.parse(values.get(MINDROOM_SETTINGS_STORAGE_KEY) ?? '{}')).toEqual({
+        v: 2,
+        prefetchScope: 'all-rooms',
+        prefetchDepth: 10000,
+        cacheBudgetBytes: 4 * DEFAULT_BUDGET,
+      });
+      expect(getCacheStoreByteBudget()).toBe(4 * DEFAULT_BUDGET);
+    } finally {
+      unsubscribe();
+    }
+
+    // Listener is removed on unmount, and a later mount picks up unseen storage writes.
+    values.set(
+      MINDROOM_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        v: 2,
+        prefetchScope: 'all-rooms',
+        prefetchDepth: 10000,
+        cacheBudgetBytes: 8 * DEFAULT_BUDGET,
+      })
+    );
+    window.dispatchEvent(new StorageEvent('storage', { key: MINDROOM_SETTINGS_STORAGE_KEY }));
+    expect(observedBudgets).toHaveLength(2);
+
+    const remount = store.sub(prefetchSettingsAtom, () => undefined);
+    remount();
+    expect(store.get(prefetchSettingsAtom).cacheBudgetBytes).toBe(8 * DEFAULT_BUDGET);
+    expect(getCacheStoreByteBudget()).toBe(8 * DEFAULT_BUDGET);
+    expect(localStorage.setItem).toHaveBeenCalledTimes(1);
   });
 });

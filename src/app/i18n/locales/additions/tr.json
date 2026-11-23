@@ -439,7 +439,7 @@
       },
       "storage": {
         "cacheBudget": "Önbellek boyutu sınırı",
-        "cacheBudgetDescription": "Bu cihazın önbelleğe alınan odalar ve medya için ayırdığı en fazla alan. Dolduğunda kullanılmayan eski odalar otomatik olarak temizlenir.",
+        "cacheBudgetDescription": "Önbelleğe alınan odalar ve medya için hesap başına hedef boyut. Yakın zamanda açılan ve sabitlenen odalar bu sınırın üzerinde bile korunur.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

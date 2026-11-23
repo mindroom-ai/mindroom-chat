@@ -452,7 +452,7 @@
       },
       "storage": {
         "cacheBudget": "Limite dimensione cache",
-        "cacheBudgetDescription": "Spazio massimo che questo dispositivo conserva per stanze e media nella cache. Le stanze più vecchie non utilizzate vengono rimosse automaticamente quando è piena.",
+        "cacheBudgetDescription": "Dimensione di riferimento per account per stanze e contenuti multimediali nella cache. Le stanze aperte di recente e quelle fissate restano salvate anche oltre questo limite.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

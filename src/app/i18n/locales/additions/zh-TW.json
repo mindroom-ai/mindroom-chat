@@ -426,7 +426,7 @@
       },
       "storage": {
         "cacheBudget": "快取大小上限",
-        "cacheBudgetDescription": "此裝置為已快取的房間與媒體保留的最大空間。空間用滿時，會自動清除較舊且未使用的房間。",
+        "cacheBudgetDescription": "每個帳號用於已快取房間與媒體的目標大小。最近開啟和已釘選的房間即使超過此上限也會保留。",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

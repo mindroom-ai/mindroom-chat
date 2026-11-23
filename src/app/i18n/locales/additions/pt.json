@@ -452,7 +452,7 @@
       },
       "storage": {
         "cacheBudget": "Limite de tamanho da cache",
-        "cacheBudgetDescription": "Espaço máximo que este dispositivo guarda para salas e multimédia em cache. As salas mais antigas sem utilização são limpas automaticamente quando fica cheia.",
+        "cacheBudgetDescription": "Tamanho-alvo por conta para salas e multimédia em cache. As salas abertas recentemente e fixadas mantêm-se mesmo acima deste limite.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

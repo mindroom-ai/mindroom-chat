@@ -426,7 +426,7 @@
       },
       "storage": {
         "cacheBudget": "缓存大小上限",
-        "cacheBudgetDescription": "此设备为已缓存的房间和媒体保留的最大空间。空间占满时，会自动清理较旧且未使用的房间。",
+        "cacheBudgetDescription": "每个账户用于已缓存房间和媒体的目标大小。最近打开和已置顶的房间即使超出此上限也会保留。",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

@@ -426,7 +426,7 @@
       },
       "storage": {
         "cacheBudget": "캐시 크기 한도",
-        "cacheBudgetDescription": "캐시된 방과 미디어를 위해 이 기기에 보관할 최대 공간입니다. 가득 차면 사용하지 않는 오래된 방부터 자동으로 비워집니다.",
+        "cacheBudgetDescription": "캐시된 방과 미디어의 계정별 목표 크기입니다. 최근에 연 방과 고정된 방은 이 한도를 넘더라도 유지됩니다.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },

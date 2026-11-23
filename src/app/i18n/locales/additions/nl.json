@@ -439,7 +439,7 @@
       },
       "storage": {
         "cacheBudget": "Limiet voor cachegrootte",
-        "cacheBudgetDescription": "Maximale ruimte die dit apparaat bewaart voor kamers en media in de cache. Oudere ongebruikte kamers worden automatisch gewist wanneer de cache vol is.",
+        "cacheBudgetDescription": "Doelgrootte per account voor kamers en media in de cache. Onlangs geopende en vastgezette kamers blijven ook boven deze limiet bewaard.",
         "megabytes": "{{size}} MB",
         "gigabytes": "{{size}} GB"
       },
