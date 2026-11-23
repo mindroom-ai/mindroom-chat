@@ -3,10 +3,13 @@ import { useStore } from 'jotai';
 import { EventStatus, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 import { moveMessageDraft } from './roomInputDrafts';
 
 /** A send the composer holds while its thread's root waits for the server. */
-export type HeldSend = { kind: 'message' } | { kind: 'sticker'; mxc: string; label: string };
+export type HeldSend =
+  | { kind: 'message'; mode?: MidTurnMode }
+  | { kind: 'sticker'; mxc: string; label: string };
 
 type Held = { root: MatrixEvent; localId: string; sends: HeldSend[] };
 

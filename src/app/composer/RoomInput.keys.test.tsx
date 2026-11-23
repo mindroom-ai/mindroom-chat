@@ -35,6 +35,21 @@ const state = vi.hoisted(() => ({
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
   restoreSentText: vi.fn(),
+  plainText: '@zz',
+  staged: [] as Array<{
+    file: File;
+    originalFile: File;
+    prepError?: Error;
+    metadata: Record<string, unknown>;
+  }>,
+  hasVoice: false,
+  sendAtPress: vi.fn(
+    (
+      _takeText: () => IContent | undefined,
+      _pastesMissing: boolean,
+      _mode?: string
+    ): Promise<void> | undefined => undefined
+  ),
 }));
 
 vi.mock('folds', () => {
@@ -62,8 +77,8 @@ vi.mock('../editor/utils', () => ({
 }));
 vi.mock('../editor/output', () => ({
   customHtmlEqualsPlainText: () => true,
-  toMatrixCustomHTML: () => '@zz',
-  toPlainText: () => '@zz',
+  toMatrixCustomHTML: () => state.plainText,
+  toPlainText: () => state.plainText,
   trimCustomHtml: (value: string) => value,
 }));
 vi.mock('../editor/Editor', () => ({
@@ -166,8 +181,10 @@ vi.mock('../matrix/send/roomInputUploadPreparation', () => ({
 }));
 vi.mock('./useRoomInputAttachments', () => ({
   useRoomInputAttachments: () => ({
-    access: {},
-    board: null,
+    access: {
+      snapshot: () => ({ staged: state.staged, enrolled: [], uploads: [] }),
+    },
+    board: state.staged.length > 0 ? <div data-testid="upload-board" /> : null,
     dropZoneVisible: false,
     onEditorChange: vi.fn(),
     onPaste: vi.fn(),
@@ -185,7 +202,8 @@ vi.mock('./useRoomInputUploadTransport', () => ({
 vi.mock('./useRoomInputVoice', () => ({
   useRoomInputVoice: () => ({
     blocksSubmit: () => false,
-    sendAtPress: () => undefined,
+    hasVoice: state.hasVoice,
+    sendAtPress: state.sendAtPress,
     renderRecorder: () => null,
     microphone: null,
   }),
@@ -203,6 +221,11 @@ afterEach(() => {
   state.restoreSentText.mockClear();
   state.commands = {};
   state.commandThread = undefined;
+  state.plainText = '@zz';
+  state.staged = [];
+  state.hasVoice = false;
+  state.sendAtPress.mockReset();
+  state.sendAtPress.mockReturnValue(undefined);
 });
 
 /** Another conversation view than the room page, as a plugin's thread view. */
@@ -294,6 +317,52 @@ describe('composer', () => {
         await renderer!.root.findByType(ComposerSendButton).props.onSend('auto');
       });
       expect(sentMode()).toBe('auto');
+    });
+
+    it('enables the Send button menu for staged files and passes the picked mode through', async () => {
+      state.mentionHasSuggestions = false;
+      state.plainText = '';
+      const emptyDoc = [{ type: 'paragraph', children: [{ text: '' }] }];
+      const file = new File(['chart'], 'chart.png', { type: 'image/png' });
+      state.staged = [{ file, originalFile: file, metadata: { markedAsSpoiler: false } }];
+      await mountComposer(emptyDoc, { threadId: '$root:example.org' });
+      const sendButtonProps = renderer!.root.findByType(ComposerSendButton).props;
+      expect(sendButtonProps.empty).toBe(false);
+      expect(sendButtonProps.hasContent()).toBe(true);
+      await act(async () => {
+        await sendButtonProps.onSend('steer');
+      });
+      expect(state.startSendSession).toHaveBeenCalledWith({
+        textContent: undefined,
+        midTurnMode: 'steer',
+      });
+    });
+
+    it('enables the Send button menu for an active voice recording and passes the picked mode through', async () => {
+      state.mentionHasSuggestions = false;
+      state.plainText = '';
+      state.hasVoice = true;
+      state.sendAtPress.mockReturnValue(Promise.resolve());
+      const emptyDoc = [{ type: 'paragraph', children: [{ text: '' }] }];
+      await mountComposer(emptyDoc, { threadId: '$root:example.org' });
+      const sendButtonProps = renderer!.root.findByType(ComposerSendButton).props;
+      expect(sendButtonProps.empty).toBe(false);
+      expect(sendButtonProps.hasContent()).toBe(true);
+      await act(async () => {
+        await sendButtonProps.onSend('steer');
+      });
+      expect(state.sendAtPress).toHaveBeenCalledWith(expect.any(Function), false, 'steer');
+      expect(state.startSendSession).not.toHaveBeenCalled();
+    });
+
+    it('marks the Send button empty when there is no text, staged file, or voice recording', async () => {
+      state.mentionHasSuggestions = false;
+      state.plainText = '';
+      const emptyDoc = [{ type: 'paragraph', children: [{ text: '' }] }];
+      await mountComposer(emptyDoc, { threadId: '$root:example.org' });
+      const sendButtonProps = renderer!.root.findByType(ComposerSendButton).props;
+      expect(sendButtonProps.empty).toBe(true);
+      expect(sendButtonProps.hasContent()).toBe(false);
     });
   });
 

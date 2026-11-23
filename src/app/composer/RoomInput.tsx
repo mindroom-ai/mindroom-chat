@@ -529,7 +529,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // anything here waits: what follows is only for a Send without a voice message. One that
         // `waited` for its root and goes out now is no press, and takes no recording made since.
         const voiceSend =
-          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true, mode) : undefined;
         if (voiceSend) {
           setSubmitPending(true);
           await voiceSend.finally(() => {
@@ -538,11 +538,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           return;
         }
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) return;
+        if (holdForRoot({ kind: 'message', mode })) return;
         const textContent = takeText();
         setSubmitPending(true);
         try {
-          const sending = sessions.startSendSession({ textContent });
+          const sending = sessions.startSendSession({ textContent, midTurnMode: mode });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;
@@ -687,14 +687,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend(undefined, true);
+        else void handleSend(send.mode, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
       setEmojiAnchor(anchor);
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
-    const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
+    const hasVoice = voiceActive && voice.hasVoice;
+    const recorder = voiceActive ? voice.renderRecorder((mode) => void handleSend(mode)) : null;
     // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);
@@ -948,8 +949,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 label={sendLabel}
                 alone={phone}
                 agentReplying={agentReplying}
-                hasText={() => buildTextContent(midTurnSend) !== undefined}
-                empty={noText}
+                hasContent={() =>
+                  buildTextContent(midTurnSend) !== undefined ||
+                  attachments.access.snapshot().staged.some((item) => !item.prepError) ||
+                  hasVoice
+                }
+                empty={noText && !attachments.board && !hasVoice}
                 defaultMode={midTurnSend}
                 onSend={handleSend}
               />

@@ -1864,6 +1864,65 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
       ['two', 'steer'],
     ]);
   });
+
+  it('attaches io.mindroom.mid_turn to standalone uploads', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('harbour-map.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'steer' });
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      body: 'harbour-map.png',
+      [MID_TURN_MODE_KEY]: 'steer',
+    });
+  });
+
+  it('attaches io.mindroom.mid_turn to every event in an [upload, text] bundle', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('chart.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'Check this chart', [MID_TURN_MODE_KEY]: 'queue' },
+      });
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent.map((content) => [content.body, content[MID_TURN_MODE_KEY]])).toEqual([
+      ['chart.pdf', 'queue'],
+      ['Check this chart', 'queue'],
+    ]);
+  });
+
+  it('keeps io.mindroom.mid_turn on an upload when retried after send failure', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('retry-photo.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('transient network error'));
+
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'queue' });
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]?.[MID_TURN_MODE_KEY]).toBe('queue');
+    expect(sent[1]?.[MID_TURN_MODE_KEY]).toBe('queue');
+  });
 });
 
 describe('openedThreadParkKey', () => {
