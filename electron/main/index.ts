@@ -70,6 +70,15 @@ const focusMainWindow = (): void => {
   app.focus({ steal: true });
 };
 
+const setAppBadge = (count: number): void => {
+  const n = Math.max(0, Math.floor(count));
+  app.setBadgeCount(n);
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setBadge(n > 0 ? (n > 99 ? '99+' : String(n)) : '');
+  }
+  telemetry?.badgeCounts.push(n);
+};
+
 // Carries no URL: the page takes the return itself, once, through `desktop:take-app-url`.
 const notifyAppUrl = (): void => getMainWindow()?.webContents.send('desktop:app-url');
 
@@ -265,12 +274,7 @@ void app.whenReady().then(() => {
         ? args[0]
         : undefined,
     async (count) => {
-      const n = Math.max(0, Math.floor(count));
-      app.setBadgeCount(n);
-      if (process.platform === 'darwin' && app.dock) {
-        app.dock.setBadge(n > 0 ? (n > 99 ? '99+' : String(n)) : '');
-      }
-      telemetry?.badgeCounts.push(n);
+      setAppBadge(count);
       return { ok: true, value: undefined };
     }
   );
@@ -327,8 +331,15 @@ void app.whenReady().then(() => {
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);
+    const clearMainBadge = () => {
+      if (wc === getMainWindow()?.webContents) setAppBadge(0);
+    };
     wc.once('destroyed', forget);
-    wc.on('render-process-gone', forget);
+    wc.on('did-navigate', clearMainBadge);
+    wc.on('render-process-gone', () => {
+      forget();
+      clearMainBadge();
+    });
     // A sign-in starts only after a click or key press that main itself saw in the main window.
     wc.on('input-event', (_event, { type }) => {
       const gesture = type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown';

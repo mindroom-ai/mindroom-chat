@@ -36,12 +36,8 @@ export function InviteNotifications() {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const openInvites = useRef(() => {
-    void navigate(getActivityInvitesPath());
-  });
-  openInvites.current = () => {
-    void navigate(getActivityInvitesPath());
-  };
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const invites = useAtomValue(allInvitesAtom);
   const setInvites = useSetAtom(allInvitesAtom);
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
@@ -97,7 +93,7 @@ export function InviteNotifications() {
               ?.catch(() => undefined);
             window.focus();
             note.close();
-            openInvites.current();
+            void navigateRef.current(getActivityInvitesPath());
           };
         }
       },

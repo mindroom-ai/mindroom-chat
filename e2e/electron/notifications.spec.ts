@@ -192,6 +192,13 @@ test('desktop:set-badge sets, clamps >99, clears, and rejects Quick Capture and 
       if (process.platform === 'darwin') expect(await dockBadge(app)).toBe(expectedDock);
     }
 
+    await page.evaluate(() => window.mindroomDesktop?.setBadge(5));
+    await expect.poll(() => lastBadgeCount(app)).toBe(5);
+    await page.reload();
+    await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+    await expect.poll(() => lastBadgeCount(app)).toBe(0);
+    if (process.platform === 'darwin') expect(await dockBadge(app)).toBe('');
+
     await openQuickCapture(session);
     const ipcChecks = await app.evaluate(async ({ BrowserWindow, ipcMain }) => {
       const wins = BrowserWindow.getAllWindows();
@@ -337,6 +344,7 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
           notification_type: 'ring',
           lifetime: 30_000,
           'm.call.intent': 'audio',
+          'm.mentions': { user_ids: [reader.userId] },
         }),
       }
     );

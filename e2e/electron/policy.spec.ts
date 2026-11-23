@@ -314,12 +314,30 @@ test.describe('Electron script policy and canvas frame', () => {
         '/canvas-frame.html/',
         '/canvas-frame.html?x=1',
       ];
+      const blockedUrlCount = (): Promise<number> =>
+        app.evaluate(
+          () =>
+            (globalThis as { __mindroomTestTelemetry?: { blockedUrls: string[] } })
+              .__mindroomTestTelemetry?.blockedUrls.length ?? 0
+        );
       for (const targetPath of spellings) {
-        await page.evaluate((target: string) => {
-          window.location.assign(target);
-        }, `${APP_ORIGIN}${targetPath}`);
-        await page.waitForTimeout(150);
-        await page.waitForLoadState('domcontentloaded');
+        const blockedBefore = await blockedUrlCount();
+        let navCommitted = false;
+        const onDomLoaded = (): void => {
+          navCommitted = true;
+        };
+        page.once('domcontentloaded', onDomLoaded);
+        try {
+          await page.evaluate((target: string) => {
+            window.location.assign(target);
+          }, `${APP_ORIGIN}${targetPath}`);
+          await expect
+            .poll(async () => navCommitted || (await blockedUrlCount()) > blockedBefore)
+            .toBe(true);
+        } finally {
+          page.off('domcontentloaded', onDomLoaded);
+        }
+        await expect(page.locator('input[name="serverInput"]')).toBeVisible();
         const state = await page.evaluate(() => ({
           origin: window.location.origin,
           title: document.title,
