@@ -1,5 +1,6 @@
 import {
   computeHeadroomRenderSnapshot,
+  computePaintedItemEnd,
   useThreadHeadroomCommit,
   type ThreadHeadroomGateHandle,
 } from './threadHeadroomOwner';
@@ -253,12 +254,15 @@ export const useTimelineScrollLedgerController = ({
   const headroomHasMoreHistoryRef = useRef(!!headroomOwner?.hasMoreHistory);
   headroomHasMoreHistoryRef.current = !!headroomOwner?.hasMoreHistory;
   const enqueueHeadroomAboveResize = useCallback(
-    (delta: number) => {
+    (delta: number, itemMeta?: { index: number; key: unknown; oldSize: number }) => {
       if (!ownerEnabled || !headroomGate || delta === 0) return;
       headroomGate.nextResizeSeq += 1;
       headroomGate.aboveResizeQueue.push({
         seq: headroomGate.nextResizeSeq,
         delta,
+        ...(itemMeta
+          ? { itemIndex: itemMeta.index, itemKey: itemMeta.key, oldSize: itemMeta.oldSize }
+          : {}),
       });
     },
     [headroomGate, ownerEnabled]
@@ -609,14 +613,24 @@ export const useTimelineScrollLedgerController = ({
     (scrollTop: number) => {
       const view = threadLedgerViewRef.current;
       const offset = readerTopOffset(scrollTop);
+      let pendingDelta = 0;
+      if (ownerEnabled && headroomGate) {
+        for (let i = 0; i < headroomGate.aboveResizeQueue.length; i += 1) {
+          pendingDelta += headroomGate.aboveResizeQueue[i]!.delta;
+        }
+      }
+      const queryOffset = offset === undefined ? undefined : offset + pendingDelta;
       const item =
-        offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
-      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+        queryOffset === undefined
+          ? undefined
+          : virtualizerRef.current.getVirtualItemForOffset(queryOffset);
+      const index =
+        item && queryOffset !== undefined && item.start <= queryOffset ? item.index : undefined;
       const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
       threadLedgerAnchorRef.current =
         view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
     },
-    [ownerEnabled, readerTopOffset]
+    [headroomGate, ownerEnabled, readerTopOffset]
   );
   // The room's rows, where the list sits in the scroll content and the headers' inset, as for a
   // thread's rows above; the reader's row is recorded at every commit and scroll.
@@ -1269,19 +1283,26 @@ export const useTimelineScrollLedgerController = ({
           deltaPx
         ),
     });
-    return (...args: Parameters<typeof decide>): boolean => {
+    return (
+      ...args: Parameters<NonNullable<typeof virtualizer.shouldAdjustScrollPositionOnItemSizeChange>>
+    ): boolean => {
       if (ownerEnabled) {
         const [item, delta, instance] = args;
         const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
         const readerTop = readerTopOffset(liveTop) ?? liveTop;
-        let pendingAboveDelta = 0;
-        if (headroomGate) {
-          for (let i = 0; i < headroomGate.aboveResizeQueue.length; i += 1) {
-            pendingAboveDelta += headroomGate.aboveResizeQueue[i]!.delta;
-          }
-        }
-        if (item.end <= readerTop + pendingAboveDelta && delta !== 0) {
-          enqueueHeadroomAboveResize(delta);
+        const paintedItemEnd = headroomGate
+          ? computePaintedItemEnd({
+              item,
+              aboveResizeQueue: headroomGate.aboveResizeQueue,
+              measurementsCache: instance.measurementsCache,
+            })
+          : item.end;
+        if (paintedItemEnd <= readerTop && delta !== 0) {
+          enqueueHeadroomAboveResize(delta, {
+            index: item.index,
+            key: item.key,
+            oldSize: item.size,
+          });
         }
         renderRowMoveBeforePaint();
         return false;

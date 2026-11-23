@@ -53,6 +53,53 @@ const readTestInitialHeadroomCapPx = (): number | undefined => {
 export type ResizeQueueEntry = {
   seq: number;
   delta: number;
+  /** Virtual item index, key, and pre-resize size when the entry came from a row measurement. */
+  itemIndex?: number;
+  itemKey?: unknown;
+  oldSize?: number;
+};
+
+/**
+ * Recovers an item's `end` coordinate in the last painted layout before pending
+ * `aboveResizeQueue` entries have been folded into `scrollMargin`.
+ *
+ * `@tanstack/virtual-core`'s `resizeItem` records new sizes in `itemSizeCache` without
+ * immediately rebuilding `measurementsCache`. Within one ref-attach or ResizeObserver batch,
+ * subsequent `resizeItem` callbacks still see pre-batch `item.start`/`item.end` coordinates,
+ * whereas any callback after an intervening `getMeasurements()` sees rebuilt coordinates
+ * already shifted by `cached.size - entry.oldSize` for each earlier resized row. Subtracting
+ * only the shift actually reflected in `measurementsCache` keeps classification exact in both
+ * states.
+ */
+export const computePaintedItemEnd = ({
+  item,
+  aboveResizeQueue,
+  measurementsCache,
+}: {
+  item: { index: number; end: number };
+  aboveResizeQueue: readonly ResizeQueueEntry[];
+  measurementsCache: readonly { key: unknown; size: number }[] | undefined;
+}): number => {
+  if (!measurementsCache || aboveResizeQueue.length === 0) return item.end;
+  const seenIndices = new Set<number>();
+  let rebuiltShiftAbove = 0;
+  for (let i = 0; i < aboveResizeQueue.length; i += 1) {
+    const entry = aboveResizeQueue[i]!;
+    if (
+      entry.itemIndex === undefined ||
+      entry.oldSize === undefined ||
+      entry.itemIndex >= item.index ||
+      seenIndices.has(entry.itemIndex)
+    ) {
+      continue;
+    }
+    seenIndices.add(entry.itemIndex);
+    const cached = measurementsCache[entry.itemIndex];
+    if (cached && (entry.itemKey === undefined || cached.key === entry.itemKey)) {
+      rebuiltShiftAbove += cached.size - entry.oldSize;
+    }
+  }
+  return item.end - rebuiltShiftAbove;
 };
 
 export type PendingAbsoluteScroll =
@@ -157,15 +204,35 @@ export const computeTrimPlan = ({
   const safeViewH = Math.max(300, viewHeight || 900);
   const nearTop = scrollTop <= headroomPx + safeViewH * NEAR_TOP_VIEWPORTS;
   if (!nearTop) return undefined;
-  const inReserve = scrollTop < headroomPx;
-  if (inReserve) {
-    // Reader is inside the reserve (Home, thumb-to-top, long flick): target the oldest row.
+  // If the entire viewport is strictly inside the reserve (zero real rows visible, e.g. Home key,
+  // thumb drag to top, or a fast scroll into a large loading reserve), reveal row 0 cleanly once
+  // history is complete and the reader rests — no visible real row moves.
+  const realRowInView = headroomPx < scrollTop + safeViewH;
+  if (!realRowInView) {
     return {
       nextHeadroom: 0,
       trim: headroomPx,
       targetScrollTop: 0,
     };
   }
+
+  // If the reader can see BOTH part of the reserve AND real rows (`scrollTop < headroomPx < scrollTop + viewH`),
+  // a rest trim must NEVER move the visible rows: trim ONLY the invisible reserve space strictly above the
+  // viewport (`[0, scrollTop)`). At `scrollTop = 0`, keep the remaining cushion until the reader scrolls
+  // below `headroomPx`, where the branch below trims it with zero visible movement.
+  if (scrollTop < headroomPx) {
+    const invisibleTrim = Math.max(0, scrollTop);
+    if (invisibleTrim <= 0.5) return undefined;
+    return {
+      nextHeadroom: headroomPx - invisibleTrim,
+      trim: invisibleTrim,
+      targetScrollTop: 0,
+    };
+  }
+
+  // Entire reserve is strictly above the viewport (`scrollTop >= headroomPx`): trimming any
+  // `trim <= headroomPx <= scrollTop` pairs `headroom -= trim` with `scrollTop -= trim` for 0 px
+  // visible movement.
   const perUnmeasured = viewWidth < 600 ? 20 : 0;
   const keepCushion = Math.min(
     headroomPx,
@@ -588,9 +655,19 @@ export const useThreadHeadroomCommit = ({
     const needsIdleWork = (): boolean => {
       const cur = latestRef.current;
       if (gate.heldRawEvents !== undefined) return true;
-      if (!cur.hasMoreHistory && gate.committedHeadroomPx > 0) return true;
+      const viewH = Math.max(300, scrollElement.clientHeight || 900);
+      if (!cur.hasMoreHistory && gate.committedHeadroomPx > 0) {
+        const viewW = scrollElement.clientWidth || 1200;
+        const plan = computeTrimPlan({
+          headroomPx: gate.committedHeadroomPx,
+          scrollTop: scrollElement.scrollTop,
+          viewHeight: viewH,
+          viewWidth: viewW,
+          unmeasuredAbove: 0,
+        });
+        if (plan !== undefined) return true;
+      }
       if (cur.hasMoreHistory && cur.threadUserScrolled) {
-        const viewH = Math.max(300, scrollElement.clientHeight || 900);
         if (gate.committedHeadroomPx < viewH * TOP_UP_LOW_WATER_VIEWPORTS) return true;
       }
       return false;
@@ -979,9 +1056,25 @@ export const useThreadHeadroomCommit = ({
     }
 
     if (!gate.idleIntentQueued) {
+      const preTop = scrollElement.scrollTop;
+      const anchorIdx = anchorRef.current?.index ?? 0;
+      const canTrimNow =
+        !hasMoreHistory &&
+        gate.committedHeadroomPx > 0 &&
+        threadEvents.length > 0 &&
+        computeTrimPlan({
+          headroomPx: gate.committedHeadroomPx,
+          scrollTop: preTop,
+          viewHeight: viewH,
+          viewWidth: viewW,
+          unmeasuredAbove:
+            preTop >= gate.committedHeadroomPx && anchorIdx > 0
+              ? countUnmeasuredVisible(threadEvents, anchorIdx)
+              : 0,
+        }) !== undefined;
       if (
         gate.heldRawEvents !== undefined ||
-        (!hasMoreHistory && gate.committedHeadroomPx > 0) ||
+        canTrimNow ||
         (hasMoreHistory &&
           threadUserScrolled &&
           gate.committedHeadroomPx < viewH * TOP_UP_LOW_WATER_VIEWPORTS)
