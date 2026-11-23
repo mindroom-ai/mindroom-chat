@@ -1354,7 +1354,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       expectedThreadEvents: threadId
         ? Math.max(
             rawThreadEvents.length,
-            (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1
+            (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1,
+            ((liveThreadRoot ?? cachedThreadRoot ?? rawThreadEvents[0])
+              ? getKnownThreadReplyCount(
+                  (liveThreadRoot ?? cachedThreadRoot ?? rawThreadEvents[0])!
+                ) ?? 0
+              : 0) + 1,
+            (room.getThread(threadId)?.length ?? 0) + 1,
+            (threadIndex.threadRecordMap.get(threadId)?.replyCount ?? 0) + 1
           )
         : 0,
       hasMoreHistory:

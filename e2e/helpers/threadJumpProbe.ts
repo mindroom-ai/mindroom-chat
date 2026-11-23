@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export type ProbeMode = 'open' | 'scrollUp';
+export type ProbeMode = 'open' | 'scrollUp' | 'touchScrollUp';
 
 export type JumpFrame = {
   t: number;
@@ -216,7 +216,7 @@ export const installThreadJumpProbe = () => {
     if (!probe.scroller || !probe.scroller.isConnected) probe.scroller = probe.findScroller();
     if (!probe.scroller || el !== probe.scroller) return 0;
     const from = probe.scroller.scrollTop;
-    if (probe.mode === 'scrollUp' && from <= 1) probe.burstClamped = true;
+    if ((probe.mode === 'scrollUp' || probe.mode === 'touchScrollUp') && from <= 1) probe.burstClamped = true;
     const delta = value - from;
     probe.writeDelta += delta;
     return delta;
@@ -375,7 +375,7 @@ export const installThreadJumpProbe = () => {
           unexplained = ds.length > 0 ? median + movedPx : 0;
 
           // Track cumulative wheel input vs cumulative row travel per scrollUp burst.
-          if (probe.mode === 'scrollUp') {
+          if (probe.mode === 'scrollUp' || probe.mode === 'touchScrollUp') {
             if (wheelPx !== 0) probe.burstWheelPx += wheelPx;
             if (ds.length > 0) probe.burstRowPx += median;
             if (scrollTop <= 1 && (wheelPx < 0 || probe.burstWheelPx < 0)) {

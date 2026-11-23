@@ -632,13 +632,13 @@ test.describe('thread timeline jumps reproducers', () => {
         baseURL,
         fixture,
         async (page) => {
-          await openThreadWithOwner(page, fixture, { mediaMs: 250, relationsMs: 250, clearCache: true });
+          await openThreadWithOwner(page, fixture, { mediaMs: 250, relationsMs: 250 });
           const center = await getProbeScrollerCenter(page);
           await startProbe(page, 'scrollUp', 150);
           await page.mouse.move(center.x, center.y);
-          // First 10 rapid bursts exhaust the capped 1,200 px initial headroom mid-gesture so
+          // First 6 rapid bursts exhaust the capped 1,200 px initial headroom mid-gesture so
           // incoming pages must be held out of threadEvents rather than writing scrollTop.
-          for (let burst = 0; burst < 10; burst += 1) {
+          for (let burst = 0; burst < 6; burst += 1) {
             for (let notch = 0; notch < 14; notch += 1) {
               await page.mouse.wheel(0, -240);
               await page.waitForTimeout(16);
@@ -648,7 +648,7 @@ test.describe('thread timeline jumps reproducers', () => {
           // Rest > 500 ms so held pages release and headroom tops up cleanly at rest.
           await page.waitForTimeout(900);
           // Continue scrolling upward through the newly topped-up headroom.
-          for (let burst = 0; burst < 16; burst += 1) {
+          for (let burst = 0; burst < 18; burst += 1) {
             for (let notch = 0; notch < 16; notch += 1) {
               await page.mouse.wheel(0, -240);
               await page.waitForTimeout(16);
@@ -826,15 +826,35 @@ test.describe('thread timeline jumps reproducers', () => {
             })
             .toBeGreaterThan(2_000);
 
+          // Wait for any phone page-slide transition to settle so track coordinates are on screen.
+          const viewW = page.viewportSize()?.width ?? 1440;
+          await expect
+            .poll(async () => {
+              const st = await readThreadScrollState(page);
+              return (
+                !!st?.trackBox &&
+                !!st?.thumbBox &&
+                st.trackBox.width > 0 &&
+                st.trackBox.x >= 0 &&
+                st.trackBox.x + st.trackBox.width <= viewW + 1
+              );
+            }, { timeout: 10_000 })
+            .toBe(true);
+          await page.waitForTimeout(250);
           const beforeDrag = await readThreadScrollState(page);
           expect(beforeDrag?.trackBox, "scrollbar track exists").not.toBeNull();
           expect(beforeDrag?.thumbBox, "scrollbar thumb exists").not.toBeNull();
           const track = beforeDrag!.trackBox!;
           const thumb = beforeDrag!.thumbBox!;
 
-          await page.mouse.move(thumb.x + thumb.width / 2, thumb.y + thumb.height / 2);
+          const dragStartX = track.x + track.width / 2;
+          const dragStartY = Math.max(
+            track.y + 4,
+            Math.min(track.y + track.height - 4, thumb.y + thumb.height / 2)
+          );
+          await page.mouse.move(dragStartX, dragStartY);
           await page.mouse.down();
-          await page.mouse.move(track.x + track.width / 2, track.y + 4, { steps: 12 });
+          await page.mouse.move(dragStartX, track.y + 4, { steps: 12 });
           await page.waitForTimeout(100);
 
           const midDrag = await readThreadScrollState(page);
@@ -967,7 +987,7 @@ test.describe('thread timeline jumps reproducers', () => {
         await openThreadWithOwner(page, fixture);
         const center = await getProbeScrollerCenter(page);
         const cdp = await page.context().newCDPSession(page);
-        await startProbe(page, 'scrollUp', 150);
+        await startProbe(page, 'touchScrollUp', 150);
         for (let swipe = 0; swipe < 18; swipe += 1) {
           const startY = Math.round(center.y - 180);
           const endY = Math.round(center.y + 240);

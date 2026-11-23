@@ -97,19 +97,26 @@ export const computeAverageMeasuredRowHeight = (
 
 export const computeHeadroomBudget = ({
   unloadedReplies,
+  unmeasuredLoaded = 0,
   avgRowHeight,
   viewHeight,
+  viewWidth = 1200,
   hasMoreHistory,
 }: {
   unloadedReplies: number;
+  unmeasuredLoaded?: number;
   avgRowHeight: number;
   viewHeight: number;
+  viewWidth?: number;
   hasMoreHistory: boolean;
 }): number => {
   if (!hasMoreHistory) return 0;
   const safeViewH = Math.max(300, viewHeight || 900);
   const safeAvg = Math.max(40, avgRowHeight || DEFAULT_ROW_HEIGHT_PX);
-  const raw = Math.round(Math.max(0, unloadedReplies) * safeAvg);
+  const perUnmeasured = viewWidth < 600 ? 70 : 20;
+  const raw = Math.round(
+    Math.max(0, unloadedReplies) * safeAvg + Math.max(0, unmeasuredLoaded) * perUnmeasured
+  );
   return Math.max(raw, Math.round(safeViewH * MIN_HISTORY_BUDGET_VIEWPORTS));
 };
 
@@ -171,10 +178,24 @@ export const estimatePrependedHeight = ({
   sizeCache: ReadonlyMap<unknown, number> | undefined;
   avgRowHeight: number;
 }): number => {
-  if (!threadId || !anchor || anchor.threadId !== threadId || rawEvents === presentedEvents) {
+  if (!threadId || rawEvents === presentedEvents) {
     return 0;
   }
-  const boundaryIndex = rawEvents.findIndex((event) => event.getId() === anchor.eventId);
+  // Anchor on the reader's first visible reply (skipping index 0 root since older replies
+  // prepend at index 1..k below the root).
+  let boundaryEventId =
+    anchor && anchor.threadId === threadId && anchor.eventId !== threadId
+      ? anchor.eventId
+      : undefined;
+  if (!boundaryEventId && presentedEvents.length > 1) {
+    const firstReply = presentedEvents.find((event) => {
+      const id = event.getId();
+      return !!id && id !== threadId;
+    });
+    boundaryEventId = firstReply?.getId();
+  }
+  if (!boundaryEventId) return 0;
+  const boundaryIndex = rawEvents.findIndex((event) => event.getId() === boundaryEventId);
   if (boundaryIndex <= 0) return 0;
   const presentedIds = new Set<string>();
   for (let i = 0; i < presentedEvents.length; i += 1) {
@@ -358,16 +379,20 @@ export const useThreadHeadroomEventsGate = ({
       sizeCache: gate.sizeCache,
       avgRowHeight: gate.lastAvgRowHeight,
     });
-    // Require a small safety margin above the committed headroom to absorb mid-gesture.
-    // Otherwise hold the fetched page out of `threadEvents` until rest.
+    // Rule of iron: once a page is held out of threadEvents mid-gesture, NEVER release it during
+    // render; only the single commit-time layout effect at genuine rest releases it.
+    // Also if reader is currently inside a large headroom reserve (anchor undefined, headroom > 0),
+    // prepends land offscreen above row 1 and are accepted directly.
+    const insideReserve =
+      gate.anchorRef?.current === undefined && gate.committedHeadroomPx > 0;
     const requiredHeadroomPx =
-      estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx * 1.15) : 0;
-    if (requiredHeadroomPx > gate.committedHeadroomPx) {
+      !insideReserve && estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx * 1.15) : 0;
+    if (gate.heldRawEvents !== undefined || requiredHeadroomPx > gate.committedHeadroomPx) {
       if (gate.heldRawEvents !== rawThreadEvents) {
         gate.stats.heldPages += 1;
       }
       gate.heldRawEvents = rawThreadEvents;
-      gate.heldPrependEstimatePx = estimatedPrependPx;
+      gate.heldPrependEstimatePx = Math.max(gate.heldPrependEstimatePx, estimatedPrependPx);
     } else {
       gate.presentedEvents = rawThreadEvents;
       gate.heldRawEvents = undefined;
@@ -709,7 +734,7 @@ export const useThreadHeadroomCommit = ({
       }
       onAfterScrollWrite?.(actual);
       if (reason === "trim") gate.stats.trims += 1;
-      if (reason === "topup") gate.stats.topUps += 1;
+      if (reason === "topup" || reason === "held-release") gate.stats.topUps += 1;
       return offsetChanged;
     };
 
@@ -741,13 +766,27 @@ export const useThreadHeadroomCommit = ({
     const viewH = Math.max(300, scrollElement.clientHeight || 900);
     const viewW = scrollElement.clientWidth || 1200;
 
+    const countUnmeasuredLoaded = (events: MatrixEvent[], upToIndex?: number): number => {
+      const cache = sizeCacheRef.current;
+      const limit = upToIndex !== undefined ? Math.min(upToIndex, events.length) : events.length;
+      let count = 0;
+      for (let i = 0; i < limit; i += 1) {
+        const id = events[i]?.getId();
+        if (id && !cache?.has(id)) count += 1;
+      }
+      return count;
+    };
+
     // Opening headroom reservation / top-up while `!threadUserScrolled`.
     if (!threadUserScrolled && hasMoreHistory && threadEvents.length > 0) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
+      const unmeasuredLoaded = countUnmeasuredLoaded(threadEvents);
       let desired = computeHeadroomBudget({
         unloadedReplies: unloaded,
+        unmeasuredLoaded,
         avgRowHeight,
         viewHeight: viewH,
+        viewWidth: viewW,
         hasMoreHistory: true,
       });
       const testCap = readTestInitialHeadroomCapPx();
@@ -798,17 +837,21 @@ export const useThreadHeadroomCommit = ({
       const heldEvents = gate.heldRawEvents;
       const unloadedAfter = Math.max(0, expectedThreadEvents - heldEvents.length);
       const prependNeed = Math.ceil(gate.heldPrependEstimatePx * 1.25);
+      const unmeasuredAfter = countUnmeasuredLoaded(heldEvents);
+      const perUnmeasured = viewW < 600 ? 70 : 20;
       const targetHeadroom = rawHasMoreHistory
         ? Math.max(
             computeHeadroomBudget({
               unloadedReplies: unloadedAfter,
+              unmeasuredLoaded: unmeasuredAfter,
               avgRowHeight,
               viewHeight: viewH,
+              viewWidth: viewW,
               hasMoreHistory: true,
             }) + prependNeed,
             prependNeed + Math.round(viewH * MIN_HISTORY_BUDGET_VIEWPORTS)
           )
-        : Math.max(prependNeed + Math.round(viewH * 1.5), prependNeed);
+        : Math.max(prependNeed + Math.min(unmeasuredAfter * perUnmeasured, 18_000), prependNeed);
       const delta = targetHeadroom - gate.committedHeadroomPx;
       if (delta > 1) {
         const preTop = scrollElement.scrollTop;
@@ -837,10 +880,14 @@ export const useThreadHeadroomCommit = ({
       gate.committedHeadroomPx < viewH * TOP_UP_LOW_WATER_VIEWPORTS
     ) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
+      const anchorIdx = anchorRef.current?.index ?? threadEvents.length;
+      const unmeasuredAbove = countUnmeasuredLoaded(threadEvents, anchorIdx);
       const targetHeadroom = computeHeadroomBudget({
         unloadedReplies: unloaded,
+        unmeasuredLoaded: unmeasuredAbove,
         avgRowHeight,
         viewHeight: viewH,
+        viewWidth: viewW,
         hasMoreHistory: true,
       });
       const delta = targetHeadroom - gate.committedHeadroomPx;

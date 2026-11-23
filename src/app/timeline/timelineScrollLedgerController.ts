@@ -249,6 +249,8 @@ export const useTimelineScrollLedgerController = ({
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
   const ownerEnabled = !!threadId && !!headroomOwner?.enabled;
+  const headroomHasMoreHistoryRef = useRef(!!headroomOwner?.hasMoreHistory);
+  headroomHasMoreHistoryRef.current = !!headroomOwner?.hasMoreHistory;
   const enqueueHeadroomAboveResize = useCallback(
     (delta: number) => {
       if (!ownerEnabled || !headroomOwner || delta === 0) return;
@@ -585,12 +587,26 @@ export const useTimelineScrollLedgerController = ({
       const offset = readerTopOffset(scrollTop);
       const item =
         offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
-      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
-      const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
+      let index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+      let eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
+      if (
+        ownerEnabled &&
+        headroomHasMoreHistoryRef.current &&
+        view &&
+        index === 0 &&
+        eventId === view.rows.threadId &&
+        view.rows.events.length > 1
+      ) {
+        const nextId = view.rows.events[1]?.getId();
+        if (nextId) {
+          index = 1;
+          eventId = nextId;
+        }
+      }
       threadLedgerAnchorRef.current =
         view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
     },
-    [readerTopOffset]
+    [ownerEnabled, readerTopOffset]
   );
   // The room's rows, where the list sits in the scroll content and the headers' inset, as for a
   // thread's rows above; the reader's row is recorded at every commit and scroll.
