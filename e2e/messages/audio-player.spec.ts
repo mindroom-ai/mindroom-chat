@@ -25,6 +25,7 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/e2e/fixtures/audio-player.html');
+  const sharedAudio = page.locator('audio[data-voice-audio-player="true"]');
   for (const name of ['Audio attachment', 'Voice message']) {
     const player = page.getByRole('region', { name, exact: true });
     const label = name === 'Voice message' ? 'voice message' : 'audio';
@@ -44,7 +45,7 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
     });
     await page.mouse.up();
     await expect
-      .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+      .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime))
       .toBeGreaterThan(8);
     await expect(player.getByTitle(/0:0[89] \/ 0:12/)).toHaveText(/0:0[89]/);
     await slider.press('Home');
@@ -56,7 +57,7 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
 
     await player.getByRole('button', { name: /Playback speed/ }).click();
     await expect
-      .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.playbackRate))
+      .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.playbackRate))
       .toBeGreaterThan(1);
     await expect(page.getByRole('button', { name: /Voice volume, currently/ })).toHaveCount(0);
     await player.getByRole('button', { name: 'More audio options' }).click();
@@ -65,13 +66,75 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
     const volume = page.getByRole('slider', { name: 'Voice volume', exact: true });
     await volume.press('ArrowLeft');
     await expect
-      .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.volume))
+      .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.volume))
       .toBeCloseTo(name === 'Voice message' ? 0.9 : 0.95);
     await page.keyboard.press('Escape');
     await expect(volume).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Download / })).toBeVisible();
     await page.keyboard.press('Escape');
   }
+  expect(errors).toEqual([]);
+});
+
+test('voice message keeps playing when unmounted and restores live state on remount', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/e2e/fixtures/audio-player.html?virtualized=1');
+
+  const voiceRegion = page.getByRole('region', { name: 'Voice message', exact: true });
+  const sharedAudio = page.locator('audio[data-voice-audio-player="true"]');
+
+  await voiceRegion.getByRole('button', { name: 'Play voice message', exact: true }).click();
+  await expect(
+    voiceRegion.getByRole('button', { name: 'Pause voice message', exact: true })
+  ).toBeVisible();
+  await expect
+    .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => !el.paused && el.currentTime > 0.1))
+    .toBe(true);
+
+  // Unmount the voice message row to simulate scrolling far away in a virtualized timeline.
+  await page.getByRole('button', { name: 'Unmount voice message', exact: true }).click();
+  await expect(voiceRegion).toHaveCount(0);
+
+  const timeAtUnmount = await sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime);
+  await expect
+    .poll(() =>
+      sharedAudio.evaluate((el: HTMLAudioElement) => ({
+        paused: el.paused,
+        currentTime: el.currentTime,
+      }))
+    )
+    .toEqual(
+      expect.objectContaining({
+        paused: false,
+      })
+    );
+  await expect
+    .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime))
+    .toBeGreaterThan(Math.max(1.1, timeAtUnmount + 0.5));
+  expect(await sharedAudio.evaluate((el: HTMLAudioElement) => el.paused)).toBe(false);
+
+  // Remount the voice message row and verify live playback state and elapsed time are restored.
+  await page.getByRole('button', { name: 'Mount voice message', exact: true }).click();
+  await expect(voiceRegion).toHaveCount(1);
+  await expect(
+    voiceRegion.getByRole('button', { name: 'Pause voice message', exact: true })
+  ).toBeVisible();
+  await expect(voiceRegion.locator('[data-audio-capsule="true"]')).toHaveAttribute(
+    'data-playing',
+    'true'
+  );
+  await expect(voiceRegion.getByTitle(/0:0[1-9] \/ 0:12|0:1[0-2] \/ 0:12/)).toHaveText(
+    /0:0[1-9]|0:1[0-2]/
+  );
+
+  await voiceRegion.getByRole('button', { name: 'Pause voice message', exact: true }).click();
+  await expect.poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.paused)).toBe(true);
+  await expect(
+    voiceRegion.getByRole('button', { name: 'Play voice message', exact: true })
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -90,7 +153,7 @@ for (const theme of ['light', 'dark']) {
       const voice = (await region.getAttribute('aria-label')) === 'Voice message';
       expect.soft(bounds.height).toBeLessThanOrEqual(voice ? 60 : 82);
       const playBounds = await region.getByRole('button', { name: /^Play / }).boundingBox();
-      const capsuleBounds = await region.locator('audio').locator('..').boundingBox();
+      const capsuleBounds = await region.locator('[data-audio-capsule="true"]').boundingBox();
       if (!playBounds || !capsuleBounds) throw new Error('Playback controls have no bounds');
       expect.soft(Math.abs(playBounds.width - playBounds.height)).toBeLessThan(1);
       const waveform = region.getByRole('slider');
@@ -160,6 +223,7 @@ test.describe('mobile audio seeking', () => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/e2e/fixtures/audio-player.html');
       const touch = await page.context().newCDPSession(page);
+      const sharedAudio = page.locator('audio[data-voice-audio-player="true"]');
 
       for (const name of ['Audio attachment', 'Voice message']) {
         const player = page.getByRole('region', { name, exact: true });
@@ -171,7 +235,7 @@ test.describe('mobile audio seeking', () => {
 
         await page.touchscreen.tap(bounds.x + bounds.width * 0.75, bounds.y + 2);
         await expect
-          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime))
           .toBeGreaterThan(8);
         await expect(player.getByRole('button', { name: /^Play / })).toBeVisible();
 
@@ -185,7 +249,7 @@ test.describe('mobile audio seeking', () => {
           touchPoints: [point(0.2)],
         });
         await expect
-          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime))
           .toBeLessThan(3);
         for (const progress of [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) {
           await touch.send('Input.dispatchTouchEvent', {
@@ -195,7 +259,7 @@ test.describe('mobile audio seeking', () => {
         }
         await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await expect
-          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .poll(() => sharedAudio.evaluate((el: HTMLAudioElement) => el.currentTime))
           .toBeGreaterThan(9);
       }
       await touch.detach();

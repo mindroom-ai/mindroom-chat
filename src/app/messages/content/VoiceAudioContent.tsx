@@ -5,6 +5,7 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
@@ -15,27 +16,19 @@ import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import type { IAudioInfo } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
-  applyVoiceMessageVolume,
-  applyVoicePlaybackRate,
   voiceMessagePlaybackRateAtom,
   voiceMessageVolumeAtom,
 } from '../../preferences/voiceMessageSettings';
-import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
-import { useMediaLoading } from '../../lib/hooks/media/useMediaLoading';
-import { useMediaPlay } from '../../lib/hooks/media/useMediaPlay';
-import { useMediaPlayTimeCallback } from '../../lib/hooks/media/useMediaPlayTimeCallback';
-import { useThrottle } from '../../lib/hooks/useThrottle';
 import { bytesToSize, secondsToMinutesAndSeconds } from '../../lib/common';
 import { VoiceWaveform } from './voice/VoiceWaveform';
 import { useMeasuredWaveform } from './voice/measuredWaveform';
 import { VoicePlaybackRateButton } from './voice/VoicePlaybackRateButton';
 import { VoiceVolumeButton } from './voice/VoiceVolumeButton';
+import { getAudioContentSourceIdentity, voiceAudioPlayback } from './voice/voiceAudioPlayback';
 import { FileDownloadButton } from './FileHeader';
-import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
 import * as css from './VoiceAudioContent.css';
-
-const HAVE_METADATA = 1;
 
 const validSeconds = (value: number | undefined): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
@@ -170,158 +163,69 @@ export function VoiceAudioContent({
   isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
   const subject = label ?? t('sharedUi.voiceAudioContent.voiceMessage');
   const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
-  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo, owner });
-  const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
-  const shownWaveform = useMeasuredWaveform(mediaIdentity, src, waveform);
+  const subscribe = useCallback(
+    (listener: () => void) => voiceAudioPlayback.subscribe(mediaIdentity, listener),
+    [mediaIdentity]
+  );
+  const getSnapshot = useCallback(
+    () => voiceAudioPlayback.getSnapshot(mediaIdentity),
+    [mediaIdentity]
+  );
+  const track = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const shownWaveform = useMeasuredWaveform(mediaIdentity, track.src, waveform);
 
   const rate = useAtomValue(voiceMessagePlaybackRateAtom);
   const volume = useAtomValue(voiceMessageVolumeAtom);
-
-  const audioRef = useRef<HTMLAudioElement>(null);
-  // The element remounts when its source changes; a new getter rebinds the media hooks.
-  const audioKey = src ?? 'unloaded';
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const getAudio = useCallback(() => audioRef.current, [audioKey]);
-
-  const [currentTime, setCurrentTime] = useState(0);
-  const [browserDuration, setBrowserDuration] = useState<number>();
-  const [autoPlay, setAutoPlay] = useState(false);
-  const [playbackFailed, setPlaybackFailed] = useState(false);
-  // Once played or seeked, the timer shows the position, even when that is back at 0:00.
-  const [engaged, setEngaged] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<RectCords>();
-  const pendingSeekRef = useRef<number>();
-  const loadRequestRef = useRef<string>();
   const identityRef = useRef(mediaIdentity);
 
   const matrixDuration = validSeconds(
     info.duration !== undefined ? info.duration / 1000 : undefined
   );
-  const duration = browserDuration ?? matrixDuration ?? 0;
+  const duration = track.browserDuration ?? matrixDuration ?? 0;
 
+  // Stop only when this mounted player switches to different media (for example an edit), never
+  // on unmount when virtualized timeline rows scroll out of view.
   useLayoutEffect(() => {
-    if (identityRef.current === mediaIdentity) return;
+    const prevIdentity = identityRef.current;
+    if (prevIdentity === mediaIdentity) return;
     identityRef.current = mediaIdentity;
-    pendingSeekRef.current = undefined;
-    loadRequestRef.current = undefined;
-    setCurrentTime(0);
-    setBrowserDuration(undefined);
-    setAutoPlay(false);
-    setPlaybackFailed(false);
-    setEngaged(false);
+    voiceAudioPlayback.stopIfActive(prevIdentity);
   }, [mediaIdentity]);
 
-  const { playing, setPlaying } = useMediaPlay(getAudio);
-  const { loading: buffering } = useMediaLoading(getAudio);
-
-  const handlePlayTime = useThrottle(
-    useCallback((mediaDuration: number, mediaTime: number) => {
-      const measured = validSeconds(mediaDuration);
-      if (measured !== undefined) setBrowserDuration(measured);
-      if (Number.isFinite(mediaTime) && pendingSeekRef.current === undefined) {
-        setCurrentTime(mediaTime);
-      }
-    }, []),
-    { wait: 200, immediate: true }
-  );
-  useMediaPlayTimeCallback(getAudio, handlePlayTime);
-
-  const applyAudioSettings = useCallback(
-    (audio: HTMLAudioElement) => {
-      applyVoicePlaybackRate(audio, rate);
-      applyVoiceMessageVolume(audio, volume);
-    },
-    [rate, volume]
-  );
+  useEffect(() => {
+    voiceAudioPlayback.setPlaybackRate(rate);
+  }, [rate]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) applyVoicePlaybackRate(audio, rate);
-  }, [rate, audioKey]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) applyVoiceMessageVolume(audio, volume);
-  }, [volume, audioKey]);
-
-  const requestSource = useCallback(() => {
-    if (srcState.status === AsyncStatus.Success) return;
-    if (srcState.status === AsyncStatus.Loading && loadRequestRef.current === mediaIdentity) return;
-    if (loadRequestRef.current === mediaIdentity && srcState.status !== AsyncStatus.Error) return;
-    const requestIdentity = mediaIdentity;
-    loadRequestRef.current = requestIdentity;
-    loadSrc().catch(() => {
-      if (loadRequestRef.current === requestIdentity) loadRequestRef.current = undefined;
-    });
-  }, [loadSrc, mediaIdentity, srcState.status]);
+    voiceAudioPlayback.setVolume(volume);
+  }, [volume]);
 
   const handlePlay = () => {
-    setEngaged(true);
-    if (src) {
-      setPlaying(!playing);
-      return;
-    }
-    setAutoPlay(true);
-    requestSource();
+    voiceAudioPlayback.togglePlay(
+      mx,
+      { mimeType, url, encInfo, owner },
+      { duration: matrixDuration, rate, volume }
+    );
   };
 
   const seekTo = (progress: number) => {
-    const target = progress * duration;
-    setEngaged(true);
-    setCurrentTime(target);
-    const audio = audioRef.current;
-    if (src && audio && audio.readyState >= HAVE_METADATA) {
-      pendingSeekRef.current = undefined;
-      audio.currentTime = target;
-      return;
-    }
-    pendingSeekRef.current = progress;
-    requestSource();
-  };
-
-  const handleLoadedMetadata = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    applyAudioSettings(audio);
-    const measured = validSeconds(audio.duration);
-    if (measured !== undefined) setBrowserDuration(measured);
-    const pendingSeek = pendingSeekRef.current;
-    if (pendingSeek !== undefined && audio.readyState >= HAVE_METADATA) {
-      pendingSeekRef.current = undefined;
-      const target = pendingSeek * (measured ?? matrixDuration ?? 0);
-      audio.currentTime = target;
-      setCurrentTime(target);
-      return;
-    }
-    if (Number.isFinite(audio.currentTime)) setCurrentTime(audio.currentTime);
-  };
-
-  const handleMediaPlay = () => {
-    const audio = audioRef.current;
-    if (audio) applyAudioSettings(audio);
-  };
-
-  // The waveform drew the position from the media every frame; keep where it stopped rather
-  // than step back to the last throttled report.
-  const handleMediaPause = () => {
-    const audio = audioRef.current;
-    if (audio && Number.isFinite(audio.currentTime) && pendingSeekRef.current === undefined) {
-      setCurrentTime(audio.currentTime);
-    }
+    voiceAudioPlayback.seek(mx, { mimeType, url, encInfo, owner }, progress, {
+      duration: matrixDuration,
+      rate,
+      volume,
+    });
   };
 
   // Read by the waveform every frame while playing. A seek waiting for the source wins over the
   // media's own position, which is still 0 until that seek lands.
-  const readPlayedProgress = useCallback(() => {
-    const audio = audioRef.current;
-    const pendingSeek = pendingSeekRef.current;
-    if (pendingSeek !== undefined) return pendingSeek;
-    return audio && duration > 0 ? audio.currentTime / duration : 0;
-  }, [duration]);
-
-  const markPlaybackFailed = () => setPlaybackFailed(true);
+  const readPlayedProgress = useCallback(
+    () => voiceAudioPlayback.getLiveProgress(mediaIdentity, duration),
+    [mediaIdentity, duration]
+  );
 
   const handleMoreClick = (event: MouseEvent<HTMLButtonElement>) => {
     // Read the target now: React may run the updater after the event is released.
@@ -329,11 +233,12 @@ export function VoiceAudioContent({
     setMoreAnchor((current) => (current ? undefined : rect));
   };
 
+  const { playing, buffering, currentTime, engaged, src, status, playbackFailed } = track;
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
   const started = playing || engaged || currentTime > 0;
   const timeText = `${formatTime(currentTime)} / ${formatTime(duration)}`;
-  const sourceFailed = srcState.status === AsyncStatus.Error;
-  const loadingSource = srcState.status === AsyncStatus.Loading || (!!src && buffering && playing);
+  const sourceFailed = status === 'error';
+  const loadingSource = status === 'loading' || (Boolean(src) && buffering && playing);
   const errorMessage = playbackFailed
     ? t('sharedUi.voiceAudioContent.playbackError')
     : sourceFailed
@@ -353,7 +258,7 @@ export function VoiceAudioContent({
           {revealDirectionControls(filename)}
         </Text>
       )}
-      <div className={css.Capsule} data-playing={playing || undefined}>
+      <div className={css.Capsule} data-audio-capsule="true" data-playing={playing || undefined}>
         <div className={css.Controls}>
           <div className={css.PlayCell}>
             <IconButton
@@ -416,23 +321,6 @@ export function VoiceAudioContent({
             {errorMessage}
           </Text>
         )}
-        {/* Hidden beside the controls it drives. Voice messages have no caption track; the
-            waveform and time stand in for one. */}
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <audio
-          ref={audioRef}
-          key={audioKey}
-          autoPlay={autoPlay}
-          preload="metadata"
-          controls={false}
-          className={css.Audio}
-          onError={markPlaybackFailed}
-          onPlay={handleMediaPlay}
-          onPause={handleMediaPause}
-          onLoadedMetadata={handleLoadedMetadata}
-        >
-          {src ? <source type={mimeType} src={src} onError={markPlaybackFailed} /> : null}
-        </audio>
       </div>
       <PopOut
         anchor={moreAnchor}

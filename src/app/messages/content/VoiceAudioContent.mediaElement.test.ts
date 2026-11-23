@@ -5,16 +5,15 @@ import { Provider, createStore } from 'jotai';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
+import {
+  voiceMessagePlaybackRateAtom,
+  voiceMessageVolumeAtom,
+} from '../../preferences/voiceMessageSettings';
+import { stopVoiceAudioPlayback } from './voice/voiceAudioPlayback';
 import { VoiceAudioContent } from './VoiceAudioContent';
 
 const mocks = vi.hoisted(() => ({
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-  srcState: { status: 'success' as const, data: 'blob:voice-a' } as {
-    status: string;
-    data?: string;
-  },
-  loadSrc: vi.fn(() => Promise.resolve('blob:voice-a')),
+  downloadCachedAttachment: vi.fn(),
 }));
 
 vi.mock('folds', () => ({
@@ -47,7 +46,6 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('./VoiceAudioContent.css', () => ({
-  Audio: 'Audio',
   Title: 'Title',
   Controls: 'Controls',
   Error: 'Error',
@@ -75,32 +73,16 @@ vi.mock('./voice/VoiceVolumeButton', () => ({
 }));
 
 vi.mock('./voice/VoiceWaveform', () => ({
-  VoiceWaveform: () => React.createElement('button', { 'aria-label': 'Seek voice message' }),
+  VoiceWaveform: ({ disabled }: { disabled?: boolean }) =>
+    React.createElement('button', { 'aria-label': 'Seek voice message', disabled }),
 }));
 
-vi.mock('./useAudioContentSource', () => ({
-  getAudioContentSourceIdentity: ({
-    mimeType,
-    url,
-    encInfo,
-  }: {
-    mimeType: string;
-    url: string;
-    encInfo?: { v?: string; iv?: string; hashes?: { sha256?: string }; key?: { k?: string } };
-  }) =>
-    JSON.stringify([
-      mimeType,
-      url,
-      encInfo?.v ?? '',
-      encInfo?.iv ?? '',
-      encInfo?.hashes?.sha256 ?? '',
-      encInfo?.key?.k ?? '',
-    ]),
-  useAudioContentSource: () => [mocks.srcState, mocks.loadSrc],
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({}),
 }));
 
-vi.mock('../../lib/hooks/useThrottle', () => ({
-  useThrottle: (callback: unknown) => callback,
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  downloadCachedAttachment: mocks.downloadCachedAttachment,
 }));
 
 vi.mock('./FileHeader', () => ({
@@ -109,11 +91,20 @@ vi.mock('./FileHeader', () => ({
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const renderVoiceAudioContent = (url: string) =>
+const flushAsync = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+const getSharedAudio = (): HTMLAudioElement | null =>
+  document.querySelector<HTMLAudioElement>('audio[data-voice-audio-player="true"]');
+
+const renderPlayer = (url: string, store: ReturnType<typeof createStore> = createStore()) =>
   React.createElement(
     Provider,
-    { store: createStore() },
+    { store },
     React.createElement(VoiceAudioContent, {
+      key: url,
       mimeType: 'audio/ogg',
       url,
       info: {
@@ -124,13 +115,62 @@ const renderVoiceAudioContent = (url: string) =>
     })
   );
 
-describe('VoiceAudioContent media element', () => {
+describe('VoiceAudioContent shared media element', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let nextBlobId: number;
+  let createObjectURL: ReturnType<typeof vi.fn>;
+  let revokeObjectURL: ReturnType<typeof vi.fn>;
+  let pausedState: WeakMap<HTMLMediaElement, boolean>;
 
   beforeEach(() => {
-    mocks.srcState = { status: AsyncStatus.Success, data: 'blob:voice-a' };
-    mocks.loadSrc.mockReset();
+    localStorage.clear();
+    stopVoiceAudioPlayback();
+    nextBlobId = 1;
+    pausedState = new WeakMap();
+    createObjectURL = vi.fn(() => {
+      const url = `blob:voice-${nextBlobId}`;
+      nextBlobId += 1;
+      return url;
+    });
+    revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+
+    vi.spyOn(HTMLMediaElement.prototype, 'paused', 'get').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      return pausedState.get(this) ?? true;
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      pausedState.set(this, false);
+      this.dispatchEvent(new Event('play'));
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      const wasPlaying = !(pausedState.get(this) ?? true);
+      pausedState.set(this, true);
+      if (wasPlaying) this.dispatchEvent(new Event('pause'));
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      pausedState.set(this, true);
+      Object.defineProperty(this, 'readyState', { configurable: true, value: 0 });
+      Object.defineProperty(this, 'duration', { configurable: true, value: Number.NaN });
+      this.currentTime = 0;
+    });
+
+    mocks.downloadCachedAttachment.mockReset();
+    mocks.downloadCachedAttachment.mockImplementation(
+      async (_mx: unknown, source: { mxcUri: string }) =>
+        new Blob([source.mxcUri], { type: 'audio/ogg' })
+    );
+
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -140,101 +180,194 @@ describe('VoiceAudioContent media element', () => {
     act(() => {
       root.unmount();
     });
+    stopVoiceAudioPlayback();
     container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it.each(['audio', 'source'])(
-    'shows %s playback failures and prevents repeated failed playback',
-    (target) => {
-      act(() => {
-        root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
-      });
-      act(() => {
-        container.querySelector(target)!.dispatchEvent(new Event('error'));
-      });
-      expect(container.querySelector('[role="status"]')?.textContent).toContain(
-        'This audio cannot be played here'
-      );
-      expect(
-        container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')?.disabled
-      ).toBe(true);
-      expect(
-        container.querySelector<HTMLButtonElement>('[aria-label="More audio options"]')?.disabled
-      ).toBe(false);
-    }
-  );
-
-  it('remounts the audio element when the loaded media source changes', () => {
-    act(() => {
-      root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
+  it('shows playback failures on active audio error and disables play/seek without disabling More', async () => {
+    await act(async () => {
+      root.render(renderPlayer('mxc://mindroom/voice-a'));
     });
 
-    const audioA = container.querySelector('audio');
-    expect(audioA).not.toBeNull();
-    expect(audioA?.querySelector('source')?.getAttribute('src')).toBe('blob:voice-a');
+    // No inline <audio> exists inside the row before interaction.
+    expect(container.querySelector('audio')).toBeNull();
 
-    mocks.srcState = { status: AsyncStatus.Success, data: 'blob:voice-b' };
-    act(() => {
-      root.render(renderVoiceAudioContent('mxc://mindroom/voice-b'));
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')!.click();
+      await flushAsync();
     });
 
-    const audioB = container.querySelector('audio');
-    expect(audioB).not.toBeNull();
-    expect(audioB).not.toBe(audioA);
-    expect(audioB?.querySelector('source')?.getAttribute('src')).toBe('blob:voice-b');
+    const audio = getSharedAudio()!;
+    expect(audio).not.toBeNull();
+    expect(audio.hidden).toBe(true);
+    expect(audio.getAttribute('src')).toBe('blob:voice-1');
+
+    act(() => {
+      audio.dispatchEvent(new Event('error'));
+    });
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'This audio cannot be played here'
+    );
+    expect(
+      container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')?.disabled
+    ).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>('[aria-label="Seek voice message"]')?.disabled
+    ).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>('[aria-label="More audio options"]')?.disabled
+    ).toBe(false);
   });
 
-  it('binds real media hooks to the remounted loaded audio element', async () => {
-    mocks.srcState = { status: AsyncStatus.Idle };
+  it('keeps audio playing across unmount and remount (virtualized scroll) and reflects live time and settings', async () => {
+    const store = createStore();
     await act(async () => {
-      root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
-      await Promise.resolve();
+      root.render(renderPlayer('mxc://mindroom/voice-a', store));
     });
 
-    const audioA = container.querySelector('audio') as HTMLAudioElement;
-    expect(audioA).not.toBeNull();
-    expect(audioA.querySelector('source')).toBeNull();
-
-    mocks.srcState = { status: AsyncStatus.Success, data: 'blob:voice-b' };
     await act(async () => {
-      root.render(renderVoiceAudioContent('mxc://mindroom/voice-b'));
-      await Promise.resolve();
+      container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')!.click();
+      await flushAsync();
     });
 
-    const audioB = container.querySelector('audio') as HTMLAudioElement;
-    expect(audioB).not.toBe(audioA);
-    expect(audioB.querySelector('source')?.getAttribute('src')).toBe('blob:voice-b');
-
-    Object.defineProperty(audioA, 'duration', { configurable: true, value: 99 });
-    Object.defineProperty(audioA, 'currentTime', { configurable: true, value: 98 });
-    Object.defineProperty(audioA, 'paused', { configurable: true, value: false });
-    await act(async () => {
-      audioA.dispatchEvent(new Event('timeupdate'));
-      audioA.dispatchEvent(new Event('play'));
-      await Promise.resolve();
-    });
-
-    expect(container.querySelector('[title="0:00 / 0:10"]')?.textContent).toBe('0:10');
-    expect(container.querySelector('[aria-label="Play voice message"]')).not.toBeNull();
-
-    Object.defineProperty(audioB, 'duration', { configurable: true, value: 12 });
-    Object.defineProperty(audioB, 'currentTime', { configurable: true, value: 4 });
-    Object.defineProperty(audioB, 'paused', { configurable: true, value: false });
-    await act(async () => {
-      audioB.dispatchEvent(new Event('timeupdate'));
-      audioB.dispatchEvent(new Event('play'));
-      await Promise.resolve();
-    });
-
-    expect(container.querySelector('[title="0:04 / 0:12"]')?.textContent).toBe('0:04');
+    const audio = getSharedAudio()!;
+    expect(audio.paused).toBe(false);
+    expect(
+      container.querySelector('[data-audio-capsule="true"]')?.getAttribute('data-playing')
+    ).toBe('true');
     expect(container.querySelector('[aria-label="Pause voice message"]')).not.toBeNull();
 
-    Object.defineProperty(audioB, 'paused', { configurable: true, value: true });
+    // Unmount Voice A completely (simulating scrolling far away in a virtualized timeline).
     await act(async () => {
-      audioB.dispatchEvent(new Event('pause'));
-      await Promise.resolve();
+      root.render(React.createElement(Provider, { store }, null));
+    });
+    expect(container.querySelector('[data-audio-capsule="true"]')).toBeNull();
+    expect(audio.isConnected).toBe(true);
+    expect(audio.paused).toBe(false);
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    // Mount a different voice row while Voice A stays unmounted.
+    await act(async () => {
+      root.render(renderPlayer('mxc://mindroom/voice-b', store));
     });
 
+    // Voice A must keep playing untouched and its blob URL must not be revoked.
+    expect(audio.isConnected).toBe(true);
+    expect(audio.paused).toBe(false);
+    expect(audio.getAttribute('src')).toBe('blob:voice-1');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    // Playback advances while Voice A is unmounted, and rate/volume changes apply immediately.
+    Object.defineProperty(audio, 'duration', { configurable: true, value: 12 });
+    Object.defineProperty(audio, 'currentTime', { configurable: true, value: 5 });
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'));
+      store.set(voiceMessagePlaybackRateAtom, 1.5);
+      store.set(voiceMessageVolumeAtom, 0.4);
+    });
+    expect(audio.playbackRate).toBe(1.5);
+    expect(audio.volume).toBe(0.4);
+
+    // Remount Voice A (user scrolls back): immediately restores Pause button, playing state, and live time.
+    await act(async () => {
+      root.render(renderPlayer('mxc://mindroom/voice-a', store));
+    });
+
+    expect(
+      container.querySelector('[data-audio-capsule="true"]')?.getAttribute('data-playing')
+    ).toBe('true');
+    expect(container.querySelector('[aria-label="Pause voice message"]')).not.toBeNull();
+    expect(container.querySelector('[title="0:05 / 0:12"]')?.textContent).toBe('0:05');
+
+    // Clicking Pause pauses the shared audio element.
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Pause voice message"]')!.click();
+    });
+    expect(audio.paused).toBe(true);
     expect(container.querySelector('[aria-label="Play voice message"]')).not.toBeNull();
+  });
+
+  it('switches between two mounted players cleanly without re-rendering idle siblings on timeupdate', async () => {
+    const store = createStore();
+    let idleRenders = 0;
+
+    function TrackedIdlePlayer() {
+      idleRenders += 1;
+      return React.createElement(VoiceAudioContent, {
+        mimeType: 'audio/ogg',
+        url: 'mxc://mindroom/voice-idle',
+        info: { mimetype: 'audio/ogg', duration: 10000 },
+        waveform: [0, 512, 1024],
+      });
+    }
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            'div',
+            null,
+            React.createElement(VoiceAudioContent, {
+              mimeType: 'audio/ogg',
+              url: 'mxc://mindroom/voice-a',
+              info: { mimetype: 'audio/ogg', duration: 10000 },
+              waveform: [0, 512, 1024],
+            }),
+            React.createElement(VoiceAudioContent, {
+              mimeType: 'audio/ogg',
+              url: 'mxc://mindroom/voice-b',
+              info: { mimetype: 'audio/ogg', duration: 10000 },
+              waveform: [0, 512, 1024],
+            }),
+            React.createElement(TrackedIdlePlayer)
+          )
+        )
+      );
+    });
+
+    const playButtons = () =>
+      Array.from(
+        container.querySelectorAll<HTMLButtonElement>('[aria-label$="voice message"]')
+      ).filter((button) => button.getAttribute('aria-label') !== 'Seek voice message');
+
+    await act(async () => {
+      playButtons()[0]!.click();
+      await flushAsync();
+    });
+
+    expect(playButtons()[0]!.getAttribute('aria-label')).toBe('Pause voice message');
+    expect(playButtons()[1]!.getAttribute('aria-label')).toBe('Play voice message');
+
+    const idleRendersBeforeTimeUpdate = idleRenders;
+    const audio = getSharedAudio()!;
+    Object.defineProperty(audio, 'currentTime', { configurable: true, value: 3 });
+    act(() => {
+      audio.dispatchEvent(new Event('timeupdate'));
+    });
+    expect(idleRenders).toBe(idleRendersBeforeTimeUpdate);
+
+    // Starting Player B pauses/detaches Player A, revokes its blob URL, and resets Player A UI.
+    await act(async () => {
+      playButtons()[1]!.click();
+      await flushAsync();
+    });
+
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
+    expect(audio.getAttribute('src')).toBe('blob:voice-2');
+    expect(playButtons()[0]!.getAttribute('aria-label')).toBe('Play voice message');
+    expect(playButtons()[1]!.getAttribute('aria-label')).toBe('Pause voice message');
+
+    // Account cleanup stops playback, clears src, revokes blob URL, and resets UI.
+    act(() => {
+      stopVoiceAudioPlayback();
+    });
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-2');
+    expect(audio.getAttribute('src')).toBeNull();
+    expect(playButtons()[1]!.getAttribute('aria-label')).toBe('Play voice message');
   });
 });
