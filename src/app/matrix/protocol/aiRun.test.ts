@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   getAiRunInfo,
-  hasActiveAiRunStatus,
   hasTerminalStreamMetadata,
   isAiRunStreaming,
   withoutAiRunCost,
@@ -290,25 +289,6 @@ describe('isAiRunStreaming', () => {
 
     // Backward compat: status-less ai_run without stream_status stays streaming
     expect(isAiRunStreaming({ 'io.mindroom.ai_run': earlyRun })).toBe(true);
-  });
-});
-
-describe('hasActiveAiRunStatus', () => {
-  const run = (status?: unknown) => ({ 'io.mindroom.ai_run': { version: 1, status } });
-
-  it('is true for a run status that is not terminal, in the content or its m.new_content', () => {
-    expect(hasActiveAiRunStatus(run('streaming'))).toBe(true);
-    expect(hasActiveAiRunStatus(run('Running'))).toBe(true);
-    expect(hasActiveAiRunStatus({ 'm.new_content': run('streaming') })).toBe(true);
-  });
-
-  it('is false for a terminal run status, a run without a status, and no run', () => {
-    ['completed', 'cached', 'error', 'cancelled', 'Interrupted'].forEach((status) => {
-      expect(hasActiveAiRunStatus(run(status))).toBe(false);
-    });
-    expect(hasActiveAiRunStatus(run())).toBe(false);
-    expect(hasActiveAiRunStatus(run(''))).toBe(false);
-    expect(hasActiveAiRunStatus({ 'io.mindroom.stream_status': 'streaming' })).toBe(false);
   });
 });
 

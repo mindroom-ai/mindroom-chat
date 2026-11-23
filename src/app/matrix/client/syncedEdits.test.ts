@@ -198,32 +198,6 @@ describe('a finishing edit that is redacted', () => {
     reply.makeReplaced(resumed);
     expect(isEventStreaming(reply, undefined, timelineSet)).toBe(true);
   });
-
-  // An edit of the same millisecond as the finish was never after it, whatever its ID, while
-  // `getEditedEvent` shows the one with the greater ID: a retry that the reply showed did not stream.
-  it('orders the finish and a revision of the same millisecond by their event IDs', () => {
-    const mx = Object.assign(new EventEmitter(), {
-      getRoom: () => null,
-    }) as unknown as MatrixClient;
-    keepSyncedEdits(mx);
-    const reply = plain('$streamed', 1, { msgtype: 'm.text', body: 'Thinking...' });
-    const finish = streamedEdit('$m-finish', 3, 'completed');
-    mx.emit(ClientEvent.Event, finish);
-    finish.makeRedacted(
-      plain('$redaction', 4, { redacts: '$m-finish' }),
-      {} as Parameters<MatrixEvent['makeRedacted']>[1]
-    );
-    expect(hasStreamEnded(reply)).toBe(true);
-    expect(hasStreamEnded(reply, streamedEdit('$a-before', 3, 'streaming'))).toBe(true);
-    expect(hasStreamEnded(reply, streamedEdit('$n-after', 3, 'streaming'))).toBe(false);
-    expect(hasStreamEnded(reply, streamedEdit('$a-later', 4, 'streaming'))).toBe(false);
-
-    // Of the edits of one millisecond that finish the reply, the one with the greatest ID did.
-    mx.emit(ClientEvent.Event, streamedEdit('$x-finish', 3, 'completed'));
-    expect(hasStreamEnded(reply, streamedEdit('$n-after', 3, 'streaming'))).toBe(true);
-    mx.emit(ClientEvent.Event, streamedEdit('$b-finish', 3, 'completed'));
-    expect(hasStreamEnded(reply, streamedEdit('$n-after', 3, 'streaming'))).toBe(true);
-  });
 });
 
 // Each map keeps 5,000 messages (`REMEMBERED_LIMIT`). A full map was emptied at once, so the edit

@@ -282,16 +282,6 @@ export const hasTerminalStreamMetadata = (content: Record<string, unknown>): boo
   return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
-/** Whether the content's run states a status that is not terminal, such as `streaming`. */
-export const hasActiveAiRunStatus = (content: Record<string, unknown>): boolean => {
-  const status = getAiRunMetadata(content)?.status;
-  return (
-    typeof status === 'string' &&
-    status.length > 0 &&
-    !TERMINAL_AI_RUN_STATUSES.has(status.toLowerCase())
-  );
-};
-
 export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
   if (hasTerminalStreamMetadata(content)) return false;
 

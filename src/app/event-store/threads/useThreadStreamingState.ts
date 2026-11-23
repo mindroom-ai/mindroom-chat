@@ -3,6 +3,7 @@ import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import {
   ACTIVE_STREAM_STATUSES,
+  TERMINAL_STREAM_STATUSES,
   getAiRunInfo,
   hasTerminalStreamMetadata,
   readStreamStatus,
@@ -14,16 +15,11 @@ import {
   isSameSenderEditEvent,
 } from '../../matrix/editEvent';
 import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotations';
-import {
-  getEditedEvent,
-  getEventReactions,
-  getLatestMessageContent,
-  isEventOrderedAfter,
-} from '../../matrix/room';
+import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
-import { getFinishingEdit, getSyncedEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
+import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -33,28 +29,23 @@ type ThreadStreamingSnapshot = {
   trackedRelations: Relations[];
 };
 
-const resolvePreferredEvent = (
+const getPreferredEventContent = (
   mEvent: MatrixEvent,
   timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
-): { content: Record<string, unknown>; latestEdit: MatrixEvent | undefined } => {
+): Record<string, unknown> => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
-  const eventId = mEvent.getId();
-  const syncedEditCandidate = eventId ? getSyncedEdit(eventId) : undefined;
   // Every record rebuild checks the tail of every thread, so copy only what
   // getEditedEvent writes to instead of deep-copying each bundled edit.
   const serializedReplacementCandidate = getShallowSerializedReplacementEvent(mEvent);
   const hasResolvableReplacement =
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
-    isSameSenderEditEvent(mEvent, serializedReplacementCandidate) ||
-    isSameSenderEditEvent(mEvent, syncedEditCandidate);
+    isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
 
   if (!hasResolvableReplacement || !timelineSet) {
-    const latestEdit = isSameSenderEditEvent(mEvent, replacingEventCandidate)
-      ? replacingEventCandidate
-      : undefined;
-    return { content: mEvent.getContent() ?? {}, latestEdit };
+    return mEvent.getContent() ?? {};
   }
 
+  const eventId = mEvent.getId();
   // Reuse the detached bundle from the eligibility check. The shared resolver
   // still owns ordering, sender validation and metadata fallbacks.
   const editedEvent =
@@ -62,10 +53,7 @@ const resolvePreferredEvent = (
       ? getEditedEvent(eventId, mEvent, timelineSet, serializedReplacementCandidate)
       : undefined;
 
-  return {
-    content: getLatestMessageContent(mEvent, editedEvent),
-    latestEdit: editedEvent,
-  };
+  return getLatestMessageContent(mEvent, editedEvent);
 };
 
 const hasStopReaction = (relations: Relations | undefined): boolean =>
@@ -88,32 +76,34 @@ export const isEventStreaming = (
   relations: Relations | undefined,
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
 ): boolean => {
-  const { content, latestEdit } = resolvePreferredEvent(mEvent, timelineSet);
+  const content = getPreferredEventContent(mEvent, timelineSet);
   const streamStatus = readStreamStatus(content);
-  const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
-  const saysItStreams =
-    aiRunStatus === 'streaming' || (!!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus));
-  // Only an edit that says itself that the reply streams starts a finished reply again: not a
-  // correction of the text, nor the stream status one borrows from an older edit.
-  const restart =
-    saysItStreams && content[STREAM_STATUS_TS_KEY] === undefined ? latestEdit : undefined;
-  const finishingEdit = getFinishingEdit(mEvent);
-  const finishedByEdit =
-    !!finishingEdit && !(restart && isEventOrderedAfter(restart, finishingEdit));
-  // hasTerminalStreamMetadata owns both the ai_run terminal set (which
-  // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) and string- or
-  // record-form terminal stream statuses. A device without the room's keys
-  // reads the finishing edit's status in the clear, and a redacted finishing
-  // edit still ended the stream — unless a newer revision has started streaming.
-  const terminalMetadata =
-    hasTerminalStreamMetadata(content) || finishedByEdit || hasStreamEnded(mEvent, restart);
-
-  if (terminalMetadata || streamStatus === 'approval_pending') {
+  // getEditedEvent stamps STREAM_STATUS_TS_KEY only beside a stream status the shown edit borrowed
+  // from an older one. A status the edit carries itself takes precedence over a run status of
+  // 'streaming', which a stop or error note borrows; a borrowed status does not, so an older
+  // finish or approval pause does not veto a retry that says by its run status that it streams.
+  const ownStreamStatus = content[STREAM_STATUS_TS_KEY] === undefined ? streamStatus : undefined;
+  if (ownStreamStatus === 'approval_pending') {
     return false;
   }
 
-  if (aiRunStatus === 'streaming') {
+  const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
+  if (
+    aiRunStatus === 'streaming' &&
+    !(ownStreamStatus && TERMINAL_STREAM_STATUSES.has(ownStreamStatus))
+  ) {
     return true;
+  }
+
+  // hasTerminalStreamMetadata owns the ai_run terminal set (which includes 'cached' — NOT in
+  // TERMINAL_STREAM_STATUSES) and the terminal stream statuses, in string or record form.
+  // A device without the room's keys reads the finishing edit's status in the clear, and a
+  // redacted finishing edit still ended the stream.
+  const terminalMetadata =
+    hasTerminalStreamMetadata(content) || !!getFinishingEdit(mEvent) || hasStreamEnded(mEvent);
+
+  if (streamStatus === 'approval_pending' || terminalMetadata) {
+    return false;
   }
 
   if (hasStopReaction(relations)) {
