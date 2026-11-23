@@ -1,7 +1,7 @@
 # Thread Timeline Scroll Owner — Design & Migration Plan
 
-**Status:** Revised after Opus + Astra review & m2 WebKit prototyping (based on `main` @ `d4c629d13`)
-**Scope:** Single `scrollTop` owner for the **thread timeline** (room timeline deferred to follow-up via `enabled: !threadId` guards; disabled room hooks attach no `ResizeObserver`).
+**Status:** Revised after round-2 Opus + Astra review & m2 prototype closure (based on `main` @ `d4c629d13`, prototype `proto/thread-scroll-headroom` @ `4655a1250`)
+**Scope:** Single `scrollTop` owner for the **thread timeline** (room timeline deferred to follow-up via `!ownerEnabled` guards; disabled legacy hooks attach no `ResizeObserver`, while the flag-off path keeps today's thread fixes intact).
 
 ---
 
@@ -26,7 +26,7 @@
 | 13 | `timeline/useTimelineBulkExpansionAnchor.ts:85,93` | `expandAll` layout effect + 30-frame rAF loop | Local `BOTTOM_THRESHOLD_PX = 24` or mid-viewport `rect.top` | Virtual-core, `useListEndClamp`, `useLatestRowPin` |
 | 14 | `threads/overview/useCompactScrollFallback.ts:126` & `ThreadFilterDropdown.tsx:95-96` | Non-timeline views (Compact WebKit fallback; dropdown nav) | Separate scrollers (out of thread scope) | None with thread scroller |
 | 15 | `ui/InsetScrollbar.tsx:84,147`; `native/statusBarTapScroll.ts:71`; `lib/dom.ts:138` | Thumb drag/keys; status-bar fallback; `scrollToBottom` helper | Direct `scroll.scrollTop = ...` / `scrollTo` | Thumb drag races pins & ledger boundary guard |
-| 16 | **`@tanstack/virtual-core` 3.17.3** (`_willUpdate`, `anchorTo`, `reconcileScroll`, `_iosDeferredAdjustment`, `applyScrollAdjustment`) | Attach `_willUpdate` calls `_scrollToFn(getScrollOffset())`; `resizeItem` (incl. `useThreadApprovalRowMeasurements` & `useTurnBreakRowMeasurements` at `RoomTimeline.tsx:1378-1379`); `scrollToIndex` | Stale cached `scrollOffset`, lazy `measurementsCache` Proxy, private `scrollAdjustments` | Races ledger baseline, clamps at end, kills iOS momentum or replays banked lurch |
+| 16 | **`@tanstack/virtual-core` 3.17.3** (`_willUpdate`, `anchorTo`, `reconcileScroll`, `_iosDeferredAdjustment`, `applyScrollAdjustment`) | Attach `_willUpdate` calls `_scrollToFn(getScrollOffset())`; `resizeItem` (incl. `useThreadApprovalRowMeasurements` & `useTurnBreakRowMeasurements`); `scrollToIndex` | Stale cached `scrollOffset`, lazy `measurementsCache` Proxy, private `scrollAdjustments` | Races ledger baseline, clamps at end, kills iOS momentum or replays banked lurch |
 | 17 | **Browser itself** | Native shrink clamp; Chromium `overflow-anchor: auto`; WebKit container-query pre-style layout; WebKit scrolling-thread discard/replay; iOS momentum & rubber-band | Browser layout tree & async scrolling thread | Discards/replays JS `scrollTop` writes during wheel/scrub; clamps before commit |
 
 ### Duplicate sources of truth on `main`
@@ -36,90 +36,98 @@
 
 ---
 
-## 2. Invariants (Thread Timeline)
+## 2. Invariants (Thread Timeline) & Exhaustion Priority
 
-1. **Every loaded row can be scrolled to:** `headroomPx >= 0` always; no loaded row is ever placed at `top < 0` or hidden behind a negative margin/offset.
-2. **Anchor stability:** Unless the user scrolls or initiates a jump, the anchor row's viewport `top` moves `≤ 1 px` across prepends, row measurements, hidden/folded row price changes, banner/leading resizes, and bulk expand/collapse.
-3. **Bottom-pin fidelity:** While pinned (`open`, `jump`, own send, or resting at live end during streaming/footer/viewport changes), the newest visible row stays flush (`scrollHeight - clientHeight - scrollTop ≤ 1 px`, zero blank band) until a user gesture releases the pin. Expanding a collapsible while merely resting near bottom unfolds in place.
-4. **One-paint opening:** Open-at-latest threads stay hidden until the first commit resting at the true bottom (`≤ 1 px`) with the last non-relation tile mounted (bounded by user takeover or 1,500 ms fallback).
-5. **Zero overlap, zero seams:** Newly mounted or resized rows commit updated tile `top` positions before paint (`thread-fast-scroll-overlap`).
-6. **Native gesture & momentum preservation:** While a touch is active, iOS momentum/rubber-band is running, or a wheel burst is live, the owner issues **zero** `scrollTop` writes (including near the bottom: streaming and footer pins defer while `activeTouches > 0`). User input always wins.
+1. **Every loaded row can be scrolled to:** `headroomPx >= 0` always; no loaded row is placed at `top < 0` or hidden behind a negative margin.
+2. **Native gesture & momentum preservation (highest priority):** While a touch is active, a scrollbar thumb drag is live, iOS momentum/rubber-band is running, or a wheel/scroll burst is active, the owner issues **zero** `scrollTop` writes. User input always wins.
+3. **Anchor stability:** Unless the user scrolls or initiates a jump, the anchor row's viewport `top` moves `≤ 1 px` across prepends, above-anchor row resizes, banner/leading resizes, and bulk expand/collapse (bounded by headroom availability — see exhaustion rules below).
+4. **Bottom-pin fidelity:** While pinned (`open`, `jump`, own send, or resting at live end), the newest visible row stays flush (`scrollHeight - clientHeight - scrollTop ≤ 1 px`, zero blank band) until a user gesture releases the pin.
+5. **One-paint opening & zero overlap:** Open-at-latest threads stay hidden until the first commit at true bottom with the last non-relation tile mounted; newly mounted or resized rows commit updated tile `top` positions before paint.
+6. **Non-blank reserve & reachability of row 0:** Any positive headroom above row 0 renders loading chrome + skeleton rows (never pure blank). Once `!hasMoreHistory`, a reader in or near the reserve reaches row 0 via one rest-time trim targeting row 0.
+
+### Explicit Invariant Trade-offs on Exhaustion (Which Invariant Gives Way)
+- **Prepend arrives mid-gesture with insufficient headroom (`estimatedPrependPx > committedHeadroomPx`):** **Page-display immediacy gives way** — the fetched page is held out of `threadEvents` until genuine scroll rest, when the single layout effect tops up headroom and releases the page. Invariants 2 (zero mid-gesture writes) and 3 (anchor stability) hold.
+- **Row grows above the reader with zero headroom (e.g. late image load):** **Anchor stability gives way** — `headroomPx` clamps at `0` and the owner accepts anchor drift rather than issuing a mid-gesture `scrollTop` write. Invariant 2 (zero mid-gesture writes) holds.
+- **Fast flick outruns slow network pages into the reserve (`scrollTop < headroomPx`):** **Hard-stop clamping at row 0 gives way** — the reader glides into the skeleton reserve while pages are in flight; incoming pages fill the reserve from the bottom up (`headroomPx -= foldPx`), and once history completes a single rest-time trim brings the reader to row 0.
 
 ---
 
 ## 3. Design: Headroom + Single Commit-Time Owner (`useThreadScrollOwner`)
 
-### Flip the Sign: Positive Headroom, Not Hidden Debt
-Instead of folding prepends/growth into negative `marginTop` (hidden debt that traps rows at `< 0` and must be settled later via `scrollTop += px`), reserve **real, positive scrollable headroom** (`headroomPx >= 0`) above row 0:
-- **Coordinate layout:** `inner.style.marginTop` is **always `''`**. Pass `scrollMargin: headroomPx` to the virtualizer; tiles render at `top: item.start` (`headroomPx + rawStart`), `inner.style.height = headroomPx + virtualizer.getTotalSize()`, and `ThreadLoadingLines` renders inside the headroom band directly above row 0.
-- **Reservation on open:** While opening-pinned (`!userScrolled && hasMoreHistory`), keep `headroomPx >= Math.max(unloadedReplies * 260, 28_000)` using `threadReplyCountMap` / `data-thread-count` (topping up during open so opening-chain pages do not drain headroom to 0 before the reader scrolls).
-- **Consuming & adding headroom (zero `scrollTop` write):**
-  - Prepend or above-anchor row growth (`Δ > 0`): consumes headroom (`headroomPx -= Δ`).
-  - Above-anchor row shrink (`Δ < 0`): adds headroom (`headroomPx += |Δ|`).
-  - On narrow viewports (phone), unmeasured rows wrap significantly taller than estimates as they mount; headroom absorbs both prepends **and** wrap growth with zero `scrollTop` writes.
-- **The only two cases that ever write `scrollTop` for geometry:**
-  1. **Headroom exhaustion (`headroomPx < Δ`):** `headroomPx -> 0`, `deficit = Δ - headroomPx`.
-     - *Chromium:* write `scrollTop += deficit` immediately at commit (no scrolling-thread discard).
-     - *WebKit / iOS:* backward pagination gates commits on scroll rest (`ThreadPrependViewportPort`); if an unbuffered deficit occurs (e.g. massive underestimate), commit with pre-synced `virtualizer.scrollOffset = next` (explicit takeover: `m2` prototyping showed any raw or `overflow-y: hidden` write mid-wheel-burst in WebKit causes discard/replay or dropped ticks, so keeping headroom topped up during open + unmeasured-row cushion is essential to prevent exhaustion in practice).
-  2. **Final correction when history completes (`!hasMoreHistory`) & `headroomPx > 0`:**
-     - Never trim mid-burst (`m2` phone prototype proved a mid-burst near-top trim causes a 3,132 px WebKit discard reversal) and never trim to `0` while unmeasured rows remain above the anchor (phone wrap growth consumes ~13k px after history finishes).
-     - When `!activeTouches && !rubberBanding` and wheel/scroll has paused (`>= 260 ms` idle; plus `scrollend` where supported on Safari 26.2+, falling back cleanly on iOS 16.4–26.1), trim **only excess headroom** above an unmeasured-row cushion:
-       `keep = unmeasuredAbove * (viewWidth < 600 ? 70 : 20)`, `trim = Math.min(headroomPx - keep, scrollTop)`.
-       Bounding by `scrollTop` guarantees we never clamp at `0` and teleport rows; as the reader nears row 0 (`unmeasuredAbove -> 0`), the final trim lands at `headroomPx = 0` before entering empty space.
+### Positive Headroom Budget, Reserve Chrome, Top-Up & Rest-Time Trim
+- **Coordinate layout:** `inner.style.marginTop` is always `''`. Virtualizer receives `scrollMargin: headroomPx`; tiles render at `top: item.start` (`headroomPx + rawStart`); `inner.style.height = headroomPx + virtualizer.getTotalSize()`. `ThreadLoadingLines` stays in `leadingRef` above the list; `ThreadHeadroomReserve` renders sticky loading chrome + 8 skeleton rows across `[0, headroomPx)` so landing anywhere inside the reserve (Home, thumb drag, long flick) never shows pure blank space.
+- **Budget & running average:**
+  `avgRowHeight = totalMeasuredAndEstimatedSize / measurementsCache.length` (including 0-height folded/hidden rows so agent threads do not inflate the average), with `budget = max(unloadedReplies * avgRowHeight + unmeasuredVisible * perUnmeasured + 2 * viewH, 4 * viewH)`.
+  Authoritative `expectedThreadEvents` reads `threadReplyCountMap`, `getKnownThreadReplyCount(root)`, `room.getThread(threadId).length`, and `threadRecord.presentation.messageCount`.
+- **Consuming headroom & reserve-fill (zero `scrollTop` writes):** Prepends and above-anchor row growth (`Δ > 0`) consume headroom (`headroomPx -= Δ`); shrink (`Δ < 0`) adds headroom (`headroomPx += |Δ|`). When the reader is inside the reserve (`anchor === undefined && headroomPx > 0`), prepends anchor on the earliest existing non-root reply so new pages consume headroom and fill the reserve from the bottom up.
+- **Continuous rest-time top-up:** Whenever `hasMoreHistory && committedHeadroomPx < 2 * viewH` (including **after** the first user scroll), the same idle/rest gate used for trimming tops up headroom back to `budget`. On open completion (`!threadUserScrolled && !hasMoreHistory`), desktop trims headroom to `0` while mobile (`viewW < 600`) retains a small wrap cushion capped at `min(unmeasuredVisible * 12, 2 * viewH)` so scrolling up through unmeasured mobile rows stays drift-free.
+- **Rest-time trim (never overtaken, targets row 0 in reserve):**
+  - Trim runs **only** when `!hasMoreHistory && nearTop` (`scrollTop <= headroomPx + 1.5 * viewH`) **and** input is genuinely at rest: `!hasActiveWindowTouches()`, `!isScrollerRubberBanding(el)`, `!el.dataset.scrollbarDragging`, `!scrollSessionLive` (`scrollend` where supported), and `>= 500 ms` since any `scroll`/`wheel`/`touch*` activity with exact `scrollTop` stability across checks. (500 ms clears 300 ms wheel pauses safely; on touch, gating on `activeTouches`, `rubberBanding`, and scroll-idle prevents premature trims when `wheel` never fires.)
+  - When `scrollTop < headroomPx` (reader inside the reserve via Home, thumb drag, or long flick), one rest-time trim sets `nextHeadroom = 0, targetScrollTop = 0` to land on row 0 (not `min(excess, scrollTop)`, which would remove 0 px at `scrollTop = 0`). Otherwise it trims `headroomPx - keepCushion` and shifts `scrollTop` by `-trim`.
 
-### Complete Virtualizer Containment & Single Source of Truth
-- **Virtualizer strictly read-only:** Pass **`scrollToFn: () => {}`** and **`shouldAdjustScrollPositionOnItemSizeChange: () => false`** on threads. This blocks `_willUpdate`, `anchorTo`, `reconcileScroll`, `_iosDeferredAdjustment`, and `applyScrollAdjustment` completely. Set `overflowAnchor: 'none'` on the thread scroller.
-- **All resize facts routed to the owner:** Both `measureElement` (RO/mount) **and** imperative `resizeItem` callers (`useThreadApprovalRowMeasurements`, `useTurnBreakRowMeasurements` at `RoomTimeline.tsx:1378-1379`) report `{ index, delta }` through the owner's `resizeRow(index, size)` wrapper into one pending queue flushed in a single pre-paint microtask (`flushSync`, keeping mounted keys fixed inside RO turns so no new overscan mounts trigger RO depth-loop warnings).
-- **One committed snapshot + live DOM offset (no duplicated state):**
-  - Stored state is strictly `{ viewKey, mode, headroomPx, revealed }` where `mode` is `bottom(reason, hardPin, smooth)` | `anchor(eventId, viewportOffset)` | `jump(eventId, align, stopInView, attempts)`.
-  - `atBottom`, `rubberBanding` (`scrollTop < -1 || scrollTop > max + 1`), range, and extent are **derived** on demand from the committed snapshot + live `scrollElement.scrollTop` (no stored `atBottom`/`rubberBanding`/`sampledScrollTop` copies or parallel render-vs-live accumulators).
-  - Pending facts (prepends, row resizes, `ThreadTimelineHeader` resize, `ThreadLoadingLines`, streaming frames, footer/viewport RO) accumulate in a pending delta queue and apply in **one** commit-time `useLayoutEffect` writer (pre-syncing `virtualizer.scrollOffset` before render whenever a commit shifts `scrollTop` so zero blank `visibleCount: 0` frames occur).
-  - All pins (`useThreadOpeningPin`, shared `useBottomPinRequests`, streaming, footer) and jumps (`useThreadJumpTarget`, `useEditedRowInView`, Jump to Latest, status-bar tap, `InsetScrollbar` drag/keys) route through this single decision; **user input always wins** (active touch suppresses streaming/footer pins; any gesture cancels open/jump pins).
-  - `InsetScrollbar` and `TimelineMinimap` receive an imperative `onExtentChange` callback on threads instead of attaching shallower `ResizeObserver(contentRef)` listeners, eliminating `heldListHeight`, `listShrinkNotRendered`, and `useListEndClamp` on threads.
+### Pure Render Snapshot + Single Commit-Time Writer (No Snapshot/Live Split)
+- **Virtualizer strictly read-only:** Pass `scrollToFn: () => {}` and `shouldAdjustScrollPositionOnItemSizeChange: () => false` (routing above-reader resize deltas, offset by pending unrendered queue delta, into a sequence-numbered `aboveResizeQueue`); set `overflowAnchor: 'none'`.
+- **Pure render (`computeHeadroomRenderSnapshot`):** Reads **only** `gate.committedHeadroomPx` plus queued facts (`prependFoldPx`, `leadingFoldPx`, `aboveResizeQueue`), returning `{ headroomPxAtRender, renderedResizeSeq, zeroHeadroomDrift }`. Render never reads live `scrollTop`, never calls `Date.now()`, and never decides trim/top-up.
+- **Intent-driven single commit-time `useLayoutEffect`:**
+  1. Clears **only** resize queue entries consumed by this render (`entry.seq > renderedResizeSeq`) — measurements arriving between render and commit are preserved and trigger a follow-up commit rather than being dropped.
+  2. Idle timer enqueues an intent (`idleIntentQueued = true`) + bumps commit tick; the layout effect decides priority (`held-release` > `topup` > `nearTop trim`).
+  3. Performs an **atomic extent+scroll transition**: captures one absolute target before shrinking (or pre-grows `inner.style.height` before writing when growing), writes `scrollElement.scrollTop` once, reconciles `virtualizer.scrollOffset` immediately to the actual DOM result (eliminating near-bottom double moves under native clamping and avoiding out-of-sync intermediate virtualizer windows), and bumps the synchronous pre-paint commit.
 
 ---
 
-## 4. Prototype Results & Evidence (`m2` Mac Runner, Branch `proto/thread-scroll-headroom`)
+## 4. Prototype Results & Evidence (`m2` Mac Runner, `proto/thread-scroll-headroom`)
 
-Tested on `basnijholt-macbook-pro-m2` (real macOS Playwright WebKit + Chromium) against both an isolated hard-case harness (`0a8f42e1c`) and the full `e2e/threads/thread-timeline-jumps.live.spec.ts` fast upward wheel-scroll reproducer (24 bursts × 16 × `-240 px`, 220/450 ms pauses, 150 ms stall on `|ΔscrollTop| >= 48 px`):
+Verified on `basnijholt-macbook-pro-m2` (`tsc --noEmit -p tsconfig.json` PASS, `vitest run src/app/timeline/` PASS):
 
-| Case / Variant (commit) | Engine & Viewport | Result | Measured Evidence |
-|---|---|---|---|
-| Standalone harness: headroom absorbs prepend mid-burst (`0a8f42e1c`) | WebKit desktop (1440×900) & phone-size (390×844) | **PASS** | `maxUnexplained=0`, `maxReversal=0`, `lostPlace=0`, `totalRow=3840` (`totalWheel=-3840`) |
-| **Hard case (a):** headroom=0 (`zero`), raw `+11,706 px` prepend write mid-burst (`ec78abdeb`) | WebKit desktop & phone-size | **FAIL** | WebKit discarded write (`appDelta=11706, dScroll=-240/-11946`), replayed `+11706` 103 ms later (`lostPlace=2`, `burstDrift=-480px`) |
-| **Hard case (b1):** trim at 150 ms into 220 ms pause (`122110a4c` `hard-b-overtaken`) | WebKit desktop | **FAIL** | Overtaken by burst 2 + emptied headroom early (`writes=17`, `reversal=146px`, `burstDrift=+3244px`) |
-| **Hard case (b2):** same with `overflow-y: hidden` takeover (`122110a4c` `trim-takeover`) | WebKit desktop | **FAIL** | Dropped wheel notches (`burstDrift=-480/-240px`), `reversal=152px`, `burstDrift=+3144px` |
-| **Hard case (b3):** mid-burst `nearTop` trim (`122110a4c` phone `frame 780`, `-3,372 px`) | WebKit phone-size | **FAIL** | WebKit discarded `-3372` (`dScroll=+3132, median=-3132`), `reversal=3132px` |
-| **Headroom + unmeasured-row cushion + 260 ms idle excess trim (`44b876244`)** | Chromium desktop (1440×900) | **PASS** | `writes=3`, `scrolled=63,484px`, `reversal=0`, `unexplained=0`, `spread=0`, `lostPlace=0` |
-| **Headroom + unmeasured-row cushion + 260 ms idle excess trim (`44b876244`)** | **WebKit desktop (1440×900, un-fixme'd)** | **PASS** | `writes=3`, `scrolled=63,474px`, `reversal=0`, `unexplained=0`, `spread=0`, `lostPlace=0` |
-| **Headroom + unmeasured-row cushion + 260 ms idle excess trim (`44b876244`)** | **WebKit phone-size (390×844)** | **PASS** | `writes=2`, `scrolled=64,328px`, `reversal=0`, `unexplained=0`, `spread=0`, `lostPlace=0` |
+### Round-2 Matrix — 4× Repeats (`--repeat-each=4`, `610e6e85c`, `MR_THREAD_SCROLL_OWNER=1`, **64/64 PASS**)
 
-**Takeaway:** Headroom with open-time top-up + unmeasured-row cushion keeps the `test.fixme` WebKit fast-scroll spec **100% green (`0` reversal, `0` unexplained, `0` spread, `0` lostPlace)** on both WebKit desktop and WebKit phone-size. Prototyping also disproved `overflow-y: hidden` mid-scroll takeover (drops wheel ticks) and exposed phone text-wrap growth (~13k px after history loads).
+| Case | Chromium desktop | WebKit desktop | WebKit phone | Notes / Measured Evidence |
+|---|---|---|---|---|
+| Fast upward wheel (un-fixme'd) | **4/4 PASS** | **4/4 PASS** | **4/4 PASS** | `reversal=0, unexplained=0, spread=0, lostPlace=0` (1–2 writes) |
+| 300 ms-pause upward wheel | **4/4 PASS** | **4/4 PASS** | **4/4 PASS** | `reversal=0, unexplained=0, spread=0, lostPlace=0`; trim never overtaken |
+| Exhausted headroom (`cap=1200`) | **4/4 PASS** | **4/4 PASS** | **4/4 PASS** | 4 pages held until rest, 1 rest top-up; zero-headroom growth drift = 0 writes |
+| Home key + thumb drag to top | **4/4 PASS** | **4/4 PASS** | **4/4 PASS** | 6 skeleton rows visible in reserve; rest trim -> `headroom=0, scrollTop=0, row0=true` |
+| Active touch trim gating | **4/4 PASS** | **4/4 PASS** | **4/4 PASS** | Trim deferred while touch active; trims cleanly after `touchend` + idle |
+| Real CDP touch-swipe (Chromium phone) | — | — | **4/4 PASS** (Chr phone) | `reversal=0, unexplained=0, spread=0, lostPlace=0` |
+
+**Touch testing status:** Playwright WebKit on `m2` only supports `touchscreen.tap()` (no touch-move/flick dispatch; `e2e/computer/computer-touchpad.spec.ts:26`). Real touch-swipe is covered on Chromium phone via CDP and active-touch trim gating is covered on WebKit phone, **so a real iPhone flick hand test from Bas is required before flipping the flag.**
+
+### Full 8 Thread Specs Once with `MR_THREAD_SCROLL_OWNER=1` (`610e6e85c` + `4655a1250`, identical `src/`)
+
+| Spec | Result | Notes |
+|---|---|---|
+| `thread-fast-scroll-overlap.live` | **PASS (1/1)** | Zero overlap/separation |
+| `thread-open-chain-prepend-anchor.live` | **PASS (3/3)** | ≤1 px drift (Load Older, scrolled-up, and root anchor) |
+| `thread-prepend-scroll.live` | **PASS (1/1)** | `maxDriftPx=0` |
+| `thread-first-open-paints-once` | **PASS (1/1)** | 6.3 s at `4655a1250` (overview card-click detach flake in batch run at `610e6e85c`) |
+| `unread-thread-open-landing` | **PASS (4/4)** | Chromium & WebKit × desktop & phone |
+| `thread-scroll-stability.live` | **PASS (4/4)** | Chromium & WebKit × desktop & phone |
+| `thread-timeline-jumps.live` | **26/28 PASS** | Opening 4/4, cold bottom 4/4, cold mid phone 2/2, 16 scroll/new cases 16/16; **2 fail**: desktop cold-open mid-thread 28 px seam-row turn-break shift at `threadCount 21->41` |
+| `thread-ride-under-latency.live` | **3/5 PASS** | `LATENCY-RIDE` (`0/0/[]`), `SUSTAINED-RIDE` (`gap=11/jump=0`), `HYDRATION-PIN` (`0/0`) PASS; **2 fail** (inherent headroom trade-offs): `COMPOSITOR-RIDE` (`gap=0, leadGap=81`, fails `trackedIntervals 66/584` when 4,500 px/s fling outruns 1.5 s fetch into reserve); `LEDGER-BOUNDARY` (`gap=11, blank=0, writes=0`, fails `maxJump=608` on rest-time trim of unused mobile cushion at `scrollTop=0`) |
 
 ---
 
-## 5. What Gets Deleted & Honest Net-Line Estimate
+## 5. What Gets Deleted & Net Lines
 
 - **Whole files deleted in this PR (247 lines):** `threadScrollLedger.ts` (95), `useThreadOpeningReveal.ts` (60), `useThreadPrependViewport.ts` (27), `threadBackPaginationController.ts` (65).
-- **Thread branches deleted from shared files (~550–650 lines):** `timelineScrollLedgerController.ts` (~300), `roomFocusScrollController.ts` (~220, incl. thread paths in `useBottomPinRequests` & `useEditedRowInView`), `roomTimelineScroll.ts` (~80), `threadRenderUtils.ts` (`shouldPinThreadToBottomOnOpen`, ~30), `RoomTimeline.tsx` (~100).
-- **New code added (~750–950 lines):** `threadScrollOwner.ts` (~320), `useThreadScrollOwner.ts` (~420), `InsetScrollbar`/`TimelineMinimap` extent hook + `enabled: !threadId` guards + arch test (~110).
-- **Honest net product lines (this PR):** **≈ −150 to +50 lines** (roughly break-even while room stays on the old ledger; exact count taken from the real diff). The major net deletion (**≈ −1,800+ lines**) lands in the follow-up PR when room migrates and deletes `timelineScrollLedgerController.ts`, `roomScrollLedger.ts`, `clampedScrollCorrection.ts`, `useListEndClamp.ts`, `useFooterBottomPin.ts`, `useFollowContentGrowth.ts`, `useTimelineBulkExpansionAnchor.ts`, `scrollQuiescence.ts`, and `isDiscardedSettleWrite`.
+- **Thread branches deleted from shared files (~550–650 lines):** `timelineScrollLedgerController.ts`, `roomFocusScrollController.ts`, `roomTimelineScroll.ts`, `threadRenderUtils.ts`, `RoomTimeline.tsx`.
+- **Net lines:** **about break-even for threads; the payoff comes with the room follow-up** (which deletes `timelineScrollLedgerController.ts`, `roomScrollLedger.ts`, `clampedScrollCorrection.ts`, `useListEndClamp.ts`, `useFooterBottomPin.ts`, `useFollowContentGrowth.ts`, `useTimelineBulkExpansionAnchor.ts`, `scrollQuiescence.ts`, and `isDiscardedSettleWrite`).
 
 ---
 
 ## 6. Feature-Flagged Migration Plan (One Branch, One PR)
 
-All 8 thread scroll specs (`thread-timeline-jumps.live`, `thread-fast-scroll-overlap.live`, `thread-prepend-scroll.live`, `thread-scroll-stability.live`, `thread-open-chain-prepend-anchor.live`, `thread-first-open-paints-once`, `thread-ride-under-latency.live`, `unread-thread-open-landing`) stay green on every commit:
+All legacy hooks stay gated on **`!ownerEnabled`** (never `!threadId`) until the flag is removed, so the flag-off path preserves every existing thread fix on every commit:
 
-1. **Commit 1 — Write funnel, architecture test & black-box ride probe:** Add `threadScrollWriter.ts` single funnel + architecture test checking both zero non-owner writes on threads and `scrollToFn: () => {}` once enabled. Replace white-box `marginTop` / `ledgerBoundarySettles` assertions in `thread-ride-under-latency.live.spec.ts:562,606-607` and `e2e/helpers/rideRecorder.ts:432` with black-box blank-band px and max-jump checks.
-2. **Commit 2 — Extent hooks, `enabled` guards & routed `resizeItem`:** Add `onExtentChange` prop to `InsetScrollbar` / `TimelineMinimap`, `enabled: !threadId` (attaching zero ROs when disabled) to `useFooterBottomPin`, `useFollowContentGrowth`, `useListEndClamp`, `useTimelineBulkExpansionAnchor`, and route `useThreadApprovalRowMeasurements` / `useTurnBreakRowMeasurements` through an owner `resizeRow` callback.
-3. **Commit 3 — Owner behind `localStorage` flag (`mr.threadScrollOwner=1`):** Land `threadScrollOwner.ts` + `useThreadScrollOwner.ts` (including `useBottomPinRequests` and `useEditedRowInView` routing) behind the flag, with unit + real-virtual-core contract tests. Run all 8 specs on **both** paths (flag off and flag on).
-4. **Commit 4 — Flip default & un-fixme WebKit fast-scroll:** Make `useThreadScrollOwner` the default, verify all 8 specs on Chromium + WebKit (desktop & phone-size), and **un-fixme** `e2e/threads/thread-timeline-jumps.live.spec.ts:462`.
-5. **Commit 5 — Delete dead thread code & flag:** Remove the flag and delete the 4 thread-only files + dead thread branches; tighten the architecture test to unconditional enforcement and report real net lines from `git diff --stat`.
+1. **Commit 1 — Write funnel, architecture test & headroom-aware e2e harnesses:** Add `threadScrollWriter.ts` funnel + architecture test; keep legacy white-box assertions gated on flag-off while preserving all black-box gap/jump checks.
+2. **Commit 2 — Extent hooks, `!ownerEnabled` guards & routed `resizeItem`:** Gate `useListEndClamp`, `useFooterBottomPin`, `useFollowContentGrowth`, `useTimelineBulkExpansionAnchor`, and `useThreadPrependViewport` on `!ownerEnabled`; mark `InsetScrollbar` thumb drag (`dataset.scrollbarDragging`); route `useThreadApprovalRowMeasurements` & `useTurnBreakRowMeasurements` through owner `resizeRow`.
+3. **Commit 3 — Owner behind `localStorage` flag (`mr.threadScrollOwner=1`):** Land `threadScrollOwner.ts` + `useThreadScrollOwner.ts` + `ThreadHeadroomReserve` behind the flag with unit + real-virtual-core contract tests; verify all 8 specs on flag-off and flag-on (closing the 28 px desktop seam-row turn-break case and deciding `COMPOSITOR-RIDE`/`LEDGER-BOUNDARY` expectations).
+4. **Commit 4 — Real iPhone hand test, flip default & un-fixme WebKit fast-scroll:** Complete Bas's real iPhone flick hand test, make the owner default, and un-fixme WebKit fast-scroll + retain the 300 ms-pause, exhausted-headroom, Home/thumb, and touch specs.
+5. **Commit 5 — Delete dead thread code & flag:** Remove the flag and delete the 4 thread-only files + dead thread branches; tighten the architecture test unconditionally.
 
 ---
 
 ## 7. Risks & Alternatives
 
-- **Rejected alternatives:** (1) *Funneling the old `marginTop` ledger* — preserves negative-margin hidden rows, 9 bottom truths, and WebKit settle discard/replay. (2) *JS `originShiftPx` hidden debt* — same negative-coordinate failure mode as `marginTop`, violates invariant 1, still races WebKit on rebase. (3) *Zero-headroom commit writes* — kills iOS momentum and fails WebKit hard case (a) (`lostPlace=2`). (4) *`flex-direction: column-reverse`* — WebKit `position: sticky` bugs, flips streaming stability when reading history, breaks scrollbar/status-bar/e2e `scrollTop` contracts.
-- **Main risks:** (1) *Severe headroom underestimation* on unusually media-heavy threads (can still hit hard case (a) on WebKit; mitigated by generous `260 px/event` + `28k` floor while opening). (2) *iOS 16.4–26.1 without `scrollend`* relies on `activeTouches === 0` + idle timer for excess trim (safe because trim never runs mid-touch/momentum and never clamps at `0`). (3) *Scrollbar thumb proportion* briefly reflects estimated headroom until excess trims after history completes.
+- **Rejected alternatives:** (1) *Funneling the old `marginTop` ledger* — keeps negative-margin hidden rows and WebKit settle discard/replay. (2) *JS `originShiftPx` hidden debt* — same negative-coordinate failure mode. (3) *Zero-headroom commit writes* — kills iOS momentum and fails WebKit hard case (a). (4) *`flex-direction: column-reverse`* — WebKit sticky bugs, breaks scrollbar/e2e `scrollTop` contracts.
+- **Open trade-offs / risks:** (1) *Fast fling into reserve (`COMPOSITOR-RIDE`)* — high-velocity flings faster than network fetches glide into the skeleton reserve rather than hard-clamping at row 0 until pages fill in or rest trims. (2) *Mobile wrap cushion vs top-trim snap (`LEDGER-BOUNDARY`)* — keeping a ≤2-viewport mobile cushion eliminates mid-ride wrap drift (`SUSTAINED-RIDE` `0` jumps) at the cost of a rest-time trim snap if the reader rides straight past row 0 to `scrollTop=0`. (3) *Untested iOS WebKit momentum flicks* — requires a real iPhone hand test from Bas before flipping the flag. (4) *Scrollbar thumb proportion* briefly reflects estimated headroom until excess trims at rest.
