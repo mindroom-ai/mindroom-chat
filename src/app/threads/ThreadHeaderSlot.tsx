@@ -1,8 +1,7 @@
 import { Suspense, type ComponentProps } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
-import { isPluginEnabled } from '../plugins/pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins, type ThreadHeaderSlotComponent } from '../plugins/registry';
 
@@ -19,7 +18,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
  * reported under its plugin's tag; one that loads its code shows nothing until it has.
  */
 export function ThreadHeaderSlot({ room, threadId }: ComponentProps<ThreadHeaderSlotComponent>) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const slot = registeredPlugins.flatMap(({ id, tag, threadHeaderSlot }) =>
     isPluginEnabled(config, id)
       ? threadHeaderSlot.map((Component, index) => (

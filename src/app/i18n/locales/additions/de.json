@@ -433,6 +433,10 @@
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Schalte mitgelieferte Plugins für dein Konto auf allen deinen Geräten ein oder aus."
+      },
       "menu": {
         "groups": {
           "you": "Du",
@@ -498,7 +502,8 @@
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
-        "dictation": "Diktieren, Diktat, Sprache zu Text, Mikrofon, Telefon"
+        "dictation": "Diktieren, Diktat, Sprache zu Text, Mikrofon, Telefon",
+        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",

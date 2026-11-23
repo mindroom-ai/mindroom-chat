@@ -60,11 +60,17 @@ export const usePluginPanel = (
       }
     }
   }
+  // Close cleanly if the open panel disappears (for example, when its plugin is disabled).
+  const activeOpen =
+    open && panels.some((candidate) => candidate.id === open.id) ? open : undefined;
+  if (open && !activeOpen) {
+    setOpen(undefined);
+  }
   // The list it opened again over closes once, after the render it shows in.
   const closeMembers = useLatestRef(members.close);
   useEffect(() => {
-    if (open?.overMembers) closeMembers.current();
-  }, [closeMembers, open]);
+    if (activeOpen?.overMembers) closeMembers.current();
+  }, [closeMembers, activeOpen]);
 
   const show = useCallback(
     ({ id, remember }: RoomSidePanel, request?: unknown) => {
@@ -78,5 +84,5 @@ export const usePluginPanel = (
     remembered.removeItem(key);
   }, [key, remembered]);
 
-  return { here: open?.roomId === roomId ? open : undefined, show, close };
+  return { here: activeOpen?.roomId === roomId ? activeOpen : undefined, show, close };
 };

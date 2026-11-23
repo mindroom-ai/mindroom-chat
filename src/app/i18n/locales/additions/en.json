@@ -433,6 +433,10 @@
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Turn bundled plugins on or off for your account across your devices."
+      },
       "menu": {
         "groups": {
           "you": "You",
@@ -498,7 +502,8 @@
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
-        "dictation": "dictate, dictation, speech to text, voice typing, microphone, phone"
+        "dictation": "dictate, dictation, speech to text, voice typing, microphone, phone",
+        "plugins": "plugins, extensions, add-ons, integrations"
       },
       "errorReports": {
         "title": "Send error reports",

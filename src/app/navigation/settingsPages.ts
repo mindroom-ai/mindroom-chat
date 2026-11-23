@@ -9,6 +9,7 @@ export const SettingsPages = {
   AppearancePage: 'appearance',
   ChatsPage: 'chats',
   SidebarPage: 'sidebar',
+  PluginsPage: 'plugins',
   LanguagePage: 'language',
   ConnectionsPage: 'connections',
   ComputersPage: 'computers',

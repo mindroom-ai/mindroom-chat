@@ -446,6 +446,10 @@
         "localMindroom": "Mostrar MindRoom local en la barra lateral",
         "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local."
       },
+      "plugins": {
+        "title": "Complementos",
+        "description": "Activa o desactiva los complementos incluidos para tu cuenta en todos tus dispositivos."
+      },
       "menu": {
         "groups": {
           "you": "Tú",
@@ -511,7 +515,8 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "dictation": "dictar, dictado, voz a texto, micrófono, teléfono"
+        "dictation": "dictar, dictado, voz a texto, micrófono, teléfono",
+        "plugins": "complementos, plugins, extensiones, integraciones"
       },
       "errorReports": {
         "title": "Enviar informes de errores",

@@ -133,19 +133,43 @@ describe('readClientPlugins', () => {
     expect(readClientPlugins(' , ')).toEqual([]);
   });
 
-  it('reads the id, version, entry and build module of each listed directory, in order', () => {
+  it('reads the id, version, optional metadata, entry and build module of each listed directory, in order', () => {
     // The example needs a later client SDK; the other was written for 1, which this client still
     // builds.
-    const other = pluginDir(declaring());
-    expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
+    const exampleManifest = JSON.parse(
+      readFileSync(path.join(EXAMPLE, 'package.json'), 'utf8')
+    ) as { description: string };
+    const other = pluginDir({
+      ...declaring({ name: '  Named Plugin  ' }),
+      description: '  Helpful description  ',
+    });
+    const blank = pluginDir({
+      ...declaring({ id: 'blank-meta', name: '   ' }),
+      description: '   ',
+    });
+    expect(readClientPlugins(` ${EXAMPLE} ,${other},${blank},`)).toEqual([
       {
         id: 'example',
         version: '1.0.0',
+        description: exampleManifest.description,
         dir: EXAMPLE,
         entry: path.join(EXAMPLE, 'index.tsx'),
         build: path.join(EXAMPLE, 'build.mjs'),
       },
-      { id: 'some-plugin', version: '2.0.0', dir: other, entry: path.join(other, 'index.js') },
+      {
+        id: 'some-plugin',
+        version: '2.0.0',
+        name: 'Named Plugin',
+        description: 'Helpful description',
+        dir: other,
+        entry: path.join(other, 'index.js'),
+      },
+      {
+        id: 'blank-meta',
+        version: '2.0.0',
+        dir: blank,
+        entry: path.join(blank, 'index.js'),
+      },
     ]);
   });
 
@@ -230,9 +254,19 @@ describe('readClientPlugins', () => {
 
 describe('clientPlugins', () => {
   it('builds each listed plugin into the entries module', async () => {
-    const code = await buildCode({ MINDROOM_CLIENT_PLUGINS: EXAMPLE }, { external: packages });
+    const named = pluginDir({
+      ...declaring({ id: 'named-plugin', name: 'Named Plugin' }),
+      description: 'Adds a custom view',
+    });
+    const code = await buildCode(
+      { MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${named}` },
+      { external: packages }
+    );
     expect(code).toContain('com.example.greeting');
     expect(code).toMatch(/id: "example",\s*version: "1\.0\.0"/);
+    expect(code).toMatch(
+      /id: "named-plugin",\s*version: "2\.0\.0",\s*name: "Named Plugin",\s*description: "Adds a custom view"/
+    );
     // Its build module (build.mjs) writes its banner's words in place of their marker.
     expect(code).toContain('Example banner in');
     expect(code).not.toContain('EXAMPLE_BANNER');

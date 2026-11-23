@@ -21,6 +21,7 @@ const AGENT = '@mindroom_helper:example.org';
 const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
+  displayName: id,
   messageRenderers,
   pages: [],
   roomHeaderSlot: [],

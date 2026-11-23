@@ -1,10 +1,9 @@
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { matchPath, matchRoutes, useLocation } from 'react-router-dom';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { PLUGIN_PAGE_PATH } from '../routes/paths';
 import { Page, PageHero, PageHeroSection, PageMain } from '../ui/page/Page';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from './pluginConfig';
 import type { PluginPage, PluginPageProps } from './pluginPages';
 import { registeredPlugins } from './registry';
 
@@ -17,7 +16,7 @@ export type MatchedPluginPage = { page: PluginPage; params: PluginPageProps['par
  * plugin off.
  */
 export const usePluginPage = (): MatchedPluginPage | undefined => {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const { pathname } = useLocation();
   const root = matchPath(PLUGIN_PAGE_PATH, pathname);
   const plugin = root && registeredPlugins.find(({ id }) => id === root.params.pluginId);

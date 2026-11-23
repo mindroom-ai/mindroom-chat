@@ -14,11 +14,10 @@ import FocusTrap from 'focus-trap-react';
 import { config, toRem } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useMessageLinkMatcher, type MessageLinkCard } from '../plugins/messageLinks';
-import { isPluginEnabled } from '../plugins/pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
 import { PluginPanelControlsContext } from '../plugins/sidePanels';
@@ -87,7 +86,7 @@ export function MessageLinkCards({
   children: ReactNode;
   plugins?: readonly RegisteredPlugin[];
 }) {
-  const clientConfig = useOptionalClientConfig();
+  const clientConfig = usePluginClientConfig();
   const match = useMessageLinkMatcher(plugins, clientConfig);
   const [shown, setShown] = useState<Shown>();
   const [hovered, setHovered] = useState<Shown & { roomId: string }>();
@@ -107,6 +106,10 @@ export function MessageLinkCards({
   const latest = useLatestRef({ roomId, shown });
 
   useEffect(() => setShown(undefined), [roomId]);
+  useEffect(
+    () => setShown((current) => (current && match(current.href) ? current : undefined)),
+    [match]
+  );
   useEffect(() => hideHover.current?.(), [roomId, shown, panelControls?.shown]);
 
   useEffect(() => {

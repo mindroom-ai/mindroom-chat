@@ -420,6 +420,10 @@
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다."
       },
+      "plugins": {
+        "title": "플러그인",
+        "description": "모든 기기에서 계정의 기본 제공 플러그인을 켜거나 끕니다."
+      },
       "menu": {
         "groups": {
           "you": "나",
@@ -485,7 +489,8 @@
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
-        "dictation": "받아쓰기, 음성 입력, 음성 텍스트 변환, 마이크, 휴대전화"
+        "dictation": "받아쓰기, 음성 입력, 음성 텍스트 변환, 마이크, 휴대전화",
+        "plugins": "플러그인, 확장 기능, 애드온, 연동"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",

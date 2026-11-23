@@ -38,6 +38,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'emoji/settings/GlobalPacks.tsx',
     'emoji/settings/ServerPack.tsx',
   ],
+  plugins: ['settings/pages/Plugins.tsx'],
   language: ['settings/pages/LanguageRegion.tsx', 'settings/pages/DateFormatSetting.tsx'],
   connections: ['settings/pages/AgentSettingsPages.tsx', 'connections/ConnectionsSettings.tsx'],
   computers: ['settings/pages/AgentSettingsPages.tsx', 'computer/ComputerSettings.tsx'],

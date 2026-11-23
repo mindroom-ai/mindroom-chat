@@ -420,6 +420,10 @@
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
       },
+      "plugins": {
+        "title": "插件",
+        "description": "在您的所有设备上为您的账号开启或关闭内置插件。"
+      },
       "menu": {
         "groups": {
           "you": "你",
@@ -485,7 +489,8 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "dictation": "听写, 语音输入, 语音转文字, 麦克风, 手机"
+        "dictation": "听写, 语音输入, 语音转文字, 麦克风, 手机",
+        "plugins": "插件, 扩展, 附加组件, 集成"
       },
       "errorReports": {
         "title": "发送错误报告",

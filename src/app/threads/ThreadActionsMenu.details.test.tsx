@@ -87,6 +87,7 @@ const room = {
 const pluginWith = (Component: ComponentType<ThreadDetailProps>): RegisteredPlugin => ({
   id: 'test',
   tag: 'test@1.0.0',
+  displayName: 'Test',
   conversationCovers: [],
   messageRenderers: [],
   pages: [],

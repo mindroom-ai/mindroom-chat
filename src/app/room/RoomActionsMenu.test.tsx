@@ -367,6 +367,7 @@ describe("plugins' entries", () => {
     state.plugins.push({
       id: 'example',
       tag: 'example@1.0.0',
+      displayName: 'Example',
       conversationCovers: [],
       messageRenderers: [],
       pages: [],

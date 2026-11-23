@@ -446,6 +446,10 @@
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Ative ou desative os plugins incluídos para a sua conta em todos os seus dispositivos."
+      },
       "menu": {
         "groups": {
           "you": "Você",
@@ -511,7 +515,8 @@
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
-        "dictation": "ditar, ditado, voz para texto, microfone, telefone"
+        "dictation": "ditar, ditado, voz para texto, microfone, telefone",
+        "plugins": "plugins, extensões, complementos, integrações"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",

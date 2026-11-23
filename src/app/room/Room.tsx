@@ -51,6 +51,7 @@ import {
 import { layoutParentOf, usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { registeredPlugins } from '../plugins/registry';
 import {
   type PluginPanelControls,
@@ -316,8 +317,9 @@ function RoomContent() {
   const transcript = useTranscriptPanel(roomId);
   const subagents = useSubagentsPanel(roomId);
 
-  const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
-  const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
+  const pluginClientConfig = usePluginClientConfig();
+  const pluginPanels = usePluginSidePanels(registeredPlugins, pluginClientConfig);
+  const pluginActions = usePluginHeaderActions(registeredPlugins, pluginClientConfig);
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
   // A plugin's panel belongs to the room it opened in. Over the page the members go away with the

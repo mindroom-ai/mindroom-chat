@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
-import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
+import { usePluginClientConfig } from '../../plugins/pluginConfig';
 import { registeredPlugins, type RegisteredPlugin } from '../../plugins/registry';
 import { shownThreadDetails } from '../../plugins/threadDetails';
 import { ThreadDetailsList } from '../../threads/ThreadDetailsList';
@@ -21,7 +21,7 @@ export function ThreadNavPluginDetails({
   threadId: string;
   plugins?: readonly RegisteredPlugin[];
 }) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const [details] = useState(() =>
     isConfirmedMatrixEventId(threadId) ? shownThreadDetails(plugins, config, room, threadId) : []
   );

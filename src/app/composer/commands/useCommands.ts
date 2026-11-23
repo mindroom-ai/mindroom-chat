@@ -2,13 +2,13 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useCallActions } from '../../calls/callStore';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { getMxIdServer, isUserId } from '../../matrix/matrix';
 import { getDirectCreatePath, getHomePath, withSearchParam } from '../../routes/pathUtils';
 import { readableReason } from '../../lib/errorReason';
+import { usePluginClientConfig } from '../../plugins/pluginConfig';
 import { registeredPlugins } from '../../plugins/registry';
 import { usePluginSlashCommands } from '../../plugins/slashCommands';
 import { MINDROOM_COMMAND_PREFIX } from './agentCommandQuery';
@@ -202,7 +202,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
   const { navigateRoom } = useRoomNavigate();
   const goTo = useNavigate();
   const { t } = useTranslation();
-  const pluginCommands = usePluginSlashCommands(registeredPlugins, useOptionalClientConfig());
+  const pluginCommands = usePluginSlashCommands(registeredPlugins, usePluginClientConfig());
   const { leaveRoom } = useCallActions(client);
 
   return useMemo(() => {

@@ -83,7 +83,14 @@ const sharedPackage = (/** @type {string} */ source) => {
   return SHARED_PACKAGES.includes(name) ? name : undefined;
 };
 
-/** @typedef {{ id: string, version: string, dir: string, entry: string, build?: string }} ClientPluginInfo */
+/** @typedef {{ id: string, version: string, name?: string, description?: string, dir: string, entry: string, build?: string }} ClientPluginInfo */
+
+/** Trimmed non-empty string, else undefined. */
+const optionalText = (/** @type {unknown} */ value) => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
 
 /**
  * The plugin in `dir`, or an error that names the directory and what is wrong with it; `earlier`
@@ -141,9 +148,13 @@ const readPlugin = (dir, earlier) => {
       `plugin "${id}" lists ${shared} under dependencies, but every plugin gets the app's ${shared}: list it under peerDependencies instead`
     );
   }
+  const name = optionalText(declaration.name);
+  const description = optionalText(manifest.description);
   return {
     id,
     version: manifest.version,
+    ...(name !== undefined ? { name } : {}),
+    ...(description !== undefined ? { description } : {}),
     dir,
     entry: normalizePath(entryPath),
     build: buildPath ? normalizePath(buildPath) : undefined,
@@ -229,10 +240,16 @@ export const pluginOwner = (plugins, appRoot = APP_ROOT) => {
  */
 const entriesModule = (plugins) => {
   const imports = plugins.map(({ entry }, i) => `import plugin${i} from ${JSON.stringify(entry)};`);
-  const entries = plugins.map(
-    ({ id, version }, i) =>
-      `{ id: ${JSON.stringify(id)}, version: ${JSON.stringify(version)}, plugin: plugin${i} }`
-  );
+  const entries = plugins.map(({ id, version, name, description }, i) => {
+    const fields = [
+      `id: ${JSON.stringify(id)}`,
+      `version: ${JSON.stringify(version)}`,
+      ...(name !== undefined ? [`name: ${JSON.stringify(name)}`] : []),
+      ...(description !== undefined ? [`description: ${JSON.stringify(description)}`] : []),
+      `plugin: plugin${i}`,
+    ];
+    return `{ ${fields.join(', ')} }`;
+  });
   return `${imports.join('\n')}\nexport const pluginEntries = [${entries.join(', ')}];\n`;
 };
 

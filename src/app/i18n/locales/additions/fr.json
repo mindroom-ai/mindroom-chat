@@ -446,6 +446,10 @@
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
         "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
       },
+      "plugins": {
+        "title": "Extensions",
+        "description": "Activez ou désactivez les extensions intégrées pour votre compte sur tous vos appareils."
+      },
       "menu": {
         "groups": {
           "you": "Vous",
@@ -511,7 +515,8 @@
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
-        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone"
+        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone",
+        "plugins": "plugins, extensions, modules, intégrations"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",

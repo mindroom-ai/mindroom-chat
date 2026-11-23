@@ -32,6 +32,7 @@ const NeverLoads = lazy<ComponentType<ThreadCardBadgeProps>>(() => new Promise((
 const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
+  displayName: id,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
